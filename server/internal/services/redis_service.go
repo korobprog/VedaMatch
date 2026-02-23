@@ -294,6 +294,62 @@ func (r *RedisService) CheckRateLimit(key string, limit int, window time.Duratio
 	return current <= int64(limit), nil
 }
 
+// CheckRateLimitWithRetry atomically increments the request counter and returns
+// a retry-after hint when the limit is exceeded.
+func (r *RedisService) CheckRateLimitWithRetry(key string, limit int, window time.Duration) (bool, time.Duration, error) {
+	if limit <= 0 || window <= 0 {
+		return true, 0, nil
+	}
+	if r == nil || r.client == nil {
+		return true, 0, fmt.Errorf("redis not initialized")
+	}
+
+	windowMs := window.Milliseconds()
+	if windowMs <= 0 {
+		windowMs = 1
+	}
+
+	// KEYS[1] = limiter key
+	// ARGV[1] = request limit
+	// ARGV[2] = window in ms
+	script := `
+local current = redis.call("INCR", KEYS[1])
+if current == 1 then
+  redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+local ttl = redis.call("PTTL", KEYS[1])
+return {current, ttl}
+`
+
+	raw, err := r.client.Eval(r.ctx, script, []string{key}, limit, windowMs).Result()
+	if err != nil {
+		return true, 0, err
+	}
+
+	result, ok := raw.([]interface{})
+	if !ok || len(result) != 2 {
+		return true, 0, fmt.Errorf("unexpected redis limiter response type")
+	}
+
+	current, ok := result[0].(int64)
+	if !ok {
+		return true, 0, fmt.Errorf("unexpected redis limiter counter type")
+	}
+	ttlMs, ok := result[1].(int64)
+	if !ok {
+		return true, 0, fmt.Errorf("unexpected redis limiter ttl type")
+	}
+
+	if current <= int64(limit) {
+		return true, 0, nil
+	}
+
+	if ttlMs <= 0 {
+		return false, window, nil
+	}
+	return false, time.Duration(ttlMs) * time.Millisecond, nil
+}
+
 // ==================== Pub/Sub for Real-time Updates ====================
 
 // PublishProgress publishes transcoding progress for real-time updates

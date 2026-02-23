@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
+import apiClient from '../lib/apiClient';
 import { getGodModeQueryParams } from './godModeService';
 
 export interface NewsItem {
@@ -46,11 +44,9 @@ class NewsService {
      */
     async getNews(filters?: NewsFilters): Promise<NewsListResponse> {
         try {
-            const headers = await getAuthHeaders();
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/news`, {
+            const response = await apiClient.get('/news', {
                 params: { ...(filters || {}), ...godModeParams },
-                headers
             });
             return response.data;
         } catch (error) {
@@ -64,11 +60,9 @@ class NewsService {
      */
     async getLatestNews(limit: number = 3, lang: string = 'ru'): Promise<NewsItem[]> {
         try {
-            const headers = await getAuthHeaders();
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/news/latest`, {
+            const response = await apiClient.get('/news/latest', {
                 params: { limit, lang, ...godModeParams },
-                headers
             });
             return response.data.news || [];
         } catch (error) {
@@ -82,10 +76,8 @@ class NewsService {
      */
     async getNewsItem(id: number, lang: string = 'ru'): Promise<NewsItem> {
         try {
-            const headers = await getAuthHeaders();
-            const response = await axios.get(`${API_PATH}/news/${id}`, {
+            const response = await apiClient.get(`/news/${id}`, {
                 params: { lang },
-                headers
             });
             return response.data;
         } catch (error) {
@@ -99,8 +91,7 @@ class NewsService {
      */
     async getCategories(): Promise<string[]> {
         try {
-            const headers = await getAuthHeaders();
-            const response = await axios.get(`${API_PATH}/news/categories`, { headers });
+            const response = await apiClient.get('/news/categories');
             return response.data.categories || [];
         } catch (error) {
             console.error('Error fetching news categories:', error);
@@ -112,8 +103,7 @@ class NewsService {
 
     async subscribe(sourceId: number): Promise<boolean> {
         try {
-            const headers = await getAuthHeaders();
-            await axios.post(`${API_PATH}/news/sources/${sourceId}/subscribe`, {}, { headers });
+            await apiClient.post(`/news/sources/${sourceId}/subscribe`, {});
             return true;
         } catch (error) {
             console.error('Error subscribing:', error);
@@ -123,8 +113,7 @@ class NewsService {
 
     async unsubscribe(sourceId: number): Promise<boolean> {
         try {
-            const headers = await getAuthHeaders();
-            await axios.delete(`${API_PATH}/news/sources/${sourceId}/subscribe`, { headers });
+            await apiClient.delete(`/news/sources/${sourceId}/subscribe`);
             return true;
         } catch (error) {
             console.error('Error unsubscribing:', error);
@@ -134,8 +123,7 @@ class NewsService {
 
     async getSubscriptions(): Promise<number[]> {
         try {
-            const headers = await getAuthHeaders();
-            const response = await axios.get(`${API_PATH}/news/subscriptions`, { headers });
+            const response = await apiClient.get('/news/subscriptions');
             return response.data.subscriptions || [];
         } catch (error) {
             console.error('Error fetching subscriptions:', error);
@@ -145,8 +133,7 @@ class NewsService {
 
     async addFavorite(sourceId: number): Promise<boolean> {
         try {
-            const headers = await getAuthHeaders();
-            await axios.post(`${API_PATH}/news/sources/${sourceId}/favorite`, {}, { headers });
+            await apiClient.post(`/news/sources/${sourceId}/favorite`, {});
             return true;
         } catch (error) {
             console.error('Error adding favorite:', error);
@@ -156,8 +143,7 @@ class NewsService {
 
     async removeFavorite(sourceId: number): Promise<boolean> {
         try {
-            const headers = await getAuthHeaders();
-            await axios.delete(`${API_PATH}/news/sources/${sourceId}/favorite`, { headers });
+            await apiClient.delete(`/news/sources/${sourceId}/favorite`);
             return true;
         } catch (error) {
             console.error('Error removing favorite:', error);
@@ -167,8 +153,7 @@ class NewsService {
 
     async getFavorites(): Promise<number[]> {
         try {
-            const headers = await getAuthHeaders();
-            const response = await axios.get(`${API_PATH}/news/favorites`, { headers });
+            const response = await apiClient.get('/news/favorites');
             return response.data.favorites || [];
         } catch (error) {
             console.error('Error fetching favorites:', error);

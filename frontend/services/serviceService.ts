@@ -1,10 +1,8 @@
 /**
  * Service Service - API для работы с сервисами
  */
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
 import { getGodModeQueryParams } from './godModeService';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 // ==================== TYPES ====================
 
@@ -239,91 +237,71 @@ export const ACCESS_LABELS: Record<ServiceAccessType, string> = {
  * Get list of services with filters
  */
 export async function getServices(filters: ServiceFilters = {}): Promise<ServiceListResponse> {
-    const params = new URLSearchParams();
+    const params: Record<string, any> = {};
 
-    if (filters.category) params.append('category', filters.category);
-    if (filters.scheduleType) params.append('scheduleType', filters.scheduleType);
-    if (filters.channel) params.append('channel', filters.channel);
-    if (filters.accessType) params.append('accessType', filters.accessType);
-    if (filters.isVedaMatch !== undefined) params.append('isVedaMatch', String(filters.isVedaMatch));
-    if (filters.language) params.append('language', filters.language);
-    if (filters.search) params.append('search', filters.search);
-    if (filters.nearLat !== undefined) params.append('nearLat', filters.nearLat.toString());
-    if (filters.nearLng !== undefined) params.append('nearLng', filters.nearLng.toString());
-    if (filters.radiusKm !== undefined) params.append('radiusKm', filters.radiusKm.toString());
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
+    if (filters.category) params.category = filters.category;
+    if (filters.scheduleType) params.scheduleType = filters.scheduleType;
+    if (filters.channel) params.channel = filters.channel;
+    if (filters.accessType) params.accessType = filters.accessType;
+    if (filters.isVedaMatch !== undefined) params.isVedaMatch = String(filters.isVedaMatch);
+    if (filters.language) params.language = filters.language;
+    if (filters.search) params.search = filters.search;
+    if (filters.nearLat !== undefined) params.nearLat = filters.nearLat;
+    if (filters.nearLng !== undefined) params.nearLng = filters.nearLng;
+    if (filters.radiusKm !== undefined) params.radiusKm = filters.radiusKm;
+    if (filters.page) params.page = filters.page;
+    if (filters.limit) params.limit = filters.limit;
     const godModeParams = await getGodModeQueryParams();
-    if (godModeParams.math) params.append('math', godModeParams.math);
+    if (godModeParams.math) params.math = godModeParams.math;
 
-    const queryString = params.toString();
-    const url = `${API_PATH}/services${queryString ? '?' + queryString : ''}`;
-
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(url, { headers });
-    if (!response.ok) throw new Error('Failed to fetch services');
-    return response.json();
+    const response = await apiClient.get('/services', { params });
+    return response.data;
 }
 
 /**
  * Get service by ID
  */
 export async function getServiceById(id: number): Promise<Service> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${id}`, { headers });
-    if (!response.ok) throw new Error('Service not found');
-    return response.json();
+    const response = await apiClient.get(`/services/${id}`);
+    return response.data;
 }
 
 /**
  * Get my services (as owner)
  */
 export async function getMyServices(): Promise<{ services: Service[] }> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/my`, { headers });
-    if (!response.ok) throw new Error('Failed to fetch my services');
-    return response.json();
+    const response = await apiClient.get('/services/my');
+    return response.data;
 }
 
 /**
  * Create a new service
  */
 export async function createService(data: CreateServiceRequest): Promise<Service> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create service');
+    try {
+        const response = await apiClient.post('/services', data);
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to create service');
     }
-    return response.json();
 }
 
 /**
  * Update a service
  */
 export async function updateService(id: number, data: UpdateServiceRequest): Promise<Service> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${id}`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update service');
+    try {
+        const response = await apiClient.put(`/services/${id}`, data);
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to update service');
     }
-    return response.json();
 }
 
 /**
  * Upload service photo
  */
 export async function uploadServicePhoto(photoUri: string): Promise<string> {
-    const headers = await getAuthHeaders();
     const formData = new FormData();
 
     // @ts-ignore
@@ -333,20 +311,14 @@ export async function uploadServicePhoto(photoUri: string): Promise<string> {
         name: 'service_photo.jpg',
     });
 
-    const response = await authorizedFetch(`${API_PATH}/services/upload`, {
-        method: 'POST',
+    const response = await apiClient.post('/services/upload', formData, {
         headers: {
-            ...headers,
             'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data',
         },
-        body: formData,
     });
 
-    if (!response.ok) {
-        throw new Error('Failed to upload photo');
-    }
-
-    const result = await response.json();
+    const result = response.data;
     return result.photoUrl;
 }
 
@@ -354,26 +326,17 @@ export async function uploadServicePhoto(photoUri: string): Promise<string> {
  * Delete a service
  */
 export async function deleteService(id: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${id}`, {
-        method: 'DELETE',
-        headers,
-    });
-    if (!response.ok) throw new Error('Failed to delete service');
+    await apiClient.delete(`/services/${id}`);
 }
 
 /**
  * Publish a service (make it active)
  */
 export async function publishService(id: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${id}/publish`, {
-        method: 'POST',
-        headers,
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to publish service');
+    try {
+        await apiClient.post(`/services/${id}/publish`, {});
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to publish service');
     }
 }
 
@@ -381,12 +344,7 @@ export async function publishService(id: number): Promise<void> {
  * Pause a service
  */
 export async function pauseService(id: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${id}/pause`, {
-        method: 'POST',
-        headers,
-    });
-    if (!response.ok) throw new Error('Failed to pause service');
+    await apiClient.post(`/services/${id}/pause`, {});
 }
 
 // ==================== TARIFF FUNCTIONS ====================
@@ -395,49 +353,31 @@ export async function pauseService(id: number): Promise<void> {
  * Get tariffs for a service
  */
 export async function getTariffs(serviceId: number): Promise<{ tariffs: ServiceTariff[] }> {
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/tariffs`);
-    if (!response.ok) throw new Error('Failed to fetch tariffs');
-    return response.json();
+    const response = await apiClient.get(`/services/${serviceId}/tariffs`);
+    return response.data;
 }
 
 /**
  * Add a tariff to a service
  */
 export async function addTariff(serviceId: number, data: CreateTariffRequest): Promise<ServiceTariff> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/tariffs`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to add tariff');
-    return response.json();
+    const response = await apiClient.post(`/services/${serviceId}/tariffs`, data);
+    return response.data;
 }
 
 /**
  * Update a tariff
  */
 export async function updateTariff(tariffId: number, data: Partial<ServiceTariff>): Promise<ServiceTariff> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/tariffs/${tariffId}`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update tariff');
-    return response.json();
+    const response = await apiClient.put(`/tariffs/${tariffId}`, data);
+    return response.data;
 }
 
 /**
  * Delete a tariff
  */
 export async function deleteTariff(tariffId: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/tariffs/${tariffId}`, {
-        method: 'DELETE',
-        headers,
-    });
-    if (!response.ok) throw new Error('Failed to delete tariff');
+    await apiClient.delete(`/tariffs/${tariffId}`);
 }
 
 // ==================== SCHEDULE FUNCTIONS ====================
@@ -446,9 +386,8 @@ export async function deleteTariff(tariffId: number): Promise<void> {
  * Get schedules for a service
  */
 export async function getSchedules(serviceId: number): Promise<{ schedules: ServiceSchedule[] }> {
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule`);
-    if (!response.ok) throw new Error('Failed to fetch schedules');
-    return response.json();
+    const response = await apiClient.get(`/services/${serviceId}/schedule`);
+    return response.data;
 }
 
 /**
@@ -460,57 +399,37 @@ export async function getServiceSchedule(serviceId: number): Promise<{
     breakBetween?: number;
     maxBookingsPerDay?: number;
 }> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
-        headers,
-    });
-    if (!response.ok) {
-        // Return default if no schedule exists
-        if (response.status === 404) {
+    try {
+        const response = await apiClient.get(`/services/${serviceId}/schedule/weekly`);
+        return response.data;
+    } catch (error: any) {
+        if (error?.response?.status === 404) {
             return { weeklySlots: {} };
         }
         throw new Error('Failed to fetch schedule');
     }
-    return response.json();
 }
 
 /**
  * Update service schedule (weekly format)
  */
 export async function updateServiceSchedule(serviceId: number, data: CreateScheduleRequest): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update schedule');
+    await apiClient.put(`/services/${serviceId}/schedule/weekly`, data);
 }
 
 /**
  * Add a schedule to a service
  */
 export async function addSchedule(serviceId: number, data: CreateScheduleRequest): Promise<ServiceSchedule> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to add schedule');
-    return response.json();
+    const response = await apiClient.post(`/services/${serviceId}/schedule`, data);
+    return response.data;
 }
 
 /**
  * Delete a schedule
  */
 export async function deleteSchedule(scheduleId: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/schedule/${scheduleId}`, {
-        method: 'DELETE',
-        headers,
-    });
-    if (!response.ok) throw new Error('Failed to delete schedule');
+    await apiClient.delete(`/schedule/${scheduleId}`);
 }
 
 // ==================== SLOTS FUNCTIONS ====================
@@ -523,12 +442,10 @@ export async function getAvailableSlots(
     date: string,
     timezone?: string
 ): Promise<{ serviceId: number; date: string; slots: AvailableSlot[] }> {
-    const params = new URLSearchParams({ date });
-    if (timezone) params.append('timezone', timezone);
-
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
-    if (!response.ok) throw new Error('Failed to fetch slots');
-    return response.json();
+    const params: Record<string, string> = { date };
+    if (timezone) params.timezone = timezone;
+    const response = await apiClient.get(`/services/${serviceId}/slots`, { params });
+    return response.data;
 }
 
 /**
@@ -540,10 +457,8 @@ export async function getSlotsForRange(
     dateTo: string,
     timezone?: string
 ): Promise<{ serviceId: number; dateFrom: string; dateTo: string; days: any[] }> {
-    const params = new URLSearchParams({ dateFrom, dateTo });
-    if (timezone) params.append('timezone', timezone);
-
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
-    if (!response.ok) throw new Error('Failed to fetch slots');
-    return response.json();
+    const params: Record<string, string> = { dateFrom, dateTo };
+    if (timezone) params.timezone = timezone;
+    const response = await apiClient.get(`/services/${serviceId}/slots`, { params });
+    return response.data;
 }

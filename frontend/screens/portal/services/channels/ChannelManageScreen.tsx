@@ -242,15 +242,26 @@ export default function ChannelManageScreen() {
     }
   }, []);
 
-  const loadContactsForMemberSearch = useCallback(async () => {
-    if (!canManageMembers || loadingContacts || contacts.length > 0) {
+  const loadContactsForMemberSearch = useCallback(async (searchQuery: string) => {
+    if (!canManageMembers || loadingContacts) {
+      return;
+    }
+    const normalizedQuery = searchQuery.trim();
+    if (normalizedQuery.length < 2) {
+      if (mountedRef.current) {
+        setContacts([]);
+      }
       return;
     }
     setLoadingContacts(true);
     try {
-      const items = await contactService.getContacts();
+      const page = await contactService.getContactsPage({
+        limit: 50,
+        tab: 'all',
+        q: normalizedQuery,
+      });
       if (mountedRef.current) {
-        setContacts(items || []);
+        setContacts(page.items || []);
       }
     } catch {
       if (mountedRef.current) {
@@ -261,7 +272,7 @@ export default function ChannelManageScreen() {
         setLoadingContacts(false);
       }
     }
-  }, [canManageMembers, loadingContacts, contacts.length]);
+  }, [canManageMembers, loadingContacts]);
 
   const loadProductCategories = useCallback(async () => {
     if (!canManageShowcases || loadingProductCategories || productCategoryOptions.length > 0) {
@@ -332,10 +343,14 @@ export default function ChannelManageScreen() {
   }, [load]);
 
   useEffect(() => {
-    if (canManageMembers) {
-      void loadContactsForMemberSearch();
+    if (!canManageMembers) {
+      return;
     }
-  }, [canManageMembers, loadContactsForMemberSearch]);
+    const timer = setTimeout(() => {
+      void loadContactsForMemberSearch(memberSearchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [canManageMembers, memberSearchQuery, loadContactsForMemberSearch]);
 
   useEffect(() => {
     if (canManageShowcases) {

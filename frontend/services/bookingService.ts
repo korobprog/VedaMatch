@@ -1,9 +1,7 @@
 /**
  * Booking Service - API для работы с бронированиями
  */
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 import { Service, ServiceTariff, ServiceOwner } from './serviceService';
 
 // ==================== TYPES ====================
@@ -110,18 +108,12 @@ export async function bookService(
     serviceId: number,
     data: CreateBookingRequest
 ): Promise<ServiceBooking> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/book`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to book service');
+    try {
+        const response = await apiClient.post(`/services/${serviceId}/book`, data);
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to book service');
     }
-    return response.json();
 }
 
 /**
@@ -130,25 +122,15 @@ export async function bookService(
 export async function getMyBookings(
     filters: BookingFilters = {}
 ): Promise<BookingListResponse> {
-    const headers = await getAuthHeaders();
-
-    const params = new URLSearchParams();
-    if (filters.status) params.append('status', filters.status);
-    if (filters.serviceId) params.append('serviceId', filters.serviceId.toString());
-    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params.append('dateTo', filters.dateTo);
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-
-    const queryString = params.toString();
-    const url = `${API_PATH}/bookings/my${queryString ? '?' + queryString : ''}`;
-
-    const response = await authorizedFetch(url, { headers });
-    if (response.status === 401) {
-        throw new Error('UNAUTHORIZED');
+    try {
+        const response = await apiClient.get('/bookings/my', { params: filters });
+        return response.data;
+    } catch (error: any) {
+        if (error?.response?.status === 401) {
+            throw new Error('UNAUTHORIZED');
+        }
+        throw new Error('Failed to fetch bookings');
     }
-    if (!response.ok) throw new Error('Failed to fetch bookings');
-    return response.json();
 }
 
 /**
@@ -157,31 +139,16 @@ export async function getMyBookings(
 export async function getIncomingBookings(
     filters: BookingFilters = {}
 ): Promise<BookingListResponse> {
-    const headers = await getAuthHeaders();
-
-    const params = new URLSearchParams();
-    if (filters.status) params.append('status', filters.status);
-    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params.append('dateTo', filters.dateTo);
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-
-    const queryString = params.toString();
-    const url = `${API_PATH}/bookings/incoming${queryString ? '?' + queryString : ''}`;
-
-    const response = await authorizedFetch(url, { headers });
-    if (!response.ok) throw new Error('Failed to fetch incoming bookings');
-    return response.json();
+    const response = await apiClient.get('/bookings/incoming', { params: filters });
+    return response.data;
 }
 
 /**
  * Get upcoming bookings dashboard
  */
 export async function getUpcomingBookings(): Promise<UpcomingBookingsResponse> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/bookings/upcoming`, { headers });
-    if (!response.ok) throw new Error('Failed to fetch upcoming bookings');
-    return response.json();
+    const response = await apiClient.get('/bookings/upcoming');
+    return response.data;
 }
 
 /**
@@ -191,18 +158,12 @@ export async function confirmBooking(
     bookingId: number,
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/confirm`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data || {}),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to confirm booking');
+    try {
+        const response = await apiClient.put(`/bookings/${bookingId}/confirm`, data || {});
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to confirm booking');
     }
-    return response.json();
 }
 
 /**
@@ -212,18 +173,12 @@ export async function cancelBooking(
     bookingId: number,
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/cancel`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data || {}),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to cancel booking');
+    try {
+        const response = await apiClient.put(`/bookings/${bookingId}/cancel`, data || {});
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to cancel booking');
     }
-    return response.json();
 }
 
 /**
@@ -233,35 +188,24 @@ export async function completeBooking(
     bookingId: number,
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/complete`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data || {}),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to complete booking');
+    try {
+        const response = await apiClient.put(`/bookings/${bookingId}/complete`, data || {});
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to complete booking');
     }
-    return response.json();
 }
 
 /**
  * Mark booking as no-show (as owner)
  */
 export async function markNoShow(bookingId: number): Promise<ServiceBooking> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/no-show`, {
-        method: 'PUT',
-        headers,
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to mark as no-show');
+    try {
+        const response = await apiClient.put(`/bookings/${bookingId}/no-show`);
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to mark as no-show');
     }
-    return response.json();
 }
 
 /**
@@ -271,12 +215,10 @@ export async function getBusyTimes(
     dateFrom: string,
     dateTo: string
 ): Promise<{ dateFrom: string; dateTo: string; bookings: ServiceBooking[] }> {
-    const headers = await getAuthHeaders();
-    const params = new URLSearchParams({ dateFrom, dateTo });
-
-    const response = await authorizedFetch(`${API_PATH}/calendar/busy?${params}`, { headers });
-    if (!response.ok) throw new Error('Failed to fetch busy times');
-    return response.json();
+    const response = await apiClient.get('/calendar/busy', {
+        params: { dateFrom, dateTo },
+    });
+    return response.data;
 }
 
 // ==================== DATE HELPERS ====================

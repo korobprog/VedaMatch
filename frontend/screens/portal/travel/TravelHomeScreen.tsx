@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    FlatList,
     TouchableOpacity,
     TextInput,
     ActivityIndicator,
     RefreshControl,
     ScrollView,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -18,11 +18,12 @@ import {
     Compass, Home, Plus, Star, Heart, Tent, Building2, Footprints
 } from 'lucide-react-native';
 import { yatraService } from '../../../services/yatraService';
-import { Yatra, Shelter, YatraFilters, ShelterFilters, YATRA_THEME_LABELS, SHELTER_TYPE_LABELS } from '../../../types/yatra';
+import { Yatra, Shelter, YATRA_THEME_LABELS, SHELTER_TYPE_LABELS } from '../../../types/yatra';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { useSheltersQuery, useYatrasQuery } from '../../../hooks/queries/useTravelQueries';
 
 type TabType = 'yatras' | 'shelters';
 
@@ -34,91 +35,13 @@ const TravelHomeScreen: React.FC = () => {
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const [activeTab, setActiveTab] = useState<TabType>('yatras');
     const [search, setSearch] = useState('');
+    const [submittedSearch, setSubmittedSearch] = useState('');
 
-    // Yatras state
-    const [yatras, setYatras] = useState<Yatra[]>([]);
-    const [yatrasLoading, setYatrasLoading] = useState(true);
-    const [yatrasRefreshing, setYatrasRefreshing] = useState(false);
-
-    // Shelters state
-    const [shelters, setShelters] = useState<Shelter[]>([]);
-    const [sheltersLoading, setSheltersLoading] = useState(true);
-    const [sheltersRefreshing, setSheltersRefreshing] = useState(false);
-    const isMountedRef = useRef(true);
-    const latestYatrasRequestRef = useRef(0);
-    const latestSheltersRequestRef = useRef(0);
-
-    const loadYatras = useCallback(async (reset = false, queryOverride?: string) => {
-        const requestId = ++latestYatrasRequestRef.current;
-        try {
-            if (reset && isMountedRef.current) setYatrasLoading(true);
-            const query = typeof queryOverride === 'string' ? queryOverride : search;
-            const response = await yatraService.getYatras({
-                search: query || undefined,
-                status: 'open',
-                page: 1,
-                limit: 20,
-            });
-            if (requestId !== latestYatrasRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            setYatras(response.yatras);
-        } catch (error) {
-            if (requestId !== latestYatrasRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            console.error('Error loading yatras:', error);
-        } finally {
-            if (requestId === latestYatrasRequestRef.current && isMountedRef.current) {
-                setYatrasLoading(false);
-                setYatrasRefreshing(false);
-            }
-        }
-    }, [search]);
-
-    const loadShelters = useCallback(async (reset = false, queryOverride?: string) => {
-        const requestId = ++latestSheltersRequestRef.current;
-        try {
-            if (reset && isMountedRef.current) setSheltersLoading(true);
-            const query = typeof queryOverride === 'string' ? queryOverride : search;
-            const response = await yatraService.getShelters({
-                search: query || undefined,
-                page: 1,
-                limit: 20,
-            });
-            if (requestId !== latestSheltersRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            setShelters(response.shelters);
-        } catch (error) {
-            if (requestId !== latestSheltersRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            console.error('Error loading shelters:', error);
-        } finally {
-            if (requestId === latestSheltersRequestRef.current && isMountedRef.current) {
-                setSheltersLoading(false);
-                setSheltersRefreshing(false);
-            }
-        }
-    }, [search]);
-
-    useEffect(() => {
-        void loadYatras(true);
-        void loadShelters(true);
-        return () => {
-            isMountedRef.current = false;
-            latestYatrasRequestRef.current += 1;
-            latestSheltersRequestRef.current += 1;
-        };
-    }, [loadYatras, loadShelters]);
+    const yatrasQuery = useYatrasQuery({ search: submittedSearch, limit: 20 });
+    const sheltersQuery = useSheltersQuery({ search: submittedSearch, limit: 20 });
 
     const handleSearch = () => {
-        if (activeTab === 'yatras') {
-            void loadYatras(true);
-        } else {
-            void loadShelters(true);
-        }
+        setSubmittedSearch(search.trim());
     };
 
     const handleYatraPress = (yatra: Yatra) => {
@@ -293,11 +216,7 @@ const TravelHomeScreen: React.FC = () => {
                 {search.length > 0 && (
                     <TouchableOpacity onPress={() => {
                         setSearch('');
-                        if (activeTab === 'yatras') {
-                            void loadYatras(true, '');
-                        } else {
-                            void loadShelters(true, '');
-                        }
+                        setSubmittedSearch('');
                     }}>
                         <XCircle size={20} color={colors.textSecondary} strokeWidth={1.5} />
                     </TouchableOpacity>
@@ -327,8 +246,12 @@ const TravelHomeScreen: React.FC = () => {
         </View>
     );
 
-    const isLoading = activeTab === 'yatras' ? yatrasLoading : sheltersLoading;
-    const isRefreshing = activeTab === 'yatras' ? yatrasRefreshing : sheltersRefreshing;
+    const yatras = yatrasQuery.data?.yatras || [];
+    const shelters = sheltersQuery.data?.shelters || [];
+    const isLoading = activeTab === 'yatras' ? yatrasQuery.isLoading : sheltersQuery.isLoading;
+    const isRefreshing = activeTab === 'yatras'
+        ? (yatrasQuery.isRefetching && !yatrasQuery.isLoading)
+        : (sheltersQuery.isRefetching && !sheltersQuery.isLoading);
     const data = activeTab === 'yatras' ? yatras : shelters;
 
     if (isLoading && data.length === 0) {
@@ -344,11 +267,9 @@ const TravelHomeScreen: React.FC = () => {
         refreshing: isRefreshing,
         onRefresh: () => {
             if (activeTab === 'yatras') {
-                setYatrasRefreshing(true);
-                loadYatras(true);
+                void yatrasQuery.refetch();
             } else {
-                setSheltersRefreshing(true);
-                loadShelters(true);
+                void sheltersQuery.refetch();
             }
         }
     };
@@ -383,7 +304,7 @@ const TravelHomeScreen: React.FC = () => {
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             {activeTab === 'yatras' ? (
-                <FlatList<Yatra>
+                <FlashList<Yatra>
                     data={yatras}
                     renderItem={renderYatraCard}
                     keyExtractor={item => `yatra-${item.id}`}
@@ -398,7 +319,7 @@ const TravelHomeScreen: React.FC = () => {
                     ListEmptyComponent={emptyComponent}
                 />
             ) : (
-                <FlatList<Shelter>
+                <FlashList<Shelter>
                     data={shelters}
                     renderItem={renderShelterCard}
                     keyExtractor={item => `shelter-${item.id}`}

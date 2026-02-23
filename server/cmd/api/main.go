@@ -281,8 +281,18 @@ func main() {
 	education.Get("/courses/:id", educationHandler.GetCourseDetails)
 
 	// Public News Routes
-	api.Get("/news", newsHandler.GetNews)
-	api.Get("/news/latest", newsHandler.GetLatestNews)
+	api.Get("/news",
+		middleware.RateLimitByIP("public_news", 240, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=30, stale-while-revalidate=60"),
+		middleware.ConditionalETag(),
+		newsHandler.GetNews,
+	)
+	api.Get("/news/latest",
+		middleware.RateLimitByIP("public_news_latest", 240, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=15, stale-while-revalidate=30"),
+		middleware.ConditionalETag(),
+		newsHandler.GetLatestNews,
+	)
 	api.Get("/news/categories", newsHandler.GetNewsCategories)
 	// Public News Item moved after protected routes to avoid conflict with /subscriptions and /favorites
 	// api.Get("/news/:id", newsHandler.GetNewsItem)
@@ -353,11 +363,23 @@ func main() {
 
 	// Public Video Circle Tariffs
 	api.Get("/video-tariffs", videoCircleHandler.GetTariffs)
-	api.Get("/feed", middleware.OptionalAuth(), channelHandler.GetFeed)
+	api.Get("/feed",
+		middleware.OptionalAuth(),
+		middleware.RateLimitByIdentity("public_feed", 180, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=20, stale-while-revalidate=60"),
+		middleware.ConditionalETag(),
+		channelHandler.GetFeed,
+	)
 	api.Get("/channels", channelHandler.ListPublicChannels)
 	api.Get("/channels/my", middleware.Protected(), channelHandler.ListMyChannels)
 	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
-	api.Get("/channels/:id/posts", middleware.OptionalAuth(), channelHandler.ListPosts)
+	api.Get("/channels/:id/posts",
+		middleware.OptionalAuth(),
+		middleware.RateLimitByIdentity("public_channel_posts", 240, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=20, stale-while-revalidate=60"),
+		middleware.ConditionalETag(),
+		channelHandler.ListPosts,
+	)
 	api.Post("/channels/:id/posts/:postId/cta-click", middleware.OptionalAuth(), channelHandler.TrackCTAClick)
 	api.Post("/channels/promoted-ads/:adId/click", middleware.OptionalAuth(), channelHandler.TrackPromotedAdClick)
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
@@ -921,7 +943,12 @@ func main() {
 
 	// ==================== SERVICES CONSTRUCTOR ====================
 	// Public Services Routes
-	api.Get("/services", serviceHandler.List)
+	api.Get("/services",
+		middleware.RateLimitByIP("public_services", 240, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=30, stale-while-revalidate=60"),
+		middleware.ConditionalETag(),
+		serviceHandler.List,
+	)
 	protected.Post("/services/upload", serviceHandler.UploadPhoto)
 
 	// Protected Services Routes (moved up to avoid conflict with :id)
@@ -972,6 +999,7 @@ func main() {
 	protected.Post("/wallet/transfer", walletHandler.Transfer)
 
 	// Referral System (Самбандха)
+	protected.Get("/referral/overview", referralHandler.GetOverview)
 	protected.Get("/referral/invite", referralHandler.GetMyInviteLink)
 	protected.Get("/referral/stats", referralHandler.GetMyReferralStats)
 	protected.Get("/referral/list", referralHandler.GetMyReferrals)

@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 export interface Book {
     id: number;
@@ -30,24 +29,24 @@ export interface Chapter {
 
 export const bookService = {
     getBooks: async (): Promise<Book[]> => {
-        const response = await authorizedFetch(`${API_PATH}/library/books`);
-        if (!response.ok) throw new Error('Failed to fetch books');
-        return response.json();
+        const response = await apiClient.get('/library/books');
+        return response.data;
     },
 
     getChapters: async (bookCode: string): Promise<Chapter[]> => {
-        const response = await authorizedFetch(`${API_PATH}/library/books/${bookCode}/chapters`);
-        if (!response.ok) throw new Error('Failed to fetch chapters');
-        return response.json();
+        const response = await apiClient.get(`/library/books/${bookCode}/chapters`);
+        return response.data;
     },
 
     getVerses: async (bookCode: string, chapter: number, canto?: number, language: string = 'ru'): Promise<Verse[]> => {
-        let url = `${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}`;
-        if (canto) url += `&canto=${canto}`;
-        if (language) url += `&language=${language}`;
-
-        const response = await authorizedFetch(url);
-        if (!response.ok) throw new Error('Failed to fetch verses');
-        return response.json();
+        const response = await apiClient.get('/library/verses', {
+            params: {
+                bookCode,
+                chapter,
+                ...(canto ? { canto } : {}),
+                ...(language ? { language } : {}),
+            },
+        });
+        return response.data;
     }
 };

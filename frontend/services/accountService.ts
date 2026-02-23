@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 type AccountDeletionStatus = 'scheduled' | 'deleted';
 
@@ -9,38 +8,30 @@ export interface AccountDeletionResponse {
   effectiveAt?: string;
 }
 
-async function parseApiError(response: Response, fallback: string): Promise<Error> {
-  try {
-    const payload = await response.json();
-    const message = typeof payload?.error === 'string' && payload.error.trim() ? payload.error.trim() : fallback;
-    const code = typeof payload?.code === 'string' ? payload.code : '';
-    const decorated = code ? `${message} (${code})` : message;
-    return new Error(decorated);
-  } catch {
-    return new Error(fallback);
-  }
-}
+const getApiError = (error: any, fallback: string): Error => {
+  const payload = error?.response?.data;
+  const message = typeof payload?.error === 'string' && payload.error.trim() ? payload.error.trim() : fallback;
+  const code = typeof payload?.code === 'string' ? payload.code : '';
+  const decorated = code ? `${message} (${code})` : message;
+  return new Error(decorated);
+};
 
 export const accountService = {
   async requestDeletion(): Promise<AccountDeletionResponse> {
-    const response = await authorizedFetch(`${API_PATH}/account/deletion-request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) {
-      throw await parseApiError(response, 'Failed to request account deletion');
+    try {
+      const response = await apiClient.post('/account/deletion-request', {});
+      return response.data;
+    } catch (error) {
+      throw getApiError(error, 'Failed to request account deletion');
     }
-    return response.json();
   },
 
   async deleteAccountNow(): Promise<AccountDeletionResponse> {
-    const response = await authorizedFetch(`${API_PATH}/account`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) {
-      throw await parseApiError(response, 'Failed to delete account');
+    try {
+      const response = await apiClient.delete('/account');
+      return response.data;
+    } catch (error) {
+      throw getApiError(error, 'Failed to delete account');
     }
-    return response.json();
   },
 };

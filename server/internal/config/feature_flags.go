@@ -44,3 +44,15 @@ func RoomSFUEnabled() bool {
 func RoomSFURequireMembership() bool {
 	return FlagEnabled("ROOM_SFU_REQUIRE_MEMBERSHIP", true)
 }
+
+func RedisRateLimitEnabled() bool {
+	return FlagEnabled("FF_REDIS_RATE_LIMIT", false)
+}
+
+func HTTPConditionalCacheEnabled() bool {
+	return FlagEnabled("FF_HTTP_CONDITIONAL_CACHE", false)
+}
+
+func ContactsLegacyModeEnabled() bool {
+	return FlagEnabled("FF_CONTACTS_LEGACY_MODE", true)
+}

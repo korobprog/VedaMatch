@@ -1181,14 +1181,29 @@ func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
+	const heartbeatWriteThrottle = 5 * time.Minute
+	now := time.Now().UTC()
+
 	var user models.User
-	if err := database.DB.First(&user, userId).Error; err != nil {
+	if err := database.DB.Select("id", "last_seen").First(&user, userId).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
-	user.LastSeen = time.Now().UTC().Format(time.RFC3339)
-	if err := database.DB.Model(&user).Update("last_seen", user.LastSeen).Error; err != nil {
-		log.Printf("[AUTH] Failed to update heartbeat last_seen for user %d: %v", user.ID, err)
+	shouldWrite := true
+	if lastSeenRaw := strings.TrimSpace(user.LastSeen); lastSeenRaw != "" {
+		if lastSeenAt, err := time.Parse(time.RFC3339, lastSeenRaw); err == nil {
+			if now.Sub(lastSeenAt.UTC()) < heartbeatWriteThrottle {
+				shouldWrite = false
+			}
+		}
+	}
+
+	if shouldWrite {
+		if err := database.DB.Model(&models.User{}).
+			Where("id = ?", user.ID).
+			Update("last_seen", now.Format(time.RFC3339)).Error; err != nil {
+			log.Printf("[AUTH] Failed to update heartbeat last_seen for user %d: %v", user.ID, err)
+		}
 	}
 
 	return c.SendStatus(fiber.StatusOK)
@@ -1446,7 +1461,7 @@ func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 		c.Query("q") != "" ||
 		c.Query("city") != "" ||
 		c.Query("cities") != ""
-	if !hasV2Query {
+	if !hasV2Query && config.ContactsLegacyModeEnabled() {
 		var users []models.User
 		if err := database.DB.Find(&users).Error; err != nil {
 			log.Printf("[Contacts] Error fetching contacts: %v", err)

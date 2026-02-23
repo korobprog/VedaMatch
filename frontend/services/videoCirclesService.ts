@@ -1,6 +1,5 @@
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import { AxiosError } from 'axios';
+import apiClient from '../lib/apiClient';
 
 export type VideoCircleStatus = 'active' | 'expired' | 'deleted';
 export type VideoInteractionType = 'like' | 'comment' | 'chat';
@@ -100,139 +99,132 @@ export interface VideoCircleFilters {
   sort?: 'newest' | 'oldest' | 'expires_soon';
 }
 
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  const axiosError = error as AxiosError<any>;
+  const payload = axiosError?.response?.data;
+
+  if (typeof payload === 'string' && payload.trim()) {
+    return payload;
+  }
+  if (payload && typeof payload === 'object') {
+    const message = payload.error || payload.message;
+    if (message && typeof message === 'string') {
+      return message;
+    }
+  }
+  if (axiosError?.message) {
+    return axiosError.message;
+  }
+  return fallback;
+};
+
+const isUploadAbort = (error: unknown): boolean => {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return true;
+  }
+
+  const axiosError = error as AxiosError;
+  return axiosError?.code === 'ERR_CANCELED' || axiosError?.code === 'ECONNABORTED';
+};
+
 class VideoCirclesService {
-  private baseUrl = API_PATH;
   private readonly uploadTimeoutMs = 3 * 60 * 1000;
 
   async getVideoCircles(filters: VideoCircleFilters = {}): Promise<VideoCircleListResponse> {
-    const headers = await getAuthHeaders();
-    const params = new URLSearchParams();
+    const params: Record<string, string | number> = {};
+    if (filters.channelId) params.channelId = filters.channelId;
+    if (filters.city) params.city = filters.city;
+    if (filters.matha) params.matha = filters.matha;
+    if (filters.category) params.category = filters.category;
+    if (filters.status) params.status = filters.status;
+    if (filters.scope) params.scope = filters.scope;
+    if (filters.roleScope?.length) params.role_scope = filters.roleScope.join(',');
+    if (filters.page) params.page = filters.page;
+    if (filters.limit) params.limit = filters.limit;
+    if (filters.sort) params.sort = filters.sort;
 
-    if (filters.channelId) params.append('channelId', String(filters.channelId));
-    if (filters.city) params.append('city', filters.city);
-    if (filters.matha) params.append('matha', filters.matha);
-    if (filters.category) params.append('category', filters.category);
-    if (filters.status) params.append('status', filters.status);
-    if (filters.scope) params.append('scope', filters.scope);
-    if (filters.roleScope && filters.roleScope.length > 0) {
-      params.append('role_scope', filters.roleScope.join(','));
+    try {
+      const response = await apiClient.get<VideoCircleListResponse>('/video-circles', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to fetch video circles'));
     }
-    if (filters.page) params.append('page', String(filters.page));
-    if (filters.limit) params.append('limit', String(filters.limit));
-    if (filters.sort) params.append('sort', filters.sort);
-
-    const query = params.toString();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles${query ? `?${query}` : ''}`, { headers });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to fetch video circles');
-    }
-    return response.json();
   }
 
   async createVideoCircle(payload: CreateVideoCirclePayload): Promise<VideoCircle> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to create video circle');
+    try {
+      const response = await apiClient.post<VideoCircle>('/video-circles', payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to create video circle'));
     }
-    return response.json();
   }
 
   async getMyVideoCircles(page = 1, limit = 30): Promise<VideoCircleListResponse> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/my?page=${page}&limit=${limit}`, { headers });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to fetch my video circles');
+    try {
+      const response = await apiClient.get<VideoCircleListResponse>('/video-circles/my', {
+        params: { page, limit },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to fetch my video circles'));
     }
-    return response.json();
   }
 
   async interact(circleId: number, type: VideoInteractionType, action: VideoInteractionAction): Promise<any> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/interactions`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, action }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to update interaction');
+    try {
+      const response = await apiClient.post(`/video-circles/${circleId}/interactions`, { type, action });
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to update interaction'));
     }
-
-    return response.json();
   }
 
   async getVideoTariffs(): Promise<VideoTariff[]> {
-    const response = await authorizedFetch(`${this.baseUrl}/video-tariffs`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch video tariffs');
+    try {
+      const response = await apiClient.get<{ tariffs?: any[] }>('/video-tariffs');
+      const data = response.data;
+      return (data.tariffs || []).map((t: any) => ({
+        id: t.ID || t.id,
+        code: t.code,
+        priceLkm: t.priceLkm,
+        durationMinutes: t.durationMinutes,
+        isActive: t.isActive,
+        updatedAt: t.UpdatedAt || t.updatedAt,
+      }));
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to fetch video tariffs'));
     }
-    const data = await response.json();
-    // Normalize GORM fields (ID -> id, UpdatedAt -> updatedAt)
-    return (data.tariffs || []).map((t: any) => ({
-      id: t.ID || t.id,
-      code: t.code,
-      priceLkm: t.priceLkm,
-      durationMinutes: t.durationMinutes,
-      isActive: t.isActive,
-      updatedAt: t.UpdatedAt || t.updatedAt,
-    }));
   }
 
   async createVideoTariff(payload: UpsertVideoTariffPayload): Promise<VideoTariff> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/admin/video-tariffs`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to create tariff');
+    try {
+      const response = await apiClient.post<VideoTariff>('/admin/video-tariffs', payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to create tariff'));
     }
-    return response.json();
   }
 
   async updateVideoTariff(id: number, payload: Partial<UpsertVideoTariffPayload>): Promise<VideoTariff> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/admin/video-tariffs/${id}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to update tariff');
+    try {
+      const response = await apiClient.put<VideoTariff>(`/admin/video-tariffs/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to update tariff'));
     }
-    return response.json();
   }
 
   async boostCircle(circleId: number, boostType: VideoBoostType): Promise<any> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/boost`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boostType }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(body || 'Failed to boost circle');
+    try {
+      const response = await apiClient.post(`/video-circles/${circleId}/boost`, { boostType });
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to boost circle'));
     }
-
-    return response.json();
   }
 
   async uploadAndCreateCircle(payload: UploadVideoCirclePayload): Promise<VideoCircle> {
-    const headers = await getAuthHeaders(false);
     const formData = new FormData();
 
     formData.append('video', {
@@ -261,38 +253,18 @@ class VideoCirclesService {
       : undefined;
 
     try {
-      const response = await authorizedFetch(`${this.baseUrl}/video-circles/upload`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          Accept: 'application/json',
-        },
-        body: formData,
+      const response = await apiClient.post<VideoCircle>('/video-circles/upload', formData, {
+        headers: { Accept: 'application/json' },
         signal: controller?.signal,
+        timeout: this.uploadTimeoutMs,
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        let errorMessage = text;
-        if (text && text.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(text);
-            if (parsed?.error && typeof parsed.error === 'string') {
-              errorMessage = parsed.error;
-            }
-          } catch {
-            // Keep raw text fallback.
-          }
-        }
-        throw new Error(errorMessage || 'Failed to upload and create video circle');
-      }
-
-      return response.json();
+      return response.data;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (isUploadAbort(error)) {
         throw new Error('UPLOAD_TIMEOUT');
       }
-      throw error;
+      throw new Error(getApiErrorMessage(error, 'Failed to upload and create video circle'));
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -301,43 +273,31 @@ class VideoCirclesService {
   }
 
   async deleteCircle(circleId: number): Promise<void> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}`, {
-      method: 'DELETE',
-      headers,
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to delete video circle');
+    try {
+      await apiClient.delete(`/video-circles/${circleId}`);
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to delete video circle'));
     }
   }
 
   async updateCircle(circleId: number, payload: UpdateVideoCirclePayload): Promise<VideoCircle> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to update video circle');
+    try {
+      const response = await apiClient.patch<VideoCircle>(`/video-circles/${circleId}`, payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to update video circle'));
     }
-    return response.json();
   }
 
   async republishCircle(circleId: number, durationMinutes = 60): Promise<VideoCircle> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/republish`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ durationMinutes }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to republish video circle');
+    try {
+      const response = await apiClient.post<VideoCircle>(`/video-circles/${circleId}/republish`, {
+        durationMinutes,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Failed to republish video circle'));
     }
-    return response.json();
   }
 }
 

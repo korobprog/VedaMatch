@@ -6,6 +6,7 @@ import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { clearAuthTokens, getAccessToken, logoutAuthSession, refreshAuthTokens, saveAuthTokens } from '../services/authSessionService';
 import { accountService } from '../services/accountService';
+import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvStorage';
 
 interface UserProfile {
     karmicName: string;
@@ -59,8 +60,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setRoleDescriptor(null);
         setGodModeFilters([]);
         setActiveMathId(null);
+        mmkvDeleteMultiple(['user', 'pushToken', 'active_math_id']);
         await clearAuthTokens();
-        await AsyncStorage.multiRemove(['user', 'pushToken']);
+        await AsyncStorage.multiRemove(['user', 'pushToken', 'active_math_id']);
     }, []);
 
     const logout = useCallback(async () => {
@@ -97,15 +99,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const loadUser = useCallback(async () => {
         try {
-            const savedUser = await AsyncStorage.getItem('user');
+            const savedUser = mmkvGetString('user') || await AsyncStorage.getItem('user');
             const savedToken = await getAccessToken();
-            const savedActiveMath = await AsyncStorage.getItem('active_math_id');
+            const savedActiveMath = mmkvGetString('active_math_id') || await AsyncStorage.getItem('active_math_id');
 
             if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
                 savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
                 try {
                     const parsedUser = JSON.parse(savedUser);
                     setUser(parsedUser);
+                    mmkvSetString('user', savedUser);
                 } catch (parseError) {
                     console.warn('[UserContext] Failed to parse saved user, clearing storage');
                     await clearLocalSession();
@@ -115,6 +118,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }
             if (savedActiveMath && savedActiveMath !== 'undefined' && savedActiveMath !== 'null') {
                 setActiveMathId(savedActiveMath);
+                mmkvSetString('active_math_id', savedActiveMath);
             }
         } catch (e) {
             console.warn('[UserContext] Failed to load user from storage');
@@ -169,10 +173,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 }
             });
 
-            // Set up interval (every 3 minutes)
+            // Set up interval (every 10 minutes — server throttles writes to 5min)
             heartbeatInterval = setInterval(() => {
                 void runHeartbeat();
-            }, 3 * 60 * 1000);
+            }, 10 * 60 * 1000);
         }
         return () => {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -181,8 +185,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         if (activeMathId) {
+            mmkvSetString('active_math_id', activeMathId);
             AsyncStorage.setItem('active_math_id', activeMathId).catch(() => undefined);
         } else {
+            mmkvDeleteMultiple(['active_math_id']);
             AsyncStorage.removeItem('active_math_id').catch(() => undefined);
         }
     }, [activeMathId]);
@@ -193,6 +199,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         } else if (authPayload && typeof authPayload === 'object') {
             await saveAuthTokens(authPayload);
         }
+        mmkvSetString('user', JSON.stringify(profile));
         await AsyncStorage.setItem('user', JSON.stringify(profile));
         setUser(profile);
     }, []);
@@ -207,6 +214,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const updatedUser = { ...user, isTourCompleted: true };
             setUser(updatedUser);
+            mmkvSetString('user', JSON.stringify(updatedUser));
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
         }
     }, [user]);

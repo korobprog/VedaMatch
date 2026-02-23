@@ -9,6 +9,8 @@ import {
     ActivityIndicator,
     Alert,
     Vibration,
+    AppState,
+    AppStateStatus,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -41,9 +43,11 @@ const StaffWaiterCallsScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const pollInterval = useRef<NodeJS.Timeout | null>(null);
+    const pollTimer = useRef<NodeJS.Timeout | null>(null);
     const previousCallsCount = useRef(0);
     const isScreenActiveRef = useRef(false);
+    const pollFailuresRef = useRef(0);
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
     const loadCalls = useCallback(async (silent = false) => {
         try {
@@ -67,6 +71,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
             if (!silent) {
                 Alert.alert(t('common.error'), t('cafe.staff.waiterCalls.loadError'));
             }
+            throw error;
         } finally {
             if (isScreenActiveRef.current) {
                 setLoading(false);
@@ -75,35 +80,88 @@ const StaffWaiterCallsScreen: React.FC = () => {
         }
     }, [cafeId, t]);
 
+    const stopPolling = useCallback(() => {
+        if (pollTimer.current) {
+            clearTimeout(pollTimer.current);
+            pollTimer.current = null;
+        }
+    }, []);
+
+    const schedulePolling = useCallback((runNow = false) => {
+        const baseInterval = 30_000;
+
+        const runPoll = async () => {
+            if (!isScreenActiveRef.current || appStateRef.current !== 'active') {
+                return;
+            }
+
+            try {
+                await loadCalls(true);
+                pollFailuresRef.current = 0;
+            } catch {
+                pollFailuresRef.current = Math.min(pollFailuresRef.current + 1, 3);
+            }
+
+            if (!isScreenActiveRef.current) {
+                return;
+            }
+
+            const backoffMultiplier = Math.min(2 ** pollFailuresRef.current, 8);
+            const jitter = Math.floor(Math.random() * 2_000);
+            const delay = baseInterval * backoffMultiplier + jitter;
+            pollTimer.current = setTimeout(() => {
+                void runPoll();
+            }, delay);
+        };
+
+        stopPolling();
+        if (runNow) {
+            void runPoll();
+            return;
+        }
+
+        const initialDelay = baseInterval + Math.floor(Math.random() * 2_000);
+        pollTimer.current = setTimeout(() => {
+            void runPoll();
+        }, initialDelay);
+    }, [loadCalls, stopPolling]);
+
     useFocusEffect(
         useCallback(() => {
             isScreenActiveRef.current = true;
-            void loadCalls();
+            void loadCalls().catch(() => undefined);
 
-            // Poll only while screen is focused.
-            pollInterval.current = setInterval(() => {
-                void loadCalls(true);
-            }, 10000);
+            const appStateSub = AppState.addEventListener('change', (nextState) => {
+                appStateRef.current = nextState;
+                if (!isScreenActiveRef.current) {
+                    return;
+                }
+                if (nextState === 'active') {
+                    pollFailuresRef.current = 0;
+                    schedulePolling(true);
+                    return;
+                }
+                stopPolling();
+            });
+            schedulePolling();
 
             return () => {
                 isScreenActiveRef.current = false;
-                if (pollInterval.current) {
-                    clearInterval(pollInterval.current);
-                    pollInterval.current = null;
-                }
+                stopPolling();
+                appStateSub.remove();
             };
-        }, [loadCalls])
+        }, [loadCalls, schedulePolling, stopPolling])
     );
 
     const handleRefresh = () => {
         setRefreshing(true);
-        loadCalls();
+        void loadCalls().catch(() => undefined);
     };
 
     const handleAcknowledge = async (call: WaiterCall) => {
         try {
             await cafeService.acknowledgeWaiterCall(cafeId, call.id);
-            loadCalls(true);
+            void loadCalls(true).catch(() => undefined);
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.staff.waiterCalls.ackError'));
         }
@@ -112,7 +170,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
     const handleComplete = async (call: WaiterCall) => {
         try {
             await cafeService.completeWaiterCall(cafeId, call.id);
-            loadCalls(true);
+            void loadCalls(true).catch(() => undefined);
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.staff.waiterCalls.completeError'));
         }
@@ -228,7 +286,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
                     <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.staff.waiterCalls.title')}</Text>
-                <TouchableOpacity onPress={() => loadCalls()}>
+                <TouchableOpacity onPress={() => void loadCalls().catch(() => undefined)}>
                     <RefreshCw size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>

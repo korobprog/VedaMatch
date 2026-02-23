@@ -1,6 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 export interface LocationData {
 	country: string;
@@ -10,18 +8,16 @@ export interface LocationData {
 }
 
 export const profileService = {
-	updateLocation: async (userId: number, location: LocationData) => {
-		const headers = await getAuthHeaders();
-		const response = await authorizedFetch(`${API_PATH}/update-location`, { // API group /api/ with Protected middleware uses /update-location, not /update-location/:userId
-			method: 'PUT',
-			headers,
-			body: JSON.stringify(location),
-		});
-		if (response.status === 401) {
-			console.error('[profileService] Unauthorized: Session expired or invalid token');
-			throw new Error('UNAUTHORIZED');
+	updateLocation: async (_userId: number, location: LocationData) => {
+		try {
+			const response = await apiClient.put('/update-location', location); // API group /api/ with Protected middleware uses /update-location
+			return response.data;
+		} catch (error: any) {
+			if (error?.response?.status === 401) {
+				console.error('[profileService] Unauthorized: Session expired or invalid token');
+				throw new Error('UNAUTHORIZED');
+			}
+			throw new Error('Failed to update location');
 		}
-		if (!response.ok) throw new Error('Failed to update location');
-		return response.json();
 	},
 };

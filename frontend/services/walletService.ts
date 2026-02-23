@@ -1,9 +1,7 @@
 /**
  * Wallet Service - API для работы с кошельком Лакшми
  */
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 // ==================== TYPES ====================
 
@@ -108,14 +106,8 @@ export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
  * Get wallet balance
  */
 export async function getWalletBalance(): Promise<WalletResponse> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/wallet`, { headers });
-
-    if (!response.ok) {
-        throw new Error('Failed to fetch wallet');
-    }
-
-    return response.json();
+    const response = await apiClient.get('/wallet');
+    return response.data;
 }
 
 /**
@@ -124,32 +116,16 @@ export async function getWalletBalance(): Promise<WalletResponse> {
 export async function getTransactions(
     filters: TransactionFilters = {}
 ): Promise<TransactionListResponse> {
-    const headers = await getAuthHeaders();
-
-    const params = new URLSearchParams();
-    if (filters.type) params.append('type', filters.type);
-    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params.append('dateTo', filters.dateTo);
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-
-    const queryString = params.toString();
-    const url = `${API_PATH}/wallet/transactions${queryString ? '?' + queryString : ''}`;
-
-    const response = await authorizedFetch(url, { headers });
-    if (!response.ok) throw new Error('Failed to fetch transactions');
-    return response.json();
+    const response = await apiClient.get('/wallet/transactions', { params: filters });
+    return response.data;
 }
 
 /**
  * Get wallet statistics
  */
 export async function getWalletStats(): Promise<WalletStatsResponse> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/wallet/stats`, { headers });
-
-    if (!response.ok) throw new Error('Failed to fetch wallet stats');
-    return response.json();
+    const response = await apiClient.get('/wallet/stats');
+    return response.data;
 }
 
 /**
@@ -158,19 +134,12 @@ export async function getWalletStats(): Promise<WalletStatsResponse> {
 export async function transferLakshmi(
     data: TransferRequest
 ): Promise<{ success: boolean; wallet: WalletResponse }> {
-    const headers = await getAuthHeaders();
-    const response = await authorizedFetch(`${API_PATH}/wallet/transfer`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to transfer');
+    try {
+        const response = await apiClient.post('/wallet/transfer', data);
+        return response.data;
+    } catch (error: any) {
+        throw new Error(error?.response?.data?.error || 'Failed to transfer');
     }
-
-    return response.json();
 }
 
 // ==================== HELPERS ====================

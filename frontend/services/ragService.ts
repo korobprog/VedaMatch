@@ -1,6 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 export interface DomainDescriptor {
     name: string;
@@ -61,57 +59,39 @@ export interface SourceDetailsResponse {
     updatedAt?: string;
 }
 
-const parseJsonResponse = async <T>(response: Response, fallbackMessage: string): Promise<T> => {
-    const text = await response.text();
-    let payload: any = {};
-
-    if (text) {
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            if (!response.ok) {
-                throw new Error(fallbackMessage);
-            }
-            throw new Error('Invalid JSON response');
-        }
-    }
-
-    if (!response.ok) {
-        const message = payload?.error || fallbackMessage;
-        throw new Error(message);
-    }
-
-    return payload as T;
+const parseAxiosError = (error: any, fallbackMessage: string): Error => {
+    const message = error?.response?.data?.error || fallbackMessage;
+    return new Error(message);
 };
 
 export const ragService = {
     async getDomains(): Promise<DomainDescriptor[]> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/rag/domains`, {
-            method: 'GET',
-            headers,
-        });
-        const payload = await parseJsonResponse<{ domains?: DomainDescriptor[] }>(response, 'Failed to fetch RAG domains');
-        return payload.domains || [];
+        try {
+            const response = await apiClient.get('/rag/domains');
+            const payload = response.data as { domains?: DomainDescriptor[] };
+            return payload.domains || [];
+        } catch (error) {
+            throw parseAxiosError(error, 'Failed to fetch RAG domains');
+        }
     },
 
     async queryHybrid(request: HybridQueryRequest): Promise<HybridQueryResponse> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/rag/query-hybrid`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(request),
-        });
-        return parseJsonResponse<HybridQueryResponse>(response, 'Failed to query hybrid RAG');
+        try {
+            const response = await apiClient.post('/rag/query-hybrid', request);
+            return response.data as HybridQueryResponse;
+        } catch (error) {
+            throw parseAxiosError(error, 'Failed to query hybrid RAG');
+        }
     },
 
     async getSourceById(sourceId: string, includePrivate = false): Promise<SourceDetailsResponse> {
-        const headers = await getAuthHeaders();
-        const query = includePrivate ? '?includePrivate=true' : '';
-        const response = await authorizedFetch(`${API_PATH}/rag/sources/${sourceId}${query}`, {
-            method: 'GET',
-            headers,
-        });
-        return parseJsonResponse<SourceDetailsResponse>(response, 'Failed to fetch source details');
+        try {
+            const response = await apiClient.get(`/rag/sources/${sourceId}`, {
+                params: includePrivate ? { includePrivate: true } : undefined,
+            });
+            return response.data as SourceDetailsResponse;
+        } catch (error) {
+            throw parseAxiosError(error, 'Failed to fetch source details');
+        }
     },
 };

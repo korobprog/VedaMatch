@@ -9,6 +9,8 @@ import {
     ActivityIndicator,
     Dimensions,
     Alert,
+    AppState,
+    AppStateStatus,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -51,8 +53,10 @@ const StaffOrderBoardScreen: React.FC = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<CafeOrder | null>(null);
 
-    const pollInterval = useRef<NodeJS.Timeout | null>(null);
+    const pollTimer = useRef<NodeJS.Timeout | null>(null);
     const isScreenActiveRef = useRef(false);
+    const pollFailuresRef = useRef(0);
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
     const loadData = useCallback(async (silent = false) => {
         try {
@@ -72,6 +76,7 @@ const StaffOrderBoardScreen: React.FC = () => {
             if (!silent) {
                 Alert.alert(t('common.error'), t('cafe.staff.board.refreshError'));
             }
+            throw error;
         } finally {
             if (isScreenActiveRef.current) {
                 setLoading(false);
@@ -80,35 +85,87 @@ const StaffOrderBoardScreen: React.FC = () => {
         }
     }, [cafeId, t]);
 
+    const stopPolling = useCallback(() => {
+        if (pollTimer.current) {
+            clearTimeout(pollTimer.current);
+            pollTimer.current = null;
+        }
+    }, []);
+
+    const schedulePolling = useCallback((runNow = false) => {
+        const baseInterval = 30_000;
+        const runPoll = async () => {
+            if (!isScreenActiveRef.current || appStateRef.current !== 'active') {
+                return;
+            }
+
+            try {
+                await loadData(true);
+                pollFailuresRef.current = 0;
+            } catch {
+                pollFailuresRef.current = Math.min(pollFailuresRef.current + 1, 3);
+            }
+
+            if (!isScreenActiveRef.current) {
+                return;
+            }
+
+            const backoffMultiplier = Math.min(2 ** pollFailuresRef.current, 8);
+            const jitter = Math.floor(Math.random() * 2_000);
+            const delay = baseInterval * backoffMultiplier + jitter;
+            pollTimer.current = setTimeout(() => {
+                void runPoll();
+            }, delay);
+        };
+
+        stopPolling();
+        if (runNow) {
+            void runPoll();
+            return;
+        }
+
+        const initialDelay = baseInterval + Math.floor(Math.random() * 2_000);
+        pollTimer.current = setTimeout(() => {
+            void runPoll();
+        }, initialDelay);
+    }, [loadData, stopPolling]);
+
     useFocusEffect(
         useCallback(() => {
             isScreenActiveRef.current = true;
-            void loadData();
+            void loadData().catch(() => undefined);
 
-            // Poll only on focused screen.
-            pollInterval.current = setInterval(() => {
-                void loadData(true);
-            }, 15000);
+            const appStateSub = AppState.addEventListener('change', (nextState) => {
+                appStateRef.current = nextState;
+                if (!isScreenActiveRef.current) {
+                    return;
+                }
+                if (nextState === 'active') {
+                    pollFailuresRef.current = 0;
+                    schedulePolling(true);
+                    return;
+                }
+                stopPolling();
+            });
+            schedulePolling();
 
             return () => {
                 isScreenActiveRef.current = false;
-                if (pollInterval.current) {
-                    clearInterval(pollInterval.current);
-                    pollInterval.current = null;
-                }
+                stopPolling();
+                appStateSub.remove();
             };
-        }, [loadData])
+        }, [loadData, schedulePolling, stopPolling])
     );
 
     const handleRefresh = () => {
         setRefreshing(true);
-        loadData();
+        void loadData().catch(() => undefined);
     };
 
     const handleStatusChange = async (order: CafeOrder, newStatus: CafeOrderStatus) => {
         try {
             await cafeService.updateOrderStatus(order.id, newStatus);
-            loadData(true);
+            void loadData(true).catch(() => undefined);
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.staff.board.statusUpdateError'));
         }

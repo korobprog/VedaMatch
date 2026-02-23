@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 interface NearbyUsersRequest {
 	latitude: number;
@@ -28,29 +27,23 @@ export const nearbyService = {
 		longitude: number,
 		radiusKm: number = 50
 	): Promise<{ users: UserWithDistance[]; count: number; radiusKm: number }> {
-		const response = await authorizedFetch(`${API_PATH}/location/nearby`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				latitude,
-				longitude,
-				radiusKm,
-			}),
-		});
-		if (!response.ok) throw new Error('Failed to fetch nearby users');
-		return response.json();
+		const payload: NearbyUsersRequest = { latitude, longitude, radiusKm };
+		const response = await apiClient.post('/location/nearby', payload);
+		return response.data;
 	},
 
 	async searchByCity(city: string): Promise<{ users: any[]; count: number }> {
-		const response = await authorizedFetch(`${API_PATH}/location/by-city?city=${encodeURIComponent(city)}`);
-		if (!response.ok) throw new Error('Failed to search by city');
-		return response.json();
+		const response = await apiClient.get('/location/by-city', {
+			params: { city },
+		});
+		return response.data;
 	},
 
 	async getUsersByCountry(country: string): Promise<{ users: any[]; count: number }> {
-		const response = await authorizedFetch(`${API_PATH}/location/by-country?country=${encodeURIComponent(country)}`);
-		if (!response.ok) throw new Error('Failed to fetch users by country');
-		return response.json();
+		const response = await apiClient.get('/location/by-country', {
+			params: { country },
+		});
+		return response.data;
 	},
 
 	formatDistance(km: number): string {

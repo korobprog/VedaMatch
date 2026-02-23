@@ -1,7 +1,5 @@
-import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
+import apiClient from '../lib/apiClient';
 import { getGodModeQueryParams } from './godModeService';
-import { authorizedFetch } from './authSessionService';
 
 export interface MediaTrack {
     ID: number;
@@ -106,13 +104,11 @@ export interface PlaylistDetailResponse {
 }
 
 class MultimediaService {
-    private baseUrl = API_PATH;
-
     async getCategories(type?: string): Promise<MediaCategory[]> {
-        const params = type ? `?type=${type}` : '';
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/categories${params}`);
-        if (!response.ok) throw new Error('Failed to fetch categories');
-        return response.json();
+        const response = await apiClient.get('/multimedia/categories', {
+            params: type ? { type } : undefined,
+        });
+        return response.data;
     }
 
     async getTracks(filter: TrackFilter = {}): Promise<TrackListResponse> {
@@ -129,15 +125,15 @@ class MultimediaService {
         const godModeParams = await getGodModeQueryParams();
         if (godModeParams.math) params.append('math', godModeParams.math);
 
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks?${params.toString()}`);
-        if (!response.ok) throw new Error('Failed to fetch tracks');
-        return response.json();
+        const response = await apiClient.get('/multimedia/tracks', {
+            params: Object.fromEntries(params.entries()),
+        });
+        return response.data;
     }
 
     async getTrack(id: number): Promise<MediaTrack> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch track');
-        return response.json();
+        const response = await apiClient.get(`/multimedia/tracks/${id}`);
+        return response.data;
     }
 
     async getRadioStations(madh?: string): Promise<RadioStation[]> {
@@ -145,17 +141,19 @@ class MultimediaService {
         if (madh) params.append('madh', madh);
         const godModeParams = await getGodModeQueryParams();
         if (godModeParams.math) params.append('math', godModeParams.math);
-        params.append('_t', String(Date.now())); // Cache busting
+        if (__DEV__) {
+            params.append('_t', String(Date.now()));
+        }
 
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/radio?${params.toString()}`);
-        if (!response.ok) throw new Error('Failed to fetch radio stations');
-        return response.json();
+        const response = await apiClient.get('/multimedia/radio', {
+            params: Object.fromEntries(params.entries()),
+        });
+        return response.data;
     }
 
     async getRadioStation(id: number): Promise<RadioStation> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/radio/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch radio station');
-        return response.json();
+        const response = await apiClient.get(`/multimedia/radio/${id}`);
+        return response.data;
     }
 
     async getTVChannels(madh?: string): Promise<TVChannel[]> {
@@ -163,110 +161,66 @@ class MultimediaService {
         if (madh) params.append('madh', madh);
         const godModeParams = await getGodModeQueryParams();
         if (godModeParams.math) params.append('math', godModeParams.math);
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tv${params.toString() ? `?${params.toString()}` : ''}`);
-        if (!response.ok) throw new Error('Failed to fetch TV channels');
-        return response.json();
+        const response = await apiClient.get('/multimedia/tv', {
+            params: Object.fromEntries(params.entries()),
+        });
+        return response.data;
     }
 
     async getTVChannel(id: number): Promise<TVChannel> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tv/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch TV channel');
-        return response.json();
+        const response = await apiClient.get(`/multimedia/tv/${id}`);
+        return response.data;
     }
 
     // Series methods
     async getSeries(): Promise<{ series: any[] }> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/series`);
-        if (!response.ok) throw new Error('Failed to fetch series');
-        return response.json();
+        const response = await apiClient.get('/multimedia/series');
+        return response.data;
     }
 
     async getSeriesDetails(id: number): Promise<any> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/series/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch series details');
-        return response.json();
+        const response = await apiClient.get(`/multimedia/series/${id}`);
+        return response.data;
     }
 
     async getFavorites(page = 1, limit = 20): Promise<{ tracks: MediaTrack[]; total: number }> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(
-            `${this.baseUrl}/multimedia/favorites?page=${page}&limit=${limit}`,
-            { headers }
-        );
-        if (!response.ok) throw new Error('Failed to fetch favorites');
-        return response.json();
+        const response = await apiClient.get('/multimedia/favorites', { params: { page, limit } });
+        return response.data;
     }
 
     async addToFavorites(trackId: number): Promise<void> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
-            method: 'POST',
-            headers,
-        });
-        if (!response.ok) throw new Error('Failed to add to favorites');
+        await apiClient.post(`/multimedia/tracks/${trackId}/favorite`);
     }
 
     async removeFromFavorites(trackId: number): Promise<void> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
-            method: 'DELETE',
-            headers,
-        });
-        if (!response.ok) throw new Error('Failed to remove from favorites');
+        await apiClient.delete(`/multimedia/tracks/${trackId}/favorite`);
     }
 
     async suggestContent(data: { title: string; description?: string; url?: string; mediaType: 'audio' | 'video' }): Promise<void> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/suggest`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-        });
-        if (!response.ok) throw new Error('Failed to submit suggestion');
+        await apiClient.post('/multimedia/suggest', data);
     }
 
     async getPlaylists(page = 1, limit = 20): Promise<PlaylistListResponse> {
-        const response = await authorizedFetch(
-            `${this.baseUrl}/multimedia/playlists?page=${page}&limit=${limit}`
-        );
-        if (!response.ok) throw new Error('Failed to fetch playlists');
-        return response.json();
+        const response = await apiClient.get('/multimedia/playlists', { params: { page, limit } });
+        return response.data;
     }
 
     async createPlaylist(payload: { name: string; description?: string; isPublic?: boolean }): Promise<Playlist> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error('Failed to create playlist');
-        return response.json();
+        const response = await apiClient.post('/multimedia/playlists', payload);
+        return response.data;
     }
 
     async getPlaylistDetails(playlistId: number): Promise<PlaylistDetailResponse> {
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}`);
-        if (!response.ok) throw new Error('Failed to fetch playlist details');
-        return response.json();
+        const response = await apiClient.get(`/multimedia/playlists/${playlistId}`);
+        return response.data;
     }
 
     async addTrackToPlaylist(playlistId: number, trackId: number): Promise<void> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}/items`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trackId }),
-        });
-        if (!response.ok) throw new Error('Failed to add track to playlist');
+        await apiClient.post(`/multimedia/playlists/${playlistId}/items`, { trackId });
     }
 
     async removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void> {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}/items/${trackId}`, {
-            method: 'DELETE',
-            headers,
-        });
-        if (!response.ok) throw new Error('Failed to remove track from playlist');
+        await apiClient.delete(`/multimedia/playlists/${playlistId}/items/${trackId}`);
     }
 
     formatDuration(seconds: number): string {

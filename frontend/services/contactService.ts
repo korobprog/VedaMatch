@@ -1,5 +1,5 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch, getAccessToken } from './authSessionService';
+import apiClient from '../lib/apiClient';
+import { getAccessToken } from './authSessionService';
 
 export interface UserContact {
     ID: number;
@@ -41,15 +41,20 @@ export interface PaginatedContactsResponse {
     total: number;
 }
 
+const extractStatus = (error: any): number | undefined => {
+    return error?.response?.status;
+};
+
 const getAuthToken = async () => {
     return await getAccessToken();
 };
 
 export const getAuthHeaders = async (isJson = true) => {
     const token = await getAuthToken();
-    const headers: any = {
-        'Authorization': (token && token !== 'undefined' && token !== 'null') ? `Bearer ${token}` : ''
-    };
+    const headers: any = {};
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
     if (isJson) {
         headers['Content-Type'] = 'application/json';
     }
@@ -57,125 +62,91 @@ export const getAuthHeaders = async (isJson = true) => {
 };
 
 const legacyUpdatePushToken = async (pushToken: string) => {
-    const headers = await getAuthHeaders();
-    await authorizedFetch(`${API_PATH}/update-push-token`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ pushToken }),
-    });
+    await apiClient.put('/update-push-token', { pushToken });
 };
 
 export const contactService = {
     getAuthToken,
     getContacts: async (): Promise<UserContact[]> => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/contacts`, { headers });
-        if (response.status === 401) {
-            console.error('[ContactService] Unauthorized: Session expired or invalid token');
-            // We could trigger a logout here if we had access to context, 
-            // but for now we just throw a clearer error.
-            throw new Error('UNAUTHORIZED');
+        try {
+            const { data } = await apiClient.get('/contacts');
+            if (Array.isArray(data)) {
+                return data;
+            }
+            return Array.isArray(data?.items) ? data.items : [];
+        } catch (error: any) {
+            if (extractStatus(error) === 401) {
+                console.error('[ContactService] Unauthorized: Session expired or invalid token');
+                throw new Error('UNAUTHORIZED');
+            }
+            throw new Error(`Failed to fetch contacts: ${extractStatus(error) ?? 'unknown'}`);
         }
-        if (!response.ok) throw new Error(`Failed to fetch contacts: ${response.status}`);
-        return response.json();
     },
+
     getContactsPage: async (query: ContactsQuery = {}): Promise<PaginatedContactsResponse> => {
-        const headers = await getAuthHeaders();
-        const params = new URLSearchParams();
-        if (query.limit && query.limit > 0) {
-            params.append('limit', String(query.limit));
-        }
-        if (query.cursor && query.cursor > 0) {
-            params.append('cursor', String(query.cursor));
-        }
-        if (query.tab) {
-            params.append('tab', query.tab);
-        }
-        if (query.q && query.q.trim()) {
-            params.append('q', query.q.trim());
-        }
-        if (query.city && query.city.trim()) {
-            params.append('city', query.city.trim());
-        }
-        if (query.cities && query.cities.length > 0) {
-            params.append('cities', query.cities.join(','));
-        }
+        const params: Record<string, any> = {};
+        if (query.limit && query.limit > 0) params.limit = query.limit;
+        if (query.cursor && query.cursor > 0) params.cursor = query.cursor;
+        if (query.tab) params.tab = query.tab;
+        if (query.q && query.q.trim()) params.q = query.q.trim();
+        if (query.city && query.city.trim()) params.city = query.city.trim();
+        if (query.cities && query.cities.length > 0) params.cities = query.cities.join(',');
 
-        const qs = params.toString();
-        const url = qs ? `${API_PATH}/contacts?${qs}` : `${API_PATH}/contacts`;
-        const response = await authorizedFetch(url, { headers });
-        if (response.status === 401) {
-            throw new Error('UNAUTHORIZED');
-        }
-        if (!response.ok) {
-            throw new Error(`Failed to fetch contacts page: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (Array.isArray(data)) {
+        try {
+            const { data } = await apiClient.get('/contacts', { params });
+            if (Array.isArray(data)) {
+                return {
+                    items: data,
+                    hasMore: false,
+                    nextCursor: undefined,
+                    total: data.length,
+                };
+            }
             return {
-                items: data,
-                hasMore: false,
-                nextCursor: undefined,
-                total: data.length,
+                items: Array.isArray(data?.items) ? data.items : [],
+                hasMore: Boolean(data?.hasMore),
+                nextCursor: typeof data?.nextCursor === 'number' ? data.nextCursor : undefined,
+                total: typeof data?.total === 'number' ? data.total : 0,
             };
+        } catch (error: any) {
+            if (extractStatus(error) === 401) {
+                throw new Error('UNAUTHORIZED');
+            }
+            throw new Error(`Failed to fetch contacts page: ${extractStatus(error) ?? 'unknown'}`);
         }
-        return {
-            items: Array.isArray(data?.items) ? data.items : [],
-            hasMore: Boolean(data?.hasMore),
-            nextCursor: typeof data?.nextCursor === 'number' ? data.nextCursor : undefined,
-            total: typeof data?.total === 'number' ? data.total : 0,
-        };
     },
 
     getFriends: async (_userId: number): Promise<UserContact[]> => {
-        const headers = await getAuthHeaders();
-        // The endpoint /friends uses the user ID from the token, so we don't need userId in the path.
-        const response = await authorizedFetch(`${API_PATH}/friends`, { headers });
-        if (!response.ok) throw new Error('Failed to fetch friends');
-        return response.json();
+        const { data } = await apiClient.get('/friends');
+        return Array.isArray(data) ? data : [];
     },
 
     addFriend: async (userId: number, friendId: number) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/friends/add`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ userId, friendId }),
-        });
-        if (!response.ok) throw new Error('Failed to add friend');
-        return response.json();
+        const { data } = await apiClient.post('/friends/add', { userId, friendId });
+        return data;
     },
 
     removeFriend: async (userId: number, friendId: number) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/friends/remove`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ userId, friendId }),
-        });
-        if (!response.ok) throw new Error('Failed to remove friend');
+        await apiClient.post('/friends/remove', { userId, friendId });
     },
 
     uploadAvatar: async (_userId: number, formData: FormData) => {
-        const headers = await getAuthHeaders(false);
-        const response = await authorizedFetch(`${API_PATH}/upload-avatar`, { // Route is /upload-avatar in main.go, not /upload-avatar/:userId
-            method: 'POST',
-            headers,
-            body: formData,
+        const { data } = await apiClient.post('/upload-avatar', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
         });
-        if (!response.ok) throw new Error('Failed to upload avatar');
-        return response.json();
+        return data;
     },
 
     sendHeartbeat: async (_userId: number) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/heartbeat`, {
-            method: 'POST',
-            headers
-        });
-        if (response.status === 401) {
-            throw new Error('UNAUTHORIZED');
+        try {
+            await apiClient.post('/heartbeat');
+        } catch (error: any) {
+            if (extractStatus(error) === 401) {
+                throw new Error('UNAUTHORIZED');
+            }
+            throw error;
         }
     },
 
@@ -184,75 +155,42 @@ export const contactService = {
     },
 
     registerPushToken: async (payload: PushTokenRegisterPayload) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/push-tokens/register`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-            return response.json();
+        try {
+            const { data } = await apiClient.post('/push-tokens/register', payload);
+            return data;
+        } catch {
+            // Fallback for older backends.
+            await legacyUpdatePushToken(payload.token);
+            return { ok: true, fallback: true };
         }
-
-        // Fallback for older backends.
-        await legacyUpdatePushToken(payload.token);
-        return { ok: true, fallback: true };
     },
 
     unregisterPushToken: async (payload: { token?: string; deviceId?: string }) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/push-tokens/unregister`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-            throw new Error('Failed to unregister push token');
-        }
-        return response.json();
+        const { data } = await apiClient.post('/push-tokens/unregister', payload);
+        return data;
     },
 
     getBlockedUsers: async (_userId: number): Promise<UserContact[]> => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/blocks`, { headers });
-        if (!response.ok) throw new Error('Failed to fetch blocked users');
-        return response.json();
+        const { data } = await apiClient.get('/blocks');
+        return Array.isArray(data) ? data : [];
     },
 
     blockUser: async (userId: number, blockedId: number) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/blocks/add`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ userId, blockedId }),
-        });
-        if (!response.ok) throw new Error('Failed to block user');
-        return response.json();
+        const { data } = await apiClient.post('/blocks/add', { userId, blockedId });
+        return data;
     },
 
     unblockUser: async (userId: number, blockedId: number) => {
-        const headers = await getAuthHeaders();
-        const response = await authorizedFetch(`${API_PATH}/blocks/remove`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ userId, blockedId }),
-        });
-        if (!response.ok) throw new Error('Failed to unblock user');
+        await apiClient.post('/blocks/remove', { userId, blockedId });
     },
 
     // Get a user profile by ID (for viewing profiles from map, etc.)
     getUserById: async (userId: number): Promise<UserContact | null> => {
         try {
-            const headers = await getAuthHeaders();
-            const response = await authorizedFetch(`${API_PATH}/users/${userId}`, { headers });
-            if (!response.ok) {
-                console.error(`Failed to fetch user ${userId}: ${response.status}`);
-                return null;
-            }
-            return response.json();
-        } catch (error) {
-            console.error('Error fetching user by ID:', error);
+            const { data } = await apiClient.get(`/users/${userId}`);
+            return data || null;
+        } catch (error: any) {
+            console.error(`Failed to fetch user ${userId}: ${extractStatus(error) ?? 'unknown'}`);
             return null;
         }
     }

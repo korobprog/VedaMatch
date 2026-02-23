@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"os"
+	"strings"
 
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
@@ -12,6 +13,13 @@ import (
 // ReferralHandler handles referral-related API endpoints
 type ReferralHandler struct {
 	referralService *services.ReferralService
+}
+
+type invitePayload struct {
+	InviteCode string `json:"inviteCode"`
+	DeepLink   string `json:"deepLink"`
+	WebLink    string `json:"webLink"`
+	ShareText  string `json:"shareText"`
 }
 
 // NewReferralHandler creates a new referral handler
@@ -31,29 +39,14 @@ func (h *ReferralHandler) GetMyInviteLink(c *fiber.Ctx) error {
 		})
 	}
 
-	code, err := h.referralService.EnsureInviteCode(userID)
+	invite, err := h.buildInvitePayload(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get invite code",
 		})
 	}
 
-	// Build shareable link
-	baseURL := os.Getenv("APP_DEEP_LINK_BASE")
-	if baseURL == "" {
-		baseURL = "vedamatch://invite"
-	}
-	webURL := os.Getenv("WEB_URL")
-	if webURL == "" {
-		webURL = "https://vedamatch.ru/invite"
-	}
-
-	return c.JSON(fiber.Map{
-		"inviteCode": code,
-		"deepLink":   baseURL + "/" + code,
-		"webLink":    webURL + "/" + code,
-		"shareText":  "Привет! Давай изучать Веды вместе. Держи 50 LKM на старт: " + webURL + "/" + code,
-	})
+	return c.JSON(invite)
 }
 
 // GetMyReferralStats returns referral statistics for the current user
@@ -101,6 +94,47 @@ func (h *ReferralHandler) GetMyReferrals(c *fiber.Ctx) error {
 	})
 }
 
+// GetOverview returns invite data + stats + referrals in one request.
+// GET /api/referral/overview?limit=50&offset=0
+func (h *ReferralHandler) GetOverview(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	invite, err := h.buildInvitePayload(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get invite code",
+		})
+	}
+
+	stats, err := h.referralService.GetReferralStats(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get referral stats",
+		})
+	}
+
+	referrals, err := h.referralService.GetReferralList(userID, limit, offset)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get referrals",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"invite":    invite,
+		"stats":     stats,
+		"referrals": referrals,
+	})
+}
+
 // ValidateInviteCode checks if an invite code is valid
 // GET /api/referral/validate/:code
 func (h *ReferralHandler) ValidateInviteCode(c *fiber.Ctx) error {
@@ -133,4 +167,33 @@ func (h *ReferralHandler) AdminGenerateCodes(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Invite codes generated for all existing users",
 	})
+}
+
+func (h *ReferralHandler) buildInvitePayload(userID uint) (*invitePayload, error) {
+	code, err := h.referralService.EnsureInviteCode(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	baseURL := strings.TrimSpace(os.Getenv("APP_DEEP_LINK_BASE"))
+	if baseURL == "" {
+		baseURL = "vedamatch://invite"
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	webURL := strings.TrimSpace(os.Getenv("WEB_URL"))
+	if webURL == "" {
+		webURL = "https://vedamatch.ru/invite"
+	}
+	webURL = strings.TrimRight(webURL, "/")
+
+	deepLink := baseURL + "/" + code
+	publicWebLink := webURL + "/" + code
+
+	return &invitePayload{
+		InviteCode: code,
+		DeepLink:   deepLink,
+		WebLink:    publicWebLink,
+		ShareText:  "Привет! Давай изучать Веды вместе. Держи 50 LKM на старт: " + publicWebLink,
+	}, nil
 }

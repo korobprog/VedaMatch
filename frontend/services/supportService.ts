@@ -1,5 +1,6 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch, getAccessToken } from './authSessionService';
+import { AxiosError } from 'axios';
+import apiClient from '../lib/apiClient';
+import { getAccessToken } from './authSessionService';
 
 export type SupportConversationStatus = 'open' | 'resolved';
 export type SupportConversationChannel = 'telegram' | 'in_app';
@@ -68,45 +69,30 @@ export interface AddSupportMessagePayload {
     attachmentMimeType?: string;
 }
 
-const getToken = async (): Promise<string> => {
+const extractErrorMessage = (error: unknown, fallback = 'Request failed'): string => {
+    const axiosError = error as AxiosError<any>;
+    const payload = axiosError?.response?.data;
+
+    if (typeof payload === 'string' && payload.trim()) {
+        return payload;
+    }
+    if (payload && typeof payload === 'object') {
+        const message = payload.error || payload.message;
+        if (message && typeof message === 'string') {
+            return message;
+        }
+    }
+    if (axiosError?.message) {
+        return axiosError.message;
+    }
+    return fallback;
+};
+
+const ensureRequiredAuth = async (): Promise<void> => {
     const token = await getAccessToken();
     if (!token || token === 'undefined' || token === 'null') {
-        return '';
-    }
-    return token;
-};
-
-const buildHeaders = async (authMode: 'optional' | 'required', contentTypeJson: boolean = true): Promise<Record<string, string>> => {
-    const token = await getToken();
-    const headers: Record<string, string> = {};
-    if (contentTypeJson) {
-        headers['Content-Type'] = 'application/json';
-    }
-    if (token) {
-        headers.Authorization = `Bearer ${token}`;
-    }
-    if (authMode === 'required' && !headers.Authorization) {
         throw new Error('UNAUTHORIZED');
     }
-    return headers;
-};
-
-const parseJsonSafe = async (response: Response): Promise<any> => {
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
-};
-
-const requestJson = async (url: string, init: RequestInit = {}): Promise<any> => {
-    const response = await authorizedFetch(url, init);
-    const payload = await parseJsonSafe(response);
-    if (!response.ok) {
-        const message = payload?.error || payload?.message || `Request failed: ${response.status}`;
-        throw new Error(message);
-    }
-    return payload;
 };
 
 const randomRequestId = () => `support_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -115,15 +101,15 @@ export const supportService = {
     randomRequestId,
 
     async getConfig(): Promise<SupportConfig> {
-        const headers = await buildHeaders('optional', false);
-        return requestJson(`${API_PATH}/support/config`, {
-            method: 'GET',
-            headers,
-        });
+        try {
+            const response = await apiClient.get<SupportConfig>('/support/config');
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to load support config'));
+        }
     },
 
     async uploadAttachment(file: { uri: string; type?: string; fileName?: string }): Promise<{ url: string; size: number; contentType: string }> {
-        const headers = await buildHeaders('optional', false);
         const form = new FormData();
         form.append('file', {
             uri: file.uri,
@@ -131,60 +117,73 @@ export const supportService = {
             name: file.fileName || `support_${Date.now()}.jpg`,
         } as any);
 
-        return requestJson(`${API_PATH}/support/uploads`, {
-            method: 'POST',
-            headers,
-            body: form,
-        });
+        try {
+            const response = await apiClient.post('/support/uploads', form, {
+                headers: { Accept: 'application/json' },
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to upload attachment'));
+        }
     },
 
     async createTicket(payload: CreateSupportTicketPayload): Promise<{ conversation: SupportConversation; idempotent?: boolean }> {
-        const headers = await buildHeaders('optional', true);
-        return requestJson(`${API_PATH}/support/tickets`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-        });
+        try {
+            const response = await apiClient.post('/support/tickets', payload);
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to create support ticket'));
+        }
     },
 
     async listMyTickets(page: number = 1, limit: number = 20): Promise<{ tickets: SupportConversation[]; total: number; page: number; limit: number }> {
-        const headers = await buildHeaders('required', false);
-        return requestJson(`${API_PATH}/support/tickets?page=${page}&limit=${limit}`, {
-            method: 'GET',
-            headers,
-        });
+        await ensureRequiredAuth();
+        try {
+            const response = await apiClient.get('/support/tickets', {
+                params: { page, limit },
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to fetch support tickets'));
+        }
     },
 
     async getTicketMessages(conversationId: number): Promise<{ ticket: SupportConversation; messages: SupportMessage[]; unreadCount: number }> {
-        const headers = await buildHeaders('required', false);
-        return requestJson(`${API_PATH}/support/tickets/${conversationId}/messages`, {
-            method: 'GET',
-            headers,
-        });
+        await ensureRequiredAuth();
+        try {
+            const response = await apiClient.get(`/support/tickets/${conversationId}/messages`);
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to fetch support ticket messages'));
+        }
     },
 
     async postTicketMessage(conversationId: number, payload: AddSupportMessagePayload): Promise<{ ticket: SupportConversation }> {
-        const headers = await buildHeaders('required', true);
-        return requestJson(`${API_PATH}/support/tickets/${conversationId}/messages`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-        });
+        await ensureRequiredAuth();
+        try {
+            const response = await apiClient.post(`/support/tickets/${conversationId}/messages`, payload);
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to post support message'));
+        }
     },
 
     async markTicketRead(conversationId: number): Promise<void> {
-        const headers = await buildHeaders('required', false);
-        await requestJson(`${API_PATH}/support/tickets/${conversationId}/read`, {
-            method: 'POST',
-            headers,
-        });
+        await ensureRequiredAuth();
+        try {
+            await apiClient.post(`/support/tickets/${conversationId}/read`, {});
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to mark support ticket as read'));
+        }
     },
 
     async getUnreadCount(): Promise<{ unreadCount: number }> {
-        const headers = await buildHeaders('required', false);
-        return requestJson(`${API_PATH}/support/unread-count`, {
-            method: 'GET',
-            headers,
-        });
+        await ensureRequiredAuth();
+        try {
+            const response = await apiClient.get('/support/unread-count');
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to fetch unread support count'));
+        }
     },
 };

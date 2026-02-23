@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
+import { AxiosError } from 'axios';
+import apiClient from '../lib/apiClient';
 import {
     Shop,
     ShopFormData,
@@ -15,20 +15,23 @@ import {
     OrderStatus,
 } from '../types/market';
 import { getGodModeQueryParams } from './godModeService';
-import { authorizedFetch, getAccessToken } from './authSessionService';
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+    const axiosError = error as AxiosError<any>;
+    const payload = axiosError?.response?.data;
+    if (typeof payload === 'string' && payload.trim()) {
+        return payload;
+    }
+    if (payload && typeof payload === 'object') {
+        const message = payload.error || payload.message;
+        if (message && typeof message === 'string') {
+            return message;
+        }
+    }
+    return axiosError?.message || fallback;
+};
 
 class MarketService {
-    private async getHeaders() {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-    }
-
     private async uploadFile(endpoint: string, file: any): Promise<string> {
         try {
             const formData = new FormData();
@@ -38,21 +41,14 @@ class MarketService {
                 name: file.fileName || `image_${Date.now()}.jpg`,
             } as any);
 
-            const response = await authorizedFetch(`${API_PATH}${endpoint}`, {
-                method: 'POST',
-                body: formData,
+            const response = await apiClient.post<{ url: string }>(endpoint, formData, {
+                headers: { Accept: 'application/json' },
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Upload failed');
-            }
-
-            const data = await response.json();
-            return data.url;
+            return response.data.url;
         } catch (error) {
             console.error(`Error uploading to ${endpoint}:`, error);
-            throw error;
+            throw new Error(getApiErrorMessage(error, 'Upload failed'));
         }
     }
 
@@ -75,7 +71,7 @@ class MarketService {
     async getShops(filters?: ShopFilters): Promise<{ shops: Shop[], total: number, page: number, totalPages: number }> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/shops`, { params: { ...(filters || {}), ...godModeParams } });
+            const response = await apiClient.get('/shops', { params: { ...(filters || {}), ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error('Error fetching shops:', error);
@@ -85,8 +81,7 @@ class MarketService {
 
     async getShop(id: number): Promise<Shop> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/shops/${id}`, { headers });
+            const response = await apiClient.get(`/shops/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching shop ${id}:`, error);
@@ -96,7 +91,7 @@ class MarketService {
 
     async getShopBySlug(slug: string): Promise<Shop> {
         try {
-            const response = await axios.get(`${API_PATH}/shops/slug/${slug}`);
+            const response = await apiClient.get(`/shops/slug/${slug}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching shop by slug ${slug}:`, error);
@@ -106,7 +101,7 @@ class MarketService {
 
     async getShopCategories(): Promise<ShopCategoryConfig[]> {
         try {
-            const response = await axios.get(`${API_PATH}/shops/categories`);
+            const response = await apiClient.get('/shops/categories');
             return response.data;
         } catch (error) {
             console.error('Error fetching shop categories:', error);
@@ -118,11 +113,10 @@ class MarketService {
 
     async getMyShop(): Promise<{ hasShop: boolean, shop?: Shop }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/shops/my`, { headers });
+            const response = await apiClient.get('/shops/my');
             return response.data;
         } catch (error: any) {
-            if (error.response?.status === 404) {
+            if ((error as AxiosError)?.response?.status === 404) {
                 return { hasShop: false };
             }
             console.error('Error fetching my shop:', error);
@@ -132,8 +126,7 @@ class MarketService {
 
     async canCreateShop(): Promise<{ canCreate: boolean, reason?: string, message?: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/shops/can-create`, { headers });
+            const response = await apiClient.get('/shops/can-create');
             return response.data;
         } catch (error) {
             console.error('Error checking create shop permission:', error);
@@ -143,8 +136,7 @@ class MarketService {
 
     async createShop(data: ShopFormData): Promise<{ id: number, slug: string, message: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/shops`, data, { headers });
+            const response = await apiClient.post('/shops', data);
             return response.data;
         } catch (error) {
             console.error('Error creating shop:', error);
@@ -154,8 +146,7 @@ class MarketService {
 
     async updateShop(id: number, data: Partial<ShopFormData>): Promise<{ success: boolean, shop: Shop }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/shops/${id}`, data, { headers });
+            const response = await apiClient.put(`/shops/${id}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating shop ${id}:`, error);
@@ -165,8 +156,7 @@ class MarketService {
 
     async getSellerStats(): Promise<ShopStats> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/shops/seller/stats`, { headers });
+            const response = await apiClient.get('/shops/seller/stats');
             return response.data;
         } catch (error) {
             console.error('Error fetching seller stats:', error);
@@ -179,7 +169,7 @@ class MarketService {
     async getProducts(filters?: ProductFilters): Promise<{ products: Product[], total: number, page: number, totalPages: number }> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/products`, { params: { ...(filters || {}), ...godModeParams } });
+            const response = await apiClient.get('/products', { params: { ...(filters || {}), ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error('Error fetching products:', error);
@@ -189,8 +179,7 @@ class MarketService {
 
     async getProduct(id: number): Promise<Product> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/products/${id}`, { headers });
+            const response = await apiClient.get(`/products/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching product ${id}:`, error);
@@ -201,7 +190,7 @@ class MarketService {
     async getShopProducts(shopId: number, page = 1, limit = 20): Promise<{ products: Product[], total: number, page: number, totalPages: number }> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/shops/${shopId}/products`, { params: { page, limit, ...godModeParams } });
+            const response = await apiClient.get(`/shops/${shopId}/products`, { params: { page, limit, ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error(`Error fetching products for shop ${shopId}:`, error);
@@ -211,7 +200,7 @@ class MarketService {
 
     async getProductCategories(): Promise<ProductCategoryConfig[]> {
         try {
-            const response = await axios.get(`${API_PATH}/products/categories`);
+            const response = await apiClient.get('/products/categories');
             return response.data;
         } catch (error) {
             console.error('Error fetching product categories:', error);
@@ -221,8 +210,7 @@ class MarketService {
 
     async getMyProducts(page = 1, limit = 20): Promise<{ products: Product[], total: number, page: number, totalPages: number }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/products/my`, { params: { page, limit }, headers });
+            const response = await apiClient.get('/products/my', { params: { page, limit } });
             return response.data;
         } catch (error) {
             console.error('Error fetching my products:', error);
@@ -232,8 +220,7 @@ class MarketService {
 
     async createProduct(data: ProductFormData): Promise<{ id: number, slug: string, message: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/products`, data, { headers });
+            const response = await apiClient.post('/products', data);
             return response.data;
         } catch (error) {
             console.error('Error creating product:', error);
@@ -243,8 +230,7 @@ class MarketService {
 
     async updateProduct(id: number, data: Partial<ProductFormData>): Promise<{ success: boolean, product: Product }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/products/${id}`, data, { headers });
+            const response = await apiClient.put(`/products/${id}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating product ${id}:`, error);
@@ -254,8 +240,7 @@ class MarketService {
 
     async deleteProduct(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/products/${id}`, { headers });
+            await apiClient.delete(`/products/${id}`);
         } catch (error) {
             console.error(`Error deleting product ${id}:`, error);
             throw error;
@@ -264,8 +249,7 @@ class MarketService {
 
     async updateStock(productId: number, stock: number, variantId?: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.put(`${API_PATH}/products/${productId}/stock`, { stock, variantId }, { headers });
+            await apiClient.put(`/products/${productId}/stock`, { stock, variantId });
         } catch (error) {
             console.error(`Error updating stock for product ${productId}:`, error);
             throw error;
@@ -274,8 +258,7 @@ class MarketService {
 
     async toggleFavorite(id: number): Promise<{ isFavorite: boolean }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/products/${id}/favorite`, {}, { headers });
+            const response = await apiClient.post(`/products/${id}/favorite`, {});
             return response.data;
         } catch (error) {
             console.error(`Error toggling favorite for product ${id}:`, error);
@@ -287,7 +270,7 @@ class MarketService {
 
     async getProductReviews(productId: number, page = 1, limit = 10): Promise<{ reviews: any[], total: number, page: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/products/${productId}/reviews`, { params: { page, limit } });
+            const response = await apiClient.get(`/products/${productId}/reviews`, { params: { page, limit } });
             return response.data;
         } catch (error) {
             console.error(`Error fetching reviews for product ${productId}:`, error);
@@ -297,8 +280,7 @@ class MarketService {
 
     async addProductReview(productId: number, data: { rating: number, title?: string, comment?: string }): Promise<any> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/products/${productId}/reviews`, data, { headers });
+            const response = await apiClient.post(`/products/${productId}/reviews`, data);
             return response.data;
         } catch (error) {
             console.error(`Error adding review for product ${productId}:`, error);
@@ -310,8 +292,7 @@ class MarketService {
 
     async createOrder(data: OrderCreateData): Promise<{ orderId: number, orderNumber: string, message: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/orders`, data, { headers });
+            const response = await apiClient.post('/orders', data);
             return response.data;
         } catch (error) {
             console.error('Error creating order:', error);
@@ -339,10 +320,8 @@ class MarketService {
         extraFilters: { source?: string; sourcePostId?: number; sourceChannelId?: number } = {}
     ): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/my`, {
+            const response = await apiClient.get('/orders/my', {
                 params: { page, limit, status, ...extraFilters },
-                headers
             });
             return response.data;
         } catch (error) {
@@ -353,8 +332,7 @@ class MarketService {
 
     async getOrder(id: number): Promise<Order> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/${id}`, { headers });
+            const response = await apiClient.get(`/orders/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching order ${id}:`, error);
@@ -364,8 +342,7 @@ class MarketService {
 
     async cancelOrder(id: number, reason: string): Promise<{ success: boolean, order: Order }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/orders/${id}/cancel`, { reason }, { headers });
+            const response = await apiClient.post(`/orders/${id}/cancel`, { reason });
             return response.data;
         } catch (error) {
             console.error(`Error cancelling order ${id}:`, error);
@@ -381,10 +358,8 @@ class MarketService {
         extraFilters: { source?: string; sourcePostId?: number; sourceChannelId?: number } = {}
     ): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/seller`, {
+            const response = await apiClient.get('/orders/seller', {
                 params: { page, limit, status, ...extraFilters },
-                headers
             });
             return response.data;
         } catch (error) {
@@ -395,8 +370,7 @@ class MarketService {
 
     async updateOrderStatus(id: number, status: OrderStatus): Promise<{ success: boolean, order: Order }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/orders/${id}/status`, { status }, { headers });
+            const response = await apiClient.put(`/orders/${id}/status`, { status });
             return response.data;
         } catch (error) {
             console.error(`Error updating order ${id} status:`, error);
@@ -406,8 +380,7 @@ class MarketService {
 
     async contactBuyer(orderId: number): Promise<{ buyerId: number, buyerName: string, deepLink: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/${orderId}/contact-buyer`, { headers });
+            const response = await apiClient.get(`/orders/${orderId}/contact-buyer`);
             return response.data;
         } catch (error) {
             console.error(`Error getting buyer contact for order ${orderId}:`, error);

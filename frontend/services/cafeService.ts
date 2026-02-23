@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { API_PATH } from '../config/api.config';
 import {
     Cafe, CafeFilters, CafeCategory, Dish, DishFilters,
@@ -8,7 +8,6 @@ import {
     MenuResponse, QRCodeScanResult, WaiterCallReason, WaiterCall
 } from '../types/cafe';
 import { getGodModeQueryParams } from './godModeService';
-import { getAccessToken } from './authSessionService';
 
 interface UploadAsset {
     uri?: string;
@@ -39,26 +38,15 @@ class CafeService {
     getImageUrl(path: string | null): string {
         if (!path) return 'https://via.placeholder.com/400x200';
         if (path.startsWith('http')) return path;
-        return `${API_PATH}${path.startsWith('/') ? '' : '/'}${path}`.replace('/api/', '/');
+        const baseUrl = API_PATH.replace('/api', '');
+        return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`.replace('/api/', '/');
     }
-
-    private async getHeaders() {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-    }
-
     // ==================== CAFE ENDPOINTS ====================
 
     async getCafes(filters?: CafeFilters): Promise<{ cafes: Cafe[], total: number, page: number, totalPages: number }> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/cafes`, { params: { ...(filters || {}), ...godModeParams } });
+            const response = await apiClient.get(`/cafes`, { params: { ...(filters || {}), ...godModeParams } });
             const data = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend
@@ -78,7 +66,7 @@ class CafeService {
 
     async getCafe(id: number): Promise<Cafe> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${id}`);
+            const response = await apiClient.get(`/cafes/${id}`);
             const cafe = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend
@@ -96,7 +84,7 @@ class CafeService {
 
     async getCafeBySlug(slug: string): Promise<Cafe> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/slug/${slug}`);
+            const response = await apiClient.get(`/cafes/slug/${slug}`);
             return this.normalizeCafe(response.data);
         } catch (error) {
             console.error(`Error fetching cafe by slug ${slug}:`, error);
@@ -106,8 +94,7 @@ class CafeService {
 
     async getMyCafe(): Promise<{ cafe: Cafe; hasCafe: boolean }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/my`, { headers });
+            const response = await apiClient.get(`/cafes/my`);
             const data = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend
@@ -128,8 +115,7 @@ class CafeService {
 
     async createCafe(data: Record<string, unknown>): Promise<Cafe> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafes`, data, { headers });
+            const response = await apiClient.post(`/cafes`, data);
             return response.data;
         } catch (error) {
             console.error('Error creating cafe:', error);
@@ -139,8 +125,7 @@ class CafeService {
 
     async updateCafe(id: number, data: Record<string, unknown>): Promise<Cafe> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/cafes/${id}`, data, { headers });
+            const response = await apiClient.put(`/cafes/${id}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating cafe ${id}:`, error);
@@ -150,8 +135,7 @@ class CafeService {
 
     async deleteCafe(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/cafes/${id}`, { headers });
+            await apiClient.delete(`/cafes/${id}`);
         } catch (error) {
             console.error(`Error deleting cafe ${id}:`, error);
             throw error;
@@ -161,7 +145,6 @@ class CafeService {
     async uploadLogo(asset: UploadAsset): Promise<string> {
         try {
             if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
-            const currentHeaders = await this.getHeaders();
             const formData = new FormData();
             formData.append('file', {
                 uri: asset.uri,
@@ -169,9 +152,8 @@ class CafeService {
                 name: asset.fileName || 'logo.jpg',
             } as any);
 
-            const response = await axios.post(`${API_PATH}/shops/upload-logo`, formData, {
+            const response = await apiClient.post(`/shops/upload-logo`, formData, {
                 headers: {
-                    ...currentHeaders,
                     'Content-Type': 'multipart/form-data',
                 },
             });
@@ -185,7 +167,6 @@ class CafeService {
     async uploadCover(asset: UploadAsset): Promise<string> {
         try {
             if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
-            const currentHeaders = await this.getHeaders();
             const formData = new FormData();
             formData.append('file', {
                 uri: asset.uri,
@@ -193,9 +174,8 @@ class CafeService {
                 name: asset.fileName || 'cover.jpg',
             } as any);
 
-            const response = await axios.post(`${API_PATH}/shops/upload-cover`, formData, {
+            const response = await apiClient.post(`/shops/upload-cover`, formData, {
                 headers: {
-                    ...currentHeaders,
                     'Content-Type': 'multipart/form-data',
                 },
             });
@@ -210,7 +190,7 @@ class CafeService {
 
     async getMenu(cafeId: number): Promise<MenuResponse> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/menu`);
+            const response = await apiClient.get(`/cafes/${cafeId}/menu`);
             const data = response.data;
 
             // Normalize categories and dishes IDs
@@ -235,7 +215,7 @@ class CafeService {
 
     async getCategories(cafeId: number): Promise<CafeCategory[]> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/categories`);
+            const response = await apiClient.get(`/cafes/${cafeId}/categories`);
             const data = response.data || [];
             return data.map((cat: any) => ({
                 ...cat,
@@ -249,7 +229,7 @@ class CafeService {
 
     async getDishes(cafeId: number, filters?: DishFilters): Promise<{ dishes: Dish[], total: number, page: number, totalPages: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/dishes`, { params: filters });
+            const response = await apiClient.get(`/cafes/${cafeId}/dishes`, { params: filters });
             const data = response.data;
             if (data && data.dishes) {
                 data.dishes = data.dishes.map((dish: any) => ({
@@ -267,7 +247,7 @@ class CafeService {
 
     async getDish(cafeId: number, dishId: number): Promise<Dish> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/dishes/${dishId}`);
+            const response = await apiClient.get(`/cafes/${cafeId}/dishes/${dishId}`);
             const data = response.data;
             if (data) {
                 return {
@@ -285,7 +265,7 @@ class CafeService {
 
     async getFeaturedDishes(cafeId: number, limit = 10): Promise<Dish[]> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/featured`, { params: { limit } });
+            const response = await apiClient.get(`/cafes/${cafeId}/featured`, { params: { limit } });
             return response.data;
         } catch (error) {
             console.error(`Error fetching featured dishes for cafe ${cafeId}:`, error);
@@ -297,7 +277,7 @@ class CafeService {
 
     async getTables(cafeId: number): Promise<CafeTable[]> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/tables`);
+            const response = await apiClient.get(`/cafes/${cafeId}/tables`);
             return (response.data || []).map((table: any) => this.normalizeTable(table));
         } catch (error) {
             console.error(`Error fetching tables for cafe ${cafeId}:`, error);
@@ -307,8 +287,7 @@ class CafeService {
 
     async createTable(cafeId: number, data: Partial<CafeTable>): Promise<CafeTable> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafes/${cafeId}/tables`, data, { headers });
+            const response = await apiClient.post(`/cafes/${cafeId}/tables`, data);
             return response.data;
         } catch (error) {
             console.error(`Error creating table for cafe ${cafeId}:`, error);
@@ -318,8 +297,7 @@ class CafeService {
 
     async updateTable(cafeId: number, tableId: number, data: Partial<CafeTable>): Promise<CafeTable> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/cafes/${cafeId}/tables/${tableId}`, data, { headers });
+            const response = await apiClient.put(`/cafes/${cafeId}/tables/${tableId}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating table ${tableId} for cafe ${cafeId}:`, error);
@@ -329,8 +307,7 @@ class CafeService {
 
     async deleteTable(cafeId: number, tableId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/cafes/${cafeId}/tables/${tableId}`, { headers });
+            await apiClient.delete(`/cafes/${cafeId}/tables/${tableId}`);
         } catch (error) {
             console.error(`Error deleting table ${tableId} for cafe ${cafeId}:`, error);
             throw error;
@@ -339,8 +316,7 @@ class CafeService {
 
     async updateFloorLayout(cafeId: number, tables: Partial<CafeTable>[]): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.put(`${API_PATH}/cafes/${cafeId}/floor-layout`, { tables }, { headers });
+            await apiClient.put(`/cafes/${cafeId}/floor-layout`, { tables });
         } catch (error) {
             console.error(`Error updating floor layout for cafe ${cafeId}:`, error);
             throw error;
@@ -349,7 +325,7 @@ class CafeService {
 
     async scanQRCode(qrCode: string): Promise<QRCodeScanResult> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes/scan/${qrCode}`);
+            const response = await apiClient.get(`/cafes/scan/${qrCode}`);
             return response.data;
         } catch (error) {
             console.error(`Error scanning QR code ${qrCode}:`, error);
@@ -361,8 +337,7 @@ class CafeService {
 
     async createOrder(data: CafeOrderCreateData): Promise<CafeOrder> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafe-orders`, data, { headers });
+            const response = await apiClient.post(`/cafe-orders`, data);
             return response.data;
         } catch (error) {
             console.error('Error creating cafe order:', error);
@@ -372,8 +347,7 @@ class CafeService {
 
     async getOrder(orderId: number): Promise<CafeOrder> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafe-orders/${orderId}`, { headers });
+            const response = await apiClient.get(`/cafe-orders/${orderId}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching cafe order ${orderId}:`, error);
@@ -383,8 +357,7 @@ class CafeService {
 
     async getMyOrders(limit = 10): Promise<CafeOrder[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafe-orders/my`, { params: { limit }, headers });
+            const response = await apiClient.get(`/cafe-orders/my`, { params: { limit } });
             return response.data;
         } catch (error) {
             console.error('Error fetching my cafe orders:', error);
@@ -394,8 +367,7 @@ class CafeService {
 
     async cancelOrder(orderId: number, reason: string): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafe-orders/${orderId}/cancel`, { reason }, { headers });
+            await apiClient.post(`/cafe-orders/${orderId}/cancel`, { reason });
         } catch (error) {
             console.error(`Error cancelling cafe order ${orderId}:`, error);
             throw error;
@@ -404,8 +376,7 @@ class CafeService {
 
     async repeatOrder(orderId: number): Promise<CafeOrder> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafe-orders/${orderId}/repeat`, {}, { headers });
+            const response = await apiClient.post(`/cafe-orders/${orderId}/repeat`, {});
             return response.data;
         } catch (error) {
             console.error(`Error repeating cafe order ${orderId}:`, error);
@@ -417,8 +388,7 @@ class CafeService {
 
     async callWaiter(cafeId: number, tableId: number, reason: WaiterCallReason, note?: string): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafes/${cafeId}/waiter-call`, { tableId, reason, note }, { headers });
+            await apiClient.post(`/cafes/${cafeId}/waiter-call`, { tableId, reason, note });
         } catch (error) {
             console.error('Error calling waiter:', error);
             throw error;
@@ -429,8 +399,7 @@ class CafeService {
 
     async getCafeOrders(cafeId: number, filters?: CafeOrderFilters): Promise<{ orders: CafeOrder[], total: number, page: number, totalPages: number }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/orders`, { params: filters, headers });
+            const response = await apiClient.get(`/cafes/${cafeId}/orders`, { params: filters });
             return response.data;
         } catch (error) {
             console.error(`Error fetching orders for cafe ${cafeId}:`, error);
@@ -440,8 +409,7 @@ class CafeService {
 
     async getActiveOrders(cafeId: number): Promise<ActiveOrdersResponse> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/orders/active`, { headers });
+            const response = await apiClient.get(`/cafes/${cafeId}/orders/active`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching active orders for cafe ${cafeId}:`, error);
@@ -451,8 +419,7 @@ class CafeService {
 
     async getOrderStats(cafeId: number): Promise<OrderStatsResponse> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/orders/stats`, { headers });
+            const response = await apiClient.get(`/cafes/${cafeId}/orders/stats`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching order stats for cafe ${cafeId}:`, error);
@@ -462,8 +429,7 @@ class CafeService {
 
     async updateOrderStatus(orderId: number, status: CafeOrderStatus): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.put(`${API_PATH}/cafe-orders/${orderId}/status`, { status }, { headers });
+            await apiClient.put(`/cafe-orders/${orderId}/status`, { status });
         } catch (error) {
             console.error(`Error updating order ${orderId} status:`, error);
             throw error;
@@ -472,8 +438,7 @@ class CafeService {
 
     async markOrderPaid(orderId: number, paymentMethod = 'cash'): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafe-orders/${orderId}/pay`, { paymentMethod }, { headers });
+            await apiClient.post(`/cafe-orders/${orderId}/pay`, { paymentMethod });
         } catch (error) {
             console.error(`Error marking order ${orderId} as paid:`, error);
             throw error;
@@ -482,8 +447,7 @@ class CafeService {
 
     async getWaiterCalls(cafeId: number): Promise<WaiterCall[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/waiter-calls`, { headers });
+            const response = await apiClient.get(`/cafes/${cafeId}/waiter-calls`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching waiter calls for cafe ${cafeId}:`, error);
@@ -493,8 +457,7 @@ class CafeService {
 
     async acknowledgeWaiterCall(cafeId: number, callId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafes/${cafeId}/waiter-calls/${callId}/acknowledge`, {}, { headers });
+            await apiClient.post(`/cafes/${cafeId}/waiter-calls/${callId}/acknowledge`, {});
         } catch (error) {
             console.error(`Error acknowledging waiter call ${callId}:`, error);
             throw error;
@@ -503,8 +466,7 @@ class CafeService {
 
     async completeWaiterCall(cafeId: number, callId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafes/${cafeId}/waiter-calls/${callId}/complete`, {}, { headers });
+            await apiClient.post(`/cafes/${cafeId}/waiter-calls/${callId}/complete`, {});
         } catch (error) {
             console.error(`Error completing waiter call ${callId}:`, error);
             throw error;
@@ -515,8 +477,7 @@ class CafeService {
 
     async getStopList(cafeId: number): Promise<Dish[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/cafes/${cafeId}/stop-list`, { headers });
+            const response = await apiClient.get(`/cafes/${cafeId}/stop-list`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching stop-list for cafe ${cafeId}:`, error);
@@ -526,8 +487,7 @@ class CafeService {
 
     async updateStopList(cafeId: number, dishIds: number[], isAvailable: boolean): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/cafes/${cafeId}/stop-list`, { dishIds, isAvailable }, { headers });
+            await apiClient.post(`/cafes/${cafeId}/stop-list`, { dishIds, isAvailable });
         } catch (error) {
             console.error(`Error updating stop-list for cafe ${cafeId}:`, error);
             throw error;
@@ -538,8 +498,7 @@ class CafeService {
 
     async createCategory(cafeId: number, data: Partial<CafeCategory>): Promise<CafeCategory> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafes/${cafeId}/categories`, data, { headers });
+            const response = await apiClient.post(`/cafes/${cafeId}/categories`, data);
             return response.data;
         } catch (error) {
             console.error(`Error creating category for cafe ${cafeId}:`, error);
@@ -549,8 +508,7 @@ class CafeService {
 
     async updateCategory(cafeId: number, categoryId: number, data: Partial<CafeCategory>): Promise<CafeCategory> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/cafes/${cafeId}/categories/${categoryId}`, data, { headers });
+            const response = await apiClient.put(`/cafes/${cafeId}/categories/${categoryId}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating category ${categoryId} for cafe ${cafeId}:`, error);
@@ -560,8 +518,7 @@ class CafeService {
 
     async deleteCategory(cafeId: number, categoryId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/cafes/${cafeId}/categories/${categoryId}`, { headers });
+            await apiClient.delete(`/cafes/${cafeId}/categories/${categoryId}`);
         } catch (error) {
             console.error(`Error deleting category ${categoryId} for cafe ${cafeId}:`, error);
             throw error;
@@ -572,8 +529,7 @@ class CafeService {
 
     async createDish(cafeId: number, data: Partial<Dish>): Promise<Dish> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/cafes/${cafeId}/dishes`, data, { headers });
+            const response = await apiClient.post(`/cafes/${cafeId}/dishes`, data);
             return response.data;
         } catch (error) {
             console.error(`Error creating dish for cafe ${cafeId}:`, error);
@@ -583,8 +539,7 @@ class CafeService {
 
     async updateDish(cafeId: number, dishId: number, data: Partial<Dish>): Promise<Dish> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/cafes/${cafeId}/dishes/${dishId}`, data, { headers });
+            const response = await apiClient.put(`/cafes/${cafeId}/dishes/${dishId}`, data);
             return response.data;
         } catch (error) {
             console.error(`Error updating dish ${dishId} for cafe ${cafeId}:`, error);
@@ -594,8 +549,7 @@ class CafeService {
 
     async deleteDish(cafeId: number, dishId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/cafes/${cafeId}/dishes/${dishId}`, { headers });
+            await apiClient.delete(`/cafes/${cafeId}/dishes/${dishId}`);
         } catch (error) {
             console.error(`Error deleting dish ${dishId} for cafe ${cafeId}:`, error);
             throw error;

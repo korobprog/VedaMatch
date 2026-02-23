@@ -21,10 +21,10 @@ class YatraService {
             return path;
         }
 
-        // Remove /api form the end of API_PATH to get the base URL
+        // Remove /api from the end of API_PATH to get the base URL
         const baseUrl = API_PATH.replace(/\/api\/?$/, '');
-        const timestamp = new Date().getTime(); // Bust cache for dev
-        const finalUrl = `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}?t=${timestamp}`;
+        const separator = path.startsWith('/') ? '' : '/';
+        const finalUrl = `${baseUrl}${separator}${path}${__DEV__ ? `?t=${Date.now()}` : ''}`;
         return finalUrl;
     }
 

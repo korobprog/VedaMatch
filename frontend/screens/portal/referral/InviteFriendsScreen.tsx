@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -30,104 +30,42 @@ import {
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { API_PATH } from '../../../config/api.config';
-import { getAuthHeaders } from '../../../services/contactService';
 import { ReferralRulesModal } from '../../../components/wallet/ReferralRulesModal';
+import {
+    ReferralInfo,
+    ReferralStats,
+    InviteData,
+    useReferralOverviewQuery,
+} from '../../../hooks/queries/useReferralOverviewQuery';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-interface ReferralStats {
-    totalInvited: number;
-    activeInvited: number;
-    totalEarned: number;
-}
-
-interface ReferralInfo {
-    id: number;
-    name: string;
-    avatarUrl: string;
-    status: 'pending' | 'active';
-    joinedAt: string;
-}
-
-interface InviteData {
-    inviteCode: string;
-    deepLink: string;
-    webLink: string;
-    shareText: string;
-}
-
 export default function InviteFriendsScreen({ navigation }: any) {
     const insets = useSafeAreaInsets();
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [sharingImage, setSharingImage] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showRules, setShowRules] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const viewShotRef = React.useRef<any>(null);
     const copiedResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const latestLoadRequestRef = useRef(0);
-    const isMountedRef = useRef(true);
     const { user: currentUser } = useUser();
-    const [inviteData, setInviteData] = useState<InviteData | null>(null);
-    const [stats, setStats] = useState<ReferralStats | null>(null);
-    const [referrals, setReferrals] = useState<ReferralInfo[]>([]);
-
-    const loadData = useCallback(async () => {
-        const requestId = ++latestLoadRequestRef.current;
-        try {
-            if (isMountedRef.current) {
-                setError(null);
-            }
-            const headers = await getAuthHeaders();
-            const [inviteRes, statsRes, listRes] = await Promise.all([
-                fetch(`${API_PATH}/referral/invite`, { headers }).then(r => {
-                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                    return r.json();
-                }),
-                fetch(`${API_PATH}/referral/stats`, { headers }).then(r => {
-                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                    return r.json();
-                }),
-                fetch(`${API_PATH}/referral/list?limit=50`, { headers }).then(r => {
-                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                    return r.json();
-                }),
-            ]);
-            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            setInviteData(inviteRes);
-            setStats(statsRes);
-            setReferrals(Array.isArray(listRes?.referrals) ? listRes.referrals : []);
-        } catch (err: any) {
-            console.error('[Referral] Failed to load data:', err);
-            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                setError(err.message || 'Ошибка загрузки данных');
-            }
-        } finally {
-            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                setLoading(false);
-                setRefreshing(false);
-            }
-        }
-    }, []);
+    const overviewQuery = useReferralOverviewQuery(50);
+    const loading = overviewQuery.isLoading;
+    const refreshing = overviewQuery.isRefetching && !overviewQuery.isLoading;
+    const error = overviewQuery.error ? 'Ошибка загрузки данных' : null;
+    const inviteData: InviteData | null = overviewQuery.data?.invite || null;
+    const stats: ReferralStats | null = overviewQuery.data?.stats || null;
+    const referrals: ReferralInfo[] = overviewQuery.data?.referrals || [];
 
     useEffect(() => {
-        loadData();
         return () => {
-            isMountedRef.current = false;
-            latestLoadRequestRef.current += 1;
             if (copiedResetTimerRef.current) {
                 clearTimeout(copiedResetTimerRef.current);
             }
         };
-    }, [loadData]);
+    }, []);
 
     const onRefresh = () => {
-        setRefreshing(true);
-        loadData();
+        void overviewQuery.refetch();
     };
 
     const handleCopyCode = async () => {
@@ -138,9 +76,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
             clearTimeout(copiedResetTimerRef.current);
         }
         copiedResetTimerRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-                setCopied(false);
-            }
+            setCopied(false);
         }, 2000);
     };
 
@@ -186,9 +122,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 console.error('[Referral] Image share error:', err);
             }
         } finally {
-            if (isMountedRef.current) {
-                setSharingImage(false);
-            }
+            setSharingImage(false);
         }
     };
 
@@ -231,7 +165,12 @@ export default function InviteFriendsScreen({ navigation }: any) {
         return (
             <View style={[styles.container, styles.centered]}>
                 <Text style={{ color: '#EF4444', marginBottom: 20 }}>{error}</Text>
-                <TouchableOpacity onPress={loadData} style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}>
+                <TouchableOpacity
+                    onPress={() => {
+                        void overviewQuery.refetch();
+                    }}
+                    style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
+                >
                     <Text style={{ color: '#FFF' }}>Повторить</Text>
                 </TouchableOpacity>
             </View>

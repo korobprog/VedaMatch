@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 import { charityService } from './charityService';
 import { supportAttributionService } from './supportAttributionService';
 
@@ -19,15 +18,10 @@ const INTERACTIONS_KEY_PREFIX = 'multimedia_support_interactions';
 
 export const multimediaSupportService = {
   async getSupportConfig(): Promise<MultimediaSupportConfig> {
-    const response = await authorizedFetch(`${API_PATH}/support/config?service=multimedia`, {
-      method: 'GET',
+    const response = await apiClient.get('/support/config', {
+      params: { service: 'multimedia' },
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to load multimedia support config (${response.status})`);
-    }
-
-    const data = await response.json();
+    const data = response.data;
     return {
       enabled: Boolean(data?.enabled),
       projectId: Number(data?.projectId ?? 0),
@@ -92,4 +86,3 @@ export const multimediaSupportService = {
     await AsyncStorage.setItem(key, '0');
   },
 };
-

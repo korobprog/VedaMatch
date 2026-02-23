@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 export interface RoomSfuTokenResponse {
   token: string;
@@ -21,27 +20,23 @@ export interface RoomSfuConfigResponse {
 
 export const roomCallService = {
   async getRoomSfuConfig(roomId: number): Promise<RoomSfuConfigResponse> {
-    const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/sfu/config`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to load room SFU config (${response.status})`);
+    try {
+      const response = await apiClient.get(`/rooms/${roomId}/sfu/config`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(`Failed to load room SFU config (${error?.response?.status ?? 'unknown'})`);
     }
-    return response.json();
   },
 
   async getRoomSfuToken(
     roomId: number,
     payload?: { participantName?: string; metadata?: Record<string, unknown> },
   ): Promise<RoomSfuTokenResponse> {
-    const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/sfu/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload || {}),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to issue room SFU token (${response.status})`);
+    try {
+      const response = await apiClient.post(`/rooms/${roomId}/sfu/token`, payload || {});
+      return response.data;
+    } catch (error: any) {
+      throw new Error(`Failed to issue room SFU token (${error?.response?.status ?? 'unknown'})`);
     }
-    return response.json();
   },
 };

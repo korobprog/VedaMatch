@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"rag-agent-server/internal/config"
+	"rag-agent-server/internal/services"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,10 +80,32 @@ func buildRateLimitKey(scope string, subject string) string {
 }
 
 func rateLimitHandler(scope string, limit int, window time.Duration, subjectFn func(c *fiber.Ctx) string) fiber.Handler {
+	useRedisLimiter := config.RedisRateLimitEnabled()
+
 	return func(c *fiber.Ctx) error {
 		subject := subjectFn(c)
 		key := buildRateLimitKey(scope, subject)
-		allowed, retryAfter := globalRateLimiter.allow(key, limit, window)
+
+		allowed := true
+		retryAfter := time.Duration(0)
+		usedRedisLimiter := false
+
+		if useRedisLimiter {
+			redisLimiter := services.NewRedisService()
+			if redisLimiter != nil {
+				redisAllowed, redisRetryAfter, err := redisLimiter.CheckRateLimitWithRetry("ratelimit:"+key, limit, window)
+				if err == nil {
+					allowed = redisAllowed
+					retryAfter = redisRetryAfter
+					usedRedisLimiter = true
+				}
+			}
+		}
+
+		if !usedRedisLimiter {
+			allowed, retryAfter = globalRateLimiter.allow(key, limit, window)
+		}
+
 		if allowed {
 			return c.Next()
 		}

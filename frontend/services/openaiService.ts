@@ -10,7 +10,8 @@ try {
 import { getModelConfig, ModelConfig } from '../config/models.config';
 
 import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import { AxiosError } from 'axios';
+import apiClient from '../lib/apiClient';
 
 // Fallback if API_PATH is somehow still missing in some contexts
 const SAFE_API_PATH = typeof API_PATH !== 'undefined' ? API_PATH : 'http://localhost:8081/api';
@@ -52,6 +53,11 @@ export interface ChatResponse {
     total_tokens: number;
   };
 }
+
+const isAbortRequestError = (error: any): boolean => {
+  if (!error) return false;
+  return error.name === 'AbortError' || error.code === 'ERR_CANCELED';
+};
 
 /**
  * Отправляет сообщение в RVFreeLLM API
@@ -105,29 +111,21 @@ export const sendMessage = async (
       requestBody.provider = provider;
     }
 
-    // Попробуем прямой fetch
+    // Попробуем прямой HTTP вызов через общий apiClient
     try {
-      const response = await authorizedFetch(`${SAFE_API_PATH}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+      const response = await apiClient.post('/v1/chat/completions', requestBody, {
         signal: options.signal,
+        timeout: 180000,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Ошибка API (${response.status}): ${errorText.substring(0, 100)}`);
-      }
-
-      const text = await response.text();
+      const rawData = response.data;
+      const text = typeof rawData === 'string' ? rawData : JSON.stringify(rawData ?? {});
       console.log('DEBUG: Received API response text length:', text.length);
       console.log('DEBUG: Response preview:', text.substring(0, 500));
 
       let data: any;
       try {
-        data = JSON.parse(text);
+        data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
         console.log('DEBUG: Parsed JSON data keys:', Object.keys(data));
       } catch (e) {
         console.error('DEBUG: JSON parse error:', e);
@@ -181,7 +179,7 @@ export const sendMessage = async (
           : undefined,
       };
     } catch (directFetchError: any) {
-      if (directFetchError.name === 'AbortError') throw directFetchError;
+      if (isAbortRequestError(directFetchError)) throw directFetchError;
 
       // Fallback на SDK
       const completion = await openaiClient.chat.completions.create(requestBody, {
@@ -219,30 +217,19 @@ export const sendMessage = async (
  */
 export const getAvailableModels = async (provider?: string): Promise<any> => {
   try {
-    const url = provider
-      ? `${SAFE_API_PATH}/v1/models?provider=${provider}`
-      : `${SAFE_API_PATH}/v1/models`;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const response = await authorizedFetch(url, {
-      method: 'GET',
-      headers: {},
-      signal: controller.signal
+    const response = await apiClient.get('/v1/models', {
+      params: provider ? { provider } : undefined,
+      timeout: 10000,
     });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`Ошибка получения моделей: ${response.status}`);
-    }
-
-    const text = await response.text();
-    if (!text || text === 'undefined') throw new Error('Пустой или некорректный ответ');
-
-    return JSON.parse(text);
+    return response.data;
   } catch (error: any) {
+    if (isAbortRequestError(error)) {
+      console.warn('Ошибка в getAvailableModels: request aborted');
+      throw error;
+    }
+    const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+    const message = axiosError?.response?.data?.error || axiosError?.response?.data?.message || error?.message || error;
     console.warn('Ошибка в getAvailableModels:', error?.message || error);
-    throw error;
+    throw new Error(typeof message === 'string' ? message : 'Ошибка получения моделей');
   }
 };

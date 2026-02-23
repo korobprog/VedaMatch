@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedFetch } from './authSessionService';
+import apiClient from '../lib/apiClient';
 import { charityService } from './charityService';
 import { supportAttributionService } from './supportAttributionService';
 
@@ -17,15 +16,10 @@ export interface RoomSupportConfig {
 
 export const roomSupportService = {
   async getSupportConfig(): Promise<RoomSupportConfig> {
-    const response = await authorizedFetch(`${API_PATH}/support/config?service=rooms`, {
-      method: 'GET',
+    const response = await apiClient.get('/support/config', {
+      params: { service: 'rooms' },
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to load rooms support config (${response.status})`);
-    }
-
-    const data = await response.json();
+    const data = response.data;
     return {
       enabled: Boolean(data?.enabled),
       projectId: Number(data?.projectId ?? 0),

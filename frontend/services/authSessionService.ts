@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import DeviceInfo from 'react-native-device-info';
 import { API_PATH } from '../config/api.config';
+import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvStorage';
 
 export interface AuthTokens {
     accessToken: string;
@@ -30,6 +31,12 @@ const toStringValue = (value: unknown): string => {
     if (typeof value === 'string') return value.trim();
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
     return '';
+};
+
+const hasStoredString = (value: string): boolean => {
+    if (!value) return false;
+    const normalized = value.toLowerCase();
+    return normalized !== 'undefined' && normalized !== 'null';
 };
 
 const toNumberValue = (value: unknown): number | undefined => {
@@ -79,6 +86,22 @@ export const normalizeAuthTokens = (payload: any): AuthTokens | null => {
 };
 
 const readStoredTokens = async (): Promise<AuthTokens | null> => {
+    const mmkvAccessToken = toStringValue(mmkvGetString(STORAGE_KEY_ACCESS_TOKEN));
+    if (hasStoredString(mmkvAccessToken)) {
+        const mmkvRefreshToken = toStringValue(mmkvGetString(STORAGE_KEY_REFRESH_TOKEN));
+        const mmkvAccessExpiresAt = toStringValue(mmkvGetString(STORAGE_KEY_ACCESS_EXPIRES));
+        const mmkvRefreshExpiresAt = toStringValue(mmkvGetString(STORAGE_KEY_REFRESH_EXPIRES));
+        const mmkvSessionID = toNumberValue(mmkvGetString(STORAGE_KEY_SESSION_ID));
+
+        return {
+            accessToken: mmkvAccessToken,
+            refreshToken: mmkvRefreshToken || undefined,
+            accessTokenExpiresAt: mmkvAccessExpiresAt || undefined,
+            refreshTokenExpiresAt: mmkvRefreshExpiresAt || undefined,
+            sessionId: mmkvSessionID,
+        };
+    }
+
     const values = await AsyncStorage.multiGet([
         STORAGE_KEY_ACCESS_TOKEN,
         STORAGE_KEY_REFRESH_TOKEN,
@@ -89,7 +112,7 @@ const readStoredTokens = async (): Promise<AuthTokens | null> => {
 
     const map = new Map(values);
     const accessToken = toStringValue(map.get(STORAGE_KEY_ACCESS_TOKEN));
-    if (!accessToken || accessToken === 'undefined' || accessToken === 'null') {
+    if (!hasStoredString(accessToken)) {
         return null;
     }
 
@@ -97,6 +120,13 @@ const readStoredTokens = async (): Promise<AuthTokens | null> => {
     const accessTokenExpiresAt = toStringValue(map.get(STORAGE_KEY_ACCESS_EXPIRES));
     const refreshTokenExpiresAt = toStringValue(map.get(STORAGE_KEY_REFRESH_EXPIRES));
     const sessionId = toNumberValue(map.get(STORAGE_KEY_SESSION_ID));
+
+    // Dual-write transition: backfill MMKV when values exist only in AsyncStorage.
+    mmkvSetString(STORAGE_KEY_ACCESS_TOKEN, accessToken);
+    if (hasStoredString(refreshToken)) mmkvSetString(STORAGE_KEY_REFRESH_TOKEN, refreshToken);
+    if (hasStoredString(accessTokenExpiresAt)) mmkvSetString(STORAGE_KEY_ACCESS_EXPIRES, accessTokenExpiresAt);
+    if (hasStoredString(refreshTokenExpiresAt)) mmkvSetString(STORAGE_KEY_REFRESH_EXPIRES, refreshTokenExpiresAt);
+    if (sessionId) mmkvSetString(STORAGE_KEY_SESSION_ID, String(sessionId));
 
     return {
         accessToken,
@@ -149,6 +179,9 @@ export const saveAuthTokens = async (payload: any): Promise<AuthTokens | null> =
         setPairs.push([STORAGE_KEY_SESSION_ID, String(tokens.sessionId)]);
     }
 
+    for (const [key, value] of setPairs) {
+        mmkvSetString(key, value);
+    }
     await AsyncStorage.multiSet(setPairs);
 
     const removeKeys: string[] = [];
@@ -157,6 +190,7 @@ export const saveAuthTokens = async (payload: any): Promise<AuthTokens | null> =
     if (!tokens.refreshTokenExpiresAt) removeKeys.push(STORAGE_KEY_REFRESH_EXPIRES);
     if (!tokens.sessionId) removeKeys.push(STORAGE_KEY_SESSION_ID);
     if (removeKeys.length > 0) {
+        mmkvDeleteMultiple(removeKeys);
         await AsyncStorage.multiRemove(removeKeys);
     }
 
@@ -165,6 +199,13 @@ export const saveAuthTokens = async (payload: any): Promise<AuthTokens | null> =
 
 export const clearAuthTokens = async () => {
     cachedTokens = null;
+    mmkvDeleteMultiple([
+        STORAGE_KEY_ACCESS_TOKEN,
+        STORAGE_KEY_REFRESH_TOKEN,
+        STORAGE_KEY_ACCESS_EXPIRES,
+        STORAGE_KEY_REFRESH_EXPIRES,
+        STORAGE_KEY_SESSION_ID,
+    ]);
     await AsyncStorage.multiRemove([
         STORAGE_KEY_ACCESS_TOKEN,
         STORAGE_KEY_REFRESH_TOKEN,
@@ -187,7 +228,7 @@ export const logoutAuthSession = async (): Promise<void> => {
         deviceId = '';
     }
 
-    const pushToken = toStringValue(await AsyncStorage.getItem(STORAGE_KEY_PUSH_TOKEN));
+    const pushToken = toStringValue(mmkvGetString(STORAGE_KEY_PUSH_TOKEN) || await AsyncStorage.getItem(STORAGE_KEY_PUSH_TOKEN));
 
     try {
         await fetch(`${API_PATH}/auth/logout`, {

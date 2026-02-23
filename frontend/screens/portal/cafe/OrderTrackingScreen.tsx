@@ -9,6 +9,8 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    AppState,
+    AppStateStatus,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -64,6 +66,9 @@ const OrderTrackingScreen: React.FC = () => {
     const latestLoadRequestRef = useRef(0);
     const isMountedRef = useRef(true);
     const actionInProgressRef = useRef(false);
+    const pollTimer = useRef<NodeJS.Timeout | null>(null);
+    const pollFailuresRef = useRef(0);
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
     const loadOrder = useCallback(async (silent = false) => {
         if (!orderId) {
@@ -89,12 +94,59 @@ const OrderTrackingScreen: React.FC = () => {
             if (!silent) {
                 Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
             }
+            throw error;
         } finally {
             if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
     }, [orderId, t, navigation]);
+
+    const stopPolling = useCallback(() => {
+        if (pollTimer.current) {
+            clearTimeout(pollTimer.current);
+            pollTimer.current = null;
+        }
+    }, []);
+
+    const schedulePolling = useCallback((runNow = false) => {
+        const baseInterval = 30_000;
+
+        const runPoll = async () => {
+            if (!isMountedRef.current || appStateRef.current !== 'active') {
+                return;
+            }
+
+            try {
+                await loadOrder(true);
+                pollFailuresRef.current = 0;
+            } catch {
+                pollFailuresRef.current = Math.min(pollFailuresRef.current + 1, 3);
+            }
+
+            if (!isMountedRef.current) {
+                return;
+            }
+
+            const backoffMultiplier = Math.min(2 ** pollFailuresRef.current, 8);
+            const jitter = Math.floor(Math.random() * 2_000);
+            const delay = baseInterval * backoffMultiplier + jitter;
+            pollTimer.current = setTimeout(() => {
+                void runPoll();
+            }, delay);
+        };
+
+        stopPolling();
+        if (runNow) {
+            void runPoll();
+            return;
+        }
+
+        const initialDelay = baseInterval + Math.floor(Math.random() * 2_000);
+        pollTimer.current = setTimeout(() => {
+            void runPoll();
+        }, initialDelay);
+    }, [loadOrder, stopPolling]);
 
     useEffect(() => {
         return () => {
@@ -107,17 +159,28 @@ const OrderTrackingScreen: React.FC = () => {
     useFocusEffect(
         useCallback(() => {
             isMountedRef.current = true;
-            void loadOrder();
+            void loadOrder().catch(() => undefined);
 
-            const interval = setInterval(() => {
-                void loadOrder(true);
-            }, 20000);
+            const appStateSub = AppState.addEventListener('change', (nextState) => {
+                appStateRef.current = nextState;
+                if (!isMountedRef.current) {
+                    return;
+                }
+                if (nextState === 'active') {
+                    pollFailuresRef.current = 0;
+                    schedulePolling(true);
+                    return;
+                }
+                stopPolling();
+            });
+            schedulePolling();
 
             return () => {
-                clearInterval(interval);
+                stopPolling();
+                appStateSub.remove();
                 latestLoadRequestRef.current += 1;
             };
-        }, [loadOrder])
+        }, [loadOrder, schedulePolling, stopPolling])
     );
 
     useEffect(() => {
@@ -254,7 +317,7 @@ const OrderTrackingScreen: React.FC = () => {
                     <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.tracking.orderNum', { number: order.orderNumber })}</Text>
-                <TouchableOpacity style={styles.headerBtn} onPress={() => loadOrder(true)}>
+                <TouchableOpacity style={styles.headerBtn} onPress={() => void loadOrder(true).catch(() => undefined)}>
                     <RefreshCw size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
             </SafeAreaView>

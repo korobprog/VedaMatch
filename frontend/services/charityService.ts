@@ -1,47 +1,35 @@
 import { CharityDonation, CharityEvidence, CharityOrganization, CharityProject, DonateRequest, DonateResponse } from '../types/charity';
-import { API_PATH } from '../config/api.config';
+import apiClient from '../lib/apiClient';
 import { getGodModeQueryParams } from './godModeService';
-import { authorizedFetch } from './authSessionService';
 
 class CharityService {
     private async get(endpoint: string, token?: string) {
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        const godModeParams = await getGodModeQueryParams();
+        const [path, rawQuery = ''] = endpoint.split('?');
+        const params = new URLSearchParams(rawQuery);
+        if (godModeParams.math) {
+            params.set('math', godModeParams.math);
         }
 
-        const godModeParams = await getGodModeQueryParams();
-        const separator = endpoint.includes('?') ? '&' : '?';
-        const url = godModeParams.math ? `${API_PATH}${endpoint}${separator}math=${encodeURIComponent(godModeParams.math)}` : `${API_PATH}${endpoint}`;
-
-        const response = await authorizedFetch(url, {
-            method: "GET",
-            headers
-        }, {
-            skipAuth: Boolean(token),
+        const response = await apiClient.get(path, {
+            params: Object.fromEntries(params.entries()),
+            headers: token
+                ? { Authorization: `Bearer ${token}` }
+                : undefined,
         });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
+        return response.data;
     }
 
     private async post(endpoint: string, token: string | undefined, body: any) {
-        const response = await authorizedFetch(`${API_PATH}${endpoint}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(body),
-        }, {
-            skipAuth: Boolean(token),
-        });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        try {
+            const response = await apiClient.post(endpoint, body, {
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            });
+            return response.data;
+        } catch (error: any) {
+            const errorData = error?.response?.data || {};
+            throw new Error(errorData.error || `HTTP error! status: ${error?.response?.status ?? 'unknown'}`);
         }
-        return await response.json();
     }
 
     // --- Organizations ---

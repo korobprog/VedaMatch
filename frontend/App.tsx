@@ -159,6 +159,7 @@ import InviteFriendsScreen from './screens/portal/referral/InviteFriendsScreen';
 import { WalletProvider } from './context/WalletContext';
 import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectionScreen, PathWeeklySummaryScreen } from './screens/path_tracker';
 
+import { QueryProvider } from './providers/QueryProvider';
 
 import { StatusBar, useColorScheme, ActivityIndicator, Image, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -653,21 +654,23 @@ const AppContent = () => {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <UserProvider>
-        <SettingsProvider>
-          <NotificationProvider>
-            <WebSocketProvider>
-              <ChatProvider>
-                <CafeCartProvider>
-                  <WalletProvider>
-                    <AppContent />
-                  </WalletProvider>
-                </CafeCartProvider>
-              </ChatProvider>
-            </WebSocketProvider>
-          </NotificationProvider>
-        </SettingsProvider>
-      </UserProvider>
+      <QueryProvider>
+        <UserProvider>
+          <SettingsProvider>
+            <NotificationProvider>
+              <WebSocketProvider>
+                <ChatProvider>
+                  <CafeCartProvider>
+                    <WalletProvider>
+                      <AppContent />
+                    </WalletProvider>
+                  </CafeCartProvider>
+                </ChatProvider>
+              </WebSocketProvider>
+            </NotificationProvider>
+          </SettingsProvider>
+        </UserProvider>
+      </QueryProvider>
     </SafeAreaProvider>
   );
 }

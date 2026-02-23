@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"rag-agent-server/internal/models"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -33,6 +34,15 @@ func Connect() {
 	}
 
 	log.Println("Connected to Database")
+
+	sqlDB, err := DB.DB()
+	if err != nil {
+		log.Fatalf("Failed to configure DB pool: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(40)
+	sqlDB.SetMaxIdleConns(20)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	// Auto Migrate - Stage 1: Independent Tables required for foreign keys
 	// We migrate ScriptureBook first so we can seed it before ScriptureVerse tries to create an FK to it
@@ -162,6 +172,29 @@ func Connect() {
 		ON messages (sender_id, recipient_id, id DESC)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_recipient_sender_id_desc
 		ON messages (recipient_id, sender_id, id DESC)`)
+
+	// Hot-path feed/news/services indexes.
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_posts_status_published_created
+		ON channel_posts (status, published_at DESC, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_services_status_created_desc
+		ON services (status, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_news_items_status_important_published
+		ON news_items (status, is_important DESC, published_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_promoted_ad_impressions_user_placement_created
+		ON channel_promoted_ad_impressions (user_id, placement, created_at DESC)`)
+
+	// Contacts search indexes.
+	DB.Exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_users_contacts_search_trgm
+		ON users USING GIN (LOWER(
+			coalesce(karmic_name, '') || ' ' ||
+			coalesce(spiritual_name, '') || ' ' ||
+			coalesce(city, '') || ' ' ||
+			coalesce(country, '') || ' ' ||
+			coalesce(yatra, '')
+		) gin_trgm_ops)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_users_city_lower
+		ON users (LOWER(city))`)
 
 	backfillRoomOwnerMemberships()
 

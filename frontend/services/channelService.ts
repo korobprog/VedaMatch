@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
-import { getAccessToken } from './authSessionService';
+import apiClient from '../lib/apiClient';
 import {
   Channel,
   ChannelBrandingUpdateRequest,
@@ -20,84 +18,62 @@ import {
 } from '../types/channel';
 
 class ChannelService {
-  private async getHeaders() {
-    const token = await getAccessToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    return headers;
-  }
-
   async getFeed(params: { page?: number; limit?: number; search?: string; channelId?: number } = {}): Promise<ChannelFeedResponse> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/feed`, { params, headers });
+    const response = await apiClient.get('/feed', { params });
     return response.data;
   }
 
   async getChannels(params: { page?: number; limit?: number; search?: string } = {}): Promise<ChannelListResponse> {
-    const response = await axios.get(`${API_PATH}/channels`, { params });
+    const response = await apiClient.get('/channels', { params });
     return response.data;
   }
 
   async getMyChannels(params: { page?: number; limit?: number; search?: string } = {}): Promise<ChannelListResponse> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/my`, { headers, params });
+    const response = await apiClient.get('/channels/my', { params });
     return response.data;
   }
 
   async createChannel(payload: ChannelCreateRequest): Promise<Channel> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels`, payload, { headers });
+    const response = await apiClient.post('/channels', payload);
     return response.data;
   }
 
   async getChannel(channelId: number): Promise<{ channel: Channel; viewerRole?: ChannelMemberRole }> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/${channelId}`, { headers });
+    const response = await apiClient.get(`/channels/${channelId}`);
     return response.data;
   }
 
   async updateChannel(channelId: number, payload: ChannelUpdateRequest): Promise<Channel> {
-    const headers = await this.getHeaders();
-    const response = await axios.patch(`${API_PATH}/channels/${channelId}`, payload, { headers });
+    const response = await apiClient.patch(`/channels/${channelId}`, payload);
     return response.data;
   }
 
   async updateBranding(channelId: number, payload: ChannelBrandingUpdateRequest): Promise<Channel> {
-    const headers = await this.getHeaders();
-    const response = await axios.patch(`${API_PATH}/channels/${channelId}/branding`, payload, { headers });
+    const response = await apiClient.patch(`/channels/${channelId}/branding`, payload);
     return response.data;
   }
 
   async addMember(channelId: number, payload: ChannelMemberAddRequest): Promise<ChannelMember> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/members`, payload, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/members`, payload);
     return response.data;
   }
 
   async listMembers(channelId: number): Promise<{ members: ChannelMemberResponse[] }> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/${channelId}/members`, { headers });
+    const response = await apiClient.get(`/channels/${channelId}/members`);
     return response.data;
   }
 
   async updateMemberRole(channelId: number, userId: number, role: ChannelMemberRole): Promise<ChannelMember> {
-    const headers = await this.getHeaders();
-    const response = await axios.patch(`${API_PATH}/channels/${channelId}/members/${userId}`, { role }, { headers });
+    const response = await apiClient.patch(`/channels/${channelId}/members/${userId}`, { role });
     return response.data;
   }
 
   async removeMember(channelId: number, userId: number): Promise<void> {
-    const headers = await this.getHeaders();
-    await axios.delete(`${API_PATH}/channels/${channelId}/members/${userId}`, { headers });
+    await apiClient.delete(`/channels/${channelId}/members/${userId}`);
   }
 
   async createPost(channelId: number, payload: ChannelPostCreateRequest): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/posts`, payload, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/posts`, payload);
     return response.data;
   }
 
@@ -105,68 +81,56 @@ class ChannelService {
     channelId: number,
     params: { page?: number; limit?: number; includeDraft?: boolean } = {}
   ): Promise<{ posts: ChannelPost[]; total: number; page: number; limit: number; totalPages: number; viewerRole?: ChannelMemberRole }> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/${channelId}/posts`, { headers, params });
+    const response = await apiClient.get(`/channels/${channelId}/posts`, { params });
     return response.data;
   }
 
   async updatePost(channelId: number, postId: number, payload: ChannelPostUpdateRequest): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.patch(`${API_PATH}/channels/${channelId}/posts/${postId}`, payload, { headers });
+    const response = await apiClient.patch(`/channels/${channelId}/posts/${postId}`, payload);
     return response.data;
   }
 
   async pinPost(channelId: number, postId: number): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/posts/${postId}/pin`, {}, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/posts/${postId}/pin`, {});
     return response.data;
   }
 
   async unpinPost(channelId: number, postId: number): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.delete(`${API_PATH}/channels/${channelId}/posts/${postId}/pin`, { headers });
+    const response = await apiClient.delete(`/channels/${channelId}/posts/${postId}/pin`);
     return response.data;
   }
 
   async publishPost(channelId: number, postId: number): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/posts/${postId}/publish`, {}, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/posts/${postId}/publish`, {});
     return response.data;
   }
 
   async schedulePost(channelId: number, postId: number, payload: ChannelSchedulePostRequest): Promise<ChannelPost> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/posts/${postId}/schedule`, payload, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/posts/${postId}/schedule`, payload);
     return response.data;
   }
 
   async trackPostCtaClick(channelId: number, postId: number): Promise<void> {
-    const headers = await this.getHeaders();
-    await axios.post(`${API_PATH}/channels/${channelId}/posts/${postId}/cta-click`, {}, { headers });
+    await apiClient.post(`/channels/${channelId}/posts/${postId}/cta-click`, {});
   }
 
   async getPromptStatus(keys: string[]): Promise<Record<string, boolean>> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/prompts/status`, {
-      headers,
+    const response = await apiClient.get('/channels/prompts/status', {
       params: { keys: keys.join(',') },
     });
     return response.data?.status || {};
   }
 
   async dismissPrompt(promptKey: string, payload: { postId?: number } = {}): Promise<void> {
-    const headers = await this.getHeaders();
-    await axios.post(`${API_PATH}/channels/prompts/${encodeURIComponent(promptKey)}/dismiss`, payload, { headers });
+    await apiClient.post(`/channels/prompts/${encodeURIComponent(promptKey)}/dismiss`, payload);
   }
 
   async trackPromotedAdClick(adId: number): Promise<void> {
-    const headers = await this.getHeaders();
-    await axios.post(`${API_PATH}/channels/promoted-ads/${adId}/click`, {}, { headers });
+    await apiClient.post(`/channels/promoted-ads/${adId}/click`, {});
   }
 
   async listShowcases(channelId: number): Promise<{ showcases: ChannelShowcase[] }> {
-    const headers = await this.getHeaders();
-    const response = await axios.get(`${API_PATH}/channels/${channelId}/showcases`, { headers });
+    const response = await apiClient.get(`/channels/${channelId}/showcases`);
     return response.data;
   }
 
@@ -174,8 +138,7 @@ class ChannelService {
     channelId: number,
     payload: { title: string; kind: string; filterJson?: string; position?: number; isActive?: boolean }
   ): Promise<ChannelShowcase> {
-    const headers = await this.getHeaders();
-    const response = await axios.post(`${API_PATH}/channels/${channelId}/showcases`, payload, { headers });
+    const response = await apiClient.post(`/channels/${channelId}/showcases`, payload);
     return response.data;
   }
 
@@ -184,14 +147,12 @@ class ChannelService {
     showcaseId: number,
     payload: { title?: string; kind?: string; filterJson?: string; position?: number; isActive?: boolean }
   ): Promise<ChannelShowcase> {
-    const headers = await this.getHeaders();
-    const response = await axios.patch(`${API_PATH}/channels/${channelId}/showcases/${showcaseId}`, payload, { headers });
+    const response = await apiClient.patch(`/channels/${channelId}/showcases/${showcaseId}`, payload);
     return response.data;
   }
 
   async deleteShowcase(channelId: number, showcaseId: number): Promise<void> {
-    const headers = await this.getHeaders();
-    await axios.delete(`${API_PATH}/channels/${channelId}/showcases/${showcaseId}`, { headers });
+    await apiClient.delete(`/channels/${channelId}/showcases/${showcaseId}`);
   }
 }
 

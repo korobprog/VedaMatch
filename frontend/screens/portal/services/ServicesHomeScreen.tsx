@@ -1,13 +1,12 @@
 /**
  * ServicesHomeScreen - Главный экран сервисов
  */
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
-    FlatList,
     TouchableOpacity,
     TextInput,
     RefreshControl,
@@ -16,6 +15,7 @@ import {
     ImageBackground,
     Platform,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -39,9 +39,11 @@ import {
 import {
     Service,
     ServiceCategory,
-    ServiceFilters,
-    getServices,
 } from '../../../services/serviceService';
+import {
+    flattenServicesPages,
+    useServicesFeedQuery,
+} from '../../../hooks/queries/useServicesFeedQuery';
 import ServiceCard from './components/ServiceCard';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
@@ -100,26 +102,9 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     );
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
-    const [services, setServices] = useState<Service[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [loadingMore, setLoadingMore] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const isMountedRef = useRef(true);
-    const latestLoadRequestRef = useRef(0);
-    const loadMoreInProgressRef = useRef(false);
-
-    useEffect(() => {
-        return () => {
-            isMountedRef.current = false;
-            latestLoadRequestRef.current += 1;
-            loadMoreInProgressRef.current = false;
-        };
-    }, []);
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
@@ -129,83 +114,27 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         return () => clearTimeout(timeoutId);
     }, [searchQuery]);
 
-    const loadServices = useCallback(async ({ reset = false, pageOverride }: { reset?: boolean; pageOverride?: number } = {}) => {
-        const requestId = ++latestLoadRequestRef.current;
-        const targetPage = pageOverride ?? 1;
-        if (reset) {
-            setLoading(true);
-        } else {
-            setLoadingMore(true);
-        }
-        try {
-            const filters: ServiceFilters = {
-                page: targetPage,
-                limit: 20,
-            };
-
-            if (selectedCategory !== 'all') {
-                filters.category = selectedCategory;
-            }
-
-            const normalizedSearch = debouncedSearchQuery.trim();
-            if (normalizedSearch) {
-                filters.search = normalizedSearch;
-            }
-
-            const response = await getServices(filters);
-            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-
-            if (reset) {
-                setServices(response.services);
-                setPage(1);
-            } else {
-                setServices(prev => {
-                    const seen = new Set(prev.map(item => item.id));
-                    const unique = response.services.filter(item => !seen.has(item.id));
-                    return [...prev, ...unique];
-                });
-                setPage(targetPage);
-            }
-
-            setHasMore(response.page < response.totalPages);
-        } catch (error) {
-            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            console.error('Failed to load services:', error);
-        } finally {
-            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                setLoading(false);
-                setRefreshing(false);
-                setLoadingMore(false);
-            }
-            loadMoreInProgressRef.current = false;
-        }
-    }, [selectedCategory, debouncedSearchQuery]);
-
-    useEffect(() => {
-        setPage(1);
-        setHasMore(true);
-        loadServices({ reset: true, pageOverride: 1 });
-    }, [selectedCategory, debouncedSearchQuery, loadServices]);
+    const servicesQuery = useServicesFeedQuery({
+        category: selectedCategory,
+        search: debouncedSearchQuery,
+        limit: 20,
+    });
+    const services = useMemo(() => flattenServicesPages(servicesQuery.data), [servicesQuery.data]);
+    const loading = servicesQuery.isLoading;
+    const refreshing = servicesQuery.isRefetching && !servicesQuery.isFetchingNextPage;
+    const loadingMore = servicesQuery.isFetchingNextPage;
+    const hasMore = Boolean(servicesQuery.hasNextPage);
 
     const onRefresh = useCallback(() => {
-        if (refreshing || loading) {
+        if (servicesQuery.isRefetching) {
             return;
         }
-        setRefreshing(true);
-        setPage(1);
-        setHasMore(true);
-        void loadServices({ reset: true, pageOverride: 1 });
-    }, [refreshing, loading, loadServices]);
+        void servicesQuery.refetch();
+    }, [servicesQuery]);
 
     const onLoadMore = () => {
-        if (loading || refreshing || loadingMore || !hasMore || loadMoreInProgressRef.current) return;
-        loadMoreInProgressRef.current = true;
-        const nextPage = page + 1;
-        void loadServices({ reset: false, pageOverride: nextPage });
+        if (!servicesQuery.hasNextPage || servicesQuery.isFetchingNextPage || servicesQuery.isLoading) return;
+        void servicesQuery.fetchNextPage();
     };
 
     const handleServicePress = (service: Service) => {
@@ -481,14 +410,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
-                    <FlatList
+                    <FlashList
                         data={services}
                         keyExtractor={(item) => item.id.toString()}
                         renderItem={({ item }) => (
                             <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
                         )}
                         numColumns={isAndroidReducedEffects ? 1 : 2}
-                        columnWrapperStyle={isAndroidReducedEffects ? undefined : styles.row}
                         key={isAndroidReducedEffects ? 'services-flat-1col' : 'services-grid-2col'}
                         contentContainerStyle={styles.listContent}
                         ListHeaderComponent={renderHeader}
@@ -504,10 +432,6 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         ListEmptyComponent={renderEmpty}
                         ListFooterComponent={renderFooter}
                         removeClippedSubviews={Platform.OS === 'android'}
-                        initialNumToRender={8}
-                        maxToRenderPerBatch={6}
-                        updateCellsBatchingPeriod={50}
-                        windowSize={7}
                     />
                 )}
             </View>

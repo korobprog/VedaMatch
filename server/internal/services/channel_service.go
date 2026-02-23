@@ -11,6 +11,7 @@ import (
 	"rag-agent-server/internal/models"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -20,6 +21,15 @@ import (
 
 type ChannelService struct {
 	db *gorm.DB
+
+	settingsMu       sync.RWMutex
+	settingsCache    map[string]channelSettingCacheEntry
+	settingsCacheTTL time.Duration
+}
+
+type channelSettingCacheEntry struct {
+	value     string
+	expiresAt time.Time
 }
 
 type ChannelFeedFilters struct {
@@ -53,7 +63,11 @@ const (
 )
 
 func NewChannelService() *ChannelService {
-	return &ChannelService{db: database.DB}
+	return &ChannelService{
+		db:               database.DB,
+		settingsCache:    make(map[string]channelSettingCacheEntry),
+		settingsCacheTTL: 60 * time.Second,
+	}
 }
 
 func (s *ChannelService) IsFeatureEnabled() bool {
@@ -1552,13 +1566,53 @@ func (s *ChannelService) makeUniqueSlug(inputSlug, title string, excludeChannelI
 }
 
 func (s *ChannelService) getSystemSettingValue(key, fallback string) string {
+	if cached, ok := s.getCachedSystemSettingValue(key); ok {
+		return cached
+	}
+
 	var setting models.SystemSetting
 	if err := s.db.Where("key = ?", key).First(&setting).Error; err == nil {
-		return strings.TrimSpace(setting.Value)
+		value := strings.TrimSpace(setting.Value)
+		s.setCachedSystemSettingValue(key, value)
+		return value
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Printf("[Channels] load setting %s failed: %v", key, err)
 	}
+
+	s.setCachedSystemSettingValue(key, fallback)
 	return fallback
+}
+
+func (s *ChannelService) getCachedSystemSettingValue(key string) (string, bool) {
+	s.settingsMu.RLock()
+	entry, ok := s.settingsCache[key]
+	s.settingsMu.RUnlock()
+	if !ok {
+		return "", false
+	}
+
+	if time.Now().UTC().After(entry.expiresAt) {
+		s.settingsMu.Lock()
+		delete(s.settingsCache, key)
+		s.settingsMu.Unlock()
+		return "", false
+	}
+
+	return entry.value, true
+}
+
+func (s *ChannelService) setCachedSystemSettingValue(key, value string) {
+	ttl := s.settingsCacheTTL
+	if ttl <= 0 {
+		ttl = 60 * time.Second
+	}
+
+	s.settingsMu.Lock()
+	s.settingsCache[key] = channelSettingCacheEntry{
+		value:     value,
+		expiresAt: time.Now().UTC().Add(ttl),
+	}
+	s.settingsMu.Unlock()
 }
 
 func (s *ChannelService) getPromotedAdDailyCap() int {

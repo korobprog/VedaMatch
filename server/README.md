@@ -107,3 +107,19 @@ curl https://generativelanguage.googleapis.com/v1beta/corpora?key=<GEMINI_API_KE
     -X POST \
     -H "Content-Type: application/json" \
     -d '{ "display_name": "User Profiles Store" }'
+
+## Load Testing (k6)
+
+Готовый профиль для горячих API-эндпоинтов:
+
+- `scripts/k6/hot_endpoints.js`
+- Документация запуска: `scripts/k6/README.md`
+
+Пример:
+
+```bash
+BASE_URL="https://api.your-domain.com" \
+ENABLE_AUTH=1 \
+AUTH_TOKEN="<jwt_token>" \
+k6 run scripts/k6/hot_endpoints.js
+```

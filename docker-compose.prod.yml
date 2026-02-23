@@ -11,6 +11,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+        limits:
+          cpus: '0.50'
+          memory: 512M
 
   postgres:
     image: postgres:15-alpine
@@ -27,6 +35,14 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+        limits:
+          cpus: '2.00'
+          memory: 2G
 
   server:
     build:
@@ -80,6 +96,14 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+        limits:
+          cpus: '2.00'
+          memory: 1536M
 
   admin:
     build:
@@ -89,6 +113,14 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: rag-agent-admin
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+        limits:
+          cpus: '1.00'
+          memory: 512M
 
   lkm:
     build:
@@ -98,6 +130,14 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: rag-agent-lkm
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+        limits:
+          cpus: '1.00'
+          memory: 512M
 
   coturn:
     image: coturn/coturn
@@ -130,6 +170,14 @@ services:
       - LIVEKIT_REGION=ru
       - LIVEKIT_NODE_IP=${LIVEKIT_NODE_IP}
       - LIVEKIT_USE_EXTERNAL_IP=true
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.00'
+          memory: 512M
+        limits:
+          cpus: '3.00'
+          memory: 2G
 
 volumes:
   postgres_data:

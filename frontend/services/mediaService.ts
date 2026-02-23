@@ -9,8 +9,8 @@ import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { API_PATH } from '../config/api.config';
 import { PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
-import { getAuthHeaders } from './contactService';
-import { authorizedFetch } from './authSessionService';
+import { AxiosError } from 'axios';
+import apiClient from '../lib/apiClient';
 
 export interface MediaFile {
 	uri: string;
@@ -39,6 +39,21 @@ export interface Message {
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 let lastDuration = 0;
+
+function getUploadError(error: unknown, fallback: string): string {
+	const axiosError = error as AxiosError<any>;
+	const payload = axiosError?.response?.data;
+	if (typeof payload === 'string' && payload.trim()) {
+		return payload;
+	}
+	if (payload && typeof payload === 'object') {
+		const message = payload.error || payload.message;
+		if (message && typeof message === 'string') {
+			return message;
+		}
+	}
+	return axiosError?.message || fallback;
+}
 
 function normalizeMediaMimeType(media: MediaFile): string {
 	const explicitRaw = (media.mimeType || '').toLowerCase().trim();
@@ -361,36 +376,18 @@ export const mediaService = {
 				formData.append('roomId', roomId);
 			}
 
-			const authHeaders = await getAuthHeaders(false);
-			const response = await authorizedFetch(`${API_PATH}/messages/media`, {
-				method: 'POST',
-				body: formData,
-				headers: {
-					...authHeaders,
-					'Accept': 'application/json',
-				},
-			});
+				const response = await apiClient.post<Message>('/messages/media', formData, {
+					headers: {
+						Accept: 'application/json',
+					},
+				});
 
-			if (!response.ok) {
-				const errorTxt = await response.text();
-				let errorData;
-				try {
-					errorData = JSON.parse(errorTxt);
-				} catch {
-					errorData = { error: errorTxt };
-				}
-
-				throw new Error(
-					errorData.error || `Upload failed: ${response.status} ${response.statusText}`
-				);
+				return response.data;
+			} catch (error) {
+				console.error('Failed to upload media:', error);
+				throw new Error(getUploadError(error, 'Upload failed'));
 			}
-
-			return await response.json();
-		} catch (error) {
-			console.error('Failed to upload media:', error);
-			throw error;
-		}
-	},
+		},
 
 	getDownloadUrl(url: string): string {
 		if (url.startsWith('http')) {

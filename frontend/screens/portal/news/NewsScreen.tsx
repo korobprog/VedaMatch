@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -11,6 +11,7 @@ import {
     LayoutAnimation,
     Platform,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { useNavigation } from '@react-navigation/native';
@@ -38,6 +39,11 @@ import { useUser } from '../../../context/UserContext';
 import { GodModeFiltersPanel } from '../../../components/portal/god-mode/GodModeFiltersPanel';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import {
+    flattenNewsPages,
+    useNewsFeedQuery,
+    useNewsPreferencesQuery,
+} from '../../../hooks/queries/useNewsFeedQuery';
 
 // Category pills for filtering
 const CATEGORIES = [
@@ -57,15 +63,7 @@ export const NewsScreen = () => {
     const styles = React.useMemo(() => createStyles(colors), [colors]);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
-    const [news, setNews] = useState<NewsItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState('');
-    const [selectedMadh, setSelectedMadh] = useState('');
     const [personalized, setPersonalized] = useState(true); // Default to personalized
 
     // Subscription & Favorite states
@@ -73,121 +71,40 @@ export const NewsScreen = () => {
     const [favorites, setFavorites] = useState<number[]>([]);
     const [subscriptionUpdatingIds, setSubscriptionUpdatingIds] = useState<number[]>([]);
     const [favoriteUpdatingIds, setFavoriteUpdatingIds] = useState<number[]>([]);
-    const isMountedRef = useRef(true);
-    const latestLoadRequestRef = useRef(0);
-    const inFlightPagesRef = useRef<Set<number>>(new Set());
-
-    const loadNews = useCallback(async (pageNum: number = 1, reset: boolean = false) => {
-        if (inFlightPagesRef.current.has(pageNum)) {
-            if (reset) {
-                // Filter/state changed: invalidate older request for this page and allow immediate reload.
-                latestLoadRequestRef.current += 1;
-                inFlightPagesRef.current.delete(pageNum);
-            } else {
-                return;
-            }
+    const effectiveMadh = useMemo(() => {
+        if (user?.godModeEnabled) {
+            return activeMathId || undefined;
         }
-        if (inFlightPagesRef.current.has(pageNum)) {
+        return user?.madh || undefined;
+    }, [user?.godModeEnabled, user?.madh, activeMathId]);
+
+    const newsQuery = useNewsFeedQuery({
+        lang,
+        category: selectedCategory || undefined,
+        madh: effectiveMadh,
+        personalized,
+        limit: 10,
+    });
+    const preferencesQuery = useNewsPreferencesQuery();
+
+    const news = useMemo(() => flattenNewsPages(newsQuery.data), [newsQuery.data]);
+    const loading = newsQuery.isLoading;
+    const loadingMore = newsQuery.isFetchingNextPage;
+    const hasMore = Boolean(newsQuery.hasNextPage);
+    const refreshing = newsQuery.isRefetching && !newsQuery.isFetchingNextPage;
+    const error = newsQuery.error ? 'Не удалось загрузить новости' : null;
+
+    useEffect(() => {
+        if (!preferencesQuery.data) {
             return;
         }
-        inFlightPagesRef.current.add(pageNum);
-        const requestId = ++latestLoadRequestRef.current;
-
-        const effectiveMadh = user?.godModeEnabled
-            ? (activeMathId || undefined)
-            : (user?.madh || undefined);
-
-        try {
-            if (pageNum === 1) {
-                setLoading(true);
-            } else {
-                setLoadingMore(true);
-            }
-            setError(null);
-
-            const response = await newsService.getNews({
-                page: pageNum,
-                limit: 10,
-                lang,
-                category: selectedCategory || undefined,
-                madh: effectiveMadh,
-                personalized: personalized // Pass preference
-            });
-
-            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
-                return;
-            }
-
-            if (reset || pageNum === 1) {
-                setNews(response.news);
-            } else {
-                setNews(prev => {
-                    const seen = new Set(prev.map(item => item.id));
-                    const uniqueNext = response.news.filter(item => !seen.has(item.id));
-                    return [...prev, ...uniqueNext];
-                });
-            }
-
-            setHasMore(pageNum < response.totalPages);
-            setPage(pageNum);
-        } catch (err) {
-            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
-                return;
-            }
-            console.error('[NEWS] Error loading news:', err);
-            setError('Не удалось загрузить новости');
-        } finally {
-            inFlightPagesRef.current.delete(pageNum);
-            if (isMountedRef.current && requestId === latestLoadRequestRef.current) {
-                setLoading(false);
-                setLoadingMore(false);
-            }
-        }
-    }, [lang, selectedCategory, selectedMadh, personalized]);
-
-    const loadUserPreferences = useCallback(async () => {
-        try {
-            const [subs, favs] = await Promise.all([
-                newsService.getSubscriptions(),
-                newsService.getFavorites()
-            ]);
-            if (!isMountedRef.current) {
-                return;
-            }
-            setSubscriptions(subs);
-            setFavorites(favs);
-        } catch (err) {
-            console.error('[NEWS] Error loading prefs:', err);
-        }
-    }, []);
-
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-            latestLoadRequestRef.current += 1;
-            inFlightPagesRef.current.clear();
-        };
-    }, []);
-
-    useEffect(() => {
-        loadUserPreferences();
-    }, [loadUserPreferences]);
-
-    useEffect(() => {
-        loadNews(1, true);
-    }, [loadNews, activeMathId]); // Reload when activeMathId changes in Pro Mode
+        setSubscriptions(preferencesQuery.data.subscriptions || []);
+        setFavorites(preferencesQuery.data.favorites || []);
+    }, [preferencesQuery.data]);
 
     const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        try {
-            await Promise.all([loadNews(1, true), loadUserPreferences()]);
-        } finally {
-            if (isMountedRef.current) {
-                setRefreshing(false);
-            }
-        }
-    }, [loadNews, loadUserPreferences]);
+        await Promise.all([newsQuery.refetch(), preferencesQuery.refetch()]);
+    }, [newsQuery, preferencesQuery]);
 
     const toggleSubscription = async (sourceId: number) => {
         if (subscriptionUpdatingIds.includes(sourceId)) {
@@ -211,9 +128,7 @@ export const NewsScreen = () => {
             );
             console.error('[NEWS] Error toggling subscription:', err);
         } finally {
-            if (isMountedRef.current) {
-                setSubscriptionUpdatingIds(prev => prev.filter(id => id !== sourceId));
-            }
+            setSubscriptionUpdatingIds(prev => prev.filter(id => id !== sourceId));
         }
     };
 
@@ -239,26 +154,19 @@ export const NewsScreen = () => {
             );
             console.error('[NEWS] Error toggling favorite:', err);
         } finally {
-            if (isMountedRef.current) {
-                setFavoriteUpdatingIds(prev => prev.filter(id => id !== sourceId));
-            }
+            setFavoriteUpdatingIds(prev => prev.filter(id => id !== sourceId));
         }
     };
 
     const handleLoadMore = useCallback(() => {
-        if (!loading && !loadingMore && hasMore) {
-            loadNews(page + 1);
+        if (!newsQuery.hasNextPage || newsQuery.isFetchingNextPage || newsQuery.isLoading) {
+            return;
         }
-    }, [loading, loadingMore, hasMore, page, loadNews]);
+        void newsQuery.fetchNextPage();
+    }, [newsQuery]);
 
     const handleCategorySelect = (categoryId: string) => {
         setSelectedCategory(categoryId);
-        setPage(1);
-    };
-
-    const handleMadhSelect = (madhId: string) => {
-        setSelectedMadh(madhId);
-        setPage(1);
     };
 
     const renderCategoryPills = () => (
@@ -303,7 +211,7 @@ export const NewsScreen = () => {
     );
 
     const renderNewsItem = ({ item, index }: { item: NewsItem; index: number }) => {
-        const isHero = index === 0 && page === 1;
+        const isHero = index === 0;
         const isSubscribed = subscriptions.includes(item.sourceId);
         const isFavorite = favorites.includes(item.sourceId);
         const isSubscriptionUpdating = subscriptionUpdatingIds.includes(item.sourceId);
@@ -469,7 +377,9 @@ export const NewsScreen = () => {
                 <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error}</Text>
                 <TouchableOpacity
                     style={[styles.retryButton, { backgroundColor: colors.accent }]}
-                    onPress={() => loadNews(1, true)}
+                    onPress={() => {
+                        void newsQuery.refetch();
+                    }}
                 >
                     <Text style={styles.retryButtonText}>
                         {lang === 'en' ? 'Try again' : 'Попробовать снова'}
@@ -558,7 +468,7 @@ export const NewsScreen = () => {
             </View>
 
             {renderCategoryPills()}
-            <FlatList
+            <FlashList
                 data={news}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={renderNewsItem}
