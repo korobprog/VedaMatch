@@ -97,6 +97,8 @@ export const MapGeoapifyScreen: React.FC = () => {
     const [mapReady, setMapReady] = useState(false);
     const [tileUrl, setTileUrl] = useState<string>('');
     const [mapConfig, setMapConfig] = useState<(TileConfig & Partial<MarkerConfig>) | null>(null);
+    const [webViewReloadKey, setWebViewReloadKey] = useState(0);
+    const [webViewError, setWebViewError] = useState<string | null>(null);
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -130,6 +132,23 @@ export const MapGeoapifyScreen: React.FC = () => {
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (mapReady || webViewError) {
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            if (!isMountedRef.current || mapReady) {
+                return;
+            }
+            console.warn('[MapGeoapify] map_init_timeout');
+            setWebViewError('map_init_timeout');
+            setIsLoading(false);
+        }, 9000);
+
+        return () => clearTimeout(timeout);
+    }, [mapReady, webViewError, webViewReloadKey]);
 
     // Handle incoming filter updates from params if screen is already mounted
     useEffect(() => {
@@ -290,6 +309,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             switch (data.type) {
                 case 'mapReady':
                     setMapReady(true);
+                    setWebViewError(null);
                     setIsLoading(false);
                     // Inject current state into the new map instance
                     if (webViewRef.current) {
@@ -849,14 +869,71 @@ export const MapGeoapifyScreen: React.FC = () => {
 </html>
     `, [colors.accent, colors.textPrimary, colors.warning, effectiveTileUrl, hasUserCoords, markerColors.ad, markerColors.cafe, markerColors.default, markerColors.shop, markerColors.user, userLat, userLatForScript, userLng, userLngForScript]);
 
+    const handleRetryMap = useCallback(() => {
+        setWebViewError(null);
+        setMapReady(false);
+        setIsLoading(true);
+        setMarkers([]);
+        setClusters([]);
+        setSelectedMarker(null);
+        setWebViewReloadKey(prev => prev + 1);
+        loadTileConfig();
+        loadInitialData();
+    }, []);
+
+    const handleWebViewLoadError = useCallback((event: any) => {
+        const message =
+            event?.nativeEvent?.description ||
+            event?.nativeEvent?.title ||
+            'webview_load_error';
+        console.error('[MapGeoapify] WebView load error:', message);
+        if (!isMountedRef.current) {
+            return;
+        }
+        setWebViewError(String(message));
+        setIsLoading(false);
+    }, []);
+
+    const handleWebViewHttpError = useCallback((event: any) => {
+        const statusCode = event?.nativeEvent?.statusCode;
+        const description = event?.nativeEvent?.description;
+        console.error('[MapGeoapify] WebView HTTP error:', statusCode, description);
+        if (!isMountedRef.current) {
+            return;
+        }
+        setWebViewError(`http_${statusCode ?? 'error'}`);
+        setIsLoading(false);
+    }, []);
+
+    const handleRenderProcessGone = useCallback((event: any) => {
+        console.error('[MapGeoapify] WebView render process gone:', event?.nativeEvent);
+        if (!isMountedRef.current) {
+            return true;
+        }
+        setWebViewError('render_process_gone');
+        setIsLoading(false);
+        return true;
+    }, []);
+
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* WebView Map */}
             <WebView
+                key={`map-webview-${webViewReloadKey}`}
                 ref={webViewRef}
                 source={{ html: mapHtml }}
                 style={styles.map}
                 onMessage={handleMessage}
+                onLoadStart={() => {
+                    if (!isMountedRef.current) {
+                        return;
+                    }
+                    setIsLoading(true);
+                }}
+                onError={handleWebViewLoadError}
+                onHttpError={handleWebViewHttpError}
+                onRenderProcessGone={handleRenderProcessGone as any}
+                onContentProcessDidTerminate={handleRenderProcessGone as any}
                 javaScriptEnabled={true}
                 domStorageEnabled={true}
                 startInLoadingState={true}
@@ -1153,8 +1230,25 @@ export const MapGeoapifyScreen: React.FC = () => {
                 </View>
             </BottomSheet>
 
+            {webViewError && (
+                <View style={styles.mapErrorOverlay}>
+                    <Text style={[styles.mapErrorTitle, { color: colors.textPrimary }]}>
+                        Не удалось загрузить карту
+                    </Text>
+                    <Text style={[styles.mapErrorSubtitle, { color: colors.textSecondary }]}>
+                        Проверьте интернет и повторите попытку
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.mapRetryButton, { backgroundColor: colors.accent }]}
+                        onPress={handleRetryMap}
+                    >
+                        <Text style={styles.mapRetryButtonText}>Повторить</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             {/* Loading overlay */}
-            {isLoading && (
+            {isLoading && !webViewError && (
                 <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color={colors.accent} />
                 </View>
@@ -1326,6 +1420,35 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
+    },
+    mapErrorOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        backgroundColor: 'rgba(2,6,23,0.72)',
+        zIndex: 1000,
+    },
+    mapErrorTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    mapErrorSubtitle: {
+        fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    mapRetryButton: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 10,
+    },
+    mapRetryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
     sheetContainer: {
         flex: 1,

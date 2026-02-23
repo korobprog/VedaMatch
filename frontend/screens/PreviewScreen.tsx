@@ -86,7 +86,7 @@ const PreviewScreen: React.FC<PreviewScreenProps> = ({ onFinish }) => {
                         ]}
                     >
                         <Image
-                            source={require('../assets/logo_vedic.png')}
+                            source={require('../assets/logo_tilak.png')}
                             style={styles.logo}
                             resizeMode="contain"
                         />

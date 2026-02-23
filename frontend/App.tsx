@@ -160,7 +160,7 @@ import { WalletProvider } from './context/WalletContext';
 import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectionScreen, PathWeeklySummaryScreen } from './screens/path_tracker';
 
 
-import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
+import { StatusBar, useColorScheme, ActivityIndicator, Image, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationProvider } from './context/NotificationContext';
@@ -393,9 +393,30 @@ const AppContent = () => {
   if (isLoading || !isSettingsLoaded || !minLoadTime) {
     return (
       <SafeAreaView
-        style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}
+        style={{ flex: 1, backgroundColor: '#070D1A', justifyContent: 'center', alignItems: 'center' }}
       >
-        <ActivityIndicator size="large" color={theme.primary || '#FF9933'} />
+        <View
+          style={{
+            width: 148,
+            height: 148,
+            borderRadius: 28,
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.12)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Image
+            source={require('./assets/logo_tilak.png')}
+            style={{ width: 108, height: 108 }}
+            resizeMode="contain"
+          />
+        </View>
+        <ActivityIndicator size="small" color="#F59E0B" style={{ marginTop: 18 }} />
+        <Text style={{ marginTop: 10, color: 'rgba(255,255,255,0.92)', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 }}>
+          VedaMatch
+        </Text>
       </SafeAreaView>
     );
   }

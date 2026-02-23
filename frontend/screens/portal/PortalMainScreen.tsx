@@ -426,6 +426,32 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     }, [route.params?.resetToGridAt, navigation]);
 
+    useEffect(() => {
+        if (!activeTab) {
+            return;
+        }
+
+        // Defensive redirects: prevent blank screen when a non-rendered tab leaks into state.
+        if (activeTab === 'map') {
+            setActiveTab(null);
+            navigation.navigate('MapGeoapify');
+            return;
+        }
+        if (activeTab === 'path_tracker') {
+            setActiveTab(null);
+            navigation.navigate('PathTrackerHome');
+            return;
+        }
+        if (activeTab === 'video_circles') {
+            setActiveTab(null);
+            navigation.navigate('VideoCirclesScreen');
+            return;
+        }
+        if (activeTab === 'knowledge_base') {
+            setActiveTab('library');
+        }
+    }, [activeTab, navigation]);
+
     const handleServicePress = useCallback((serviceId: string) => {
         if (serviceId === 'settings') {
             navigation.navigate('AppSettings');
@@ -508,7 +534,15 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             case 'multimedia': return <MultimediaHubScreen onBack={backToGrid} />;
             case 'travel': return <TravelHomeScreen />;
             case 'services': return <ServicesHomeScreen onBack={backToGrid} />;
-            default: return null;
+            default:
+                return (
+                    <View style={styles.fallbackContent}>
+                        <Text style={styles.fallbackTitle}>Раздел временно недоступен</Text>
+                        <TouchableOpacity style={styles.fallbackButton} onPress={backToGrid}>
+                            <Text style={styles.fallbackButtonText}>Вернуться на портал</Text>
+                        </TouchableOpacity>
+                    </View>
+                );
         }
     };
 
@@ -1115,6 +1149,32 @@ const styles = StyleSheet.create({
     hintText: {
         fontSize: 12,
         opacity: 0.6,
+    },
+    fallbackContent: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    fallbackTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        textAlign: 'center',
+        marginBottom: 14,
+    },
+    fallbackButton: {
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.4)',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
+    fallbackButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
     headerBrandText: {
         fontSize: 15,

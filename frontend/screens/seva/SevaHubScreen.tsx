@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, SafeAreaView, ImageBackground, Dimensions } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, SafeAreaView, ImageBackground, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Sparkles as PointsIcon, Info } from 'lucide-react-native';
+import { ChevronLeft, Sparkles as PointsIcon } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
 import { charityService } from '../../services/charityService';
 import { useWallet } from '../../context/WalletContext';
@@ -18,6 +18,7 @@ const SevaHubScreen: React.FC = () => {
     const [projects, setProjects] = useState<CharityProject[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [screenError, setScreenError] = useState<string | null>(null);
 
     // Donate Modal State
     const [donateModalVisible, setDonateModalVisible] = useState(false);
@@ -26,12 +27,25 @@ const SevaHubScreen: React.FC = () => {
     const userBalance = wallet?.balance || 0;
     const regularBalance = wallet?.balance ?? 0;
 
-    useEffect(() => {
-        loadData();
+    const loadProjects = useCallback(async () => {
+        try {
+            const data = await charityService.getProjects();
+            if (!Array.isArray(data)) {
+                setProjects([]);
+                return;
+            }
+            setProjects(data.filter(Boolean));
+            setScreenError(null);
+        } catch (e) {
+            console.error('Failed to load projects:', e);
+            setProjects([]);
+            setScreenError('Не удалось загрузить проекты Севы.');
+        }
     }, []);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
+        setScreenError(null);
         try {
             await Promise.all([
                 loadProjects(),
@@ -39,21 +53,18 @@ const SevaHubScreen: React.FC = () => {
             ]);
         } catch (e) {
             console.error('Failed to load initial data:', e);
+            setScreenError('Не удалось загрузить раздел Сева. Проверьте интернет и попробуйте снова.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [loadProjects, refreshWallet]);
 
-    const loadProjects = async () => {
-        try {
-            const data = await charityService.getProjects();
-            setProjects(data);
-        } catch (e) {
-            console.error('Failed to load projects:', e);
-        }
-    };
+    useEffect(() => {
+        console.log('[SevaHub] mounted');
+        loadData();
+    }, [loadData]);
 
-    const onRefresh = async () => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
             await Promise.all([
@@ -65,7 +76,7 @@ const SevaHubScreen: React.FC = () => {
         } finally {
             setRefreshing(false);
         }
-    };
+    }, [loadProjects, refreshWallet]);
 
     const openDonateModal = (project: CharityProject) => {
         setSelectedProject(project);
@@ -110,9 +121,16 @@ const SevaHubScreen: React.FC = () => {
     };
 
     const renderProjectCard = ({ item }: { item: CharityProject }) => {
-        const progress = item.goalAmount > 0
-            ? Math.min(item.raisedAmount / item.goalAmount, 1)
+        const raisedAmount = Number(item?.raisedAmount ?? 0);
+        const goalAmount = Number(item?.goalAmount ?? 0);
+        const progress = goalAmount > 0
+            ? Math.min(raisedAmount / goalAmount, 1)
             : 0;
+        const projectTitle = item?.title || 'Проект без названия';
+        const organizationName = item?.organization?.name || 'Vedic Charity';
+        const coverUri = typeof item?.coverUrl === 'string' && item.coverUrl.trim().length > 0
+            ? item.coverUrl
+            : null;
 
         const isPaused = Boolean(item.nextReportDue && new Date(item.nextReportDue) < new Date());
 
@@ -123,7 +141,13 @@ const SevaHubScreen: React.FC = () => {
                         navigation.navigate('SevaProjectDetails', { project: item });
                     }}
                 >
-                    <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
+                    {coverUri ? (
+                        <Image source={{ uri: coverUri }} style={styles.cardCover} />
+                    ) : (
+                        <View style={[styles.cardCover, styles.cardCoverFallback]}>
+                            <Text style={styles.cardCoverFallbackText}>SEVA</Text>
+                        </View>
+                    )}
 
                     {item.isUrgent && !isPaused && (
                         <View style={styles.urgentBadge}>
@@ -138,8 +162,8 @@ const SevaHubScreen: React.FC = () => {
                     )}
 
                     <View style={styles.cardContent}>
-                        <Text style={styles.orgName}>{item.organization?.name || 'Vedic Charity'}</Text>
-                        <Text style={styles.title}>{item.title}</Text>
+                        <Text style={styles.orgName}>{organizationName}</Text>
+                        <Text style={styles.title}>{projectTitle}</Text>
 
                         <View style={styles.progressContainer}>
                             <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
@@ -147,8 +171,8 @@ const SevaHubScreen: React.FC = () => {
 
                         <View style={styles.statsRow}>
                             <Text style={styles.raisedText}>
-                                {item.raisedAmount.toLocaleString()} LKM
-                                <Text style={styles.goalText}> / {item.goalAmount.toLocaleString()}</Text>
+                                {raisedAmount.toLocaleString()} LKM
+                                <Text style={styles.goalText}> / {goalAmount.toLocaleString()}</Text>
                             </Text>
                             <Text style={styles.percentText}>{Math.round(progress * 100)}%</Text>
                         </View>
@@ -233,8 +257,24 @@ const SevaHubScreen: React.FC = () => {
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />
                 }
+                ListHeaderComponent={
+                    screenError ? (
+                        <View style={styles.errorCard}>
+                            <Text style={styles.errorTitle}>Временная ошибка</Text>
+                            <Text style={styles.errorText}>{screenError}</Text>
+                            <TouchableOpacity style={styles.errorRetryButton} onPress={loadData}>
+                                <Text style={styles.errorRetryButtonText}>Повторить</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null
+                }
                 ListEmptyComponent={
-                    !loading ? (
+                    loading ? (
+                        <View style={{ padding: 40, alignItems: 'center' }}>
+                            <ActivityIndicator color="#FFD700" />
+                            <Text style={{ color: '#AAA', marginTop: 10 }}>Загружаем проекты...</Text>
+                        </View>
+                    ) : !screenError ? (
                         <View style={{ padding: 40, alignItems: 'center' }}>
                             <Text style={{ color: '#888', textAlign: 'center' }}>
                                 No Active Projects Found at the moment.
@@ -242,7 +282,7 @@ const SevaHubScreen: React.FC = () => {
                         </View>
                     ) : (
                         <View style={{ padding: 40, alignItems: 'center' }}>
-                            <Text style={{ color: '#888' }}>Loading projects...</Text>
+                            <Text style={{ color: '#888' }}>Потяните вниз, чтобы обновить</Text>
                         </View>
                     )
                 }
@@ -371,6 +411,17 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 180,
     },
+    cardCoverFallback: {
+        backgroundColor: '#2A2A2A',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cardCoverFallbackText: {
+        color: '#FFD700',
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: 2,
+    },
     urgentBadge: {
         position: 'absolute',
         top: 12,
@@ -456,6 +507,37 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: 'bold',
         fontSize: 16,
+    },
+    errorCard: {
+        backgroundColor: '#221919',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.35)',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 16,
+    },
+    errorTitle: {
+        color: '#FCA5A5',
+        fontWeight: '700',
+        fontSize: 15,
+        marginBottom: 6,
+    },
+    errorText: {
+        color: '#E5E7EB',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    errorRetryButton: {
+        alignSelf: 'flex-start',
+        marginTop: 10,
+        backgroundColor: '#FFD700',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    errorRetryButtonText: {
+        color: '#000',
+        fontWeight: '700',
     }
 });
 

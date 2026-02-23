@@ -12,13 +12,9 @@ def jscFlavor = 'org.webkit:android-jsc:+'
 react {
     /* Autolinking */
     autolinkLibrariesWithApp()
+    // Bundle JS even for debug APKs because dev support is disabled in this project.
+    debuggableVariants = []
 }
-
-// Skip bundle creation - use pre-bundled JS bundle
-project.ext.react = [
-    enableHermes: hermesEnabled.toBoolean(),
-    bundleInRelease: false
-]
 
 
 
@@ -56,8 +52,8 @@ project.ext.react = [
         applicationId "com.ragagent"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.1.4"
+        versionCode 12
+        versionName "1.1.10"
         resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'
