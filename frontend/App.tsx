@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
-import { Platform, PermissionsAndroid, AppState } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -166,7 +166,6 @@ import { NotificationManager } from './components/NotificationManager';
 import { NotificationProvider } from './context/NotificationContext';
 import { crashReportingService } from './services/crashReportingService';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
-import { serializeAndroidPermissionRequest } from './utils/permissionRequestQueue';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -231,7 +230,10 @@ const AppContent = () => {
       return;
     }
 
-    // 1. Setup VoIP (CallKeep) only when app is active to avoid Android Activity attach errors
+    const useCallKeepNativeUi = Platform.OS === 'ios';
+
+    // 1. Setup VoIP (CallKeep) only when app is active.
+    // On Android we skip startup CallKeep init to avoid permission-dialog churn and ANR on cold start.
     const setupVoIP = async () => {
       try {
         if (voipSetupRef.current) {
@@ -240,17 +242,6 @@ const AppContent = () => {
 
         if (AppState.currentState !== 'active') {
           return;
-        }
-
-        if (Platform.OS === 'android') {
-          await serializeAndroidPermissionRequest(async () => {
-            await PermissionsAndroid.requestMultiple([
-              PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS,
-              PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-              PermissionsAndroid.PERMISSIONS.CAMERA
-            ]);
-          });
         }
 
         const options = {
@@ -279,12 +270,17 @@ const AppContent = () => {
       }
     };
 
-    void setupVoIP();
-    const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && !voipSetupRef.current) {
-        void setupVoIP();
-      }
-    });
+    const appStateSub = useCallKeepNativeUi
+      ? AppState.addEventListener('change', (state) => {
+        if (state === 'active' && !voipSetupRef.current) {
+          void setupVoIP();
+        }
+      })
+      : null;
+
+    if (useCallKeepNativeUi) {
+      void setupVoIP();
+    }
 
     const onAnswerCall = ({ callUUID }: { callUUID: string }) => {
       if (navigationRef.isReady()) {
@@ -293,10 +289,12 @@ const AppContent = () => {
       }
     };
 
-    RNCallKeep.addEventListener('answerCall', onAnswerCall);
-    RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
-      // Handle end call
-    });
+    if (useCallKeepNativeUi) {
+      RNCallKeep.addEventListener('answerCall', onAnswerCall);
+      RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
+        // Handle end call
+      });
+    }
 
     // 2. LISTEN FOR WEBRTC OFFERS
     const removeLisener = addListener((msg: any) => {
@@ -307,7 +305,9 @@ const AppContent = () => {
 
         // Use CallKeep to show native incoming call UI
         const uuid = getUUID();
-        RNCallKeep.displayIncomingCall(uuid, String(callerId), callerName, 'generic', true);
+        if (useCallKeepNativeUi) {
+          RNCallKeep.displayIncomingCall(uuid, String(callerId), callerName, 'generic', true);
+        }
 
         // Also navigate to CallScreen directly if the app is in foreground? 
         // Better to wait for user to accept via CallKeep UI or in-app UI.
@@ -324,9 +324,11 @@ const AppContent = () => {
     });
 
     return () => {
-      appStateSub.remove();
-      RNCallKeep.removeEventListener('answerCall');
-      RNCallKeep.removeEventListener('endCall');
+      appStateSub?.remove();
+      if (useCallKeepNativeUi) {
+        RNCallKeep.removeEventListener('answerCall');
+        RNCallKeep.removeEventListener('endCall');
+      }
       removeLisener();
     };
   }, [addListener, isLoggedIn]);
@@ -421,8 +423,12 @@ const AppContent = () => {
             <Stack.Navigator
               screenOptions={{
                 headerShown: false,
-                animation: 'slide_from_right',
-                contentStyle: { backgroundColor: 'transparent' }, // Fix gray flash during transition
+                animation: Platform.OS === 'android' ? 'fade' : 'slide_from_right',
+                freezeOnBlur: Platform.OS === 'android',
+                contentStyle: {
+                  // Transparent layers on Android increase overdraw and render-thread pressure.
+                  backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent',
+                },
               }}
             >
               {isLoggedIn ? (

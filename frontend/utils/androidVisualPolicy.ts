@@ -20,7 +20,7 @@ export const resolveEffectivePerformanceMode = (
   runtime: RuntimePerformanceState,
 ): PerformanceMode => {
   if (Platform.OS !== 'android') return mode;
-  if (mode === 'adaptive' && runtime.isAutoDegraded) return 'battery_saver';
+  if (runtime.isAutoDegraded && mode !== 'battery_saver') return 'battery_saver';
   return mode;
 };
 
@@ -53,8 +53,8 @@ export const getAndroidVisualPolicy = (
 
   if (effective === 'adaptive') {
     return {
-      enableBlur: true,
-      maxBlurAmount: 6,
+      enableBlur: false,
+      maxBlurAmount: 0,
       allowShimmer: false,
       allowGiftPulse: false,
       allowCrossfade: false,

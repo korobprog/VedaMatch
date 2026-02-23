@@ -64,7 +64,9 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
-    const overlayAlpha = isAndroidReducedEffects ? 0.6 : 0.8;
+    const isAndroidFlatMode = isAndroidReducedEffects;
+    const shouldRenderCoverImage = Boolean(service.coverImageUrl) && !isAndroidFlatMode;
+    const overlayAlpha = isAndroidReducedEffects ? 0.45 : 0.8;
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
@@ -86,11 +88,15 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                 activeOpacity={0.8}
             >
                 <View style={styles.compactImageContainer}>
-                    {service.coverImageUrl ? (
+                    {shouldRenderCoverImage ? (
                         <Image
-                            source={{ uri: service.coverImageUrl }}
+                            source={{ uri: service.coverImageUrl! }}
                             style={styles.compactImage}
                         />
+                    ) : isAndroidReducedEffects ? (
+                        <View style={[styles.compactImagePlaceholder, { backgroundColor: roleTheme.gradient[1] }]}>
+                            <CategoryIcon name={iconName} size={32} color={colors.accentSoft} />
+                        </View>
                     ) : (
                         <LinearGradient
                             colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
@@ -126,33 +132,41 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
         >
             {/* Image Section */}
             <View style={styles.imageContainer}>
-                {service.coverImageUrl ? (
+                {shouldRenderCoverImage ? (
                     <Image
-                        source={{ uri: service.coverImageUrl }}
+                        source={{ uri: service.coverImageUrl! }}
                         style={styles.image}
                     />
+                ) : isAndroidReducedEffects ? (
+                        <View style={[styles.imagePlaceholder, { backgroundColor: roleTheme.gradient[1] }]}>
+                            <CategoryIcon name={iconName} size={40} color={colors.accentSoft} />
+                        </View>
+                    ) : (
+                        <LinearGradient
+                            colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
+                            style={styles.imagePlaceholder}
+                        >
+                            <CategoryIcon name={iconName} size={40} color={colors.accentSoft} />
+                        </LinearGradient>
+                    )}
+
+                {isAndroidFlatMode ? (
+                    <View style={[styles.imageOverlay, { backgroundColor: `rgba(10, 10, 20, ${overlayAlpha})` }]} />
                 ) : (
                     <LinearGradient
-                        colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
-                        style={styles.imagePlaceholder}
-                    >
-                        <CategoryIcon name={iconName} size={40} color={colors.accentSoft} />
-                    </LinearGradient>
+                        colors={['transparent', `rgba(10, 10, 20, ${overlayAlpha})`]}
+                        style={styles.imageOverlay}
+                    />
                 )}
 
-                <LinearGradient
-                    colors={['transparent', `rgba(10, 10, 20, ${overlayAlpha})`]}
-                    style={styles.imageOverlay}
-                />
-
                 <View style={styles.topBadges}>
-                    <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
+                    <View style={[styles.categoryBadge, { borderColor: colors.border }, isAndroidFlatMode && styles.categoryBadgeFlatAndroid]}>
                         <CategoryIcon name={iconName} size={10} color={colors.accent} />
                         <Text style={styles.categoryBadgeText}>{categoryLabel}</Text>
                     </View>
 
                     {service.rating > 0 && (
-                        <View style={[styles.ratingBadge, { borderColor: colors.accentSoft }]}>
+                        <View style={[styles.ratingBadge, { borderColor: colors.accentSoft }, isAndroidFlatMode && styles.ratingBadgeFlatAndroid]}>
                             <Star size={10} color={colors.accent} fill={colors.accent} />
                             <Text style={styles.ratingText}>{service.rating.toFixed(1)}</Text>
                         </View>
@@ -181,7 +195,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                         <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>По запросу</Text>
                     )}
 
-                    <View style={[styles.actionArrow, { backgroundColor: colors.accentSoft }]}>
+                    <View style={[styles.actionArrow, { backgroundColor: colors.accentSoft }, isAndroidFlatMode && styles.actionArrowFlatAndroid]}>
                         <Sparkles size={12} color={colors.accent} />
                     </View>
                 </View>
@@ -248,6 +262,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
+    categoryBadgeFlatAndroid: {
+        borderWidth: 0.5,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    },
     categoryBadgeText: {
         color: 'rgba(255,255,255,1)',
         fontSize: 9,
@@ -264,6 +282,10 @@ const styles = StyleSheet.create({
         gap: 4,
         borderWidth: 1,
         borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    ratingBadgeFlatAndroid: {
+        borderWidth: 0.5,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
     },
     ratingText: {
         color: 'rgba(255,255,255,1)',
@@ -330,6 +352,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    actionArrowFlatAndroid: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
     },
     compactCard: {
         flexDirection: 'row',

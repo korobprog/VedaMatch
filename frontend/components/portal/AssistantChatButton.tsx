@@ -27,8 +27,19 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
         () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
         [performanceMode, runtimePerformanceState],
     );
-    const enableShimmer =
-        !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality') && isAppActive;
+    const isAndroid = Platform.OS === 'android';
+    const useFullVisualFx = !isAndroid || effectivePerformanceMode === 'high_quality';
+    const enableShimmer = useFullVisualFx && isAppActive;
+    const showGradient = useFullVisualFx;
+    const buttonStyle = useMemo(
+        () => [
+            styles.button,
+            isAndroid && !useFullVisualFx ? styles.buttonAndroidLite : null,
+            { width: size, height: size, borderRadius: size / 2 },
+            style,
+        ],
+        [isAndroid, size, style, useFullVisualFx],
+    );
 
     useEffect(() => {
         const sub = AppState.addEventListener('change', (nextState) => {
@@ -73,20 +84,22 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
                 handleNewChat();
                 navigation.navigate('Chat');
             }}
-            style={[styles.button, { width: size, height: size, borderRadius: size / 2 }, style]}
+            style={buttonStyle}
             accessibilityRole="button"
             accessibilityLabel="Открыть ассистента"
         >
-            <LinearGradient
-                colors={[
-                    'rgba(255,255,255,0.4)',
-                    'rgba(255,230,150,0.3)',
-                    'rgba(255,255,255,0.4)',
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-            />
+            {showGradient && (
+                <LinearGradient
+                    colors={[
+                        'rgba(255,255,255,0.4)',
+                        'rgba(255,230,150,0.3)',
+                        'rgba(255,255,255,0.4)',
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                />
+            )}
 
             {enableShimmer && (
                 <Animated.View
@@ -134,6 +147,14 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 6,
         elevation: 6,
+    },
+    buttonAndroidLite: {
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.35)',
+        backgroundColor: 'rgba(200,200,200,0.85)',
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        elevation: 1,
     },
     shimmer: {
         position: 'absolute',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -17,6 +17,9 @@ import { useSettings } from '../../../context/SettingsContext';
 import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
 import { authorizedAxiosRequest } from '../../../services/authSessionService';
 
+const CONTACTS_PAGE_LIMIT = 50;
+const CONTACT_ITEM_HEIGHT = 92;
+
 export const ContactsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
@@ -28,9 +31,26 @@ export const ContactsScreen: React.FC = () => {
     const { user: currentUser } = useUser();
 
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [allContacts, setAllContacts] = useState<UserContact[]>([]);
-    const [friends, setFriends] = useState<UserContact[]>([]);
+    const [allContactsHasMore, setAllContactsHasMore] = useState(false);
+    const [allContactsCursor, setAllContactsCursor] = useState<number | undefined>(undefined);
+    const [allContactsTotal, setAllContactsTotal] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [friendsContacts, setFriendsContacts] = useState<UserContact[]>([]);
+    const [friendsHasMore, setFriendsHasMore] = useState(false);
+    const [friendsCursor, setFriendsCursor] = useState<number | undefined>(undefined);
+    const [friendsTotal, setFriendsTotal] = useState(0);
+    const [loadingMoreFriends, setLoadingMoreFriends] = useState(false);
     const [blockedContacts, setBlockedContacts] = useState<UserContact[]>([]);
+    const [blockedHasMore, setBlockedHasMore] = useState(false);
+    const [blockedCursor, setBlockedCursor] = useState<number | undefined>(undefined);
+    const [blockedTotal, setBlockedTotal] = useState(0);
+    const [loadingMoreBlocked, setLoadingMoreBlocked] = useState(false);
+
+    // Metadata sets for badges/quick actions in "all" list
+    const [friendRelations, setFriendRelations] = useState<UserContact[]>([]);
+    const [blockedRelations, setBlockedRelations] = useState<UserContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
@@ -40,69 +60,201 @@ export const ContactsScreen: React.FC = () => {
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [citySearchQuery, setCitySearchQuery] = useState('');
-    const [now, setNow] = useState(new Date());
-    const latestFetchRequestRef = useRef(0);
+    const latestAllFetchRequestRef = useRef(0);
+    const latestFriendsFetchRequestRef = useRef(0);
+    const latestBlockedFetchRequestRef = useRef(0);
+    const latestMetaFetchRequestRef = useRef(0);
     const unblockingIdsRef = useRef<Set<number>>(new Set());
     const isMountedRef = useRef(true);
+    const allContactsRef = useRef<UserContact[]>([]);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setNow(new Date());
-        }, 30000); // Update relative time every 30 seconds
-        return () => clearInterval(interval);
-    }, []);
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search.trim());
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     useEffect(() => {
+        allContactsRef.current = allContacts;
+    }, [allContacts]);
+
+    useEffect(() => {
+        const unblockingIds = unblockingIdsRef.current;
         return () => {
             isMountedRef.current = false;
-            latestFetchRequestRef.current += 1;
-            unblockingIdsRef.current.clear();
+            latestAllFetchRequestRef.current += 1;
+            latestFriendsFetchRequestRef.current += 1;
+            latestBlockedFetchRequestRef.current += 1;
+            latestMetaFetchRequestRef.current += 1;
+            unblockingIds.clear();
         };
     }, []);
 
 
-    const fetchContacts = useCallback(async (isRefresh = false) => {
-        const requestId = ++latestFetchRequestRef.current;
+    const loadAllContacts = useCallback(async (isRefresh = false, reset = false) => {
+        const requestId = ++latestAllFetchRequestRef.current;
         try {
             if (isMountedRef.current) {
                 if (isRefresh) {
                     setRefreshing(true);
-                } else {
+                } else if (reset) {
                     setLoading(true);
                 }
             }
-            const contacts = await contactService.getContacts();
-            if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
+
+            if (!reset) {
+                setLoadingMore(true);
+            }
+
+            const page = await contactService.getContactsPage({
+                limit: CONTACTS_PAGE_LIMIT,
+                cursor: reset ? undefined : allContactsCursor,
+                tab: 'all',
+                q: debouncedSearch || undefined,
+                cities: filterCities.length > 0 ? filterCities : undefined,
+            });
+            if (requestId !== latestAllFetchRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            setAllContacts(contacts);
+            if (reset) {
+                setAllContacts(page.items || []);
+            } else {
+                setAllContacts((prev) => {
+                    const map = new Map<number, UserContact>();
+                    prev.forEach((item) => map.set(item.ID, item));
+                    (page.items || []).forEach((item) => map.set(item.ID, item));
+                    return Array.from(map.values());
+                });
+            }
+            setAllContactsHasMore(Boolean(page.hasMore));
+            setAllContactsCursor(page.nextCursor);
+            setAllContactsTotal(page.total || 0);
+        } catch (error) {
+            console.error('Error fetching contacts page:', error);
+        } finally {
+            if (requestId === latestAllFetchRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+                setLoadingMore(false);
+            }
+        }
+    }, [allContactsCursor, debouncedSearch, filterCities]);
 
-            // Extract cities from contacts
-            const citiesSet = new Set<string>();
-            contacts.forEach(contact => {
-                if (contact.city) {
-                    citiesSet.add(contact.city);
+    const loadFriendsContacts = useCallback(async (isRefresh = false, reset = false) => {
+        const requestId = ++latestFriendsFetchRequestRef.current;
+        try {
+            if (isMountedRef.current) {
+                if (isRefresh) {
+                    setRefreshing(true);
+                } else if (reset) {
+                    setLoading(true);
                 }
-            });
-            const citiesFromContacts = Array.from(citiesSet).sort();
+            }
+            if (!reset) {
+                setLoadingMoreFriends(true);
+            }
 
-            // Try to get cities from API, fallback to contacts
+            const page = await contactService.getContactsPage({
+                limit: CONTACTS_PAGE_LIMIT,
+                cursor: reset ? undefined : friendsCursor,
+                tab: 'friends',
+                q: debouncedSearch || undefined,
+            });
+            if (requestId !== latestFriendsFetchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+
+            if (reset) {
+                setFriendsContacts(page.items || []);
+            } else {
+                setFriendsContacts((prev) => {
+                    const map = new Map<number, UserContact>();
+                    prev.forEach((item) => map.set(item.ID, item));
+                    (page.items || []).forEach((item) => map.set(item.ID, item));
+                    return Array.from(map.values());
+                });
+            }
+            setFriendsHasMore(Boolean(page.hasMore));
+            setFriendsCursor(page.nextCursor);
+            setFriendsTotal(page.total || 0);
+        } catch (error) {
+            console.error('Error fetching friends page:', error);
+        } finally {
+            if (requestId === latestFriendsFetchRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+                setLoadingMoreFriends(false);
+            }
+        }
+    }, [friendsCursor, debouncedSearch]);
+
+    const loadBlockedContacts = useCallback(async (isRefresh = false, reset = false) => {
+        const requestId = ++latestBlockedFetchRequestRef.current;
+        try {
+            if (isMountedRef.current) {
+                if (isRefresh) {
+                    setRefreshing(true);
+                } else if (reset) {
+                    setLoading(true);
+                }
+            }
+            if (!reset) {
+                setLoadingMoreBlocked(true);
+            }
+
+            const page = await contactService.getContactsPage({
+                limit: CONTACTS_PAGE_LIMIT,
+                cursor: reset ? undefined : blockedCursor,
+                tab: 'blocked',
+                q: debouncedSearch || undefined,
+            });
+            if (requestId !== latestBlockedFetchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+
+            if (reset) {
+                setBlockedContacts(page.items || []);
+            } else {
+                setBlockedContacts((prev) => {
+                    const map = new Map<number, UserContact>();
+                    prev.forEach((item) => map.set(item.ID, item));
+                    (page.items || []).forEach((item) => map.set(item.ID, item));
+                    return Array.from(map.values());
+                });
+            }
+            setBlockedHasMore(Boolean(page.hasMore));
+            setBlockedCursor(page.nextCursor);
+            setBlockedTotal(page.total || 0);
+        } catch (error) {
+            console.error('Error fetching blocked page:', error);
+        } finally {
+            if (requestId === latestBlockedFetchRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+                setLoadingMoreBlocked(false);
+            }
+        }
+    }, [blockedCursor, debouncedSearch]);
+
+    const loadFriendsAndBlocked = useCallback(async () => {
+        const requestId = ++latestMetaFetchRequestRef.current;
+        try {
             try {
                 const response = await authorizedAxiosRequest<string[]>({
                     method: 'GET',
                     url: `${API_PATH}/dating/cities`,
                 });
                 if (response.data && response.data.length > 0) {
-                    if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                    if (requestId === latestMetaFetchRequestRef.current && isMountedRef.current) {
                         setAvailableCities(response.data);
-                    }
-                } else {
-                    if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
-                        setAvailableCities(citiesFromContacts);
                     }
                 }
             } catch {
-                if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                if (requestId === latestMetaFetchRequestRef.current && isMountedRef.current) {
+                    const citiesFromContacts = Array.from(
+                        new Set(allContactsRef.current.map((contact) => contact.city).filter(Boolean))
+                    ).sort();
                     setAvailableCities(citiesFromContacts);
                 }
             }
@@ -112,27 +264,36 @@ export const ContactsScreen: React.FC = () => {
                     contactService.getFriends(currentUser.ID),
                     contactService.getBlockedUsers(currentUser.ID),
                 ]);
-                if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
-                    setFriends(userFriends);
-                    setBlockedContacts(blocked);
+                if (requestId === latestMetaFetchRequestRef.current && isMountedRef.current) {
+                    setFriendRelations(userFriends);
+                    setBlockedRelations(blocked);
+                    setFriendsTotal((prev) => (prev > 0 ? prev : userFriends.length));
+                    setBlockedTotal((prev) => (prev > 0 ? prev : blocked.length));
                 }
-            } else if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
-                setFriends([]);
-                setBlockedContacts([]);
+            } else if (requestId === latestMetaFetchRequestRef.current && isMountedRef.current) {
+                setFriendRelations([]);
+                setBlockedRelations([]);
             }
         } catch (error) {
             console.error('Error fetching contacts:', error);
-        } finally {
-            if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
-                setLoading(false);
-                setRefreshing(false);
-            }
         }
     }, [currentUser?.ID]);
 
     useEffect(() => {
-        fetchContacts();
-    }, [fetchContacts]);
+        void loadFriendsAndBlocked();
+    }, [loadFriendsAndBlocked]);
+
+    useEffect(() => {
+        if (filter === 'all') {
+            void loadAllContacts(false, true);
+            return;
+        }
+        if (filter === 'friends') {
+            void loadFriendsContacts(false, true);
+            return;
+        }
+        void loadBlockedContacts(false, true);
+    }, [filter, debouncedSearch, filterCities, loadAllContacts, loadFriendsContacts, loadBlockedContacts]);
 
     const handleUnblock = async (contactId: number) => {
         if (!currentUser?.ID) return;
@@ -140,7 +301,11 @@ export const ContactsScreen: React.FC = () => {
         unblockingIdsRef.current.add(contactId);
         try {
             await contactService.unblockUser(currentUser.ID, contactId);
-            await fetchContacts(true);
+            await Promise.all([
+                loadAllContacts(true, true),
+                loadBlockedContacts(true, true),
+                loadFriendsAndBlocked(),
+            ]);
         } catch (error) {
             console.error('Error unblocking user:', error);
         } finally {
@@ -152,13 +317,30 @@ export const ContactsScreen: React.FC = () => {
         if (loading || refreshing) {
             return;
         }
-        void fetchContacts(true);
-    }, [loading, refreshing, fetchContacts]);
+        if (filter === 'all') {
+            void Promise.all([
+                loadAllContacts(true, true),
+                loadFriendsAndBlocked(),
+            ]);
+            return;
+        }
+        if (filter === 'friends') {
+            void Promise.all([
+                loadFriendsContacts(true, true),
+                loadFriendsAndBlocked(),
+            ]);
+            return;
+        }
+        void Promise.all([
+            loadBlockedContacts(true, true),
+            loadFriendsAndBlocked(),
+        ]);
+    }, [loading, refreshing, filter, loadAllContacts, loadFriendsContacts, loadBlockedContacts, loadFriendsAndBlocked]);
 
     const isOnline = (lastSeen: string) => {
         if (!lastSeen) return false;
         const lastSeenDate = new Date(lastSeen);
-        const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / 60000;
+        const diffMinutes = (Date.now() - lastSeenDate.getTime()) / 60000;
         return diffMinutes < 5; // Online if active in last 5 minutes
     };
 
@@ -181,13 +363,16 @@ export const ContactsScreen: React.FC = () => {
     };
 
 
-    const friendIdsSet = useMemo(() => new Set(friends.map((friend) => friend.ID)), [friends]);
-    const blockedIdsSet = useMemo(() => new Set(blockedContacts.map((blocked) => blocked.ID)), [blockedContacts]);
+    const friendIdsSet = useMemo(() => new Set(friendRelations.map((friend) => friend.ID)), [friendRelations]);
+    const blockedIdsSet = useMemo(() => new Set(blockedRelations.map((blocked) => blocked.ID)), [blockedRelations]);
 
-    const displayedContacts = (
-        filter === 'all' ? allContacts :
-            filter === 'friends' ? friends : blockedContacts
-    ).filter((c: UserContact) => {
+    const displayedContacts = useMemo(() => {
+        const sourceContacts = (
+            filter === 'all' ? allContacts :
+                filter === 'friends' ? friendsContacts : blockedContacts
+        );
+
+        return sourceContacts.filter((c: UserContact) => {
         const isSelf = currentUser?.ID && c.ID === currentUser.ID;
         if (isSelf) return false;
 
@@ -202,9 +387,9 @@ export const ContactsScreen: React.FC = () => {
             if (!filterCities.includes(c.city)) return false;
         }
 
-        // Search by name, city, or country
-        if (search) {
-            const searchLower = search.toLowerCase();
+        // Search by name, city, or country (debounced to reduce re-renders on typing)
+        if (debouncedSearch && filter !== 'all') {
+            const searchLower = debouncedSearch.toLowerCase();
             return c.karmicName?.toLowerCase().includes(searchLower) ||
                 c.spiritualName?.toLowerCase().includes(searchLower) ||
                 c.city?.toLowerCase().includes(searchLower) ||
@@ -213,15 +398,44 @@ export const ContactsScreen: React.FC = () => {
         }
 
         return true;
-    }).sort((a, b) => {
+        }).sort((a, b) => {
+            if (filter === 'all') {
+                const isFriendA = friendIdsSet.has(a.ID);
+                const isFriendB = friendIdsSet.has(b.ID);
+                if (isFriendA && !isFriendB) return -1;
+                if (!isFriendA && isFriendB) return 1;
+            }
+            return 0;
+        });
+    }, [filter, allContacts, friendsContacts, blockedContacts, currentUser?.ID, blockedIdsSet, filterCities, debouncedSearch, friendIdsSet]);
+
+    const loadMoreContacts = useCallback(() => {
         if (filter === 'all') {
-            const isFriendA = friendIdsSet.has(a.ID);
-            const isFriendB = friendIdsSet.has(b.ID);
-            if (isFriendA && !isFriendB) return -1;
-            if (!isFriendA && isFriendB) return 1;
+            if (!allContactsHasMore || loadingMore || loading || refreshing) return;
+            void loadAllContacts(false, false);
+            return;
         }
-        return 0;
-    });
+        if (filter === 'friends') {
+            if (!friendsHasMore || loadingMoreFriends || loading || refreshing) return;
+            void loadFriendsContacts(false, false);
+            return;
+        }
+        if (!blockedHasMore || loadingMoreBlocked || loading || refreshing) return;
+        void loadBlockedContacts(false, false);
+    }, [
+        filter,
+        allContactsHasMore,
+        friendsHasMore,
+        blockedHasMore,
+        loadingMore,
+        loadingMoreFriends,
+        loadingMoreBlocked,
+        loading,
+        refreshing,
+        loadAllContacts,
+        loadFriendsContacts,
+        loadBlockedContacts,
+    ]);
 
     const renderItem = ({ item }: { item: UserContact }) => {
         const avatarUrl = getMediaUrl(item.avatarUrl);
@@ -250,12 +464,25 @@ export const ContactsScreen: React.FC = () => {
                 disabled={isBlocked}
             >
                 {(isPhotoBg || isDarkMode) && (
-                    <BlurView
-                        style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
-                        blurType={isDarkMode ? "dark" : "light"}
-                        blurAmount={15}
-                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
-                    />
+                    Platform.OS === 'android' ? (
+                        <View
+                            pointerEvents="none"
+                            style={[
+                                StyleSheet.absoluteFill,
+                                {
+                                    borderRadius: 22,
+                                    backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.28)',
+                                },
+                            ]}
+                        />
+                    ) : (
+                        <BlurView
+                            style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
+                            blurType={isDarkMode ? "dark" : "light"}
+                            blurAmount={15}
+                            reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                        />
+                    )
                 )}
                 <View style={styles.avatarContainer}>
                     {avatarUrl ? (
@@ -362,18 +589,23 @@ export const ContactsScreen: React.FC = () => {
     const filteredCities = useMemo(() => availableCities.filter((city: string) =>
         city.toLowerCase().includes(citySearchQuery.toLowerCase())
     ), [availableCities, citySearchQuery]);
+    const cityCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const contact of allContacts) {
+            if (!contact.city) continue;
+            counts.set(contact.city, (counts.get(contact.city) || 0) + 1);
+        }
+        return counts;
+    }, [allContacts]);
 
     const uniqueCountries = useMemo(
         () => Array.from(new Set(allContacts.map((c: UserContact) => c.country).filter(Boolean))).sort(),
         [allContacts]
     );
     const uniqueCities = availableCities;
-    const allCount = useMemo(() => {
-        const currentUserId = currentUser?.ID;
-        return allContacts.filter((contact) => contact.ID !== currentUserId && !blockedIdsSet.has(contact.ID)).length;
-    }, [allContacts, blockedIdsSet, currentUser?.ID]);
-    const friendsCount = friends.length;
-    const blockedCount = blockedContacts.length;
+    const allCount = allContactsTotal;
+    const friendsCount = friendsTotal;
+    const blockedCount = blockedTotal;
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
@@ -465,10 +697,26 @@ export const ContactsScreen: React.FC = () => {
                     contentContainerStyle={styles.list}
                     refreshing={refreshing}
                     onRefresh={handleRefresh}
+                    onEndReached={loadMoreContacts}
+                    onEndReachedThreshold={0.35}
+                    initialNumToRender={14}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews
+                    getItemLayout={(_, index) => ({
+                        length: CONTACT_ITEM_HEIGHT,
+                        offset: CONTACT_ITEM_HEIGHT * index,
+                        index,
+                    })}
                     ListHeaderComponent={filter === 'blocked' && displayedContacts.length > 0 ? (
                         <Text style={[styles.blockedHint, { color: theme.subText }]}>
                             {t('contacts.blockConfirmMsg')}
                         </Text>
+                    ) : null}
+                    ListFooterComponent={((filter === 'all' && loadingMore) || (filter === 'friends' && loadingMoreFriends) || (filter === 'blocked' && loadingMoreBlocked)) ? (
+                        <View style={styles.listFooterLoader}>
+                            <ActivityIndicator color={theme.accent} />
+                        </View>
                     ) : null}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
@@ -566,7 +814,7 @@ export const ContactsScreen: React.FC = () => {
                                 ) : (
                                     filteredCities.map((city: string) => {
                                         const isSelected = filterCities.includes(city);
-                                        const count = allContacts.filter((c: UserContact) => c.city === city).length;
+                                        const count = cityCounts.get(city) || 0;
                                         return (
                                             <TouchableOpacity
                                                 key={city}
@@ -801,6 +1049,11 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
     list: { paddingBottom: 20 },
+    listFooterLoader: {
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     contactItem: {
         flexDirection: 'row',
         alignItems: 'center',

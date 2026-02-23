@@ -1,7 +1,7 @@
 /**
  * ServicesHomeScreen - Главный экран сервисов
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -49,6 +49,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
+import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 
 const { width } = Dimensions.get('window');
 
@@ -91,8 +92,13 @@ interface ServicesHomeScreenProps {
 const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { user } = useUser();
-    const { isDarkMode } = useSettings();
+    const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
@@ -228,49 +234,84 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <ImageBackground
-                source={require('../../../assets/services_banner_bg.png')}
-                style={styles.bannerHeader}
-                imageStyle={styles.bannerImage}
-            >
-                <View style={styles.bannerOverlay} />
-                <View style={styles.headerTop}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => onBack ? onBack() : navigation.goBack()}
-                    >
-                        <ArrowLeft size={22} color="#FFFFFF" />
-                    </TouchableOpacity>
-
-                    <View style={styles.headerTitleContainer}>
-                        <Text
-                            style={[styles.headerTitle, { color: '#FFFFFF' }]}
-                            numberOfLines={1}
-                            ellipsizeMode="tail"
+            {isAndroidReducedEffects ? (
+                <View style={[styles.bannerHeader, { backgroundColor: roleTheme.gradient[1] }]}>
+                    <View style={styles.headerTop}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => onBack ? onBack() : navigation.goBack()}
                         >
-                            Маркетплейс
-                        </Text>
-                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
-                    </View>
+                            <ArrowLeft size={22} color="#FFFFFF" />
+                        </TouchableOpacity>
 
-                    <View style={styles.headerActions}>
-                        <AssistantChatButton />
-                        <BalancePill size="small" lightMode={true} />
+                        <View style={styles.headerTitleContainer}>
+                            <Text
+                                style={[styles.headerTitle, styles.headerTitleReducedAndroid, { color: '#FFFFFF' }]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                Маркетплейс
+                            </Text>
+                            <Text style={[styles.headerSubtitle, styles.headerSubtitleReducedAndroid, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
+                        </View>
+
+                        <View style={styles.headerActions}>
+                            <AssistantChatButton />
+                            <BalancePill size="small" lightMode={true} />
+                        </View>
                     </View>
                 </View>
-            </ImageBackground>
+            ) : (
+                <ImageBackground
+                    source={require('../../../assets/services_banner_bg.png')}
+                    style={styles.bannerHeader}
+                    imageStyle={styles.bannerImage}
+                >
+                    <View style={styles.bannerOverlay} />
+                    <View style={styles.headerTop}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => onBack ? onBack() : navigation.goBack()}
+                        >
+                            <ArrowLeft size={22} color="#FFFFFF" />
+                        </TouchableOpacity>
+
+                        <View style={styles.headerTitleContainer}>
+                            <Text
+                                style={[styles.headerTitle, { color: '#FFFFFF' }]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                Маркетплейс
+                            </Text>
+                            <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
+                        </View>
+
+                        <View style={styles.headerActions}>
+                            <AssistantChatButton />
+                            <BalancePill size="small" lightMode={true} />
+                        </View>
+                    </View>
+                </ImageBackground>
+            )}
 
             {/* Featured Actions - Premium Cards */}
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.accentSoft }]}
+                        style={[
+                            styles.featuredCard,
+                            { backgroundColor: colors.surface, borderColor: colors.accentSoft },
+                            isAndroidReducedEffects && styles.featuredCardReducedAndroid,
+                        ]}
                         onPress={handleCreateService}
                     >
-                        <LinearGradient
-                            colors={[roleTheme.accentSoft, 'transparent']}
-                            style={styles.cardGradient}
-                        />
+                        {!isAndroidReducedEffects && (
+                            <LinearGradient
+                                colors={[roleTheme.accentSoft, 'transparent']}
+                                style={styles.cardGradient}
+                            />
+                        )}
                         <View style={styles.actionIconOuter}>
                             <PlusCircle size={24} color={colors.accent} />
                         </View>
@@ -281,7 +322,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        style={[
+                            styles.featuredCard,
+                            { backgroundColor: colors.surface, borderColor: colors.border },
+                            isAndroidReducedEffects && styles.featuredCardReducedAndroid,
+                        ]}
                         onPress={handleIncomingBookings}
                     >
                         <View style={styles.actionIconOuter}>
@@ -314,7 +359,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
             {/* Search - Floating Style */}
             <View style={styles.searchSection}>
-                <View style={[styles.searchBackground, { backgroundColor: colors.surface }]}>
+                <View
+                    style={[
+                        styles.searchBackground,
+                        { backgroundColor: colors.surface },
+                        isAndroidReducedEffects && styles.searchBackgroundReducedAndroid,
+                    ]}
+                >
                     <Search size={20} color={colors.textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: colors.textPrimary }]}
@@ -338,18 +389,37 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         style={styles.categoryCircleItem}
                         onPress={() => setSelectedCategory(cat.key)}
                     >
-                        <LinearGradient
-                            colors={selectedCategory === cat.key
-                                ? [roleTheme.accent, roleTheme.accentStrong]
-                                : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
-                            style={styles.categoryCircle}
-                        >
-                            <CategoryIcon
-                                name={cat.iconName}
-                                size={22}
-                                color={selectedCategory === cat.key ? colors.textPrimary : colors.textSecondary}
-                            />
-                        </LinearGradient>
+                        {isAndroidReducedEffects ? (
+                            <View
+                                style={[
+                                    styles.categoryCircle,
+                                    {
+                                        backgroundColor: selectedCategory === cat.key
+                                            ? roleTheme.accent
+                                            : 'rgba(255,255,255,0.04)',
+                                    },
+                                ]}
+                            >
+                                <CategoryIcon
+                                    name={cat.iconName}
+                                    size={22}
+                                    color={selectedCategory === cat.key ? colors.textPrimary : colors.textSecondary}
+                                />
+                            </View>
+                        ) : (
+                            <LinearGradient
+                                colors={selectedCategory === cat.key
+                                    ? [roleTheme.accent, roleTheme.accentStrong]
+                                    : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                                style={styles.categoryCircle}
+                            >
+                                <CategoryIcon
+                                    name={cat.iconName}
+                                    size={22}
+                                    color={selectedCategory === cat.key ? colors.textPrimary : colors.textSecondary}
+                                />
+                            </LinearGradient>
+                        )}
                         <Text style={[
                             styles.categoryCircleLabel,
                             { color: colors.textSecondary },
@@ -391,10 +461,18 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     };
 
     return (
-        <LinearGradient
-            colors={roleTheme.gradient}
-            style={styles.gradient}
+        <View
+            style={[
+                styles.gradient,
+                { backgroundColor: isAndroidReducedEffects ? roleTheme.gradient[0] : 'transparent' },
+            ]}
         >
+            {!isAndroidReducedEffects && (
+                <LinearGradient
+                    colors={roleTheme.gradient}
+                    style={StyleSheet.absoluteFill}
+                />
+            )}
             <View style={styles.container}>
                 <GodModeStatusBanner />
 
@@ -407,10 +485,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         data={services}
                         keyExtractor={(item) => item.id.toString()}
                         renderItem={({ item }) => (
-                            <ServiceCard service={item} onPress={handleServicePress} />
+                            <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
                         )}
-                        numColumns={2}
-                        columnWrapperStyle={styles.row}
+                        numColumns={isAndroidReducedEffects ? 1 : 2}
+                        columnWrapperStyle={isAndroidReducedEffects ? undefined : styles.row}
+                        key={isAndroidReducedEffects ? 'services-flat-1col' : 'services-grid-2col'}
                         contentContainerStyle={styles.listContent}
                         ListHeaderComponent={renderHeader}
                         refreshControl={
@@ -424,10 +503,15 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         onEndReachedThreshold={0.5}
                         ListEmptyComponent={renderEmpty}
                         ListFooterComponent={renderFooter}
+                        removeClippedSubviews={Platform.OS === 'android'}
+                        initialNumToRender={8}
+                        maxToRenderPerBatch={6}
+                        updateCellsBatchingPeriod={50}
+                        windowSize={7}
                     />
                 )}
             </View>
-        </LinearGradient>
+        </View>
     );
 }
 
@@ -480,6 +564,11 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 2 },
         textShadowRadius: 12,
     },
+    headerTitleReducedAndroid: {
+        textShadowColor: 'transparent',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 0,
+    },
     headerSubtitle: {
         fontSize: 12,
         fontWeight: '700',
@@ -489,6 +578,11 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 6,
+    },
+    headerSubtitleReducedAndroid: {
+        textShadowColor: 'transparent',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 0,
     },
     backButton: {
         width: 44,
@@ -538,6 +632,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         overflow: 'hidden',
+    },
+    featuredCardReducedAndroid: {
+        borderWidth: 0.5,
     },
     cardGradient: {
         ...StyleSheet.absoluteFillObject,
@@ -598,6 +695,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 20,
         elevation: 10,
+    },
+    searchBackgroundReducedAndroid: {
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+        elevation: 2,
     },
     searchInput: {
         flex: 1,

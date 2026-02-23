@@ -6,16 +6,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { MathFilter } from '../../../types/portalBlueprint';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface GodModeFiltersPanelProps {
   filters: MathFilter[];
@@ -49,9 +44,11 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
   };
 
   const toggleExpanded = () => {
-    LayoutAnimation.configureNext(
-      LayoutAnimation.create(250, 'easeInEaseOut', 'opacity'),
-    );
+    if (Platform.OS === 'ios') {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(250, 'easeInEaseOut', 'opacity'),
+      );
+    }
     setExpanded((prev) => !prev);
   };
 

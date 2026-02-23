@@ -332,7 +332,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const reportRuntimeStress = useCallback((reason: PerformanceDegradeReason) => {
-        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') {
+        if (Platform.OS !== 'android' || performanceMode === 'battery_saver') {
             return;
         }
 
@@ -433,9 +433,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         runtimePerformanceRef.current = runtimePerformanceState;
     }, [runtimePerformanceState]);
 
-    // Adaptive Android degrade/recovery by JS lag heuristics.
+    // Android degrade/recovery by JS lag heuristics.
     useEffect(() => {
-        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') {
+        if (Platform.OS !== 'android' || performanceMode === 'battery_saver') {
             if (runtimePerformanceRef.current.isAutoDegraded) {
                 setRuntimePerformanceState({ isAutoDegraded: false });
                 AsyncStorage.setItem(ANDROID_AUTO_DEGRADE_KEY, 'false').catch(() => undefined);

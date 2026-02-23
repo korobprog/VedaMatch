@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, Plus, Trash2, Clock, Calendar as CalendarIcon, Film } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Calendar as CalendarIcon, ChevronLeft, Clock, Film, Plus, Trash2 } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
+import { PortalWidget } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { useUser } from '../../context/UserContext';
@@ -25,9 +26,10 @@ import { CirclesPanelWidget } from '../../components/portal/CirclesPanelWidget';
 import { CirclesQuickWidget } from '../../components/portal/CirclesQuickWidget';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
+type WidgetType = 'clock' | 'calendar' | 'circles_quick' | 'circles_panel';
 
 interface WidgetOption {
-    type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel';
+    type: WidgetType;
     size: '1x1' | '2x1' | '2x2';
     title: string;
     description: string;
@@ -67,18 +69,32 @@ const WIDGET_OPTIONS: WidgetOption[] = [
         type: 'circles_panel',
         size: '2x2',
         title: 'Панель кружков',
-        description: 'Создать, кружки друзей, лента и мини-превью',
+        description: 'Создание + кружки друзей + мини-превью',
         icon: Film,
     },
 ];
 
-const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
+const getWidgetName = (type: WidgetType): string => {
+    switch (type) {
+        case 'clock':
+            return 'Часы';
+        case 'calendar':
+            return 'Календарь';
+        case 'circles_quick':
+            return 'Кружки (быстрый)';
+        default:
+            return 'Панель кружков';
+    }
+};
+
+const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const { user } = useUser();
-    const { vTheme, isDarkMode, portalBackgroundType, portalBackground } = useSettings();
+    const { isDarkMode, portalBackgroundType, portalBackground } = useSettings();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const triggerTapFeedback = usePressFeedback();
-    const { layout, currentPage, addWidget, removeWidget } = usePortalLayout();
+    const { layout, currentPage, addWidget, removeWidget, reorderWidgets } = usePortalLayout();
     const isPhotoBg = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const openSource = route.params?.source || 'unknown';
 
     useEffect(() => {
         if (!isPhotoBg || !portalBackground || !portalBackground.startsWith('http')) return;
@@ -90,6 +106,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
     }, [layout, currentPage]);
 
     const handleAddWidget = (option: WidgetOption) => {
+        triggerTapFeedback();
         addWidget({
             type: option.type,
             size: option.size,
@@ -97,35 +114,69 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleRemoveWidget = (id: string) => {
+        triggerTapFeedback();
         removeWidget(id);
     };
 
-    const getWidgetName = (type: WidgetOption['type']) => {
-        switch (type) {
-            case 'clock':
-                return 'Часы';
-            case 'calendar':
-                return 'Календарь';
-            case 'circles_quick':
-                return 'Кружки (быстрый)';
-            default:
-                return 'Панель кружков';
-        }
+    const handleMoveWidget = (fromIndex: number, direction: -1 | 1) => {
+        const toIndex = fromIndex + direction;
+        if (toIndex < 0 || toIndex >= activeWidgets.length) return;
+        triggerTapFeedback();
+        reorderWidgets(fromIndex, toIndex);
     };
 
-    const renderWidgetPreview = (option: WidgetOption) => {
-        switch (option.type) {
+    const handleBackToPortal = () => {
+        console.log(`[portal_widgets_back] source=${openSource}`);
+        triggerTapFeedback();
+        navigation.navigate('Portal', { resetToGridAt: Date.now() });
+    };
+
+    const renderLiveWidget = (widget: PortalWidget) => {
+        switch (widget.type) {
             case 'clock':
-                return <ClockWidget size={option.size} />;
+                return <ClockWidget size={widget.size as any} />;
             case 'calendar':
-                return <CalendarWidget size={option.size as any} />;
+                return <CalendarWidget size={widget.size as any} />;
             case 'circles_quick':
                 return <CirclesQuickWidget />;
             case 'circles_panel':
-                return <CirclesPanelWidget />;
+                return <CirclesPanelWidget isVisible />;
             default:
                 return null;
         }
+    };
+
+    const renderOptionPreview = (option: WidgetOption) => {
+        if (option.type === 'circles_quick' || option.type === 'circles_panel') {
+            return (
+                <View style={[styles.mockCirclesCard, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : roleColors.border }]}>
+                    <View style={styles.mockCirclesHeader}>
+                        <Film size={14} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                        <Text style={[styles.mockCirclesTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>Кружки</Text>
+                    </View>
+                    <View style={styles.mockCirclesRow}>
+                        {[0, 1, 2, 3].map((idx) => (
+                            <View
+                                key={`mock-circle-${idx}`}
+                                style={[
+                                    styles.mockCircle,
+                                    { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : roleColors.accentSoft },
+                                ]}
+                            />
+                        ))}
+                    </View>
+                    <Text style={[styles.mockCirclesCaption, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : roleColors.textSecondary }]}>
+                        Статичный preview без сети
+                    </Text>
+                </View>
+            );
+        }
+
+        if (option.type === 'clock') {
+            return <ClockWidget size={option.size} />;
+        }
+
+        return <CalendarWidget size={option.size as any} />;
     };
 
     const content = (
@@ -150,10 +201,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                     />
                 )}
                 <TouchableOpacity
-                    onPress={() => {
-                        triggerTapFeedback();
-                        navigation.goBack();
-                    }}
+                    onPress={handleBackToPortal}
                     style={[
                         styles.backButton,
                         {
@@ -168,16 +216,186 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                 <View style={styles.titleWrap}>
                     <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>Виджеты</Text>
                     <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary }]}>
-                        Настройте быстрый доступ на портале
+                        Управляйте виджетами отдельно от портала
                     </Text>
                 </View>
-                <View style={{ width: 42 }} />
+                <TouchableOpacity
+                    onPress={handleBackToPortal}
+                    style={[
+                        styles.portalButton,
+                        {
+                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : roleColors.surface,
+                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : roleColors.border,
+                        },
+                    ]}
+                    activeOpacity={0.86}
+                >
+                    <Text style={[styles.portalButtonText, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>Портал</Text>
+                </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={[styles.sectionBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft }]}>
-                    <Text style={[styles.sectionBadgeText, { color: isPhotoBg ? '#FFFFFF' : roleColors.accent }]}>Доступные виджеты</Text>
+                    <Text style={[styles.sectionBadgeText, { color: isPhotoBg ? '#FFFFFF' : roleColors.accent }]}>Мои виджеты</Text>
                 </View>
+
+                {activeWidgets.length > 0 ? (
+                    <View style={styles.liveWidgetsList}>
+                        {activeWidgets.map((widget, index) => (
+                            <View
+                                key={widget.id}
+                                style={[
+                                    styles.liveWidgetCard,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : roleColors.surfaceElevated,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border,
+                                    },
+                                ]}
+                            >
+                                {(isPhotoBg || isDarkMode) && (
+                                    <BlurView
+                                        style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+                                        blurType={isDarkMode ? 'dark' : 'light'}
+                                        blurAmount={8}
+                                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : roleColors.surfaceElevated}
+                                    />
+                                )}
+                                <View style={styles.liveWidgetHeader}>
+                                    <Text style={[styles.liveWidgetTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                                        {index + 1}. {getWidgetName(widget.type as WidgetType)}
+                                    </Text>
+                                    <View style={[styles.sizePill, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft }]}>
+                                        <Text style={[styles.sizePillText, { color: isPhotoBg ? '#FFFFFF' : roleColors.accent }]}>{widget.size}</Text>
+                                    </View>
+                                </View>
+                                <View style={[styles.liveWidgetFrame, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : roleColors.border }]}>
+                                    {renderLiveWidget(widget)}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                ) : (
+                    <View
+                        style={[
+                            styles.emptyState,
+                            {
+                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : roleColors.surfaceElevated,
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border,
+                            },
+                        ]}
+                    >
+                        {(isPhotoBg || isDarkMode) && (
+                            <BlurView
+                                style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={8}
+                                reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : roleColors.surfaceElevated}
+                            />
+                        )}
+                        <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>Пока нет активных виджетов</Text>
+                        <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary }]}>
+                            Добавьте первый виджет из каталога ниже
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.emptyCta, { backgroundColor: roleColors.accent }]}
+                            onPress={() => handleAddWidget(WIDGET_OPTIONS[0])}
+                            activeOpacity={0.88}
+                        >
+                            <Plus size={16} color="#FFF" />
+                            <Text style={styles.emptyCtaText}>Добавить часы</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                <Text style={[styles.sectionTitle, { color: isPhotoBg ? 'rgba(255,255,255,0.86)' : roleColors.textSecondary }]}>Управление</Text>
+
+                {activeWidgets.length > 0 ? (
+                    <View style={styles.activeList}>
+                        {activeWidgets.map((widget, index) => (
+                            <View
+                                key={widget.id}
+                                style={[
+                                    styles.activeItem,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : roleColors.surfaceElevated,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border,
+                                    },
+                                ]}
+                            >
+                                {(isPhotoBg || isDarkMode) && (
+                                    <BlurView
+                                        style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+                                        blurType={isDarkMode ? 'dark' : 'light'}
+                                        blurAmount={8}
+                                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : roleColors.surfaceElevated}
+                                    />
+                                )}
+                                <View style={[styles.activeIcon, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : roleColors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : roleColors.border }]}>
+                                    {widget.type === 'clock' ? (
+                                        <Clock size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                                    ) : widget.type === 'calendar' ? (
+                                        <CalendarIcon size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                                    ) : (
+                                        <Film size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                                    )}
+                                </View>
+                                <View style={styles.activeInfo}>
+                                    <Text style={[styles.activeTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                                        {getWidgetName(widget.type as WidgetType)}
+                                    </Text>
+                                    <Text style={[styles.activeMeta, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : roleColors.textSecondary }]}>
+                                        Размер: {widget.size}
+                                    </Text>
+                                </View>
+                                <View style={styles.activeActions}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.35)' : roleColors.border,
+                                                opacity: index === 0 ? 0.4 : 1,
+                                            },
+                                        ]}
+                                        disabled={index === 0}
+                                        onPress={() => handleMoveWidget(index, -1)}
+                                        activeOpacity={0.85}
+                                    >
+                                        <ArrowUp size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.textPrimary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.35)' : roleColors.border,
+                                                opacity: index === activeWidgets.length - 1 ? 0.4 : 1,
+                                            },
+                                        ]}
+                                        disabled={index === activeWidgets.length - 1}
+                                        onPress={() => handleMoveWidget(index, 1)}
+                                        activeOpacity={0.85}
+                                    >
+                                        <ArrowDown size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.textPrimary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.removeButton, { borderColor: isPhotoBg ? 'rgba(248,113,113,0.6)' : '#FCA5A5', backgroundColor: isPhotoBg ? 'rgba(248,113,113,0.16)' : '#FEE2E2' }]}
+                                        onPress={() => handleRemoveWidget(widget.id)}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Trash2 size={18} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                ) : (
+                    <Text style={[styles.managementHint, { color: isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary }]}>
+                        После добавления виджетов здесь появятся кнопки перестановки и удаления.
+                    </Text>
+                )}
+
+                <Text style={[styles.sectionTitle, { color: isPhotoBg ? 'rgba(255,255,255,0.86)' : roleColors.textSecondary, marginTop: 18 }]}>
+                    Добавить виджеты
+                </Text>
 
                 {WIDGET_OPTIONS.map((option, index) => {
                     const activeCount = activeWidgets.filter(w => w.type === option.type && w.size === option.size).length;
@@ -221,7 +439,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
 
                             <View style={[styles.previewContainer, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : roleColors.border, backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.08)' : roleColors.surface }]}>
                                 <View pointerEvents="none" style={styles.previewInner}>
-                                    {renderWidgetPreview(option)}
+                                    {renderOptionPreview(option)}
                                 </View>
                             </View>
 
@@ -231,10 +449,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                                 </Text>
                                 <TouchableOpacity
                                     style={[styles.addButton, { backgroundColor: roleColors.accent }]}
-                                    onPress={() => {
-                                        triggerTapFeedback();
-                                        handleAddWidget(option);
-                                    }}
+                                    onPress={() => handleAddWidget(option)}
                                     activeOpacity={0.88}
                                 >
                                     <Plus size={19} color="#FFF" />
@@ -244,88 +459,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
                     );
                 })}
-
-                <Text style={[styles.sectionTitle, { color: isPhotoBg ? 'rgba(255,255,255,0.86)' : roleColors.textSecondary, marginTop: 18 }]}>
-                    Удаление активных виджетов
-                </Text>
-
-                {activeWidgets.length > 0 ? (
-                    <View style={styles.activeList}>
-                        {activeWidgets.map((widget) => (
-                            <View
-                                key={widget.id}
-                                style={[
-                                    styles.activeItem,
-                                    {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : roleColors.surfaceElevated,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border,
-                                    },
-                                ]}
-                            >
-                                {(isPhotoBg || isDarkMode) && (
-                                    <BlurView
-                                        style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
-                                        blurType={isDarkMode ? 'dark' : 'light'}
-                                        blurAmount={8}
-                                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : roleColors.surfaceElevated}
-                                    />
-                                )}
-                                <View style={[styles.activeIcon, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : roleColors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : roleColors.border }]}>
-                                    {widget.type === 'clock' ? (
-                                        <Clock size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-                                    ) : widget.type === 'calendar' ? (
-                                        <CalendarIcon size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-                                    ) : (
-                                        <Film size={16} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-                                    )}
-                                </View>
-                                <View style={styles.activeInfo}>
-                                    <Text style={[styles.activeTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
-                                        {getWidgetName(widget.type as WidgetOption['type'])}
-                                    </Text>
-                                    <Text style={[styles.activeMeta, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : roleColors.textSecondary }]}>
-                                        Размер: {widget.size}
-                                    </Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={[styles.removeButton, { borderColor: isPhotoBg ? 'rgba(248,113,113,0.6)' : '#FCA5A5', backgroundColor: isPhotoBg ? 'rgba(248,113,113,0.16)' : '#FEE2E2' }]}
-                                    onPress={() => {
-                                        triggerTapFeedback();
-                                        handleRemoveWidget(widget.id);
-                                    }}
-                                    activeOpacity={0.85}
-                                >
-                                    <Trash2 size={18} color="#EF4444" />
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                    </View>
-                ) : (
-                    <View
-                        style={[
-                            styles.emptyState,
-                            {
-                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : roleColors.surfaceElevated,
-                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border,
-                            },
-                        ]}
-                    >
-                        {(isPhotoBg || isDarkMode) && (
-                            <BlurView
-                                style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
-                                blurType={isDarkMode ? 'dark' : 'light'}
-                                blurAmount={8}
-                                reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : roleColors.surfaceElevated}
-                            />
-                        )}
-                        <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
-                            Пока нет активных виджетов
-                        </Text>
-                        <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary }]}>
-                            Добавьте нужные виджеты из списка выше
-                        </Text>
-                    </View>
-                )}
             </ScrollView>
         </View>
     );
@@ -371,6 +504,7 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        paddingHorizontal: 8,
     },
     title: {
         fontSize: 28,
@@ -381,6 +515,22 @@ const styles = StyleSheet.create({
         marginTop: 2,
         fontSize: 13,
         fontWeight: '600',
+        textAlign: 'center',
+    },
+    portalButton: {
+        minWidth: 70,
+        height: 42,
+        borderRadius: 21,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 10,
+    },
+    portalButtonText: {
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
     },
     scrollContent: {
         padding: 16,
@@ -407,6 +557,40 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1,
         marginBottom: 16,
+        marginTop: 10,
+    },
+    liveWidgetsList: {
+        marginBottom: 12,
+    },
+    liveWidgetCard: {
+        borderRadius: 18,
+        borderWidth: 1,
+        padding: 14,
+        marginBottom: 12,
+        overflow: 'hidden',
+    },
+    liveWidgetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    liveWidgetTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    liveWidgetFrame: {
+        borderRadius: 14,
+        borderWidth: 1,
+        minHeight: 140,
+        paddingVertical: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    managementHint: {
+        fontSize: 13,
+        lineHeight: 19,
+        marginBottom: 6,
     },
     card: {
         borderRadius: 24,
@@ -488,7 +672,6 @@ const styles = StyleSheet.create({
         marginTop: 16,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     statusText: {
         fontSize: 12,
@@ -513,8 +696,7 @@ const styles = StyleSheet.create({
     activeItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 16,
+        padding: 14,
         borderRadius: 16,
         marginBottom: 12,
         borderWidth: 1,
@@ -533,13 +715,26 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     activeTitle: {
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '700',
     },
     activeMeta: {
         marginTop: 2,
         fontSize: 12,
         fontWeight: '600',
+    },
+    activeActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    actionButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     removeButton: {
         width: 34,
@@ -556,6 +751,7 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         paddingHorizontal: 16,
         overflow: 'hidden',
+        marginBottom: 12,
     },
     emptyTitle: {
         fontSize: 16,
@@ -565,6 +761,53 @@ const styles = StyleSheet.create({
     emptySub: {
         marginTop: 6,
         fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 14,
+    },
+    emptyCta: {
+        alignSelf: 'center',
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    emptyCtaText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    mockCirclesCard: {
+        width: '100%',
+        maxWidth: 240,
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 12,
+    },
+    mockCirclesHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    mockCirclesTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    mockCirclesRow: {
+        flexDirection: 'row',
+        marginTop: 10,
+        justifyContent: 'space-between',
+    },
+    mockCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+    },
+    mockCirclesCaption: {
+        marginTop: 10,
+        fontSize: 11,
+        fontWeight: '600',
         textAlign: 'center',
     },
 });

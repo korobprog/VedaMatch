@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -15,41 +15,138 @@ import { useSettings } from '../../context/SettingsContext';
 import { VideoCircle, videoCirclesService } from '../../services/videoCirclesService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
-export const CirclesPanelWidget: React.FC = () => {
+type CirclesScope = 'all' | 'friends';
+type CirclesCacheEntry = {
+  circles: VideoCircle[];
+  cachedAt: number;
+};
+
+const DEFAULT_CACHE_TTL_MS = 90_000;
+const FETCH_TIMEOUT_MS = Platform.OS === 'android' ? 900 : 1_500;
+const circlesCache = new Map<CirclesScope, CirclesCacheEntry>();
+const circlesInFlight = new Map<CirclesScope, Promise<VideoCircle[]>>();
+
+const getCachedCircles = (scope: CirclesScope, ttlMs: number): VideoCircle[] | null => {
+  const cacheEntry = circlesCache.get(scope);
+  if (!cacheEntry) return null;
+
+  const isExpired = Date.now() - cacheEntry.cachedAt > ttlMs;
+  if (isExpired) {
+    circlesCache.delete(scope);
+    return null;
+  }
+
+  console.log(`[circles_widget_cache_hit] scope=${scope}`);
+  return cacheEntry.circles;
+};
+
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error('circles_widget_timeout'));
+    }, timeoutMs);
+  });
+
+  return Promise.race<T>([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+};
+
+const loadCircles = async (scope: CirclesScope, cacheTtlMs: number): Promise<VideoCircle[]> => {
+  const cached = getCachedCircles(scope, cacheTtlMs);
+  if (cached) return cached;
+
+  const existingInFlight = circlesInFlight.get(scope);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  const startedAt = Date.now();
+  const requestPromise = (async () => {
+    try {
+      const response = await withTimeout(
+        videoCirclesService.getVideoCircles({
+          status: 'active',
+          limit: Platform.OS === 'android' ? 4 : 5,
+          scope,
+        }),
+        FETCH_TIMEOUT_MS,
+      );
+      const circles = (response.circles || []).slice(0, Platform.OS === 'android' ? 3 : 4);
+      circlesCache.set(scope, { circles, cachedAt: Date.now() });
+      console.log(`[circles_widget_fetch_ms] scope=${scope} ms=${Date.now() - startedAt}`);
+      return circles;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown_error';
+      console.warn(`[circles_widget_fetch_error] scope=${scope} message=${message}`);
+      const fallback = getCachedCircles(scope, cacheTtlMs);
+      return fallback || [];
+    } finally {
+      circlesInFlight.delete(scope);
+    }
+  })();
+
+  circlesInFlight.set(scope, requestPromise);
+  return requestPromise;
+};
+
+interface CirclesPanelWidgetProps {
+  isVisible?: boolean;
+  cacheTtlMs?: number;
+}
+
+export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
+  isVisible = true,
+  cacheTtlMs = DEFAULT_CACHE_TTL_MS,
+}) => {
   const navigation = useNavigation<any>();
   const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
   const [circles, setCircles] = useState<VideoCircle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'friends'>('all');
+  const [filter, setFilter] = useState<CirclesScope>('all');
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
-  const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
-  const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+  const androidVisualPolicy = useMemo(
+    () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
+    [performanceMode, runtimePerformanceState],
+  );
+  const effectivePerformanceMode = useMemo(
+    () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+    [performanceMode, runtimePerformanceState],
+  );
   const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
   const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
 
   useEffect(() => {
+    if (!isVisible) {
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
-    const load = async () => {
+
+    const cached = getCachedCircles(filter, cacheTtlMs);
+    if (cached) {
+      setCircles(cached);
+      setLoading(false);
+    } else {
       setLoading(true);
-      try {
-        const response = await videoCirclesService.getVideoCircles({
-          status: 'active',
-          limit: 8,
-          scope: filter
-        });
-        if (mounted) {
-          setCircles(response.circles || []);
-        }
-      } catch (error) {
-        if (mounted) setCircles([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    }
+
+    const load = async () => {
+      const payload = await loadCircles(filter, cacheTtlMs);
+      if (!mounted) return;
+      setCircles(payload);
+      setLoading(false);
     };
+
     load();
+
     return () => { mounted = false; };
-  }, [filter]);
+  }, [filter, isVisible, cacheTtlMs]);
 
   const toggleFilter = () => {
     setFilter(prev => prev === 'all' ? 'friends' : 'all');
@@ -128,7 +225,7 @@ export const CirclesPanelWidget: React.FC = () => {
             <ActivityIndicator size="small" color={vTheme.colors.primary} />
           </View>
         ) : circles.length > 0 ? (
-          circles.slice(0, 5).map((circle) => (
+          circles.map((circle) => (
             <TouchableOpacity
               key={circle.id}
               style={styles.circleSlot}

@@ -1,5 +1,5 @@
 // Portal Icon Component - service icon with iOS-style wiggle animation
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -45,6 +45,7 @@ import {
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
+import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 interface PortalIconProps {
     service: ServiceDefinition;
@@ -133,16 +134,22 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     mathBadge,
     onRemove,
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
     const sizeConfig = ICON_SIZES[size];
     const IconComponent = IconComponents[service.icon] || Users;
 
     // iOS-style wiggle animation
     useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && allowEditWiggle) {
             rotation.value = withRepeat(
                 withSequence(
                     withTiming(-2, { duration: 80 }),
@@ -170,7 +177,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
             cancelAnimation(rotation);
             cancelAnimation(scale);
         };
-    }, [isEditMode]);
+    }, [allowEditWiggle, isEditMode, rotation, scale]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [
@@ -218,16 +225,16 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                                 : roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'solid' || portalIconStyle === 'premium3d' ? 1.5 : 1,
                             ...(roleHighlight || portalIconStyle === 'vedamatch' ? {
                                 shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
-                                shadowOpacity: portalIconStyle === 'vedamatch' ? 0.5 : 0.35,
-                                shadowRadius: portalIconStyle === 'vedamatch' ? 10 : 8,
+                                shadowOpacity: isAndroidReducedEffects ? 0 : (portalIconStyle === 'vedamatch' ? 0.5 : 0.35),
+                                shadowRadius: isAndroidReducedEffects ? 0 : (portalIconStyle === 'vedamatch' ? 10 : 8),
                                 shadowOffset: { width: 0, height: 2 },
-                                elevation: 6,
+                                elevation: isAndroidReducedEffects ? 0 : 6,
                             } : {}),
                             marginBottom: showLabel ? 6 : 0,
                         },
                     ]}
                 >
-                    {portalIconStyle === 'vedamatch' && (
+                    {portalIconStyle === 'vedamatch' && !isAndroidReducedEffects && (
                         <View style={[StyleSheet.absoluteFill, { borderRadius: 22, overflow: 'hidden' }]}>
                             <View style={{ position: 'absolute', top: -10, left: -10, right: -10, bottom: -10, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.2 }} />
                             <View style={{ position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.3 }} />

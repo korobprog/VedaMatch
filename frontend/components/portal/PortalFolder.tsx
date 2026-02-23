@@ -1,11 +1,12 @@
 // Portal Folder Component - folder with preview of icons inside
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     Pressable,
     TouchableOpacity,
+    Platform,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { PortalFolder as PortalFolderType, DEFAULT_SERVICES } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
+import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 interface PortalFolderProps {
     folder: PortalFolderType;
@@ -66,15 +68,20 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     onLayout,
     onRemove,
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
 
     const sizeConfig = FOLDER_SIZES[size];
 
     // iOS-style wiggle animation
     useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && allowEditWiggle) {
             rotation.value = withRepeat(
                 withSequence(
                     withTiming(-2, { duration: 80 }),
@@ -102,7 +109,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
             cancelAnimation(rotation);
             cancelAnimation(scale);
         };
-    }, [isEditMode]);
+    }, [allowEditWiggle, isEditMode, rotation, scale]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [

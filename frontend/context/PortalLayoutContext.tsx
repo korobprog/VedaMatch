@@ -4,14 +4,12 @@ import {
     PortalLayout,
     PortalFolder,
     PortalItem,
-    PortalPage,
     PortalWidget,
     createDefaultLayout,
     DEFAULT_SERVICES,
     FOLDER_COLORS,
 } from '../types/portal';
 import {
-    loadLocalLayout,
     saveLocalLayout,
     initializeLayout,
     fetchPortalBlueprint,
@@ -355,82 +353,6 @@ const ensureVideoCirclesShortcut = (inputLayout: PortalLayout): { layout: Portal
     return { layout, changed: true };
 };
 
-const ensureVideoCirclesDefaultWidget = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
-    if (inputLayout.pages.length === 0) {
-        return { layout: inputLayout, changed: false };
-    }
-
-    const hasCirclesWidget = inputLayout.pages.some((page) =>
-        page.widgets.some((widget) => widget.type === 'circles_quick' || widget.type === 'circles_panel')
-    );
-    if (hasCirclesWidget) {
-        return { layout: inputLayout, changed: false };
-    }
-
-    const layout: PortalLayout = {
-        ...inputLayout,
-        pages: inputLayout.pages.map((p) => ({
-            ...p,
-            items: p.items.map((item) => item.type === 'folder'
-                ? { ...item, items: [...item.items] }
-                : { ...item }),
-            widgets: [...p.widgets],
-        })),
-        quickAccess: [...inputLayout.quickAccess],
-    };
-
-    const firstPage = layout.pages[0];
-    firstPage.widgets.push({
-        id: `widget-circles-panel-${Date.now()}`,
-        type: 'circles_panel',
-        size: '2x2',
-        position: firstPage.widgets.length,
-    });
-
-    layout.lastModified = Date.now();
-    layout.syncedWithServer = false;
-    return { layout, changed: true };
-};
-
-const ensureCalendarDefaultWidget = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
-    if (inputLayout.pages.length === 0) {
-        return { layout: inputLayout, changed: false };
-    }
-
-    const hasCalendarWidget = inputLayout.pages.some((page) =>
-        page.widgets.some((widget) => widget.type === 'calendar')
-    );
-    if (hasCalendarWidget) {
-        return { layout: inputLayout, changed: false };
-    }
-
-    const layout: PortalLayout = {
-        ...inputLayout,
-        pages: inputLayout.pages.map((p) => ({
-            ...p,
-            items: p.items.map((item) => item.type === 'folder'
-                ? { ...item, items: [...item.items] }
-                : { ...item }),
-            widgets: [...p.widgets],
-        })),
-        quickAccess: [...inputLayout.quickAccess],
-    };
-
-    const firstPage = layout.pages[0];
-    firstPage.widgets.unshift({
-        id: `widget-calendar-${Date.now()}`,
-        type: 'calendar',
-        size: '2x2',
-        position: 0,
-    });
-    // Re-index positions
-    firstPage.widgets = firstPage.widgets.map((w, i) => ({ ...w, position: i }));
-
-    layout.lastModified = Date.now();
-    layout.syncedWithServer = false;
-    return { layout, changed: true };
-};
-
 interface PortalLayoutContextType {
     layout: PortalLayout;
     isEditMode: boolean;
@@ -511,12 +433,10 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-                const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
-                const { layout: layoutWithCalendar, changed: calendarWidgetChanged } = ensureCalendarDefaultWidget(layoutWithWidget);
-                if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged || calendarWidgetChanged) {
-                    await saveLocalLayout(layoutWithCalendar);
+                if (sanitizedChanged || changed || circlesChanged) {
+                    await saveLocalLayout(layoutWithCircles);
                 }
-                setLayout(layoutWithCalendar);
+                setLayout(layoutWithCircles);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
             } finally {
@@ -688,12 +608,10 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-            const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
-            const { layout: layoutWithCalendar, changed: calendarWidgetChanged } = ensureCalendarDefaultWidget(layoutWithWidget);
-            if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged || calendarWidgetChanged) {
-                await saveLocalLayout(layoutWithCalendar);
+            if (sanitizedChanged || changed || circlesChanged) {
+                await saveLocalLayout(layoutWithCircles);
             }
-            setLayout(layoutWithCalendar);
+            setLayout(layoutWithCircles);
         } finally {
             setIsLoading(false);
         }

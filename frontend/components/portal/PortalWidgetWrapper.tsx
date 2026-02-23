@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
     View,
     TouchableOpacity,
     StyleSheet,
     Text,
+    Platform,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -13,6 +14,8 @@ import Animated, {
     withTiming,
     cancelAnimation,
 } from 'react-native-reanimated';
+import { useSettings } from '../../context/SettingsContext';
+import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 interface PortalWidgetWrapperProps {
     children: React.ReactNode;
@@ -25,11 +28,17 @@ export const PortalWidgetWrapper: React.FC<PortalWidgetWrapperProps> = ({
     isEditMode,
     onRemove,
 }) => {
+    const { performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
 
     useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && allowEditWiggle) {
             rotation.value = withRepeat(
                 withSequence(
                     withTiming(-0.5, { duration: 90 }),
@@ -57,7 +66,7 @@ export const PortalWidgetWrapper: React.FC<PortalWidgetWrapperProps> = ({
             cancelAnimation(rotation);
             cancelAnimation(scale);
         };
-    }, [isEditMode]);
+    }, [allowEditWiggle, isEditMode, rotation, scale]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [

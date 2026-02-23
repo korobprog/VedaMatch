@@ -17,8 +17,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, {
     SharedValue,
     runOnJS,
-    FadeIn,
-    FadeOut,
     useSharedValue,
     useAnimatedScrollHandler,
     useAnimatedStyle,
@@ -35,11 +33,6 @@ import { RootStackParamList } from '../../types/navigation';
 import { PortalIcon } from './PortalIcon';
 import { PortalFolderComponent } from './PortalFolder';
 import { FolderModal } from './FolderModal';
-import { ClockWidget } from './ClockWidget';
-import { CalendarWidget } from './CalendarWidget';
-import { CirclesQuickWidget } from './CirclesQuickWidget';
-import { CirclesPanelWidget } from './CirclesPanelWidget';
-import { PortalWidgetWrapper } from './PortalWidgetWrapper';
 import { DraggablePortalItem } from './DraggablePortalItem';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -61,12 +54,12 @@ interface CylinderRowProps {
 const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, gridTopOffset, enableEffects, children }) => {
     const animatedStyle = useAnimatedStyle(() => {
         if (!enableEffects) {
-            return { opacity: 1, transform: [{ perspective: 1000 }] };
+            return {};
         }
         if (containerHeight <= 0) {
             return { opacity: 1, transform: [{ perspective: 1000 }] };
         }
-        // Effective visible area: subtract dock overlap at bottom AND widget area at top
+        // Effective visible area: subtract dock overlap at bottom
         const effectiveTop = gridTopOffset;
         const effectiveBottom = containerHeight - DOCK_OVERLAP;
         const effectiveHeight = effectiveBottom - effectiveTop;
@@ -76,7 +69,7 @@ const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY,
         const itemY = rowIndex * ESTIMATED_ROW_HEIGHT;
         const visibleY = gridTopOffset + itemY - scrollY.value;
         const itemCenter = visibleY + ESTIMATED_ROW_HEIGHT / 2;
-        // Center of the effective visible band (between widgets and dock)
+        // Center of the effective visible band
         const viewCenter = effectiveTop + effectiveHeight / 2;
         const distFromCenter = itemCenter - viewCenter;
         const halfRange = effectiveHeight / 2;
@@ -116,11 +109,11 @@ const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY,
         };
     });
 
-    return (
-        <Animated.View style={[{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-start' }, animatedStyle]}>
-            {children}
-        </Animated.View>
-    );
+    if (!enableEffects) {
+        return <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-start' }}>{children}</View>;
+    }
+
+    return <Animated.View style={[{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-start' }, animatedStyle]}>{children}</Animated.View>;
 });
 
 interface PortalGridProps {
@@ -152,6 +145,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     );
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowHeavyPortalEffects = !isAndroidReducedEffects;
+    const showDecorativeDockLayers = allowHeavyPortalEffects;
     const {
         layout,
         isEditMode,
@@ -163,12 +157,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         changeFolderColor,
         deleteFolder,
         removeItemFromFolder,
-        removeWidget,
         addNewPage,
         moveItemToFolder,
         moveItemToQuickAccess,
         reorderGridItems,
-        reorderWidgets,
         deleteGridItem,
     } = usePortalLayout();
 
@@ -181,7 +173,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Cylinder scroll effect state
     const scrollY = useSharedValue(0);
     const [scrollContainerHeight, setScrollContainerHeight] = useState(0);
-    const [widgetsHeight, setWidgetsHeight] = useState(0);
     const scrollHandler = useAnimatedScrollHandler({
         onScroll: (event) => {
             scrollY.value = event.contentOffset.y;
@@ -190,7 +181,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     const itemLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
     const itemRefs = useRef<Record<string, View | null>>({});
-    const widgetRefs = useRef<Record<string, View | null>>({});
     const gridRef = useRef<View>(null);
 
     // Dock references
@@ -228,7 +218,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         }
         return rows;
     }, [items]);
-    const widgets = useMemo(() => page?.widgets ?? [], [page]);
     const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
     const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
     const dockEdgeMaskColor = portalBackgroundType === 'image'
@@ -317,7 +306,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
         if (!page) return;
 
-        // 1. Check Quick Access Dock collision (only for items, not widgets)
+        // 1. Check Quick Access Dock collision
         const isItem = items.some(i => i.id === itemId);
         const margin = 30;
         const d = dockOffset.current;
@@ -343,77 +332,46 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             return;
         }
 
-        // 3. Collision Logic
+        // 3. Collision Logic for grid items
         const allItems = page.items;
-        const allWidgets = page.widgets;
         let targetId: string | null = null;
 
-        if (isItem) {
-            let measureCount = 0;
-            const checkComplete = () => {
-                measureCount++;
-                if (measureCount >= allItems.length) {
-                    if (targetId && targetId !== itemId) {
-                        const fromIndex = allItems.findIndex(i => i.id === itemId);
-                        const toIndex = allItems.findIndex(i => i.id === targetId);
-                        const targetItem = allItems[toIndex];
-                        const movingItem = allItems[fromIndex];
-                        if (movingItem?.type === 'service' && targetItem?.type === 'folder') {
-                            runOnJS(moveItemToFolder)(itemId, targetItem.id);
-                        } else if (fromIndex !== -1 && toIndex !== -1) {
-                            runOnJS(reorderGridItems)(fromIndex, toIndex);
-                        }
+        if (!isItem) {
+            return;
+        }
+
+        let measureCount = 0;
+        const checkComplete = () => {
+            measureCount++;
+            if (measureCount >= allItems.length) {
+                if (targetId && targetId !== itemId) {
+                    const fromIndex = allItems.findIndex(i => i.id === itemId);
+                    const toIndex = allItems.findIndex(i => i.id === targetId);
+                    const targetItem = allItems[toIndex];
+                    const movingItem = allItems[fromIndex];
+                    if (movingItem?.type === 'service' && targetItem?.type === 'folder') {
+                        runOnJS(moveItemToFolder)(itemId, targetItem.id);
+                    } else if (fromIndex !== -1 && toIndex !== -1) {
+                        runOnJS(reorderGridItems)(fromIndex, toIndex);
                     }
                 }
-            };
-            allItems.forEach(item => {
-                const ref = itemRefs.current[item.id];
-                if (ref) {
-                    (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                        if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                            const hitSlop = 20;
-                            if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
-                                if (!targetId && item.id !== itemId) targetId = item.id;
-                            }
-                        }
-                        checkComplete();
-                    });
-                } else checkComplete();
-            });
-        } else {
-            // Widget Drop
-            const isWidget = widgets.some(w => w.id === itemId);
-            if (isWidget) {
-                let measureCount = 0;
-                const checkComplete = () => {
-                    measureCount++;
-                    if (measureCount >= allWidgets.length) {
-                        if (targetId && targetId !== itemId) {
-                            const fromIndex = allWidgets.findIndex(w => w.id === itemId);
-                            const toIndex = allWidgets.findIndex(w => w.id === targetId);
-                            if (fromIndex !== -1 && toIndex !== -1) {
-                                runOnJS(reorderWidgets)(fromIndex, toIndex);
-                            }
+            }
+        };
+        allItems.forEach(item => {
+            const ref = itemRefs.current[item.id];
+            if (ref) {
+                (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                    if (x !== undefined && y !== undefined && width > 0 && height > 0) {
+                        const hitSlop = 20;
+                        if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
+                            if (!targetId && item.id !== itemId) targetId = item.id;
                         }
                     }
-                };
-                allWidgets.forEach(widget => {
-                    const ref = widgetRefs.current[widget.id];
-                    if (ref) {
-                        (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                            if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                                const hitSlop = 10;
-                                if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
-                                    if (!targetId && widget.id !== itemId) targetId = widget.id;
-                                }
-                            }
-                            checkComplete();
-                        });
-                    } else checkComplete();
+                    checkComplete();
                 });
-            }
-        }
-    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems, reorderWidgets, items, widgets]);
+            } else checkComplete();
+        });
+    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems, items]);
 
 
 
@@ -534,77 +492,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         );
     }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel, serviceBadges]);
 
-    // Render widget
-    const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel'; size: string }) => {
-        let widgetComponent = null;
-        switch (widget.type) {
-            case 'clock':
-                widgetComponent = <ClockWidget size={widget.size as any} />;
-                break;
-            case 'calendar':
-                widgetComponent = <CalendarWidget />;
-                break;
-            case 'circles_quick':
-                widgetComponent = <CirclesQuickWidget />;
-                break;
-            case 'circles_panel':
-                widgetComponent = <CirclesPanelWidget />;
-                break;
-        }
-
-        if (!widgetComponent) return null;
-
-        return (
-            <View key={widget.id} style={{ position: 'relative' }}>
-                <DraggablePortalItem
-                    id={widget.id}
-                    isEditMode={isEditMode}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onSecondaryLongPress={() => setEditMode(true)}
-                >
-                    <View
-                        pointerEvents="box-none"
-                        ref={(ref) => { widgetRefs.current[widget.id] = ref; }}
-                    >
-                        <PortalWidgetWrapper
-                            isEditMode={isEditMode}
-                            onRemove={() => removeWidget(widget.id)}
-                        >
-                            {widgetComponent}
-                        </PortalWidgetWrapper>
-                    </View>
-                </DraggablePortalItem>
-                {isEditMode && (
-                    <TouchableOpacity
-                        style={{
-                            position: 'absolute',
-                            top: -2,
-                            left: -2,
-                            zIndex: 9999,
-                        }}
-                        onPress={() => removeWidget(widget.id)}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                        <View style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 13,
-                            backgroundColor: 'rgba(239,68,68,0.9)',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            borderWidth: 1.5,
-                            borderColor: '#FFF',
-                        }}>
-                            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: 'bold', marginTop: -2 }}>−</Text>
-                        </View>
-                    </TouchableOpacity>
-                )}
-            </View>
-        );
-    }, [isEditMode, removeWidget, handleDragStart, handleDragEnd, setEditMode]);
-
     // Page indicator dots
     const renderPageDots = () => (
         <View style={styles.pageDotsContainer}>
@@ -652,8 +539,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
         return (
             <Animated.View
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(300)}
                 style={[
                     styles.editToolbarContainer,
                     {
@@ -690,7 +575,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     <TouchableOpacity
                         onPress={() => {
                             onCloseDrawer?.();
-                            navigation.navigate('WidgetSelection');
+                            console.log('[portal_widgets_open] source=edit_toolbar');
+                            navigation.navigate('WidgetSelection', { source: 'edit_toolbar' });
                         }}
                         style={styles.toolbarButton}
                     >
@@ -702,12 +588,16 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         onPress={() => setEditMode(false)}
                         style={styles.doneButton}
                     >
-                        <LinearGradient
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            colors={['#FFAD66', '#FF8533']}
-                            style={StyleSheet.absoluteFill}
-                        />
+                        {allowHeavyPortalEffects ? (
+                            <LinearGradient
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                colors={['#FFAD66', '#FF8533']}
+                                style={StyleSheet.absoluteFill}
+                            />
+                        ) : (
+                            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FF9448' }]} />
+                        )}
                         <Text style={styles.doneText}>Готово</Text>
                     </TouchableOpacity>
                 </View>
@@ -720,21 +610,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             <View
                 style={styles.gridContainer}
             >
-                {widgets.length > 0 && (
-                    <View
-                        style={styles.widgetsContainer}
-                        onLayout={(e) => setWidgetsHeight(e.nativeEvent.layout.height)}
-                        pointerEvents="box-none"
-                    >
-                        {widgets.map(renderWidget)}
-                    </View>
-                )}
-
                 <Animated.ScrollView
                     style={styles.scrollView}
-                    contentContainerStyle={[styles.scrollContent, widgetsHeight > 0 && { paddingTop: widgetsHeight + 8 }]}
+                    contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
-                    onScroll={scrollHandler}
+                    onScroll={allowHeavyPortalEffects ? scrollHandler : undefined}
                     scrollEventThrottle={allowHeavyPortalEffects ? 16 : 32}
                     onLayout={(e) => setScrollContainerHeight(e.nativeEvent.layout.height)}
                 >
@@ -754,7 +634,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                                     rowIndex={rowIndex}
                                     scrollY={scrollY}
                                     containerHeight={scrollContainerHeight}
-                                    gridTopOffset={widgetsHeight > 0 ? widgetsHeight + 8 : 10}
+                                    gridTopOffset={10}
                                     enableEffects={allowHeavyPortalEffects}
                                 >
                                     {row.map(item => renderItem(item))}
@@ -804,14 +684,16 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             </View>
 
             {/* Elegant Divider Line */}
-            <LinearGradient
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                colors={isDarkMode
-                    ? ['transparent', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0.08)', 'transparent']
-                    : ['transparent', 'rgba(0,0,0,0.02)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.02)', 'transparent']}
-                style={styles.dockDivider}
-            />
+            {showDecorativeDockLayers && (
+                <LinearGradient
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    colors={isDarkMode
+                        ? ['transparent', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0.08)', 'transparent']
+                        : ['transparent', 'rgba(0,0,0,0.02)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.02)', 'transparent']}
+                    style={styles.dockDivider}
+                />
+            )}
 
             {/* Floating Dock Area */}
             <View style={styles.quickAccessDock}>
@@ -824,37 +706,41 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         pointerEvents="none"
                     />
                 )}
-                <View
-                    pointerEvents="none"
-                    style={[
-                        styles.dockInnerBevel,
-                        { borderColor: dockInnerStrokeColor },
-                    ]}
-                />
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
-                    style={styles.dockTopEdgeFade}
-                />
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={['rgba(0,0,0,0)', dockEdgeMaskColor]}
-                    style={styles.dockBottomEdgeFade}
-                />
-                <LinearGradient
-                    pointerEvents="none"
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
-                    style={styles.dockLeftEdgeFade}
-                />
-                <LinearGradient
-                    pointerEvents="none"
-                    start={{ x: 1, y: 0.5 }}
-                    end={{ x: 0, y: 0.5 }}
-                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
-                    style={styles.dockRightEdgeFade}
-                />
+                {showDecorativeDockLayers && (
+                    <>
+                        <View
+                            pointerEvents="none"
+                            style={[
+                                styles.dockInnerBevel,
+                                { borderColor: dockInnerStrokeColor },
+                            ]}
+                        />
+                        <LinearGradient
+                            pointerEvents="none"
+                            colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                            style={styles.dockTopEdgeFade}
+                        />
+                        <LinearGradient
+                            pointerEvents="none"
+                            colors={['rgba(0,0,0,0)', dockEdgeMaskColor]}
+                            style={styles.dockBottomEdgeFade}
+                        />
+                        <LinearGradient
+                            pointerEvents="none"
+                            start={{ x: 0, y: 0.5 }}
+                            end={{ x: 1, y: 0.5 }}
+                            colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                            style={styles.dockLeftEdgeFade}
+                        />
+                        <LinearGradient
+                            pointerEvents="none"
+                            start={{ x: 1, y: 0.5 }}
+                            end={{ x: 0, y: 0.5 }}
+                            colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                            style={styles.dockRightEdgeFade}
+                        />
+                    </>
+                )}
                 <View
                     ref={dockRef}
                     onLayout={handleDockLayout}
@@ -910,17 +796,6 @@ const styles = StyleSheet.create({
     },
     scrollPressable: {
         flex: 1,
-    },
-    widgetsContainer: {
-        position: 'absolute',
-        top: 0,
-        left: GRID_PADDING,
-        right: GRID_PADDING,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        zIndex: 10,
-        paddingBottom: 8,
     },
     grid: {
         flexDirection: 'column',

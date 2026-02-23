@@ -1,5 +1,4 @@
 import { API_PATH } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authorizedFetch, getAccessToken } from './authSessionService';
 
 export interface UserContact {
@@ -24,6 +23,22 @@ export interface PushTokenRegisterPayload {
     provider?: 'fcm' | 'expo' | string;
     deviceId?: string;
     appVersion?: string;
+}
+
+export interface ContactsQuery {
+    limit?: number;
+    cursor?: number;
+    tab?: 'all' | 'friends' | 'blocked';
+    q?: string;
+    city?: string;
+    cities?: string[];
+}
+
+export interface PaginatedContactsResponse {
+    items: UserContact[];
+    hasMore: boolean;
+    nextCursor?: number;
+    total: number;
 }
 
 const getAuthToken = async () => {
@@ -54,7 +69,6 @@ export const contactService = {
     getAuthToken,
     getContacts: async (): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
-        console.log('[ContactService] Fetching contacts using headers:', JSON.stringify(headers));
         const response = await authorizedFetch(`${API_PATH}/contacts`, { headers });
         if (response.status === 401) {
             console.error('[ContactService] Unauthorized: Session expired or invalid token');
@@ -65,8 +79,56 @@ export const contactService = {
         if (!response.ok) throw new Error(`Failed to fetch contacts: ${response.status}`);
         return response.json();
     },
+    getContactsPage: async (query: ContactsQuery = {}): Promise<PaginatedContactsResponse> => {
+        const headers = await getAuthHeaders();
+        const params = new URLSearchParams();
+        if (query.limit && query.limit > 0) {
+            params.append('limit', String(query.limit));
+        }
+        if (query.cursor && query.cursor > 0) {
+            params.append('cursor', String(query.cursor));
+        }
+        if (query.tab) {
+            params.append('tab', query.tab);
+        }
+        if (query.q && query.q.trim()) {
+            params.append('q', query.q.trim());
+        }
+        if (query.city && query.city.trim()) {
+            params.append('city', query.city.trim());
+        }
+        if (query.cities && query.cities.length > 0) {
+            params.append('cities', query.cities.join(','));
+        }
 
-    getFriends: async (userId: number): Promise<UserContact[]> => {
+        const qs = params.toString();
+        const url = qs ? `${API_PATH}/contacts?${qs}` : `${API_PATH}/contacts`;
+        const response = await authorizedFetch(url, { headers });
+        if (response.status === 401) {
+            throw new Error('UNAUTHORIZED');
+        }
+        if (!response.ok) {
+            throw new Error(`Failed to fetch contacts page: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data)) {
+            return {
+                items: data,
+                hasMore: false,
+                nextCursor: undefined,
+                total: data.length,
+            };
+        }
+        return {
+            items: Array.isArray(data?.items) ? data.items : [],
+            hasMore: Boolean(data?.hasMore),
+            nextCursor: typeof data?.nextCursor === 'number' ? data.nextCursor : undefined,
+            total: typeof data?.total === 'number' ? data.total : 0,
+        };
+    },
+
+    getFriends: async (_userId: number): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
         // The endpoint /friends uses the user ID from the token, so we don't need userId in the path.
         const response = await authorizedFetch(`${API_PATH}/friends`, { headers });
@@ -95,7 +157,7 @@ export const contactService = {
         if (!response.ok) throw new Error('Failed to remove friend');
     },
 
-    uploadAvatar: async (userId: number, formData: FormData) => {
+    uploadAvatar: async (_userId: number, formData: FormData) => {
         const headers = await getAuthHeaders(false);
         const response = await authorizedFetch(`${API_PATH}/upload-avatar`, { // Route is /upload-avatar in main.go, not /upload-avatar/:userId
             method: 'POST',
@@ -106,7 +168,7 @@ export const contactService = {
         return response.json();
     },
 
-    sendHeartbeat: async (userId: number) => {
+    sendHeartbeat: async (_userId: number) => {
         const headers = await getAuthHeaders();
         const response = await authorizedFetch(`${API_PATH}/heartbeat`, {
             method: 'POST',
@@ -151,7 +213,7 @@ export const contactService = {
         return response.json();
     },
 
-    getBlockedUsers: async (userId: number): Promise<UserContact[]> => {
+    getBlockedUsers: async (_userId: number): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
         const response = await authorizedFetch(`${API_PATH}/blocks`, { headers });
         if (!response.ok) throw new Error('Failed to fetch blocked users');

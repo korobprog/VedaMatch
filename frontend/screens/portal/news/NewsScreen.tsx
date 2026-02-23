@@ -9,7 +9,6 @@ import {
     ActivityIndicator,
     RefreshControl,
     LayoutAnimation,
-    UIManager,
     Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -48,10 +47,6 @@ const CATEGORIES = [
     { id: 'education', label: 'Образование', labelEn: 'Education' },
     { id: 'wellness', label: 'Здоровье', labelEn: 'Wellness' },
 ];
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export const NewsScreen = () => {
     const { i18n } = useTranslation();
@@ -510,7 +505,9 @@ export const NewsScreen = () => {
             <View style={[styles.personalizedToggleContainer, { marginTop: 4, marginBottom: 8 }]}>
                 <TouchableOpacity
                     onPress={() => {
-                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        if (Platform.OS === 'ios') {
+                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        }
                         setPersonalized(!personalized);
                     }}
                     style={[

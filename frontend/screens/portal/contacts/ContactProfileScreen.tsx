@@ -43,20 +43,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const fetchContactData = async () => {
         try {
             setLoading(true);
-
-            // First try to find in contacts list
-            let found: UserContact | null = null;
-            try {
-                const allContacts = await contactService.getContacts();
-                found = allContacts.find(c => c.ID === userId) || null;
-            } catch (err) {
-                console.log('Could not fetch contacts list, trying direct fetch');
-            }
-
-            // If not found in contacts, try to fetch directly by ID
-            if (!found) {
-                found = await contactService.getUserById(userId);
-            }
+            const found = await contactService.getUserById(userId);
 
             if (found) {
                 setContact(found);

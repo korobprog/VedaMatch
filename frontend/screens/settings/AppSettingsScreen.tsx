@@ -13,6 +13,7 @@ import {
     Image as RNImage,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DeviceInfo from 'react-native-device-info';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
@@ -142,6 +143,11 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const [portalBackgroundBusy, setPortalBackgroundBusy] = useState(false);
     const [locationActionInProgress, setLocationActionInProgress] = useState(false);
     const isMountedRef = useRef(true);
+    const appVersionLabel = useMemo(() => {
+        const version = DeviceInfo.getVersion();
+        const build = DeviceInfo.getBuildNumber();
+        return `Версия: ${version} (${Platform.OS} build ${build})`;
+    }, []);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -787,10 +793,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     );
                                 })}
                             </View>
-                            {performanceMode === 'adaptive' && runtimePerformanceState.isAutoDegraded && (
+                            {runtimePerformanceState.isAutoDegraded && (
                                 <View style={[styles.performanceBadge, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }]}>
                                     <Text style={styles.performanceBadgeText}>
-                                        Adaptive сейчас временно снижен до battery profile ({runtimePerformanceState.reason || 'render'})
+                                        Рендер временно снижен до battery profile ({runtimePerformanceState.reason || 'render'})
                                     </Text>
                                 </View>
                             )}
@@ -1244,6 +1250,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         {t('settings.legalLanguageHint') || 'Legal documents open in the selected language: English, Hindi, or Russian.'}
                     </Text>
 
+                    <Text style={[styles.versionText, { color: theme.subText }]}>
+                        {appVersionLabel}
+                    </Text>
+
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={[
@@ -1382,6 +1392,11 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 17,
         marginBottom: 12,
+    },
+    versionText: {
+        fontSize: 12,
+        marginBottom: 12,
+        fontWeight: '600',
     },
     actionButton: {
         flexDirection: 'row',

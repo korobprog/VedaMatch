@@ -22,6 +22,7 @@ import {
     Settings,
     MessageSquare,
     Gift,
+    LayoutGrid,
     Compass,
     Leaf,
     Infinity,
@@ -97,6 +98,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const headerBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
     const roleBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 8);
     const backButtonBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
+    const initialTab = route.params?.initialTab;
+    const initialServiceTab = initialTab && initialTab !== 'channels' && SERVICE_TABS.has(initialTab as ServiceTab)
+        ? (initialTab as ServiceTab)
+        : null;
+    const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
+    const [showRoleInfo, setShowRoleInfo] = useState(false);
+    const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+    const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
 
     // Animations for assistant button
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
@@ -110,7 +119,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, []);
 
     useEffect(() => {
-        if (!androidVisualPolicy.allowShimmer || !isAppActive) {
+        if (!androidVisualPolicy.allowShimmer || !isAppActive || activeTab !== null) {
             shimmerAnim.setValue(-60);
             return;
         }
@@ -126,17 +135,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             loop.stop();
             shimmerAnim.stopAnimation();
         };
-    }, [shimmerAnim, androidVisualPolicy.allowShimmer, isAppActive]);
+    }, [shimmerAnim, androidVisualPolicy.allowShimmer, isAppActive, activeTab]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
-    const initialTab = route.params?.initialTab;
-    const initialServiceTab = initialTab && initialTab !== 'channels' && SERVICE_TABS.has(initialTab as ServiceTab)
-        ? (initialTab as ServiceTab)
-        : null;
-    const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
-    const [showRoleInfo, setShowRoleInfo] = useState(false);
-    const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-    const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -175,7 +176,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const giftAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
-        if (!androidVisualPolicy.allowGiftPulse || !isAppActive) {
+        if (!androidVisualPolicy.allowGiftPulse || !isAppActive || activeTab !== null) {
             giftAnim.setValue(1);
             return;
         }
@@ -197,10 +198,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
         startGiftPulse();
         return () => giftAnim.stopAnimation();
-    }, [giftAnim, androidVisualPolicy.allowGiftPulse, isAppActive]);
+    }, [giftAnim, androidVisualPolicy.allowGiftPulse, isAppActive, activeTab]);
 
     useEffect(() => {
-        if (Platform.OS !== 'android' || performanceMode !== 'adaptive' || !isAppActive) return;
+        if (Platform.OS !== 'android' || performanceMode !== 'adaptive' || !isAppActive || activeTab !== null) return;
         let lastTick = Date.now();
         let lagBursts = 0;
         const interval = setInterval(() => {
@@ -216,11 +217,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 reportRuntimeStress('render');
                 lagBursts = 0;
             }
-        }, 1000);
+        }, 1200);
         return () => clearInterval(interval);
-    }, [performanceMode, reportRuntimeStress, isAppActive]);
+    }, [performanceMode, reportRuntimeStress, isAppActive, activeTab]);
 
     useEffect(() => {
+        if (activeTab !== null) {
+            return;
+        }
         if (!isAppActive) {
             isTransitioning.current = false;
             setDisplayedBg(effectiveBg);
@@ -268,7 +272,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         } else {
             startTransition();
         }
-    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs, isAppActive]);
+    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs, isAppActive, activeTab]);
 
     // When slideshow disabled, update immediately without animation
     useEffect(() => {
@@ -560,6 +564,30 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     />
                                 )}
                                 <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    console.log('[portal_widgets_open] source=portal_header');
+                                    navigation.navigate('WidgetSelection', { source: 'portal_header' });
+                                }}
+                                activeOpacity={0.9}
+                                style={[
+                                    styles.headerCircularButton,
+                                    {
+                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                    },
+                                ]}
+                            >
+                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                                    <BlurView
+                                        style={StyleSheet.absoluteFill}
+                                        blurType="light"
+                                        blurAmount={headerBlurAmount}
+                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                    />
+                                )}
+                                <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <BalancePill size="small" lightMode={effectiveBgType === 'image' || portalIconStyle === 'vedamatch'} />
                         </View>
