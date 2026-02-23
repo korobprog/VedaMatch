@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, ImageBackground, Platform, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -14,7 +14,7 @@ const { width, height } = Dimensions.get('window');
 export const CallScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
-    const { vTheme, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme } = useSettings();
     // @ts-ignore
     const { targetId, isIncoming, callerName } = route.params || {};
 
@@ -26,10 +26,16 @@ export const CallScreen = () => {
     const [iceState, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [localVideoAvailable, setLocalVideoAvailable] = useState(false);
+    const [remoteVideoAvailable, setRemoteVideoAvailable] = useState(false);
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
 
     // Initial setup - only start camera preview, don't connect yet if incoming
     useEffect(() => {
+        if (!isIncoming) {
+            return;
+        }
+
         let mounted = true;
         const startPreview = async () => {
             try {
@@ -41,6 +47,7 @@ export const CallScreen = () => {
                     setLocalStream(stream);
                     const streamHasVideo = hasVideoTrack(stream);
                     setIsVideoEnabled(streamHasVideo);
+                    setLocalVideoAvailable(streamHasVideo);
                     if (!streamHasVideo) {
                         setStatus('Камера недоступна');
                     }
@@ -51,13 +58,14 @@ export const CallScreen = () => {
                 console.error("Camera preview failed", e);
                 if (mounted) {
                     setIsVideoEnabled(false);
+                    setLocalVideoAvailable(false);
                     setStatus('Нет доступа к камере/микрофону');
                 }
             }
         };
         startPreview();
         return () => { mounted = false; };
-    }, []);
+    }, [isIncoming]);
 
     // Connection logic - only runs when call is accepted/outgoing
     useEffect(() => {
@@ -75,19 +83,22 @@ export const CallScreen = () => {
                     if (mounted) setLocalStream(currentLocalStream);
                 }
                 if (mounted) {
-                    setIsVideoEnabled(hasVideoTrack(currentLocalStream));
+                    const streamHasVideo = hasVideoTrack(currentLocalStream);
+                    setIsVideoEnabled(streamHasVideo);
+                    setLocalVideoAvailable(streamHasVideo);
                 }
 
                 // Setup Callbacks
                 webRTCService.setOnRemoteStream((rStream) => {
                     const tracks = rStream.getTracks();
+                    const streamHasVideo = hasVideoTrack(rStream);
                     console.warn(`[UI] Received remote stream: ${rStream.id}, url: ${rStream.toURL().substring(0, 30)}... Tracks: ${tracks.length}`);
                     if (mounted) {
                         setRemoteStream(rStream);
+                        setRemoteVideoAvailable(streamHasVideo);
                         setStreamVersion(v => v + 1);
-                        // Show track types in status for debug
                         const trackInfo = tracks.map(t => t.kind[0].toUpperCase()).join('/');
-                        setStatus(`Connected (${trackInfo})`);
+                        setStatus(streamHasVideo ? `Connected (${trackInfo})` : 'Подключение видео...');
                     }
                 });
 
@@ -118,6 +129,33 @@ export const CallScreen = () => {
         };
     }, [hasAccepted, targetId, isIncoming]);
 
+    useEffect(() => {
+        if (!remoteStream || remoteVideoAvailable) {
+            return;
+        }
+
+        let attempts = 0;
+        const intervalId = setInterval(() => {
+            attempts += 1;
+            const streamHasVideo = hasVideoTrack(remoteStream);
+            if (streamHasVideo) {
+                setRemoteVideoAvailable(true);
+                setStreamVersion(v => v + 1);
+                setStatus(prev => (prev.startsWith('Connected') ? prev : 'Connected (A/V)'));
+                clearInterval(intervalId);
+                return;
+            }
+
+            if (attempts >= 10) {
+                clearInterval(intervalId);
+            }
+        }, 400);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [remoteStream, remoteVideoAvailable]);
+
 
     // Cleanup on unmount (end call)
     useEffect(() => {
@@ -138,6 +176,7 @@ export const CallScreen = () => {
                 setLocalStream(stream);
             }
             setIsVideoEnabled(hasVideoTrack(stream));
+            setLocalVideoAvailable(hasVideoTrack(stream));
 
             setHasAccepted(true);
             setStatus('Connecting...');
@@ -145,6 +184,7 @@ export const CallScreen = () => {
         } catch (error) {
             console.error('Failed to accept incoming call', error);
             setIsVideoEnabled(false);
+            setLocalVideoAvailable(false);
             setStatus('Не удалось включить камеру');
         }
     };
@@ -170,13 +210,16 @@ export const CallScreen = () => {
             const videoTracks = stream.getVideoTracks();
             if (!videoTracks.length) {
                 setIsVideoEnabled(false);
+                setLocalVideoAvailable(false);
                 setStatus('Камера недоступна');
                 return;
             }
             videoTracks.forEach(track => {
                 track.enabled = !track.enabled;
             });
-            setIsVideoEnabled(!isVideoEnabled);
+            const nextEnabled = !isVideoEnabled;
+            setIsVideoEnabled(nextEnabled);
+            setLocalVideoAvailable(nextEnabled);
         }
     };
 
@@ -200,24 +243,6 @@ export const CallScreen = () => {
             // If remote stream is active, the video is the background.
             // We can return null or a dark overlay if needed.
             return <View style={styles.backgroundOverlay} />;
-        }
-
-        if (portalBackgroundType === 'image' && portalBackground) {
-            return (
-                <ImageBackground
-                    source={{ uri: portalBackground }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                >
-                    <BlurView
-                        style={StyleSheet.absoluteFill}
-                        blurType="dark"
-                        blurAmount={20}
-                        reducedTransparencyFallbackColor="black"
-                    />
-                    <View style={styles.backgroundOverlay} />
-                </ImageBackground>
-            );
         }
 
         return (
@@ -266,7 +291,7 @@ export const CallScreen = () => {
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
             <Background />
 
-            {remoteStream ? (
+            {remoteStream && remoteVideoAvailable ? (
                 <RTCView
                     key={`remote-${remoteStream.id}-${streamVersion}`}
                     streamURL={remoteStream.toURL()}
@@ -287,7 +312,7 @@ export const CallScreen = () => {
                 </View>
             )}
 
-            {localStream && (
+            {localStream && localVideoAvailable && (
                 <View style={styles.localVideoContainer}>
                     <RTCView
                         key={localStream.toURL()}

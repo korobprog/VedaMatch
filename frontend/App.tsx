@@ -458,7 +458,16 @@ const AppContent = () => {
                   <Stack.Screen name="Portal" component={PortalMainScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="WidgetSelection" component={WidgetSelectionScreen} />
                   <Stack.Screen name="Chat" component={ChatScreen} />
-                  <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="CallScreen"
+                    component={CallScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'none',
+                      freezeOnBlur: false,
+                      contentStyle: { backgroundColor: '#000000' },
+                    }}
+                  />
                   <Stack.Screen name="Plans" component={PlansScreen} />
                   <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
                   <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />

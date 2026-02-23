@@ -25,6 +25,7 @@ let configuration: any = {
 class WebRTCService {
     peerConnection: RTCPeerConnection | null = null;
     localStream: MediaStream | null = null;
+    private localStreamPromise: Promise<MediaStream> | null = null;
     wsService: WebSocketService | null = null;
     onRemoteStream: ((stream: MediaStream) => void) | null = null;
     targetId: number | null = null;
@@ -106,6 +107,20 @@ class WebRTCService {
     }
 
     async startLocalStream(isVideo: boolean = true) {
+        if (this.localStream) {
+            const hasLiveTrack = this.localStream.getTracks().some(track => track.readyState === 'live');
+            if (hasLiveTrack) {
+                return this.localStream;
+            }
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+
+        if (this.localStreamPromise) {
+            return this.localStreamPromise;
+        }
+
+        this.localStreamPromise = (async () => {
         await this.ensureAndroidMediaPermissions();
 
         const isFront = true;
@@ -157,6 +172,11 @@ class WebRTCService {
         console.log('Local stream obtained. Audio tracks:', stream.getAudioTracks().length, 'Video tracks:', stream.getVideoTracks().length);
         this.localStream = stream;
         return stream;
+        })().finally(() => {
+            this.localStreamPromise = null;
+        });
+
+        return this.localStreamPromise;
     }
 
     async fetchTurnCredentials() {
@@ -481,6 +501,7 @@ class WebRTCService {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
+        this.localStreamPromise = null;
         InCallManager.stop();
         this.remoteStream = null;
         this.targetId = null;
