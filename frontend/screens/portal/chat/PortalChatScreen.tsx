@@ -5,7 +5,7 @@ import { getMediaUrl } from '../../../utils/url';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { MessageCircle, Plus, ChevronRight, Users } from 'lucide-react-native';
 
-import { API_PATH } from '../../../config/api.config';
+import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
@@ -19,7 +19,6 @@ import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { useSettings } from '../../../context/SettingsContext';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
-import { authorizedFetch } from '../../../services/authSessionService';
 
 const EMOJI_MAP: any = {
     'krishna': '🕉️',
@@ -70,13 +69,8 @@ export const PortalChatScreen: React.FC = () => {
         }
 
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms`);
-            if (response.ok) {
-                const data = await response.json();
-                setRooms(data);
-            } else {
-                console.log('Fetch rooms failed', await response.text());
-            }
+            const response = await apiClient.get('/rooms');
+            setRooms(response.data || []);
         } catch (error) {
             console.error('Error fetching rooms:', error);
         } finally {
@@ -105,19 +99,10 @@ export const PortalChatScreen: React.FC = () => {
         if (room?.canJoin && !room?.isMember) {
             setJoiningRoomId(roomID);
             try {
-                const response = await authorizedFetch(`${API_PATH}/rooms/${roomID}/join`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!response.ok) {
-                    const data = await response.json().catch(() => ({}));
-                    Alert.alert(t('common.error'), data.error || 'Failed to join room');
-                    return;
-                }
-            } catch (error) {
-                Alert.alert(t('common.error'), 'Network error');
+                await apiClient.post(`/rooms/${roomID}/join`, {});
+            } catch (error: any) {
+                const message = error?.response?.data?.error || 'Failed to join room';
+                Alert.alert(t('common.error'), message);
                 return;
             } finally {
                 setJoiningRoomId(null);

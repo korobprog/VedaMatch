@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { API_PATH } from '../../../config/api.config';
+import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { useWebSocket } from '../../../context/WebSocketContext';
 import { InviteFriendModal } from './InviteFriendModal';
@@ -37,7 +37,6 @@ import { Video, ArrowLeft, ArrowRight, UserPlus, Send, ChevronLeft, ChevronRight
 import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
-import { authorizedFetch } from '../../../services/authSessionService';
 import { messageService } from '../../../services/messageService';
 import { roomCallService } from '../../../services/roomCallService';
 import { roomSupportService, RoomSupportConfig } from '../../../services/roomSupportService';
@@ -138,10 +137,6 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const normalizeBookCode = (value: unknown): string => String(value ?? '').trim().toLowerCase();
-    const toQueryString = (params: Record<string, string | undefined>) => Object.entries(params)
-        .filter(([, value]) => typeof value === 'string' && value.length > 0)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-        .join('&');
 
     const getVerseText = useCallback((verse: any) => {
         if (!verse) {
@@ -176,24 +171,25 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         try {
             let selectedVerses: any[] = [];
             for (const language of languagePriority) {
-                const query = toQueryString({
-                    bookCode: normalizedBookCode,
-                    chapter: String(chapter),
-                    language: language || undefined,
-                });
-
-                const response = await fetch(`${API_PATH}/library/verses?${query}`);
-                if (!response.ok) {
+                try {
+                    const response = await apiClient.get('/library/verses', {
+                        params: {
+                            bookCode: normalizedBookCode,
+                            chapter,
+                            language: language || undefined,
+                        },
+                    });
+                    const versesPayload = response.data;
+                    const verses = Array.isArray(versesPayload) ? versesPayload : [];
+                    if (verses.length > 0) {
+                        selectedVerses = verses;
+                        break;
+                    }
+                    if (language === '') {
+                        selectedVerses = verses;
+                    }
+                } catch {
                     continue;
-                }
-                const versesPayload = await response.json();
-                const verses = Array.isArray(versesPayload) ? versesPayload : [];
-                if (verses.length > 0) {
-                    selectedVerses = verses;
-                    break;
-                }
-                if (language === '') {
-                    selectedVerses = verses;
                 }
             }
 
@@ -221,15 +217,11 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             return;
         }
         try {
-            const response = await fetch(`${API_PATH}/library/books/${normalizedBookCode}/chapters`);
-            if (response.ok) {
-                const dataPayload = await response.json();
-                const data = Array.isArray(dataPayload) ? dataPayload : [];
-                if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
-                    setChapters(data);
-                }
-            } else if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
-                setChapters([]);
+            const response = await apiClient.get(`/library/books/${normalizedBookCode}/chapters`);
+            const dataPayload = response.data;
+            const data = Array.isArray(dataPayload) ? dataPayload : [];
+            if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                setChapters(data);
             }
         } catch (err) {
             console.error('Error fetching chapters', err);
@@ -242,31 +234,29 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const fetchRoomDetails = useCallback(async () => {
         const requestId = ++latestRoomRequestRef.current;
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`);
-            if (response.ok) {
-                const currentRoom = await response.json();
-                if (requestId !== latestRoomRequestRef.current || !isMountedRef.current) {
-                    return;
-                }
-                setRoomDetails(currentRoom);
-                // Fetch chapters if changed
-                if (currentRoom.bookCode) {
-                    const chapter = toPositiveInt(currentRoom.currentChapter) ?? 1;
-                    const verse = toPositiveInt(currentRoom.currentVerse) ?? 1;
-                    const normalizedBookCode = normalizeBookCode(currentRoom.bookCode);
-                    if (normalizedBookCode) {
-                        fetchChapters(normalizedBookCode);
-                        fetchVerse(normalizedBookCode, chapter, verse, currentRoom.language || 'ru');
-                    } else {
-                        setChapters([]);
-                        setVersesInChapter([]);
-                        setCurrentVerse(null);
-                    }
+            const response = await apiClient.get(`/rooms/${roomId}`);
+            const currentRoom = response.data || {};
+            if (requestId !== latestRoomRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+            setRoomDetails(currentRoom);
+            // Fetch chapters if changed
+            if (currentRoom.bookCode) {
+                const chapter = toPositiveInt(currentRoom.currentChapter) ?? 1;
+                const verse = toPositiveInt(currentRoom.currentVerse) ?? 1;
+                const normalizedBookCode = normalizeBookCode(currentRoom.bookCode);
+                if (normalizedBookCode) {
+                    fetchChapters(normalizedBookCode);
+                    fetchVerse(normalizedBookCode, chapter, verse, currentRoom.language || 'ru');
                 } else {
                     setChapters([]);
                     setVersesInChapter([]);
                     setCurrentVerse(null);
                 }
+            } else {
+                setChapters([]);
+                setVersesInChapter([]);
+                setCurrentVerse(null);
             }
         } catch (error) {
             console.error('Error fetching room details:', error);
@@ -342,12 +332,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             const lastReadKey = `last_read_${roomDetails.bookCode}_${user?.ID || 'guest'}`;
             await AsyncStorage.setItem(lastReadKey, verse.toString());
 
-            await authorizedFetch(`${API_PATH}/rooms/${roomId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ currentChapter: chapter, currentVerse: verse })
+            await apiClient.put(`/rooms/${roomId}`, {
+                currentChapter: chapter,
+                currentVerse: verse,
             });
         } catch (error) {
             console.error('Failed to update room reading state', error);
@@ -639,29 +626,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         setInputText('');
 
         try {
-            const response = await authorizedFetch(`${API_PATH}/messages`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(newMessage),
-            });
-
-            if (response.ok) {
-                // No need to fetchMessages() here anymore, 
-                // the WS will send it back to us or we can rely on immediate local update if we want 
-                // but for now relying on WS is cleaner for "sync"
-            } else if (response.status === 402) {
+            await apiClient.post('/messages', newMessage);
+            // No need to fetchMessages() here anymore,
+            // the WS will send it back to us or we can rely on immediate local update if we want
+            // but for now relying on WS is cleaner for "sync"
+        } catch (error: any) {
+            const status = Number(error?.response?.status || 0);
+            if (status === 402) {
                 // Insufficient LKM balance - show modal to top up
-                let errorData: { message?: string } = {};
-                try {
-                    errorData = await response.json();
-                } catch {
-                    errorData = {};
-                }
                 Alert.alert(
                     t('wallet.insufficientBalance') || 'Недостаточно LKM',
-                    errorData.message || t('wallet.topUpToChat') || 'Пополните баланс для использования AI Chat',
+                    error?.response?.data?.message || t('wallet.topUpToChat') || 'Пополните баланс для использования AI Chat',
                     [
                         { text: t('common.cancel') || 'Отмена', style: 'cancel' },
                         {
@@ -673,20 +648,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 // Restore the input text so user doesn't lose their message
                 setInputText((prev) => (prev.trim() ? prev : newMessage.content));
             } else {
-                // Restore input on any non-success response to avoid message loss.
+                console.error('Error sending message:', error);
                 setInputText((prev) => (prev.trim() ? prev : newMessage.content));
                 Alert.alert(
                     t('common.error'),
                     t('chat.sendError') || 'Не удалось отправить сообщение'
                 );
             }
-        } catch (error) {
-            console.error('Error sending message:', error);
-            setInputText((prev) => (prev.trim() ? prev : newMessage.content));
-            Alert.alert(
-                t('common.error'),
-                t('chat.sendError') || 'Не удалось отправить сообщение'
-            );
         } finally {
             if (isMountedRef.current) {
                 setSending(false);

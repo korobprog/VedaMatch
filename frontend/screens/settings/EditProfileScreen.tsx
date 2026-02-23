@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { API_PATH } from '../../config/api.config';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
@@ -38,7 +37,7 @@ import { RoleSelectionSection } from '../../components/roles/RoleSelectionSectio
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
-import { authorizedAxiosRequest } from '../../services/authSessionService';
+import apiClient from '../../lib/apiClient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -139,10 +138,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (isMountedRef.current) {
                 setLoading(true);
             }
-            const response = await authorizedAxiosRequest<any[]>({
-                method: 'GET',
-                url: `${API_PATH}/contacts`,
-            });
+            const response = await apiClient.get<any[]>('/contacts');
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
             }
@@ -244,11 +240,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 longitude
             };
 
-            const response = await authorizedAxiosRequest<{ user: any }>({
-                method: 'PUT',
-                url: `${API_PATH}/update-profile`,
-                data: profileData,
-            });
+            const response = await apiClient.put<{ user: any }>('/update-profile', profileData);
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }

@@ -14,14 +14,13 @@ import {
     PaginatedContactsResponse,
     UserContact,
 } from '../../../services/contactService';
-import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
-import { authorizedAxiosRequest } from '../../../services/authSessionService';
+import apiClient from '../../../lib/apiClient';
 
 const CONTACTS_PAGE_LIMIT = 50;
 const CONTACT_ITEM_HEIGHT = 92;
@@ -192,10 +191,7 @@ export const ContactsScreen: React.FC = () => {
     const loadFriendsAndBlocked = useCallback(async () => {
         try {
             try {
-                const response = await authorizedAxiosRequest<string[]>({
-                    method: 'GET',
-                    url: `${API_PATH}/dating/cities`,
-                });
+                const response = await apiClient.get<string[]>('/dating/cities');
                 if (response.data && response.data.length > 0) {
                     setAvailableCities(response.data);
                 }

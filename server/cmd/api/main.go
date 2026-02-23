@@ -398,19 +398,44 @@ func main() {
 	api.Get("/shelter/:id", yatraHandler.GetShelter)
 	api.Get("/shelter/:id/reviews", yatraHandler.GetShelterReviews)
 
+	// NOTE: These routes must be registered before the global protected group.
+	// Otherwise they become unintentionally protected due route registration order.
+	// News routes with static segments must stay before /news/:id.
+	api.Post("/news/sources/:id/subscribe", middleware.Protected(), newsHandler.SubscribeToSource)
+	api.Delete("/news/sources/:id/subscribe", middleware.Protected(), newsHandler.UnsubscribeFromSource)
+	api.Get("/news/subscriptions", middleware.Protected(), newsHandler.GetSubscriptions)
+	api.Post("/news/sources/:id/favorite", middleware.Protected(), newsHandler.AddToFavorites)
+	api.Delete("/news/sources/:id/favorite", middleware.Protected(), newsHandler.RemoveFromFavorites)
+	api.Get("/news/favorites", middleware.Protected(), newsHandler.GetFavorites)
+	api.Get("/news/:id", newsHandler.GetNewsItem)
+
+	// Services constructor routes (public + protected conflict paths).
+	api.Get("/services",
+		middleware.RateLimitByIP("public_services", 240, time.Minute),
+		middleware.ConditionalCacheControl("public, max-age=30, stale-while-revalidate=60"),
+		middleware.ConditionalETag(),
+		serviceHandler.List,
+	)
+	api.Post("/services/upload", middleware.Protected(), serviceHandler.UploadPhoto)
+	api.Get("/services/my", middleware.Protected(), serviceHandler.GetMyServices)
+	api.Get("/services/:id", serviceHandler.GetByID)
+	api.Get("/services/:id/tariffs", serviceHandler.GetTariffs)
+	api.Get("/services/:id/schedule", serviceHandler.GetSchedules)
+	api.Get("/services/:id/schedule/weekly", serviceHandler.GetWeeklySchedule)
+	api.Get("/services/:id/slots", bookingHandler.GetSlots)
+
+	// Public referral validation endpoint.
+	api.Get("/referral/validate/:code", referralHandler.ValidateInviteCode)
+
+	// Public charity endpoints.
+	publicCharity := api.Group("/charity")
+	publicCharity.Get("/projects", charityHandler.GetProjects)
+	publicCharity.Get("/organizations", charityHandler.GetOrganizations)
+	api.Get("/charity/evidence/:projectId", charityHandler.GetProjectEvidence)
+	api.Get("/charity/karma-feed", charityHandler.GetKarmaFeed)
+
 	// Protected Routes (Apply Protected middleware to all following routes)
 	protected := api.Group("/", middleware.Protected())
-
-	// Protected News Routes
-	protected.Post("/news/sources/:id/subscribe", newsHandler.SubscribeToSource)
-	protected.Delete("/news/sources/:id/subscribe", newsHandler.UnsubscribeFromSource)
-	protected.Get("/news/subscriptions", newsHandler.GetSubscriptions)
-	protected.Post("/news/sources/:id/favorite", newsHandler.AddToFavorites)
-	protected.Delete("/news/sources/:id/favorite", newsHandler.RemoveFromFavorites)
-	protected.Get("/news/favorites", newsHandler.GetFavorites)
-
-	// Public News Item (Must come after specified routes like subscriptions/favorites)
-	api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Protected Support Routes (in-app tickets)
 	protected.Get("/support/tickets", supportHandler.ListMyTickets)
@@ -942,23 +967,7 @@ func main() {
 	protected.Post("/shelter/upload", yatraHandler.UploadPhoto)
 
 	// ==================== SERVICES CONSTRUCTOR ====================
-	// Public Services Routes
-	api.Get("/services",
-		middleware.RateLimitByIP("public_services", 240, time.Minute),
-		middleware.ConditionalCacheControl("public, max-age=30, stale-while-revalidate=60"),
-		middleware.ConditionalETag(),
-		serviceHandler.List,
-	)
-	protected.Post("/services/upload", serviceHandler.UploadPhoto)
-
-	// Protected Services Routes (moved up to avoid conflict with :id)
-	protected.Get("/services/my", serviceHandler.GetMyServices)
-
-	api.Get("/services/:id", serviceHandler.GetByID)
-	api.Get("/services/:id/tariffs", serviceHandler.GetTariffs)
-	api.Get("/services/:id/schedule", serviceHandler.GetSchedules)
-	api.Get("/services/:id/schedule/weekly", serviceHandler.GetWeeklySchedule)
-	api.Get("/services/:id/slots", bookingHandler.GetSlots)
+	// Public/protected conflict routes are registered before protected group.
 	protected.Post("/services", serviceHandler.Create)
 	protected.Put("/services/:id", serviceHandler.Update)
 	protected.Delete("/services/:id", serviceHandler.Delete)
@@ -1003,14 +1012,9 @@ func main() {
 	protected.Get("/referral/invite", referralHandler.GetMyInviteLink)
 	protected.Get("/referral/stats", referralHandler.GetMyReferralStats)
 	protected.Get("/referral/list", referralHandler.GetMyReferrals)
-	api.Get("/referral/validate/:code", referralHandler.ValidateInviteCode) // Public endpoint
 
 	// Charity System (Seva)
-	// Public Routes
-	charity := api.Group("/charity")
-	charity.Get("/projects", charityHandler.GetProjects)
-	charity.Get("/organizations", charityHandler.GetOrganizations)
-
+	// Public routes are registered before protected group.
 	// Protected Routes
 	protected.Post("/charity/organizations", charityHandler.CreateOrganization)
 	protected.Post("/charity/projects", charityHandler.CreateProject)
@@ -1018,10 +1022,6 @@ func main() {
 	protected.Post("/charity/refund/:id", charityHandler.RefundDonation)  // NEW: Refund donation within 24h
 	protected.Get("/charity/my-donations", charityHandler.GetMyDonations) // NEW: Get user's donations
 	protected.Post("/charity/evidence", charityHandler.UploadEvidence)
-
-	// Public Charity Routes (Evidence Wall & Karma Feed)
-	api.Get("/charity/evidence/:projectId", charityHandler.GetProjectEvidence) // Get project evidence
-	api.Get("/charity/karma-feed", charityHandler.GetKarmaFeed)                // Get recent donations for karma ticker
 
 	// Admin Charity Routes
 	admin.Get("/charity/stats", charityHandler.GetCharityStats)

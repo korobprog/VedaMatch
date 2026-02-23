@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { API_PATH } from '../config/api.config';
 import {
     Yatra, YatraFilters, YatraCreateData, YatraJoinData,
@@ -9,7 +9,6 @@ import {
 } from '../types/yatra';
 import { yatraCacheService } from './yatraCacheService';
 import { getGodModeQueryParams } from './godModeService';
-import { getAccessToken } from './authSessionService';
 
 class YatraService {
     getImageUrl(path: string | null | undefined): string {
@@ -27,24 +26,12 @@ class YatraService {
         const finalUrl = `${baseUrl}${separator}${path}${__DEV__ ? `?t=${Date.now()}` : ''}`;
         return finalUrl;
     }
-
-    private async getHeaders() {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-    }
-
     // ==================== YATRA ENDPOINTS ====================
 
     async getYatras(filters?: YatraFilters): Promise<YatraListResponse> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/yatra`, { params: { ...(filters || {}), ...godModeParams } });
+            const response = await apiClient.get(`/yatra`, { params: { ...(filters || {}), ...godModeParams } });
             const data = response.data;
             const result = {
                 yatras: (data.yatras || []).map(this.normalizeYatra),
@@ -69,7 +56,7 @@ class YatraService {
 
     async getYatra(id: number): Promise<Yatra> {
         try {
-            const response = await axios.get(`${API_PATH}/yatra/${id}`);
+            const response = await apiClient.get(`/yatra/${id}`);
             const yatra = this.normalizeYatra(response.data);
             // Cache the detail for offline use
             await yatraCacheService.cacheYatraDetail(id, yatra);
@@ -87,8 +74,7 @@ class YatraService {
 
     async getMyYatras(): Promise<MyYatrasResponse> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/yatra/my`, { headers });
+            const response = await apiClient.get(`/yatra/my`);
             return {
                 organized: (response.data.organized || []).map(this.normalizeYatra),
                 participating: (response.data.participating || []).map(this.normalizeYatra),
@@ -101,8 +87,7 @@ class YatraService {
 
     async createYatra(data: YatraCreateData): Promise<Yatra> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/yatra`, data, { headers });
+            const response = await apiClient.post(`/yatra`, data);
             return this.normalizeYatra(response.data);
         } catch (error) {
             console.error('Error creating yatra:', error);
@@ -112,8 +97,7 @@ class YatraService {
 
     async updateYatra(id: number, data: Partial<YatraCreateData>): Promise<Yatra> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/yatra/${id}`, data, { headers });
+            const response = await apiClient.put(`/yatra/${id}`, data);
             return this.normalizeYatra(response.data);
         } catch (error) {
             console.error(`Error updating yatra ${id}:`, error);
@@ -123,8 +107,7 @@ class YatraService {
 
     async deleteYatra(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/yatra/${id}`, { headers });
+            await apiClient.delete(`/yatra/${id}`);
         } catch (error) {
             console.error(`Error deleting yatra ${id}:`, error);
             throw error;
@@ -133,8 +116,7 @@ class YatraService {
 
     async publishYatra(id: number, data?: YatraPublishData): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/yatra/${id}/publish`, data || {}, { headers });
+            await apiClient.post(`/yatra/${id}/publish`, data || {});
         } catch (error) {
             console.error(`Error publishing yatra ${id}:`, error);
             throw error;
@@ -143,8 +125,7 @@ class YatraService {
 
     async stopYatra(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/yatra/${id}/stop`, {}, { headers });
+            await apiClient.post(`/yatra/${id}/stop`, {});
         } catch (error) {
             console.error(`Error stopping yatra ${id}:`, error);
             throw error;
@@ -155,8 +136,7 @@ class YatraService {
 
     async joinYatra(yatraId: number, data?: YatraJoinData): Promise<YatraParticipant> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/yatra/${yatraId}/join`, data || {}, { headers });
+            const response = await apiClient.post(`/yatra/${yatraId}/join`, data || {});
             return response.data;
         } catch (error) {
             console.error(`Error joining yatra ${yatraId}:`, error);
@@ -166,8 +146,7 @@ class YatraService {
 
     async getMyParticipation(yatraId: number): Promise<YatraParticipant | null> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/yatra/${yatraId}/my-participation`, { headers });
+            const response = await apiClient.get(`/yatra/${yatraId}/my-participation`);
             return response.data || null;
         } catch (error) {
             // No participation is not an error
@@ -177,8 +156,7 @@ class YatraService {
 
     async getPendingParticipants(yatraId: number): Promise<YatraParticipant[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/yatra/${yatraId}/participants/pending`, { headers });
+            const response = await apiClient.get(`/yatra/${yatraId}/participants/pending`);
             return response.data || [];
         } catch (error) {
             console.error(`Error fetching pending participants for yatra ${yatraId}:`, error);
@@ -188,8 +166,7 @@ class YatraService {
 
     async approveParticipant(yatraId: number, participantId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/yatra/${yatraId}/participants/${participantId}/approve`, {}, { headers });
+            await apiClient.post(`/yatra/${yatraId}/participants/${participantId}/approve`, {});
         } catch (error) {
             console.error(`Error approving participant ${participantId}:`, error);
             throw error;
@@ -198,8 +175,7 @@ class YatraService {
 
     async rejectParticipant(yatraId: number, participantId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/yatra/${yatraId}/participants/${participantId}/reject`, {}, { headers });
+            await apiClient.post(`/yatra/${yatraId}/participants/${participantId}/reject`, {});
         } catch (error) {
             console.error(`Error rejecting participant ${participantId}:`, error);
             throw error;
@@ -208,8 +184,7 @@ class YatraService {
 
     async removeParticipant(yatraId: number, participantId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/yatra/${yatraId}/participants/${participantId}`, { headers });
+            await apiClient.delete(`/yatra/${yatraId}/participants/${participantId}`);
         } catch (error) {
             console.error(`Error removing participant ${participantId}:`, error);
             throw error;
@@ -220,7 +195,7 @@ class YatraService {
 
     async getYatraReviews(yatraId: number, page = 1, limit = 10): Promise<{ reviews: YatraReview[], total: number, averageRating: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/yatra/${yatraId}/reviews`, {
+            const response = await apiClient.get(`/yatra/${yatraId}/reviews`, {
                 params: { page, limit }
             });
             return {
@@ -236,8 +211,7 @@ class YatraService {
 
     async createYatraReview(yatraId: number, data: YatraReviewCreateData): Promise<YatraReview> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/yatra/${yatraId}/reviews`, data, { headers });
+            const response = await apiClient.post(`/yatra/${yatraId}/reviews`, data);
             return response.data;
         } catch (error) {
             console.error(`Error creating review for yatra ${yatraId}:`, error);
@@ -252,7 +226,7 @@ class YatraService {
         recommendations: number;
     }> {
         try {
-            const response = await axios.get(`${API_PATH}/yatra/organizer/${userId}/stats`);
+            const response = await apiClient.get(`/yatra/organizer/${userId}/stats`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching organizer stats for user ${userId}:`, error);
@@ -278,7 +252,7 @@ class YatraService {
             const godModeParams = await getGodModeQueryParams();
             Object.assign(params, godModeParams);
 
-            const response = await axios.get(`${API_PATH}/shelter`, { params });
+            const response = await apiClient.get(`/shelter`, { params });
             const data = response.data;
             const result = {
                 shelters: (data.shelters || []).map(this.normalizeShelter),
@@ -303,7 +277,7 @@ class YatraService {
 
     async getShelter(id: number): Promise<Shelter> {
         try {
-            const response = await axios.get(`${API_PATH}/shelter/${id}`);
+            const response = await apiClient.get(`/shelter/${id}`);
             const shelter = this.normalizeShelter(response.data);
             // Cache the detail for offline use
             await yatraCacheService.cacheShelterDetail(id, shelter);
@@ -321,8 +295,7 @@ class YatraService {
 
     async getMyShelters(): Promise<Shelter[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/shelter/my`, { headers });
+            const response = await apiClient.get(`/shelter/my`);
             return (response.data || []).map(this.normalizeShelter);
         } catch (error) {
             console.error('Error fetching my shelters:', error);
@@ -332,8 +305,7 @@ class YatraService {
 
     async createShelter(data: ShelterCreateData): Promise<Shelter> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/shelter`, data, { headers });
+            const response = await apiClient.post(`/shelter`, data);
             return this.normalizeShelter(response.data);
         } catch (error) {
             console.error('Error creating shelter:', error);
@@ -343,8 +315,7 @@ class YatraService {
 
     async updateShelter(id: number, data: Partial<ShelterCreateData>): Promise<Shelter> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.put(`${API_PATH}/shelter/${id}`, data, { headers });
+            const response = await apiClient.put(`/shelter/${id}`, data);
             return this.normalizeShelter(response.data);
         } catch (error) {
             console.error(`Error updating shelter ${id}:`, error);
@@ -354,8 +325,7 @@ class YatraService {
 
     async deleteShelter(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/shelter/${id}`, { headers });
+            await apiClient.delete(`/shelter/${id}`);
         } catch (error) {
             console.error(`Error deleting shelter ${id}:`, error);
             throw error;
@@ -366,7 +336,7 @@ class YatraService {
 
     async getShelterReviews(shelterId: number, page = 1, limit = 10): Promise<{ reviews: ShelterReview[], total: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/shelter/${shelterId}/reviews`, {
+            const response = await apiClient.get(`/shelter/${shelterId}/reviews`, {
                 params: { page, limit }
             });
             return {
@@ -381,8 +351,7 @@ class YatraService {
 
     async createReview(shelterId: number, data: ShelterReviewCreateData): Promise<ShelterReview> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/shelter/${shelterId}/reviews`, data, { headers });
+            const response = await apiClient.post(`/shelter/${shelterId}/reviews`, data);
             return response.data;
         } catch (error) {
             console.error(`Error creating review for shelter ${shelterId}:`, error);
@@ -392,8 +361,7 @@ class YatraService {
 
     async deleteReview(shelterId: number, reviewId: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/shelter/${shelterId}/reviews/${reviewId}`, { headers });
+            await apiClient.delete(`/shelter/${shelterId}/reviews/${reviewId}`);
         } catch (error) {
             console.error(`Error deleting review ${reviewId}:`, error);
             throw error;
@@ -404,7 +372,6 @@ class YatraService {
 
     async uploadPhoto(asset: any, type: 'yatra' | 'shelter' = 'yatra'): Promise<string> {
         try {
-            const currentHeaders = await this.getHeaders();
             const formData = new FormData();
             formData.append('photo', {
                 uri: asset.uri,
@@ -412,9 +379,8 @@ class YatraService {
                 name: asset.fileName || 'photo.jpg',
             } as any);
 
-            const response = await axios.post(`${API_PATH}/${type}/upload?type=${type}`, formData, {
+            const response = await apiClient.post(`/${type}/upload?type=${type}`, formData, {
                 headers: {
-                    ...currentHeaders,
                     'Content-Type': 'multipart/form-data',
                 },
             });

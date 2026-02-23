@@ -28,11 +28,11 @@ import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import axios from 'axios';
-import { API_PATH, APP_ENV } from '../config/api.config';
+import { APP_ENV } from '../config/api.config';
 import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 import DeviceInfo from 'react-native-device-info';
 import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
+import apiClient from '../lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -147,10 +147,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         setLoading(true);
         try {
             const deviceId = await DeviceInfo.getUniqueId();
-            const response = await axios.post(`${API_PATH}/login`, {
+            const response = await apiClient.post('/login', {
                 email: normalizedEmail,
                 password,
                 deviceId
+            }, {
+                ...({ __skipAuthSession: true } as any),
             });
 
             const { user } = response.data;
@@ -201,10 +203,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const deviceId = await DeviceInfo.getUniqueId();
             // 1. Try Login
-            const response = (await axios.post(`${API_PATH}/login`, {
+            const response = (await apiClient.post('/login', {
                 email: devEmail,
                 password: devPassword,
                 deviceId
+            }, {
+                ...({ __skipAuthSession: true } as any),
             })).data;
 
             let user = response.user;
@@ -212,8 +216,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             // Update profile if inconsistent
             if (!user.isProfileComplete) {
-                user = (await axios.put(`${API_PATH}/update-profile`, { ...devUser }, {
-                    headers: { Authorization: `Bearer ${token}` }
+                user = (await apiClient.put('/update-profile', { ...devUser }, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    ...({ __skipAuthSession: true } as any),
                 })).data.user;
             }
 
@@ -223,13 +228,17 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             try {
                 const deviceId = await DeviceInfo.getUniqueId();
                 // Register
-                await axios.post(`${API_PATH}/register`, { ...devUser, deviceId });
+                await apiClient.post('/register', { ...devUser, deviceId }, {
+                    ...({ __skipAuthSession: true } as any),
+                });
 
                 // Login after register
-                const loginRes = (await axios.post(`${API_PATH}/login`, {
+                const loginRes = (await apiClient.post('/login', {
                     email: devEmail,
                     password: devPassword,
                     deviceId
+                }, {
+                    ...({ __skipAuthSession: true } as any),
                 })).data;
 
                 const user = loginRes.user;

@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -24,6 +23,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import apiClient from '../../../lib/apiClient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
 
@@ -209,7 +209,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         const requestId = ++latestCitySearchRequestRef.current;
         setIsSearchingCities(true);
         try {
-            const response = await axios.get(`https://nominatim.openstreetmap.org/search`, {
+            const response = await apiClient.get(`https://nominatim.openstreetmap.org/search`, {
                 params: {
                     q: query,
                     format: 'json',
@@ -220,7 +220,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 headers: {
                     'User-Agent': 'Vedamatch-Mobile-App/1.0 (contact@vedic-ai.com)'
                 },
-                timeout: 5000 // 5 seconds timeout
+                timeout: 5000, // 5 seconds timeout
+                ...({ __skipAuthSession: true } as any),
             });
             if (requestId !== latestCitySearchRequestRef.current || !isMountedRef.current) {
                 return;

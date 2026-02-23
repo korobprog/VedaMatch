@@ -20,13 +20,12 @@ import { Bell, Clock, Info, Camera, Image as ImageIcon, X } from 'lucide-react-n
 import { launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { API_PATH } from '../../../config/api.config';
+import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
-import { authorizedFetch } from '../../../services/authSessionService';
 
 interface CreateRoomModalProps {
     visible: boolean;
@@ -71,9 +70,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
 
     // Load books on mount
     React.useEffect(() => {
-        fetch(`${API_PATH}/library/books`)
-            .then(res => res.json())
-            .then(data => setBooks(data))
+        apiClient.get('/library/books')
+            .then(res => setBooks(Array.isArray(res.data) ? res.data : []))
             .catch(err => console.log('Error loading books', err));
     }, []);
 
@@ -91,55 +89,43 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
 
         setLoading(true);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name,
-                    description,
-                    isPublic,
-                    ownerId: user.ID,
-                    location: enableReading ? location : '',
-                    startTime: (enableReading && startTime) ? startTime.toISOString() : '',
-                    bookCode: enableReading ? selectedBook : '',
-                }),
+            const response = await apiClient.post('/rooms', {
+                name,
+                description,
+                isPublic,
+                ownerId: user.ID,
+                location: enableReading ? location : '',
+                startTime: (enableReading && startTime) ? startTime.toISOString() : '',
+                bookCode: enableReading ? selectedBook : '',
             });
+            const newRoom = response.data || {};
+            const newRoomId = Number(newRoom?.ID ?? newRoom?.id);
 
-            if (response.ok) {
-                const newRoom = await response.json();
+            // If custom image was picked, upload it now
+            if (imageUrl === 'custom' && customImageUri && Number.isFinite(newRoomId) && newRoomId > 0) {
+                const formData = new FormData();
+                formData.append('image', {
+                    uri: customImageUri,
+                    type: 'image/jpeg',
+                    name: 'room_image.jpg',
+                } as any);
 
-                // If custom image was picked, upload it now
-                if (imageUrl === 'custom' && customImageUri) {
-                    const formData = new FormData();
-                    formData.append('image', {
-                        uri: customImageUri,
-                        type: 'image/jpeg',
-                        name: 'room_image.jpg',
-                    } as any);
-
-                    await authorizedFetch(`${API_PATH}/rooms/${newRoom.ID}/image`, {
-                        method: 'POST',
-                        body: formData,
-                    });
-                }
-
-                onRoomCreated();
-                onClose();
-                setName('');
-                setDescription('');
-                setImageUrl(PRESET_IMAGES[0].id);
-                setCustomImageUri(null);
-                setStartTime(null);
-                setLocation('');
-                setSelectedBook('');
-            } else {
-                const data = await response.json();
-                Alert.alert(t('common.error'), data.error || 'Failed to create room');
+                await apiClient.post(`/rooms/${newRoomId}/image`, formData, {
+                    headers: { Accept: 'application/json' },
+                });
             }
-        } catch (error) {
-            Alert.alert(t('common.error'), 'Network error');
+
+            onRoomCreated();
+            onClose();
+            setName('');
+            setDescription('');
+            setImageUrl(PRESET_IMAGES[0].id);
+            setCustomImageUri(null);
+            setStartTime(null);
+            setLocation('');
+            setSelectedBook('');
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to create room');
         } finally {
             setLoading(false);
         }

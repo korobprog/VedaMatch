@@ -39,6 +39,7 @@ import { useUser } from '../../../context/UserContext';
 import { GodModeFiltersPanel } from '../../../components/portal/god-mode/GodModeFiltersPanel';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import {
     flattenNewsPages,
     useNewsFeedQuery,
@@ -88,6 +89,7 @@ export const NewsScreen = () => {
     const preferencesQuery = useNewsPreferencesQuery();
 
     const news = useMemo(() => flattenNewsPages(newsQuery.data), [newsQuery.data]);
+    const NewsListComponent: any = FEATURE_FLAGS.flashlistNews ? FlashList : FlatList;
     const loading = newsQuery.isLoading;
     const loadingMore = newsQuery.isFetchingNextPage;
     const hasMore = Boolean(newsQuery.hasNextPage);
@@ -468,9 +470,9 @@ export const NewsScreen = () => {
             </View>
 
             {renderCategoryPills()}
-            <FlashList
+            <NewsListComponent
                 data={news}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item: NewsItem) => item.id.toString()}
                 renderItem={renderNewsItem}
                 contentContainerStyle={styles.list}
                 refreshControl={

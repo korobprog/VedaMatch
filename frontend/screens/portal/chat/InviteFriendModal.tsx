@@ -15,11 +15,10 @@ import { useTranslation } from 'react-i18next';
 import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { API_PATH } from '../../../config/api.config';
+import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
-import { authorizedFetch } from '../../../services/authSessionService';
 
 interface InviteFriendModalProps {
     visible: boolean;
@@ -45,24 +44,19 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         if (!user) return;
         try {
             const [friendsResponse, membersResponse] = await Promise.all([
-                authorizedFetch(`${API_PATH}/friends`),
-                authorizedFetch(`${API_PATH}/rooms/${roomId}/members`)
+                apiClient.get('/friends'),
+                apiClient.get(`/rooms/${roomId}/members`)
             ]);
 
-            if (friendsResponse.ok) {
-                const data = await friendsResponse.json();
-                setFriends(data);
-            }
+            const friendsData = friendsResponse.data || [];
+            const members = membersResponse.data || [];
+            setFriends(Array.isArray(friendsData) ? friendsData : []);
+            // members is now [{user: {...}, role: "admin"}]
+            setRoomMembers(Array.isArray(members) ? members : []);
 
-            if (membersResponse.ok) {
-                const members = await membersResponse.json();
-                // members is now [{user: {...}, role: "admin"}]
-                setRoomMembers(members);
-
-                const myMemberRecord = members.find((m: any) => m.user?.ID === user.ID);
-                if (myMemberRecord) {
-                    setCurrentUserRole(myMemberRecord.role);
-                }
+            const myMemberRecord = members.find((m: any) => m.user?.ID === user.ID);
+            if (myMemberRecord) {
+                setCurrentUserRole(myMemberRecord.role);
             }
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -81,33 +75,21 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleInvite = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/invite`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    roomId: roomId,
-                    userId: friendId,
-                }),
+            await apiClient.post('/rooms/invite', {
+                roomId,
+                userId: friendId,
             });
 
-            if (response.ok) {
-                Alert.alert(t('common.success'), t('chat.invite') + ' ' + t('common.success'));
-                // Refetch members to get proper data
-                const membersResponse = await authorizedFetch(`${API_PATH}/rooms/${roomId}/members`);
-                if (membersResponse.ok) {
-                    const members = await membersResponse.json();
-                    setRoomMembers(members);
-                }
-            } else if (response.status === 409) {
+            Alert.alert(t('common.success'), t('chat.invite') + ' ' + t('common.success'));
+            const membersResponse = await apiClient.get(`/rooms/${roomId}/members`);
+            const members = membersResponse.data || [];
+            setRoomMembers(Array.isArray(members) ? members : []);
+        } catch (error: any) {
+            if (error?.response?.status === 409) {
                 Alert.alert(t('common.info'), t('chat.alreadyMember') || 'User is already a member');
             } else {
-                const data = await response.json();
-                Alert.alert(t('common.error'), data.error || 'Failed to invite');
+                Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to invite');
             }
-        } catch (error) {
-            Alert.alert(t('common.error'), 'Network error');
         } finally {
             setInvitingId(null);
         }
@@ -116,26 +98,14 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleRemove = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/remove`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    roomId: roomId,
-                    userId: friendId,
-                }),
+            await apiClient.post('/rooms/remove', {
+                roomId,
+                userId: friendId,
             });
-
-            if (response.ok) {
-                Alert.alert(t('common.success'), 'Removed from group');
-                setRoomMembers(prev => prev.filter(m => m.user?.ID !== friendId));
-            } else {
-                const data = await response.json();
-                Alert.alert(t('common.error'), data.error || 'Failed to remove');
-            }
-        } catch (error) {
-            Alert.alert(t('common.error'), 'Network error');
+            Alert.alert(t('common.success'), 'Removed from group');
+            setRoomMembers(prev => prev.filter(m => m.user?.ID !== friendId));
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to remove');
         } finally {
             setInvitingId(null);
         }
@@ -144,28 +114,17 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleMakeAdmin = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/role`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    roomId: roomId,
-                    userId: friendId,
-                    role: 'admin',
-                }),
+            await apiClient.post('/rooms/role', {
+                roomId,
+                userId: friendId,
+                role: 'admin',
             });
-
-            if (response.ok) {
-                Alert.alert(t('common.success'), 'User promoted to Admin');
-                setRoomMembers(prev => prev.map(m =>
-                    m.user.ID === friendId ? { ...m, role: 'admin' } : m
-                ));
-            } else {
-                Alert.alert(t('common.error'), 'Failed to update role');
-            }
-        } catch (error) {
-            Alert.alert(t('common.error'), 'Network error');
+            Alert.alert(t('common.success'), 'User promoted to Admin');
+            setRoomMembers(prev => prev.map(m =>
+                m.user.ID === friendId ? { ...m, role: 'admin' } : m
+            ));
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to update role');
         } finally {
             setInvitingId(null);
         }
@@ -175,19 +134,8 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         if (creatingInviteLink) return;
         setCreatingInviteLink(true);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/invite-link`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({}),
-            });
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                Alert.alert(t('common.error'), data.error || 'Failed to create invite link');
-                return;
-            }
-            const data = await response.json().catch(() => ({}));
+            const response = await apiClient.post(`/rooms/${roomId}/invite-link`, {});
+            const data = response.data || {};
             const inviteLink = typeof data?.inviteLink === 'string' && data.inviteLink.trim()
                 ? data.inviteLink.trim()
                 : (typeof data?.inviteToken === 'string' && data.inviteToken.trim()
@@ -199,8 +147,8 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             }
             Clipboard.setString(inviteLink);
             Alert.alert(t('common.success'), 'Invite link copied to clipboard');
-        } catch (error) {
-            Alert.alert(t('common.error'), 'Network error');
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to create invite link');
         } finally {
             setCreatingInviteLink(false);
         }

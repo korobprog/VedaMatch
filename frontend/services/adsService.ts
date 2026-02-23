@@ -1,28 +1,13 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
+import apiClient from '../lib/apiClient';
 import { Ad, AdFilters, AdFormData, CategoryConfig } from '../types/ads';
 import { getGodModeQueryParams } from './godModeService';
-import { authorizedAxiosRequest, getAccessToken } from './authSessionService';
 
 class AdsService {
-    private async getHeaders() {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-    }
-
     async getAds(filters?: AdFilters): Promise<{ ads: Ad[], total: number, page: number, totalPages: number }> {
         try {
-            const headers = await this.getHeaders();
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/ads`, {
+            const response = await apiClient.get('/ads', {
                 params: { ...(filters || {}), ...godModeParams },
-                headers
             });
             return response.data;
         } catch (error) {
@@ -33,8 +18,7 @@ class AdsService {
 
     async getAd(id: number): Promise<Ad> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/ads/${id}`, { headers });
+            const response = await apiClient.get(`/ads/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching ad ${id}:`, error);
@@ -44,8 +28,7 @@ class AdsService {
 
     async createAd(data: AdFormData): Promise<{ id: number, message: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/ads`, data, { headers });
+            const response = await apiClient.post('/ads', data);
             return response.data;
         } catch (error) {
             console.error('Error creating ad:', error);
@@ -55,8 +38,7 @@ class AdsService {
 
     async updateAd(id: number, data: AdFormData): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.put(`${API_PATH}/ads/${id}`, data, { headers });
+            await apiClient.put(`/ads/${id}`, data);
         } catch (error) {
             console.error(`Error updating ad ${id}:`, error);
             throw error;
@@ -65,8 +47,7 @@ class AdsService {
 
     async deleteAd(id: number): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.delete(`${API_PATH}/ads/${id}`, { headers });
+            await apiClient.delete(`/ads/${id}`);
         } catch (error) {
             console.error(`Error deleting ad ${id}:`, error);
             throw error;
@@ -75,8 +56,7 @@ class AdsService {
 
     async toggleFavorite(id: number): Promise<{ isFavorite: boolean }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/ads/${id}/favorite`, {}, { headers });
+            const response = await apiClient.post(`/ads/${id}/favorite`, {});
             return response.data;
         } catch (error) {
             console.error(`Error toggling favorite for ad ${id}:`, error);
@@ -86,8 +66,7 @@ class AdsService {
 
     async getFavorites(): Promise<Ad[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/ads/user/favorites`, { headers });
+            const response = await apiClient.get('/ads/user/favorites');
             return response.data;
         } catch (error) {
             console.error('Error fetching favorites:', error);
@@ -97,8 +76,7 @@ class AdsService {
 
     async getMyAds(): Promise<Ad[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/ads/user/my`, { headers });
+            const response = await apiClient.get('/ads/user/my');
             return response.data;
         } catch (error) {
             console.error('Error fetching my ads:', error);
@@ -108,7 +86,7 @@ class AdsService {
 
     async getCategories(): Promise<CategoryConfig[]> {
         try {
-            const response = await axios.get(`${API_PATH}/ads/categories`);
+            const response = await apiClient.get('/ads/categories');
             return response.data;
         } catch (error) {
             console.error('Error fetching categories:', error);
@@ -118,7 +96,7 @@ class AdsService {
 
     async getCities(): Promise<string[]> {
         try {
-            const response = await axios.get(`${API_PATH}/ads/cities`);
+            const response = await apiClient.get('/ads/cities');
             return response.data;
         } catch (error) {
             console.error('Error fetching cities:', error);
@@ -128,8 +106,7 @@ class AdsService {
 
     async reportAd(id: number, reason: string, comment?: string): Promise<void> {
         try {
-            const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/ads/${id}/report`, { reason, comment }, { headers });
+            await apiClient.post(`/ads/${id}/report`, { reason, comment });
         } catch (error) {
             console.error(`Error reporting ad ${id}:`, error);
             throw error;
@@ -142,13 +119,10 @@ class AdsService {
             formData.append('photo', {
                 uri: asset.uri,
                 type: asset.type || 'image/jpeg',
-                name: asset.fileName || `photo_${Date.now()}.jpg`
+                name: asset.fileName || `photo_${Date.now()}.jpg`,
             } as any);
 
-            const response = await authorizedAxiosRequest<{ url: string }>({
-                url: `${API_PATH}/ads/upload-photo`,
-                method: 'POST',
-                data: formData,
+            const response = await apiClient.post<{ url: string }>('/ads/upload-photo', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -162,8 +136,7 @@ class AdsService {
 
     async contactSeller(id: number, method: 'call' | 'message'): Promise<{ roomId?: number, roomName?: string, message: string }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/ads/${id}/contact`, { method }, { headers });
+            const response = await apiClient.post(`/ads/${id}/contact`, { method });
             return response.data;
         } catch (error: any) {
             console.error(`Error contacting seller for ad ${id}:`, error);

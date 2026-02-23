@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiClient from '../lib/apiClient';
 
 interface Country {
 	name: { common: string };
@@ -28,19 +29,15 @@ export const locationService = {
 		}
 
 		try {
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-			const response = await fetch('https://restcountries.com/v3.1/all?fields=name,capital', {
-				signal: controller.signal
+			const response = await apiClient.get<Country[]>('https://restcountries.com/v3.1/all', {
+				params: {
+					fields: 'name,capital',
+				},
+				timeout: 10000,
+				...({ __skipAuthSession: true } as any),
 			});
-			clearTimeout(timeoutId);
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			const data = await response.json();
+			const data = response.data;
 			if (Array.isArray(data)) {
 				const sortedData = data.sort((a: any, b: any) =>
 					(a.name?.common || '').localeCompare(b.name?.common || '')
@@ -74,32 +71,34 @@ export const locationService = {
 
 		try {
 			const countryUrl = `https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fields=cca2`;
-			const countryResponse = await fetch(countryUrl);
+			const countryResponse = await apiClient.get<{ cca2: string }[]>(countryUrl, {
+				timeout: 10000,
+				...({ __skipAuthSession: true } as any),
+			});
+			const countryData = countryResponse.data;
 
-			if (countryResponse.ok) {
-				const countryData = await countryResponse.json();
-				if (countryData && countryData.length > 0) {
-					const countryCode = countryData[0].cca2;
-					const citiesUrl = `https://secure.geonames.org/searchJSON?country=${countryCode}&featureClass=P&maxRows=100&username=demo`;
-					const citiesResponse = await fetch(citiesUrl);
+			if (Array.isArray(countryData) && countryData.length > 0) {
+				const countryCode = countryData[0].cca2;
+				const citiesUrl = `https://secure.geonames.org/searchJSON?country=${countryCode}&featureClass=P&maxRows=100&username=demo`;
+				const citiesResponse = await apiClient.get<{ geonames?: Array<{ name: string }> }>(citiesUrl, {
+					timeout: 10000,
+					...({ __skipAuthSession: true } as any),
+				});
+				const citiesData = citiesResponse.data;
 
-					if (citiesResponse.ok) {
-						const citiesData = await citiesResponse.json();
-						if (citiesData && citiesData.geonames) {
-							const cities = citiesData.geonames
-								.map((city: any) => city.name)
-								.filter((name: string, index: number, self: string[]) => self.indexOf(name) === index)
-								.sort();
+				if (citiesData && citiesData.geonames) {
+					const cities = citiesData.geonames
+						.map((city: any) => city.name)
+						.filter((name: string, index: number, self: string[]) => self.indexOf(name) === index)
+						.sort();
 
-							const cached = await AsyncStorage.getItem(CITIES_CACHE_KEY);
-							const citiesDataCache: CityData = (cached && cached !== 'undefined' && cached !== 'null') ? JSON.parse(cached) : {};
-							citiesDataCache[countryName] = cities;
+					const cached = await AsyncStorage.getItem(CITIES_CACHE_KEY);
+					const citiesDataCache: CityData = (cached && cached !== 'undefined' && cached !== 'null') ? JSON.parse(cached) : {};
+					citiesDataCache[countryName] = cities;
 
-							await AsyncStorage.setItem(CITIES_CACHE_KEY, JSON.stringify(citiesDataCache));
-							console.log('[Location] Cities loaded and cached for:', countryName);
-							return cities;
-						}
-					}
+					await AsyncStorage.setItem(CITIES_CACHE_KEY, JSON.stringify(citiesDataCache));
+					console.log('[Location] Cities loaded and cached for:', countryName);
+					return cities;
 				}
 			}
 

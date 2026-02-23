@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import DeviceInfo from 'react-native-device-info';
 import { API_PATH } from '../config/api.config';
 import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvStorage';
@@ -22,9 +21,6 @@ const STORAGE_KEY_PUSH_TOKEN = 'pushToken';
 let cachedTokens: AuthTokens | null = null;
 let loadPromise: Promise<AuthTokens | null> | null = null;
 let refreshPromise: Promise<AuthTokens | null> | null = null;
-let axiosAuthInterceptorInitialized = false;
-
-const API_BASE = API_PATH.replace(/\/+$/, '');
 const HEADER_REQUEST_ID = 'X-Request-ID';
 
 const toStringValue = (value: unknown): string => {
@@ -52,17 +48,6 @@ const generateRequestID = (): string => {
     const now = Date.now().toString(36);
     const random = Math.random().toString(36).slice(2, 10);
     return `${now}-${random}`;
-};
-
-const findAxiosHeaderKey = (headers: Record<string, any> | undefined, key: string): string | null => {
-    if (!headers) return null;
-    const normalizedKey = key.toLowerCase();
-    for (const candidate of Object.keys(headers)) {
-        if (candidate.toLowerCase() === normalizedKey) {
-            return candidate;
-        }
-    }
-    return null;
 };
 
 export const normalizeAuthTokens = (payload: any): AuthTokens | null => {
@@ -303,86 +288,6 @@ const mergeHeaders = (headers: HeadersInit | undefined, accessToken: string | nu
     return merged;
 };
 
-const isApiRequest = (url?: string): boolean => {
-    if (!url || typeof url !== 'string') return false;
-    if (url.startsWith(API_BASE)) return true;
-    if (url.startsWith(API_PATH)) return true;
-    if (url.startsWith('/api/')) return true;
-    return false;
-};
-
-const mergeAxiosAuthHeader = (
-    headers: any,
-    accessToken: string | null,
-    options: { preserveExistingAuth?: boolean } = {},
-) => {
-    const nextHeaders = { ...(headers || {}) };
-    const requestIDHeaderKey = findAxiosHeaderKey(nextHeaders, HEADER_REQUEST_ID);
-    if (!requestIDHeaderKey || !String(nextHeaders[requestIDHeaderKey] ?? '').trim()) {
-        nextHeaders[HEADER_REQUEST_ID] = generateRequestID();
-    }
-
-    const authHeaderKey = findAxiosHeaderKey(nextHeaders, 'Authorization');
-    const hasExistingAuth = authHeaderKey !== null && String(nextHeaders[authHeaderKey] ?? '').trim() !== '';
-
-    if (accessToken) {
-        if (authHeaderKey && authHeaderKey !== 'Authorization') {
-            delete nextHeaders[authHeaderKey];
-        }
-        nextHeaders.Authorization = `Bearer ${accessToken}`;
-    } else if (!options.preserveExistingAuth && authHeaderKey) {
-        delete nextHeaders[authHeaderKey];
-    }
-
-    return nextHeaders;
-};
-
-export const setupAxiosAuthInterceptor = () => {
-    if (axiosAuthInterceptorInitialized) return;
-    axiosAuthInterceptorInitialized = true;
-
-    axios.interceptors.request.use(async (config: any) => {
-        if (config?.__skipAuthSession || !isApiRequest(config?.url)) {
-            return config;
-        }
-
-        const authHeaderKey = findAxiosHeaderKey(config?.headers, 'Authorization');
-        const hasAuthorization = authHeaderKey !== null && String(config.headers[authHeaderKey] ?? '').trim() !== '';
-
-        const token = hasAuthorization ? null : await getAccessToken();
-        config.headers = mergeAxiosAuthHeader(config?.headers, token, {
-            preserveExistingAuth: hasAuthorization,
-        });
-        return config;
-    });
-
-    axios.interceptors.response.use(
-        (response) => response,
-        async (error: any) => {
-            const status = error?.response?.status;
-            const originalConfig: any = error?.config || {};
-
-            if (
-                status !== 401 ||
-                originalConfig?.__skipAuthSession ||
-                originalConfig?.__isRetryRequest ||
-                !isApiRequest(originalConfig?.url)
-            ) {
-                throw error;
-            }
-
-            originalConfig.__isRetryRequest = true;
-            const refreshed = await refreshAuthTokens();
-            if (!refreshed?.accessToken) {
-                throw error;
-            }
-
-            originalConfig.headers = mergeAxiosAuthHeader(originalConfig?.headers, refreshed.accessToken);
-            return axios.request(originalConfig);
-        },
-    );
-};
-
 export const authorizedFetch = async (
     input: RequestInfo | URL,
     init: RequestInit = {},
@@ -410,45 +315,3 @@ export const authorizedFetch = async (
         headers: mergeHeaders(init.headers, refreshed.accessToken),
     });
 };
-
-export const authorizedAxiosRequest = async <T = any>(
-    config: AxiosRequestConfig,
-    options: { retry401?: boolean; skipAuth?: boolean } = {},
-): Promise<AxiosResponse<T>> => {
-    const { retry401 = true, skipAuth = false } = options;
-    const token = skipAuth ? null : await getAccessToken();
-    const existingAuthHeaderKey = findAxiosHeaderKey(config.headers as Record<string, any> | undefined, 'Authorization');
-    const hasExistingAuthorization = existingAuthHeaderKey !== null && String((config.headers as any)?.[existingAuthHeaderKey] ?? '').trim() !== '';
-
-    const firstConfig: AxiosRequestConfig = {
-        ...config,
-        // This helper manages refresh/retry itself.
-        ...({ __skipAuthSession: true } as any),
-        headers: mergeAxiosAuthHeader(config.headers, token, {
-            preserveExistingAuth: hasExistingAuthorization,
-        }),
-    };
-
-    try {
-        return await axios.request<T>(firstConfig);
-    } catch (error: any) {
-        const status = error?.response?.status;
-        if (!retry401 || skipAuth || status !== 401) {
-            throw error;
-        }
-
-        const refreshed = await refreshAuthTokens();
-        if (!refreshed?.accessToken) {
-            throw error;
-        }
-
-        const retryConfig: AxiosRequestConfig = {
-            ...config,
-            ...({ __skipAuthSession: true } as any),
-            headers: mergeAxiosAuthHeader(config.headers, refreshed.accessToken),
-        };
-        return axios.request<T>(retryConfig);
-    }
-};
-
-setupAxiosAuthInterceptor();

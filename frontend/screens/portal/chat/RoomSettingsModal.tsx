@@ -20,13 +20,12 @@ import { Check, X, Bell, Camera } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { API_PATH } from '../../../config/api.config';
+import apiClient from '../../../lib/apiClient';
 import { getMediaUrl } from '../../../utils/url';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
-import { authorizedFetch } from '../../../services/authSessionService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface RoomSettingsModalProps {
@@ -138,27 +137,25 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const fetchSettings = useCallback(async () => {
         const requestId = ++latestSettingsRequestRef.current;
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`);
-            if (response.ok) {
-                const currentRoom = await response.json();
-                if (!isMountedRef.current || requestId !== latestSettingsRequestRef.current) {
-                    return;
-                }
-                setIsPublic(currentRoom.isPublic);
-                setAiEnabled(currentRoom.aiEnabled);
-                setBookCode(currentRoom.bookCode || '');
-                setChapter(currentRoom.currentChapter || 1);
-                setVerse(currentRoom.currentVerse || 1);
-                setReadingLanguage(currentRoom.language || 'ru');
-                setShowPurport(currentRoom.showPurport || false);
-                setEditName(currentRoom.name || roomName);
-                setEditDescription(currentRoom.description || '');
-                setEditLocation(currentRoom.location || '');
-                setRoomImage(currentRoom.imageUrl || null);
-                setEnableReading(!!currentRoom.bookCode);
-                if (currentRoom.startTime) {
-                    setStartTime(new Date(currentRoom.startTime));
-                }
+            const response = await apiClient.get(`/rooms/${roomId}`);
+            const currentRoom = response.data || {};
+            if (!isMountedRef.current || requestId !== latestSettingsRequestRef.current) {
+                return;
+            }
+            setIsPublic(currentRoom.isPublic);
+            setAiEnabled(currentRoom.aiEnabled);
+            setBookCode(currentRoom.bookCode || '');
+            setChapter(currentRoom.currentChapter || 1);
+            setVerse(currentRoom.currentVerse || 1);
+            setReadingLanguage(currentRoom.language || 'ru');
+            setShowPurport(currentRoom.showPurport || false);
+            setEditName(currentRoom.name || roomName);
+            setEditDescription(currentRoom.description || '');
+            setEditLocation(currentRoom.location || '');
+            setRoomImage(currentRoom.imageUrl || null);
+            setEnableReading(!!currentRoom.bookCode);
+            if (currentRoom.startTime) {
+                setStartTime(new Date(currentRoom.startTime));
             }
         } catch (error) {
             console.error('Error fetching settings:', error);
@@ -247,26 +244,12 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             setSaving(true);
         }
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/settings`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updates),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => null);
-                if (isMountedRef.current) {
-                    Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to update settings'));
-                }
-                return false;
-            }
+            await apiClient.put(`/rooms/${roomId}/settings`, updates);
             return true;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to update room settings', error);
             if (isMountedRef.current) {
-                Alert.alert(t('common.error'), 'Network error');
+                Alert.alert(t('common.error'), extractApiErrorMessage(error?.response?.data, 'Failed to update settings'));
             }
             return false;
         } finally {
@@ -340,27 +323,18 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 name: asset.fileName || 'room_image.jpg',
             } as any);
 
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/image`, {
-                method: 'POST',
-                body: formData,
+            const response = await apiClient.post(`/rooms/${roomId}/image`, formData, {
+                headers: { Accept: 'application/json' },
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (isMountedRef.current) {
-                    setRoomImage(data.imageUrl);
-                    Alert.alert(t('common.success'), t('chat.imageUpdated') || 'Image updated');
-                }
-            } else {
-                const errorData = await response.json().catch(() => null);
-                if (isMountedRef.current) {
-                    Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to upload image'));
-                }
+            const data = response.data || {};
+            if (isMountedRef.current) {
+                setRoomImage(data.imageUrl || roomImage);
+                Alert.alert(t('common.success'), t('chat.imageUpdated') || 'Image updated');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Upload error:', error);
             if (isMountedRef.current) {
-                Alert.alert(t('common.error'), 'Upload failed');
+                Alert.alert(t('common.error'), extractApiErrorMessage(error?.response?.data, 'Failed to upload image'));
             }
         } finally {
             if (isMountedRef.current) {
@@ -395,21 +369,15 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             setSummaryLoading(true);
         }
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/summary`);
-            const data = await response.json();
-            if (response.ok) {
-                if (isMountedRef.current) {
-                    Alert.alert(t('chat.summary') || 'Chat Summary', data.summary);
-                }
-            } else {
-                if (isMountedRef.current) {
-                    Alert.alert(t('common.error'), data.error || 'Failed to get summary');
-                }
+            const response = await apiClient.get(`/rooms/${roomId}/summary`);
+            const data = response.data || {};
+            if (isMountedRef.current) {
+                Alert.alert(t('chat.summary') || 'Chat Summary', data.summary || '');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to get chat summary', error);
             if (isMountedRef.current) {
-                Alert.alert(t('common.error'), 'Network error');
+                Alert.alert(t('common.error'), extractApiErrorMessage(error?.response?.data, 'Failed to get summary'));
             }
         } finally {
             if (isMountedRef.current) {

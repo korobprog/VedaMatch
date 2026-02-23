@@ -19,7 +19,6 @@ import {
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import DatePicker from 'react-native-date-picker';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'react-native-image-picker';
 import { useUser } from '../context/UserContext';
@@ -33,18 +32,18 @@ import {
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { API_PATH } from '../config/api.config';
 import {
     normalizeLanguageCode,
 } from '../config/legal.config';
 import type { LegalLanguage } from '../config/legal.config';
 import { contactService } from '../services/contactService';
 import DeviceInfo from 'react-native-device-info';
-import { authorizedAxiosRequest, getAccessToken, saveAuthTokens } from '../services/authSessionService';
+import { getAccessToken, saveAuthTokens } from '../services/authSessionService';
 import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
 import { PortalRole } from '../types/portalBlueprint';
 import { useSettings as usePortalSettings } from '../context/SettingsContext';
 import { useRoleTheme } from '../hooks/useRoleTheme';
+import apiClient from '../lib/apiClient';
 
 // Custom Components & Hooks
 import { useLocation } from '../hooks/useLocation';
@@ -290,13 +289,15 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             if (phase === 'initial') {
                 // Phase 1: Registration
                 const deviceId = await DeviceInfo.getUniqueId();
-                const response = await axios.post(`${API_PATH}/register`, {
+                const response = await apiClient.post('/register', {
                     email,
                     password,
                     invite_code: inviteCode,
                     role,
                     godModeEnabled,
                     deviceId
+                }, {
+                    ...({ __skipAuthSession: true } as any),
                 });
                 const user = response.data.user;
 
@@ -338,13 +339,10 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 if (!token || token === 'undefined' || token === 'null') {
                     throw new Error('Auth token is missing. Please sign in again.');
                 }
-                const response = await authorizedAxiosRequest<{ user: any }>({
-                    url: `${API_PATH}/update-profile`,
-                    method: 'PUT',
+                const response = await apiClient.put<{ user: any }>('/update-profile', profileData, {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    data: profileData,
                 });
                 const updatedUser = response.data?.user;
 

@@ -4,30 +4,37 @@ import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/reac
 import NetInfo from '@react-native-community/netinfo';
 import { queryClient } from '../lib/queryClient';
 import { migrateFromAsyncStorage } from '../lib/mmkvStorage';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
-function useOnlineManager() {
+function useOnlineManager(enabled: boolean) {
     useEffect(() => {
+        if (!enabled) {
+            return;
+        }
         return NetInfo.addEventListener(state => {
             const status = !!state.isConnected;
             onlineManager.setOnline(status);
         });
-    }, []);
+    }, [enabled]);
 }
 
-function useFocusRefetch() {
+function useFocusRefetch(enabled: boolean) {
     useEffect(() => {
+        if (!enabled) {
+            return;
+        }
         const sub = AppState.addEventListener('change', status => {
             if (Platform.OS !== 'web') {
                 focusManager.setFocused(status === 'active');
             }
         });
         return () => sub.remove();
-    }, []);
+    }, [enabled]);
 }
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
-    useOnlineManager();
-    useFocusRefetch();
+    useOnlineManager(FEATURE_FLAGS.queryLayer);
+    useFocusRefetch(FEATURE_FLAGS.queryLayer);
 
     useEffect(() => {
         void migrateFromAsyncStorage();

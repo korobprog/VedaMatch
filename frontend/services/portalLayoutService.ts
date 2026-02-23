@@ -1,8 +1,7 @@
 // Portal Layout Service - Hybrid storage (AsyncStorage + Server)
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES } from '../types/portal';
-import { API_PATH } from '../config/api.config';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { getAccessToken } from './authSessionService';
@@ -79,7 +78,7 @@ export const fetchPortalBlueprint = async (role?: string): Promise<PortalBluepri
         if (!headers.Authorization) {
             return FALLBACK_PORTAL_BLUEPRINTS[normalizedRole] || FALLBACK_PORTAL_BLUEPRINTS.user;
         }
-        const response = await axios.get(`${API_PATH}/system/portal-blueprint/${normalizedRole}`, { headers });
+        const response = await apiClient.get(`/system/portal-blueprint/${normalizedRole}`, { headers });
         if (response.data?.blueprint) {
             return response.data.blueprint as PortalBlueprint;
         }
@@ -95,7 +94,7 @@ export const fetchGodModeMathFilters = async (): Promise<MathFilter[]> => {
         if (!headers.Authorization) {
             return [];
         }
-        const response = await axios.get(`${API_PATH}/system/god-mode-math-filters`, { headers });
+        const response = await apiClient.get(`/system/god-mode-math-filters`, { headers });
         if (response.data?.mathFilters) {
             return response.data.mathFilters as MathFilter[];
         }
@@ -145,7 +144,7 @@ const syncToServer = async (layout: PortalLayout): Promise<void> => {
         if (!headers.Authorization) {
             return;
         }
-        await axios.put(`${API_PATH}/user/portal-layout`, { layout }, { headers });
+        await apiClient.put(`/user/portal-layout`, { layout }, { headers });
         layout.syncedWithServer = true;
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
         console.log('Portal layout synced to server');
@@ -162,7 +161,7 @@ export const fetchServerLayout = async (): Promise<PortalLayout | null> => {
         if (!headers.Authorization) {
             return null;
         }
-        const response = await axios.get(`${API_PATH}/user/portal-layout`, { headers });
+        const response = await apiClient.get(`/user/portal-layout`, { headers });
         if (response.data?.layout) {
             return response.data.layout as PortalLayout;
         }

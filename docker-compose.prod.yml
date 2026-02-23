@@ -90,6 +90,9 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
+      FF_REDIS_RATE_LIMIT: ${FF_REDIS_RATE_LIMIT:-false}
+      FF_HTTP_CONDITIONAL_CACHE: ${FF_HTTP_CONDITIONAL_CACHE:-false}
+      FF_CONTACTS_LEGACY_MODE: ${FF_CONTACTS_LEGACY_MODE:-true}
     depends_on:
       postgres:
         condition: service_healthy

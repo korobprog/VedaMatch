@@ -81,6 +81,10 @@ func buildRateLimitKey(scope string, subject string) string {
 
 func rateLimitHandler(scope string, limit int, window time.Duration, subjectFn func(c *fiber.Ctx) string) fiber.Handler {
 	useRedisLimiter := config.RedisRateLimitEnabled()
+	var redisLimiter *services.RedisService
+	if useRedisLimiter {
+		redisLimiter = services.NewRedisService()
+	}
 
 	return func(c *fiber.Ctx) error {
 		subject := subjectFn(c)
@@ -90,15 +94,12 @@ func rateLimitHandler(scope string, limit int, window time.Duration, subjectFn f
 		retryAfter := time.Duration(0)
 		usedRedisLimiter := false
 
-		if useRedisLimiter {
-			redisLimiter := services.NewRedisService()
-			if redisLimiter != nil {
-				redisAllowed, redisRetryAfter, err := redisLimiter.CheckRateLimitWithRetry("ratelimit:"+key, limit, window)
-				if err == nil {
-					allowed = redisAllowed
-					retryAfter = redisRetryAfter
-					usedRedisLimiter = true
-				}
+		if useRedisLimiter && redisLimiter != nil {
+			redisAllowed, redisRetryAfter, err := redisLimiter.CheckRateLimitWithRetry("ratelimit:"+key, limit, window)
+			if err == nil {
+				allowed = redisAllowed
+				retryAfter = redisRetryAfter
+				usedRedisLimiter = true
 			}
 		}
 

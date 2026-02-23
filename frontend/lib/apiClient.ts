@@ -3,6 +3,7 @@ import { API_PATH } from '../config/api.config';
 import { getAccessToken, refreshAuthTokens } from '../services/authSessionService';
 
 const HEADER_REQUEST_ID = 'X-Request-ID';
+const API_BASE = API_PATH.replace(/\/+$/, '');
 
 const generateRequestID = (): string => {
     const now = Date.now().toString(36);
@@ -30,6 +31,27 @@ const isRefreshRequest = (url?: string): boolean => {
     return url.includes('/auth/refresh');
 };
 
+const isAbsoluteHTTPUrl = (url: string): boolean => /^https?:\/\//i.test(url);
+
+const isApiRequest = (url?: string, baseURL?: string): boolean => {
+    if (!url || typeof url !== 'string') return false;
+
+    if (url.startsWith(API_BASE) || url.startsWith(API_PATH) || url.startsWith('/api/')) {
+        return true;
+    }
+
+    if (isAbsoluteHTTPUrl(url)) {
+        return url.startsWith(API_BASE);
+    }
+
+    if (baseURL && typeof baseURL === 'string' && isAbsoluteHTTPUrl(baseURL)) {
+        const normalizedBase = baseURL.replace(/\/+$/, '');
+        return normalizedBase.startsWith(API_BASE);
+    }
+
+    return true;
+};
+
 const apiClient = axios.create({
     baseURL: API_PATH,
     timeout: 15_000,
@@ -38,10 +60,18 @@ const apiClient = axios.create({
 let refreshPromise: Promise<string | null> | null = null;
 
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+    const requestConfig = config as InternalAxiosRequestConfig & {
+        __skipAuthSession?: boolean;
+    };
     const headers = { ...(config.headers || {}) } as Record<string, any>;
 
     if (!hasHeader(headers, HEADER_REQUEST_ID)) {
         headers[HEADER_REQUEST_ID] = generateRequestID();
+    }
+
+    if (requestConfig.__skipAuthSession || !isApiRequest(requestConfig.url, requestConfig.baseURL)) {
+        config.headers = headers as any;
+        return config;
     }
 
     const authHeaderKey = getHeaderKey(headers, 'Authorization');
@@ -65,12 +95,15 @@ apiClient.interceptors.response.use(
         const originalConfig = (error?.config || {}) as AxiosRequestConfig & {
             __isRetryRequest?: boolean;
             __skipAuthRetry?: boolean;
+            __skipAuthSession?: boolean;
         };
 
         if (
             status !== 401 ||
+            originalConfig.__skipAuthSession ||
             originalConfig.__skipAuthRetry ||
             originalConfig.__isRetryRequest ||
+            !isApiRequest(originalConfig.url, originalConfig.baseURL) ||
             isRefreshRequest(originalConfig.url)
         ) {
             throw error;

@@ -1,5 +1,6 @@
-import { PermissionsAndroid, Platform, Alert } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
+import apiClient from '../lib/apiClient';
 
 interface LocationCoords {
 	latitude: number;
@@ -72,17 +73,22 @@ export const geoLocationService = {
 
 	async reverseGeocode(lat: number, lon: number): Promise<LocationData> {
 		try {
-			const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
-			const response = await fetch(url, {
+			const response = await apiClient.get('https://nominatim.openstreetmap.org/reverse', {
+				params: {
+					format: 'json',
+					lat,
+					lon,
+					zoom: 10,
+					addressdetails: 1,
+				},
 				headers: {
 					'User-Agent': 'RagAgent/1.0', // Nominatim requires User-Agent
 					'Accept-Language': 'en-US,en;q=0.9',
-				}
+				},
+				timeout: 7000,
+				...({ __skipAuthSession: true } as any),
 			});
-
-			if (!response.ok) throw new Error('Network response was not ok');
-
-			const data = await response.json();
+			const data = response.data || {};
 			const address = data.address || {};
 
 			// Try to find city in various fields
@@ -114,21 +120,21 @@ export const geoLocationService = {
 
 	async searchLocation(query: string): Promise<LocationData[]> {
 		try {
-			// Поиск локации по названию
-			const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
-
-			const response = await fetch(url, {
+			const response = await apiClient.get('https://nominatim.openstreetmap.org/search', {
+				params: {
+					format: 'json',
+					q: query,
+					addressdetails: 1,
+					limit: 5,
+				},
 				headers: {
 					'User-Agent': 'RagAgent/1.0',
 					'Accept-Language': 'en-US,en;q=0.9',
 				},
+				timeout: 7000,
+				...({ __skipAuthSession: true } as any),
 			});
-
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			const data = await response.json();
+			const data = response.data;
 
 			if (Array.isArray(data)) {
 				return data.map((item: any) => {

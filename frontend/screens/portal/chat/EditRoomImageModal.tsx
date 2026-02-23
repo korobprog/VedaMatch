@@ -13,10 +13,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react-native';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { API_PATH } from '../../../config/api.config';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSettings } from '../../../context/SettingsContext';
-import { authorizedFetch } from '../../../services/authSessionService';
+import apiClient from '../../../lib/apiClient';
 
 interface EditRoomImageModalProps {
     visible: boolean;
@@ -97,22 +96,15 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                 type,
             } as any);
 
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/image`, {
-                method: 'POST',
-                body: formData,
+            await apiClient.post(`/rooms/${roomId}/image`, formData, {
+                headers: { Accept: 'application/json' },
             });
-
-            if (response.ok) {
-                Alert.alert(t('common.success'), t('chat.imageUpdated'));
-                onImageUpdated();
-                onClose();
-            } else {
-                const errorData = await response.json();
-                Alert.alert(t('common.error'), errorData.error || t('chat.uploadError'));
-            }
-        } catch (error) {
+            Alert.alert(t('common.success'), t('chat.imageUpdated'));
+            onImageUpdated();
+            onClose();
+        } catch (error: any) {
             console.error('Error uploading image:', error);
-            Alert.alert(t('common.error'), t('chat.uploadError'));
+            Alert.alert(t('common.error'), error?.response?.data?.error || t('chat.uploadError'));
         } finally {
             setUploading(false);
         }
@@ -121,27 +113,15 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
     const handleSavePreset = async () => {
         setUploading(true);
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    imageUrl: selectedPreset,
-                }),
+            await apiClient.put(`/rooms/${roomId}`, {
+                imageUrl: selectedPreset,
             });
-
-            if (response.ok) {
-                Alert.alert(t('common.success'), t('chat.imageUpdated'));
-                onImageUpdated();
-                onClose();
-            } else {
-                const errorData = await response.json();
-                Alert.alert(t('common.error'), errorData.error || t('chat.updateError'));
-            }
-        } catch (error) {
+            Alert.alert(t('common.success'), t('chat.imageUpdated'));
+            onImageUpdated();
+            onClose();
+        } catch (error: any) {
             console.error('Error updating preset:', error);
-            Alert.alert(t('common.error'), t('chat.updateError'));
+            Alert.alert(t('common.error'), error?.response?.data?.error || t('chat.updateError'));
         } finally {
             setUploading(false);
         }

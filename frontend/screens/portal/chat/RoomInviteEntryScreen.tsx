@@ -3,8 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { API_PATH } from '../../../config/api.config';
-import { authorizedFetch } from '../../../services/authSessionService';
+import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './roomInviteStorage';
 
@@ -45,25 +44,9 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
 
         const run = async () => {
             try {
-                const response = await authorizedFetch(`${API_PATH}/rooms/join-by-token`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ token }),
-                });
-
-                const payload = await response.json().catch(() => ({}));
                 await AsyncStorage.removeItem(PENDING_ROOM_INVITE_TOKEN_KEY);
-
-                if (!response.ok) {
-                    const errorMessage = typeof payload?.error === 'string' && payload.error.trim()
-                        ? payload.error.trim()
-                        : 'Не удалось присоединиться по ссылке';
-                    Alert.alert('Ошибка', errorMessage);
-                    navigation.replace('Portal', { initialTab: 'rooms' });
-                    return;
-                }
+                const response = await apiClient.post('/rooms/join-by-token', { token });
+                const payload = response.data || {};
 
                 const joinedRoomID = Number(payload?.roomId);
                 const joinedRoomName = typeof payload?.roomName === 'string' && payload.roomName.trim()
@@ -88,9 +71,13 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                         },
                     ],
                 });
-            } catch (error) {
+            } catch (error: any) {
                 await AsyncStorage.removeItem(PENDING_ROOM_INVITE_TOKEN_KEY);
-                Alert.alert('Ошибка', 'Не удалось присоединиться по ссылке');
+                const responseData = error?.response?.data;
+                const errorMessage = typeof responseData?.error === 'string' && responseData.error.trim()
+                    ? responseData.error.trim()
+                    : 'Не удалось присоединиться по ссылке';
+                Alert.alert('Ошибка', errorMessage);
                 navigation.replace('Portal', { initialTab: 'rooms' });
             }
         };

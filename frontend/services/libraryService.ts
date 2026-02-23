@@ -1,16 +1,13 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
+import apiClient from '../lib/apiClient';
 import { ScriptureBook, ScriptureVerse, ChapterInfo } from '../types/library';
 import { getGodModeQueryParams } from './godModeService';
 
 class LibraryService {
-    // Public endpoints, usually no auth header required, but we can send if needed
-    // Assuming library is public.
-
+    // Public endpoints, usually no auth header required, but we can send if needed.
     async getBooks(): Promise<ScriptureBook[]> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/library/books`, { params: godModeParams });
+            const response = await apiClient.get('/library/books', { params: godModeParams });
             return response.data;
         } catch (error) {
             console.error('Error fetching books:', error);
@@ -20,7 +17,7 @@ class LibraryService {
 
     async getBookDetails(idOrCode: string | number): Promise<ScriptureBook> {
         try {
-            const response = await axios.get(`${API_PATH}/library/books/${idOrCode}`);
+            const response = await apiClient.get(`/library/books/${idOrCode}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching book ${idOrCode}:`, error);
@@ -30,7 +27,7 @@ class LibraryService {
 
     async getChapters(bookCode: string): Promise<ChapterInfo[]> {
         try {
-            const response = await axios.get(`${API_PATH}/library/books/${bookCode}/chapters`);
+            const response = await apiClient.get(`/library/books/${bookCode}/chapters`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching chapters for ${bookCode}:`, error);
@@ -45,7 +42,7 @@ class LibraryService {
             if (language) params.language = language;
             Object.assign(params, await getGodModeQueryParams());
 
-            const response = await axios.get(`${API_PATH}/library/verses`, { params });
+            const response = await apiClient.get('/library/verses', { params });
             return response.data;
         } catch (error) {
             console.error('Error fetching verses:', error);
@@ -56,8 +53,8 @@ class LibraryService {
     async search(query: string): Promise<ScriptureVerse[]> {
         try {
             const godModeParams = await getGodModeQueryParams();
-            const response = await axios.get(`${API_PATH}/library/search`, {
-                params: { q: query, ...godModeParams }
+            const response = await apiClient.get('/library/search', {
+                params: { q: query, ...godModeParams },
             });
             return response.data;
         } catch (error) {
@@ -70,7 +67,7 @@ class LibraryService {
         try {
             const params: any = {};
             if (language) params.language = language;
-            const response = await axios.get(`${API_PATH}/library/books/${bookCode}/export`, { params });
+            const response = await apiClient.get(`/library/books/${bookCode}/export`, { params });
             return response.data;
         } catch (error) {
             console.error(`Error exporting book ${bookCode}:`, error);

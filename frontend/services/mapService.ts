@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { API_PATH } from '../config/api.config';
-import { getAccessToken } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 // Types for Map Service
 export type MarkerType = 'user' | 'shop' | 'ad' | 'cafe';
@@ -92,23 +90,11 @@ export interface MarkerConfig {
 }
 
 class MapService {
-    private async getHeaders() {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-    }
-
     /**
      * Get markers for the visible map region
      */
     async getMarkers(request: MapMarkersRequest): Promise<MapMarkersResponse> {
         try {
-            const headers = await this.getHeaders();
             const params: Record<string, string | number> = {
                 lat_min: request.latMin,
                 lat_max: request.latMax,
@@ -129,7 +115,7 @@ class MapService {
                 params.user_lng = request.userLng;
             }
 
-            const response = await axios.get(`${API_PATH}/map/markers`, { params, headers });
+            const response = await apiClient.get('/map/markers', { params });
             return response.data;
         } catch (error) {
             console.error('Error fetching map markers:', error);
@@ -142,8 +128,7 @@ class MapService {
      */
     async getSummary(): Promise<MapSummaryResponse> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/map/summary`, { headers });
+            const response = await apiClient.get('/map/summary');
             return response.data;
         } catch (error) {
             console.error('Error fetching map summary:', error);
@@ -156,8 +141,7 @@ class MapService {
      */
     async getTileConfig(): Promise<TileConfig> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/map/config`, { headers });
+            const response = await apiClient.get('/map/config');
             return response.data;
         } catch (error) {
             console.error('Error fetching tile config:', error);
@@ -170,8 +154,7 @@ class MapService {
      */
     async getRoute(request: RouteRequest): Promise<any> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(`${API_PATH}/map/route`, request, { headers });
+            const response = await apiClient.post('/map/route', request);
             return response.data;
         } catch (error) {
             console.error('Error fetching route:', error);
@@ -184,13 +167,12 @@ class MapService {
      */
     async autocomplete(text: string, lat?: number, lng?: number, limit = 5): Promise<any> {
         try {
-            const headers = await this.getHeaders();
             const params: Record<string, string | number> = { text };
             if (lat !== undefined) params.lat = lat;
             if (lng !== undefined) params.lng = lng;
             params.limit = limit;
 
-            const response = await axios.get(`${API_PATH}/map/autocomplete`, { params, headers });
+            const response = await apiClient.get('/map/autocomplete', { params });
             return response.data;
         } catch (error) {
             console.error('Error in autocomplete:', error);

@@ -6,9 +6,9 @@ import {
     mediaDevices,
 } from 'react-native-webrtc';
 import { WebSocketService } from './websocketService';
-import { API_PATH } from '../config/api.config';
 import InCallManager from 'react-native-incall-manager';
-import { authorizedAxiosRequest, getAccessToken } from './authSessionService';
+import { getAccessToken } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 let configuration: any = {
     iceServers: [
@@ -88,11 +88,8 @@ class WebRTCService {
                 return;
             }
 
-            console.log('Fetching TURN credentials from:', `${API_PATH}/turn-credentials`);
-            const response = await authorizedAxiosRequest<{ iceServers?: any[] }>({
-                url: `${API_PATH}/turn-credentials`,
-                method: 'GET',
-            });
+            console.log('Fetching TURN credentials from: /turn-credentials');
+            const response = await apiClient.get<{ iceServers?: any[] }>('/turn-credentials');
 
             if (response.data?.iceServers && Array.isArray(response.data.iceServers)) {
                 console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);

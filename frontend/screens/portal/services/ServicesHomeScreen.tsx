@@ -7,6 +7,7 @@ import {
     Text,
     StyleSheet,
     ScrollView,
+    FlatList,
     TouchableOpacity,
     TextInput,
     RefreshControl,
@@ -52,6 +53,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
+import { FEATURE_FLAGS } from '../../../config/featureFlags';
 
 const { width } = Dimensions.get('window');
 
@@ -120,6 +122,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         limit: 20,
     });
     const services = useMemo(() => flattenServicesPages(servicesQuery.data), [servicesQuery.data]);
+    const ServicesListComponent: any = FEATURE_FLAGS.flashlistServices ? FlashList : FlatList;
     const loading = servicesQuery.isLoading;
     const refreshing = servicesQuery.isRefetching && !servicesQuery.isFetchingNextPage;
     const loadingMore = servicesQuery.isFetchingNextPage;
@@ -410,10 +413,10 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
-                    <FlashList
+                    <ServicesListComponent
                         data={services}
-                        keyExtractor={(item) => item.id.toString()}
-                        renderItem={({ item }) => (
+                        keyExtractor={(item: Service) => item.id.toString()}
+                        renderItem={({ item }: { item: Service }) => (
                             <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
                         )}
                         numColumns={isAndroidReducedEffects ? 1 : 2}

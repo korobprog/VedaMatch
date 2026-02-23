@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -41,54 +42,55 @@ const (
 	UserProgress        = "user:progress"
 )
 
-var redisInstance *RedisService
+var (
+	redisInstance *RedisService
+	redisInitOnce sync.Once
+)
 
 // NewRedisService creates a new Redis service instance
 func NewRedisService() *RedisService {
-	if redisInstance != nil {
-		return redisInstance
-	}
-
-	host := os.Getenv("REDIS_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-
-	port := os.Getenv("REDIS_PORT")
-	if port == "" {
-		port = "6379"
-	}
-
-	password := os.Getenv("REDIS_PASSWORD")
-
-	db := 0
-	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
-		if parsed, err := strconv.Atoi(dbStr); err == nil {
-			db = parsed
+	redisInitOnce.Do(func() {
+		host := os.Getenv("REDIS_HOST")
+		if host == "" {
+			host = "localhost"
 		}
-	}
 
-	client := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", host, port),
-		Password: password,
-		DB:       db,
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+
+		password := os.Getenv("REDIS_PASSWORD")
+
+		db := 0
+		if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+			if parsed, err := strconv.Atoi(dbStr); err == nil {
+				db = parsed
+			}
+		}
+
+		client := redis.NewClient(&redis.Options{
+			Addr:     fmt.Sprintf("%s:%s", host, port),
+			Password: password,
+			DB:       db,
+		})
+
+		ctx := context.Background()
+
+		// Test connection
+		_, err := client.Ping(ctx).Result()
+		if err != nil {
+			log.Printf("⚠️ Redis connection failed: %v (continuing without Redis)", err)
+			// Return service anyway - will work in degraded mode
+		} else {
+			log.Println("✅ Redis connected successfully")
+		}
+
+		redisInstance = &RedisService{
+			client: client,
+			ctx:    ctx,
+		}
 	})
-
-	ctx := context.Background()
-
-	// Test connection
-	_, err := client.Ping(ctx).Result()
-	if err != nil {
-		log.Printf("⚠️ Redis connection failed: %v (continuing without Redis)", err)
-		// Return service anyway - will work in degraded mode
-	} else {
-		log.Println("✅ Redis connected successfully")
-	}
-
-	redisInstance = &RedisService{
-		client: client,
-		ctx:    ctx,
-	}
 
 	return redisInstance
 }

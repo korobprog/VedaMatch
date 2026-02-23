@@ -1,5 +1,4 @@
-import { API_PATH } from '../config/api.config';
-import { authorizedAxiosRequest } from './authSessionService';
+import apiClient from '../lib/apiClient';
 
 export interface P2PMessage {
     id?: number;
@@ -25,32 +24,22 @@ export interface PaginatedMessagesResponse {
 
 export const messageService = {
     async sendMessage(senderId: number, recipientId: number, content: string, type: 'text' | 'image' | 'audio' | 'video' | 'file' = 'text'): Promise<P2PMessage> {
-        const response = await authorizedAxiosRequest<P2PMessage>({
-            url: `${API_PATH}/messages`,
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            data: {
-                senderId,
-                recipientId,
-                content,
-                type,
-            },
+        const response = await apiClient.post<P2PMessage>('/messages', {
+            senderId,
+            recipientId,
+            content,
+            type,
         });
         return response.data;
     },
 
     async getMessagesHistory(peerUserId: number, limit = 30, beforeId?: number): Promise<PaginatedMessagesResponse> {
-        const params = new URLSearchParams({
-            peerUserId: String(peerUserId),
-            limit: String(limit),
-        });
-        if (beforeId && beforeId > 0) {
-            params.set('beforeId', String(beforeId));
-        }
-
-        const response = await authorizedAxiosRequest<PaginatedMessagesResponse>({
-            url: `${API_PATH}/messages/history?${params.toString()}`,
-            method: 'GET',
+        const response = await apiClient.get<PaginatedMessagesResponse>('/messages/history', {
+            params: {
+                peerUserId,
+                limit,
+                ...(beforeId && beforeId > 0 ? { beforeId } : {}),
+            },
         });
 
         const data = response.data || { items: [], hasMore: false };
@@ -67,17 +56,12 @@ export const messageService = {
     },
 
     async getRoomMessagesHistory(roomId: number, limit = 30, beforeId?: number): Promise<PaginatedMessagesResponse> {
-        const params = new URLSearchParams({
-            roomId: String(roomId),
-            limit: String(limit),
-        });
-        if (beforeId && beforeId > 0) {
-            params.set('beforeId', String(beforeId));
-        }
-
-        const response = await authorizedAxiosRequest<PaginatedMessagesResponse>({
-            url: `${API_PATH}/messages/history?${params.toString()}`,
-            method: 'GET',
+        const response = await apiClient.get<PaginatedMessagesResponse>('/messages/history', {
+            params: {
+                roomId,
+                limit,
+                ...(beforeId && beforeId > 0 ? { beforeId } : {}),
+            },
         });
 
         const data = response.data || { items: [], hasMore: false };
@@ -89,9 +73,6 @@ export const messageService = {
     },
 
     async deleteMessage(messageId: number): Promise<void> {
-        await authorizedAxiosRequest({
-            url: `${API_PATH}/messages/${messageId}`,
-            method: 'DELETE',
-        });
+        await apiClient.delete(`/messages/${messageId}`);
     },
 };
