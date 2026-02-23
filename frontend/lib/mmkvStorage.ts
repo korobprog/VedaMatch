@@ -9,7 +9,45 @@
  */
 import { createMMKV } from 'react-native-mmkv';
 
-export const mmkv = createMMKV({ id: 'vedamatch-main' });
+type StorageLike = {
+    getString: (key: string) => string | undefined;
+    getBoolean: (key: string) => boolean | undefined;
+    set: (key: string, value: string | number | boolean) => void;
+    remove: (key: string) => void;
+    contains: (key: string) => boolean;
+};
+
+const createMemoryStorage = (): StorageLike => {
+    const memory = new Map<string, string>();
+    return {
+        getString: (key: string) => memory.get(key),
+        getBoolean: (key: string) => {
+            const value = memory.get(key);
+            if (value === undefined) return undefined;
+            if (value === 'true') return true;
+            if (value === 'false') return false;
+            return undefined;
+        },
+        set: (key: string, value: string | number | boolean) => {
+            memory.set(key, String(value));
+        },
+        remove: (key: string) => {
+            memory.delete(key);
+        },
+        contains: (key: string) => memory.has(key),
+    };
+};
+
+const createStorage = (): StorageLike => {
+    try {
+        return createMMKV({ id: 'vedamatch-main' });
+    } catch (error) {
+        console.warn('[MMKV] Native module unavailable, using in-memory fallback.', error);
+        return createMemoryStorage();
+    }
+};
+
+export const mmkv: StorageLike = createStorage();
 
 // ─── Typed helpers ───────────────────────────────────────────────
 

@@ -159,6 +159,14 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         let isMounted = true;
+
+        if (!currentUser?.ID) {
+            setRagDomains([]);
+            return () => {
+                isMounted = false;
+            };
+        }
+
         const loadRagDomains = async () => {
             try {
                 const domains = await ragService.getDomains();
@@ -173,7 +181,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [currentUser?.ID]);
 
     // Auto-save messages to current chat or create new one (only for AI chats)
     useEffect(() => {

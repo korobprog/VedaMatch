@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAuthToken } from '../lib/auth';
+import { clearAuthData, getAuthToken } from '../lib/auth';
 
 interface Notification {
     id: number;
@@ -30,6 +30,7 @@ export function AdminNotificationBell() {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const pollingEnabledRef = useRef(true);
     const router = useRouter();
 
     useEffect(() => {
@@ -53,6 +54,10 @@ export function AdminNotificationBell() {
     }, []);
 
     const fetchNotifications = async () => {
+        if (!pollingEnabledRef.current) {
+            return;
+        }
+
         try {
             const token = getAuthToken();
             if (!token) return;
@@ -63,6 +68,15 @@ export function AdminNotificationBell() {
                     'Authorization': `Bearer ${token}`,
                 },
             });
+
+            if (response.status === 401) {
+                // Stop background polling on stale token to avoid 401 spam.
+                pollingEnabledRef.current = false;
+                clearAuthData();
+                setNotifications([]);
+                setUnreadCount(0);
+                return;
+            }
 
             if (response.ok) {
                 const resData = await response.json();
@@ -81,12 +95,18 @@ export function AdminNotificationBell() {
             const token = getAuthToken();
             if (!token) return;
 
-            await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
             });
+
+            if (response.status === 401) {
+                pollingEnabledRef.current = false;
+                clearAuthData();
+                return;
+            }
 
             // Optimistic update
             setNotifications(prev =>

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type AiHandler struct{}
@@ -419,9 +420,15 @@ func (h *AiHandler) DisableOfflineModels(c *fiber.Ctx) error {
 
 // RestoreScheduler checks the database for saved scheduler settings and restores the state
 func (h *AiHandler) RestoreScheduler() {
+	silentDB := database.DB.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
+
 	var enabledSetting models.SystemSetting
-	if err := database.DB.Where("key = ?", "scheduler_enabled").First(&enabledSetting).Error; err != nil {
-		log.Println("[Scheduler] No saved state found (or error), scheduler remains disabled")
+	if err := silentDB.Where("key = ?", "scheduler_enabled").First(&enabledSetting).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Println("[Scheduler] No saved state found, scheduler remains disabled")
+			return
+		}
+		log.Printf("[Scheduler] Failed to load saved state: %v", err)
 		return
 	}
 
@@ -432,10 +439,12 @@ func (h *AiHandler) RestoreScheduler() {
 
 	var intervalSetting models.SystemSetting
 	intervalMinutes := defaultSchedulerIntervalMinutes // Default
-	if err := database.DB.Where("key = ?", "scheduler_interval").First(&intervalSetting).Error; err == nil {
+	if err := silentDB.Where("key = ?", "scheduler_interval").First(&intervalSetting).Error; err == nil {
 		if val, err := strconv.Atoi(intervalSetting.Value); err == nil {
 			intervalMinutes = val
 		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[Scheduler] Failed to load interval setting, using default: %v", err)
 	}
 	intervalMinutes = normalizeSchedulerInterval(intervalMinutes)
 

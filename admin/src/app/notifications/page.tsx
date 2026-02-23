@@ -4,7 +4,7 @@ import { getApiBaseURL } from '@/lib/api';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAuthToken } from '../../lib/auth';
+import { clearAuthData, getAuthToken } from '../../lib/auth';
 
 interface Notification {
     id: number;
@@ -59,6 +59,13 @@ export default function NotificationsPage() {
                 },
             });
 
+            if (response.status === 401) {
+                clearAuthData();
+                setNotifications([]);
+                router.push('/login');
+                return;
+            }
+
             if (response.ok) {
                 const data = await response.json();
                 setNotifications((data.notifications || []).map(normalizeNotification));
@@ -79,6 +86,11 @@ export default function NotificationsPage() {
                     'Authorization': `Bearer ${token}`,
                 },
             });
+            if (response.status === 401) {
+                clearAuthData();
+                router.push('/login');
+                return;
+            }
             if (!response.ok) return;
             const data = await response.json();
             setPushHealth(data);
@@ -91,12 +103,18 @@ export default function NotificationsPage() {
         try {
             const token = getAuthToken();
             if (!token) return;
-            await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
             });
+
+            if (response.status === 401) {
+                clearAuthData();
+                router.push('/login');
+                return;
+            }
 
             setNotifications(prev =>
                 prev.map(n => n.id === id ? { ...n, isRead: true, read: true } : n)

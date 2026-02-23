@@ -7,14 +7,18 @@ export function getAuthToken(): string | null {
 
     // Сначала проверяем прямой токен
     const directToken = localStorage.getItem('token');
-    if (directToken) return directToken;
+    if (directToken && directToken !== 'undefined' && directToken !== 'null') return directToken;
 
     // Затем проверяем admin_data
     const adminData = localStorage.getItem('admin_data');
     if (adminData) {
         try {
             const parsed = JSON.parse(adminData);
-            return parsed.token || null;
+            const token = parsed.token;
+            if (token && token !== 'undefined' && token !== 'null') {
+                return token;
+            }
+            return null;
         } catch {
             return null;
         }
@@ -38,4 +42,13 @@ export function getAuthHeaders(): HeadersInit {
  */
 export function isAuthenticated(): boolean {
     return !!getAuthToken();
+}
+
+/**
+ * Сброс локальной авторизации админки
+ */
+export function clearAuthData(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('token');
+    localStorage.removeItem('admin_data');
 }

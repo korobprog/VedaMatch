@@ -23,6 +23,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const (
@@ -415,8 +416,10 @@ func (s *PushNotificationService) UpsertUserDeviceToken(userID uint, input UserD
 	provider := normalizeProvider(input.Provider, token)
 	platform := normalizePlatform(input.Platform)
 
+	lookupDB := s.db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
+
 	var existing models.UserDeviceToken
-	err := s.db.Where("user_id = ? AND token = ?", userID, token).First(&existing).Error
+	err := lookupDB.Where("user_id = ? AND token = ?", userID, token).First(&existing).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return empty, false, err
