@@ -19,7 +19,7 @@ jest.mock('react-i18next', () => ({
         'videoCircles.myCircles': 'Мои',
         'videoCircles.tariffs': 'Продвижение',
         'videoCircles.publishInBackground': 'Публикуем видео в фоне...',
-        'videoCircles.profileMathaRequired': 'Нужен матх из профиля',
+        'videoCircles.profileMathaRequired': 'Нужен орг из профиля',
       };
       if (options?.defaultValue) {
         return options.defaultValue;

@@ -34,8 +34,9 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.backdrop} onPress={onClose}>
-                <Pressable
+            <View style={styles.backdrop}>
+                <Pressable style={styles.backdropTapArea} onPress={onClose} />
+                <View
                     style={[
                         styles.sheet,
                         {
@@ -43,7 +44,6 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                             borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.border,
                         },
                     ]}
-                    onPress={(event) => event.stopPropagation()}
                 >
                     <View style={styles.header}>
                         <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Добавить виджет</Text>
@@ -52,7 +52,12 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        contentContainerStyle={styles.list}
+                        showsVerticalScrollIndicator={false}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                    >
                         {WIDGET_CATALOG.map((entry) => {
                             const key = getWidgetKey(entry);
                             const isActive = activeKeys.has(key);
@@ -78,10 +83,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                                         <TouchableOpacity
                                             disabled={!allowed}
                                             onPress={() => {
-                                                const result = onAddWidget({ type: entry.type, size: entry.size });
-                                                if (result.ok) {
-                                                    onClose();
-                                                }
+                                                onAddWidget({ type: entry.type, size: entry.size });
                                             }}
                                             style={[
                                                 styles.addButton,
@@ -103,8 +105,8 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                             );
                         })}
                     </ScrollView>
-                </Pressable>
-            </Pressable>
+                </View>
+            </View>
         </Modal>
     );
 };
@@ -114,6 +116,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.48)',
         justifyContent: 'flex-end',
+    },
+    backdropTapArea: {
+        ...StyleSheet.absoluteFillObject,
     },
     sheet: {
         borderTopLeftRadius: 24,
@@ -184,4 +189,3 @@ const styles = StyleSheet.create({
         minHeight: 120,
     },
 });
-

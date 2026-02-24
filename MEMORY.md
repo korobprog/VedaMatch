@@ -12,8 +12,8 @@
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии после bump (2026-02-24):
-  - Android: `versionCode=13`, `versionName=1.1.11`
-  - iOS: `MARKETING_VERSION=1.1.1`, `CURRENT_PROJECT_VERSION=3`
+  - Android: `versionCode=14`, `versionName=1.1.12`
+  - iOS: `MARKETING_VERSION=1.1.2`, `CURRENT_PROJECT_VERSION=4`
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
   - `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`
@@ -52,6 +52,11 @@
   - добавление через `+` в toolbar;
   - `Готово` выключает edit-mode;
   - возврат в Portal через `resetToGridAt`.
+- UX-фикс для экрана виджетов (2026-02-24):
+  - `WidgetCanvasGrid`: убран конфликт tap/drag (без автовыхода из edit-mode по случайному tap), скролл блокируется только в момент drag.
+  - `useGridReorderDnd`: добавлен fallback drop на ближайший элемент (если нет точной коллизии), с защитой от reorder при отпускании на исходном элементе.
+  - `WidgetPickerSheet`: листание списка работает стабильно (backdrop больше не перехватывает scroll), sheet не закрывается после каждого добавления.
+  - `WidgetSelectionScreen`: нижний toolbar приведен к формату из 3 кнопок в стиле портала (`Портал`, `Виджет`, `Готово/Редакт.`).
 
 ## Calls Architecture (Contacts + Rooms)
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.

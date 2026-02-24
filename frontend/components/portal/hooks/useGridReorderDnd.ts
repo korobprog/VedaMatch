@@ -48,19 +48,24 @@ export const useGridReorderDnd = <T extends GridItemWithId>({
         if (items.length <= 1) return;
 
         let targetId: string | null = null;
+        let droppedOnOwnItem = false;
+        let closestTarget: { id: string; distance: number } | null = null;
         let measuredCount = 0;
 
         const finalize = () => {
             measuredCount += 1;
             if (measuredCount < items.length) return;
-            if (!targetId || targetId === itemId) return;
+            if (droppedOnOwnItem) return;
 
-            if (onDropOnItem?.(itemId, targetId)) {
+            const resolvedTargetId = targetId || closestTarget?.id || null;
+            if (!resolvedTargetId || resolvedTargetId === itemId) return;
+
+            if (onDropOnItem?.(itemId, resolvedTargetId)) {
                 return;
             }
 
             const fromIndex = items.findIndex((item) => item.id === itemId);
-            const toIndex = items.findIndex((item) => item.id === targetId);
+            const toIndex = items.findIndex((item) => item.id === resolvedTargetId);
             if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
             onReorder(fromIndex, toIndex);
         };
@@ -73,7 +78,7 @@ export const useGridReorderDnd = <T extends GridItemWithId>({
             }
 
             (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                if (
+                const inBounds = (
                     x !== undefined &&
                     y !== undefined &&
                     width > 0 &&
@@ -81,11 +86,35 @@ export const useGridReorderDnd = <T extends GridItemWithId>({
                     absX >= x - hitSlop &&
                     absX <= x + width + hitSlop &&
                     absY >= y - hitSlop &&
-                    absY <= y + height + hitSlop &&
+                    absY <= y + height + hitSlop
+                );
+
+                if (item.id === itemId && inBounds) {
+                    droppedOnOwnItem = true;
+                }
+
+                if (
+                    inBounds &&
                     item.id !== itemId &&
                     !targetId
                 ) {
                     targetId = item.id;
+                }
+
+                if (
+                    x !== undefined &&
+                    y !== undefined &&
+                    width > 0 &&
+                    height > 0 &&
+                    item.id !== itemId
+                ) {
+                    const centerX = x + width / 2;
+                    const centerY = y + height / 2;
+                    const distance = Math.hypot(absX - centerX, absY - centerY);
+
+                    if (!closestTarget || distance < closestTarget.distance) {
+                        closestTarget = { id: item.id, distance };
+                    }
                 }
                 finalize();
             });

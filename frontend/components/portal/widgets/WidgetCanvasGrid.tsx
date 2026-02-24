@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PortalWidget } from '../../../types/portal';
 import { useSettings } from '../../../context/SettingsContext';
@@ -24,6 +24,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
 }) => {
     const { vTheme, portalBackgroundType } = useSettings();
     const isPhotoBg = portalBackgroundType === 'image';
+    const [isDraggingItem, setIsDraggingItem] = useState(false);
     const orderedWidgets = useMemo(
         () => [...widgets].sort((a, b) => a.position - b.position),
         [widgets],
@@ -35,19 +36,20 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     });
 
     const handleCanvasLongPress = useCallback(() => {
-        if (dnd.isDragging) return;
+        if (dnd.isDragging || isDraggingItem) return;
         onSetEditMode(true);
-    }, [dnd.isDragging, onSetEditMode]);
-
-    const handleCanvasPress = useCallback(() => {
-        if (!isEditMode) return;
-        onSetEditMode(false);
-    }, [isEditMode, onSetEditMode]);
+    }, [dnd.isDragging, isDraggingItem, onSetEditMode]);
 
     const handleDragStart = useCallback(() => {
+        setIsDraggingItem(true);
         onSetEditMode(true);
         dnd.onDragStart();
     }, [dnd, onSetEditMode]);
+
+    const handleDragEnd = useCallback((id: string, x: number, y: number) => {
+        setIsDraggingItem(false);
+        dnd.onDragEnd(id, x, y);
+    }, [dnd]);
 
     if (orderedWidgets.length === 0) {
         return (
@@ -60,7 +62,6 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                     },
                 ]}
                 onLongPress={handleCanvasLongPress}
-                onPress={handleCanvasPress}
             >
                 <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
                     Пока нет виджетов
@@ -77,32 +78,37 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            scrollEnabled={!dnd.isDragging}
         >
-            <Pressable onLongPress={handleCanvasLongPress} onPress={handleCanvasPress} style={styles.canvasPressable}>
+            <Pressable onLongPress={handleCanvasLongPress} style={styles.canvasPressable}>
                 <View style={styles.gridWrap}>
                     {orderedWidgets.map((widget) => (
                         <View
                             key={widget.id}
-                            ref={(ref) => { dnd.itemRefs.current[widget.id] = ref; }}
                             style={styles.gridItem}
                         >
                             <DraggablePortalItem
                                 id={widget.id}
                                 isEditMode={isEditMode}
                                 onDragStart={handleDragStart}
-                                onDragEnd={dnd.onDragEnd}
+                                onDragEnd={handleDragEnd}
                                 onLayout={(event) => dnd.onLayout(widget.id, event)}
                                 onPress={() => { }}
                                 onSecondaryLongPress={() => onSetEditMode(true)}
                             >
-                                <PortalWidgetWrapper
-                                    isEditMode={isEditMode}
-                                    onRemove={() => onRemoveWidget(widget.id)}
+                                <View
+                                    ref={(ref) => { dnd.itemRefs.current[widget.id] = ref; }}
+                                    pointerEvents="box-none"
                                 >
-                                    <View pointerEvents={isEditMode ? 'none' : 'auto'}>
-                                        {renderPortalWidget(widget)}
-                                    </View>
-                                </PortalWidgetWrapper>
+                                    <PortalWidgetWrapper
+                                        isEditMode={isEditMode}
+                                        onRemove={() => onRemoveWidget(widget.id)}
+                                    >
+                                        <View pointerEvents={isEditMode ? 'none' : 'auto'}>
+                                            {renderPortalWidget(widget)}
+                                        </View>
+                                    </PortalWidgetWrapper>
+                                </View>
                             </DraggablePortalItem>
                         </View>
                     ))}
@@ -155,4 +161,3 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
 });
-

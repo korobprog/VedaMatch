@@ -384,7 +384,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         size={layout.iconSize}
                         badge={serviceBadges[service.id] || 0}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel} ` : undefined}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Орг: ${activeMathLabel} ` : undefined}
                         onRemove={() => deleteGridItem(item.id)}
                     />
                 </View>
@@ -456,7 +456,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         badge={serviceBadges[service.id] || 0}
                         showLabel={false}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel} ` : undefined}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Орг: ${activeMathLabel} ` : undefined}
                     />
                 </View>
             </DraggablePortalItem>

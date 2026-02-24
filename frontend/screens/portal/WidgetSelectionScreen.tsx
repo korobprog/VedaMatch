@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, Pencil, Plus } from 'lucide-react-native';
+import { ChevronLeft, LayoutGrid, Pencil } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -140,6 +140,15 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 )}
 
                 <TouchableOpacity
+                    onPress={handleBackToPortal}
+                    style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.border }]}
+                    activeOpacity={0.86}
+                >
+                    <ChevronLeft size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                    <Text style={[styles.toolbarButtonText, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Портал</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                     onPress={() => {
                         setEditMode(true);
                         setIsPickerOpen(true);
@@ -147,8 +156,8 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                     style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.border }]}
                     activeOpacity={0.86}
                 >
-                    <Plus size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
-                    <Text style={[styles.toolbarButtonText, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Добавить</Text>
+                    <LayoutGrid size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                    <Text style={[styles.toolbarButtonText, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Виджет</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -160,7 +169,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                     activeOpacity={0.88}
                 >
                     <Pencil size={16} color="#FFFFFF" />
-                    <Text style={styles.toolbarPrimaryButtonText}>{isEditMode ? 'Готово' : 'Редактировать'}</Text>
+                    <Text style={styles.toolbarPrimaryButtonText}>{isEditMode ? 'Готово' : 'Редакт.'}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -255,22 +264,22 @@ const styles = StyleSheet.create({
         minHeight: 42,
         borderRadius: 16,
         borderWidth: 1,
-        paddingHorizontal: 14,
+        paddingHorizontal: 10,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
     },
     toolbarButtonText: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
     toolbarPrimaryButton: {
         minHeight: 42,
         borderRadius: 16,
-        paddingHorizontal: 14,
+        paddingHorizontal: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
     },
     toolbarPrimaryButtonText: {
         color: '#FFFFFF',
@@ -293,4 +302,3 @@ const styles = StyleSheet.create({
 });
 
 export default WidgetSelectionScreen;
-

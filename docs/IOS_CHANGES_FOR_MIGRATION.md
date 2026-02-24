@@ -1,5 +1,71 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (Widget Selection UX Fixes + Label Rename Matkh -> Org)
+
+### Измененные файлы
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/components/portal/hooks/useGridReorderDnd.ts`
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/__tests__/screens/multimedia/VideoCirclesScreen.test.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+  - Было: drag мог конфликтовать с общим tap-обработчиком холста; во время drag не блокировался ScrollView.
+  - Стало: убран конфликт tap/drag, добавлен локальный drag-state, `scrollEnabled` отключается только на время перетаскивания.
+- `frontend/components/portal/hooks/useGridReorderDnd.ts`:
+  - Было: reorder происходил только при точном попадании в целевой элемент.
+  - Стало: добавлен fallback на ближайший элемент, при этом отпускание на исходном элементе не вызывает reorder.
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`:
+  - Было: вложенный backdrop `Pressable` перехватывал жесты и мешал скроллу списка.
+  - Стало: backdrop вынесен в отдельный слой (`absoluteFill`), список листается стабильно; sheet не закрывается после каждого добавления.
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`:
+  - Было: нижний toolbar с 2 кнопками.
+  - Стало: toolbar из 3 кнопок в портальном формате (`Портал`, `Виджет`, `Готово/Редакт.`).
+- `frontend/i18n/locales/ru.ts` + `frontend/components/portal/PortalGrid.tsx`:
+  - Было: UI-формулировки и бейджи использовали `Матх/Math`.
+  - Стало: UI-подписи переведены на `Орг/Орг:`.
+
+### Сниппеты кода
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+const [isDraggingItem, setIsDraggingItem] = useState(false);
+...
+<ScrollView scrollEnabled={!dnd.isDragging} ...>
+...
+onDragStart={() => { setIsDraggingItem(true); onSetEditMode(true); dnd.onDragStart(); }}
+onDragEnd={(id, x, y) => { setIsDraggingItem(false); dnd.onDragEnd(id, x, y); }}
+```
+
+`frontend/components/portal/hooks/useGridReorderDnd.ts`:
+```ts
+const resolvedTargetId = targetId || closestTarget?.id || null;
+if (!resolvedTargetId || resolvedTargetId === itemId) return;
+...
+const distance = Math.hypot(absX - centerX, absY - centerY);
+if (!closestTarget || distance < closestTarget.distance) {
+  closestTarget = { id: item.id, distance };
+}
+```
+
+`frontend/components/portal/widgets/WidgetPickerSheet.tsx`:
+```tsx
+<View style={styles.backdrop}>
+  <Pressable style={styles.backdropTapArea} onPress={onClose} />
+  <View style={styles.sheet}>
+    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" ...>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+<TouchableOpacity ...><ChevronLeft ... /><Text>Портал</Text></TouchableOpacity>
+<TouchableOpacity ...><LayoutGrid ... /><Text>Виджет</Text></TouchableOpacity>
+<TouchableOpacity ...><Pencil ... /><Text>{isEditMode ? 'Готово' : 'Редакт.'}</Text></TouchableOpacity>
+```
+
 ## 2026-02-24 (Portal Widget Canvas Redesign + Shared DnD)
 
 ### Измененные файлы
