@@ -53,10 +53,12 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                     </View>
 
                     <ScrollView
+                        style={styles.listScroll}
                         contentContainerStyle={styles.list}
                         showsVerticalScrollIndicator={false}
                         nestedScrollEnabled
                         keyboardShouldPersistTaps="handled"
+                        bounces
                     >
                         {WIDGET_CATALOG.map((entry) => {
                             const key = getWidgetKey(entry);
@@ -147,6 +149,10 @@ const styles = StyleSheet.create({
     },
     list: {
         paddingBottom: 24,
+        flexGrow: 1,
+    },
+    listScroll: {
+        maxHeight: 520,
     },
     card: {
         borderRadius: 16,

@@ -12,7 +12,7 @@
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии после bump (2026-02-24):
-  - Android: `versionCode=14`, `versionName=1.1.12`
+  - Android: `versionCode=15`, `versionName=1.1.13`
   - iOS: `MARKETING_VERSION=1.1.2`, `CURRENT_PROJECT_VERSION=4`
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
@@ -56,7 +56,18 @@
   - `WidgetCanvasGrid`: убран конфликт tap/drag (без автовыхода из edit-mode по случайному tap), скролл блокируется только в момент drag.
   - `useGridReorderDnd`: добавлен fallback drop на ближайший элемент (если нет точной коллизии), с защитой от reorder при отпускании на исходном элементе.
   - `WidgetPickerSheet`: листание списка работает стабильно (backdrop больше не перехватывает scroll), sheet не закрывается после каждого добавления.
-  - `WidgetSelectionScreen`: нижний toolbar приведен к формату из 3 кнопок в стиле портала (`Портал`, `Виджет`, `Готово/Редакт.`).
+  - `WidgetSelectionScreen`: добавлен нижний dock как на главном портале (3 сервиса из `layout.quickAccess`), edit-toolbar оставлен отдельным слоем (`Виджет`, `Готово`) над dock.
+  - `WidgetSelectionScreen`: `LKM` в верхнем баре заменен на круглую кнопку того же размера, что и остальные header-иконки, с компактным форматом суммы (`K/M`).
+  - `WidgetCanvasGrid`: drag-start больше не переключает `editMode` во время жеста (устранен срыв перетаскивания из-за ререндера).
+- Android white-screen/black-screen на входе в `WidgetSelection` (2026-02-24):
+  - Наблюдение: в `adb logcat` нет `FATAL EXCEPTION`/`ReactNativeJS` ошибок после `[portal_widgets_open]`; `MainActivity` остается `mResumed=true`, но поверхность может оставаться пустой.
+  - Вероятная причина: transition freeze/race в `native-stack` на Android (глобальные `animation: fade` + `freezeOnBlur`) в сочетании с повторными `navigate` и heavy blur-слоем.
+  - Примененные фиксы:
+    - Для `WidgetSelection` в `frontend/App.tsx` задано `animation: 'none'` (Android), `freezeOnBlur: false`, явный `contentStyle`.
+    - Добавлен navigation-lock (как в кейсе звонков/чатов) перед `navigate('WidgetSelection')` в:
+      - `frontend/screens/portal/PortalMainScreen.tsx` (header icon)
+      - `frontend/components/portal/PortalGrid.tsx` (edit toolbar)
+    - В `frontend/screens/portal/WidgetSelectionScreen.tsx` `BlurView` переведен на `androidVisualPolicy` (без принудительного blur на reduced Android mode).
 
 ## Calls Architecture (Contacts + Rooms)
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
@@ -113,5 +124,5 @@
 
 ## Portal UI Notes
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
-  - верхняя шапка заменена на портал-стиль (круглые кнопки, быстрые действия, `BalancePill`, `BellButton`);
+  - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - убран дополнительный затемняющий `photoOverlay`, фон экрана совпадает с фоном главной портала.

@@ -1,5 +1,132 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (Widget Screen: Portal Dock + Stable Drag + Circular LKM)
+
+### Измененные файлы
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`:
+  - Было: внизу был только edit-toolbar; не было портального dock на 3 сервиса; в хедере использовался `BalancePill` другого размера.
+  - Стало: добавлен нижний dock в стиле главного портала с теми же 3 сервисами из `layout.quickAccess`; `LKM` заменен на круглую кнопку размера header-иконки с компактным значением.
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+  - Было: `onDragStart` принудительно включал `editMode`, что могло срывать drag из-за ререндера в момент удержания.
+  - Стало: drag-start больше не переключает `editMode`; как в портале, long-press по фону включает edit-mode, tap по фону выключает.
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`:
+  - Было: список мог ощущаться "нелистаемым" в части конфигураций.
+  - Стало: зафиксирован явный scroll-контейнер (`listScroll` + `flexGrow`) для стабильного листания каталога.
+
+### Сниппеты кода
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+const quickAccessServices = useMemo(() => {
+  const quickItems = [...(layout.quickAccess || [])].sort((a, b) => a.position - b.position).slice(0, 3);
+  return quickItems
+    .map((item) => DEFAULT_SERVICES.find((service) => service.id === item.serviceId))
+    .filter((service): service is NonNullable<typeof service> => Boolean(service));
+}, [layout.quickAccess]);
+...
+<View style={styles.quickAccessDock}>
+  <View style={styles.quickAccessInner}>
+    {quickAccessServices.map((service) => (
+      <PortalIcon key={service.id} service={service} showLabel={false} ... />
+    ))}
+  </View>
+</View>
+```
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+const handleDragStart = useCallback(() => {
+  setIsDraggingItem(true);
+  dnd.onDragStart();
+}, [dnd]);
+
+const handleCanvasPress = useCallback(() => {
+  if (isEditMode && !dnd.isDragging && !isDraggingItem) {
+    onSetEditMode(false);
+  }
+}, [dnd.isDragging, isDraggingItem, isEditMode, onSetEditMode]);
+```
+
+`frontend/components/portal/widgets/WidgetPickerSheet.tsx`:
+```tsx
+<ScrollView
+  style={styles.listScroll}
+  contentContainerStyle={styles.list}
+  nestedScrollEnabled
+  bounces
+/>
+```
+
+## 2026-02-24 (Android Widget Screen White/Black Surface Fix)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/App.tsx`:
+  - Было: `WidgetSelection` использовал глобальные `native-stack` настройки Android (`animation: fade`, `freezeOnBlur: true`).
+  - Стало: для `WidgetSelection` задано `animation: none`, `freezeOnBlur: false`, явный `contentStyle`.
+- `frontend/screens/portal/PortalMainScreen.tsx` + `frontend/components/portal/PortalGrid.tsx`:
+  - Было: прямой `navigate('WidgetSelection')` без защиты от повторных быстрых нажатий.
+  - Стало: добавлен navigation-lock (таймер + `requestAnimationFrame`) по аналогии с анти-race паттерном из звонков/чата.
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`:
+  - Было: `BlurView` в header/toolbar рендерился без Android performance-policy.
+  - Стало: blur включается только при `androidVisualPolicy.enableBlur` и не используется в reduced Android performance mode.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="WidgetSelection"
+  component={WidgetSelectionScreen}
+  options={{
+    animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
+    freezeOnBlur: false,
+    contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+  }}
+/>
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const openWidgetSelection = useCallback(() => {
+  if (widgetNavLockRef.current) return;
+  widgetNavLockRef.current = true;
+  requestAnimationFrame(() => navigation.navigate('WidgetSelection', { source: 'portal_header' }));
+  widgetNavUnlockTimerRef.current = setTimeout(() => releaseWidgetNavigationLock(), 450);
+}, [navigation, releaseWidgetNavigationLock]);
+```
+
+`frontend/components/portal/PortalGrid.tsx`:
+```tsx
+const openWidgetSelection = useCallback(() => {
+  if (widgetNavLockRef.current) return;
+  widgetNavLockRef.current = true;
+  onCloseDrawer?.();
+  requestAnimationFrame(() => navigation.navigate('WidgetSelection', { source: 'edit_toolbar' }));
+  widgetNavUnlockTimerRef.current = setTimeout(() => releaseWidgetNavigationLock(), 450);
+}, [navigation, onCloseDrawer, releaseWidgetNavigationLock]);
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+const allowWidgetBlur = androidVisualPolicy.enableBlur
+  && !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
+
+{portalIconStyle !== 'vedamatch' && allowWidgetBlur && (
+  <BlurView ... />
+)}
+```
+
 ## 2026-02-24 (Widget Selection UX Fixes + Label Rename Matkh -> Org)
 
 ### Измененные файлы

@@ -99,6 +99,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
     const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+    const widgetNavLockRef = useRef(false);
+    const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -106,6 +108,34 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         });
         return () => subscription.remove();
     }, []);
+
+    const releaseWidgetNavigationLock = useCallback(() => {
+        widgetNavLockRef.current = false;
+        if (widgetNavUnlockTimerRef.current) {
+            clearTimeout(widgetNavUnlockTimerRef.current);
+            widgetNavUnlockTimerRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            releaseWidgetNavigationLock();
+        };
+    }, [releaseWidgetNavigationLock]);
+
+    const openWidgetSelection = useCallback(() => {
+        if (widgetNavLockRef.current) {
+            return;
+        }
+        widgetNavLockRef.current = true;
+        console.log('[portal_widgets_open] source=portal_header');
+        requestAnimationFrame(() => {
+            navigation.navigate('WidgetSelection', { source: 'portal_header' });
+        });
+        widgetNavUnlockTimerRef.current = setTimeout(() => {
+            releaseWidgetNavigationLock();
+        }, 450);
+    }, [navigation, releaseWidgetNavigationLock]);
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -568,10 +598,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={() => {
-                                    console.log('[portal_widgets_open] source=portal_header');
-                                    navigation.navigate('WidgetSelection', { source: 'portal_header' });
-                                }}
+                                onPress={openWidgetSelection}
                                 activeOpacity={0.9}
                                 style={[
                                     styles.headerCircularButton,

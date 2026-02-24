@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
     View,
     Text,
@@ -183,6 +183,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Dock references
     const dockRef = useRef<View>(null);
     const dockOffset = useRef<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
+    const widgetNavLockRef = useRef(false);
+    const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => {
@@ -235,6 +237,35 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         onReorder: reorderGridItems,
         onDropOnItem: handleDropOnGridItem,
     });
+
+    const releaseWidgetNavigationLock = useCallback(() => {
+        widgetNavLockRef.current = false;
+        if (widgetNavUnlockTimerRef.current) {
+            clearTimeout(widgetNavUnlockTimerRef.current);
+            widgetNavUnlockTimerRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            releaseWidgetNavigationLock();
+        };
+    }, [releaseWidgetNavigationLock]);
+
+    const openWidgetSelection = useCallback(() => {
+        if (widgetNavLockRef.current) {
+            return;
+        }
+        widgetNavLockRef.current = true;
+        onCloseDrawer?.();
+        console.log('[portal_widgets_open] source=edit_toolbar');
+        requestAnimationFrame(() => {
+            navigation.navigate('WidgetSelection', { source: 'edit_toolbar' });
+        });
+        widgetNavUnlockTimerRef.current = setTimeout(() => {
+            releaseWidgetNavigationLock();
+        }, 450);
+    }, [navigation, onCloseDrawer, releaseWidgetNavigationLock]);
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -544,11 +575,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={() => {
-                            onCloseDrawer?.();
-                            console.log('[portal_widgets_open] source=edit_toolbar');
-                            navigation.navigate('WidgetSelection', { source: 'edit_toolbar' });
-                        }}
+                        onPress={openWidgetSelection}
                         style={styles.toolbarButton}
                     >
                         <LayoutGrid size={20} color={isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E")} />

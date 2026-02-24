@@ -40,11 +40,16 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
         onSetEditMode(true);
     }, [dnd.isDragging, isDraggingItem, onSetEditMode]);
 
+    const handleCanvasPress = useCallback(() => {
+        if (isEditMode && !dnd.isDragging && !isDraggingItem) {
+            onSetEditMode(false);
+        }
+    }, [dnd.isDragging, isDraggingItem, isEditMode, onSetEditMode]);
+
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
-        onSetEditMode(true);
         dnd.onDragStart();
-    }, [dnd, onSetEditMode]);
+    }, [dnd]);
 
     const handleDragEnd = useCallback((id: string, x: number, y: number) => {
         setIsDraggingItem(false);
@@ -62,6 +67,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                     },
                 ]}
                 onLongPress={handleCanvasLongPress}
+                onPress={handleCanvasPress}
             >
                 <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
                     Пока нет виджетов
@@ -80,7 +86,11 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
             showsVerticalScrollIndicator={false}
             scrollEnabled={!dnd.isDragging}
         >
-            <Pressable onLongPress={handleCanvasLongPress} style={styles.canvasPressable}>
+            <Pressable
+                onLongPress={handleCanvasLongPress}
+                onPress={handleCanvasPress}
+                style={styles.canvasPressable}
+            >
                 <View style={styles.gridWrap}>
                     {orderedWidgets.map((widget) => (
                         <View
@@ -125,7 +135,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 12,
         paddingTop: 12,
-        paddingBottom: 140,
+        paddingBottom: 240,
     },
     canvasPressable: {
         minHeight: 240,

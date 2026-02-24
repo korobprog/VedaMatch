@@ -474,7 +474,15 @@ const AppContent = () => {
               {isLoggedIn ? (
                 <Stack.Group>
                   <Stack.Screen name="Portal" component={PortalMainScreen} options={{ animation: 'fade' }} />
-                  <Stack.Screen name="WidgetSelection" component={WidgetSelectionScreen} />
+                  <Stack.Screen
+                    name="WidgetSelection"
+                    component={WidgetSelectionScreen}
+                    options={{
+                      animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
+                      freezeOnBlur: false,
+                      contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+                    }}
+                  />
                   <Stack.Screen name="Chat" component={ChatScreen} />
                   <Stack.Screen
                     name="CallScreen"
