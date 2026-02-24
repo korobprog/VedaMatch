@@ -479,3 +479,47 @@ const shouldUseBubbleBlur = Platform.OS === 'android' ? (isPhotoBg || isDarkMode
   maintainVisibleContentPosition={Platform.OS === 'android' ? { minIndexForVisible: 1 } : undefined}
 />
 ```
+
+## 2026-02-24 (Widgets Screen Header + Background Alignment)
+
+### Измененные файлы
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран виджетов использовал отдельную кастомную шапку с заголовком/подзаголовком, отличающуюся от верхнего бара главной страницы портала;
+  - поверх фонового изображения применялся затемняющий overlay (`photoOverlay`), из-за чего визуал отличался от главной.
+- Стало:
+  - шапка экрана приведена к стилю главного портального бара (круглые кнопки, `BalancePill`, `BellButton`, быстрые действия и системные переходы);
+  - убран затемняющий фон-оверлей, экран рендерится на том же фоне, что и портал, без дополнительного затемнения.
+
+### Сниппеты кода
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx` (новый верхний бар в стиле портала):
+```tsx
+<View style={styles.header}>
+  <View style={styles.headerLeft}>
+    <TouchableOpacity onPress={handleBackToPortal} style={styles.headerCircularButton}>
+      <List size={18} color={accentIconColor} />
+    </TouchableOpacity>
+    <TouchableOpacity onPress={() => navigation.navigate('InviteFriends')} style={styles.headerCircularButton}>
+      <Gift size={18} color={accentIconColor} />
+    </TouchableOpacity>
+    <TouchableOpacity onPress={() => navigation.navigate('VideoCirclesScreen')} style={styles.headerCircularButton}>
+      <Film size={16} color={accentIconColor} />
+    </TouchableOpacity>
+    <BalancePill size="small" lightMode={useLightIcons} />
+  </View>
+</View>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx` (убран overlay на фоне):
+```tsx
+if (isPhotoBg && portalBackground) {
+  return (
+    <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover" fadeDuration={0}>
+      {content}
+    </ImageBackground>
+  );
+}
+```

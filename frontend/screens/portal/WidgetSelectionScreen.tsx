@@ -12,12 +12,14 @@ import {
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, LayoutGrid, Pencil } from 'lucide-react-native';
+import { ChevronLeft, Film, Gift, LayoutGrid, List, MessageSquare, Pencil, Settings } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { useSettings } from '../../context/SettingsContext';
 import { WidgetCanvasGrid } from '../../components/portal/widgets/WidgetCanvasGrid';
 import { WidgetPickerSheet } from '../../components/portal/widgets/WidgetPickerSheet';
+import { BellButton } from '../../components/portal/BellButton';
+import { BalancePill } from '../../components/wallet/BalancePill';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
 
@@ -33,6 +35,8 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const {
         vTheme,
         isDarkMode,
+        setIsMenuOpen,
+        portalIconStyle,
         portalBackgroundType,
         portalBackground,
     } = useSettings();
@@ -40,6 +44,9 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const openSource = route.params?.source || 'unknown';
     const isPhotoBg = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const useLightIcons = isPhotoBg || portalIconStyle === 'vedamatch';
+    const accentIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.primary);
+    const secondaryIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.textSecondary);
     const widgets = useMemo(() => layout.widgetCanvas?.widgets || [], [layout.widgetCanvas?.widgets]);
 
     useEffect(() => {
@@ -71,46 +78,159 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background }]}>
             <StatusBar barStyle={isPhotoBg || isDarkMode ? 'light-content' : 'dark-content'} />
 
-            <View
-                style={[
-                    styles.header,
-                    {
-                        borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.border,
-                        backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.58)' : vTheme.colors.backgroundSecondary,
-                    },
-                ]}
-            >
-                {(isPhotoBg || isDarkMode) && (
-                    <BlurView
-                        style={StyleSheet.absoluteFill}
-                        blurType={isDarkMode ? 'dark' : 'light'}
-                        blurAmount={12}
-                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : vTheme.colors.backgroundSecondary}
-                    />
-                )}
-
-                <TouchableOpacity
-                    onPress={handleBackToPortal}
-                    style={[
-                        styles.backButton,
-                        {
-                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : vTheme.colors.background,
-                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : vTheme.colors.border,
-                        },
-                    ]}
-                    activeOpacity={0.86}
-                >
-                    <ChevronLeft size={24} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
-                </TouchableOpacity>
-
-                <View style={styles.titleWrap}>
-                    <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Виджеты</Text>
-                    <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.82)' : vTheme.colors.textSecondary }]}>
-                        Отдельный холст виджетов в формате портала
-                    </Text>
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity
+                        onPress={handleBackToPortal}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <List size={18} color={accentIconColor} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('InviteFriends')}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <Gift size={18} color={accentIconColor} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('VideoCirclesScreen')}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <Film size={16} color={accentIconColor} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => {
+                            setEditMode(true);
+                            setIsPickerOpen(true);
+                        }}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <LayoutGrid size={16} color={accentIconColor} />
+                    </TouchableOpacity>
+                    <BalancePill size="small" lightMode={useLightIcons} />
                 </View>
 
-                <View style={styles.headerPlaceholder} />
+                <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        onPress={() => setIsMenuOpen(true)}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <MessageSquare size={18} color={secondaryIconColor} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('AppSettings')}
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <Settings size={18} color={secondaryIconColor} />
+                    </TouchableOpacity>
+                    <View
+                        style={[
+                            styles.headerCircularButton,
+                            {
+                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                            },
+                        ]}
+                    >
+                        {portalIconStyle !== 'vedamatch' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                        )}
+                        <BellButton
+                            size={18}
+                            color={secondaryIconColor}
+                            circularStyle
+                        />
+                    </View>
+                </View>
             </View>
 
             <WidgetCanvasGrid
@@ -126,7 +246,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                     styles.toolbar,
                     {
                         backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.78)' : vTheme.colors.backgroundSecondary,
-                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.border,
+                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.divider,
                     },
                 ]}
             >
@@ -141,7 +261,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 <TouchableOpacity
                     onPress={handleBackToPortal}
-                    style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.border }]}
+                    style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider }]}
                     activeOpacity={0.86}
                 >
                     <ChevronLeft size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
@@ -153,7 +273,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         setEditMode(true);
                         setIsPickerOpen(true);
                     }}
-                    style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.border }]}
+                    style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider }]}
                     activeOpacity={0.86}
                 >
                     <LayoutGrid size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
@@ -173,12 +293,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.hintContainer}>
-                <Text style={[styles.hintText, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : vTheme.colors.textSecondary }]}>
-                    Удерживайте виджет для редактирования и перетаскивания
-                </Text>
-            </View>
-
             <WidgetPickerSheet
                 visible={isPickerOpen}
                 widgets={widgets}
@@ -191,7 +305,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     if (isPhotoBg && portalBackground) {
         return (
             <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover" fadeDuration={0}>
-                <View style={styles.photoOverlay}>{content}</View>
+                {content}
             </ImageBackground>
         );
     }
@@ -203,48 +317,32 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    photoOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(7,12,23,0.34)',
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 14,
+        paddingBottom: 10,
         paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        overflow: 'hidden',
     },
-    backButton: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    headerCircularButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    titleWrap: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 8,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '800',
-        letterSpacing: -0.4,
-    },
-    subtitle: {
-        marginTop: 2,
-        fontSize: 13,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    headerPlaceholder: {
-        width: 42,
-        height: 42,
+        overflow: 'hidden',
     },
     toolbar: {
         position: 'absolute',
@@ -285,19 +383,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
-    },
-    hintContainer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 10,
-        alignItems: 'center',
-        paddingHorizontal: 16,
-    },
-    hintText: {
-        fontSize: 12,
-        fontWeight: '600',
-        textAlign: 'center',
     },
 });
 

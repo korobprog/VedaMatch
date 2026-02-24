@@ -104,3 +104,8 @@
   - В `admin/src/app/admins/page.tsx` запрос `/admin/users?role=admin&role=superadmin` логически конфликтует с backend `c.Query("role")` (берется один `role`), список админов неполный.
   - `GET /admin/settings` отдает маскированные секреты `***`, но `admin/src/app/settings/page.tsx` отправляет весь объект обратно в `POST /admin/settings`; есть риск перезаписи реальных секретов маской.
   - Есть небезопасные `JSON.parse(localStorage.admin_data)` без `try/catch` в ряде критичных мест (`AdminLayout`, `login`, `api` interceptor), что может ломать UI при поврежденном localStorage.
+
+## Portal UI Notes
+- Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
+  - верхняя шапка заменена на портал-стиль (круглые кнопки, быстрые действия, `BalancePill`, `BellButton`);
+  - убран дополнительный затемняющий `photoOverlay`, фон экрана совпадает с фоном главной портала.
