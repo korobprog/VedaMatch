@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { APP_ENV } from '../config/api.config';
+import { API_PATH, APP_ENV } from '../config/api.config';
 import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 import DeviceInfo from 'react-native-device-info';
 import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
@@ -178,9 +178,102 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleDevLogin = useCallback(async () => {
-        // Use a new email to avoid "User already exists" conflict if password mismatch
         const devEmail = 'dev_admin_yatra@example.com';
         const devPassword = 'password123';
+        const fallbackDevEmail = `dev_admin_yatra_${Date.now()}@example.com`;
+        const devAuthBases = Array.from(new Set([
+            API_PATH.replace(/\/+$/, ''),
+            'https://api.vedamatch.ru/api',
+        ]));
+        const isLikelyNetworkFailure = (error: any): boolean => {
+            const status = error?.status || error?.response?.status;
+            if (typeof status === 'number' && Number.isFinite(status)) {
+                return false;
+            }
+
+            const message = String(error?.message || '').toLowerCase();
+            return (
+                message.includes('network request failed') ||
+                message.includes('network error') ||
+                message.includes('failed to fetch') ||
+                message.includes('load failed') ||
+                message.includes('timed out')
+            );
+        };
+        const doLocalDevLogin = async () => {
+            const localDevProfile = {
+                ID: 999999,
+                email: fallbackDevEmail,
+                karmicName: 'Super Admin',
+                spiritualName: 'Servant of Servants',
+                isProfileComplete: true,
+                isTourCompleted: true,
+                city: 'Mayapur',
+                madh: 'Gaudiya',
+                identity: 'Admin',
+                role: 'admin',
+                latitude: 23.4193,
+                longitude: 88.3885,
+                godModeEnabled: true,
+            };
+
+            await login(localDevProfile, {
+                accessToken: 'dev-offline-access-token',
+                token: 'dev-offline-access-token',
+            });
+
+            Alert.alert('DEV Mode', 'Сервер недоступен. Вход выполнен в локальном DEV-режиме.');
+        };
+
+        const devRequest = async <T,>(
+            method: 'POST' | 'PUT',
+            path: string,
+            payload: Record<string, any>,
+            token?: string,
+        ): Promise<T> => {
+            let lastError: any;
+
+            for (const base of devAuthBases) {
+                const url = `${base}${path}`;
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    const raw = await response.text();
+                    let data: any = {};
+                    try {
+                        data = raw ? JSON.parse(raw) : {};
+                    } catch {
+                        data = { error: raw };
+                    }
+
+                    if (!response.ok) {
+                        const error: any = new Error(data?.error || data?.message || `HTTP ${response.status}`);
+                        error.status = response.status;
+                        error.url = url;
+                        error.response = { data, status: response.status };
+                        throw error;
+                    }
+
+                    return data as T;
+                } catch (error: any) {
+                    lastError = error;
+                    const status = error?.status || error?.response?.status;
+                    if (status && status >= 400 && status < 500) {
+                        throw error;
+                    }
+                }
+            }
+
+            throw lastError || new Error('Network Error');
+        };
 
         const devUser = {
             email: devEmail,
@@ -204,49 +297,74 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const deviceId = await DeviceInfo.getUniqueId();
             // 1. Try Login
-            const response = (await apiClient.post('/login', {
+            const response = await devRequest<{
+                user: any;
+                accessToken?: string;
+                token?: string;
+            }>('POST', '/login', {
                 email: devEmail,
                 password: devPassword,
                 deviceId
-            }, {
-                ...({ __skipAuthSession: true } as any),
-            })).data;
+            });
 
             let user = response.user;
             const token = response.accessToken || response.token;
 
             // Update profile if inconsistent
             if (!user.isProfileComplete) {
-                user = (await apiClient.put('/update-profile', { ...devUser }, {
-                    headers: { Authorization: `Bearer ${token}` },
-                    ...({ __skipAuthSession: true } as any),
-                })).data.user;
+                const profile = await devRequest<{ user: any }>(
+                    'PUT',
+                    '/update-profile',
+                    { ...devUser },
+                    token,
+                );
+                user = profile.user;
             }
 
             await login(user, response);
         } catch (error: any) {
-            // 2. If Login fails, Try Register
+            // 2. If Login fails, try register static dev user, then fallback to unique email
             try {
                 const deviceId = await DeviceInfo.getUniqueId();
                 // Register
-                await apiClient.post('/register', { ...devUser, deviceId }, {
-                    ...({ __skipAuthSession: true } as any),
-                });
+                await devRequest('POST', '/register', { ...devUser, email: devEmail, deviceId });
 
                 // Login after register
-                const loginRes = (await apiClient.post('/login', {
+                const loginRes = await devRequest<{ user: any }>('POST', '/login', {
                     email: devEmail,
                     password: devPassword,
                     deviceId
-                }, {
-                    ...({ __skipAuthSession: true } as any),
-                })).data;
+                });
 
                 const user = loginRes.user;
                 await login(user, loginRes);
             } catch (regError: any) {
-                const errorMsg = regError.response?.data?.error || regError.message;
-                Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}`);
+                try {
+                    const deviceId = await DeviceInfo.getUniqueId();
+                    const fallbackUser = { ...devUser, email: fallbackDevEmail };
+                    await devRequest('POST', '/register', { ...fallbackUser, deviceId });
+                    const fallbackLoginRes = await devRequest<{ user: any }>('POST', '/login', {
+                        email: fallbackDevEmail,
+                        password: devPassword,
+                        deviceId
+                    });
+                    await login(fallbackLoginRes.user, fallbackLoginRes);
+                } catch (fallbackError: any) {
+                    if (isLikelyNetworkFailure(fallbackError) || isLikelyNetworkFailure(regError)) {
+                        await doLocalDevLogin();
+                        return;
+                    }
+
+                    const errorMsg =
+                        fallbackError.response?.data?.error ||
+                        regError.response?.data?.error ||
+                        fallbackError.message ||
+                        regError.message;
+                    const failedUrl = fallbackError?.url || regError?.url;
+                    const attemptedBases = devAuthBases.join('\n');
+                    const debugSuffix = `${failedUrl ? `\nURL: ${failedUrl}` : ''}\nBases:\n${attemptedBases}`;
+                    Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}${debugSuffix}`);
+                }
             }
         } finally {
             setLoading(false);

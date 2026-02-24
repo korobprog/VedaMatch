@@ -4,6 +4,14 @@
 - Обрабатывать задачи без фоновых процессов и без нескольких агентов.
 - Работать с файлами по одному и отчитываться после каждого шага.
 
+## iOS Map Connectivity
+- Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
+- Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.
+- Дополнительная runtime-страховка в `frontend/config/api.config.ts`: на iOS любые `localhost/127.0.0.1` автоматически санитизируются в `https://api.vedamatch.ru`, чтобы убрать `Network Error` в login/map при устаревшем env.
+- `run-ios.js` должен запускать только `com.vedicai.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
+- Для пушей iOS default Firebase app инициализируется нативно в `frontend/ios/vedamatch/AppDelegate.mm` (`[FIRApp configure]` с guard), чтобы исключить warning `No Firebase App '[DEFAULT]'`.
+- В `frontend/index.js` background-handler пушей регистрируется только если `getApps().length > 0`; при отсутствии default app handler пропускается без шумной ошибки в DEV-консоли.
+
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
 - При изменениях, затрагивающих другие платформы, писать запись в `Docs/IOS_CHANGES_FOR_MIGRATION.md`:
@@ -105,6 +113,17 @@
   если пароль в БД не похож на bcrypt-хеш, сравнение выполняется как plaintext fallback.
 - При успешном входе через legacy fallback пароль автоматически мигрируется в bcrypt и сохраняется в БД.
 - Это устраняет кейс “верный пароль, но Invalid password” для пользователей со старыми/нехешированными записями.
+- DEV-login устойчивость (`frontend/screens/LoginScreen.tsx`):
+  - `Быстрый вход (DEV)` сначала пробует статичный аккаунт `dev_admin_yatra@example.com`.
+  - При конфликте/ошибке добавлен fallback на уникальный email `dev_admin_yatra_${Date.now()}@example.com` с регистрацией + логином, чтобы вход в dev не блокировался существующим пользователем.
+  - Для обхода `Axios Network Error` на iOS dev-flow auth переведен на прямой `fetch` с fallback по базовым URL:
+    - `API_PATH` (текущий env),
+    - `https://api.vedamatch.ru/api` (резерв).
+  - При полном сетевом отказе (`Network request failed/Network Error`) включается локальный DEV fallback:
+    - создается локальный профиль admin;
+    - сохраняется технический access token (`dev-offline-access-token`);
+    - вход продолжается без backend, чтобы не блокировать DEV-проверки UI.
+  - В финальном alert DEV-login выводятся `URL` и список базовых `Bases` для быстрой диагностики endpoint на устройстве.
 
 ## Auth Runtime Notes
 - При просроченной/невалидной сессии на старте приложения WebSocket/heartbeat должны логировать ожидаемый auth-fallback через `console.warn`, а не `console.error`, иначе React Native dev mode показывает RedBox и мешает автологауту/refresh-потоку.

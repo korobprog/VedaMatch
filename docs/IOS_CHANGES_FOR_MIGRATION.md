@@ -1163,6 +1163,193 @@ const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
 
 ### Validation
 - `npx tsc --noEmit -p tsconfig.json` — success.
+- `xcodebuild -workspace vedamatch.xcworkspace -scheme vedamatch -configuration Debug -destination 'generic/platform=iOS Simulator' build` — `BUILD SUCCEEDED`.
+
+## 2026-02-25 (iOS DEV login: Firebase init + offline fallback)
+
+### Changed Files
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/index.js`
+- `frontend/screens/LoginScreen.tsx`
+
+### Old -> New
+- `frontend/ios/vedamatch/AppDelegate.mm`:
+  - Old: default Firebase app не инициализировался явно при старте iOS, из-за чего в JS возникал warning `No Firebase App '[DEFAULT]' has been created`.
+  - New: добавлен guarded native-init `if ([FIRApp defaultApp] == nil) { [FIRApp configure]; }` в `didFinishLaunchingWithOptions`.
+- `frontend/index.js`:
+  - Old: background handler всегда вызывал `getMessaging()`, даже если Firebase app еще не доступен.
+  - New: перед регистрацией background handler добавлена проверка `getApps().length > 0`; при отсутствии app handler пропускается без шумного warning.
+- `frontend/screens/LoginScreen.tsx`:
+  - Old: DEV quick login завершался ошибкой при полном сетевом отказе (`Network request failed`), вход блокировался.
+  - New: при сетевом отказе добавлен локальный DEV fallback (создание локального профиля + технический токен) и вход продолжается; для несетевых ошибок alert дополнительно показывает список базовых URL, по которым шли попытки.
+
+### Code Snippets
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```mm
+if ([FIRApp defaultApp] == nil) {
+  [FIRApp configure];
+}
+```
+
+`frontend/index.js`:
+```js
+const { getApps } = require('@react-native-firebase/app');
+const firebaseApps = getApps();
+if (firebaseApps.length > 0) {
+  const messaging = getMessaging(firebaseApps[0]);
+  setBackgroundMessageHandler(messaging, async remoteMessage => {
+    await notificationService.handleBackgroundMessage(remoteMessage);
+  });
+}
+```
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+if (isLikelyNetworkFailure(fallbackError) || isLikelyNetworkFailure(regError)) {
+    await doLocalDevLogin();
+    return;
+}
+```
+
+```ts
+await login(localDevProfile, {
+    accessToken: 'dev-offline-access-token',
+    token: 'dev-offline-access-token',
+});
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+
+## 2026-02-25 (DEV Quick Login: direct fetch + API base fallback)
+
+### Changed Files
+- `frontend/screens/LoginScreen.tsx`
+
+### Old -> New
+- Old:
+  - `Быстрый вход (DEV)` опирался только на axios-path через текущий `API_PATH`;
+  - при сетевых проблемах в axios (`Network Error`) fallback был недостаточно надежным, ошибка не давала понимания, какой endpoint упал.
+- New:
+  - `Быстрый вход (DEV)` переведен на прямой `fetch` для auth-операций;
+  - добавлен fallback по базовым API URL:
+    - `API_PATH` (текущий env),
+    - `https://api.vedamatch.ru/api` (жесткий резерв);
+  - для финального fail добавлен вывод `URL` в alert, чтобы сразу видеть проблемный endpoint на устройстве.
+
+### Code Snippets
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+const devAuthBases = Array.from(new Set([
+  API_PATH.replace(/\/+$/, ''),
+  'https://api.vedamatch.ru/api',
+]));
+```
+
+```ts
+const devRequest = async <T,>(method, path, payload, token?) => {
+  // fetch + JSON parse + fallback by base URL
+};
+```
+
+```ts
+const failedUrl = fallbackError?.url || regError?.url;
+Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}${debugSuffix}`);
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+
+## 2026-02-24 (DEV Login: resilient fallback user creation)
+
+### Changed Files
+- `frontend/screens/LoginScreen.tsx`
+
+### Old -> New
+- Old:
+  - `Быстрый вход (DEV)` использовал только фиксированный email `dev_admin_yatra@example.com`;
+  - если пользователь с этим email уже существовал с другим паролем, логин падал, а регистрация повторно падала на конфликте (`user exists`), и DEV-вход оставался недоступен.
+- New:
+  - сохранен первичный сценарий входа через статичный dev-email;
+  - при неуспехе добавлен fallback: регистрация и вход через уникальный email `dev_admin_yatra_${Date.now()}@example.com`, что устраняет конфликт существующего пользователя.
+
+### Code Snippets
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+const devEmail = 'dev_admin_yatra@example.com';
+const fallbackDevEmail = `dev_admin_yatra_${Date.now()}@example.com`;
+```
+
+```ts
+const fallbackUser = { ...devUser, email: fallbackDevEmail };
+await apiClient.post('/register', { ...fallbackUser, deviceId }, ...);
+const fallbackLoginRes = await apiClient.post('/login', { email: fallbackDevEmail, password: devPassword, deviceId }, ...);
+```
+
+### Validation
+- Логика fallback проверена по коду: после fail статичного dev-аккаунта выполняется отдельный path с уникальным email.
+
+## 2026-02-24 (iOS API Runtime Guard: prevent localhost network errors)
+
+### Changed Files
+- `frontend/config/api.config.ts`
+
+### Old -> New
+- Old:
+  - `DEFAULT_URL` для iOS был `http://127.0.0.1:8000`;
+  - при проблемном/устаревшем env iOS запросы уходили на localhost устройства и падали с `Network Error`.
+- New:
+  - iOS/default fallback переключен на `https://api.vedamatch.ru`;
+  - добавлена защита `sanitizeApiBaseUrl`: если на iOS приходит `localhost`/`127.0.0.1`, URL автоматически заменяется на production API.
+
+### Code Snippets
+
+`frontend/config/api.config.ts`:
+```ts
+const PROD_API_URL = 'https://api.vedamatch.ru';
+const DEFAULT_URL = Platform.select({
+  android: 'http://10.0.2.2:8000',
+  ios: PROD_API_URL,
+  default: PROD_API_URL,
+}) as string;
+```
+
+```ts
+const sanitizeApiBaseUrl = (url: string): string => {
+  if (Platform.OS === 'ios' && /127\.0\.0\.1|localhost/i.test(url)) {
+    return PROD_API_URL;
+  }
+  return url;
+};
+```
+
+### Validation
+- Логика проверена по коду: iOS runtime больше не использует localhost как API endpoint.
+
+## 2026-02-24 (iOS Launch Target Fix: remove duplicate app confusion)
+
+### Changed Files
+- `run-ios.js`
+
+### Old -> New
+- Old:
+  - скрипт запускал bundle id `org.reactjs.native.example.vedamatch` (legacy);
+  - на симуляторе/виртуалке могли существовать два приложения `VedaMatch` с разными bundle id, и запускался старый экземпляр с устаревшим env.
+- New:
+  - launch id обновлен на актуальный `com.vedicai.vedamatch` (как в `frontend/ios/vedamatch.xcodeproj/project.pbxproj`).
+
+### Code Snippets
+
+`run-ios.js`:
+```js
+execSync(`xcrun simctl launch "${targetDevice.udid}" com.vedicai.vedamatch`, { stdio: 'inherit' });
+```
+
+### Validation
+- Проверено по конфигу iOS target: `PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatch`.
 - Portal/widget regression tests — success.
 
 ## 2026-02-24 (Top Bar Contrast Fix: Rooms/Service Header + Widget Header)

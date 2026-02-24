@@ -17,12 +17,19 @@ import { PlaybackService } from './services/audioPlayerService';
 // guaranteed to be initialized before we call getMessaging().
 // Static import hoisting would race with '@react-native-firebase/app'.
 try {
-  const { getMessaging, setBackgroundMessageHandler } = require('@react-native-firebase/messaging');
-  const { notificationService } = require('./services/notificationService');
-  const messaging = getMessaging();
-  setBackgroundMessageHandler(messaging, async remoteMessage => {
-    await notificationService.handleBackgroundMessage(remoteMessage);
-  });
+  const { getApps } = require('@react-native-firebase/app');
+  const firebaseApps = getApps();
+
+  if (firebaseApps.length > 0) {
+    const { getMessaging, setBackgroundMessageHandler } = require('@react-native-firebase/messaging');
+    const { notificationService } = require('./services/notificationService');
+    const messaging = getMessaging(firebaseApps[0]);
+    setBackgroundMessageHandler(messaging, async remoteMessage => {
+      await notificationService.handleBackgroundMessage(remoteMessage);
+    });
+  } else {
+    console.info('[Push] Firebase app is not ready yet; background handler skipped.');
+  }
 } catch (error) {
   console.warn('[Push] Background handler was not initialized:', error);
 }
