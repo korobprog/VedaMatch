@@ -34,6 +34,7 @@ import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeSta
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
+import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 
 interface MultimediaHubScreenProps {
     onBack?: () => void;
@@ -68,7 +69,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
             setTVChannels(tv);
             setFeaturedTracks(tracks.tracks);
         } catch (error) {
-            console.error('Failed to load multimedia data:', error);
+            console.warn('Failed to load multimedia data:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -152,16 +153,19 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
 
     if (loading) {
         return (
-            <View style={[styles.loadingContainer, { backgroundColor: screenBgColor }]}>
-                <Loader2 size={32} color={roleColors.accent} />
-                <Text style={[styles.loadingText, { color: textColorSecondary }]}>Загрузка...</Text>
-            </View>
+            <ScreenScaffold variant="media" enableAura>
+                <View style={[styles.loadingContainer, { backgroundColor: 'transparent' }]}>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: textColorSecondary }]}>Загрузка...</Text>
+                </View>
+            </ScreenScaffold>
         );
     }
 
     return (
+        <ScreenScaffold variant="media" enableAura>
         <ScrollView
-            style={[styles.container, { backgroundColor: screenBgColor }]}
+            style={[styles.container, { backgroundColor: 'transparent' }]}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         >
             <GodModeStatusBanner />
@@ -355,6 +359,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                 </View>
             )}
         </ScrollView>
+        </ScreenScaffold>
     );
 };
 

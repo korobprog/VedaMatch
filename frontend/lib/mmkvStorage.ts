@@ -40,23 +40,25 @@ const createMemoryStorage = (): StorageLike => {
 
 let hasLoggedMMKVFallback = false;
 
+const logStorageMessage = (message: string) => {
+    if (__DEV__) {
+        console.log(message);
+        return;
+    }
+    console.warn(message);
+};
+
 const logMMKVFallback = (error: unknown) => {
     if (hasLoggedMMKVFallback) return;
     hasLoggedMMKVFallback = true;
-
-    console.warn('[MMKV] Native module unavailable, using in-memory fallback.');
 
     const message = error instanceof Error
         ? error.message
         : String(error ?? '');
     const firstLine = message.split('\n').find(Boolean)?.trim();
-    if (firstLine) {
-        console.warn(`[MMKV] Detail: ${firstLine}`);
-    }
-
-    if (__DEV__) {
-        console.warn('[MMKV] To enable native MMKV: run `cd ios && pod install`, then rebuild iOS app.');
-    }
+    const details = firstLine ? ` Detail: ${firstLine}` : '';
+    const hint = __DEV__ ? ' To enable native MMKV: run `cd ios && pod install`, then rebuild iOS app.' : '';
+    logStorageMessage(`[MMKV] Native module unavailable, using in-memory fallback.${details}${hint}`);
 };
 
 const createStorage = (): StorageLike => {
@@ -140,6 +142,11 @@ export async function migrateFromAsyncStorage(): Promise<void> {
         mmkv.set(MIGRATION_DONE_KEY, true);
     } catch (error) {
         // Migration failure is non-fatal — AsyncStorage fallback still works
-        console.warn('[MMKV] Migration from AsyncStorage failed:', error);
+        const message = error instanceof Error
+            ? error.message
+            : String(error ?? '');
+        const firstLine = message.split('\n').find(Boolean)?.trim();
+        const details = firstLine ? `: ${firstLine}` : '';
+        logStorageMessage(`[MMKV] Migration from AsyncStorage failed${details}`);
     }
 }

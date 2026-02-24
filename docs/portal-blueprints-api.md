@@ -26,7 +26,7 @@ Returns a role blueprint used by the mobile portal.
     "mathFilters": [
       {
         "mathId": "gauranga",
-        "mathName": "Gauranga Math",
+        "mathName": "Gauranga Org.",
         "filters": ["prasadam", "family_events", "kirtan"]
       }
     ]
@@ -43,8 +43,28 @@ Returns the global list of math filters for God Mode UI.
   "mathFilters": [
     {
       "mathId": "gauranga",
-      "mathName": "Gauranga Math",
+      "mathName": "Gauranga Org.",
       "filters": ["prasadam", "family_events", "kirtan"]
+    },
+    {
+      "mathId": "scsm",
+      "mathName": "Шри Чайтанья Сарасват Орг. (SCSM)",
+      "filters": ["education", "lectures", "satsang"]
+    },
+    {
+      "mathId": "pure-bhakti-yoga",
+      "mathName": "Международное Общество Чистой Бхакти-йоги",
+      "filters": ["bhakti", "community", "retreats"]
+    },
+    {
+      "mathId": "sri-gopinath-gaudiya",
+      "mathName": "Шри Гопинатх Гаудия",
+      "filters": ["kirtan", "seva", "family_events"]
+    },
+    {
+      "mathId": "sri-chaitanya-math",
+      "mathName": "Шри Чайтанья Орг.",
+      "filters": ["prasadam", "festivals", "seva"]
     }
   ]
 }

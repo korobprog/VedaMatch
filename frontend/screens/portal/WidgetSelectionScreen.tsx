@@ -23,6 +23,7 @@ import { DEFAULT_SERVICES } from '../../types/portal';
 import { PortalIcon } from '../../components/portal/PortalIcon';
 import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
 import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
+import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { useChat } from '../../context/ChatContext';
 import { resolveServiceLaunch } from './serviceLaunchResolver';
 
@@ -41,6 +42,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const {
         vTheme,
         isDarkMode,
+        screenVisualStyle,
         setIsMenuOpen,
         portalIconStyle,
         portalBackgroundType,
@@ -62,7 +64,13 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),
         [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
     );
-    const isPhotoBg = effectiveBgType === 'image' && Boolean(effectiveBg);
+    const useClassicWallpaper = screenVisualStyle === 'classic';
+    const layerBackgroundType = useClassicWallpaper ? portalBackgroundType : 'color';
+    const layerBackground = useClassicWallpaper ? portalBackground : vTheme.colors.background;
+    const layerActiveWallpaper = useClassicWallpaper ? activeWallpaper : '';
+    const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
+    const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
+    const isPhotoBg = effectiveBgType === 'image' && Boolean(effectiveBg) && isDarkMode;
     const useLightIcons = isPhotoBg || portalIconStyle === 'vedamatch';
     const accentIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.primary);
     const secondaryIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.textSecondary);
@@ -458,18 +466,24 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <PortalBackgroundLayer
-            portalBackgroundType={portalBackgroundType}
-            portalBackground={portalBackground}
-            activeWallpaper={activeWallpaper}
-            isSlideshowEnabled={isSlideshowEnabled}
+            portalBackgroundType={layerBackgroundType}
+            portalBackground={layerBackground}
+            activeWallpaper={layerActiveWallpaper}
+            isSlideshowEnabled={layerSlideshowEnabled}
             fallbackColor={vTheme.colors.background}
             isAppActive={isAppActive}
             allowCrossfade={androidVisualPolicy.allowCrossfade}
             crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
-            overlayColor="rgba(0,0,0,0.25)"
-            onBackgroundLoadError={handleWallpaperLoadError}
+            overlayColor={layerOverlayColor}
+            onBackgroundLoadError={useClassicWallpaper ? handleWallpaperLoadError : undefined}
         >
-            {content}
+            <ScreenScaffold
+                variant="portal"
+                enableAura={!useClassicWallpaper}
+                transparentBackground={useClassicWallpaper}
+            >
+                {content}
+            </ScreenScaffold>
         </PortalBackgroundLayer>
     );
 };

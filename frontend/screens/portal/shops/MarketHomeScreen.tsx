@@ -34,6 +34,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
+import { ScreenScaffold } from '../../../components/theme/ScreenScaffold';
 
 const { width } = Dimensions.get('window');
 
@@ -320,11 +321,12 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
     };
 
     return (
-        <LinearGradient
-            colors={roleTheme.gradient}
-            style={styles.gradient}
-        >
-            <View style={styles.container}>
+        <ScreenScaffold variant="market" enableAura>
+            <LinearGradient
+                colors={roleTheme.gradient}
+                style={styles.gradient}
+            >
+            <View style={[styles.container, { backgroundColor: 'transparent' }]}>
                 <FlatList
                     data={loading ? ([1, 2, 3, 4, 5, 6] as any) : products}
                     renderItem={loading ? renderSkeleton : renderProduct}
@@ -369,7 +371,8 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                     removeClippedSubviews={true}
                 />
             </View>
-        </LinearGradient>
+            </LinearGradient>
+        </ScreenScaffold>
     );
 };
 

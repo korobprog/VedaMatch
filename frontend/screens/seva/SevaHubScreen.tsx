@@ -37,7 +37,7 @@ const SevaHubScreen: React.FC = () => {
             setProjects(data.filter(Boolean));
             setScreenError(null);
         } catch (e) {
-            console.error('Failed to load projects:', e);
+            console.warn('Failed to load projects:', e);
             setProjects([]);
             setScreenError('Не удалось загрузить проекты Севы.');
         }
@@ -52,7 +52,7 @@ const SevaHubScreen: React.FC = () => {
                 refreshWallet()
             ]);
         } catch (e) {
-            console.error('Failed to load initial data:', e);
+            console.warn('Failed to load initial data:', e);
             setScreenError('Не удалось загрузить раздел Сева. Проверьте интернет и попробуйте снова.');
         } finally {
             setLoading(false);
@@ -72,7 +72,7 @@ const SevaHubScreen: React.FC = () => {
                 refreshWallet()
             ]);
         } catch (e) {
-            console.error(e);
+            console.warn(e);
         } finally {
             setRefreshing(false);
         }

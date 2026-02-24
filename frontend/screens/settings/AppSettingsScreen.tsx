@@ -26,6 +26,7 @@ import { useLocation } from '../../hooks/useLocation';
 import { useWallet } from '../../context/WalletContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../hooks/usePressFeedback';
+import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { AIModelsSection, AIModel } from './components/AIModelsSection';
 import { normalizeLanguageCode } from '../../config/legal.config';
 
@@ -35,6 +36,10 @@ const SETTINGS_PANELS_STORAGE_KEY = 'settings_screen_expanded_panels_v1';
 
 const IMAGE_SIZE_OPTIONS = [200, 240, 280, 320, 360];
 const THEME_MODE_OPTIONS: Array<'system' | 'light' | 'dark'> = ['system', 'light', 'dark'];
+const SCREEN_VISUAL_STYLE_OPTIONS: Array<{ key: 'classic' | 'saffron'; label: string; hint: string }> = [
+    { key: 'classic', label: 'Классический (обои)', hint: 'Обои и интервал слайд-шоу работают как раньше' },
+    { key: 'saffron', label: 'Шафрановый (новый)', hint: 'Новый цельный стиль экранов с glow-слоем' },
+];
 const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
 const PRESET_GRADIENTS = [
     '#FF9D6C|#FF4D4D',
@@ -113,6 +118,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         vTheme,
         themeMode,
         setThemeMode,
+        screenVisualStyle,
+        setScreenVisualStyle,
         portalBackground,
         portalBackgroundType,
         setPortalBackground,
@@ -366,7 +373,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     }, [expandedPanels]);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <ScreenScaffold variant="settings" enableAura>
+        <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
             <View style={[styles.header, { backgroundColor: vTheme.colors.background, borderBottomColor: vTheme.colors.divider }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
                 <TouchableOpacity
@@ -565,6 +573,36 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
+                            </View>
+
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Стиль экранов</Text>
+                            <View style={styles.performanceModeList}>
+                                {SCREEN_VISUAL_STYLE_OPTIONS.map((option) => {
+                                    const isActive = screenVisualStyle === option.key;
+                                    return (
+                                        <TouchableOpacity
+                                            key={option.key}
+                                            activeOpacity={0.88}
+                                            style={[
+                                                styles.performanceModeCard,
+                                                {
+                                                    borderColor: isActive ? colors.accent : vTheme.colors.divider,
+                                                    backgroundColor: isActive ? colors.accentSoft : vTheme.colors.backgroundSecondary,
+                                                },
+                                            ]}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                void setScreenVisualStyle(option.key);
+                                            }}
+                                        >
+                                            <View style={styles.performanceModeHeader}>
+                                                <Text style={[styles.performanceModeTitle, { color: vTheme.colors.text }]}>{option.label}</Text>
+                                                {isActive ? <Text style={[styles.performanceModeActiveMark, { color: colors.accent }]}>✓</Text> : null}
+                                            </View>
+                                            <Text style={[styles.performanceModeSubtitle, { color: vTheme.colors.textSecondary }]}>{option.hint}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
                             </View>
 
                             <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>{t('settings.language')}</Text>
@@ -1283,6 +1321,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                 </View>
             </ScrollView >
         </SafeAreaView >
+        </ScreenScaffold>
     );
 };
 

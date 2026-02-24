@@ -1,5 +1,151 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (MMKV LogBox noise fix: no component stack in dev)
+
+### Измененные файлы
+- `frontend/lib/mmkvStorage.ts`
+
+### Суть правки (от старого к новому)
+- Было: fallback/migration сообщения шли через `console.warn`, из-за чего RN LogBox добавлял шумный `Error Component Stack` в dev.
+- Стало: добавлен `logStorageMessage()`:
+  - в dev используется `console.log` (без LogBox stack),
+  - в production используется `console.warn`,
+  - сообщения передаются одной строкой без объекта `Error`.
+
+### Сниппеты кода
+
+`frontend/lib/mmkvStorage.ts`:
+```ts
+const logStorageMessage = (message: string) => {
+    if (__DEV__) {
+        console.log(message);
+        return;
+    }
+    console.warn(message);
+};
+```
+
+```ts
+const details = firstLine ? ` Detail: ${firstLine}` : '';
+const hint = __DEV__ ? ' To enable native MMKV: run `cd ios && pod install`, then rebuild iOS app.' : '';
+logStorageMessage(`[MMKV] Native module unavailable, using in-memory fallback.${details}${hint}`);
+```
+
+## 2026-02-24 (Seva projects iOS fix: URLSearchParams.set is not implemented)
+
+### Измененные файлы
+- `frontend/services/charityService.ts`
+- `frontend/screens/seva/SevaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/services/charityService.ts`:
+  - Было: сбор query выполнялся через `URLSearchParams` (`set` + `entries`).
+  - Стало: добавлен fallback-safe парсинг query в plain object (`parseQueryString`) и передача в axios как `params`.
+- `frontend/screens/seva/SevaHubScreen.tsx`:
+  - Было: обработанные ошибки загрузки проектов логировались через `console.error`, что в dev поднимало RedBox.
+  - Стало: используется `console.warn` для recoverable ошибок (`loadProjects`, `loadData`, `onRefresh`).
+
+### Сниппеты кода
+
+`frontend/services/charityService.ts`:
+```ts
+const params = parseQueryString(rawQuery);
+if (godModeParams.math) {
+    params.math = godModeParams.math;
+}
+const response = await apiClient.get(path, { params, ... });
+```
+
+`frontend/screens/seva/SevaHubScreen.tsx`:
+```ts
+} catch (e) {
+    console.warn('Failed to load projects:', e);
+    setProjects([]);
+    setScreenError('Не удалось загрузить проекты Севы.');
+}
+```
+
+## 2026-02-24 (Portal PRO Org labels + expanded org filters)
+
+### Измененные файлы
+- `frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`
+- `frontend/components/portal/god-mode/GodModeStatusBanner.tsx`
+- `server/internal/handlers/portal_blueprints.go`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+- `docs/portal-blueprints-api.md`
+
+### Суть правки (от старого к новому)
+- `frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`:
+  - Было: в UI выводились исходные названия, включая `Math/Матх`.
+  - Стало: добавлена нормализация отображения `Math/Matha/Матх -> Org./Орг.` для активной орг., чипов и подписи.
+- `frontend/components/portal/god-mode/GodModeStatusBanner.tsx`:
+  - Было: в title использовалось `activeMath.mathName` без преобразования.
+  - Стало: title тоже нормализуется к `Org./Орг.`.
+- `server/internal/handlers/portal_blueprints.go`:
+  - Было: в default фильтрах были только 4 орг., часть названий с `Math`.
+  - Стало: список расширен (добавлены `SCSM`, `Международное Общество Чистой Бхакти-йоги`, `Шри Гопинатх Гаудия`, `Шри Чайтанья Орг.`), названия приведены к `Org./Орг.`.
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`:
+  - Было: ожидалось `Gauranga Math`.
+  - Стало: ожидание обновлено на `Gauranga Org.`.
+
+### Сниппеты кода
+
+`frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`:
+```ts
+const normalizeOrgLabel = (value: string) =>
+  value
+    .replace(/\bMatha\b/gi, 'Org.')
+    .replace(/\bMath\b/gi, 'Org.')
+    .replace(/Матх/gi, 'Орг.');
+```
+
+`frontend/components/portal/god-mode/GodModeStatusBanner.tsx`:
+```ts
+const activeOrgName = activeMath.mathName
+  .replace(/\bMatha\b/gi, 'Org.')
+  .replace(/\bMath\b/gi, 'Org.')
+  .replace(/Матх/gi, 'Орг.');
+```
+
+`server/internal/handlers/portal_blueprints.go`:
+```go
+{MathID: "gauranga", MathName: "Gauranga Org.", Filters: []string{"prasadam", "family_events", "kirtan"}},
+{MathID: "scsm", MathName: "Шри Чайтанья Сарасват Орг. (SCSM)", Filters: []string{"education", "lectures", "satsang"}},
+{MathID: "pure-bhakti-yoga", MathName: "Международное Общество Чистой Бхакти-йоги", Filters: []string{"bhakti", "community", "retreats"}},
+```
+
+## 2026-02-24 (Multimedia iOS runtime fix: params.entries fallback-safe)
+
+### Измененные файлы
+- `frontend/services/multimediaService.ts`
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/services/multimediaService.ts`:
+  - Было: query-params собирались через `URLSearchParams` и `Object.fromEntries(params.entries())`.
+  - Стало: query-params собираются plain-object (`params`) без `entries()`, что совместимо с RN iOS/Hermes.
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`:
+  - Было: в обработанном `catch` использовался `console.error('Failed to load multimedia data:', error)`, вызывая RedBox в dev.
+  - Стало: используется `console.warn(...)`, UI не блокируется при recoverable ошибках.
+
+### Сниппеты кода
+
+`frontend/services/multimediaService.ts`:
+```ts
+const params: Record<string, string | number | boolean> = {};
+if (filter.type) params.type = filter.type;
+if (filter.categoryId) params.categoryId = filter.categoryId;
+// ...
+const response = await apiClient.get('/multimedia/tracks', { params });
+```
+
+`frontend/screens/multimedia/MultimediaHubScreen.tsx`:
+```ts
+} catch (error) {
+    console.warn('Failed to load multimedia data:', error);
+}
+```
+
 ## 2026-02-24 (MMKV dev warning cleanup: Nitro fallback без длинного stack trace)
 
 ### Измененные файлы
@@ -915,3 +1061,250 @@ MARKETING_VERSION = 1.1.4;
   - `/Users/mamu/Library/Developer/Xcode/DerivedData/vedamatch-dsoltsxeayyfdqdhtfxuopvbotum/Build/Intermediates.noindex/ArchiveIntermediates/vedamatch/InstallationBuildProductsLocation/Applications/vedamatch.app/Info.plist`
   - `CFBundleShortVersionString = 1.1.4`
   - `CFBundleVersion = 6`
+
+## 2026-02-24 (Unified Saffron-Gold Screen Styling Layer)
+
+### Changed Files
+- `frontend/theme/brandPalette.ts`
+- `frontend/theme/screenTheme.ts`
+- `frontend/theme/screenEffects.ts`
+- `frontend/theme/ModernVedicTheme.ts`
+- `frontend/theme/semanticTokens.ts`
+- `frontend/theme/componentTokens.ts`
+- `frontend/hooks/useRoleTheme.ts`
+- `frontend/components/chat/ChatConstants.ts`
+- `frontend/components/theme/ScreenAuraBackground.tsx`
+- `frontend/components/theme/ScreenScaffold.tsx`
+- `frontend/context/SettingsContext.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/screens/portal/chat/PortalChatScreen.tsx`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/screens/portal/shops/MarketHomeScreen.tsx`
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+- `frontend/screens/library/LibraryHomeScreen.tsx`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/__tests__/theme/screenTheme.test.ts`
+- `frontend/__tests__/theme/componentTokens.test.ts`
+
+### Old -> New
+- Theme source of truth:
+  - Old: split visual tokens across `ModernVedicTheme`, `ChatConstants`, and forced-dark role tokens.
+  - New: unified screen layer (`brandPalette`, `screenTheme`, `screenEffects`) with saffron-gold anchors and shared semantic/component usage.
+- Role theme behavior:
+  - Old: `useRoleTheme` forced dark semantic tokens regardless of current mode.
+  - New: `useRoleTheme` uses actual light/dark `ScreenTheme`, keeping role accent only.
+- Shared screen visual container:
+  - Old: each screen managed background and overlays separately.
+  - New: reusable `ScreenScaffold` + `ScreenAuraBackground` integrated into key screens.
+- Backward compatibility:
+  - Old: no style-version marker.
+  - New: soft migration marker `theme_style_version=2` in settings load.
+
+### Code Snippets
+
+`frontend/theme/brandPalette.ts`:
+```ts
+export const BRAND_COLORS = {
+  saffron: '#FF9933',
+  gold: '#F4C542',
+  base: '#FAF7F0',
+};
+```
+
+`frontend/components/theme/ScreenScaffold.tsx`:
+```tsx
+<ScreenAuraBackground
+  mode={mode}
+  intensity={auraConfig.intensity}
+  disableHeavyEffects={auraConfig.disableHeavyEffects}
+  variant={variant}
+/>
+```
+
+`frontend/hooks/useRoleTheme.ts`:
+```ts
+const screenTheme = isDarkMode ? ScreenThemeDark : ScreenThemeLight;
+const colors = buildSemanticTokensWithScreenTheme(roleTheme, screenTheme);
+```
+
+`frontend/context/SettingsContext.tsx`:
+```ts
+const THEME_STYLE_VERSION_KEY = 'theme_style_version';
+const THEME_STYLE_VERSION = '2';
+```
+
+### Validation
+- TypeScript: `npx tsc --noEmit -p tsconfig.json` — success.
+- Tests:
+  - `__tests__/theme/screenTheme.test.ts` — pass.
+  - `__tests__/theme/componentTokens.test.ts` — pass.
+  - Portal/widget regression suites — pass.
+
+## 2026-02-24 (Contrast Fix for Light Theme in Service Screens)
+
+### Changed Files
+- `frontend/screens/portal/chat/PortalChatScreen.tsx`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/library/LibraryHomeScreen.tsx`
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+
+### Old -> New
+- Old: `isPhotoBg` was enabled whenever `portalBackgroundType === 'image'`, which forced white text/icon styles even in light-theme surfaces.
+- New: `isPhotoBg` now applies only in dark mode:
+  - `portalBackgroundType === 'image' && isDarkMode`
+
+### Code Snippet
+
+```ts
+const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- Portal/widget regression tests — success.
+
+## 2026-02-24 (Top Bar Contrast Fix: Rooms/Service Header + Widget Header)
+
+### Changed Files
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Old -> New
+- Old: header icon/text color decisions depended on `effectiveBgType === 'image'`, causing white icons/text on light saffron backgrounds in service screens (notably Rooms).
+- New: introduced dark-aware condition:
+  - `useLightHeaderIcons = isDarkMode && effectiveBgType === 'image'`
+  - header icon/text/border/blur states now use `useLightHeaderIcons`, keeping high contrast in light mode.
+- Widget header alignment:
+  - `isPhotoBg` in widget header is now dark-aware (`... && isDarkMode`) to prevent white icon forcing in light mode.
+
+### Code Snippet
+```ts
+const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image';
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- `PortalMainScreen` + `WidgetSelectionScreen` tests — pass.
+
+## 2026-02-24 (Settings Toggle: Classic Wallpapers vs Saffron Style)
+
+### Changed Files
+- `frontend/context/SettingsContext.tsx`
+- `frontend/components/theme/ScreenScaffold.tsx`
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Old -> New
+- Old: no visual-style switch in settings; new saffron layer could visually overshadow wallpaper/slideshow perception on portal screens.
+- New:
+  - added persisted setting `screenVisualStyle` (`classic` / `saffron`);
+  - settings UI now includes style switcher in Appearance section;
+  - `ScreenScaffold` respects style (`classic` disables aura/glass overlays);
+  - portal and widget screens explicitly keep aura disabled so `PortalBackgroundLayer` wallpapers/slideshow remain clearly visible.
+
+### Code Snippets
+
+`frontend/context/SettingsContext.tsx`:
+```ts
+export type ScreenVisualStyle = 'classic' | 'saffron';
+const SCREEN_VISUAL_STYLE_KEY = 'screen_visual_style_v1';
+```
+
+`frontend/components/theme/ScreenScaffold.tsx`:
+```ts
+const isSaffronStyle = screenVisualStyle === 'saffron';
+const shouldRenderAura = enableAura && isSaffronStyle;
+```
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+SCREEN_VISUAL_STYLE_OPTIONS: classic / saffron
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- Portal/widget regression tests — success.
+
+## 2026-02-24 (Classic Visual Style: Wallpaper Visibility Fix)
+
+### Changed Files
+- `frontend/components/theme/ScreenScaffold.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Old -> New
+- Old: `ScreenScaffold` always applied opaque `backgroundColor`, so when style switched to `classic`, this layer could visually cover `PortalBackgroundLayer` wallpapers/slideshow.
+- New:
+  - added `transparentBackground?: boolean` prop in `ScreenScaffold`;
+  - for portal and widget screens, scaffold is now rendered with `transparentBackground`, so wallpapers remain visible in classic mode.
+
+### Code Snippets
+
+`frontend/components/theme/ScreenScaffold.tsx`:
+```tsx
+type ScreenScaffoldProps = {
+  transparentBackground?: boolean;
+};
+
+<View style={[styles.root, { backgroundColor: transparentBackground ? 'transparent' : vTheme.colors.background }]}>
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<ScreenScaffold variant="portal" enableAura={false} transparentBackground>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+<ScreenScaffold variant="portal" enableAura={false} transparentBackground>
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+
+## 2026-02-24 (Visual Style Switch Fix: Saffron no longer keeps wallpapers)
+
+### Changed Files
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Old -> New
+- Old:
+  - при переключении на `saffron` экраны продолжали использовать `PortalBackgroundLayer` с пользовательскими обоями/слайдшоу;
+  - визуально интерфейс почти не менялся, потому что оставался wallpaper-подложка.
+- New:
+  - добавлено явное разделение режимов:
+    - `classic`: используются сохраненные `portalBackground`/`portalBackgroundType`/`activeWallpaper`/`isSlideshowEnabled`;
+    - `saffron`: фон принудительно `color` (`vTheme.colors.background`), слайдшоу/обои не применяются;
+  - `ScreenScaffold`:
+    - `classic` -> `transparentBackground=true`, `enableAura=false`;
+    - `saffron` -> `transparentBackground=false`, `enableAura=true`.
+
+### Code Snippets
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+const useClassicWallpaper = screenVisualStyle === 'classic';
+const layerBackgroundType = useClassicWallpaper ? portalBackgroundType : 'color';
+const layerBackground = useClassicWallpaper ? portalBackground : vTheme.colors.background;
+```
+
+```tsx
+<ScreenScaffold
+  variant="portal"
+  enableAura={!useClassicWallpaper}
+  transparentBackground={useClassicWallpaper}
+>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```ts
+const useClassicWallpaper = screenVisualStyle === 'classic';
+const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.

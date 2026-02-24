@@ -41,27 +41,27 @@ export interface ComponentTokens {
 export function buildComponentTokens(colors: SemanticColorTokens): ComponentTokens {
   return {
     radius: {
-      sm: 8,
-      md: 12,
-      lg: 16,
-      xl: 20,
+      sm: 10,
+      md: 14,
+      lg: 18,
+      xl: 24,
       pill: 999,
     },
     spacing: {
       xs: 4,
       sm: 8,
-      md: 12,
-      lg: 16,
-      xl: 24,
-      xxl: 32,
+      md: 14,
+      lg: 18,
+      xl: 26,
+      xxl: 34,
     },
     topBar: {
-      background: colors.surface,
+      background: colors.surfaceElevated,
       border: colors.border,
-      icon: colors.textSecondary,
+      icon: colors.textPrimary,
     },
     card: {
-      background: colors.surface,
+      background: colors.surfaceElevated,
       border: colors.border,
       accentBorder: colors.accent,
     },
@@ -72,7 +72,7 @@ export function buildComponentTokens(colors: SemanticColorTokens): ComponentToke
       placeholder: colors.textSecondary,
     },
     button: {
-      primaryText: '#FFFFFF',
+      primaryText: colors.textPrimary,
       ghostText: colors.textPrimary,
     },
   };

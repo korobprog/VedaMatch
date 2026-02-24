@@ -48,6 +48,7 @@ import { NotificationPanel } from '../../components/portal/NotificationPanel';
 import { PortalGrid } from '../../components/portal';
 import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
 import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
+import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
@@ -73,6 +74,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const {
         vTheme,
         isDarkMode,
+        screenVisualStyle,
         setIsMenuOpen,
         portalBackground,
         portalBackgroundType,
@@ -164,6 +166,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),
         [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
     );
+    const useClassicWallpaper = screenVisualStyle === 'classic';
+    const layerBackgroundType = useClassicWallpaper ? portalBackgroundType : 'color';
+    const layerBackground = useClassicWallpaper ? portalBackground : vTheme.colors.background;
+    const layerActiveWallpaper = useClassicWallpaper ? activeWallpaper : '';
+    const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
+    const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
+    const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
 
@@ -409,19 +418,23 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     if (!activeTab) {
         return (
             <PortalBackgroundLayer
-                portalBackgroundType={portalBackgroundType}
-                portalBackground={portalBackground}
-                activeWallpaper={activeWallpaper}
-                isSlideshowEnabled={isSlideshowEnabled}
+                portalBackgroundType={layerBackgroundType}
+                portalBackground={layerBackground}
+                activeWallpaper={layerActiveWallpaper}
+                isSlideshowEnabled={layerSlideshowEnabled}
                 fallbackColor={vTheme.colors.background}
                 isAppActive={isAppActive}
                 allowCrossfade={androidVisualPolicy.allowCrossfade}
                 crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
                 pauseTransitions={activeTab !== null}
-                overlayColor="rgba(0,0,0,0.25)"
-                onBackgroundLoadError={handleWallpaperLoadError}
+                overlayColor={layerOverlayColor}
+                onBackgroundLoadError={useClassicWallpaper ? handleWallpaperLoadError : undefined}
             >
-                <>
+                <ScreenScaffold
+                    variant="portal"
+                    enableAura={!useClassicWallpaper}
+                    transparentBackground={useClassicWallpaper}
+                >
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
@@ -447,7 +460,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     />
                                 )}
                                 <Animated.View style={{ transform: [{ scale: giftAnim }] }}>
-                                    <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                    <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                                 </Animated.View>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -469,7 +482,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                     />
                                 )}
-                                <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={openWidgetSelection}
@@ -490,7 +503,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                     />
                                 )}
-                                <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <PortalLkmCircleButton
                                 onPress={() => navigation.navigate('Wallet')}
@@ -498,7 +511,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 borderWidth={1.5}
                                 backgroundColor={portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)'}
                                 borderColor={portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)'}
-                                textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
+                                textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
                                 showBlur={portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur}
                                 blurAmount={headerBlurAmount}
                             />
@@ -526,7 +539,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
                             )}
-                            <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
@@ -546,7 +559,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
                             )}
-                            <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View
                             style={[
@@ -567,7 +580,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             )}
                             <BellButton
                                 size={18}
-                                color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary}
+                                color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
                                 circularStyle
                             />
                         </View>
@@ -577,7 +590,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 style={[
                                     styles.headerCircularButton,
                                     {
-                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : '#ffffff',
+                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : (useLightHeaderIcons ? '#ffffff' : 'rgba(255, 153, 51, 0.42)'),
                                         backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.2)',
                                     }
                                 ]}
@@ -598,7 +611,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 {(() => {
                                     const role = roleDescriptor.role;
                                     const size = portalIconStyle === 'vedamatch' ? 18 : 14;
-                                    const color = portalIconStyle === 'vedamatch' ? '#FFDF00' : "#ffffff";
+                                    const color = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightHeaderIcons ? "#ffffff" : vTheme.colors.textSecondary);
 
                                     if (role === 'in_goodness') return <Leaf size={size} color={color} />;
                                     if (role === 'yogi') return <Infinity size={size} color={color} />;
@@ -655,7 +668,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     }}
                 />
                 <NotificationPanel />
-                </>
+                </ScreenScaffold>
             </PortalBackgroundLayer>
         );
     }
@@ -663,19 +676,23 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     // Show service content with back button
     return (
         <PortalBackgroundLayer
-            portalBackgroundType={portalBackgroundType}
-            portalBackground={portalBackground}
-            activeWallpaper={activeWallpaper}
-            isSlideshowEnabled={isSlideshowEnabled}
+            portalBackgroundType={layerBackgroundType}
+            portalBackground={layerBackground}
+            activeWallpaper={layerActiveWallpaper}
+            isSlideshowEnabled={layerSlideshowEnabled}
             fallbackColor={vTheme.colors.background}
             isAppActive={isAppActive}
             allowCrossfade={androidVisualPolicy.allowCrossfade}
             crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
             pauseTransitions={activeTab !== null}
-            overlayColor="rgba(0,0,0,0.25)"
-            onBackgroundLoadError={handleWallpaperLoadError}
+            overlayColor={layerOverlayColor}
+            onBackgroundLoadError={useClassicWallpaper ? handleWallpaperLoadError : undefined}
         >
-            <>
+            <ScreenScaffold
+                variant="portal"
+                enableAura={!useClassicWallpaper}
+                transparentBackground={useClassicWallpaper}
+            >
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back - Hidden if service manages its own header (like Dating) */}
@@ -708,14 +725,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         height: '100%',
                                         borderRadius: 20,
                                         overflow: 'hidden',
-                                        backgroundColor: effectiveBgType === 'image' ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                                        borderColor: effectiveBgType === 'image' ? 'rgba(255,255,255,0.4)' : 'transparent',
-                                        borderWidth: effectiveBgType === 'image' ? 1.5 : 0,
+                                        backgroundColor: useLightHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                        borderColor: useLightHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)',
+                                        borderWidth: 1.2,
                                         justifyContent: 'center',
                                         alignItems: 'center',
                                     }}
                                 >
-                                    {effectiveBgType === 'image' && androidVisualPolicy.enableBlur && (
+                                    {useLightHeaderIcons && androidVisualPolicy.enableBlur && (
                                         <BlurView
                                             style={StyleSheet.absoluteFill}
                                             blurType={isDarkMode ? "dark" : "light"}
@@ -727,13 +744,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         backgroundColor: 'transparent',
                                         shadowColor: "#000",
                                         shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: (effectiveBgType === 'image') ? 0.5 : 0,
+                                        shadowOpacity: (useLightHeaderIcons) ? 0.5 : 0,
                                         shadowRadius: 2,
-                                        elevation: (effectiveBgType === 'image') ? 5 : 0,
+                                        elevation: (useLightHeaderIcons) ? 5 : 0,
                                     }}>
                                         <List
                                             size={22}
-                                            color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
+                                            color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.text}
                                             strokeWidth={2.5}
                                         />
                                     </View>
@@ -743,16 +760,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 onPress={() => navigation.navigate('InviteFriends')}
                                 style={styles.iconButton}
                             >
-                                <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <Gift size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <PortalLkmCircleButton
                                 onPress={() => navigation.navigate('Wallet')}
                                 size={32}
                                 borderWidth={1.5}
-                                backgroundColor={effectiveBgType === 'image' ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary}
-                                borderColor={effectiveBgType === 'image' ? 'rgba(255,255,255,0.4)' : 'transparent'}
-                                textColor={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
-                                showBlur={effectiveBgType === 'image' && androidVisualPolicy.enableBlur}
+                                backgroundColor={useLightHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary}
+                                borderColor={useLightHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)'}
+                                textColor={useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
+                                showBlur={useLightHeaderIcons && androidVisualPolicy.enableBlur}
                                 blurAmount={backButtonBlurAmount}
                             />
                         </View>
@@ -765,17 +782,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             }}
                             style={styles.iconButton}
                         >
-                            <MessageSquare size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <MessageSquare size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={styles.iconButton}
                         >
-                            <Settings size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <BellButton
                             size={22}
-                            color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary}
+                            color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
                         />
                     </View>
                 </View>
@@ -785,7 +802,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             <View style={styles.content}>
                 {renderContent()}
             </View>
-            </>
+            </ScreenScaffold>
         </PortalBackgroundLayer>
     );
 };

@@ -1,4 +1,5 @@
 import { RoleTheme } from './roleThemes';
+import { ScreenTheme } from './screenTheme';
 
 export interface SemanticColorTokens {
   background: string;
@@ -49,5 +50,23 @@ export function buildSemanticTokens(roleTheme: RoleTheme, isDarkMode: boolean): 
     danger: '#DC2626',
     focusRing: roleTheme.accent,
     overlay: 'rgba(15,23,42,0.5)',
+  };
+}
+
+export function buildSemanticTokensWithScreenTheme(roleTheme: RoleTheme, screenTheme: ScreenTheme): SemanticColorTokens {
+  return {
+    background: screenTheme.colors.background,
+    surface: screenTheme.colors.surface,
+    surfaceElevated: screenTheme.colors.surfaceElevated,
+    textPrimary: screenTheme.colors.text,
+    textSecondary: screenTheme.colors.textSecondary,
+    accent: roleTheme.accent,
+    accentSoft: screenTheme.mode === 'dark' ? roleTheme.accentSoft : roleTheme.accentMuted,
+    border: screenTheme.colors.border,
+    success: screenTheme.mode === 'dark' ? '#34D399' : '#16A34A',
+    warning: screenTheme.mode === 'dark' ? '#FBBF24' : '#D97706',
+    danger: screenTheme.mode === 'dark' ? '#FB7185' : '#DC2626',
+    focusRing: screenTheme.colors.focus,
+    overlay: screenTheme.colors.overlay,
   };
 }

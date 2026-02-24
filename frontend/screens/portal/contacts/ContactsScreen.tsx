@@ -15,6 +15,7 @@ import {
 } from '../../../services/contactService';
 import { useUser } from '../../../context/UserContext';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import { ScreenScaffold } from '../../../components/theme/ScreenScaffold';
 
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -45,7 +46,7 @@ export const ContactsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { setChatRecipient } = useChat();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const { user: currentUser } = useUser();
@@ -577,6 +578,7 @@ export const ContactsScreen: React.FC = () => {
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
+            <ScreenScaffold variant="chat" enableAura>
             <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background }]}>
                 <View style={styles.filterBar}>
                     <TouchableOpacity
@@ -826,6 +828,7 @@ export const ContactsScreen: React.FC = () => {
                     </View>
                 </Modal>
             </View>
+            </ScreenScaffold>
         </ProtectedScreen>
     );
 };

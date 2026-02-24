@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -29,7 +30,7 @@ export const LibraryHomeScreen = () => {
     const [savingBook, setSavingBook] = useState<string | null>(null);
     const [saveProgress, setSaveProgress] = useState<number>(0);
     const [saveStatus, setSaveStatus] = useState<string>('');
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
 
     useEffect(() => {
         loadBooks();
@@ -247,9 +248,11 @@ export const LibraryHomeScreen = () => {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.center, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
-                <ActivityIndicator size="large" color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-            </View>
+            <ScreenScaffold variant="media" enableAura>
+                <View style={[styles.container, styles.center, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
+                    <ActivityIndicator size="large" color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                </View>
+            </ScreenScaffold>
         );
     }
 
@@ -302,7 +305,11 @@ export const LibraryHomeScreen = () => {
         </View>
     );
 
-    return content;
+    return (
+        <ScreenScaffold variant="media" enableAura>
+            {content}
+        </ScreenScaffold>
+    );
 };
 
 const styles = StyleSheet.create({

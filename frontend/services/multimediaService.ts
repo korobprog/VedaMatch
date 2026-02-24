@@ -112,21 +112,21 @@ class MultimediaService {
     }
 
     async getTracks(filter: TrackFilter = {}): Promise<TrackListResponse> {
-        const params = new URLSearchParams();
-        if (filter.type) params.append('type', filter.type);
-        if (filter.categoryId) params.append('categoryId', String(filter.categoryId));
-        if (filter.madh) params.append('madh', filter.madh);
-        if (filter.yogaStyle) params.append('yogaStyle', filter.yogaStyle);
-        if (filter.language) params.append('language', filter.language);
-        if (filter.search) params.append('search', filter.search);
-        if (filter.featured) params.append('featured', 'true');
-        if (filter.page) params.append('page', String(filter.page));
-        if (filter.limit) params.append('limit', String(filter.limit));
+        const params: Record<string, string | number | boolean> = {};
+        if (filter.type) params.type = filter.type;
+        if (filter.categoryId) params.categoryId = filter.categoryId;
+        if (filter.madh) params.madh = filter.madh;
+        if (filter.yogaStyle) params.yogaStyle = filter.yogaStyle;
+        if (filter.language) params.language = filter.language;
+        if (filter.search) params.search = filter.search;
+        if (filter.featured) params.featured = true;
+        if (filter.page) params.page = filter.page;
+        if (filter.limit) params.limit = filter.limit;
         const godModeParams = await getGodModeQueryParams();
-        if (godModeParams.math) params.append('math', godModeParams.math);
+        if (godModeParams.math) params.math = godModeParams.math;
 
         const response = await apiClient.get('/multimedia/tracks', {
-            params: Object.fromEntries(params.entries()),
+            params,
         });
         return response.data;
     }
@@ -137,16 +137,16 @@ class MultimediaService {
     }
 
     async getRadioStations(madh?: string): Promise<RadioStation[]> {
-        const params = new URLSearchParams();
-        if (madh) params.append('madh', madh);
+        const params: Record<string, string | number> = {};
+        if (madh) params.madh = madh;
         const godModeParams = await getGodModeQueryParams();
-        if (godModeParams.math) params.append('math', godModeParams.math);
+        if (godModeParams.math) params.math = godModeParams.math;
         if (__DEV__) {
-            params.append('_t', String(Date.now()));
+            params._t = Date.now();
         }
 
         const response = await apiClient.get('/multimedia/radio', {
-            params: Object.fromEntries(params.entries()),
+            params,
         });
         return response.data;
     }
@@ -157,12 +157,12 @@ class MultimediaService {
     }
 
     async getTVChannels(madh?: string): Promise<TVChannel[]> {
-        const params = new URLSearchParams();
-        if (madh) params.append('madh', madh);
+        const params: Record<string, string> = {};
+        if (madh) params.madh = madh;
         const godModeParams = await getGodModeQueryParams();
-        if (godModeParams.math) params.append('math', godModeParams.math);
+        if (godModeParams.math) params.math = godModeParams.math;
         const response = await apiClient.get('/multimedia/tv', {
-            params: Object.fromEntries(params.entries()),
+            params,
         });
         return response.data;
     }

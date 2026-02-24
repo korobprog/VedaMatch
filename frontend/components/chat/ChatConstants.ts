@@ -1,47 +1,47 @@
 export const COLORS = {
     // Dark mode: Deep Himalayan Night (Charcoal, Bronze, Slate)
     dark: {
-        background: '#0F172A', // Dark Indigo/Slate
-        header: 'rgba(15, 23, 42, 0.8)',
-        inputBackground: 'rgba(15, 23, 42, 0.65)',
-        inputText: '#F8FAFC',
-        userBubble: 'rgba(255, 183, 77, 0.15)',
-        botBubble: 'rgba(255, 255, 255, 0.08)',
-        text: '#F8FAFC',
-        subText: 'rgba(248, 250, 252, 0.6)',
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        menuBackground: 'rgba(15, 23, 42, 0.95)',
-        iconColor: '#F8FAFC',
-        accent: '#FFB74D',
-        primary: '#FFB74D',
+        background: '#16120B',
+        header: 'rgba(35, 24, 14, 0.82)',
+        inputBackground: 'rgba(43, 30, 17, 0.84)',
+        inputText: '#F7F0E3',
+        userBubble: 'rgba(255, 153, 51, 0.2)',
+        botBubble: 'rgba(255, 245, 229, 0.08)',
+        text: '#F7F0E3',
+        subText: 'rgba(247, 240, 227, 0.72)',
+        borderColor: 'rgba(255, 210, 133, 0.24)',
+        menuBackground: 'rgba(32, 24, 14, 0.96)',
+        iconColor: '#F7F0E3',
+        accent: '#F4C542',
+        primary: '#FF9933',
         error: '#F87171',
-        button: '#FFB74D',
+        button: '#FF9933',
         buttonText: '#121212',
-        card: 'rgba(15, 23, 42, 0.8)',
-        glass: 'rgba(255, 255, 255, 0.06)',
-        glassBorder: 'rgba(255, 255, 255, 0.18)',
+        card: 'rgba(43, 30, 17, 0.9)',
+        glass: 'rgba(39, 27, 15, 0.72)',
+        glassBorder: 'rgba(255, 214, 145, 0.22)',
     },
     // Light mode: Vedic Temple Day (Warm Stone, Copper, Clay)
     light: {
-        background: '#F5F5F0', // Warm grey/stone (not yellow)
-        header: '#FFFFFF',     // Clean white surface
-        inputBackground: '#FFFFFF',
+        background: '#FAF7F0',
+        header: 'rgba(255, 252, 244, 0.9)',
+        inputBackground: '#FFFDF8',
         inputText: '#212121',  // Almost black
-        userBubble: '#D7CCC8', // Pale Copper/Mushroom
-        botBubble: '#FFFFFF',  // Clean White with shadow
-        text: '#212121',
-        subText: '#757575',
-        borderColor: '#E0E0E0',
-        menuBackground: '#FFFFFF',
-        iconColor: '#5D4037',  // Deep Brown
-        accent: '#A1887F',     // Muted Copper
-        primary: '#FF9933',    // Saffron Brand Color
+        userBubble: 'rgba(255, 153, 51, 0.16)',
+        botBubble: '#FFFDF8',
+        text: '#2A241A',
+        subText: '#645743',
+        borderColor: 'rgba(255, 153, 51, 0.26)',
+        menuBackground: '#FFFDF8',
+        iconColor: '#6B4F28',
+        accent: '#F4C542',
+        primary: '#FF9933',
         error: '#FF5252',      // Error Red
-        button: '#8D6E63',     // Match registration
+        button: '#FF9933',
         buttonText: '#FFFFFF',
-        card: '#FFFFFF',
-        glass: 'rgba(255, 255, 255, 0.7)',
-        glassBorder: 'rgba(203, 213, 225, 0.9)',
+        card: '#FFFDF8',
+        glass: 'rgba(255, 253, 248, 0.76)',
+        glassBorder: 'rgba(255, 204, 122, 0.3)',
     },
 };
 

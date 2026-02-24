@@ -9,6 +9,7 @@ import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPr
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type PortalIconStyle = 'vedamatch' | 'premium3d' | 'solid' | 'minimal';
+export type ScreenVisualStyle = 'classic' | 'saffron';
 export type PerformanceMode = 'adaptive' | 'high_quality' | 'battery_saver';
 export type PerformanceDegradeReason = 'render' | 'ws_storm' | 'battery';
 
@@ -49,6 +50,8 @@ interface SettingsContextType {
     isDarkMode: boolean;
     themeMode: ThemeMode;
     setThemeMode: (mode: ThemeMode) => Promise<void>;
+    screenVisualStyle: ScreenVisualStyle;
+    setScreenVisualStyle: (style: ScreenVisualStyle) => Promise<void>;
     isAutoMagicEnabled: boolean;
     toggleAutoMagic: () => Promise<void>;
     isMenuOpen: boolean;
@@ -78,6 +81,9 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 const PERFORMANCE_MODE_STORAGE_KEY = 'performance_mode_v1';
 const ANDROID_AUTO_DEGRADE_KEY = 'android_auto_degrade_v1';
+const THEME_STYLE_VERSION_KEY = 'theme_style_version';
+const THEME_STYLE_VERSION = '2';
+const SCREEN_VISUAL_STYLE_KEY = 'screen_visual_style_v1';
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [models, setModels] = useState<Model[]>([POLZA_ONLY_MODEL]);
@@ -89,6 +95,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+    const [screenVisualStyle, setScreenVisualStyleState] = useState<ScreenVisualStyle>('saffron');
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     // Default background
     const defaultBgImage = Image.resolveAssetSource(require('../assets/vedamatch_bg.png')).uri;
@@ -190,8 +197,20 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                     setThemeModeState(savedThemeMode as ThemeMode);
                 }
 
+                const savedStyleVersion = await AsyncStorage.getItem(THEME_STYLE_VERSION_KEY);
+                if (savedStyleVersion !== THEME_STYLE_VERSION) {
+                    await AsyncStorage.setItem(THEME_STYLE_VERSION_KEY, THEME_STYLE_VERSION);
+                }
+
                 const savedBg = await AsyncStorage.getItem('portal_background');
                 const savedBgType = await AsyncStorage.getItem('portal_background_type');
+                const savedVisualStyle = await AsyncStorage.getItem(SCREEN_VISUAL_STYLE_KEY);
+
+                if (savedVisualStyle === 'classic' || savedVisualStyle === 'saffron') {
+                    setScreenVisualStyleState(savedVisualStyle as ScreenVisualStyle);
+                } else {
+                    setScreenVisualStyleState('saffron');
+                }
 
                 if (savedBg && savedBg !== 'undefined' && savedBg !== 'null') {
                     setPortalBackgroundState(savedBg);
@@ -290,6 +309,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             await AsyncStorage.setItem('theme_mode', mode);
         } catch (e) {
             console.error('Failed to save theme setting', e);
+        }
+    }, []);
+
+    const setScreenVisualStyle = useCallback(async (style: ScreenVisualStyle) => {
+        setScreenVisualStyleState(style);
+        try {
+            await AsyncStorage.setItem(SCREEN_VISUAL_STYLE_KEY, style);
+        } catch (e) {
+            console.error('Failed to save screen visual style', e);
         }
     }, []);
 
@@ -506,6 +534,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             isDarkMode,
             themeMode,
             setThemeMode,
+            screenVisualStyle,
+            setScreenVisualStyle,
             isAutoMagicEnabled,
             toggleAutoMagic,
             isMenuOpen,
@@ -546,6 +576,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             isDarkMode,
             themeMode,
             setThemeMode,
+            screenVisualStyle,
+            setScreenVisualStyle,
             isAutoMagicEnabled,
             toggleAutoMagic,
             isMenuOpen,

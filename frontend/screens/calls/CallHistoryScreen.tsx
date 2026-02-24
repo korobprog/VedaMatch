@@ -10,7 +10,7 @@ export const CallHistoryScreen = () => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
 
     // Mock data with User IDs for call back
     const calls = [

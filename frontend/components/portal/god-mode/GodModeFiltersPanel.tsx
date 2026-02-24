@@ -29,6 +29,12 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
   if (!filters || filters.length === 0) return null;
 
   const active = filters.find((f) => f.mathId === activeMathId) || filters[0];
+  const normalizeOrgLabel = (value: string) =>
+    value
+      .replace(/\bMatha\b/gi, 'Org.')
+      .replace(/\bMath\b/gi, 'Org.')
+      .replace(/Матх/gi, 'Орг.');
+  const activeOrgName = normalizeOrgLabel(active.mathName);
   const formatFilterLabel = (filter: string) => {
     const key = `portal.filters.${filter}`;
     const translated = t(key);
@@ -59,7 +65,7 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
         <View style={styles.headerLeft}>
           <Text style={styles.proLabel}>PRO</Text>
           <Text style={styles.activeMathName} numberOfLines={1}>
-            {active.mathName}
+            {activeOrgName}
           </Text>
         </View>
         <View
@@ -94,14 +100,14 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
                       selected && styles.mathChipTextSelected,
                     ]}
                   >
-                    {item.mathName}
+                    {normalizeOrgLabel(item.mathName)}
                   </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
           <Text style={styles.caption}>
-            {t('portal.godMode.viewingMath', { name: active.mathName })}
+            {t('portal.godMode.viewingMath', { name: activeOrgName })}
           </Text>
           <Text style={styles.filtersText}>
             {active.filters

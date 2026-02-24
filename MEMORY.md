@@ -121,10 +121,18 @@
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
-- Чтобы dev-консоль не засыпалась длинным stack trace, fallback логируется компактно:
-  - краткое предупреждение;
-  - первая строка ошибки;
-  - подсказка `cd ios && pod install` + rebuild.
+- Чтобы dev-консоль не засыпалась `Error Component Stack` от LogBox, fallback и migration ошибки логируются одной строкой через `console.log` в dev (без передачи объекта `Error` в `console.warn/error`).
+- В production остаётся `console.warn`, но тоже без объекта ошибки (только короткое сообщение + первая строка причины).
+
+## Multimedia Runtime Notes
+- В RN нельзя полагаться на `URLSearchParams.entries()` для query-объектов в сервисах: на iOS/Hermes это может отсутствовать и давать `params.entries is not a function`.
+- В `frontend/services/multimediaService.ts` query параметры для `/multimedia/tracks`, `/multimedia/radio`, `/multimedia/tv` формируются обычным объектом `params`, без `URLSearchParams`.
+- В `frontend/screens/multimedia/MultimediaHubScreen.tsx` обработанный сбой загрузки логируется через `console.warn`, чтобы не поднимать RedBox в dev.
+
+## Seva/Charity Runtime Notes
+- В `frontend/services/charityService.ts` нельзя использовать `URLSearchParams.set/entries` на iOS/Hermes: возможна ошибка `URLSearchParams.set is not implemented`.
+- Для `get()` в charity service query-параметры endpoint (часть после `?`) парсятся в plain object (`parseQueryString`) и передаются в axios как `params`.
+- В `frontend/screens/seva/SevaHubScreen.tsx` обработанные ошибки загрузки (`loadProjects`, `loadData`, `onRefresh`) логируются через `console.warn`, чтобы не показывать RedBox при recoverable сбоях.
 
 ## P2P Calls: Known Failure Points
 - В `server/internal/websocket/hub.go` сигналинг форвардится только подключенному WS-клиенту; если получатель не в `h.clients`, логируется `Target User X not connected` и звонок не доставляется.
@@ -155,16 +163,58 @@
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.
 
-## Portal PRO / Math / Roles
+## Unified Screen Styling
+- Введен единый шафран‑золотой screen-layer:
+  - `frontend/theme/brandPalette.ts` (`#FF9933`, `#F4C542`, `#FAF7F0`);
+  - `frontend/theme/screenTheme.ts` (light/dark screen tokens);
+  - `frontend/theme/screenEffects.ts` (degrade policy для aura/glow по performance mode).
+- `frontend/theme/ModernVedicTheme.ts` теперь проксирует `ScreenThemeLight/ScreenThemeDark`, чтобы старые импорты не ломались.
+- `frontend/hooks/useRoleTheme.ts` больше не форсит dark; role accent применяются поверх текущего light/dark screen theme.
+- `frontend/components/theme/ScreenAuraBackground.tsx` + `frontend/components/theme/ScreenScaffold.tsx` добавлены как общий reusable слой фона/ореола/стеклянных поверхностей.
+- `ScreenScaffold` подключен к ключевым экранам:
+  - `frontend/screens/portal/PortalMainScreen.tsx`
+  - `frontend/screens/portal/WidgetSelectionScreen.tsx`
+  - `frontend/screens/portal/chat/PortalChatScreen.tsx`
+  - `frontend/screens/portal/contacts/ContactsScreen.tsx`
+  - `frontend/screens/settings/AppSettingsScreen.tsx`
+  - `frontend/screens/portal/shops/MarketHomeScreen.tsx`
+  - `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+  - `frontend/screens/library/LibraryHomeScreen.tsx`
+  - `frontend/screens/LoginScreen.tsx`
+- Добавлена мягкая совместимость по настройкам темы:
+  - в `frontend/context/SettingsContext.tsx` установлен маркер `theme_style_version=2` без сброса старых ключей.
+- Контрастный hotfix для light theme:
+  - в `PortalChatScreen`, `ContactsScreen`, `LibraryHomeScreen`, `CallHistoryScreen` правило `isPhotoBg` ограничено до `portalBackgroundType === 'image' && isDarkMode`, чтобы не форсить белый текст на светлых поверхностях.
+  - в `PortalMainScreen` (service header, включая Rooms) и `WidgetSelectionScreen` добавлено dark-aware условие для светлых иконок/бордеров (`useLightHeaderIcons = isDarkMode && effectiveBgType === 'image'`), чтобы верхний бар не становился белым на светлом фоне.
+- В Settings добавлен переключатель визуального режима экранов:
+  - `screenVisualStyle: 'classic' | 'saffron'` (ключ `screen_visual_style_v1`) в `frontend/context/SettingsContext.tsx`;
+  - UI переключателя в `frontend/screens/settings/AppSettingsScreen.tsx`.
+- `ScreenScaffold` учитывает `screenVisualStyle`:
+  - в `classic` выключает aura/glass overlays, чтобы обои и интервал слайд-шоу визуально работали как в классическом режиме.
+- Дополнительный фикс видимости обоев в `classic`:
+  - в `frontend/components/theme/ScreenScaffold.tsx` добавлен проп `transparentBackground`, чтобы scaffold не перекрывал слой `PortalBackgroundLayer` сплошным цветом;
+  - в `frontend/screens/portal/PortalMainScreen.tsx` и `frontend/screens/portal/WidgetSelectionScreen.tsx` `ScreenScaffold` используется с `transparentBackground`, обои/слайдшоу снова видимы.
+- Финальная развязка режимов `classic/saffron`:
+  - `classic`: экраны `PortalMainScreen` и `WidgetSelectionScreen` используют реальные обои/слайдшоу (`portalBackground*`) и прозрачный scaffold (`transparentBackground=true`, `enableAura=false`);
+  - `saffron`: эти же экраны принудительно используют цветной фон (`portalBackgroundType='color'`, `portalBackground=vTheme.colors.background`), без wallpaper/slideshow, и включают aura-слой (`enableAura=true`) для заметного изменения интерфейса.
+
+## Portal PRO / Org / Roles
 - Блок из шапки портала с бейджем `PRO` реализован в `frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`.
 - Панель показывается только при `user.godModeEnabled === true` (см. `frontend/screens/portal/PortalMainScreen.tsx`).
-- Источник матхов: `GET /api/system/god-mode-math-filters` (protected route), загрузка через `fetchGodModeMathFilters()` в `frontend/services/portalLayoutService.ts`.
-- Дефолтные матхи на сервере (`server/internal/handlers/portal_blueprints.go`):
-  - `gauranga` → `Gauranga Math`
-  - `vrindavan` → `Vrindavan Math`
-  - `mayapur` → `Mayapur Math`
-  - `iskcon-global` → `ISKCON Global`
-- Активный матх хранится в `active_math_id` (MMKV + AsyncStorage) через `frontend/context/UserContext.tsx`.
+- Источник списка орг.: `GET /api/system/god-mode-math-filters` (protected route), загрузка через `fetchGodModeMathFilters()` в `frontend/services/portalLayoutService.ts`.
+- Дефолтные орг. на сервере (`server/internal/handlers/portal_blueprints.go`):
+  - `gauranga` → `Gauranga Org.`
+  - `vrindavan` → `Vrindavan Org.`
+  - `mayapur` → `Mayapur Org.`
+  - `iskcon-global` → `ISKCON Global Org.`
+  - `scsm` → `Шри Чайтанья Сарасват Орг. (SCSM)`
+  - `pure-bhakti-yoga` → `Международное Общество Чистой Бхакти-йоги`
+  - `sri-gopinath-gaudiya` → `Шри Гопинатх Гаудия`
+  - `sri-chaitanya-math` → `Шри Чайтанья Орг.`
+- В UI добавлена нормализация названий `Math/Matha/Матх -> Org./Орг.` в:
+  - `frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`
+  - `frontend/components/portal/god-mode/GodModeStatusBanner.tsx`
+- Активная орг. хранится в `active_math_id` (MMKV + AsyncStorage) через `frontend/context/UserContext.tsx`.
 - Ролевая модель:
   - Portal roles: `user`, `in_goodness`, `yogi`, `devotee`
   - Admin roles: `admin`, `superadmin`

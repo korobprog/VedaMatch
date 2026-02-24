@@ -19,6 +19,7 @@ import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { useSettings } from '../../../context/SettingsContext';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
+import { ScreenScaffold } from '../../../components/theme/ScreenScaffold';
 
 const EMOJI_MAP: any = {
     'krishna': '🕉️',
@@ -55,7 +56,7 @@ export const PortalChatScreen: React.FC = () => {
     const [openJoinRoom, setOpenJoinRoom] = useState<any | null>(null);
     const [joinAsListener, setJoinAsListener] = useState(false);
     const [preJoinLoading, setPreJoinLoading] = useState(false);
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
     const triggerTapFeedback = usePressFeedback();
     const myRooms = useMemo(() => rooms.filter((room) => room?.isMember === true), [rooms]);
     const openRooms = useMemo(() => rooms.filter((room) => room?.isPublic === true), [rooms]);
@@ -249,14 +250,17 @@ export const PortalChatScreen: React.FC = () => {
 
     if (loading && !refreshing) {
         return (
-            <View style={[styles.container, styles.center]}>
-                <ActivityIndicator size="large" color={theme.accent} />
-            </View>
+            <ScreenScaffold variant="chat" enableAura>
+                <View style={[styles.container, styles.center]}>
+                    <ActivityIndicator size="large" color={theme.accent} />
+                </View>
+            </ScreenScaffold>
         );
     }
 
     return (
         <ProtectedScreen>
+            <ScreenScaffold variant="chat" enableAura>
             <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : colors.background }]}>
                 <FlatList
                     data={visibleRooms}
@@ -398,6 +402,7 @@ export const PortalChatScreen: React.FC = () => {
                     t={t}
                 />
             </View>
+            </ScreenScaffold>
         </ProtectedScreen>
     );
 };

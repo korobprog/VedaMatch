@@ -7,6 +7,10 @@ export const GodModeStatusBanner: React.FC = () => {
   const { t } = useTranslation();
   const { enabled, activeMath } = useGodModeFilters();
   if (!enabled || !activeMath) return null;
+  const activeOrgName = activeMath.mathName
+    .replace(/\bMatha\b/gi, 'Org.')
+    .replace(/\bMath\b/gi, 'Org.')
+    .replace(/Матх/gi, 'Орг.');
 
   const formattedFilters = activeMath.filters
     .map((filter) => {
@@ -26,7 +30,7 @@ export const GodModeStatusBanner: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{t('portal.godMode.viewingMath', { name: activeMath.mathName })}</Text>
+      <Text style={styles.title}>{t('portal.godMode.viewingMath', { name: activeOrgName })}</Text>
       <Text style={styles.filters}>{formattedFilters}</Text>
     </View>
   );

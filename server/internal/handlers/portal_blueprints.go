@@ -26,10 +26,14 @@ type PortalBlueprint struct {
 }
 
 var defaultMathFilters = []MathFilter{
-	{MathID: "gauranga", MathName: "Gauranga Math", Filters: []string{"prasadam", "family_events", "kirtan"}},
-	{MathID: "vrindavan", MathName: "Vrindavan Math", Filters: []string{"pilgrimage", "lectures", "charity"}},
-	{MathID: "mayapur", MathName: "Mayapur Math", Filters: []string{"festivals", "education", "seva"}},
-	{MathID: "iskcon-global", MathName: "ISKCON Global", Filters: []string{"global_news", "shops", "travel"}},
+	{MathID: "gauranga", MathName: "Gauranga Org.", Filters: []string{"prasadam", "family_events", "kirtan"}},
+	{MathID: "vrindavan", MathName: "Vrindavan Org.", Filters: []string{"pilgrimage", "lectures", "charity"}},
+	{MathID: "mayapur", MathName: "Mayapur Org.", Filters: []string{"festivals", "education", "seva"}},
+	{MathID: "iskcon-global", MathName: "ISKCON Global Org.", Filters: []string{"global_news", "shops", "travel"}},
+	{MathID: "scsm", MathName: "Шри Чайтанья Сарасват Орг. (SCSM)", Filters: []string{"education", "lectures", "satsang"}},
+	{MathID: "pure-bhakti-yoga", MathName: "Международное Общество Чистой Бхакти-йоги", Filters: []string{"bhakti", "community", "retreats"}},
+	{MathID: "sri-gopinath-gaudiya", MathName: "Шри Гопинатх Гаудия", Filters: []string{"kirtan", "seva", "family_events"}},
+	{MathID: "sri-chaitanya-math", MathName: "Шри Чайтанья Орг.", Filters: []string{"prasadam", "festivals", "seva"}},
 }
 
 var portalBlueprints = map[string]PortalBlueprint{

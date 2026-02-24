@@ -33,6 +33,7 @@ import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 import DeviceInfo from 'react-native-device-info';
 import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
 import apiClient from '../lib/apiClient';
+import { ScreenScaffold } from '../components/theme/ScreenScaffold';
 
 const { width, height } = Dimensions.get('window');
 
@@ -253,6 +254,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }, [login]);
 
     return (
+        <ScreenScaffold variant="settings" enableAura>
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
@@ -401,6 +403,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 </ScrollView>
             </KeyboardAwareContainer>
         </View>
+        </ScreenScaffold>
     );
 };
 

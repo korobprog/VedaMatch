@@ -2,17 +2,35 @@ import { CharityDonation, CharityEvidence, CharityOrganization, CharityProject, 
 import apiClient from '../lib/apiClient';
 import { getGodModeQueryParams } from './godModeService';
 
+const decodeQueryPart = (value: string): string => decodeURIComponent(value.replace(/\+/g, ' '));
+
+const parseQueryString = (rawQuery: string): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (!rawQuery) {
+        return params;
+    }
+
+    for (const part of rawQuery.split('&')) {
+        if (!part) continue;
+        const [rawKey, rawValue = ''] = part.split('=');
+        if (!rawKey) continue;
+        params[decodeQueryPart(rawKey)] = decodeQueryPart(rawValue);
+    }
+
+    return params;
+};
+
 class CharityService {
     private async get(endpoint: string, token?: string) {
         const godModeParams = await getGodModeQueryParams();
         const [path, rawQuery = ''] = endpoint.split('?');
-        const params = new URLSearchParams(rawQuery);
+        const params = parseQueryString(rawQuery);
         if (godModeParams.math) {
-            params.set('math', godModeParams.math);
+            params.math = godModeParams.math;
         }
 
         const response = await apiClient.get(path, {
-            params: Object.fromEntries(params.entries()),
+            params,
             headers: token
                 ? { Authorization: `Bearer ${token}` }
                 : undefined,

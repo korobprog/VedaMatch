@@ -34,7 +34,7 @@ jest.mock('../../../context/UserContext', () => ({
             servicesHint: [{ serviceId: 'seva', title: 'Сева' }],
             role: 'yogi',
         },
-        godModeFilters: [{ mathId: 'gauranga', mathName: 'Gauranga Math', filters: ['kirtan'] }],
+        godModeFilters: [{ mathId: 'gauranga', mathName: 'Gauranga Org.', filters: ['kirtan'] }],
         activeMathId: 'gauranga',
         setActiveMath: jest.fn(),
     }),
@@ -152,7 +152,7 @@ describe('PortalMainScreen', () => {
         );
 
         expect(getByText('PRO')).toBeTruthy();
-        expect(getByText('Gauranga Math')).toBeTruthy();
+        expect(getByText('Gauranga Org.')).toBeTruthy();
     });
 
     it('opens chat assistant for services shortcut', () => {
