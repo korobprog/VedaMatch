@@ -137,3 +137,59 @@ setMessages(prev => {
   return [...prev, localMessage];
 });
 ```
+
+## 2026-02-24 (Call Connection Reliability Fixes)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/types/navigation.ts`
+- `server/internal/handlers/turn_handler.go`
+
+### Суть правки (от старого к новому)
+- `frontend/App.tsx`:
+  - Было: `answerCall` только открывал `CallScreen` без `targetId` и без авто-accept логики.
+  - Стало: добавлен `incomingCallRef`; при `answerCall` передаются `targetId/callerName` и `autoAccept=true`, при `endCall` вызывается `webRTCService.sendHangup()`.
+- `frontend/screens/calls/CallScreen.tsx`:
+  - Было: входящий звонок принимался только вручную через кнопку.
+  - Стало: добавлен авто-accept flow для сценария `autoAccept=true` (CallKeep accept).
+- `frontend/types/navigation.ts`:
+  - Добавлен новый optional param для `CallScreen`: `autoAccept?: boolean`.
+- `server/internal/handlers/turn_handler.go`:
+  - Было: выдача TURN только через HMAC (`TURN_SECRET`).
+  - Стало: поддержка двух схем в ICE ответе — static (`TURN_USER/TURN_PASSWORD`) и HMAC (`TURN_SECRET`) при наличии соответствующих env, что уменьшает риск mismatch с coturn-конфигом.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```ts
+navigationRef.navigate('CallScreen', {
+  isIncoming: true,
+  callUUID,
+  autoAccept: true,
+  targetId: isMatchedCall ? incoming.targetId : undefined,
+  callerName: isMatchedCall ? incoming.callerName : undefined,
+});
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+useEffect(() => {
+  if (!isIncoming || !autoAccept || hasAccepted || autoAcceptTriggeredRef.current) return;
+  autoAcceptTriggeredRef.current = true;
+  void (async () => {
+    ...
+    await webRTCService.acceptCall();
+  })();
+}, [autoAccept, hasAccepted, isIncoming]);
+```
+
+`server/internal/handlers/turn_handler.go`:
+```go
+if h.staticUser != "" && h.staticPass != "" {
+  response.IceServers = append(response.IceServers, IceServer{Urls: turnURL, Username: h.staticUser, Credential: h.staticPass})
+}
+if h.secret != "" {
+  response.IceServers = append(response.IceServers, IceServer{Urls: turnURL, Username: username, Credential: password})
+}
+```

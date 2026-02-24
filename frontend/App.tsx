@@ -9,6 +9,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
 import { UserProvider, useUser } from './context/UserContext';
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext';
+import { webRTCService } from './services/webRTCService';
 import { ChatScreen } from './screens/ChatScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -192,6 +193,7 @@ const AppContent = () => {
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
   const pendingRoomInviteTokenRef = React.useRef('');
   const voipSetupRef = React.useRef(false);
+  const incomingCallRef = React.useRef<{ callUUID: string; targetId: number; callerName: string } | null>(null);
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -284,16 +286,27 @@ const AppContent = () => {
     }
 
     const onAnswerCall = ({ callUUID }: { callUUID: string }) => {
+      const incoming = incomingCallRef.current;
+      const isMatchedCall = incoming && incoming.callUUID === callUUID;
       if (navigationRef.isReady()) {
         // @ts-ignore
-        navigationRef.navigate('CallScreen', { isIncoming: true, callUUID });
+        navigationRef.navigate('CallScreen', {
+          isIncoming: true,
+          callUUID,
+          autoAccept: true,
+          targetId: isMatchedCall ? incoming.targetId : undefined,
+          callerName: isMatchedCall ? incoming.callerName : undefined,
+        });
       }
     };
 
     if (useCallKeepNativeUi) {
       RNCallKeep.addEventListener('answerCall', onAnswerCall);
       RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
-        // Handle end call
+        if (incomingCallRef.current?.callUUID === callUUID) {
+          incomingCallRef.current = null;
+        }
+        webRTCService.sendHangup();
       });
     }
 
@@ -306,6 +319,11 @@ const AppContent = () => {
 
         // Use CallKeep to show native incoming call UI
         const uuid = getUUID();
+        incomingCallRef.current = {
+          callUUID: uuid,
+          targetId: callerId,
+          callerName,
+        };
         if (useCallKeepNativeUi) {
           RNCallKeep.displayIncomingCall(uuid, String(callerId), callerName, 'generic', true);
         }

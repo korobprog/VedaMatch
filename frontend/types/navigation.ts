@@ -101,7 +101,7 @@ export type RootStackParamList = {
     CourseDetails: { courseId: number };
     ExamTrainer: { moduleId: number; title: string };
     AITutor: undefined;
-    CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string };
+    CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string; autoAccept?: boolean };
     WidgetSelection: { source?: 'portal_header' | 'edit_toolbar' } | undefined;
 
     // Multimedia Routes

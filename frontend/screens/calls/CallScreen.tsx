@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
@@ -16,7 +16,8 @@ export const CallScreen = () => {
     const navigation = useNavigation();
     const { vTheme } = useSettings();
     // @ts-ignore
-    const { targetId, isIncoming, callerName } = route.params || {};
+    const { targetId, isIncoming, callerName, autoAccept } = route.params || {};
+    const autoAcceptTriggeredRef = useRef(false);
 
     const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
     const [streamVersion, setStreamVersion] = useState(0);
@@ -188,6 +189,33 @@ export const CallScreen = () => {
             setStatus('Не удалось включить камеру');
         }
     };
+
+    useEffect(() => {
+        if (!isIncoming || !autoAccept || hasAccepted || autoAcceptTriggeredRef.current) {
+            return;
+        }
+        autoAcceptTriggeredRef.current = true;
+        void (async () => {
+            try {
+                let stream = webRTCService.localStream;
+                if (!stream) {
+                    stream = await webRTCService.startLocalStream(true);
+                    setLocalStream(stream);
+                }
+                setIsVideoEnabled(hasVideoTrack(stream));
+                setLocalVideoAvailable(hasVideoTrack(stream));
+
+                setHasAccepted(true);
+                setStatus('Connecting...');
+                await webRTCService.acceptCall();
+            } catch (error) {
+                console.error('Failed to auto-accept incoming call', error);
+                setIsVideoEnabled(false);
+                setLocalVideoAvailable(false);
+                setStatus('Не удалось включить камеру');
+            }
+        })();
+    }, [autoAccept, hasAccepted, isIncoming]);
 
     const handleHangup = () => {
         webRTCService.sendHangup();
