@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -9,14 +9,12 @@ import {
     TextInput,
     Pressable,
     Platform,
-    LayoutChangeEvent,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, {
     SharedValue,
-    runOnJS,
     useSharedValue,
     useAnimatedScrollHandler,
     useAnimatedStyle,
@@ -34,6 +32,7 @@ import { PortalIcon } from './PortalIcon';
 import { PortalFolderComponent } from './PortalFolder';
 import { FolderModal } from './FolderModal';
 import { DraggablePortalItem } from './DraggablePortalItem';
+import { useGridReorderDnd } from './hooks/useGridReorderDnd';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 4;
@@ -179,18 +178,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         },
     });
 
-    const itemLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
-    const itemRefs = useRef<Record<string, View | null>>({});
     const gridRef = useRef<View>(null);
 
     // Dock references
     const dockRef = useRef<View>(null);
     const dockOffset = useRef<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
-
-    // Clear layouts on page change to avoid stale data
-    useEffect(() => {
-        itemLayouts.current = {};
-    }, [currentPage]);
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => {
@@ -227,6 +219,23 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         ? 'rgba(255,255,255,0.2)'
         : (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.7)');
 
+    const handleDropOnGridItem = useCallback((movingId: string, targetId: string) => {
+        if (!page) return false;
+        const movingItem = page.items.find((item) => item.id === movingId);
+        const targetItem = page.items.find((item) => item.id === targetId);
+        if (movingItem?.type === 'service' && targetItem?.type === 'folder') {
+            moveItemToFolder(movingId, targetItem.id);
+            return true;
+        }
+        return false;
+    }, [moveItemToFolder, page]);
+
+    const gridDnd = useGridReorderDnd({
+        items: page?.items ?? [],
+        onReorder: reorderGridItems,
+        onDropOnItem: handleDropOnGridItem,
+    });
+
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
         if (!isDraggingItem) {
@@ -237,7 +246,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Handle drag start - don't enter edit mode, just start dragging
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
-    }, []);
+        gridDnd.onDragStart();
+    }, [gridDnd]);
 
     // Handle tap outside to exit edit mode
     const handleBackgroundTap = useCallback(() => {
@@ -275,11 +285,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             setShowNewFolderInput(false);
         }
     }, [newFolderName, createNewFolder]);
-
-    const handleItemLayout = (id: string, event: LayoutChangeEvent) => {
-        const { x, y, width, height } = event.nativeEvent.layout;
-        itemLayouts.current[id] = { x, y, width, height };
-    };
 
     const handleGridLayout = useCallback(() => {
         if (gridRef.current) {
@@ -321,57 +326,22 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             const slotWidth = d.width / 3;
             const rawSlotIndex = Math.floor((absX - d.x) / slotWidth);
             const slotIndex = Math.max(0, Math.min(2, rawSlotIndex));
-            runOnJS(moveItemToQuickAccess)(itemId, slotIndex);
+            moveItemToQuickAccess(itemId, slotIndex);
             return;
         }
 
         // 2. Check if item was in Dock and dropped outside -> Move back to Grid
         const isInDock = quickAccess.some(i => i.id === itemId);
         if (isInDock && !isInsideDock) {
-            runOnJS(moveItemToQuickAccess)(itemId, -1);
+            moveItemToQuickAccess(itemId, -1);
             return;
         }
-
-        // 3. Collision Logic for grid items
-        const allItems = page.items;
-        let targetId: string | null = null;
 
         if (!isItem) {
             return;
         }
-
-        let measureCount = 0;
-        const checkComplete = () => {
-            measureCount++;
-            if (measureCount >= allItems.length) {
-                if (targetId && targetId !== itemId) {
-                    const fromIndex = allItems.findIndex(i => i.id === itemId);
-                    const toIndex = allItems.findIndex(i => i.id === targetId);
-                    const targetItem = allItems[toIndex];
-                    const movingItem = allItems[fromIndex];
-                    if (movingItem?.type === 'service' && targetItem?.type === 'folder') {
-                        runOnJS(moveItemToFolder)(itemId, targetItem.id);
-                    } else if (fromIndex !== -1 && toIndex !== -1) {
-                        runOnJS(reorderGridItems)(fromIndex, toIndex);
-                    }
-                }
-            }
-        };
-        allItems.forEach(item => {
-            const ref = itemRefs.current[item.id];
-            if (ref) {
-                (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                    if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                        const hitSlop = 20;
-                        if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
-                            if (!targetId && item.id !== itemId) targetId = item.id;
-                        }
-                    }
-                    checkComplete();
-                });
-            } else checkComplete();
-        });
-    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems, items]);
+        gridDnd.onDragEnd(itemId, absX, absY);
+    }, [gridDnd, page, quickAccess, moveItemToQuickAccess, items]);
 
 
 
@@ -385,7 +355,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             component = (
                 <View
                     pointerEvents="box-none"
-                    ref={(ref) => { itemRefs.current[item.id] = ref; }}
+                    ref={(ref) => { gridDnd.itemRefs.current[item.id] = ref; }}
                 >
                     <PortalFolderComponent
                         folder={item}
@@ -404,7 +374,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             component = (
                 <View
                     pointerEvents="box-none"
-                    ref={(ref) => { itemRefs.current[item.id] = ref; }}
+                    ref={(ref) => { gridDnd.itemRefs.current[item.id] = ref; }}
                 >
                     <PortalIcon
                         service={service}
@@ -428,7 +398,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     isEditMode={isEditMode}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
-                    onLayout={(e) => handleItemLayout(item.id, e)}
+                    onLayout={(e) => gridDnd.onLayout(item.id, e)}
                     onPress={pressHandler}
                     onSecondaryLongPress={item.type === 'folder'
                         ? () => handleFolderPress(item as PortalFolderType, true)
@@ -453,6 +423,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         serviceBadges,
         deleteFolder,
         deleteGridItem,
+        gridDnd,
     ]);
 
     // Render dock item

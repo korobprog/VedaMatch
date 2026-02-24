@@ -22,6 +22,37 @@
   - `adb uninstall com.ragagent`
   - `adb install frontend/android/app/build/outputs/apk/debug/app-debug.apk`
 
+## Portal Home Layout
+- Иконка ассистента в верхнем хедере портала удалена (`frontend/screens/portal/PortalMainScreen.tsx`).
+- Ярлык `services` переведен на иконку ассистента (`Bot`) в портале (`frontend/types/portal.ts`, `frontend/components/portal/PortalIcon.tsx`, `frontend/components/portal/PortalFolder.tsx`).
+- Дефолтный нижний бар (quick access) зафиксирован как `calls/services/rooms`:
+  - локальный default layout (`frontend/types/portal.ts`);
+  - fallback role blueprints (`frontend/constants/portalRoles.ts`);
+  - нормализация quick access при инициализации layout (`frontend/services/portalLayoutService.ts`), включая автозамену `history -> services`.
+
+## Portal Widget Canvas (Shared Layer)
+- Для виджетов добавлен отдельный top-level слой хранения `layout.widgetCanvas` (`frontend/types/portal.ts`) вместо зависимости от `pages[currentPage].widgets`.
+- Единый каталог виджетов вынесен в `frontend/components/portal/widgets/widgetCatalog.tsx`:
+  - единый ключ `type:size` (`getWidgetKey`);
+  - лимит `maxCount=1` на каждый вариант;
+  - единый `render()` для варианта.
+- Единый рендер виджетов вынесен в `frontend/components/portal/widgets/renderPortalWidget.tsx`; локальные `switch(widget.type)` больше не нужны.
+- Общий DnD-хук коллизий `frontend/components/portal/hooks/useGridReorderDnd.ts` используется и на холсте виджетов, и в сервисной сетке портала (`PortalGrid`), чтобы не дублировать логику reorder.
+- Нормализация/миграция `widgetCanvas` сосредоточена в `frontend/context/widgetCanvasLayout.ts`:
+  - перенос legacy `pages[].widgets` в `widgetCanvas.widgets`;
+  - дедупликация по `type:size` (оставляется первый);
+  - пересчет `position`;
+  - очистка legacy `page.widgets`.
+- `PortalLayoutContext` обновлен:
+  - `addWidget` возвращает `{ ok: boolean; reason?: 'duplicate' }`;
+  - `add/remove/reorder` работают только с `layout.widgetCanvas.widgets`.
+- Экран виджетов переписан в compose-подход (`frontend/screens/portal/WidgetSelectionScreen.tsx` + `WidgetCanvasGrid` + `WidgetPickerSheet`):
+  - одна страница виджетов без дока/папок/page dots;
+  - long-press edit-mode;
+  - добавление через `+` в toolbar;
+  - `Готово` выключает edit-mode;
+  - возврат в Portal через `resetToGridAt`.
+
 ## Calls Architecture (Contacts + Rooms)
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
 - 1:1 звонок: `frontend/screens/calls/CallScreen.tsx` + `frontend/services/webRTCService.ts` (P2P WebRTC, WS-типы `offer/answer/candidate/hangup`, TURN creds из `/turn-credentials`).

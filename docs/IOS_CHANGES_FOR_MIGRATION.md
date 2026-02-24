@@ -1,5 +1,127 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (Portal Widget Canvas Redesign + Shared DnD)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/context/widgetCanvasLayout.ts`
+- `frontend/components/portal/hooks/useGridReorderDnd.ts`
+- `frontend/components/portal/widgets/widgetCatalog.tsx`
+- `frontend/components/portal/widgets/renderPortalWidget.tsx`
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/context/__tests__/portalLayout.widgetCanvas.test.ts`
+
+### Суть правки (от старого к новому)
+- `frontend/types/portal.ts`:
+  - Было: виджеты хранились только внутри `pages[].widgets`.
+  - Стало: добавлен top-level `widgetCanvas: { widgets, lastModified }` для независимого холста виджетов.
+- `frontend/context/PortalLayoutContext.tsx` + `frontend/context/widgetCanvasLayout.ts`:
+  - Было: `addWidget/removeWidget/reorderWidgets` работали с `pages[currentPage].widgets`, без результата добавления и с разрозненной логикой.
+  - Стало: операции переведены на `layout.widgetCanvas.widgets`, `addWidget` возвращает `{ ok, reason?: 'duplicate' }`, миграция legacy и дедупликация централизованы.
+- `frontend/components/portal/widgets/*` + `frontend/screens/portal/WidgetSelectionScreen.tsx`:
+  - Было: экран виджетов содержал дубли рендера и управления.
+  - Стало: compose-подход с shared-каталогом (`widgetCatalog`), shared renderer (`renderPortalWidget`), отдельным холстом (`WidgetCanvasGrid`) и picker sheet (`WidgetPickerSheet`).
+- `frontend/components/portal/PortalGrid.tsx`:
+  - Было: локальная дублирующаяся DnD-коллизия в компоненте.
+  - Стало: точечное подключение shared `useGridReorderDnd` для сеточной перестановки при сохранении логики дока/папок.
+
+### Сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+export interface WidgetCanvas {
+    widgets: PortalWidget[];
+    lastModified: number;
+}
+
+export interface PortalLayout {
+    pages: PortalPage[];
+    widgetCanvas: WidgetCanvas;
+    quickAccess: PortalItem[];
+    ...
+}
+```
+
+`frontend/context/PortalLayoutContext.tsx`:
+```ts
+export type AddWidgetResult = { ok: true } | { ok: false; reason: 'duplicate' };
+
+const addWidgetAction = useCallback((widget) => {
+  const currentWidgets = layout.widgetCanvas?.widgets || [];
+  const { widgets: nextWidgets, result } = addWidgetToCanvas(currentWidgets, widget);
+  if (!result.ok) return result;
+  updateLayout({
+    ...layout,
+    widgetCanvas: { widgets: nextWidgets, lastModified: Date.now() },
+  });
+  return result;
+}, [layout, updateLayout]);
+```
+
+`frontend/components/portal/PortalGrid.tsx`:
+```ts
+const gridDnd = useGridReorderDnd({
+  items: page?.items ?? [],
+  onReorder: reorderGridItems,
+  onDropOnItem: handleDropOnGridItem,
+});
+```
+
+## 2026-02-24 (Portal: Assistant Shortcut Moved to Services + Dock Default)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/types/portal.ts`
+- `frontend/components/portal/PortalIcon.tsx`
+- `frontend/components/portal/PortalFolder.tsx`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/constants/portalRoles.ts`
+
+### Суть правки (от старого к новому)
+- `frontend/screens/portal/PortalMainScreen.tsx`:
+  - Было: в хедере портала отображалась отдельная иконка ассистента (центральная кнопка).
+  - Стало: центральная кнопка ассистента удалена из хедера.
+- `frontend/types/portal.ts`:
+  - Было: сервис `services` имел иконку `Briefcase`; дефолт quick access: `calls/history/rooms`.
+  - Стало: сервис `services` переведен на иконку `Bot`; дефолт quick access: `calls/services/rooms`.
+- `frontend/components/portal/PortalIcon.tsx` и `frontend/components/portal/PortalFolder.tsx`:
+  - Было: иконка `Bot` не поддерживалась в наборе иконок портала/превью папок.
+  - Стало: добавлена поддержка `Bot`, чтобы ярлык `services` отображался как ассистент.
+- `frontend/services/portalLayoutService.ts`:
+  - Было: quick access нормализовался вокруг старого набора, без гарантии `services`.
+  - Стало: добавлена нормализация quick access с обязательным `services` (замена `history` или вставка в слот дока).
+- `frontend/constants/portalRoles.ts`:
+  - Было: fallback `quickAccess` для ролей `calls/history/rooms`.
+  - Стало: fallback `quickAccess` для ролей `calls/services/rooms`.
+
+### Сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['calls', 'services', 'rooms'] as const;
+...
+{ id: 'services', label: 'Услуги', icon: 'Bot', color: '#6366F1' },
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+if (!uniqueKnownIds.includes('services')) {
+  const historyIndex = uniqueKnownIds.indexOf('history');
+  if (historyIndex >= 0) uniqueKnownIds[historyIndex] = 'services';
+  else if (uniqueKnownIds.length < 3) uniqueKnownIds.splice(Math.min(1, uniqueKnownIds.length), 0, 'services');
+  else uniqueKnownIds[1] = 'services';
+}
+```
+
+`frontend/constants/portalRoles.ts`:
+```ts
+quickAccess: ['calls', 'services', 'rooms'],
+```
+
 ## 2026-02-24
 
 ### Измененные файлы

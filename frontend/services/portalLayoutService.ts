@@ -1,7 +1,7 @@
 // Portal Layout Service - Hybrid storage (AsyncStorage + Server)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
-import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES } from '../types/portal';
+import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS } from '../types/portal';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { getAccessToken } from './authSessionService';
@@ -11,6 +11,7 @@ const STORAGE_KEY = 'portal_layout';
 const SYNC_DEBOUNCE_MS = 5000; // Sync to server after 5 seconds of inactivity
 
 let syncTimeout: NodeJS.Timeout | null = null;
+const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((service) => service.id));
 
 // Load layout from local storage (fast)
 export const loadLocalLayout = async (): Promise<PortalLayout> => {
@@ -61,14 +62,49 @@ const getAuthHeaders = async () => {
     return headers;
 };
 
-const getDefaultQuickAccess = (): PortalItem[] => {
-    const quickAccessIds = ['calls', 'history', 'rooms'];
-    return quickAccessIds.map((id, index) => ({
+const mapQuickAccessIdsToItems = (quickAccessIds: string[]): PortalItem[] =>
+    quickAccessIds.map((id, index) => ({
         id: `qa-${id}`,
         serviceId: id,
         type: 'service',
         position: index,
     }));
+
+const normalizeQuickAccessIds = (sourceIds: string[]): string[] => {
+    const uniqueKnownIds: string[] = [];
+    sourceIds.forEach((id) => {
+        if (!VALID_SERVICE_IDS.has(id)) return;
+        if (!uniqueKnownIds.includes(id)) {
+            uniqueKnownIds.push(id);
+        }
+    });
+
+    if (!uniqueKnownIds.includes('services')) {
+        const historyIndex = uniqueKnownIds.indexOf('history');
+        if (historyIndex >= 0) {
+            uniqueKnownIds[historyIndex] = 'services';
+        } else if (uniqueKnownIds.length < 3) {
+            uniqueKnownIds.splice(Math.min(1, uniqueKnownIds.length), 0, 'services');
+        } else {
+            uniqueKnownIds[1] = 'services';
+        }
+    }
+
+    const quickAccessIds: string[] = [];
+    uniqueKnownIds.forEach((id) => {
+        if (!quickAccessIds.includes(id) && quickAccessIds.length < 3) {
+            quickAccessIds.push(id);
+        }
+    });
+
+    DEFAULT_QUICK_ACCESS_SERVICE_IDS.forEach((id) => {
+        if (quickAccessIds.length >= 3) return;
+        if (!quickAccessIds.includes(id)) {
+            quickAccessIds.push(id);
+        }
+    });
+
+    return quickAccessIds.slice(0, 3);
 };
 
 export const fetchPortalBlueprint = async (role?: string): Promise<PortalBlueprint> => {
@@ -124,16 +160,8 @@ export const applyRoleBlueprint = (layout: PortalLayout, blueprint?: PortalBluep
         })),
     };
 
-    const quickAccess = blueprint.quickAccess
-        .slice(0, 3)
-        .map((serviceId, position) => ({
-            id: `qa-${serviceId}`,
-            serviceId,
-            type: 'service' as const,
-            position,
-        }));
-
-    newLayout.quickAccess = quickAccess.length > 0 ? quickAccess : getDefaultQuickAccess();
+    const quickAccessIds = normalizeQuickAccessIds(blueprint.quickAccess || []);
+    newLayout.quickAccess = mapQuickAccessIdsToItems(quickAccessIds);
     return newLayout;
 };
 
@@ -226,13 +254,8 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
 // Handle migration for old layouts
 const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
     if (!layout.quickAccess) {
-        const quickAccessIds = ['calls', 'history', 'rooms'];
-        layout.quickAccess = quickAccessIds.map((id, index) => ({
-            id: `qa-${id}`,
-            serviceId: id,
-            type: 'service' as const,
-            position: index,
-        }));
+        const quickAccessIds = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
+        layout.quickAccess = mapQuickAccessIdsToItems(quickAccessIds);
 
         // Remove these from pages to avoid duplicates
         layout.pages.forEach(page => {
@@ -266,7 +289,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
                 syncToServer(localLayout);
             }
         }
-    } catch (error) {
+    } catch {
         console.warn('Server sync failed, using local layout');
     }
 

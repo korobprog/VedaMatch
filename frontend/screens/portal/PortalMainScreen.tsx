@@ -44,7 +44,6 @@ import { TravelHomeScreen } from './travel';
 import { ServicesHomeScreen } from './services';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
-import { useChat } from '../../context/ChatContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { BellButton } from '../../components/portal/BellButton';
 import { NotificationPanel } from '../../components/portal/NotificationPanel';
@@ -55,11 +54,6 @@ import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFil
 import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
-
-// Assistant avatar images
-import peacockAssistant from '../../assets/peacockAssistant.png';
-import krishnaAssistant from '../../assets/krishnaAssistant.png';
-import nanoBanano from '../../assets/nano_banano.png';
 
 
 type ServiceTab = 'contacts' | 'chat' | 'rooms' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services' | 'path_tracker';
@@ -81,7 +75,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         portalBackgroundType,
         activeWallpaper,
         isSlideshowEnabled,
-        assistantType,
         removeWallpaperSlide,
         wallpaperSlides,
         setPortalBackground,
@@ -90,7 +83,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         runtimePerformanceState,
         reportRuntimeStress,
     } = useSettings();
-    const { handleNewChat } = useChat();
     const androidVisualPolicy = useMemo(
         () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
         [performanceMode, runtimePerformanceState],
@@ -106,9 +98,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
     const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
-
-    // Animations for assistant button
-    const shimmerAnim = useRef(new Animated.Value(-60)).current;
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
 
     useEffect(() => {
@@ -117,27 +106,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         });
         return () => subscription.remove();
     }, []);
-
-    useEffect(() => {
-        if (!androidVisualPolicy.allowShimmer || !isAppActive || activeTab !== null) {
-            shimmerAnim.setValue(-60);
-            return;
-        }
-        const loop = Animated.loop(
-            Animated.timing(shimmerAnim, {
-                toValue: 60,
-                duration: 3200,
-                useNativeDriver: true,
-            })
-        );
-        loop.start();
-        return () => {
-            loop.stop();
-            shimmerAnim.stopAnimation();
-        };
-    }, [shimmerAnim, androidVisualPolicy.allowShimmer, isAppActive, activeTab]);
-
-    const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -627,53 +595,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         </View>
                     </View>
 
-                    <View style={styles.logoContainer} pointerEvents="box-none">
-                        <View style={styles.logoRow}>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => {
-                                    handleNewChat();
-                                    navigation.navigate('Chat');
-                                }}
-                                style={styles.assistantHeaderButton}
-                            >
-                                <LinearGradient
-                                    colors={[
-                                        'rgba(255,255,255,0.4)',
-                                        'rgba(255,230,150,0.3)',
-                                        'rgba(255,255,255,0.4)',
-                                    ]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                    style={StyleSheet.absoluteFill}
-                                />
-
-                                {androidVisualPolicy.allowShimmer && (
-                                    <Animated.View style={[
-                                        styles.assistantShimmer,
-                                        {
-                                            width: 100,
-                                            transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
-                                        }
-                                    ]}>
-                                        <LinearGradient
-                                            colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={StyleSheet.absoluteFill}
-                                        />
-                                    </Animated.View>
-                                )}
-
-                                <Image
-                                    source={assistantImage}
-                                    style={styles.assistantHeaderIcon}
-                                    resizeMode="contain"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
                     <View style={styles.headerRight}>
                         <TouchableOpacity
                             onPress={() => {
@@ -904,53 +825,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         </View>
                     </View>
 
-                    <View style={styles.logoContainer} pointerEvents="box-none">
-                        <View style={styles.logoRow}>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => {
-                                    handleNewChat();
-                                    navigation.navigate('Chat');
-                                }}
-                                style={styles.assistantHeaderButton}
-                            >
-                                <LinearGradient
-                                    colors={[
-                                        'rgba(255,255,255,0.4)',
-                                        'rgba(255,230,150,0.3)',
-                                        'rgba(255,255,255,0.4)',
-                                    ]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                    style={StyleSheet.absoluteFill}
-                                />
-
-                                {androidVisualPolicy.allowShimmer && (
-                                    <Animated.View style={[
-                                        styles.assistantShimmer,
-                                        {
-                                            width: 100,
-                                            transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
-                                        }
-                                    ]}>
-                                        <LinearGradient
-                                            colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={StyleSheet.absoluteFill}
-                                        />
-                                    </Animated.View>
-                                )}
-
-                                <Image
-                                    source={assistantImage}
-                                    style={styles.assistantHeaderIcon}
-                                    resizeMode="contain"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
                     <View style={styles.headerRight}>
                         <TouchableOpacity
                             onPress={() => {
@@ -1010,23 +884,6 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'flex-start',
     },
-    logoContainer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 5,
-    },
-    logoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingTop: Platform.OS === 'ios' ? 7 : 12,
-    },
     headerCircularButton: {
         width: 32,
         height: 32,
@@ -1040,31 +897,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 4,
         elevation: 4,
-    },
-    assistantHeaderButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.6)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 6,
-        elevation: 6,
-    },
-    assistantHeaderIcon: {
-        width: 28,
-        height: 28,
-    },
-    assistantShimmer: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        width: 60,
     },
     headerRight: {
         flex: 1,

@@ -52,8 +52,8 @@ react {
         applicationId "com.ragagent"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
-        versionName "1.1.11"
+        versionCode 14
+        versionName "1.1.12"
         resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'

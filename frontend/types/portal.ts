@@ -23,6 +23,11 @@ export interface PortalWidget {
     position: number;
 }
 
+export interface WidgetCanvas {
+    widgets: PortalWidget[];
+    lastModified: number;
+}
+
 export interface PortalPage {
     id: string;
     items: (PortalItem | PortalFolder)[];
@@ -32,6 +37,7 @@ export interface PortalPage {
 
 export interface PortalLayout {
     pages: PortalPage[];
+    widgetCanvas: WidgetCanvas;
     quickAccess: PortalItem[]; // Bottom dock items (max 3)
     activePageIndex: number;
     gridColumns: number;
@@ -46,6 +52,8 @@ export interface ServiceDefinition {
     icon: string;
     color: string;
 }
+
+export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['calls', 'services', 'rooms'] as const;
 
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
@@ -70,7 +78,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
     { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },
-    { id: 'services', label: 'Услуги', icon: 'Briefcase', color: '#6366F1' },
+    { id: 'services', label: 'Услуги', icon: 'Bot', color: '#6366F1' },
     { id: 'seva', label: 'Сева', icon: 'Heart', color: '#EF4444' },
 ];
 
@@ -88,7 +96,7 @@ export const FOLDER_COLORS = [
 
 // Create default layout
 export const createDefaultLayout = (): PortalLayout => {
-    const quickAccessIds = ['calls', 'history', 'rooms'];
+    const quickAccessIds = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
 
     const quickAccess: PortalItem[] = quickAccessIds.map((id, index) => ({
         id: `qa-${id}`,
@@ -113,6 +121,10 @@ export const createDefaultLayout = (): PortalLayout => {
             widgets: [],
             order: 0,
         }],
+        widgetCanvas: {
+            widgets: [],
+            lastModified: Date.now(),
+        },
         quickAccess,
         activePageIndex: 0,
         gridColumns: 4,

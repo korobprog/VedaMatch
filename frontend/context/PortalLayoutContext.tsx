@@ -21,9 +21,14 @@ import {
     createPage,
     createFolder,
     moveItemToQuickAccess,
-    reorderWidgets,
 } from '../services/portalLayoutService';
 import { useUser } from './UserContext';
+import {
+    addWidgetToCanvas,
+    normalizeWidgetCanvasLayout,
+    removeWidgetFromCanvas,
+    reorderWidgetCanvas,
+} from './widgetCanvasLayout';
 
 const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles']);
 const SEEKER_LOCKED_FOLDER_NAME = 'Откроется после профиля';
@@ -37,6 +42,13 @@ const normalizeRu = (value: string) =>
         .replace(/ё/g, 'е')
         .trim();
 
+const cloneWidgetCanvas = (layout: PortalLayout) => ({
+    widgets: [...(layout.widgetCanvas?.widgets || [])],
+    lastModified: layout.widgetCanvas?.lastModified || 0,
+});
+
+export type AddWidgetResult = { ok: true } | { ok: false; reason: 'duplicate' };
+
 const sanitizeAllFolders = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
     const layout: PortalLayout = {
         ...inputLayout,
@@ -48,6 +60,7 @@ const sanitizeAllFolders = (inputLayout: PortalLayout): { layout: PortalLayout; 
             widgets: [...p.widgets],
         })),
         quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
     };
 
     let changed = false;
@@ -138,6 +151,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
             widgets: [...p.widgets],
         })),
         quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
     };
 
     if (layout.pages.length === 0) {
@@ -328,6 +342,7 @@ const ensureVideoCirclesShortcut = (inputLayout: PortalLayout): { layout: Portal
             widgets: [...p.widgets],
         })),
         quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
     };
 
     if (layout.pages.length === 0) {
@@ -382,7 +397,7 @@ interface PortalLayoutContextType {
     deletePage: (pageIndex: number) => void;
 
     // Widget operations
-    addWidget: (widget: Omit<PortalWidget, 'id' | 'position'>) => void;
+    addWidget: (widget: Omit<PortalWidget, 'id' | 'position'>) => AddWidgetResult;
     removeWidget: (widgetId: string) => void;
     reorderWidgets: (fromIndex: number, toIndex: number) => void;
 
@@ -430,10 +445,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 }
 
                 const savedLayout = await initializeLayout(role, blueprint);
-                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
+                const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
+                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-                if (sanitizedChanged || changed || circlesChanged) {
+                if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged) {
                     await saveLocalLayout(layoutWithCircles);
                 }
                 setLayout(layoutWithCircles);
@@ -565,29 +581,62 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
     }, [layout, currentPage, updateLayout]);
 
     // === Widget Operations ===
-    const addWidgetAction = useCallback((widget: Omit<PortalWidget, 'id' | 'position'>) => {
-        const newLayout = { ...layout };
-        const page = newLayout.pages[currentPage];
-        const newWidget: PortalWidget = {
-            ...widget,
-            id: `widget-${Date.now()}`,
-            position: page.widgets.length,
+    const addWidgetAction = useCallback((widget: Omit<PortalWidget, 'id' | 'position'>): AddWidgetResult => {
+        const currentWidgets = layout.widgetCanvas?.widgets || [];
+        const { widgets: nextWidgets, result } = addWidgetToCanvas(currentWidgets, widget);
+        if (!result.ok) {
+            return result;
+        }
+
+        const newLayout: PortalLayout = {
+            ...layout,
+            widgetCanvas: {
+                widgets: nextWidgets,
+                lastModified: Date.now(),
+            },
         };
-        page.widgets.push(newWidget);
+
         updateLayout(newLayout);
-    }, [layout, currentPage, updateLayout]);
+        return result;
+    }, [layout, updateLayout]);
 
     const removeWidgetAction = useCallback((widgetId: string) => {
-        const newLayout = { ...layout };
-        const page = newLayout.pages[currentPage];
-        page.widgets = page.widgets.filter(w => w.id !== widgetId);
+        const currentWidgets = layout.widgetCanvas?.widgets || [];
+        const nextWidgets = removeWidgetFromCanvas(currentWidgets, widgetId);
+
+        const newLayout: PortalLayout = {
+            ...layout,
+            widgetCanvas: {
+                widgets: nextWidgets,
+                lastModified: Date.now(),
+            },
+        };
+
         updateLayout(newLayout);
-    }, [layout, currentPage, updateLayout]);
+    }, [layout, updateLayout]);
 
     const reorderWidgetsAction = useCallback((fromIndex: number, toIndex: number) => {
-        const newLayout = reorderWidgets(layout, currentPage, fromIndex, toIndex);
+        const currentWidgets = layout.widgetCanvas?.widgets || [];
+        const nextWidgets = reorderWidgetCanvas(currentWidgets, fromIndex, toIndex);
+        const unchanged = nextWidgets.length === currentWidgets.length
+            && nextWidgets.every((widget, index) => (
+                widget.id === currentWidgets[index]?.id
+                && widget.position === currentWidgets[index]?.position
+            ));
+        if (unchanged) {
+            return;
+        }
+
+        const newLayout: PortalLayout = {
+            ...layout,
+            widgetCanvas: {
+                widgets: nextWidgets,
+                lastModified: Date.now(),
+            },
+        };
+
         updateLayout(newLayout);
-    }, [layout, currentPage, updateLayout]);
+    }, [layout, updateLayout]);
 
     // === Settings ===
     const setGridColumns = useCallback((columns: number) => {
@@ -605,10 +654,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         setIsLoading(true);
         try {
             const savedLayout = await initializeLayout(user?.role || 'user');
-            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
+            const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
+            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-            if (sanitizedChanged || changed || circlesChanged) {
+            if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged) {
                 await saveLocalLayout(layoutWithCircles);
             }
             setLayout(layoutWithCircles);
