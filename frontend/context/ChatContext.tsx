@@ -556,8 +556,27 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         try {
             setIsLoading(true);
             const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
-            // No need to manually add to state anymore, WS will handle it
-            // This ensures consistency and sync across devices
+
+            const localMessage: Message = {
+                id: savedMsg.id?.toString() || savedMsg.ID?.toString() || `local_${Date.now()}`,
+                text: savedMsg.content || text,
+                sender: 'user',
+                type: savedMsg.type || 'text',
+                content: savedMsg.content || text,
+                fileName: savedMsg.fileName,
+                fileSize: savedMsg.fileSize,
+                duration: savedMsg.duration,
+                createdAt: savedMsg.createdAt || savedMsg.CreatedAt || new Date().toISOString(),
+            };
+
+            // Keep local UX resilient when WS echo is delayed/missing.
+            setMessages(prev => {
+                if (prev.some(m => m.id === localMessage.id)) {
+                    return prev;
+                }
+                return [...prev, localMessage];
+            });
+
             return Boolean(savedMsg);
         } catch (error) {
             console.error('Failed to send P2P message', error);
