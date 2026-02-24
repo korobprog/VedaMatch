@@ -193,3 +193,101 @@ if h.secret != "" {
   response.IceServers = append(response.IceServers, IceServer{Urls: turnURL, Username: username, Credential: password})
 }
 ```
+
+## 2026-02-24 (Configurable Welcome Bonus LKM)
+
+### Измененные файлы
+- `server/internal/services/economy_settings.go`
+- `server/internal/services/wallet_service.go`
+- `server/internal/handlers/admin_handler.go`
+- `server/internal/handlers/referral_handler.go`
+- `admin/src/app/referrals/page.tsx`
+
+### Суть правки (от старого к новому)
+- `server/internal/services/economy_settings.go`:
+  - Было: единого источника `Welcome Bonus` не было.
+  - Стало: добавлен `GetWelcomeBonusLKM()` с приоритетом `SystemSetting(WELCOME_BONUS_LKM)` -> `env WELCOME_BONUS_LKM` -> default `50`.
+- `server/internal/services/wallet_service.go`:
+  - Было: welcome bonus в кошельке создавался жестко как `50` (`PendingBalance`, `WalletTransaction.Amount`, `BonusAmount`).
+  - Стало: используется `GetWelcomeBonusLKM()`, поэтому новый бонус задается через настройку.
+- `server/internal/handlers/admin_handler.go`:
+  - Было: `/api/admin/wallet/global-stats` не возвращал текущее значение welcome bonus.
+  - Стало: добавлено поле `welcomeBonusLKM` в ответ.
+- `server/internal/handlers/referral_handler.go`:
+  - Было: `ShareText` содержал фиксированный текст `50 LKM`.
+  - Стало: значение в `ShareText` формируется динамически из `GetWelcomeBonusLKM()`.
+- `admin/src/app/referrals/page.tsx`:
+  - Было: в блоке `Economic Pulse` показывался статичный `Welcome Bonus = 50 LKM`.
+  - Стало: добавлены редактируемое поле + `Save`, сохраняющие `WELCOME_BONUS_LKM` через `POST /api/admin/settings`.
+
+### Сниппеты кода
+
+`server/internal/services/economy_settings.go`:
+```go
+func GetWelcomeBonusLKM() int {
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", "WELCOME_BONUS_LKM").First(&setting).Error; err == nil {
+		return parseBoundedInt(setting.Value, 50, 0, 100000)
+	}
+	if envValue := strings.TrimSpace(os.Getenv("WELCOME_BONUS_LKM")); envValue != "" {
+		return parseBoundedInt(envValue, 50, 0, 100000)
+	}
+	return 50
+}
+```
+
+`server/internal/services/wallet_service.go`:
+```go
+welcomeBonusLKM := GetWelcomeBonusLKM()
+wallet.PendingBalance = welcomeBonusLKM
+welcomeTx.Amount = welcomeBonusLKM
+welcomeTx.BonusAmount = welcomeBonusLKM
+```
+
+`admin/src/app/referrals/page.tsx`:
+```ts
+await api.post('/admin/settings', { WELCOME_BONUS_LKM: String(parsed) });
+await mutateWalletStats();
+```
+
+## 2026-02-24 (Contacts -> Chat White Screen + iOS Message Visibility)
+
+### Измененные файлы
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`:
+  - Было: переход в чат выполнялся напрямую из нескольких `onPress` в карточке контакта; на быстрых тачах/вложенных touchable возможен двойной `navigate` и гонка инициализации.
+  - Стало: добавлен navigation lock (`runWithNavigationLock`), единый `openChat` с передачей `userId/name` в `Chat`, и единый `openCall`.
+- `frontend/components/chat/MessageList.tsx`:
+  - Было: `FlatList` на iOS использовал `maintainVisibleContentPosition`, а blur-bubble включался в dark mode, что могло приводить к неотрисовке/перекрытию контента.
+  - Стало: `maintainVisibleContentPosition` ограничен Android; добавлен `extraData` и безопасный `keyExtractor`; blur-bubble на iOS включается только для photo background.
+
+### Сниппеты кода
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```ts
+const openChat = useCallback((contact: UserContact) => {
+  runWithNavigationLock(() => {
+    setChatRecipient(contact);
+    requestAnimationFrame(() => {
+      navigation.navigate('Chat', {
+        userId: contact.ID,
+        name: (contact.spiritualName || contact.karmicName || '').trim() || undefined,
+      });
+    });
+  });
+}, [navigation, runWithNavigationLock, setChatRecipient]);
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```ts
+const shouldUseBubbleBlur = Platform.OS === 'android' ? (isPhotoBg || isDarkMode) : isPhotoBg;
+
+<FlatList
+  ...
+  extraData={`${messages.length}_${isLoadingOlderMessages ? 'older' : 'idle'}_${recipientUser?.ID || 'none'}`}
+  maintainVisibleContentPosition={Platform.OS === 'android' ? { minIndexForVisible: 1 } : undefined}
+/>
+```

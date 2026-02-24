@@ -64,6 +64,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     const { assistantType, isDarkMode, portalBackgroundType } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const isPhotoBg = portalBackgroundType === 'image';
+    const shouldUseBubbleBlur = Platform.OS === 'android' ? (isPhotoBg || isDarkMode) : isPhotoBg;
     const theme = {
         accent: colors.accent,
         primary: colors.accent,
@@ -352,7 +353,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 return (
                     <View style={bubbleShadowStyle}>
                         <View style={bubbleStyle}>
-                            {(isPhotoBg || isDarkMode) && (
+                            {shouldUseBubbleBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType={isDarkMode ? 'dark' : 'light'}
@@ -506,7 +507,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             return (
                 <View style={bubbleShadowStyle}>
                     <View style={bubbleStyle}>
-                        {(isPhotoBg || isDarkMode) && (
+                        {shouldUseBubbleBlur && (
                             <BlurView
                                 style={StyleSheet.absoluteFill}
                                 blurType={isDarkMode ? 'dark' : 'light'}
@@ -567,13 +568,14 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ref={flatListRef}
                     data={messagesWithHeaders}
                     renderItem={renderMessage}
-                    keyExtractor={(item: any) => item.id}
+                    keyExtractor={(item: any, index) => item?.id?.toString?.() || `chat_item_${index}`}
+                    extraData={`${messages.length}_${isLoadingOlderMessages ? 'older' : 'idle'}_${recipientUser?.ID || 'none'}`}
                     contentContainerStyle={styles.listContent}
                     keyboardDismissMode="none"
                     keyboardShouldPersistTaps="always"
                     onScroll={handleListScroll}
                     scrollEventThrottle={16}
-                    maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+                    maintainVisibleContentPosition={Platform.OS === 'android' ? { minIndexForVisible: 1 } : undefined}
                     ListHeaderComponent={
                         isLoadingOlderMessages ? (
                             <View style={styles.historyLoader}>

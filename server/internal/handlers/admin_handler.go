@@ -1382,5 +1382,6 @@ func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
 		"totalIssuedLKM":      totalIssued,
 		"totalSpentLKM":       totalSpent,
 		"circulationLKM":      totalBalance + totalBonus + totalFrozen + totalFrozenBonus,
+		"welcomeBonusLKM":     services.GetWelcomeBonusLKM(),
 	})
 }

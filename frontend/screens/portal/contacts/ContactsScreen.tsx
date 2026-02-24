@@ -65,6 +65,8 @@ export const ContactsScreen: React.FC = () => {
     const [citySearchQuery, setCitySearchQuery] = useState('');
     const unblockingIdsRef = useRef<Set<number>>(new Set());
     const allContactsRef = useRef<UserContact[]>([]);
+    const navigationLockRef = useRef(false);
+    const navigationUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -76,8 +78,52 @@ export const ContactsScreen: React.FC = () => {
     useEffect(() => {
         return () => {
             unblockingIdsRef.current.clear();
+            if (navigationUnlockTimerRef.current) {
+                clearTimeout(navigationUnlockTimerRef.current);
+            }
         };
     }, []);
+
+    const releaseNavigationLock = useCallback(() => {
+        navigationLockRef.current = false;
+        if (navigationUnlockTimerRef.current) {
+            clearTimeout(navigationUnlockTimerRef.current);
+            navigationUnlockTimerRef.current = null;
+        }
+    }, []);
+
+    const runWithNavigationLock = useCallback((action: () => void) => {
+        if (navigationLockRef.current) {
+            return;
+        }
+        navigationLockRef.current = true;
+        action();
+        navigationUnlockTimerRef.current = setTimeout(() => {
+            releaseNavigationLock();
+        }, 350);
+    }, [releaseNavigationLock]);
+
+    const openChat = useCallback((contact: UserContact) => {
+        runWithNavigationLock(() => {
+            setChatRecipient(contact);
+            requestAnimationFrame(() => {
+                navigation.navigate('Chat', {
+                    userId: contact.ID,
+                    name: (contact.spiritualName || contact.karmicName || '').trim() || undefined,
+                });
+            });
+        });
+    }, [navigation, runWithNavigationLock, setChatRecipient]);
+
+    const openCall = useCallback((contact: UserContact) => {
+        runWithNavigationLock(() => {
+            navigation.navigate('CallScreen', {
+                targetId: contact.ID,
+                isIncoming: false,
+                callerName: contact.spiritualName || contact.karmicName || 'User',
+            });
+        });
+    }, [navigation, runWithNavigationLock]);
 
     const allContactsQuery = useInfiniteQuery({
         queryKey: ['contacts', 'all', debouncedSearch, filterCities.join(',')],
@@ -382,8 +428,7 @@ export const ContactsScreen: React.FC = () => {
                 onPress={() => {
                     if (isBlocked) return;
                     if (isFriend) {
-                        setChatRecipient(item);
-                        navigation.navigate('Chat');
+                        openChat(item);
                     } else {
                         navigation.navigate('ContactProfile', { userId: item.ID });
                     }
@@ -464,11 +509,7 @@ export const ContactsScreen: React.FC = () => {
                                     }
                                 ]}
                                 onPress={() => {
-                                    navigation.navigate('CallScreen', {
-                                        targetId: item.ID,
-                                        isIncoming: false,
-                                        callerName: item.spiritualName || item.karmicName || 'User'
-                                    });
+                                    openCall(item);
                                 }}
                             >
                                 <Phone size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />
@@ -485,8 +526,7 @@ export const ContactsScreen: React.FC = () => {
                                     }
                                 ]}
                                 onPress={() => {
-                                    setChatRecipient(item);
-                                    navigation.navigate('Chat');
+                                    openChat(item);
                                 }}
                             >
                                 <MessageCircle size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />

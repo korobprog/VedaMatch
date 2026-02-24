@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
 import {
@@ -24,7 +24,39 @@ const fetcher = (url: string) => api.get(url).then(res => res.data);
 export default function ReferralsPage() {
     const { data: stats, error: statsError } = useSWR('/admin/referrals/stats', fetcher);
     const { data: leaderboard, error: lbError } = useSWR('/admin/referrals/leaderboard', fetcher);
-    const { data: walletStats, error: wsError } = useSWR('/admin/wallet/global-stats', fetcher);
+    const { data: walletStats, error: wsError, mutate: mutateWalletStats } = useSWR('/admin/wallet/global-stats', fetcher);
+    const [welcomeBonusLKM, setWelcomeBonusLKM] = useState('50');
+    const [welcomeBonusSaving, setWelcomeBonusSaving] = useState(false);
+    const [welcomeBonusError, setWelcomeBonusError] = useState('');
+    const [welcomeBonusSaved, setWelcomeBonusSaved] = useState(false);
+
+    useEffect(() => {
+        if (walletStats?.welcomeBonusLKM !== undefined && walletStats?.welcomeBonusLKM !== null) {
+            setWelcomeBonusLKM(String(walletStats.welcomeBonusLKM));
+        }
+    }, [walletStats?.welcomeBonusLKM]);
+
+    const saveWelcomeBonus = async () => {
+        const parsed = Number.parseInt(welcomeBonusLKM, 10);
+        if (Number.isNaN(parsed) || parsed < 0) {
+            setWelcomeBonusError('Enter a valid non-negative integer');
+            return;
+        }
+
+        setWelcomeBonusSaving(true);
+        setWelcomeBonusError('');
+        setWelcomeBonusSaved(false);
+        try {
+            await api.post('/admin/settings', { WELCOME_BONUS_LKM: String(parsed) });
+            await mutateWalletStats();
+            setWelcomeBonusSaved(true);
+            setTimeout(() => setWelcomeBonusSaved(false), 2500);
+        } catch (err: any) {
+            setWelcomeBonusError(err?.response?.data?.error || 'Failed to save welcome bonus');
+        } finally {
+            setWelcomeBonusSaving(false);
+        }
+    };
 
     const statCards = useMemo(() => [
         {
@@ -237,8 +269,32 @@ export default function ReferralsPage() {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center py-2 border-b border-white/10">
                                 <span className="text-sm text-white/70">Welcome Bonus</span>
-                                <span className="font-bold">50 LKM</span>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={welcomeBonusLKM}
+                                        onChange={(e) => setWelcomeBonusLKM(e.target.value)}
+                                        className="w-24 rounded-lg bg-white/15 text-white px-2 py-1 text-sm font-bold outline-none border border-white/20"
+                                    />
+                                    <span className="text-sm font-bold">LKM</span>
+                                    <button
+                                        type="button"
+                                        onClick={saveWelcomeBonus}
+                                        disabled={welcomeBonusSaving}
+                                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-[var(--primary)] hover:bg-white/90 disabled:opacity-60"
+                                    >
+                                        {welcomeBonusSaving ? 'Saving...' : 'Save'}
+                                    </button>
+                                </div>
                             </div>
+                            {welcomeBonusError && (
+                                <p className="text-[11px] text-red-200">{welcomeBonusError}</p>
+                            )}
+                            {welcomeBonusSaved && !welcomeBonusError && (
+                                <p className="text-[11px] text-emerald-200">Welcome Bonus updated</p>
+                            )}
                             <div className="flex justify-between items-center py-2 border-b border-white/10">
                                 <span className="text-sm text-white/70">Invite Reward</span>
                                 <span className="font-bold">100 LKM</span>

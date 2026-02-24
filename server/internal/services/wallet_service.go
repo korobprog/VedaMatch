@@ -169,6 +169,8 @@ func isDuplicateKeyError(err error) bool {
 }
 
 func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.Wallet, error) {
+	welcomeBonusLKM := GetWelcomeBonusLKM()
+
 	var wallet models.Wallet
 	err := tx.Where("user_id = ?", userID).First(&wallet).Error
 	if err == nil {
@@ -184,7 +186,7 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 		Type:               models.WalletTypePersonal,
 		Balance:            0,
 		BonusBalance:       0,
-		PendingBalance:     50,
+		PendingBalance:     welcomeBonusLKM,
 		FrozenBalance:      0,
 		FrozenBonusBalance: 0,
 		TotalEarned:        0,
@@ -204,8 +206,8 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 	welcomeTx := models.WalletTransaction{
 		WalletID:     wallet.ID,
 		Type:         models.TransactionTypeBonus,
-		Amount:       50,
-		BonusAmount:  50,
+		Amount:       welcomeBonusLKM,
+		BonusAmount:  welcomeBonusLKM,
 		Description:  "Welcome Bonus (Pending activation)",
 		BalanceAfter: 0,
 	}
@@ -237,6 +239,8 @@ func (s *WalletService) getOrCreateLockedWalletTx(tx *gorm.DB, userID uint) (*mo
 
 // GetOrCreateWallet gets user's wallet or creates one with initial balance
 func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
+	welcomeBonusLKM := GetWelcomeBonusLKM()
+
 	var wallet models.Wallet
 
 	err := database.DB.Where("user_id = ?", userID).First(&wallet).Error
@@ -262,9 +266,9 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		wallet = models.Wallet{
 			UserID:             &userID,
 			Type:               models.WalletTypePersonal,
-			Balance:            0,  // Active regular balance starts at 0
-			BonusBalance:       0,  // Active bonus is empty until pending activation
-			PendingBalance:     50, // Welcome bonus (locked)
+			Balance:            0,               // Active regular balance starts at 0
+			BonusBalance:       0,               // Active bonus is empty until pending activation
+			PendingBalance:     welcomeBonusLKM, // Welcome bonus (locked)
 			FrozenBalance:      0,
 			FrozenBonusBalance: 0,
 			TotalEarned:        0,
@@ -283,8 +287,8 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		welcomeTx := models.WalletTransaction{
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeBonus,
-			Amount:       50,
-			BonusAmount:  50,
+			Amount:       welcomeBonusLKM,
+			BonusAmount:  welcomeBonusLKM,
 			Description:  "Welcome Bonus (Pending activation)",
 			BalanceAfter: 0, // Active balance is still 0
 		}
@@ -298,7 +302,7 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 	}
 
 	if created {
-		log.Printf("[Wallet] Created wallet for user %d with 0 Active + 50 Pending LKM", userID)
+		log.Printf("[Wallet] Created wallet for user %d with 0 Active + %d Pending LKM", userID, welcomeBonusLKM)
 	}
 	return &wallet, nil
 }

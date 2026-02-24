@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -189,11 +190,12 @@ func (h *ReferralHandler) buildInvitePayload(userID uint) (*invitePayload, error
 
 	deepLink := baseURL + "/" + code
 	publicWebLink := webURL + "/" + code
+	welcomeBonusLKM := services.GetWelcomeBonusLKM()
 
 	return &invitePayload{
 		InviteCode: code,
 		DeepLink:   deepLink,
 		WebLink:    publicWebLink,
-		ShareText:  "Привет! Давай изучать Веды вместе. Держи 50 LKM на старт: " + publicWebLink,
+		ShareText:  fmt.Sprintf("Привет! Давай изучать Веды вместе. Держи %d LKM на старт: %s", welcomeBonusLKM, publicWebLink),
 	}, nil
 }
