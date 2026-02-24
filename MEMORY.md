@@ -21,6 +21,10 @@
 - В проекте также есть legacy room-signaling путь в `webRTCService.startRoomCall` и WS-типы `room_offer/room_answer/room_candidate/room_hangup`, но текущий UI комнатных звонков идет через SFU/LiveKit.
 
 ## Calls Risks / Tech Debt
-- В клиенте есть fallback TURN с hardcoded `username/credential` в `frontend/services/webRTCService.ts`; это чувствительные данные в мобильном коде.
-- В сервере `TURN_SECRET` и TURN host имеют небезопасные fallback-значения в `server/internal/handlers/turn_handler.go`; это допустимо для dev, но рискованно для production-контура.
+- Hardcoded TURN fallback credentials удалены из `frontend/services/webRTCService.ts`; при недоступности `/turn-credentials` используется STUN-only fallback.
+- В `server/internal/handlers/turn_handler.go` TURN-креды выдаются только при наличии `TURN_SECRET` и `TURN_EXTERNAL_IP/TURN_HOST`; иначе API возвращает STUN-only.
 - В `GetContacts` есть legacy-режим возврата полного списка при отсутствии query-параметров (`ContactsLegacyModeEnabled`), что может быть тяжелым по перформансу на росте базы.
+
+## Contacts API
+- `FF_CONTACTS_LEGACY_MODE` переведен в default `false` (`server/internal/config/feature_flags.go`), чтобы `/contacts` без query не возвращал полный список по умолчанию.
+- Для временного rollback legacy-поведение можно явно включить env-переменной `FF_CONTACTS_LEGACY_MODE=true`.

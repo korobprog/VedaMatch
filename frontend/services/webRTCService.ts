@@ -196,7 +196,7 @@ class WebRTCService {
             }
         } catch (error: any) {
             console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);
-            // Ensure we have a diverse set of STUN servers and a fallback TURN
+            // Safe fallback: STUN-only configuration when TURN credentials API is unavailable.
             configuration = {
                 iceServers: [
                     { urls: 'stun:stun.sipnet.ru:3478' },
@@ -204,12 +204,6 @@ class WebRTCService {
                     { urls: 'stun:stun.comtube.ru:3478' },
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:global.stun.twilio.com:3478' },
-                    // Force our own TURN as a last resort fallback if API fails
-                    {
-                        urls: 'turn:45.150.9.229:3478',
-                        username: 'admin',
-                        credential: 'krishna1284radha'
-                    }
                 ]
             };
         }

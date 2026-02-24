@@ -54,5 +54,5 @@ func HTTPConditionalCacheEnabled() bool {
 }
 
 func ContactsLegacyModeEnabled() bool {
-	return FlagEnabled("FF_CONTACTS_LEGACY_MODE", true)
+	return FlagEnabled("FF_CONTACTS_LEGACY_MODE", false)
 }
