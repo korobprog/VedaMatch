@@ -7,16 +7,14 @@ import {
     StatusBar,
     Alert,
     Platform,
-    ImageBackground,
-    Image,
     Animated,
     AppState,
+    BackHandler,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
 import {
     List,
     Settings,
@@ -48,24 +46,29 @@ import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { BellButton } from '../../components/portal/BellButton';
 import { NotificationPanel } from '../../components/portal/NotificationPanel';
 import { PortalGrid } from '../../components/portal';
-import { BalancePill } from '../../components/wallet/BalancePill';
+import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
+import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { useChat } from '../../context/ChatContext';
+import {
+    EMBEDDED_PORTAL_TABS,
+    EmbeddedPortalTab,
+    resolvePortalInitialTabLaunch,
+    resolveServiceLaunch,
+} from './serviceLaunchResolver';
 
 
-type ServiceTab = 'contacts' | 'chat' | 'rooms' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services' | 'path_tracker';
+type ServiceTab = EmbeddedPortalTab;
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
-const SERVICE_TABS = new Set<ServiceTab>([
-    'contacts', 'chat', 'rooms', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
-    'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services', 'path_tracker',
-]);
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     useTranslation();
+    const { handleNewChat } = useChat();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
     const {
         vTheme,
@@ -90,9 +93,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const headerBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
     const roleBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 8);
     const backButtonBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
-    const initialTab = route.params?.initialTab;
-    const initialServiceTab = initialTab && initialTab !== 'channels' && SERVICE_TABS.has(initialTab as ServiceTab)
-        ? (initialTab as ServiceTab)
+    const initialLaunch = resolvePortalInitialTabLaunch(route.params?.initialTab);
+    const initialServiceTab = initialLaunch?.kind === 'open_portal_tab'
+        ? initialLaunch.tab
         : null;
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
@@ -157,19 +160,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }, [refreshSupportUnread])
     );
 
-    // Determine effective background values
-    const effectiveBg = isSlideshowEnabled ? activeWallpaper : portalBackground;
-    const effectiveBgType = isSlideshowEnabled ? 'image' : portalBackgroundType;
-
-    const isImageBackground = effectiveBgType === 'image' && Boolean(effectiveBg);
-    const isGradientBackground = effectiveBgType === 'gradient' && Boolean(effectiveBg);
-
-    // Cross-fade animation for slideshow (double-buffer approach)
-    const fadeAnim = useRef(new Animated.Value(1)).current;
-    const [displayedBg, setDisplayedBg] = useState(effectiveBg);
-    const [nextBg, setNextBg] = useState<string | null>(null);
-    const [displayedImageFailed, setDisplayedImageFailed] = useState(false);
-    const isTransitioning = useRef(false);
+    const { effectiveBackground: effectiveBg, effectiveBackgroundType: effectiveBgType } = useMemo(
+        () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),
+        [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
+    );
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
 
@@ -219,73 +213,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         return () => clearInterval(interval);
     }, [performanceMode, reportRuntimeStress, isAppActive, activeTab]);
 
-    useEffect(() => {
-        if (activeTab !== null) {
-            return;
-        }
-        if (!isAppActive) {
-            isTransitioning.current = false;
-            setDisplayedBg(effectiveBg);
-            setNextBg(null);
-            fadeAnim.setValue(1);
-            return;
-        }
-
-        if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
-
-        if (!androidVisualPolicy.allowCrossfade) {
-            console.warn('[portal_animation_dropped] reason=policy_crossfade_disabled');
-            setDisplayedBg(effectiveBg);
-            setNextBg(null);
-            fadeAnim.setValue(1);
-            isTransitioning.current = false;
-            return;
-        }
-
-        // Preload image before starting transition
-        const startTransition = () => {
-            isTransitioning.current = true;
-            setNextBg(effectiveBg);
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: androidVisualPolicy.crossfadeDurationMs,
-                useNativeDriver: true,
-            }).start(() => {
-                // First update displayed bg (bottom layer now shows new image)
-                setDisplayedBg(effectiveBg);
-                // Wait one frame before removing top layer to avoid flash
-                requestAnimationFrame(() => {
-                    setNextBg(null);
-                    fadeAnim.setValue(1);
-                    isTransitioning.current = false;
-                });
-            });
-        };
-
-        if (effectiveBg && effectiveBg.startsWith('http')) {
-            Image.prefetch(effectiveBg)
-                .then(() => startTransition())
-                .catch(() => startTransition());
-        } else {
-            startTransition();
-        }
-    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs, isAppActive, activeTab]);
-
-    // When slideshow disabled, update immediately without animation
-    useEffect(() => {
-        if (!isSlideshowEnabled) {
-            isTransitioning.current = false;
-            setDisplayedBg(effectiveBg);
-            setNextBg(null);
-            fadeAnim.setValue(1);
-        }
-    }, [isSlideshowEnabled, effectiveBg, fadeAnim]);
-
-    useEffect(() => {
-        setDisplayedImageFailed(false);
-    }, [displayedBg]);
-
     const handleWallpaperLoadError = useCallback((failedUri?: string | null) => {
         if (!failedUri) return;
         if (failedWallpaperSetRef.current.has(failedUri)) return;
@@ -305,117 +232,54 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     }, [wallpaperSlides, removeWallpaperSlide, isSlideshowEnabled, portalBackground, setPortalBackground]);
 
-    const backgroundImageSource = useMemo(() => {
-        if (!isImageBackground || !displayedBg) return undefined;
-        const isRemoteUri = /^https?:\/\//i.test(displayedBg);
-        return isRemoteUri
-            ? { uri: displayedBg, cache: 'force-cache' as const }
-            : { uri: displayedBg };
-    }, [isImageBackground, displayedBg]);
-    const nextBgSource = useMemo(() => {
-        if (!nextBg) return undefined;
-        const isRemoteUri = /^https?:\/\//i.test(nextBg);
-        return isRemoteUri
-            ? { uri: nextBg, cache: 'force-cache' as const }
-            : { uri: nextBg };
-    }, [nextBg]);
-    const gradientColors = useMemo(() => {
-        if (!isGradientBackground || !effectiveBg) return undefined;
-        return effectiveBg.split('|').filter(Boolean);
-    }, [isGradientBackground, effectiveBg]);
-
-    const renderWithBackground = useCallback((children: React.ReactNode) => {
-        if (isImageBackground && backgroundImageSource && !displayedImageFailed) {
-            return (
-                <View style={styles.container}>
-                    <ImageBackground
-                        source={backgroundImageSource}
-                        style={StyleSheet.absoluteFill}
-                        resizeMode="cover"
-                        fadeDuration={0}
-                        onError={() => {
-                            setDisplayedImageFailed(true);
-                            handleWallpaperLoadError(displayedBg);
-                        }}
-                    />
-                    {nextBgSource && (
-                        <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
-                            <ImageBackground
-                                source={nextBgSource}
-                                style={StyleSheet.absoluteFill}
-                                resizeMode="cover"
-                                fadeDuration={0}
-                                onError={() => {
-                                    console.warn('[portal_animation_dropped] reason=next_bg_load_error');
-                                    handleWallpaperLoadError(nextBg);
-                                    setNextBg(null);
-                                    fadeAnim.setValue(1);
-                                    isTransitioning.current = false;
-                                }}
-                            />
-                        </Animated.View>
-                    )}
-                    <View style={styles.imageOverlay}>
-                        {children}
-                    </View>
-                </View>
-            );
-        }
-
-        if (isGradientBackground && gradientColors && gradientColors.length > 0) {
-            return (
-                <LinearGradient
-                    colors={gradientColors}
-                    style={styles.container}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                >
-                    {children}
-                </LinearGradient>
-            );
-        }
-
-        return (
-            <View style={[styles.container, { backgroundColor: effectiveBg || vTheme.colors.background }]}>
-                {children}
-            </View>
-        );
-    }, [
-        isImageBackground,
-        backgroundImageSource,
-        displayedImageFailed,
-        handleWallpaperLoadError,
-        displayedBg,
-        nextBgSource,
-        nextBg,
-        fadeAnim,
-        isGradientBackground,
-        gradientColors,
-        effectiveBg,
-        vTheme.colors.background,
-    ]);
-
-    useEffect(() => {
-        const initialTab = route.params?.initialTab;
-        if (!initialTab) {
+    const navigateResolvedScreen = useCallback((screen: keyof RootStackParamList) => {
+        if (screen === 'AppSettings') {
+            navigation.navigate('AppSettings');
             return;
         }
-        if (initialTab === 'map') {
-            navigation.navigate('MapGeoapify');
-            // Reset params to prevent infinite loop or re-triggering
-            navigation.setParams({ initialTab: undefined });
-        } else if (initialTab === 'path_tracker') {
-            navigation.navigate('PathTrackerHome');
-            navigation.setParams({ initialTab: undefined });
-        } else if (initialTab === 'channels') {
-            navigation.navigate('ChannelsHub');
-            navigation.setParams({ initialTab: undefined });
-        } else if (SERVICE_TABS.has(initialTab as ServiceTab)) {
-            setActiveTab(initialTab as ServiceTab);
-        } else {
-            navigation.setParams({ initialTab: undefined });
+        if (screen === 'SupportHome') {
+            navigation.navigate('SupportHome', { entryPoint: 'portal' });
+            return;
         }
-    }, [route.params?.initialTab, navigation]);
+        if (screen === 'MapGeoapify') {
+            navigation.navigate('MapGeoapify');
+            return;
+        }
+        if (screen === 'PathTrackerHome') {
+            navigation.navigate('PathTrackerHome');
+            return;
+        }
+        if (screen === 'ChannelsHub') {
+            navigation.navigate('ChannelsHub');
+            return;
+        }
+        if (screen === 'VideoCirclesScreen') {
+            navigation.navigate('VideoCirclesScreen');
+            return;
+        }
+        if (screen === 'SevaHub') {
+            navigation.navigate('SevaHub');
+        }
+    }, [navigation]);
+
+    useEffect(() => {
+        const launch = resolvePortalInitialTabLaunch(route.params?.initialTab);
+        if (!launch) {
+            return;
+        }
+
+        if (launch.kind === 'open_portal_tab') {
+            setActiveTab(launch.tab);
+        } else if (launch.kind === 'navigate') {
+            navigateResolvedScreen(launch.screen);
+        } else if (launch.kind === 'assistant_chat') {
+            handleNewChat();
+            navigation.navigate('Chat');
+        } else if (launch.kind === 'open_menu') {
+            setIsMenuOpen(true);
+        }
+        navigation.setParams({ initialTab: undefined });
+    }, [route.params?.initialTab, navigation, navigateResolvedScreen, setIsMenuOpen, handleNewChat]);
 
     useEffect(() => {
         if (route.params?.resetToGridAt) {
@@ -424,76 +288,73 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     }, [route.params?.resetToGridAt, navigation]);
 
-    useEffect(() => {
-        if (!activeTab) {
+    const backFromActiveService = useCallback(() => {
+        if (route.params?.returnToWidget) {
+            if (navigation.canGoBack()) {
+                navigation.goBack();
+            } else {
+                navigation.navigate('WidgetSelection', { source: 'widget_dock_return' });
+            }
             return;
         }
+        setActiveTab(null);
+    }, [navigation, route.params?.returnToWidget]);
 
-        // Defensive redirects: prevent blank screen when a non-rendered tab leaks into state.
-        if (activeTab === 'map') {
-            setActiveTab(null);
-            navigation.navigate('MapGeoapify');
-            return;
-        }
-        if (activeTab === 'path_tracker') {
-            setActiveTab(null);
-            navigation.navigate('PathTrackerHome');
-            return;
-        }
-        if (activeTab === 'video_circles') {
-            setActiveTab(null);
-            navigation.navigate('VideoCirclesScreen');
-            return;
-        }
-        if (activeTab === 'knowledge_base') {
-            setActiveTab('library');
-        }
-    }, [activeTab, navigation]);
+    useFocusEffect(
+        useCallback(() => {
+            if (!activeTab) {
+                return undefined;
+            }
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                backFromActiveService();
+                return true;
+            });
+            return () => subscription.remove();
+        }, [activeTab, backFromActiveService]),
+    );
 
     const handleServicePress = useCallback((serviceId: string) => {
-        if (serviceId === 'settings') {
-            navigation.navigate('AppSettings');
-            return;
-        }
-        if (serviceId === 'history') {
-            setIsMenuOpen(true);
-            return;
-        }
-        if (serviceId === 'map') {
-            navigation.navigate('MapGeoapify');
-            return;
-        }
-        if (serviceId === 'services') {
-            navigation.navigate('ServicesHome');
-            return;
-        }
-        if (serviceId === 'chat') {
+        const launch = resolveServiceLaunch(serviceId);
+
+        if (launch.kind === 'assistant_chat') {
+            handleNewChat();
             navigation.navigate('Chat');
             return;
         }
-        if (serviceId === 'support') {
-            navigation.navigate('SupportHome', { entryPoint: 'portal' });
+
+        if (launch.kind === 'open_menu') {
+            setIsMenuOpen(true);
             return;
         }
-        if (serviceId === 'video_circles') {
-            navigation.navigate('VideoCirclesScreen');
+
+        if (launch.kind === 'navigate') {
+            navigateResolvedScreen(launch.screen);
             return;
         }
-        if (serviceId === 'seva') {
-            navigation.navigate('SevaHub');
-            return;
-        }
-        if (serviceId === 'path_tracker') {
-            navigation.navigate('PathTrackerHome');
-            return;
-        }
-        if (serviceId === 'channels') {
-            navigation.navigate('ChannelsHub');
+
+        if (launch.kind !== 'open_portal_tab') {
             return;
         }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'channels'];
+        const seekerAllowedWithoutProfile = [
+            'path_tracker',
+            'contacts',
+            'chat',
+            'calls',
+            'cafe',
+            'shops',
+            'services',
+            'services_catalog',
+            'support',
+            'map',
+            'news',
+            'library',
+            'education',
+            'multimedia',
+            'video_circles',
+            'channels',
+        ];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.godModeEnabled && !user?.isProfileComplete && !canUseWithoutCompleteProfile) {
@@ -510,13 +371,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             );
             return;
         }
-        if (SERVICE_TABS.has(serviceId as ServiceTab)) {
-            setActiveTab(serviceId as ServiceTab);
+        if (EMBEDDED_PORTAL_TABS.has(launch.tab)) {
+            setActiveTab(launch.tab);
         }
-    }, [user, navigation, setIsMenuOpen]);
+    }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen]);
 
     const renderContent = () => {
-        const backToGrid = () => setActiveTab(null);
+        const backToGrid = backFromActiveService;
         switch (activeTab) {
             case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
@@ -546,8 +407,21 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
     // Show grid view if no active tab
     if (!activeTab) {
-        return renderWithBackground(
-            <>
+        return (
+            <PortalBackgroundLayer
+                portalBackgroundType={portalBackgroundType}
+                portalBackground={portalBackground}
+                activeWallpaper={activeWallpaper}
+                isSlideshowEnabled={isSlideshowEnabled}
+                fallbackColor={vTheme.colors.background}
+                isAppActive={isAppActive}
+                allowCrossfade={androidVisualPolicy.allowCrossfade}
+                crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
+                pauseTransitions={activeTab !== null}
+                overlayColor="rgba(0,0,0,0.25)"
+                onBackgroundLoadError={handleWallpaperLoadError}
+            >
+                <>
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
@@ -618,7 +492,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 )}
                                 <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || portalIconStyle === 'vedamatch'} />
+                            <PortalLkmCircleButton
+                                onPress={() => navigation.navigate('Wallet')}
+                                size={32}
+                                borderWidth={1.5}
+                                backgroundColor={portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)'}
+                                borderColor={portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)'}
+                                textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
+                                showBlur={portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur}
+                                blurAmount={headerBlurAmount}
+                            />
                         </View>
                     </View>
 
@@ -772,13 +655,27 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     }}
                 />
                 <NotificationPanel />
-            </>
+                </>
+            </PortalBackgroundLayer>
         );
     }
 
     // Show service content with back button
-    return renderWithBackground(
-        <>
+    return (
+        <PortalBackgroundLayer
+            portalBackgroundType={portalBackgroundType}
+            portalBackground={portalBackground}
+            activeWallpaper={activeWallpaper}
+            isSlideshowEnabled={isSlideshowEnabled}
+            fallbackColor={vTheme.colors.background}
+            isAppActive={isAppActive}
+            allowCrossfade={androidVisualPolicy.allowCrossfade}
+            crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
+            pauseTransitions={activeTab !== null}
+            overlayColor="rgba(0,0,0,0.25)"
+            onBackgroundLoadError={handleWallpaperLoadError}
+        >
+            <>
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back - Hidden if service manages its own header (like Dating) */}
@@ -804,7 +701,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 }
                             ]}>
                                 <TouchableOpacity
-                                    onPress={() => setActiveTab(null)}
+                                    onPress={backFromActiveService}
                                     style={{
                                         flex: 1,
                                         width: '100%',
@@ -848,7 +745,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             >
                                 <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || portalIconStyle === 'vedamatch'} />
+                            <PortalLkmCircleButton
+                                onPress={() => navigation.navigate('Wallet')}
+                                size={32}
+                                borderWidth={1.5}
+                                backgroundColor={effectiveBgType === 'image' ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary}
+                                borderColor={effectiveBgType === 'image' ? 'rgba(255,255,255,0.4)' : 'transparent'}
+                                textColor={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
+                                showBlur={effectiveBgType === 'image' && androidVisualPolicy.enableBlur}
+                                blurAmount={backButtonBlurAmount}
+                            />
                         </View>
                     </View>
 
@@ -879,7 +785,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             <View style={styles.content}>
                 {renderContent()}
             </View>
-        </>
+            </>
+        </PortalBackgroundLayer>
     );
 };
 
@@ -891,13 +798,6 @@ export const PortalMainScreen: React.FC<PortalMainProps> = ({ navigation, route 
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    imageOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.25)',
-    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',

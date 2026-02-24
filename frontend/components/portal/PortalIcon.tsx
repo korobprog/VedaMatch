@@ -120,6 +120,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     'settings': '⚙️',
     'travel': '✈️',
     'services': '🤖',
+    'services_catalog': '🧰',
     'seva': '🤲',
 };
 

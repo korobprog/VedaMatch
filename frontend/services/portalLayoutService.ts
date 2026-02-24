@@ -107,6 +107,16 @@ const normalizeQuickAccessIds = (sourceIds: string[]): string[] => {
     return quickAccessIds.slice(0, 3);
 };
 
+const hasServiceInLayout = (layout: PortalLayout, serviceId: string): boolean => (
+    layout.quickAccess.some((item) => item.serviceId === serviceId)
+    || layout.pages.some((page) => page.items.some((item) => {
+        if (item.type === 'service') {
+            return item.serviceId === serviceId;
+        }
+        return item.items.some((folderItem) => folderItem.serviceId === serviceId);
+    }))
+);
+
 export const fetchPortalBlueprint = async (role?: string): Promise<PortalBlueprint> => {
     const normalizedRole = (role || 'user').toLowerCase();
     try {
@@ -226,6 +236,9 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
     const newItems: PortalItem[] = [];
 
     DEFAULT_SERVICES.forEach((service: any) => {
+        if (service.id === 'services_catalog') {
+            return;
+        }
         if (!existingServiceIds.has(service.id)) {
             newItems.push({
                 id: `item-${service.id}-${Date.now()}`,
@@ -251,10 +264,41 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
     return layout;
 };
 
+const ensureServicesCatalogShortcut = (layout: PortalLayout): PortalLayout => {
+    if (hasServiceInLayout(layout, 'services_catalog')) {
+        return layout;
+    }
+
+    if (layout.pages.length === 0) {
+        layout.pages.push({
+            id: 'page-1',
+            items: [],
+            widgets: [],
+            order: 0,
+        });
+    }
+
+    const firstPage = layout.pages[0];
+    const servicesIndex = firstPage.items.findIndex((item) => item.type === 'service' && item.serviceId === 'services');
+    const insertIndex = servicesIndex >= 0 ? servicesIndex + 1 : Math.min(4, firstPage.items.length);
+
+    firstPage.items.splice(insertIndex, 0, {
+        id: `item-services_catalog-${Date.now()}`,
+        serviceId: 'services_catalog',
+        type: 'service',
+        position: insertIndex,
+    });
+
+    firstPage.items = firstPage.items.map((item, index) => ({ ...item, position: index }));
+    layout.lastModified = Date.now();
+    layout.syncedWithServer = false;
+    return layout;
+};
+
 // Handle migration for old layouts
 const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
     if (!layout.quickAccess) {
-        const quickAccessIds = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
+        const quickAccessIds: string[] = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
         layout.quickAccess = mapQuickAccessIdsToItems(quickAccessIds);
 
         // Remove these from pages to avoid duplicates
@@ -280,6 +324,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
             if (serverLayout.lastModified > localLayout.lastModified) {
                 let updatedServer = ensureQuickAccess(serverLayout);
                 updatedServer = ensureDefaultServices(updatedServer);
+                updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
@@ -295,6 +340,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
 
     let updatedLocal = ensureQuickAccess(localLayout);
     updatedLocal = ensureDefaultServices(updatedLocal);
+    updatedLocal = ensureServicesCatalogShortcut(updatedLocal);
     if (!blueprint && role) {
         blueprint = await fetchPortalBlueprint(role);
     }

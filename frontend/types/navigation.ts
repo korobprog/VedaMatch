@@ -1,5 +1,27 @@
 import { CartItem } from './market';
 
+export type PortalInitialTab =
+    | 'contacts'
+    | 'chat'
+    | 'rooms'
+    | 'dating'
+    | 'cafe'
+    | 'shops'
+    | 'ads'
+    | 'news'
+    | 'calls'
+    | 'multimedia'
+    | 'video_circles'
+    | 'knowledge_base'
+    | 'library'
+    | 'education'
+    | 'map'
+    | 'travel'
+    | 'services'
+    | 'services_catalog'
+    | 'path_tracker'
+    | 'channels';
+
 export type VideoCirclePlayerPayload = {
     id: number;
     authorId: number;
@@ -24,8 +46,11 @@ export type RootStackParamList = {
     Login: { inviteCode?: string } | undefined;
     Plans: undefined;
     Portal: {
-        initialTab?: 'contacts' | 'chat' | 'rooms' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker' | 'channels';
+        initialTab?: PortalInitialTab;
         resetToGridAt?: number;
+        returnToWidget?: boolean;
+        origin?: 'widget_dock';
+        originServiceId?: string;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
     ContactProfile: { userId: number };
@@ -102,7 +127,7 @@ export type RootStackParamList = {
     ExamTrainer: { moduleId: number; title: string };
     AITutor: undefined;
     CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string; autoAccept?: boolean };
-    WidgetSelection: { source?: 'portal_header' | 'edit_toolbar' } | undefined;
+    WidgetSelection: { source?: 'portal_header' | 'edit_toolbar' | 'widget_dock_return' } | undefined;
 
     // Multimedia Routes
     MultimediaHub: undefined;

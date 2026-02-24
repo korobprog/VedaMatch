@@ -78,7 +78,8 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
     { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },
-    { id: 'services', label: 'Услуги', icon: 'Bot', color: '#6366F1' },
+    { id: 'services', label: 'Ассистент', icon: 'Bot', color: '#6366F1' },
+    { id: 'services_catalog', label: 'Сервисы', icon: 'Briefcase', color: '#2563EB' },
     { id: 'seva', label: 'Сева', icon: 'Heart', color: '#EF4444' },
 ];
 
@@ -96,7 +97,7 @@ export const FOLDER_COLORS = [
 
 // Create default layout
 export const createDefaultLayout = (): PortalLayout => {
-    const quickAccessIds = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
+    const quickAccessIds: string[] = [...DEFAULT_QUICK_ACCESS_SERVICE_IDS];
 
     const quickAccess: PortalItem[] = quickAccessIds.map((id, index) => ({
         id: `qa-${id}`,

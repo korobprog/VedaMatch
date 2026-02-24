@@ -41,7 +41,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                         styles.sheet,
                         {
                             backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.95)' : vTheme.colors.backgroundSecondary,
-                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.border,
+                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.divider,
                         },
                     ]}
                 >
@@ -70,7 +70,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                                     style={[
                                         styles.card,
                                         {
-                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : vTheme.colors.border,
+                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : vTheme.colors.divider,
                                             backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : vTheme.colors.background,
                                         },
                                     ]}

@@ -27,6 +27,7 @@ import {
     GraduationCap,
     Newspaper,
     Bot,
+    Briefcase,
 } from 'lucide-react-native';
 import { PortalFolder as PortalFolderType, DEFAULT_SERVICES } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -59,6 +60,7 @@ const IconComponents: Record<string, any> = {
     GraduationCap,
     Newspaper,
     Bot,
+    Briefcase,
 };
 
 export const PortalFolderComponent: React.FC<PortalFolderProps> = ({

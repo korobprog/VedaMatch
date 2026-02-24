@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
-    Image,
-    ImageBackground,
+    AppState,
     Platform,
     StatusBar,
     StyleSheet,
@@ -16,34 +15,21 @@ import { Film, Gift, LayoutGrid, List, MessageSquare, Plus, Settings } from 'luc
 import { RootStackParamList } from '../../types/navigation';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { useSettings } from '../../context/SettingsContext';
-import { useWallet } from '../../context/WalletContext';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 import { WidgetCanvasGrid } from '../../components/portal/widgets/WidgetCanvasGrid';
 import { WidgetPickerSheet } from '../../components/portal/widgets/WidgetPickerSheet';
 import { BellButton } from '../../components/portal/BellButton';
 import { DEFAULT_SERVICES } from '../../types/portal';
 import { PortalIcon } from '../../components/portal/PortalIcon';
+import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
+import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
+import { useChat } from '../../context/ChatContext';
+import { resolveServiceLaunch } from './serviceLaunchResolver';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
-const SERVICE_TABS = new Set([
-    'contacts', 'chat', 'rooms', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
-    'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services', 'path_tracker',
-]);
-
-const formatCompactLkm = (value: number): string => {
-    const abs = Math.abs(value);
-    if (abs >= 1_000_000) {
-        const shortened = (value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1);
-        return `${shortened.replace(/\.0$/, '')}M`;
-    }
-    if (abs >= 1_000) {
-        const shortened = (value / 1_000).toFixed(abs >= 10_000 ? 0 : 1);
-        return `${shortened.replace(/\.0$/, '')}K`;
-    }
-    return value.toLocaleString('ru-RU');
-};
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
+    const { handleNewChat } = useChat();
     const {
         layout,
         isEditMode,
@@ -59,14 +45,24 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         portalIconStyle,
         portalBackgroundType,
         portalBackground,
+        activeWallpaper,
+        isSlideshowEnabled,
+        removeWallpaperSlide,
+        wallpaperSlides,
+        setPortalBackground,
         performanceMode,
         runtimePerformanceState,
     } = useSettings();
-    const { regularBalance } = useWallet();
 
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const openSource = route.params?.source || 'unknown';
-    const isPhotoBg = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+    const failedWallpaperSetRef = useRef<Set<string>>(new Set());
+    const { effectiveBackground: effectiveBg, effectiveBackgroundType: effectiveBgType } = useMemo(
+        () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),
+        [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
+    );
+    const isPhotoBg = effectiveBgType === 'image' && Boolean(effectiveBg);
     const useLightIcons = isPhotoBg || portalIconStyle === 'vedamatch';
     const accentIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.primary);
     const secondaryIconColor = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightIcons ? '#ffffff' : vTheme.colors.textSecondary);
@@ -82,7 +78,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const widgetBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
     const toolbarBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
     const widgets = useMemo(() => layout.widgetCanvas?.widgets || [], [layout.widgetCanvas?.widgets]);
-    const lkmBalanceLabel = useMemo(() => formatCompactLkm(regularBalance), [regularBalance]);
     const quickAccessServices = useMemo(() => {
         const quickItems = [...(layout.quickAccess || [])].sort((a, b) => a.position - b.position).slice(0, 3);
         return quickItems
@@ -91,9 +86,11 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [layout.quickAccess]);
 
     useEffect(() => {
-        if (!isPhotoBg || !portalBackground || !portalBackground.startsWith('http')) return;
-        Image.prefetch(portalBackground).catch(() => { });
-    }, [isPhotoBg, portalBackground]);
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            setIsAppActive(nextState === 'active');
+        });
+        return () => subscription.remove();
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -101,20 +98,96 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         };
     }, [setEditMode]);
 
+    const handleWallpaperLoadError = useCallback((failedUri?: string | null) => {
+        if (!failedUri) return;
+        if (failedWallpaperSetRef.current.has(failedUri)) return;
+        failedWallpaperSetRef.current.add(failedUri);
+
+        if (wallpaperSlides.includes(failedUri)) {
+            removeWallpaperSlide(failedUri).catch((error) => {
+                console.warn('[WidgetSelection] failed to remove broken wallpaper slide:', error);
+            });
+            return;
+        }
+
+        if (!isSlideshowEnabled && failedUri === portalBackground && wallpaperSlides[0]) {
+            setPortalBackground(wallpaperSlides[0], 'image').catch((error) => {
+                console.warn('[WidgetSelection] failed to apply fallback wallpaper:', error);
+            });
+        }
+    }, [isSlideshowEnabled, portalBackground, removeWallpaperSlide, setPortalBackground, wallpaperSlides]);
+
     const handleBackToPortal = useCallback(() => {
         setEditMode(false);
         console.log(`[portal_widgets_back] source=${openSource}`);
-        navigation.navigate('Portal', { resetToGridAt: Date.now() });
-    }, [navigation, openSource, setEditMode]);
-
-    const handleQuickAccessPress = useCallback((serviceId: string) => {
-        setEditMode(false);
-        if (SERVICE_TABS.has(serviceId)) {
-            navigation.navigate('Portal', { initialTab: serviceId as any, resetToGridAt: Date.now() });
+        if (navigation.canGoBack()) {
+            navigation.goBack();
             return;
         }
         navigation.navigate('Portal', { resetToGridAt: Date.now() });
-    }, [navigation, setEditMode]);
+    }, [navigation, openSource, setEditMode]);
+
+    const navigateResolvedScreen = useCallback((screen: keyof RootStackParamList) => {
+        if (screen === 'AppSettings') {
+            navigation.navigate('AppSettings');
+            return;
+        }
+        if (screen === 'SupportHome') {
+            navigation.navigate('SupportHome', { entryPoint: 'portal' });
+            return;
+        }
+        if (screen === 'MapGeoapify') {
+            navigation.navigate('MapGeoapify');
+            return;
+        }
+        if (screen === 'PathTrackerHome') {
+            navigation.navigate('PathTrackerHome');
+            return;
+        }
+        if (screen === 'ChannelsHub') {
+            navigation.navigate('ChannelsHub');
+            return;
+        }
+        if (screen === 'VideoCirclesScreen') {
+            navigation.navigate('VideoCirclesScreen');
+            return;
+        }
+        if (screen === 'SevaHub') {
+            navigation.navigate('SevaHub');
+        }
+    }, [navigation]);
+
+    const handleQuickAccessPress = useCallback((serviceId: string) => {
+        setEditMode(false);
+        const launch = resolveServiceLaunch(serviceId);
+
+        if (launch.kind === 'assistant_chat') {
+            handleNewChat();
+            navigation.navigate('Chat');
+            return;
+        }
+
+        if (launch.kind === 'open_portal_tab') {
+            navigation.push('Portal', {
+                initialTab: launch.tab,
+                returnToWidget: true,
+                origin: 'widget_dock',
+                originServiceId: serviceId,
+            });
+            return;
+        }
+
+        if (launch.kind === 'navigate') {
+            navigateResolvedScreen(launch.screen);
+            return;
+        }
+
+        navigation.push('Portal', {
+            returnToWidget: true,
+            origin: 'widget_dock',
+            originServiceId: serviceId,
+        });
+    }, [handleNewChat, navigateResolvedScreen, navigation, setEditMode]);
 
     const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel'; size: '1x1' | '2x1' | '2x2' }) => {
         const result = addWidget(widget);
@@ -125,7 +198,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [addWidget]);
 
     const content = (
-        <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background }]}>
+        <View style={styles.container}>
             <StatusBar barStyle={isPhotoBg || isDarkMode ? 'light-content' : 'dark-content'} />
 
             <View style={styles.header}>
@@ -213,31 +286,15 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         )}
                         <LayoutGrid size={16} color={accentIconColor} />
                     </TouchableOpacity>
-                    <TouchableOpacity
+                    <PortalLkmCircleButton
                         onPress={() => navigation.navigate('Wallet')}
-                        style={[
-                            styles.headerCircularButton,
-                            {
-                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
-                            },
-                        ]}
-                    >
-                        {portalIconStyle !== 'vedamatch' && allowWidgetBlur && (
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="light"
-                                blurAmount={widgetBlurAmount}
-                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                            />
-                        )}
-                        <View style={styles.lkmCircleContent}>
-                            <Text style={[styles.lkmLabel, { color: accentIconColor }]}>LKM</Text>
-                            <Text style={[styles.lkmAmount, { color: accentIconColor }]} numberOfLines={1}>
-                                {lkmBalanceLabel}
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
+                        size={38}
+                        backgroundColor={portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)'}
+                        borderColor={portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)'}
+                        textColor={accentIconColor}
+                        showBlur={portalIconStyle !== 'vedamatch' && allowWidgetBlur}
+                        blurAmount={widgetBlurAmount}
+                    />
                 </View>
 
                 <View style={styles.headerRight}>
@@ -399,15 +456,22 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
     );
 
-    if (isPhotoBg && portalBackground) {
-        return (
-            <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover" fadeDuration={0}>
-                {content}
-            </ImageBackground>
-        );
-    }
-
-    return content;
+    return (
+        <PortalBackgroundLayer
+            portalBackgroundType={portalBackgroundType}
+            portalBackground={portalBackground}
+            activeWallpaper={activeWallpaper}
+            isSlideshowEnabled={isSlideshowEnabled}
+            fallbackColor={vTheme.colors.background}
+            isAppActive={isAppActive}
+            allowCrossfade={androidVisualPolicy.allowCrossfade}
+            crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
+            overlayColor="rgba(0,0,0,0.25)"
+            onBackgroundLoadError={handleWallpaperLoadError}
+        >
+            {content}
+        </PortalBackgroundLayer>
+    );
 };
 
 const styles = StyleSheet.create({
@@ -481,23 +545,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
-    },
-    lkmCircleContent: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-    },
-    lkmLabel: {
-        fontSize: 7,
-        fontWeight: '700',
-        lineHeight: 9,
-        letterSpacing: 0.3,
-    },
-    lkmAmount: {
-        fontSize: 10,
-        fontWeight: '800',
-        lineHeight: 12,
-        maxWidth: 32,
     },
     quickAccessDock: {
         position: 'absolute',

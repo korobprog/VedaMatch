@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { PortalWidget } from '../../../types/portal';
 import { useSettings } from '../../../context/SettingsContext';
 import { DraggablePortalItem } from '../DraggablePortalItem';
@@ -23,8 +23,10 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     onReorderWidgets,
 }) => {
     const { vTheme, portalBackgroundType } = useSettings();
+    const { height: viewportHeight } = useWindowDimensions();
     const isPhotoBg = portalBackgroundType === 'image';
     const [isDraggingItem, setIsDraggingItem] = useState(false);
+    const canvasMinHeight = useMemo(() => Math.max(320, viewportHeight - 330), [viewportHeight]);
     const orderedWidgets = useMemo(
         () => [...widgets].sort((a, b) => a.position - b.position),
         [widgets],
@@ -48,8 +50,9 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
 
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
+        onSetEditMode(true);
         dnd.onDragStart();
-    }, [dnd]);
+    }, [dnd, onSetEditMode]);
 
     const handleDragEnd = useCallback((id: string, x: number, y: number) => {
         setIsDraggingItem(false);
@@ -62,7 +65,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                 style={[
                     styles.emptyState,
                     {
-                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.border,
+                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider,
                         backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : vTheme.colors.backgroundSecondary,
                     },
                 ]}
@@ -89,7 +92,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
             <Pressable
                 onLongPress={handleCanvasLongPress}
                 onPress={handleCanvasPress}
-                style={styles.canvasPressable}
+                style={[styles.canvasPressable, { minHeight: canvasMinHeight }]}
             >
                 <View style={styles.gridWrap}>
                     {orderedWidgets.map((widget) => (
@@ -133,12 +136,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 12,
         paddingTop: 12,
         paddingBottom: 240,
     },
     canvasPressable: {
-        minHeight: 240,
+        flex: 1,
     },
     gridWrap: {
         flexDirection: 'row',

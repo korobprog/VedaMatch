@@ -12,8 +12,12 @@
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии после bump (2026-02-24):
-  - Android: `versionCode=15`, `versionName=1.1.13`
-  - iOS: `MARKETING_VERSION=1.1.2`, `CURRENT_PROJECT_VERSION=4`
+  - Android: `versionCode=16`, `versionName=1.1.14`
+  - iOS: `MARKETING_VERSION=1.1.3`, `CURRENT_PROJECT_VERSION=5`
+- Статус production-сборок (2026-02-24):
+  - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
+  - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
+  - iOS: `xcodebuild ... -configuration Release -sdk iphoneos build` успешно, app: `frontend/ios/build/Build/Products/Release-iphoneos/vedamatch.app`.
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
   - `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`
@@ -24,11 +28,13 @@
 
 ## Portal Home Layout
 - Иконка ассистента в верхнем хедере портала удалена (`frontend/screens/portal/PortalMainScreen.tsx`).
-- Ярлык `services` переведен на иконку ассистента (`Bot`) в портале (`frontend/types/portal.ts`, `frontend/components/portal/PortalIcon.tsx`, `frontend/components/portal/PortalFolder.tsx`).
+- Ярлык `services` закреплен как AI-ярлык (`Bot` -> открытие `Chat` + `handleNewChat()`), а каталог услуг вынесен в отдельный ярлык `services_catalog` (`Briefcase`) (`frontend/types/portal.ts`, `frontend/screens/portal/serviceLaunchResolver.ts`).
 - Дефолтный нижний бар (quick access) зафиксирован как `calls/services/rooms`:
   - локальный default layout (`frontend/types/portal.ts`);
   - fallback role blueprints (`frontend/constants/portalRoles.ts`);
   - нормализация quick access при инициализации layout (`frontend/services/portalLayoutService.ts`), включая автозамену `history -> services`.
+- Для существующих layout добавлена миграция `services_catalog` в первую страницу (рядом с `services` или после 1-го ряда при отсутствии `services`) в `frontend/services/portalLayoutService.ts`.
+- Навигация сервис-ярлыков унифицирована между Portal и Widget Dock через `frontend/screens/portal/serviceLaunchResolver.ts`; в `PortalMainScreen` и `WidgetSelectionScreen` больше нет расхождений по `services`.
 
 ## Portal Widget Canvas (Shared Layer)
 - Для виджетов добавлен отдельный top-level слой хранения `layout.widgetCanvas` (`frontend/types/portal.ts`) вместо зависимости от `pages[currentPage].widgets`.
@@ -51,14 +57,16 @@
   - long-press edit-mode;
   - добавление через `+` в toolbar;
   - `Готово` выключает edit-mode;
-  - возврат в Portal через `resetToGridAt`.
+  - открытие сервисов из нижнего dock через `push('Portal', { returnToWidget: true, origin: 'widget_dock' })`.
 - UX-фикс для экрана виджетов (2026-02-24):
   - `WidgetCanvasGrid`: убран конфликт tap/drag (без автовыхода из edit-mode по случайному tap), скролл блокируется только в момент drag.
   - `useGridReorderDnd`: добавлен fallback drop на ближайший элемент (если нет точной коллизии), с защитой от reorder при отпускании на исходном элементе.
   - `WidgetPickerSheet`: листание списка работает стабильно (backdrop больше не перехватывает scroll), sheet не закрывается после каждого добавления.
   - `WidgetSelectionScreen`: добавлен нижний dock как на главном портале (3 сервиса из `layout.quickAccess`), edit-toolbar оставлен отдельным слоем (`Виджет`, `Готово`) над dock.
   - `WidgetSelectionScreen`: `LKM` в верхнем баре заменен на круглую кнопку того же размера, что и остальные header-иконки, с компактным форматом суммы (`K/M`).
-  - `WidgetCanvasGrid`: drag-start больше не переключает `editMode` во время жеста (устранен срыв перетаскивания из-за ререндера).
+  - `WidgetCanvasGrid`: зона long-press растянута на весь canvas; drag-start фиксированно включает edit-mode перед перетаскиванием (устранен срыв DnD на Android).
+  - `WidgetSelectionScreen` и `PortalMainScreen` используют общий рендер фоновых режимов (`image/gradient/color/slideshow`) через `frontend/components/portal/PortalBackgroundLayer.tsx`.
+  - `PortalMainScreen`: при `returnToWidget=true` back из встроенного сервиса возвращает в `WidgetSelection` (UI back, embedded `onBack`, Android hardware back).
 - Android white-screen/black-screen на входе в `WidgetSelection` (2026-02-24):
   - Наблюдение: в `adb logcat` нет `FATAL EXCEPTION`/`ReactNativeJS` ошибок после `[portal_widgets_open]`; `MainActivity` остается `mResumed=true`, но поверхность может оставаться пустой.
   - Вероятная причина: transition freeze/race в `native-stack` на Android (глобальные `animation: fade` + `freezeOnBlur`) в сочетании с повторными `navigate` и heavy blur-слоем.
@@ -125,4 +133,4 @@
 ## Portal UI Notes
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
-  - убран дополнительный затемняющий `photoOverlay`, фон экрана совпадает с фоном главной портала.
+  - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.

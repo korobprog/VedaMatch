@@ -1,5 +1,136 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (Portal/Widgets Sync: AI Navigation, Back-to-Widgets, Shared Background, Circular LKM)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/types/navigation.ts`
+- `frontend/types/portal.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/components/portal/PortalIcon.tsx`
+- `frontend/components/portal/PortalFolder.tsx`
+- `frontend/components/portal/PortalBackgroundLayer.tsx`
+- `frontend/components/wallet/PortalLkmCircleButton.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/components/portal/widgets/WidgetPickerSheet.tsx`
+- `frontend/__tests__/screens/portal/serviceLaunchResolver.test.ts`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+- `frontend/__tests__/screens/portal/WidgetSelectionScreen.test.tsx`
+- `frontend/__tests__/screens/portal/WidgetCanvasGrid.test.tsx`
+
+### Суть правки (от старого к новому)
+- `services` navigation:
+  - Было: `services` открывал `ServicesHome`.
+  - Стало: `services` всегда открывает AI-чат (`handleNewChat()` + `navigate('Chat')`).
+- Сервисный каталог:
+  - Было: отдельного ярлыка каталога не было.
+  - Стало: добавлен `services_catalog` (иконка `Briefcase`, label `Сервисы`), а `services` оставлен как AI-ярлык.
+- Widget dock -> Portal back:
+  - Было: из `WidgetSelection` использовался `navigate('Portal', { initialTab })`, из-за чего back часто возвращал в портал.
+  - Стало: используется `push('Portal', { returnToWidget: true, origin: 'widget_dock', originServiceId })`; в `PortalMainScreen` единый `backFromActiveService()` возвращает назад в `WidgetSelection`.
+- Фон Portal/Widgets:
+  - Было: `WidgetSelection` рендерил фон отдельной упрощенной логикой.
+  - Стало: `PortalMainScreen` и `WidgetSelectionScreen` используют общий `PortalBackgroundLayer` (image/gradient/color + slideshow/crossfade/fallback).
+- LKM в хедерах:
+  - Было: в Portal использовался `BalancePill`, в Widgets — локальная реализация.
+  - Стало: общий круглый `PortalLkmCircleButton` в обоих экранах.
+- Widget canvas long-press/DnD:
+  - Было: long-press зона ограничивалась малой областью (`minHeight: 240`).
+  - Стало: зона растянута на весь рабочий canvas (динамический `minHeight`), drag-start стабильно включает edit-mode.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'services') {
+  return { kind: 'assistant_chat' };
+}
+if (serviceId === 'services_catalog') {
+  return { kind: 'open_portal_tab', tab: 'services' };
+}
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+if (launch.kind === 'open_portal_tab') {
+  navigation.push('Portal', {
+    initialTab: launch.tab,
+    returnToWidget: true,
+    origin: 'widget_dock',
+    originServiceId: serviceId,
+  });
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const backFromActiveService = useCallback(() => {
+  if (route.params?.returnToWidget) {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('WidgetSelection', { source: 'widget_dock_return' });
+    return;
+  }
+  setActiveTab(null);
+}, [navigation, route.params?.returnToWidget]);
+```
+
+`frontend/components/portal/PortalBackgroundLayer.tsx`:
+```tsx
+export const PortalBackgroundLayer: React.FC<PortalBackgroundLayerProps> = ({ ... }) => {
+  // единый image/gradient/color + slideshow/crossfade + fallback
+};
+```
+
+`frontend/components/wallet/PortalLkmCircleButton.tsx`:
+```tsx
+<PortalLkmCircleButton
+  onPress={() => navigation.navigate('Wallet')}
+  size={38}
+  backgroundColor="rgba(255, 255, 255, 0.25)"
+  borderColor="rgba(255, 255, 255, 0.4)"
+  textColor={accentIconColor}
+/>
+```
+
+### Валидация
+- TypeScript: `npx tsc --noEmit -p tsconfig.json` — успешно.
+- Тесты: `npm test -- --watchman=false --runInBand --runTestsByPath ...` — успешно (4 suite / 11 test).
+
+## 2026-02-24 (Release Version Bump + Production Builds Android/iOS)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- `frontend/android/app/build.gradle`:
+  - Было: `versionCode 15`, `versionName "1.1.13"`.
+  - Стало: `versionCode 16`, `versionName "1.1.14"`.
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+  - Было: `CURRENT_PROJECT_VERSION = 4;`, `MARKETING_VERSION = 1.1.2;`
+  - Стало: `CURRENT_PROJECT_VERSION = 5;`, `MARKETING_VERSION = 1.1.3;`
+
+### Сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionCode 16
+versionName "1.1.14"
+```
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+CURRENT_PROJECT_VERSION = 5;
+MARKETING_VERSION = 1.1.3;
+```
+
+### Статус сборки
+- Android production: `./gradlew assembleRelease` — успешно.
+- iOS Release (iphoneos): `xcodebuild -workspace vedamatch.xcworkspace -scheme vedamatch -configuration Release -sdk iphoneos build` — успешно.
+
 ## 2026-02-24 (Widget Screen: Portal Dock + Stable Drag + Circular LKM)
 
 ### Измененные файлы
