@@ -38,11 +38,32 @@ const createMemoryStorage = (): StorageLike => {
     };
 };
 
+let hasLoggedMMKVFallback = false;
+
+const logMMKVFallback = (error: unknown) => {
+    if (hasLoggedMMKVFallback) return;
+    hasLoggedMMKVFallback = true;
+
+    console.warn('[MMKV] Native module unavailable, using in-memory fallback.');
+
+    const message = error instanceof Error
+        ? error.message
+        : String(error ?? '');
+    const firstLine = message.split('\n').find(Boolean)?.trim();
+    if (firstLine) {
+        console.warn(`[MMKV] Detail: ${firstLine}`);
+    }
+
+    if (__DEV__) {
+        console.warn('[MMKV] To enable native MMKV: run `cd ios && pod install`, then rebuild iOS app.');
+    }
+};
+
 const createStorage = (): StorageLike => {
     try {
         return createMMKV({ id: 'vedamatch-main' });
     } catch (error) {
-        console.warn('[MMKV] Native module unavailable, using in-memory fallback.', error);
+        logMMKVFallback(error);
         return createMemoryStorage();
     }
 };

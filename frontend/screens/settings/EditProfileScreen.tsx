@@ -138,11 +138,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (isMountedRef.current) {
                 setLoading(true);
             }
-            const response = await apiClient.get<any[]>('/contacts');
+            const response = await apiClient.get<any[] | { items?: any[] }>('/contacts');
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            const userData = response.data.find((u: any) => u.ID === user.ID);
+            const contacts = Array.isArray(response.data)
+                ? response.data
+                : (Array.isArray(response.data?.items) ? response.data.items : []);
+            const userData = contacts.find((u: any) => u.ID === user.ID);
 
             if (userData) {
                 setCountry(userData.country || '');
@@ -193,7 +196,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            console.error('[EditProfile] Error loading profile:', error);
+            console.warn('[EditProfile] Error loading profile:', error);
         } finally {
             if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 setLoading(false);
@@ -259,7 +262,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             );
         } catch (error: any) {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
-                console.error('[EditProfile] Error saving:', error);
+                console.warn('[EditProfile] Error saving:', error);
                 Alert.alert(
                     t('common.error'),
                     error.response?.data?.error || 'Failed to update profile'
@@ -311,7 +314,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 }
             } catch (error) {
                 if (requestId === latestCitySearchRequestRef.current && isMountedRef.current) {
-                    console.error('[EditProfile] City search error:', error);
+                    console.warn('[EditProfile] City search error:', error);
                 }
             }
         }, 350);

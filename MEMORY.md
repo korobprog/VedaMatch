@@ -13,11 +13,11 @@
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии после bump (2026-02-24):
   - Android: `versionCode=16`, `versionName=1.1.14`
-  - iOS: `MARKETING_VERSION=1.1.3`, `CURRENT_PROJECT_VERSION=5`
+  - iOS: `MARKETING_VERSION=1.1.4`, `CURRENT_PROJECT_VERSION=6`
 - Статус production-сборок (2026-02-24):
   - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
   - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
-  - iOS: `xcodebuild ... -configuration Release -sdk iphoneos build` успешно, app: `frontend/ios/build/Build/Products/Release-iphoneos/vedamatch.app`.
+  - iOS: `xcodebuild ... -configuration Release ... install` успешно (`** INSTALL SUCCEEDED **`), пакет: `/Users/mamu/Library/Developer/Xcode/DerivedData/vedamatch-dsoltsxeayyfdqdhtfxuopvbotum/Build/Intermediates.noindex/ArchiveIntermediates/vedamatch/InstallationBuildProductsLocation/Applications/vedamatch.app`.
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
   - `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`
@@ -106,6 +106,26 @@
 - При успешном входе через legacy fallback пароль автоматически мигрируется в bcrypt и сохраняется в БД.
 - Это устраняет кейс “верный пароль, но Invalid password” для пользователей со старыми/нехешированными записями.
 
+## Auth Runtime Notes
+- При просроченной/невалидной сессии на старте приложения WebSocket/heartbeat должны логировать ожидаемый auth-fallback через `console.warn`, а не `console.error`, иначе React Native dev mode показывает RedBox и мешает автологауту/refresh-потоку.
+- Применено в:
+  - `frontend/services/websocketService.ts` (`[WebSocket] AUTH_FAILURE: Token expired or invalid`)
+  - `frontend/context/WebSocketContext.tsx` (`Auth refresh failed, logging out...`)
+  - `frontend/context/UserContext.tsx` (`Heartbeat auth refresh failed, logging out`)
+
+## Profile Runtime Notes
+- `frontend/screens/settings/EditProfileScreen.tsx` не должен предполагать, что `/contacts` всегда возвращает массив: backend может вернуть и paginated-формат `{ items: [...] }`.
+- Для загрузки собственного профиля в `EditProfile` используется безопасный парсинг:
+  - `Array.isArray(response.data) ? response.data : response.data?.items ?? []`.
+- В обработанных `catch` ветках экрана `EditProfile` используется `console.warn` (вместо `console.error`), чтобы dev RedBox не блокировал экран при recoverable ошибках.
+
+## Storage Runtime Notes
+- `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
+- Чтобы dev-консоль не засыпалась длинным stack trace, fallback логируется компактно:
+  - краткое предупреждение;
+  - первая строка ошибки;
+  - подсказка `cd ios && pod install` + rebuild.
+
 ## P2P Calls: Known Failure Points
 - В `server/internal/websocket/hub.go` сигналинг форвардится только подключенному WS-клиенту; если получатель не в `h.clients`, логируется `Target User X not connected` и звонок не доставляется.
 - Если `/turn-credentials` недоступен, клиент (`frontend/services/webRTCService.ts`) уходит в STUN-only fallback, что часто ломает соединение для symmetric NAT/CGNAT.
@@ -134,3 +154,21 @@
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.
+
+## Portal PRO / Math / Roles
+- Блок из шапки портала с бейджем `PRO` реализован в `frontend/components/portal/god-mode/GodModeFiltersPanel.tsx`.
+- Панель показывается только при `user.godModeEnabled === true` (см. `frontend/screens/portal/PortalMainScreen.tsx`).
+- Источник матхов: `GET /api/system/god-mode-math-filters` (protected route), загрузка через `fetchGodModeMathFilters()` в `frontend/services/portalLayoutService.ts`.
+- Дефолтные матхи на сервере (`server/internal/handlers/portal_blueprints.go`):
+  - `gauranga` → `Gauranga Math`
+  - `vrindavan` → `Vrindavan Math`
+  - `mayapur` → `Mayapur Math`
+  - `iskcon-global` → `ISKCON Global`
+- Активный матх хранится в `active_math_id` (MMKV + AsyncStorage) через `frontend/context/UserContext.tsx`.
+- Ролевая модель:
+  - Portal roles: `user`, `in_goodness`, `yogi`, `devotee`
+  - Admin roles: `admin`, `superadmin`
+  - Источник: `server/internal/models/roles.go`.
+- Ограничение безопасности по God Mode:
+  - обычные пользователи не могут включить `godModeEnabled` через `update-profile`;
+  - управление флагом допускается только для admin/superadmin-ролей (см. `resolveGodModeForUpdate` в `server/internal/handlers/auth_handler.go`).

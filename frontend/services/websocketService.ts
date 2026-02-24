@@ -135,7 +135,7 @@ export class WebSocketService {
 
             const normalized = errorMsg.toLowerCase();
             if (normalized.includes('401') || normalized.includes('unauthorized')) {
-                console.error('[WebSocket] AUTH_FAILURE: Token expired or invalid');
+                console.warn('[WebSocket] AUTH_FAILURE: Token expired or invalid');
                 void this.handleAuthFailure('ws_error_auth');
             }
         };

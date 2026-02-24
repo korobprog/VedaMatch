@@ -1,5 +1,112 @@
 # IOS Changes For Migration
 
+## 2026-02-24 (MMKV dev warning cleanup: Nitro fallback без длинного stack trace)
+
+### Измененные файлы
+- `frontend/lib/mmkvStorage.ts`
+
+### Суть правки (от старого к новому)
+- MMKV fallback логирование:
+  - Было: `console.warn(..., error)` в `catch`, из-за чего в iOS dev печатался длинный stack trace NitroModules.
+  - Стало: компактный одноразовый лог (`console.warn`) без передачи объекта ошибки:
+    - краткое сообщение о fallback;
+    - первая строка ошибки;
+    - подсказка `cd ios && pod install` + rebuild.
+
+### Сниппеты кода
+
+`frontend/lib/mmkvStorage.ts`:
+```ts
+let hasLoggedMMKVFallback = false;
+
+const logMMKVFallback = (error: unknown) => {
+    if (hasLoggedMMKVFallback) return;
+    hasLoggedMMKVFallback = true;
+
+    console.warn('[MMKV] Native module unavailable, using in-memory fallback.');
+    // ...
+};
+```
+
+```ts
+try {
+    return createMMKV({ id: 'vedamatch-main' });
+} catch (error) {
+    logMMKVFallback(error);
+    return createMemoryStorage();
+}
+```
+
+## 2026-02-24 (EditProfile: безопасный парсинг /contacts + без RedBox на recoverable ошибках)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Загрузка профиля (`/contacts`):
+  - Было: код ожидал строго массив и вызывал `response.data.find(...)`.
+  - Стало: добавлен безопасный разбор двух форматов ответа — массив и paginated-объект `{ items: [...] }`.
+- Логирование обработанных ошибок в `EditProfile`:
+  - Было: `console.error(...)` в `loadProfile/save/searchCities` вызывал RN RedBox в dev.
+  - Стало: `console.warn(...)` для recoverable ошибок, экран не блокируется RedBox.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```ts
+const response = await apiClient.get<any[] | { items?: any[] }>('/contacts');
+const contacts = Array.isArray(response.data)
+    ? response.data
+    : (Array.isArray(response.data?.items) ? response.data.items : []);
+const userData = contacts.find((u: any) => u.ID === user.ID);
+```
+
+```ts
+console.warn('[EditProfile] Error loading profile:', error);
+console.warn('[EditProfile] Error saving:', error);
+console.warn('[EditProfile] City search error:', error);
+```
+
+## 2026-02-24 (Dev RedBox Fix: Auth Expired Fallback без console.error)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+- `frontend/context/WebSocketContext.tsx`
+- `frontend/context/UserContext.tsx`
+
+### Суть правки (от старого к новому)
+- `frontend/services/websocketService.ts`:
+  - Было: при `401/unauthorized` в WebSocket `onerror` использовался `console.error`, что в RN dev вызывало RedBox.
+  - Стало: используется `console.warn`, auth recovery (`handleAuthFailure`) продолжает выполняться без блокирующего RedBox.
+- `frontend/context/WebSocketContext.tsx`:
+  - Было: при провале `refreshAuthTokens()` в WS recovery использовался `console.error`.
+  - Стало: используется `console.warn`, после чего выполняется `logout()`.
+- `frontend/context/UserContext.tsx`:
+  - Было: при `401` на heartbeat и неуспешном refresh использовался `console.error`.
+  - Стало: используется `console.warn`, после чего выполняется `logout()`.
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+if (normalized.includes('401') || normalized.includes('unauthorized')) {
+    console.warn('[WebSocket] AUTH_FAILURE: Token expired or invalid');
+    void this.handleAuthFailure('ws_error_auth');
+}
+```
+
+`frontend/context/WebSocketContext.tsx`:
+```ts
+console.warn('[WebSocketContext] Auth refresh failed, logging out...');
+await logoutRef.current();
+```
+
+`frontend/context/UserContext.tsx`:
+```ts
+console.warn('[UserContext] Heartbeat auth refresh failed, logging out');
+await logout();
+```
+
 ## 2026-02-24 (Portal/Widgets Sync: AI Navigation, Back-to-Widgets, Shared Background, Circular LKM)
 
 ### Измененные файлы
@@ -781,3 +888,30 @@ if (isPhotoBg && portalBackground) {
   );
 }
 ```
+
+## 2026-02-24 (iOS Version Bump Recheck After User Report "1.1.2")
+
+### Changed Files
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Old -> New
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+  - Old: `CURRENT_PROJECT_VERSION = 5;`, `MARKETING_VERSION = 1.1.3;`
+  - New: `CURRENT_PROJECT_VERSION = 6;`, `MARKETING_VERSION = 1.1.4;`
+
+### Code Snippet
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+CURRENT_PROJECT_VERSION = 6;
+MARKETING_VERSION = 1.1.4;
+```
+
+### Validation
+- iOS release install:
+  - `xcodebuild -workspace vedamatch.xcworkspace -scheme vedamatch -configuration Release -destination 'id=00008101-000C78913E87001E' -derivedDataPath /Users/mamu/Library/Developer/Xcode/DerivedData/vedamatch-dsoltsxeayyfdqdhtfxuopvbotum install`
+  - Result: `** INSTALL SUCCEEDED **`
+- Built app info:
+  - `/Users/mamu/Library/Developer/Xcode/DerivedData/vedamatch-dsoltsxeayyfdqdhtfxuopvbotum/Build/Intermediates.noindex/ArchiveIntermediates/vedamatch/InstallationBuildProductsLocation/Applications/vedamatch.app/Info.plist`
+  - `CFBundleShortVersionString = 1.1.4`
+  - `CFBundleVersion = 6`

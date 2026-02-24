@@ -145,7 +145,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                             return;
                         }
 
-                        console.error('[UserContext] Heartbeat auth refresh failed, logging out');
+                        console.warn('[UserContext] Heartbeat auth refresh failed, logging out');
                         await logout();
                     }
                 }

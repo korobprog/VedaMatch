@@ -49,7 +49,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                         return true;
                     }
 
-                    console.error('[WebSocketContext] Auth refresh failed, logging out...');
+                    console.warn('[WebSocketContext] Auth refresh failed, logging out...');
                     await logoutRef.current();
                     return false;
                 }
