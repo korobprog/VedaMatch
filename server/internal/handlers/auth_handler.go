@@ -401,13 +401,25 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	log.Printf("[AUTH] User found for login: %s (ID: %d, Role: %s)", user.Email, user.ID, user.Role)
 
-	// Compare passwords
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password))
-	if err != nil {
+	passwordMatched, shouldMigratePassword := verifyPasswordWithLegacyFallback(user.Password, loginData.Password)
+	if !passwordMatched {
 		log.Printf("[AUTH] Login failed: invalid password for %s", loginData.Email)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid password",
 		})
+	}
+	if shouldMigratePassword {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(loginData.Password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("[AUTH] Failed to migrate legacy password hash for user %d: %v", user.ID, err)
+		} else {
+			if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("password", string(hashedPassword)).Error; err != nil {
+				log.Printf("[AUTH] Failed to persist migrated password hash for user %d: %v", user.ID, err)
+			} else {
+				user.Password = string(hashedPassword)
+				log.Printf("[AUTH] Migrated legacy password format to bcrypt for user %d", user.ID)
+			}
+		}
 	}
 
 	updateUserDeviceID(&user, loginData.DeviceID)
@@ -589,6 +601,32 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 	user.Password = ""
 
 	return issueAuthResponse(c, fiber.StatusOK, "Telegram linked and login successful", user, req.DeviceID)
+}
+
+func verifyPasswordWithLegacyFallback(storedPassword string, providedPassword string) (bool, bool) {
+	if storedPassword == "" || providedPassword == "" {
+		return false, false
+	}
+
+	if isLikelyBcryptHash(storedPassword) {
+		return bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(providedPassword)) == nil, false
+	}
+
+	if storedPassword == providedPassword {
+		return true, true
+	}
+
+	return false, false
+}
+
+func isLikelyBcryptHash(storedPassword string) bool {
+	if len(storedPassword) != 60 {
+		return false
+	}
+
+	return strings.HasPrefix(storedPassword, "$2a$") ||
+		strings.HasPrefix(storedPassword, "$2b$") ||
+		strings.HasPrefix(storedPassword, "$2y$")
 }
 
 func (h *AuthHandler) Refresh(c *fiber.Ctx) error {

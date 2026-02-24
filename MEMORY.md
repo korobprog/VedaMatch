@@ -81,6 +81,12 @@
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.
 - В `frontend/components/chat/MessageList.tsx` на iOS отключен `maintainVisibleContentPosition` и ограничен blur для bubble (только photo background), что снижает риск пустого/неотрисованного списка сообщений.
 
+## Auth Login Notes
+- В `server/internal/handlers/auth_handler.go` логин поддерживает legacy-формат пароля:
+  если пароль в БД не похож на bcrypt-хеш, сравнение выполняется как plaintext fallback.
+- При успешном входе через legacy fallback пароль автоматически мигрируется в bcrypt и сохраняется в БД.
+- Это устраняет кейс “верный пароль, но Invalid password” для пользователей со старыми/нехешированными записями.
+
 ## P2P Calls: Known Failure Points
 - В `server/internal/websocket/hub.go` сигналинг форвардится только подключенному WS-клиенту; если получатель не в `h.clients`, логируется `Target User X not connected` и звонок не доставляется.
 - Если `/turn-credentials` недоступен, клиент (`frontend/services/webRTCService.ts`) уходит в STUN-only fallback, что часто ломает соединение для symmetric NAT/CGNAT.

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestApplyPortalRoleAndGodMode_StoresGodModeEnabled(t *testing.T) {
@@ -70,4 +71,33 @@ func TestResolveGodModeForUpdate(t *testing.T) {
 	require.Equal(t, true, resolveGodModeForUpdate(true, false, models.RoleUser))
 	require.Equal(t, false, resolveGodModeForUpdate(false, true, models.RoleDevotee))
 	require.Equal(t, true, resolveGodModeForUpdate(false, true, models.RoleAdmin))
+}
+
+func TestVerifyPasswordWithLegacyFallback(t *testing.T) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	t.Run("bcrypt match", func(t *testing.T) {
+		ok, migrate := verifyPasswordWithLegacyFallback(string(hashedPassword), "secret123")
+		require.True(t, ok)
+		require.False(t, migrate)
+	})
+
+	t.Run("bcrypt mismatch", func(t *testing.T) {
+		ok, migrate := verifyPasswordWithLegacyFallback(string(hashedPassword), "wrong")
+		require.False(t, ok)
+		require.False(t, migrate)
+	})
+
+	t.Run("legacy plaintext match", func(t *testing.T) {
+		ok, migrate := verifyPasswordWithLegacyFallback("secret123", "secret123")
+		require.True(t, ok)
+		require.True(t, migrate)
+	})
+
+	t.Run("legacy plaintext mismatch", func(t *testing.T) {
+		ok, migrate := verifyPasswordWithLegacyFallback("secret123", "wrong")
+		require.False(t, ok)
+		require.False(t, migrate)
+	})
 }
