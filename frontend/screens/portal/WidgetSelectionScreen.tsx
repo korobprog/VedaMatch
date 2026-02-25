@@ -197,7 +197,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         });
     }, [handleNewChat, navigateResolvedScreen, navigation, setEditMode]);
 
-    const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel'; size: '1x1' | '2x1' | '2x2' }) => {
+    const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix'; size: '1x1' | '2x1' | '2x2' }) => {
         const result = addWidget(widget);
         if (!result.ok && result.reason === 'duplicate') {
             Alert.alert('Виджет уже добавлен', 'Для каждого вида доступен только один экземпляр.');

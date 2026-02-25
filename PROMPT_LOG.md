@@ -85,3 +85,8 @@
 - 2026-02-25 01:16:00 +1000 | Запрос: "так и не могу войти посмотри как работает dev версия быстрого входа"
 - 2026-02-25 01:18:30 +1000 | Запрос: "[log] Push/Firebase warning + Network request failed в DEV login"
 - 2026-02-25 01:22:07 +1000 | Запрос: "[log] No Firebase App [DEFAULT] + Network request failed при DEV входе"
+- 2026-02-25 10:03:55 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: Обновленный план Архитектура ленты VedaMatch (Org + Pro + Кружки) для 5k→50k DAU"
+- 2026-02-25 10:21:00 +1000 | Запрос: "давай следующий шаг" (реализовать следующий этап feed v2 после текущей поставки)
+- 2026-02-25 10:27:15 +1000 | Запрос: "давай продолжать" (следующий этап: выделенные feed/media workers в Docker и автопересчет feed)
+- 2026-02-25 10:31:01 +1000 | Запрос: "давай" (продолжить: dev compose workers + media-worker job consumer)
+- 2026-02-25 10:35:41 +1000 | Запрос: "давай" (добавить worker health-check/smoke и rolling batched rebuild)

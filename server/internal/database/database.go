@@ -65,6 +65,9 @@ func Connect() {
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelPromotedAdImpression{},
+		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
+		&models.FeedPost{}, &models.FeedMediaAsset{}, &models.FeedItem{}, &models.FeedCursorState{},
+		&models.FeedPostReaction{}, &models.FeedPostComment{},
 		&models.UserDeviceToken{}, &models.PushDeliveryEvent{},
 		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
@@ -182,6 +185,14 @@ func Connect() {
 		ON news_items (status, is_important DESC, published_at DESC)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_promoted_ad_impressions_user_placement_created
 		ON channel_promoted_ad_impressions (user_id, placement, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_feed_items_user_time
+		ON feed_items (user_id, published_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_feed_items_user_rank
+		ON feed_items (user_id, source_rank DESC, published_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_posts_org_type_published
+		ON posts (org_type_id, published_at DESC, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_posts_status_published
+		ON posts (status, published_at DESC, id DESC)`)
 
 	// Contacts search indexes.
 	DB.Exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`)

@@ -120,6 +120,26 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "FEED_V2_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "FEED_V2_ROLLOUT_PERCENT",
+			Value: "5",
+		},
+		{
+			Key:   "FEED_RANK_WEIGHTS_JSON",
+			Value: `{"recency":0.62,"engagement":0.24,"proBoost":0.14}`,
+		},
+		{
+			Key:   "FEED_CACHE_TTL_SEC",
+			Value: "90",
+		},
+		{
+			Key:   "FEED_CIRCLE_MIX_RATIO",
+			Value: "0.35",
+		},
+		{
 			Key:   "EDU_TUTOR_ENABLED",
 			Value: "true",
 		},

@@ -6,6 +6,8 @@ import { CalendarWidget } from '../CalendarWidget';
 import { CirclesPanelWidget } from '../CirclesPanelWidget';
 import { CirclesQuickWidget } from '../CirclesQuickWidget';
 import { ClockWidget } from '../ClockWidget';
+import { FeedMixWidget } from '../FeedMixWidget';
+import { FeedQuickWidget } from '../FeedQuickWidget';
 
 export type WidgetType = PortalWidget['type'];
 export type WidgetSize = PortalWidget['size'];
@@ -68,6 +70,24 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
         maxCount: 1,
         render: () => <CirclesPanelWidget isVisible />,
     },
+    {
+        type: 'feed_quick',
+        size: '1x1',
+        title: 'Лента (быстрый)',
+        description: 'Быстрый переход к ленте',
+        icon: Film,
+        maxCount: 1,
+        render: () => <FeedQuickWidget />,
+    },
+    {
+        type: 'feed_mix',
+        size: '2x2',
+        title: 'Лента (панель)',
+        description: 'Превью свежих постов и кружков',
+        icon: Film,
+        maxCount: 1,
+        render: () => <FeedMixWidget />,
+    },
 ];
 
 export const findWidgetMeta = (widget: Pick<PortalWidget, 'type' | 'size'>): WidgetCatalogEntry | undefined => (
@@ -83,4 +103,3 @@ export const canAddWidget = (
     const count = widgets.filter((widget) => getWidgetKey(widget) === getWidgetKey(candidate)).length;
     return count < meta.maxCount;
 };
-

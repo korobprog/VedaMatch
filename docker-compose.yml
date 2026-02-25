@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: rag-agent-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   server:
     build:
       context: ./server
@@ -29,6 +41,10 @@ services:
       DB_USER: raguser
       DB_PASSWORD: ragpassword
       DB_NAME: ragdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
       ROOM_SFU_ENABLED: "false"
       ROOM_SFU_PROVIDER: livekit
       ROOM_SFU_REQUIRE_MEMBERSHIP: "true"
@@ -44,6 +60,60 @@ services:
       LIVEKIT_WS_URL: ws://livekit:7880
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  feed-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rag-agent-feed-worker
+    command: ["./feed-worker"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: raguser
+      DB_PASSWORD: ragpassword
+      DB_NAME: ragdb
+      FEED_WORKER_ENABLED: "true"
+      FEED_REBUILD_INTERVAL_SEC: "300"
+      FEED_REBUILD_LIMIT: "120"
+      FEED_REBUILD_BATCH_SIZE: "200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  media-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rag-agent-media-worker
+    command: ["./media-worker"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: raguser
+      DB_PASSWORD: ragpassword
+      DB_NAME: ragdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
+      MEDIA_WORKER_ENABLED: "true"
+      MEDIA_WORKER_INTERVAL_SEC: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

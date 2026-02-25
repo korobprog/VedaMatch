@@ -1495,3 +1495,256 @@ const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparen
 
 ### Validation
 - `npx tsc --noEmit -p tsconfig.json` — success.
+
+## 2026-02-25 (Feed v2 + Portal Feed Widgets + Yandex CDN env)
+
+### Changed Files
+- `frontend/types/portal.ts`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/widgets/widgetCatalog.tsx`
+- `frontend/components/portal/FeedQuickWidget.tsx`
+- `frontend/components/portal/FeedMixWidget.tsx`
+- `frontend/services/feedService.ts`
+- `.env.example`
+
+### Old -> New
+- Old:
+  - portal widget canvas поддерживал только `clock/calendar/circles_*`;
+  - не было feed-виджетов и клиентского сервиса `feed v2`;
+  - env-шаблон был ориентирован на другой S3-провайдер без целевого CDN домена VedaMatch.
+- New:
+  - добавлены новые типы виджетов `feed_quick` и `feed_mix`;
+  - добавлены UI-компоненты feed-виджетов (быстрый переход и мини-лента с prefetch);
+  - добавлен клиентский сервис `GET /api/v2/feed`;
+  - `.env.example` переведен на Yandex Object Storage + CDN (`cdn.vedamatch.ru`).
+
+### Code Snippets
+
+`frontend/types/portal.ts`:
+```ts
+export interface PortalWidget {
+  type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix';
+}
+```
+
+`frontend/components/portal/widgets/widgetCatalog.tsx`:
+```tsx
+{
+  type: 'feed_quick',
+  size: '1x1',
+  render: () => <FeedQuickWidget />,
+},
+{
+  type: 'feed_mix',
+  size: '2x2',
+  render: () => <FeedMixWidget />,
+}
+```
+
+`frontend/services/feedService.ts`:
+```ts
+const response = await apiClient.get<FeedV2Response>('/v2/feed', { params });
+```
+
+`.env.example`:
+```env
+S3_ENDPOINT=storage.yandexcloud.net
+S3_REGION=ru-central1
+S3_PUBLIC_URL=https://cdn.vedamatch.ru
+CDN_ENABLED=true
+CDN_BASE_URL=https://cdn.vedamatch.ru
+```
+
+### Validation
+- `pnpm -C frontend exec tsc --noEmit` — success.
+
+## 2026-02-25 (Feed v2 materialization: rebuild + read from feed_items)
+
+### Changed Files
+- `server/internal/services/feed_v2_service.go`
+- `server/internal/handlers/admin_feed_handler.go`
+
+### Old -> New
+- Old:
+  - `POST /api/admin/feed/rebuild` был stub (accept-only, без фактической materialization);
+  - `GET /api/v2/feed` всегда строил выдачу runtime pull-логикой.
+- New:
+  - реализованы рабочие rebuild-операции `RebuildForUser`, `RebuildForOrg`, `RebuildAll` с записью в `feed_items`;
+  - `/api/admin/feed/rebuild` теперь выполняет реальный rebuild (по `userId`, `orgId` или по всем);
+  - `GET /api/v2/feed` использует materialized fast-path (`feed_items`) для первой страницы без cursor, с fallback на pull-расчет.
+
+### Code Snippets
+
+`server/internal/services/feed_v2_service.go`:
+```go
+func (s *FeedV2Service) RebuildForUser(userID uint, limit int) (int, error) { ... }
+func (s *FeedV2Service) RebuildForOrg(orgTypeID uint, limit int) (int, error) { ... }
+func (s *FeedV2Service) RebuildAll(limit int) (int, error) { ... }
+```
+
+```go
+if cursor == nil {
+  materialized, err := s.loadMaterializedFeed(userID, filters.Limit+1)
+  ...
+}
+```
+
+`server/internal/handlers/admin_feed_handler.go`:
+```go
+count, err := feedService.RebuildForUser(uint(userID), limit)
+```
+
+### Validation
+- `go test ./cmd/api ./internal/handlers ./internal/services` — success.
+- `pnpm -C admin exec tsc --noEmit` — success.
+- `pnpm -C frontend exec tsc --noEmit` — success.
+
+## 2026-02-25 (Worker deployment layer: feed-worker + media-worker)
+
+### Changed Files
+- `server/internal/workers/feed_rebuild_worker.go`
+- `server/internal/workers/media_pipeline_worker.go`
+- `server/cmd/feed_worker/main.go`
+- `server/cmd/media_worker/main.go`
+- `server/Dockerfile`
+- `docker-compose.prod.yml`
+- `.env.example`
+
+### Old -> New
+- Old:
+  - периодический rebuild/feed materialization требовал ручного admin trigger;
+  - выделенных worker контейнеров не было;
+  - Docker image собирал только `api` binary.
+- New:
+  - добавлен `feed-worker` (периодический rebuild `feed_items`);
+  - добавлен `media-worker` (операционный heartbeat-каркас под media pipeline);
+  - Dockerfile собирает 3 binary: `server`, `feed-worker`, `media-worker`;
+  - `docker-compose.prod.yml` содержит два новых сервиса;
+  - `.env.example` расширен worker env-параметрами.
+
+### Code Snippets
+
+`server/Dockerfile`:
+```dockerfile
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/feed-worker ./cmd/feed_worker/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/media-worker ./cmd/media_worker/main.go
+```
+
+`docker-compose.prod.yml`:
+```yaml
+feed-worker:
+  command: ["./feed-worker"]
+media-worker:
+  command: ["./media-worker"]
+```
+
+`.env.example`:
+```env
+FEED_WORKER_ENABLED=true
+FEED_REBUILD_INTERVAL_SEC=300
+FEED_REBUILD_LIMIT=120
+MEDIA_WORKER_ENABLED=true
+MEDIA_WORKER_INTERVAL_SEC=60
+```
+
+### Validation
+- `go test ./cmd/api ./cmd/feed_worker ./cmd/media_worker ./internal/workers ./internal/services` — success.
+
+## 2026-02-25 (Dev compose workers + media queue consumer)
+
+### Changed Files
+- `server/internal/workers/media_pipeline_worker.go`
+- `docker-compose.yml`
+
+### Old -> New
+- Old:
+  - `media-worker` работал как heartbeat/no-op;
+  - dev docker-compose не содержал `redis`, `feed-worker`, `media-worker`.
+- New:
+  - `media-worker` стал реальным consumer очереди `transcoding:queue` (Redis), выполняет транскодирование через `TranscodingService`, обновляет `video_transcoding_jobs` и `media_tracks` статусы;
+  - `docker-compose.yml` (dev) расширен сервисами `redis`, `feed-worker`, `media-worker`, а `server` получил Redis env для единого локального контура.
+
+### Code Snippets
+
+`server/internal/workers/media_pipeline_worker.go`:
+```go
+job, err := w.redis.GetNextTranscodingJob()
+if err := w.transcoder.TranscodeVideo(ctx, job); err != nil { ... }
+_ = database.DB.Model(&models.MediaTrack{}).Where("id = ?", job.VideoID).Updates(...)
+```
+
+`docker-compose.yml`:
+```yaml
+redis:
+  image: redis:7-alpine
+feed-worker:
+  command: ["./feed-worker"]
+media-worker:
+  command: ["./media-worker"]
+```
+
+### Validation
+- `go test ./cmd/feed_worker ./cmd/media_worker ./internal/workers ./internal/services` — success.
+
+## 2026-02-25 (Rolling feed worker + workers health endpoint + smoke)
+
+### Changed Files
+- `server/internal/services/feed_v2_service.go`
+- `server/internal/workers/feed_rebuild_worker.go`
+- `server/internal/workers/media_pipeline_worker.go`
+- `server/internal/handlers/admin_feed_handler.go`
+- `server/cmd/api/main.go`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `admin/src/app/feed-control/page.tsx`
+- `.env.example`
+
+### Old -> New
+- Old:
+  - feed-worker делал полный `RebuildAll` за один проход;
+  - не было API проверки здоровья воркеров;
+  - media-worker не публиковал health/status в `system_settings`.
+- New:
+  - feed-worker переведен на rolling rebuild батчами (`FEED_REBUILD_BATCH_SIZE`) с курсором `FEED_WORKER_LAST_USER_ID`;
+  - добавлен endpoint `GET /api/admin/feed/workers-health`;
+  - media-worker обновляет heartbeat/status в `system_settings`;
+  - admin `Feed Control` отображает блок `Workers health`.
+
+### Code Snippets
+
+`server/internal/services/feed_v2_service.go`:
+```go
+RebuildBatchByUserID(startAfterUserID uint, batchSize int, limit int)
+```
+
+`server/internal/workers/feed_rebuild_worker.go`:
+```go
+count, users, lastUserID, wrapped, err := w.service.RebuildBatchByUserID(startCursor, w.batchSize, w.limit)
+```
+
+`server/cmd/api/main.go`:
+```go
+admin.Get("/feed/workers-health", adminFeedHandler.GetWorkersHealth)
+```
+
+### Smoke Commands
+```bash
+# Start local stack with workers
+docker compose up -d postgres redis server feed-worker media-worker
+
+# Check worker health
+curl -H "Authorization: Bearer <admin_token>" \
+  https://api.vedamatch.ru/api/admin/feed/workers-health
+
+# Trigger manual rebuild for one user
+curl -X POST -H "Authorization: Bearer <admin_token>" \
+  "https://api.vedamatch.ru/api/admin/feed/rebuild?userId=123&limit=120"
+
+# Tail worker logs
+docker compose logs -f feed-worker media-worker
+```
+
+### Validation
+- `go test ./cmd/api ./cmd/feed_worker ./cmd/media_worker ./internal/workers ./internal/services ./internal/handlers` — success.
+- `pnpm -C admin exec tsc --noEmit` — success.
+- `pnpm -C frontend exec tsc --noEmit` — success.

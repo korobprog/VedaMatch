@@ -18,7 +18,7 @@ export interface PortalFolder {
 
 export interface PortalWidget {
     id: string;
-    type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel';
+    type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix';
     size: '1x1' | '2x1' | '2x2';
     position: number;
 }

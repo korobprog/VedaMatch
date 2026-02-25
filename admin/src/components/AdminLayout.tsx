@@ -31,6 +31,7 @@ import {
     Send,
     PieChart,
     CreditCard,
+    Waves,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
@@ -40,6 +41,7 @@ const menuItems = [
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Gift, label: 'Referrals & Wallet', path: '/referrals' },
     { icon: CreditCard, label: 'LKM Payments', path: '/payments' },
+    { icon: Waves, label: 'Feed Control', path: '/feed-control' },
     { icon: PieChart, label: 'Financials (P&L)', path: '/financials' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
@@ -86,6 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/users',
                 '/referrals',
                 '/payments',
+                '/feed-control',
                 '/admins',
                 '/settings',
                 '/polza',

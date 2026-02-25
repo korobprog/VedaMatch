@@ -244,8 +244,10 @@ func main() {
 	videoCircleHandler := handlers.NewVideoCircleHandler()
 	pathTrackerHandler := handlers.NewPathTrackerHandler()
 	channelHandler := handlers.NewChannelHandler()
+	feedV2Handler := handlers.NewFeedV2Handler()
 	supportHandler := handlers.NewSupportHandler()
 	lkmTopupHandler := handlers.NewLKMTopupHandler(lkmTopupService)
+	adminFeedHandler := handlers.NewAdminFeedHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -608,6 +610,12 @@ func main() {
 	// Admin Video Circle Tariffs
 	admin.Post("/video-tariffs", videoCircleHandler.CreateTariff)
 	admin.Put("/video-tariffs/:id", videoCircleHandler.UpdateTariff)
+	admin.Get("/feed/config", adminFeedHandler.GetConfig)
+	admin.Put("/feed/config", adminFeedHandler.UpdateConfig)
+	admin.Get("/feed/metrics", adminFeedHandler.GetMetrics)
+	admin.Post("/feed/rebuild", adminFeedHandler.Rebuild)
+	admin.Get("/feed/cdn-health", adminFeedHandler.CDNHealth)
+	admin.Get("/feed/workers-health", adminFeedHandler.GetWorkersHealth)
 
 	// Series (TV Shows, Multi-episode content)
 	seriesHandler := handlers.NewSeriesHandler()
@@ -856,6 +864,14 @@ func main() {
 	protected.Post("/video-circles/:id/boost", videoCircleHandler.BoostCircle)
 	protected.Post("/video-circles/:id/republish", videoCircleHandler.RepublishVideoCircle)
 	protected.Delete("/video-circles/:id", videoCircleHandler.DeleteVideoCircle)
+
+	// Feed V2
+	protected.Get("/v2/feed", feedV2Handler.GetFeed)
+	protected.Get("/v2/feed/item/:type/:id", feedV2Handler.GetItem)
+	protected.Post("/v2/feed/item/:type/:id/impression", feedV2Handler.TrackImpression)
+	protected.Post("/v2/feed/item/:type/:id/reactions", feedV2Handler.AddReaction)
+	protected.Get("/v2/feed/item/:type/:id/comments", feedV2Handler.ListComments)
+	protected.Post("/v2/feed/item/:type/:id/comments", feedV2Handler.AddComment)
 
 	// Ads Routes
 	protected.Post("/ads/upload-photo", adsHandler.UploadAdPhoto)

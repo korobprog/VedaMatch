@@ -241,3 +241,86 @@
 - Ограничение безопасности по God Mode:
   - обычные пользователи не могут включить `godModeEnabled` через `update-profile`;
   - управление флагом допускается только для admin/superadmin-ролей (см. `resolveGodModeForUpdate` в `server/internal/handlers/auth_handler.go`).
+
+## Feed V2 / Org-Pro / CDN
+- В backend добавлен `feed v2` namespace (`/api/v2/feed`) с cursor-пагинацией и unified items (`post` + `video_circle`).
+- Добавлены новые модели/таблицы: `org_types`, `org_profiles`, `user_org_matches`, `user_pro_subscriptions`, `posts`, `media_assets`, `feed_items`, `feed_cursor_state`, `post_reactions`, `post_comments`.
+- В `api/main.go` подключены новые protected endpoints:
+  - `GET /api/v2/feed`
+  - `GET /api/v2/feed/item/:type/:id`
+  - `POST /api/v2/feed/item/:type/:id/impression`
+  - `POST /api/v2/feed/item/:type/:id/reactions`
+  - `GET/POST /api/v2/feed/item/:type/:id/comments`
+- Добавлен admin control-plane для ленты:
+  - `GET/PUT /api/admin/feed/config`
+  - `GET /api/admin/feed/metrics`
+  - `POST /api/admin/feed/rebuild`
+  - `GET /api/admin/feed/cdn-health`
+- В админке добавлена страница `Feed Control`: `admin/src/app/feed-control/page.tsx` + пункт меню в `AdminLayout`.
+- На мобильном портале добавлены feed-виджеты:
+  - `feed_quick` (1x1) — быстрый переход в ленту;
+  - `feed_mix` (2x2) — мини-превью unified feed.
+- `frontend/services/feedService.ts` использует `GET /v2/feed`.
+- `.env.example` приведен к Yandex Object Storage/CDN defaults:
+  - `S3_ENDPOINT=storage.yandexcloud.net`
+  - `S3_REGION=ru-central1`
+  - `S3_PUBLIC_URL=https://cdn.vedamatch.ru`
+  - `CDN_ENABLED=true`, `CDN_BASE_URL=https://cdn.vedamatch.ru`
+
+## Feed V2 Materialization
+- `feed_v2_service` теперь поддерживает materialized read path:
+  - для первой страницы (`cursor` пуст) приоритетно читается `feed_items`;
+  - при отсутствии rows используется fallback runtime pull-расчет.
+- Реализованы rebuild-операции:
+  - `RebuildForUser(userID, limit)`
+  - `RebuildForOrg(orgTypeID, limit)`
+  - `RebuildAll(limit)`
+- `admin/feed/rebuild` больше не stub: фактически пересобирает `feed_items` и возвращает `builtItems`.
+
+## Feed/Media Workers (Docker)
+- Добавлены отдельные worker процессы:
+  - `server/cmd/feed_worker/main.go` -> периодический rebuild `feed_items`.
+  - `server/cmd/media_worker/main.go` -> каркас media pipeline worker (heartbeat).
+- Worker логика:
+  - `server/internal/workers/feed_rebuild_worker.go`
+  - `server/internal/workers/media_pipeline_worker.go`
+- `server/Dockerfile` теперь собирает 3 binary (`server`, `feed-worker`, `media-worker`).
+- `docker-compose.prod.yml` обновлен сервисами `feed-worker` и `media-worker`.
+- Новые env-параметры в `.env.example`:
+  - `FEED_WORKER_ENABLED`, `FEED_REBUILD_INTERVAL_SEC`, `FEED_REBUILD_LIMIT`
+  - `MEDIA_WORKER_ENABLED`, `MEDIA_WORKER_INTERVAL_SEC`
+
+## Media Worker Queue Consumer
+- `media-worker` теперь читает Redis очередь `transcoding:queue` через `RedisService.GetNextTranscodingJob()`.
+- На каждом job:
+  - ставит статус `processing` в `video_transcoding_jobs` (upsert по `job_id`);
+  - выполняет `TranscodingService.TranscodeVideo`;
+  - при успехе обновляет `media_tracks` (`transcoding_status=completed`, `hls_url/url`, `thumbnail_url`, `is_active=true`, `published_at`);
+  - при ошибке помечает `video_transcoding_jobs` и `media_tracks` как `failed`.
+- Dev compose (`docker-compose.yml`) теперь содержит единый локальный контур: `postgres + redis + server + feed-worker + media-worker`.
+
+## Feed Worker Rolling Mode
+- feed-worker больше не делает `RebuildAll` в каждом тике.
+- Используется rolling режим:
+  - курсор `FEED_WORKER_LAST_USER_ID` хранится в `system_settings`;
+  - обрабатывается batch `FEED_REBUILD_BATCH_SIZE` пользователей за тик;
+  - при окончании диапазона курсор сбрасывается в `0` (wrap).
+- heartbeat/status feed-worker сохраняются в `system_settings`:
+  - `FEED_WORKER_LAST_HEARTBEAT`
+  - `FEED_WORKER_LAST_STATUS`
+  - `FEED_WORKER_LAST_STATS`
+
+## Workers Health API
+- Новый admin endpoint: `GET /api/admin/feed/workers-health`.
+- Возвращает heartbeat/status для:
+  - `feedWorker`
+  - `mediaWorker`
+- Используется в `admin/src/app/feed-control/page.tsx` (блок `Workers health`).
+
+## Smoke Commands (workers)
+- Запуск:
+  - `docker compose up -d postgres redis server feed-worker media-worker`
+- Логи:
+  - `docker compose logs -f feed-worker media-worker`
+- Health:
+  - `GET /api/admin/feed/workers-health`
