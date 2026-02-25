@@ -157,6 +157,7 @@ services:
       S3_PUBLIC_URL: ${S3_PUBLIC_URL}
       MEDIA_WORKER_ENABLED: ${MEDIA_WORKER_ENABLED:-true}
       MEDIA_WORKER_INTERVAL_SEC: ${MEDIA_WORKER_INTERVAL_SEC:-60}
+      MEDIA_WORKER_MAX_RETRIES: ${MEDIA_WORKER_MAX_RETRIES:-2}
     depends_on:
       postgres:
         condition: service_healthy

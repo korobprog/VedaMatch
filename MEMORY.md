@@ -324,3 +324,24 @@
   - `docker compose logs -f feed-worker media-worker`
 - Health:
   - `GET /api/admin/feed/workers-health`
+
+## Feed V2 Rollout Gate
+- `feed_v2_handler` теперь блокирует endpoint при выключенном флаге:
+  - `FEED_V2_ENABLED` must be true;
+  - `FEED_V2_ROLLOUT_PERCENT` применяется по стабильному bucket (`userID % 100`).
+- Это позволяет держать endpoint в коде, но поэтапно включать пользователей без redeploy.
+
+## Media Worker Retry Policy
+- `TranscodingJob` содержит `attempt` (Redis queue payload).
+- `media-worker` применяет `MEDIA_WORKER_MAX_RETRIES`:
+  - при неудаче requeue с `attempt+1` пока не достигнут лимит;
+  - при retry держит `media_tracks.transcoding_status=pending`;
+  - только после исчерпания retry ставит `failed`.
+
+## Remote S3 Key Sync
+- Доступ к удаленному серверу подтвержден, ключи считаны из runtime контейнера:
+  - контейнер: `vedamatch-server-dnkxc8...`
+  - источник: `docker inspect ... .Config.Env`.
+- Локальный `.env` синхронизирован с продовыми `S3_*` значениями.
+- Важно: текущий прод-контур использует `s3.firstvds.ru` (не Yandex Object Storage).
+- `CDN_` переменные в контейнере не были заданы (явный CDN endpoint не найден).

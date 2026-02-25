@@ -1748,3 +1748,78 @@ docker compose logs -f feed-worker media-worker
 - `go test ./cmd/api ./cmd/feed_worker ./cmd/media_worker ./internal/workers ./internal/services ./internal/handlers` — success.
 - `pnpm -C admin exec tsc --noEmit` — success.
 - `pnpm -C frontend exec tsc --noEmit` — success.
+
+## 2026-02-25 (Feed v2 rollout gate + media retry policy)
+
+### Changed Files
+- `server/internal/handlers/feed_v2_handler.go`
+- `server/internal/services/redis_service.go`
+- `server/internal/services/transcoding_service.go`
+- `server/internal/workers/media_pipeline_worker.go`
+- `.env.example`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+
+### Old -> New
+- Old:
+  - `GET /api/v2/feed` не имел централизованного feature-flag/rollout guard;
+  - media-worker при ошибке транскодинга завершал job без retry;
+  - job payload не хранил номер попытки.
+- New:
+  - добавлен rollout gate для `feed v2` по `FEED_V2_ENABLED` + `FEED_V2_ROLLOUT_PERCENT` (stable bucket per user);
+  - `TranscodingJob` расширен полем `attempt`;
+  - media-worker получил retry policy (`MEDIA_WORKER_MAX_RETRIES`), requeue в Redis и корректные статусы `pending/failed` на `media_tracks`.
+
+### Code Snippets
+
+`server/internal/handlers/feed_v2_handler.go`:
+```go
+if !h.isFeedV2EnabledForUser(userID) {
+  return c.Status(fiber.StatusServiceUnavailable).JSON(...)
+}
+```
+
+`server/internal/workers/media_pipeline_worker.go`:
+```go
+if job.Attempt < w.maxRetries {
+  retryJob.Attempt++
+  _ = w.redis.AddTranscodingJob(&retryJob)
+}
+```
+
+`.env.example`:
+```env
+MEDIA_WORKER_MAX_RETRIES=2
+```
+
+### Validation
+- `go test ./cmd/api ./cmd/feed_worker ./cmd/media_worker ./internal/handlers ./internal/services ./internal/workers` — success.
+- `pnpm -C admin exec tsc --noEmit` — success.
+- `pnpm -C frontend exec tsc --noEmit` — success.
+
+## 2026-02-25 (Sync local S3 env from remote production server)
+
+### Changed Files
+- `.env`
+
+### Old -> New
+- Old:
+  - локальный `.env` содержал устаревшие/заглушечные S3 значения (`twcstorage` + `PLEASE_ROTATE_*`).
+- New:
+  - S3 конфиг синхронизирован с фактическими значениями из running контейнера `vedamatch-server-*` на удаленном сервере;
+  - endpoint/bucket/public URL теперь соответствуют текущему прод-контру.
+
+### Code Snippets
+
+`.env`:
+```env
+S3_ENDPOINT=https://s3.firstvds.ru
+S3_REGION=default
+S3_ACCESS_KEY=<synced-from-remote>
+S3_SECRET_KEY=<synced-from-remote>
+S3_BUCKET_NAME=<synced-from-remote>
+S3_PUBLIC_URL=https://s3.firstvds.ru/<synced-from-remote>
+```
+
+### Validation
+- Remote source: `docker inspect vedamatch-server-... | egrep '^(S3_|CDN_)'`.

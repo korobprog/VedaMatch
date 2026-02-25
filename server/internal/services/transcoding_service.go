@@ -320,6 +320,7 @@ func (t *TranscodingService) StartTranscodingJob(videoID uint, inputPath, output
 		InputPath:  inputPath,
 		OutputPath: outputPath,
 		Qualities:  qualities,
+		Attempt:    0,
 		Status:     "pending",
 		CreatedAt:  time.Now(),
 	}

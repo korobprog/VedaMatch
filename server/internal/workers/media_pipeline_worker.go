@@ -15,6 +15,7 @@ import (
 
 type MediaPipelineWorker struct {
 	intervalSec int
+	maxRetries  int
 	transcoder  *services.TranscodingService
 	redis       *services.RedisService
 	s3          *services.S3Service
@@ -23,6 +24,7 @@ type MediaPipelineWorker struct {
 func NewMediaPipelineWorker() *MediaPipelineWorker {
 	return &MediaPipelineWorker{
 		intervalSec: getEnvInt("MEDIA_WORKER_INTERVAL_SEC", 60),
+		maxRetries:  getEnvInt("MEDIA_WORKER_MAX_RETRIES", 2),
 		transcoder:  services.NewTranscodingService(),
 		redis:       services.NewRedisService(),
 		s3:          services.NewS3Service(),
@@ -38,8 +40,11 @@ func (w *MediaPipelineWorker) Run() {
 	if w.intervalSec < 15 {
 		w.intervalSec = 15
 	}
+	if w.maxRetries < 0 {
+		w.maxRetries = 0
+	}
 
-	log.Printf("[MediaWorker] started interval_sec=%d", w.intervalSec)
+	log.Printf("[MediaWorker] started interval_sec=%d max_retries=%d", w.intervalSec, w.maxRetries)
 	w.runOnce()
 
 	ticker := time.NewTicker(time.Duration(w.intervalSec) * time.Second)
@@ -83,11 +88,34 @@ func (w *MediaPipelineWorker) runOnce() {
 
 	if err := w.transcoder.TranscodeVideo(ctx, job); err != nil {
 		log.Printf("[MediaWorker] transcode failed job_id=%s error=%v", job.ID, err)
-		_ = w.markJobState(job, "failed", 0, err.Error(), &started, nil)
-		_ = database.DB.Model(&models.MediaTrack{}).Where("id = ?", job.VideoID).Updates(map[string]interface{}{
-			"transcoding_status":   "failed",
-			"transcoding_progress": 0,
-		}).Error
+		requeued := false
+		if job.Attempt < w.maxRetries {
+			retryJob := *job
+			retryJob.Attempt++
+			retryJob.Status = "pending"
+			retryJob.Progress = 0
+			retryJob.Error = ""
+			if requeueErr := w.redis.AddTranscodingJob(&retryJob); requeueErr != nil {
+				log.Printf("[MediaWorker] requeue failed job_id=%s attempt=%d error=%v", job.ID, retryJob.Attempt, requeueErr)
+			} else {
+				log.Printf("[MediaWorker] requeued job_id=%s attempt=%d/%d", job.ID, retryJob.Attempt, w.maxRetries)
+				w.setWorkerStatus("retrying")
+				requeued = true
+			}
+		}
+		if requeued {
+			_ = w.markJobState(job, "pending", 0, "", &started, nil)
+			_ = database.DB.Model(&models.MediaTrack{}).Where("id = ?", job.VideoID).Updates(map[string]interface{}{
+				"transcoding_status":   "pending",
+				"transcoding_progress": 0,
+			}).Error
+		} else {
+			_ = w.markJobState(job, "failed", 0, err.Error(), &started, nil)
+			_ = database.DB.Model(&models.MediaTrack{}).Where("id = ?", job.VideoID).Updates(map[string]interface{}{
+				"transcoding_status":   "failed",
+				"transcoding_progress": 0,
+			}).Error
+		}
 		w.setWorkerStatus("error:transcode_failed")
 		return
 	}

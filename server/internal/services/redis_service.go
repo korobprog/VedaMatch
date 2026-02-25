@@ -26,6 +26,7 @@ type TranscodingJob struct {
 	InputPath   string    `json:"input_path"`
 	OutputPath  string    `json:"output_path"`
 	Qualities   []string  `json:"qualities"`
+	Attempt     int       `json:"attempt"`
 	Status      string    `json:"status"` // pending, processing, completed, failed
 	Progress    int       `json:"progress"`
 	Error       string    `json:"error,omitempty"`

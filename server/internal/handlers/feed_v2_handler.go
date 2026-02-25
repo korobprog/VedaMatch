@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"os"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
@@ -22,6 +24,9 @@ func (h *FeedV2Handler) GetFeed(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	if !h.isFeedV2EnabledForUser(userID) {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "feed v2 is disabled"})
 	}
 	_ = services.GetMetricsService().Increment("feed_v2_requests_total", 1)
 
@@ -52,6 +57,42 @@ func (h *FeedV2Handler) GetFeed(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(resp)
+}
+
+func (h *FeedV2Handler) isFeedV2EnabledForUser(userID uint) bool {
+	enabled := strings.ToLower(strings.TrimSpace(h.getSettingOrEnv("FEED_V2_ENABLED", "false")))
+	if enabled != "true" && enabled != "1" && enabled != "yes" && enabled != "on" {
+		return false
+	}
+	rollout := 100
+	if raw := strings.TrimSpace(h.getSettingOrEnv("FEED_V2_ROLLOUT_PERCENT", "100")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			rollout = parsed
+		}
+	}
+	if rollout >= 100 {
+		return true
+	}
+	if rollout <= 0 {
+		return false
+	}
+	// Stable rollout bucket per user (0..99).
+	bucket := int(userID % 100)
+	return bucket < rollout
+}
+
+func (h *FeedV2Handler) getSettingOrEnv(key string, fallback string) string {
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil {
+		value := strings.TrimSpace(setting.Value)
+		if value != "" {
+			return value
+		}
+	}
+	if env := strings.TrimSpace(os.Getenv(key)); env != "" {
+		return env
+	}
+	return fallback
 }
 
 func (h *FeedV2Handler) GetItem(c *fiber.Ctx) error {
