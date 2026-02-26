@@ -3,8 +3,6 @@ import {
     requestPermission,
     getToken,
     getAPNSToken,
-    registerDeviceForRemoteMessages,
-    isDeviceRegisteredForRemoteMessages,
     onMessage,
     onNotificationOpenedApp,
     getInitialNotification,
@@ -122,13 +120,14 @@ export const notificationService = {
         try {
             const messaging = getMessagingInstance();
 
-            if (Platform.OS === 'ios' && !isDeviceRegisteredForRemoteMessages(messaging)) {
-                await registerDeviceForRemoteMessages(messaging);
-            }
-
             if (Platform.OS === 'ios') {
                 const apnsToken = await getAPNSToken(messaging);
                 logPushTelemetry('apns_token_state', { hasToken: !!apnsToken });
+                if (!apnsToken) {
+                    console.warn('[NotificationService] APNS token unavailable on iOS; skipping FCM token request. Check push capability/profile if this persists.');
+                    logPushTelemetry('token_register_skipped', { reason: 'apns_token_unavailable' });
+                    return null;
+                }
             }
 
             const fcmToken = await getToken(messaging);

@@ -38,7 +38,7 @@ describe('WidgetCanvasGrid', () => {
             />,
         );
 
-        fireEvent(screen.getByText('Пока нет виджетов'), 'onLongPress');
+        fireEvent(screen.getByTestId('widget-canvas-empty-zone'), 'onLongPress');
         expect(onSetEditMode).toHaveBeenCalledWith(true);
     });
 });

@@ -160,7 +160,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         let isMounted = true;
 
-        if (!currentUser?.ID) {
+        if (!currentUser?.ID || currentUser.ID === 999999) {
             setRagDomains([]);
             return () => {
                 isMounted = false;

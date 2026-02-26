@@ -60,20 +60,6 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
             }
         });
 
-    // Long press gesture - activates drag mode (doesn't enter edit mode)
-    const longPressGesture = Gesture.LongPress()
-        .minDuration(400)
-        .onStart(() => {
-            isLongPressActive.current = true;
-            isDragging.value = true;
-            secondaryTriggered.value = false;
-            zIndex.value = 1000;
-            scale.value = withSpring(1.15);
-            opacity.value = withTiming(0.9);
-            // Call drag start - this should NOT enter edit mode
-            runOnJS(onDragStart)();
-        });
-
     // Secondary (extra long) press gesture
     const secondaryLongPressGesture = Gesture.LongPress()
         .minDuration(1000)
@@ -91,24 +77,15 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
 
     // Pan gesture - follows finger when dragging
     const panGesture = Gesture.Pan()
-        .manualActivation(true)
-        .onTouchesMove((evt, state) => {
-            // Only activate pan if we're in drag mode (long press was triggered)
-            if (isDragging.value || isEditMode) {
-                state.activate();
-            } else {
-                state.fail();
-            }
-        })
+        .activateAfterLongPress(260)
         .onStart(() => {
-            if (isEditMode && !isDragging.value) {
-                // In edit mode, start dragging immediately on pan
-                isDragging.value = true;
-                zIndex.value = 1000;
-                scale.value = withSpring(1.15);
-                opacity.value = withTiming(0.9);
-                runOnJS(onDragStart)();
-            }
+            isLongPressActive.current = true;
+            isDragging.value = true;
+            secondaryTriggered.value = false;
+            zIndex.value = 1000;
+            scale.value = withSpring(1.15);
+            opacity.value = withTiming(0.9);
+            runOnJS(onDragStart)();
         })
         .onUpdate((event) => {
             if (isDragging.value) {
@@ -145,13 +122,12 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
             zIndex.value = 1;
         });
 
-    // Combine gestures: long press triggers drag mode, then pan follows
-    // We run the longPress and secondaryLongPress simultaneously
+    // Drag starts after long press via Pan.activateAfterLongPress.
     const composedGesture = Gesture.Race(
         tapGesture,
         Gesture.Simultaneous(
             secondaryLongPressGesture,
-            Gesture.Simultaneous(longPressGesture, panGesture)
+            panGesture
         )
     );
 

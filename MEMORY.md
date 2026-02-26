@@ -166,6 +166,13 @@
     - сохраняется технический access token (`dev-offline-access-token`);
     - вход продолжается без backend, чтобы не блокировать DEV-проверки UI.
   - В финальном alert DEV-login выводятся `URL` и список базовых `Bases` для быстрой диагностики endpoint на устройстве.
+  - Для локального offline fallback (`dev-offline-access-token`) добавлена централизованная проверка `isOfflineDevAccessToken()` в `frontend/services/authSessionService.ts`.
+  - В offline DEV режиме realtime/WebSocket теперь не запускается (`frontend/services/websocketService.ts`), чтобы не создавать reconnect storm на iOS (`kCFErrorDomainCFNetwork error 2`).
+  - В offline DEV режиме часть стартовых сетевых загрузок отключена:
+    - `WalletContext` не запрашивает `/wallet` для `user.ID=999999`;
+    - `ChatContext` не загружает RAG domains для `user.ID=999999`;
+    - `PortalMainScreen` не запрашивает support unread count для `user.ID=999999`;
+    - `portalLayoutService` работает через локальный fallback без `Authorization` header для offline токена.
 
 ## Auth Runtime Notes
 - При просроченной/невалидной сессии на старте приложения WebSocket/heartbeat должны логировать ожидаемый auth-fallback через `console.warn`, а не `console.error`, иначе React Native dev mode показывает RedBox и мешает автологауту/refresh-потоку.
@@ -179,6 +186,8 @@
 - В `frontend/services/notificationService.ts` такие ошибки не должны поднимать RedBox:
   - для `aps-environment` используется `console.warn` + telemetry `token_register_skipped: missing_aps_environment`;
   - recoverable catch-ветки сервиса логируют через `console.warn`, а не `console.error`.
+- В текущей конфигурации RNFirebase для iOS используется auto-registration; ручной вызов `registerDeviceForRemoteMessages()` удален как избыточный (убирает warning `Usage of ... is not required`).
+- Для iOS добавлен early-skip: если `getAPNSToken()` вернул `null`, `getToken()` не вызывается, и пишется telemetry `token_register_skipped: apns_token_unavailable`.
 
 ## Profile Runtime Notes
 - `frontend/screens/settings/EditProfileScreen.tsx` не должен предполагать, что `/contacts` всегда возвращает массив: backend может вернуть и paginated-формат `{ items: [...] }`.
@@ -240,6 +249,18 @@
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.
+- UX для меню виджетов упрощен:
+  - удалена отдельная инфо-карточка «Как открыть меню виджетов»;
+  - добавление виджетов открывается по long-press на canvas (включается edit-mode и сразу открывается picker).
+- Empty state виджетов:
+  - подсказка обновлена с `+`-кнопки на удержание пальца;
+  - цвет текста адаптирован к светлым режимам (без ложной `photo`-палитры в light).
+- Empty canvas long-press:
+  - в `WidgetCanvasGrid` long-press для открытия меню виджетов теперь работает по всей области размещения (а не только по карточке «Пока нет виджетов»);
+  - empty-state карточка переведена в `pointerEvents="none"`, жесты обрабатывает общий pressable canvas.
+- DnD виджетов стабилизирован:
+  - `DraggablePortalItem` переведен на `Pan.activateAfterLongPress(260)` вместо `manualActivation`;
+  - для измеряемого контейнера виджета используется `collapsable={false}`, чтобы hit-тест reorder корректно работал на iOS/Android.
 - Контрастный фикс `ChannelDetailsScreen` (`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`):
   - gradient теперь зависит от темы (`dark -> roleTheme.gradient`, `light -> colors.background/surface/background`);
   - это убирает кейс "темный текст на темном фоне" в light mode на экране деталей канала.

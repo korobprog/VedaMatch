@@ -11,6 +11,7 @@ interface WidgetCanvasGridProps {
     widgets: PortalWidget[];
     isEditMode: boolean;
     onSetEditMode: (value: boolean) => void;
+    onRequestWidgetMenu?: () => void;
     onRemoveWidget: (widgetId: string) => void;
     onReorderWidgets: (fromIndex: number, toIndex: number) => void;
 }
@@ -19,12 +20,13 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     widgets,
     isEditMode,
     onSetEditMode,
+    onRequestWidgetMenu,
     onRemoveWidget,
     onReorderWidgets,
 }) => {
-    const { vTheme, portalBackgroundType } = useSettings();
+    const { vTheme, portalBackgroundType, isDarkMode, screenVisualStyle } = useSettings();
     const { height: viewportHeight } = useWindowDimensions();
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isPhotoBg = screenVisualStyle === 'classic' && portalBackgroundType === 'image' && isDarkMode;
     const [isDraggingItem, setIsDraggingItem] = useState(false);
     const canvasMinHeight = useMemo(() => Math.max(320, viewportHeight - 330), [viewportHeight]);
     const orderedWidgets = useMemo(
@@ -40,7 +42,8 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     const handleCanvasLongPress = useCallback(() => {
         if (dnd.isDragging || isDraggingItem) return;
         onSetEditMode(true);
-    }, [dnd.isDragging, isDraggingItem, onSetEditMode]);
+        onRequestWidgetMenu?.();
+    }, [dnd.isDragging, isDraggingItem, onRequestWidgetMenu, onSetEditMode]);
 
     const handleCanvasPress = useCallback(() => {
         if (isEditMode && !dnd.isDragging && !isDraggingItem) {
@@ -61,24 +64,32 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
 
     if (orderedWidgets.length === 0) {
         return (
-            <Pressable
-                style={[
-                    styles.emptyState,
-                    {
-                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider,
-                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : vTheme.colors.backgroundSecondary,
-                    },
-                ]}
-                onLongPress={handleCanvasLongPress}
-                onPress={handleCanvasPress}
-            >
-                <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
-                    Пока нет виджетов
-                </Text>
-                <Text style={[styles.emptySubtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary }]}>
-                    Нажмите "+" внизу, чтобы добавить первый виджет
-                </Text>
-            </Pressable>
+            <View style={[styles.emptyCanvas, { minHeight: canvasMinHeight }]}>
+                <Pressable
+                    testID="widget-canvas-empty-zone"
+                    style={styles.emptyCanvasPressable}
+                    onLongPress={handleCanvasLongPress}
+                    onPress={handleCanvasPress}
+                >
+                    <View
+                        style={[
+                            styles.emptyState,
+                            {
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider,
+                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : vTheme.colors.backgroundSecondary,
+                            },
+                        ]}
+                        pointerEvents="none"
+                    >
+                        <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
+                            Пока нет виджетов
+                        </Text>
+                        <Text style={[styles.emptySubtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary }]}>
+                            Удерживайте палец на экране, чтобы открыть меню добавления виджетов
+                        </Text>
+                    </View>
+                </Pressable>
+            </View>
         );
     }
 
@@ -112,6 +123,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                                 <View
                                     ref={(ref) => { dnd.itemRefs.current[widget.id] = ref; }}
                                     pointerEvents="box-none"
+                                    collapsable={false}
                                 >
                                     <PortalWidgetWrapper
                                         isEditMode={isEditMode}
@@ -162,6 +174,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 22,
         alignItems: 'center',
+    },
+    emptyCanvas: {
+        flex: 1,
+        paddingHorizontal: 12,
+        paddingTop: 12,
+        paddingBottom: 240,
+    },
+    emptyCanvasPressable: {
+        flex: 1,
     },
     emptyTitle: {
         fontSize: 17,

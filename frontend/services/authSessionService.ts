@@ -11,6 +11,15 @@ export interface AuthTokens {
     sessionId?: number;
 }
 
+export const DEV_OFFLINE_ACCESS_TOKEN = 'dev-offline-access-token';
+
+export const isOfflineDevAccessToken = (token: string | null | undefined): boolean => {
+    if (!token || typeof token !== 'string') {
+        return false;
+    }
+    return token.trim() === DEV_OFFLINE_ACCESS_TOKEN;
+};
+
 const STORAGE_KEY_ACCESS_TOKEN = 'token';
 const STORAGE_KEY_REFRESH_TOKEN = 'refreshToken';
 const STORAGE_KEY_ACCESS_EXPIRES = 'accessTokenExpiresAt';

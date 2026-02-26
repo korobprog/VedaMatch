@@ -4,7 +4,7 @@ import apiClient from '../lib/apiClient';
 import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS } from '../types/portal';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
-import { getAccessToken } from './authSessionService';
+import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
 
 
 const STORAGE_KEY = 'portal_layout';
@@ -12,6 +12,7 @@ const SYNC_DEBOUNCE_MS = 5000; // Sync to server after 5 seconds of inactivity
 
 let syncTimeout: NodeJS.Timeout | null = null;
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((service) => service.id));
+let hasLoggedOfflineDevPortalFallback = false;
 
 // Load layout from local storage (fast)
 export const loadLocalLayout = async (): Promise<PortalLayout> => {
@@ -56,8 +57,11 @@ const getAuthHeaders = async () => {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     };
-    if (token) {
+    if (token && !isOfflineDevAccessToken(token)) {
         headers.Authorization = `Bearer ${token}`;
+    } else if (token && isOfflineDevAccessToken(token) && !hasLoggedOfflineDevPortalFallback) {
+        hasLoggedOfflineDevPortalFallback = true;
+        console.log('[PortalLayout] Offline DEV mode detected, using local fallback without server sync');
     }
     return headers;
 };

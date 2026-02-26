@@ -169,7 +169,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     );
 
     const refreshSupportUnread = useCallback(async () => {
-        if (!user?.ID) {
+        if (!user?.ID || user.ID === 999999) {
             setSupportUnreadCount(0);
             return;
         }

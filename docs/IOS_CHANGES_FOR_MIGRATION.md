@@ -1,5 +1,90 @@
 # IOS Changes For Migration
 
+## 2026-02-26 (iOS push token flow: remove redundant RNFirebase registration warning)
+
+### Измененные файлы
+- `frontend/services/notificationService.ts`
+
+### Суть правки (от старого к новому)
+- Получение FCM токена на iOS:
+  - Было: вызывался `registerDeviceForRemoteMessages()` при каждом запуске, что в текущей конфигурации давало warning RNFirebase (`not required`).
+  - Стало: ручная регистрация удалена; используется стандартный auto-registration путь RNFirebase.
+- Обработка отсутствия APNS токена:
+  - Было: после `getAPNSToken()` код всегда пробовал `getToken()`, и при неготовом/невалидном push-профиле это могло приводить к шумным ошибкам.
+  - Стало: при `!apnsToken` добавлен early-skip с telemetry (`token_register_skipped: apns_token_unavailable`) и понятным warning про проверку capabilities/profile.
+
+### Сниппеты кода
+
+`frontend/services/notificationService.ts`:
+```ts
+const apnsToken = await getAPNSToken(messaging);
+if (!apnsToken) {
+  console.warn('[NotificationService] APNS token unavailable on iOS; skipping FCM token request. Check push capability/profile if this persists.');
+  logPushTelemetry('token_register_skipped', { reason: 'apns_token_unavailable' });
+  return null;
+}
+```
+
+## 2026-02-26 (Offline DEV fallback: suppress iOS network storm logs)
+
+### Измененные файлы
+- `frontend/services/authSessionService.ts`
+- `frontend/services/websocketService.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/WalletContext.tsx`
+- `frontend/context/ChatContext.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Offline DEV токен (`dev-offline-access-token`):
+  - Было: использовался как обычный access token, из-за чего app продолжал пытаться подключать WebSocket и дергать защищенные endpoint'ы.
+  - Стало: добавлен явный helper `isOfflineDevAccessToken()` для централизованной детекции локального fallback режима.
+- Realtime (WebSocket):
+  - Было: при offline DEV профиле запускались циклы reconnect с `kCFErrorDomainCFNetwork error 2`.
+  - Стало: при offline DEV токене WebSocket соединение не поднимается и reconnect-цикл не стартует.
+- Portal bootstrap sync:
+  - Было: `portalLayoutService` продолжал запрашивать blueprint/layout с сервера, даже когда токен локальный и сервер недоступен.
+  - Стало: для offline DEV токена auth header не добавляется, сервис сразу уходит в локальный fallback без сетевых вызовов.
+- Шумные запросы на старте:
+  - Было: `WalletContext`, `ChatContext` (RAG domains) и `PortalMainScreen` (support unread) пытались грузить серверные данные в offline DEV профиле.
+  - Стало: для пользователя `ID=999999` эти стартовые запросы пропускаются, чтобы избежать постоянных `AxiosError: Network Error` в dev-консоли.
+
+### Сниппеты кода
+
+`frontend/services/authSessionService.ts`:
+```ts
+export const DEV_OFFLINE_ACCESS_TOKEN = 'dev-offline-access-token';
+export const isOfflineDevAccessToken = (token: string | null | undefined): boolean =>
+  !!token && token.trim() === DEV_OFFLINE_ACCESS_TOKEN;
+```
+
+`frontend/services/websocketService.ts`:
+```ts
+if (isOfflineDevAccessToken(token)) {
+  console.log('[WebSocket] Offline DEV token detected, skipping realtime connection');
+  return;
+}
+const encodedToken = encodeURIComponent(token);
+const url = `${WS_PATH}/ws/${this.userId}?token=${encodedToken}`;
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+if (token && !isOfflineDevAccessToken(token)) {
+  headers.Authorization = `Bearer ${token}`;
+}
+```
+
+`frontend/context/WalletContext.tsx`:
+```ts
+if (user.ID === 999999) {
+  setWallet(null);
+  setError(null);
+  setLoading(false);
+  return;
+}
+```
+
 ## 2026-02-26 (Video Circles CDN policy: fail-fast upload + URL validation)
 
 ### Измененные файлы
@@ -1610,6 +1695,96 @@ const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
 
 ### Validation
 - `npx tsc --noEmit -p tsconfig.json` — success.
+
+## 2026-02-26 (Widget screen UX cleanup + long-press add flow + drag fix)
+
+### Changed Files
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/DraggablePortalItem.tsx`
+
+### Old -> New
+- `WidgetSelectionScreen`:
+  - Old: на экране была отдельная карточка «Как открыть меню виджетов» + кнопка «Открыть меню виджетов».
+  - New: карточка полностью удалена; UX оставлен через long-press на canvas.
+- Empty state текста:
+  - Old: подсказка требовала нажать `+` для добавления виджета.
+  - New: подсказка изменена на удержание пальца для открытия меню добавления.
+- Контраст в empty state:
+  - Old: палитра для `image`-фона применялась даже в светлых стилях, из-за чего текст мог быть слишком светлым.
+  - New: `photo`-палитра включается только в `classic + image + dark`, остальное берет контрастные theme-цвета.
+- Drag & Drop:
+  - Old: drag-gesture мог не стартовать стабильно из-за схемы `manualActivation`/комбинации long-press+pan.
+  - New: перетаскивание переведено на `Pan.activateAfterLongPress(260)`; добавлен `collapsable={false}` у измеряемого widget-container для стабильного hit-target расчета.
+
+### Code Snippets
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+const isPhotoBg = screenVisualStyle === 'classic' && portalBackgroundType === 'image' && isDarkMode;
+...
+onSetEditMode(true);
+onRequestWidgetMenu?.();
+...
+Удерживайте палец на экране, чтобы открыть меню добавления виджетов
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+<WidgetCanvasGrid
+  ...
+  onRequestWidgetMenu={openWidgetMenu}
+/>
+```
+
+`frontend/components/portal/DraggablePortalItem.tsx`:
+```tsx
+const panGesture = Gesture.Pan()
+  .activateAfterLongPress(260)
+  .onStart(() => {
+    runOnJS(onDragStart)();
+  });
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- `npx jest __tests__/screens/portal/WidgetCanvasGrid.test.tsx --runInBand --watchman=false` — pass.
+
+## 2026-02-26 (Widget empty canvas: long-press on full placement area)
+
+### Changed Files
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/__tests__/screens/portal/WidgetCanvasGrid.test.tsx`
+
+### Old -> New
+- Old:
+  - в empty-state long-press обрабатывался только на карточке «Пока нет виджетов».
+  - удержание в остальной области canvas могло не открывать меню виджетов.
+- New:
+  - added full-size pressable zone (`widget-canvas-empty-zone`) на всю область размещения виджетов;
+  - карточка empty-state оставлена визуально, но `pointerEvents="none"` (жесты обрабатывает вся зона);
+  - long-press теперь стабильно работает по всей рабочей области canvas.
+
+### Code Snippets
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+<Pressable
+  testID="widget-canvas-empty-zone"
+  style={styles.emptyCanvasPressable}
+  onLongPress={handleCanvasLongPress}
+>
+  <View style={styles.emptyState} pointerEvents="none">
+```
+
+`frontend/__tests__/screens/portal/WidgetCanvasGrid.test.tsx`:
+```tsx
+fireEvent(screen.getByTestId('widget-canvas-empty-zone'), 'onLongPress');
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- `npx jest __tests__/screens/portal/WidgetCanvasGrid.test.tsx --runInBand --watchman=false` — pass.
 - `xcodebuild -workspace vedamatch.xcworkspace -scheme vedamatch -configuration Debug -destination 'generic/platform=iOS Simulator' build` — `BUILD SUCCEEDED`.
 
 ## 2026-02-25 (iOS DEV login: Firebase init + offline fallback)

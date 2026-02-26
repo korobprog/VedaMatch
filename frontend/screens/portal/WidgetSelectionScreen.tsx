@@ -12,7 +12,7 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Film, Gift, LayoutGrid, List, MessageSquare, Plus, Settings } from 'lucide-react-native';
+import { Film, Gift, LayoutGrid, List, MessageSquare, Settings } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -89,7 +89,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const allowWidgetBlur = androidVisualPolicy.enableBlur && !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
     const widgetBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
     const toolbarBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
-    const toolbarTextColor = (isPhotoBg || isDarkMode) ? '#FFFFFF' : '#0F172A';
     const toolbarSurfaceColor = isPhotoBg
         ? 'rgba(15,23,42,0.78)'
         : isDarkMode
@@ -411,49 +410,10 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 widgets={widgets}
                 isEditMode={isEditMode}
                 onSetEditMode={setEditMode}
+                onRequestWidgetMenu={openWidgetMenu}
                 onRemoveWidget={removeWidget}
                 onReorderWidgets={reorderWidgets}
             />
-
-            {!isEditMode && (
-                <View
-                    style={[
-                        styles.widgetMenuHintCard,
-                        {
-                            backgroundColor: toolbarSurfaceColor,
-                            borderColor: toolbarBorderColor,
-                        },
-                    ]}
-                >
-                    {(isPhotoBg || isDarkMode) && allowWidgetBlur && (
-                        <BlurView
-                            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
-                            blurType={isDarkMode ? 'dark' : 'light'}
-                            blurAmount={toolbarBlurAmount}
-                            reducedTransparencyFallbackColor={toolbarSurfaceColor}
-                        />
-                    )}
-                    <Text style={[styles.widgetMenuHintTitle, { color: toolbarTextColor }]}>
-                        Как открыть меню виджетов
-                    </Text>
-                    <Text
-                        style={[
-                            styles.widgetMenuHintBody,
-                            { color: (isPhotoBg || isDarkMode) ? 'rgba(255,255,255,0.86)' : '#334155' },
-                        ]}
-                    >
-                        Нажмите кнопку ниже или удерживайте любое место на экране, чтобы включить режим редактирования.
-                    </Text>
-                    <TouchableOpacity
-                        onPress={openWidgetMenu}
-                        style={[styles.widgetMenuHintAction, { borderColor: toolbarBorderColor }]}
-                        activeOpacity={0.88}
-                    >
-                        <Plus size={16} color={toolbarTextColor} />
-                        <Text style={[styles.widgetMenuHintActionText, { color: toolbarTextColor }]}>Открыть меню виджетов</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
 
             {!isEditMode && (
                 <View style={styles.pageIndicatorContainer}>
@@ -499,15 +459,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                             reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.86)' : vTheme.colors.backgroundSecondary}
                         />
                     )}
-
-                    <TouchableOpacity
-                        onPress={openWidgetMenu}
-                        style={[styles.toolbarButton, { borderColor: toolbarBorderColor }]}
-                        activeOpacity={0.86}
-                    >
-                        <Plus size={18} color={toolbarTextColor} />
-                        <Text style={[styles.toolbarButtonText, { color: toolbarTextColor }]}>Виджет</Text>
-                    </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={() => setEditMode(false)}
@@ -634,19 +585,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         gap: 10,
     },
-    toolbarButton: {
-        minHeight: 42,
-        borderRadius: 16,
-        borderWidth: 1,
-        paddingHorizontal: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    toolbarButtonText: {
-        fontSize: 12,
-        fontWeight: '700',
-    },
     toolbarPrimaryButton: {
         minHeight: 42,
         borderRadius: 16,
@@ -658,41 +596,6 @@ const styles = StyleSheet.create({
     toolbarPrimaryButtonText: {
         color: '#FFFFFF',
         fontSize: 13,
-        fontWeight: '700',
-    },
-    widgetMenuHintCard: {
-        position: 'absolute',
-        left: 16,
-        right: 16,
-        bottom: 196,
-        borderRadius: 18,
-        borderWidth: 1,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        overflow: 'hidden',
-    },
-    widgetMenuHintTitle: {
-        fontSize: 14,
-        fontWeight: '800',
-        marginBottom: 4,
-    },
-    widgetMenuHintBody: {
-        fontSize: 12,
-        lineHeight: 18,
-        marginBottom: 10,
-    },
-    widgetMenuHintAction: {
-        minHeight: 40,
-        borderRadius: 14,
-        borderWidth: 1,
-        paddingHorizontal: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-    },
-    widgetMenuHintActionText: {
-        fontSize: 12,
         fontWeight: '700',
     },
     pageIndicatorContainer: {

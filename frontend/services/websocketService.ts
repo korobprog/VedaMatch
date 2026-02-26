@@ -1,5 +1,5 @@
 import { WS_PATH } from '../config/api.config';
-import { getAccessToken, refreshAuthTokens } from './authSessionService';
+import { getAccessToken, isOfflineDevAccessToken, refreshAuthTokens } from './authSessionService';
 
 type AuthRecoverHandler = () => Promise<boolean> | boolean;
 
@@ -75,8 +75,15 @@ export class WebSocketService {
             await this.handleAuthFailure('missing_token');
             return;
         }
+        if (isOfflineDevAccessToken(token)) {
+            console.log('[WebSocket] Offline DEV token detected, skipping realtime connection');
+            this.reconnectAttempts = 0;
+            this.clearReconnectTimer();
+            return;
+        }
 
-        const url = `${WS_PATH}/ws/${this.userId}?token=${token}`;
+        const encodedToken = encodeURIComponent(token);
+        const url = `${WS_PATH}/ws/${this.userId}?token=${encodedToken}`;
         console.log(`[ws_connect_attempt] user_id=${this.userId} attempt=${this.reconnectAttempts + 1}`);
         console.log('[WebSocket] Connecting to bridge...');
 

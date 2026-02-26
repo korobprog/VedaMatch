@@ -37,6 +37,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
             setWallet(null);
             return;
         }
+        // Local DEV fallback profile uses fake auth and should not trigger server wallet requests.
+        if (user.ID === 999999) {
+            setWallet(null);
+            setError(null);
+            setLoading(false);
+            return;
+        }
 
 
         setLoading(true);
