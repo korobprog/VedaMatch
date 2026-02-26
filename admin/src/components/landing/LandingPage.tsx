@@ -83,6 +83,9 @@ export default function LandingPage() {
                             </div>
                         ) : (
                             <div className="flex items-center gap-5">
+                                <Link href="/feed-posts" className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
+                                    Лента
+                                </Link>
                                 <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
                                     Вход
                                 </Link>
@@ -167,6 +170,7 @@ export default function LandingPage() {
                         <h4 className="font-bold mb-4">Разделы</h4>
                         <ul className="space-y-2 text-white/60">
                             <li><Link href="/" className="hover:text-white transition-colors">Главная</Link></li>
+                            <li><Link href="/feed-posts" className="hover:text-white transition-colors">Лента</Link></li>
                             <li><Link href="/login" className="hover:text-white transition-colors">Авторизация</Link></li>
                             <li><Link href="/admin-login" className="hover:text-white transition-colors">Панель управления</Link></li>
                         </ul>

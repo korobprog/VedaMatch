@@ -286,6 +286,7 @@
 - Добавлена admin-only страница `admin/src/app/feed-posts/page.tsx` с read-only списком постов из публичного `GET /api/feed` (карточки постов + loading/error/empty + пагинация `Prev/Next`).
 - В `admin/src/components/AdminLayout.tsx` добавлен пункт меню `Feed Posts` (`/feed-posts`) и маршрут внесен в `exclusiveAdminRoutes`.
 - `/feed-posts` сделан доступным для гостей: при отсутствии `admin_data` нет редиректа на `/login` для этого маршрута, и в layout показывается гостевое меню с пунктом `Feed Posts`.
+- В публичном лендинге `admin/src/components/landing/LandingPage.tsx` добавлена ссылка `Лента` (`/feed-posts`) в top-nav (guest state) и в footer, чтобы доступ к ленте был виден без авторизации.
 - Legacy media edge-case: если в админку приходит bare filename вида `7_1767761761.jpg` (без `/uploads/...`), нужно нормализовать его в `/uploads/avatars/<filename>`, иначе браузер запрашивает файл из корня домена и получает `404`.
 - Для `admin/src/app/dating/page.tsx` добавлен runtime-fallback для битых avatar URL: после первого `img onError` URL попадает в `brokenMediaUrls` и больше не рендерится как `<img>`, что убирает повторные 404-спайки в `Union Management`.
 - Для `admin/src/app/series/page.tsx` cover в карточках TV Series рендерится с `next/image unoptimized`, чтобы обойти `/_next/image` 400 для части внешних S3 URL.
