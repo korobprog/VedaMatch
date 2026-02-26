@@ -268,6 +268,11 @@
 - DnD виджетов стабилизирован:
   - `DraggablePortalItem` переведен на `Pan.activateAfterLongPress(260)` вместо `manualActivation`;
   - для измеряемого контейнера виджета используется `collapsable={false}`, чтобы hit-тест reorder корректно работал на iOS/Android.
+- Single-widget drag/drop:
+  - в `WidgetCanvasGrid` добавлен drop-snap по координатам canvas для сценария одного виджета (раньше он всегда откатывался);
+  - в `widgetCanvasLayout.reorderWidgetCanvas` для `widgets.length===1` сохраняется явная целевая `position`, вместо авто-нормализации в `0`.
+- Shared collision rule:
+  - в `useGridReorderDnd` условие `droppedOnOwnItem` ослаблено: reorder не отменяется, если найден `targetId` или `closestTarget`.
 - Контрастный фикс `ChannelDetailsScreen` (`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`):
   - gradient теперь зависит от темы (`dark -> roleTheme.gradient`, `light -> colors.background/surface/background`);
   - это убирает кейс "темный текст на темном фоне" в light mode на экране деталей канала.

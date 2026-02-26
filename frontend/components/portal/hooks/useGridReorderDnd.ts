@@ -55,7 +55,7 @@ export const useGridReorderDnd = <T extends GridItemWithId>({
         const finalize = () => {
             measuredCount += 1;
             if (measuredCount < items.length) return;
-            if (droppedOnOwnItem) return;
+            if (droppedOnOwnItem && !targetId && !closestTarget) return;
 
             const resolvedTargetId = targetId || closestTarget?.id || null;
             if (!resolvedTargetId || resolvedTargetId === itemId) return;

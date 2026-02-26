@@ -1750,6 +1750,55 @@ const panGesture = Gesture.Pan()
 - `npx tsc --noEmit -p tsconfig.json` — success.
 - `npx jest __tests__/screens/portal/WidgetCanvasGrid.test.tsx --runInBand --watchman=false` — pass.
 
+## 2026-02-26 (Widget drag rollback fix + single-widget drop positioning)
+
+### Changed Files
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/context/widgetCanvasLayout.ts`
+- `frontend/components/portal/hooks/useGridReorderDnd.ts`
+- `frontend/context/__tests__/portalLayout.widgetCanvas.test.ts`
+- `frontend/__tests__/screens/portal/WidgetCanvasGrid.test.tsx`
+
+### Old -> New
+- `WidgetCanvasGrid`:
+  - Old: при одном виджете drag-drop не имел валидной цели reorder и визуально откатывался в исходную позицию.
+  - New: для single-widget добавлен drop-snap по координатам canvas (по long-press + drag), позиция сохраняется через `reorderWidgets`.
+- `widgetCanvasLayout`:
+  - Old: `reorderWidgetCanvas` всегда нормализовал позиции в непрерывную последовательность, для одного виджета это фиксировало позицию в `0`.
+  - New: для `widgets.length === 1` сохраняется явная целевая `position` (без авто-сброса в `0`).
+- `useGridReorderDnd`:
+  - Old: если drop пересекал собственный элемент, reorder мог преждевременно отменяться.
+  - New: отмена происходит только если нет ни targetId, ни closestTarget.
+
+### Code Snippets
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+if (singleWidget && singleWidget.id === id && canvasBoundsRef.current.width > 0) {
+  // compute targetPosition from drop point in canvas
+  onReorderWidgets(0, targetPosition);
+  return;
+}
+```
+
+`frontend/context/widgetCanvasLayout.ts`:
+```ts
+if (orderedWidgets.length === 1 && fromIndex === 0 && toIndex >= 0) {
+  const [singleWidget] = orderedWidgets;
+  return [{ ...singleWidget, position: toIndex }];
+}
+```
+
+`frontend/components/portal/hooks/useGridReorderDnd.ts`:
+```ts
+if (droppedOnOwnItem && !targetId && !closestTarget) return;
+```
+
+### Validation
+- `npx tsc --noEmit -p tsconfig.json` — success.
+- `npx jest __tests__/screens/portal/WidgetCanvasGrid.test.tsx context/__tests__/portalLayout.widgetCanvas.test.ts --runInBand --watchman=false` — pass.
+- `npx jest __tests__/screens/portal/WidgetSelectionScreen.test.tsx --runInBand --watchman=false` — pass.
+
 ## 2026-02-26 (Widget empty canvas: long-press on full placement area)
 
 ### Changed Files

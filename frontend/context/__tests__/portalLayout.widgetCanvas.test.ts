@@ -83,4 +83,12 @@ describe('portal widgetCanvas normalization and constraints', () => {
     expect(reordered.map((w) => w.id)).toEqual(['w2', 'w3', 'w1']);
     expect(reordered.map((w) => w.position)).toEqual([0, 1, 2]);
   });
+
+  it('moves single widget to explicit canvas position', () => {
+    const widgets = [makeWidget('solo', 'clock', '2x1', 0)];
+    const reordered = reorderWidgetCanvas(widgets, 0, 4);
+    expect(reordered).toHaveLength(1);
+    expect(reordered[0].id).toBe('solo');
+    expect(reordered[0].position).toBe(4);
+  });
 });
