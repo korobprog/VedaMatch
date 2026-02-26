@@ -295,6 +295,37 @@ const ensureServicesCatalogShortcut = (layout: PortalLayout): PortalLayout => {
     return layout;
 };
 
+const ensureFeedShortcut = (layout: PortalLayout): PortalLayout => {
+    if (hasServiceInLayout(layout, 'feed')) {
+        return layout;
+    }
+
+    if (layout.pages.length === 0) {
+        layout.pages.push({
+            id: 'page-1',
+            items: [],
+            widgets: [],
+            order: 0,
+        });
+    }
+
+    const firstPage = layout.pages[0];
+    const channelsIndex = firstPage.items.findIndex((item) => item.type === 'service' && item.serviceId === 'channels');
+    const insertIndex = channelsIndex >= 0 ? channelsIndex + 1 : firstPage.items.length;
+
+    firstPage.items.splice(insertIndex, 0, {
+        id: `item-feed-${Date.now()}`,
+        serviceId: 'feed',
+        type: 'service',
+        position: insertIndex,
+    });
+
+    firstPage.items = firstPage.items.map((item, index) => ({ ...item, position: index }));
+    layout.lastModified = Date.now();
+    layout.syncedWithServer = false;
+    return layout;
+};
+
 // Handle migration for old layouts
 const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
     if (!layout.quickAccess) {
@@ -324,6 +355,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
             if (serverLayout.lastModified > localLayout.lastModified) {
                 let updatedServer = ensureQuickAccess(serverLayout);
                 updatedServer = ensureDefaultServices(updatedServer);
+                updatedServer = ensureFeedShortcut(updatedServer);
                 updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
@@ -340,6 +372,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
 
     let updatedLocal = ensureQuickAccess(localLayout);
     updatedLocal = ensureDefaultServices(updatedLocal);
+    updatedLocal = ensureFeedShortcut(updatedLocal);
     updatedLocal = ensureServicesCatalogShortcut(updatedLocal);
     if (!blueprint && role) {
         blueprint = await fetchPortalBlueprint(role);

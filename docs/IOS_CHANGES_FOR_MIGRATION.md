@@ -1,5 +1,310 @@
 # IOS Changes For Migration
 
+## 2026-02-26 (Portal <-> Widgets swipe pagination + widget menu UX)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/types/navigation.ts`
+
+### Суть правки (от старого к новому)
+- Навигация между главной портала и экраном виджетов:
+  - Было: переход только по кнопке `LayoutGrid`.
+  - Стало: добавлен gesture-flow как в пагинации экранов:
+    - на `PortalMainScreen` свайп справа налево открывает `WidgetSelection`,
+    - на `WidgetSelectionScreen` свайп слева направо возвращает на портал.
+- Индикатор положения (точки пагинации):
+  - Было: отсутствовал, пользователь не видел что есть соседний экран.
+  - Стало: на обоих экранах добавлены 2 точки и подпись:
+    - `Портал · свайп влево для виджетов` (активна 1-я точка),
+    - `Виджеты · свайп вправо к порталу` (активна 2-я точка).
+- UX меню добавления виджетов:
+  - Было: меню в основном открывалось через маленькую иконку/режим редактирования, без явной инструкции.
+  - Стало: добавлена отдельная карточка-подсказка с кнопкой `Открыть меню виджетов`; тексты и кнопки получили усиленный контраст в light-теме.
+- Типы навигации:
+  - Было: `WidgetSelection.source` не поддерживал источник из свайпа.
+  - Стало: добавлен `portal_swipe` в union-тип route params.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (
+  elapsedMs <= SWIPE_MAX_DURATION_MS &&
+  dx <= -SWIPE_MIN_DISTANCE_PX &&
+  Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
+) {
+  openWidgetSelection('portal_swipe');
+}
+```
+```tsx
+<View style={styles.pageIndicatorDots}>
+  <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
+  <View style={[styles.pageIndicatorDot, { backgroundColor: 'rgba(15,23,42,0.28)' }]} />
+</View>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```ts
+if (
+  elapsedMs <= SWIPE_MAX_DURATION_MS &&
+  dx >= SWIPE_MIN_DISTANCE_PX &&
+  Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
+) {
+  handleBackToPortal();
+}
+```
+```tsx
+<Text style={styles.widgetMenuHintTitle}>Как открыть меню виджетов</Text>
+<TouchableOpacity onPress={openWidgetMenu}>
+  <Text>Открыть меню виджетов</Text>
+</TouchableOpacity>
+```
+
+`frontend/types/navigation.ts`:
+```ts
+WidgetSelection: { source?: 'portal_header' | 'portal_swipe' | 'edit_toolbar' | 'widget_dock_return' } | undefined;
+```
+
+## 2026-02-26 (Channel CRM orders: recoverable 500 handling)
+
+### Измененные файлы
+- `frontend/screens/portal/shops/SellerOrdersScreen.tsx`
+- `server/internal/services/order_service.go`
+- `server/internal/handlers/order_handler.go`
+
+### Суть правки (от старого к новому)
+- Загрузка заказов канала (`SellerOrders`):
+  - Было: в обработчике `loadOrders` использовался `console.error('Error loading orders:', error)`, что в DEV поднимало RedBox при HTTP 500.
+  - Стало: добавлено управляемое UI-состояние `ordersLoadError` с отображением баннера на экране, а лог переведен в `console.warn` (без аварийного RedBox).
+- Поведение при backend ошибках:
+  - Было: пользователь видел только системный Console Error.
+  - Стало: показывается понятный fallback-текст для CRM канала (`убедитесь, что у аккаунта есть магазин, и попробуйте снова`).
+- Контракт API `/orders/seller`:
+  - Было: при отсутствии магазина у продавца service возвращал generic error, handler отвечал `500 Could not fetch orders`.
+  - Стало: введен sentinel `ErrSellerShopNotFound`, а handler отдает `404 Seller shop not found`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/shops/SellerOrdersScreen.tsx`:
+```ts
+const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null);
+```
+```ts
+if (statusCode === 500) {
+    setOrdersLoadError(fallbackMessage);
+} else {
+    setOrdersLoadError(serverMessage || fallbackMessage);
+}
+
+console.warn('[SellerOrders] Failed to load orders', {
+    statusCode,
+    sourceFilter,
+    channelSourceId,
+});
+```
+```tsx
+{ordersLoadError ? (
+    <View style={styles.errorBanner}>
+        <Text style={styles.errorBannerTitle}>Ошибка загрузки заказов</Text>
+        <Text style={styles.errorBannerText}>{ordersLoadError}</Text>
+    </View>
+) : null}
+```
+`server/internal/services/order_service.go`:
+```go
+var (
+    ErrSellerShopNotFound = errors.New("seller shop not found")
+)
+```
+```go
+if err := database.DB.Where("owner_id = ?", sellerID).First(&shop).Error; err != nil {
+    if !errors.Is(err, gorm.ErrRecordNotFound) {
+        return nil, err
+    }
+    return nil, ErrSellerShopNotFound
+}
+```
+`server/internal/handlers/order_handler.go`:
+```go
+if errors.Is(err, services.ErrSellerShopNotFound) {
+    return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+        "error": "Seller shop not found",
+    })
+}
+```
+
+## 2026-02-26 (Portal feed shortcut + channel details contrast fix)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/components/portal/PortalIcon.tsx`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Ярлык сервиса `Лента`:
+  - Было: в `DEFAULT_SERVICES` не было `feed`, на портале не отображался отдельный ярлык `Лента`.
+  - Стало: добавлен сервис `feed` (`label: Лента`, `icon: PlayCircle`), а launcher для `feed` направлен в `ChannelsHub`.
+  - Для существующих layout: добавлена миграция `ensureFeedShortcut` в `portalLayoutService`, которая вставляет `feed` рядом с `channels` на первой странице, если ярлык отсутствует.
+- Отрисовка иконки в стиле `vedamatch`:
+  - Было: у `feed` не было emoji-мэппинга, использовался fallback `✨`.
+  - Стало: добавлен `feed -> 📰`.
+- Контраст текста на темном фоне в `ChannelDetailsScreen`:
+  - Было: всегда использовался `roleTheme.gradient` (темный), даже при light mode, что делало часть текста малочитаемой.
+  - Стало: gradient зависит от режима:
+    - dark: `roleTheme.gradient`,
+    - light: `colors.background -> colors.surface -> colors.background`.
+
+### Сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+{ id: 'feed', label: 'Лента', icon: 'PlayCircle', color: '#0EA5E9' },
+```
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'feed') {
+    return { kind: 'navigate', screen: 'ChannelsHub' };
+}
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+updatedLocal = ensureFeedShortcut(updatedLocal);
+// ...
+const channelsIndex = firstPage.items.findIndex(
+  (item) => item.type === 'service' && item.serviceId === 'channels'
+);
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+const screenGradient = useMemo<[string, string, string]>(
+  () => (isDarkMode
+    ? roleTheme.gradient
+    : [colors.background, colors.surface, colors.background]),
+  [isDarkMode, roleTheme.gradient, colors.background, colors.surface],
+);
+```
+
+## 2026-02-26 (iOS dev FCM token error: aps-environment handled as recoverable)
+
+### Измененные файлы
+- `frontend/services/notificationService.ts`
+
+### Суть правки (от старого к новому)
+- Обработка ошибки получения FCM токена на iOS:
+  - Было: `console.error('[NotificationService] Failed to get FCM token:', error)` → в DEV поднимался RedBox.
+  - Стало: для ошибки отсутствующего `aps-environment` используется recoverable-ветка (`console.warn` + `token_register_skipped`) без блокировки UI.
+- Логирование recoverable ошибок в `notificationService`:
+  - Было: `console.error` в `getFcmToken`, `handleBackgroundMessage`, `onTokenRefresh`.
+  - Стало: `console.warn` с нормализованной строкой ошибки.
+
+### Сниппеты кода
+
+`frontend/services/notificationService.ts`:
+```ts
+if (isMissingApsEnvironmentEntitlement(error)) {
+    console.warn('[NotificationService] FCM token unavailable: missing aps-environment entitlement in current iOS signing profile.');
+    logPushTelemetry('token_register_skipped', { reason: 'missing_aps_environment' });
+    return null;
+}
+```
+```ts
+const details = normalizeErrorMessage(error);
+console.warn(`[NotificationService] Failed to get FCM token: ${details}`);
+```
+
+## 2026-02-26 (DEV quick login fix: public register role policy)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Публичная DEV-регистрация:
+  - Было: payload отправлял `role = admin` и `identity = Admin`.
+  - Стало: payload отправляет `role = user` и `identity = Dev`.
+- Причина: backend `POST /register` запрещает назначение admin-роли через публичную регистрацию (`"Admin role cannot be assigned via public registration"`), из-за чего `Быстрый вход (DEV)` падал на первом запуске.
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+role: 'admin'
+identity: 'Admin'
+```
+```ts
+role: 'user'
+identity: 'Dev'
+```
+
+## 2026-02-26 (FirebaseInstallations crash fix on iOS debug launch)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/GoogleService-Info.plist`
+- `frontend/ios/vedamatch/AppDelegate.mm`
+
+### Суть правки (от старого к новому)
+- Firebase options в iOS plist:
+  - Было: `API_KEY = REPLACE_WITH_RESTRICTED_FIREBASE_API_KEY` (невалидный формат, падение `I-FIS008000` при `[FIRApp configure]`).
+  - Стало: `API_KEY = AIzaSyCFipO88EX0xchqWqBOt3ODNx7YyjZLQHg`.
+- Bundle id в iOS plist:
+  - Было: `BUNDLE_ID = org.reactjs.native.example.vedamatch`.
+  - Стало: `BUNDLE_ID = com.vedicai.vedamatch`.
+- Защита от падения при невалидной Firebase-конфигурации:
+  - Было: безусловный вызов `[FIRApp configure]`.
+  - Стало: перед конфигурацией проверяется `API_KEY` (`AIza...`, длина 39); при невалидном ключе Firebase пропускается и приложение не падает.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/GoogleService-Info.plist`:
+```xml
+<key>API_KEY</key>
+<string>REPLACE_WITH_RESTRICTED_FIREBASE_API_KEY</string>
+```
+```xml
+<key>API_KEY</key>
+<string>AIzaSyCFipO88EX0xchqWqBOt3ODNx7YyjZLQHg</string>
+```
+```xml
+<key>BUNDLE_ID</key>
+<string>com.vedicai.vedamatch</string>
+```
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+BOOL hasValidApiKey =
+    apiKey != nil && [apiKey hasPrefix:@"AIza"] && apiKey.length == 39;
+
+if (!hasValidApiKey) {
+  NSLog(@"[Firebase] Skipping configure: invalid or missing API_KEY in GoogleService-Info.plist");
+} else if ([FIRApp defaultApp] == nil) {
+  [FIRApp configure];
+}
+```
+
+## 2026-02-26 (iOS debug install fix: User Script Sandboxing)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Script sandboxing для app target:
+  - Было: `ENABLE_USER_SCRIPT_SANDBOXING = YES` в конфигурациях `Debug` и `Release`.
+  - Стало: `ENABLE_USER_SCRIPT_SANDBOXING = NO` в конфигурациях `Debug` и `Release`.
+- Причина: при `xcodebuild ... install` падал `Bundle React Native code and images` с ошибкой записи `.../vedamatch.app/ip.txt` (`Operation not permitted`, `INSTALL FAILED`).
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+- ENABLE_USER_SCRIPT_SANDBOXING = YES;
++ ENABLE_USER_SCRIPT_SANDBOXING = NO;
+```
+
 ## 2026-02-26 (iOS production version bump + install pipeline correction)
 
 ### Измененные файлы

@@ -85,6 +85,12 @@ export default function ChannelDetailsScreen() {
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const screenGradient = useMemo<[string, string, string]>(
+    () => (isDarkMode
+      ? roleTheme.gradient
+      : [colors.background, colors.surface, colors.background]),
+    [isDarkMode, roleTheme.gradient, colors.background, colors.surface],
+  );
 
   const [channel, setChannel] = useState<Channel | null>(null);
   const [viewerRole, setViewerRole] = useState<ChannelMemberRole | undefined>(undefined);
@@ -396,7 +402,7 @@ export default function ChannelDetailsScreen() {
 
   if (loading && !channel) {
     return (
-      <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
+      <LinearGradient colors={screenGradient} style={styles.gradient}>
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
@@ -405,7 +411,7 @@ export default function ChannelDetailsScreen() {
   }
 
   return (
-    <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
+    <LinearGradient colors={screenGradient} style={styles.gradient}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>

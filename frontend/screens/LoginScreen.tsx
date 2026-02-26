@@ -283,13 +283,13 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             gender: 'Male',
             country: 'India',
             city: 'Mayapur',
-            identity: 'Admin',
+            identity: 'Dev',
             diet: 'Vegetarian',
             madh: 'Gaudiya',
             mentor: 'Srila Prabhupada',
             dob: '1980-01-01',
             isProfileComplete: true,
-            role: 'admin' // Try to set admin role directly (server might ignore, but worth trying)
+            role: 'user'
         };
 
         setLoading(true);

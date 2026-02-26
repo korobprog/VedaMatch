@@ -113,6 +113,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     'multimedia': '🎵',
     'video_circles': '📹',
     'channels': '📻',
+    'feed': '📰',
     'news': '📰',
     'map': '🗺️',
     'support': '🛟',

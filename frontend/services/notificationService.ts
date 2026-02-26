@@ -36,6 +36,22 @@ const logPushTelemetry = (event: string, payload: Record<string, any> = {}) => {
     console.log(`[PushTelemetry] ${event}`, payload);
 };
 
+const normalizeErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+        return error.message || String(error);
+    }
+    return String(error || '');
+};
+
+const isMissingApsEnvironmentEntitlement = (error: unknown): boolean => {
+    if (Platform.OS !== 'ios') return false;
+    const message = normalizeErrorMessage(error).toLowerCase();
+    return (
+        message.includes('aps-environment') ||
+        (message.includes('messaging/unknown') && message.includes('authorization'))
+    );
+};
+
 const safeParseParams = (raw: any): Record<string, any> => {
     if (!raw) return {};
     if (typeof raw === 'object') return raw;
@@ -122,7 +138,14 @@ export const notificationService = {
                 return fcmToken;
             }
         } catch (error) {
-            console.error('[NotificationService] Failed to get FCM token:', error);
+            if (isMissingApsEnvironmentEntitlement(error)) {
+                console.warn('[NotificationService] FCM token unavailable: missing aps-environment entitlement in current iOS signing profile.');
+                logPushTelemetry('token_register_skipped', { reason: 'missing_aps_environment' });
+                return null;
+            }
+
+            const details = normalizeErrorMessage(error);
+            console.warn(`[NotificationService] Failed to get FCM token: ${details}`);
             logPushTelemetry('token_register_error', { reason: 'get_token_failed' });
         }
         return null;
@@ -293,7 +316,7 @@ export const notificationService = {
             });
             await AsyncStorage.setItem('pending_notifications', JSON.stringify(pending));
         } catch (error) {
-            console.error('[NotificationService] Failed to persist background notification:', error);
+            console.warn(`[NotificationService] Failed to persist background notification: ${normalizeErrorMessage(error)}`);
         }
     },
 
@@ -323,7 +346,7 @@ export const notificationService = {
             try {
                 await registerTokenOnServer(refreshedToken);
             } catch (error) {
-                console.error('[NotificationService] Failed to register refreshed token:', error);
+                console.warn(`[NotificationService] Failed to register refreshed token: ${normalizeErrorMessage(error)}`);
                 logPushTelemetry('token_register_error', { reason: 'refresh_register_failed' });
             }
         });

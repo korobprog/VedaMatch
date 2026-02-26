@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Alert,
     AppState,
+    GestureResponderEvent,
     Platform,
     StatusBar,
     StyleSheet,
@@ -28,6 +29,9 @@ import { useChat } from '../../context/ChatContext';
 import { resolveServiceLaunch } from './serviceLaunchResolver';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
+const SWIPE_MAX_DURATION_MS = 600;
+const SWIPE_MIN_DISTANCE_PX = 70;
+const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const { handleNewChat } = useChat();
@@ -57,6 +61,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     } = useSettings();
 
     const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const swipeStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
     const openSource = route.params?.source || 'unknown';
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
@@ -85,6 +90,17 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const allowWidgetBlur = androidVisualPolicy.enableBlur && !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
     const widgetBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
     const toolbarBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
+    const toolbarTextColor = (isPhotoBg || isDarkMode) ? '#FFFFFF' : '#0F172A';
+    const toolbarSurfaceColor = isPhotoBg
+        ? 'rgba(15,23,42,0.78)'
+        : isDarkMode
+            ? vTheme.colors.backgroundSecondary
+            : 'rgba(255,255,255,0.96)';
+    const toolbarBorderColor = isPhotoBg
+        ? 'rgba(255,255,255,0.24)'
+        : isDarkMode
+            ? vTheme.colors.divider
+            : 'rgba(15,23,42,0.14)';
     const widgets = useMemo(() => layout.widgetCanvas?.widgets || [], [layout.widgetCanvas?.widgets]);
     const quickAccessServices = useMemo(() => {
         const quickItems = [...(layout.quickAccess || [])].sort((a, b) => a.position - b.position).slice(0, 3);
@@ -134,6 +150,35 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         navigation.navigate('Portal', { resetToGridAt: Date.now() });
     }, [navigation, openSource, setEditMode]);
+
+    const openWidgetMenu = useCallback(() => {
+        setEditMode(true);
+        setIsPickerOpen(true);
+    }, [setEditMode]);
+
+    const handleWidgetTouchStart = useCallback((event: GestureResponderEvent) => {
+        const { pageX, pageY } = event.nativeEvent;
+        swipeStartRef.current = { x: pageX, y: pageY, ts: Date.now() };
+    }, []);
+
+    const handleWidgetTouchEnd = useCallback((event: GestureResponderEvent) => {
+        const start = swipeStartRef.current;
+        swipeStartRef.current = null;
+        if (!start) {
+            return;
+        }
+        const { pageX, pageY } = event.nativeEvent;
+        const dx = pageX - start.x;
+        const dy = pageY - start.y;
+        const elapsedMs = Date.now() - start.ts;
+        if (
+            elapsedMs <= SWIPE_MAX_DURATION_MS &&
+            dx >= SWIPE_MIN_DISTANCE_PX &&
+            Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
+        ) {
+            handleBackToPortal();
+        }
+    }, [handleBackToPortal]);
 
     const navigateResolvedScreen = useCallback((screen: keyof RootStackParamList) => {
         if (screen === 'AppSettings') {
@@ -206,7 +251,11 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [addWidget]);
 
     const content = (
-        <View style={styles.container}>
+        <View
+            style={styles.container}
+            onTouchStart={handleWidgetTouchStart}
+            onTouchEnd={handleWidgetTouchEnd}
+        >
             <StatusBar barStyle={isPhotoBg || isDarkMode ? 'light-content' : 'dark-content'} />
 
             <View style={styles.header}>
@@ -272,10 +321,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         <Film size={16} color={accentIconColor} />
                     </TouchableOpacity>
                     <TouchableOpacity
-                        onPress={() => {
-                            setEditMode(true);
-                            setIsPickerOpen(true);
-                        }}
+                        onPress={openWidgetMenu}
                         style={[
                             styles.headerCircularButton,
                             {
@@ -380,13 +426,79 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 onReorderWidgets={reorderWidgets}
             />
 
+            {!isEditMode && (
+                <View
+                    style={[
+                        styles.widgetMenuHintCard,
+                        {
+                            backgroundColor: toolbarSurfaceColor,
+                            borderColor: toolbarBorderColor,
+                        },
+                    ]}
+                >
+                    {(isPhotoBg || isDarkMode) && allowWidgetBlur && (
+                        <BlurView
+                            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={toolbarBlurAmount}
+                            reducedTransparencyFallbackColor={toolbarSurfaceColor}
+                        />
+                    )}
+                    <Text style={[styles.widgetMenuHintTitle, { color: toolbarTextColor }]}>
+                        Как открыть меню виджетов
+                    </Text>
+                    <Text
+                        style={[
+                            styles.widgetMenuHintBody,
+                            { color: (isPhotoBg || isDarkMode) ? 'rgba(255,255,255,0.86)' : '#334155' },
+                        ]}
+                    >
+                        Нажмите кнопку ниже или удерживайте любое место на экране, чтобы включить режим редактирования.
+                    </Text>
+                    <TouchableOpacity
+                        onPress={openWidgetMenu}
+                        style={[styles.widgetMenuHintAction, { borderColor: toolbarBorderColor }]}
+                        activeOpacity={0.88}
+                    >
+                        <Plus size={16} color={toolbarTextColor} />
+                        <Text style={[styles.widgetMenuHintActionText, { color: toolbarTextColor }]}>Открыть меню виджетов</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {!isEditMode && (
+                <View style={styles.pageIndicatorContainer}>
+                    <View style={styles.pageIndicatorDots}>
+                        <View
+                            style={[
+                                styles.pageIndicatorDot,
+                                {
+                                    backgroundColor: (isPhotoBg || isDarkMode)
+                                        ? 'rgba(255,255,255,0.45)'
+                                        : 'rgba(15,23,42,0.28)',
+                                },
+                            ]}
+                        />
+                        <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
+                    </View>
+                    <Text
+                        style={[
+                            styles.pageIndicatorText,
+                            { color: (isPhotoBg || isDarkMode) ? '#FFFFFF' : vTheme.colors.textSecondary },
+                        ]}
+                    >
+                        Виджеты · свайп вправо к порталу
+                    </Text>
+                </View>
+            )}
+
             {isEditMode && (
                 <View
                     style={[
                         styles.toolbar,
                         {
-                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.78)' : vTheme.colors.backgroundSecondary,
-                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : vTheme.colors.divider,
+                            backgroundColor: toolbarSurfaceColor,
+                            borderColor: toolbarBorderColor,
                         },
                     ]}
                 >
@@ -400,15 +512,12 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                     )}
 
                     <TouchableOpacity
-                        onPress={() => {
-                            setEditMode(true);
-                            setIsPickerOpen(true);
-                        }}
-                        style={[styles.toolbarButton, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider }]}
+                        onPress={openWidgetMenu}
+                        style={[styles.toolbarButton, { borderColor: toolbarBorderColor }]}
                         activeOpacity={0.86}
                     >
-                        <Plus size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
-                        <Text style={[styles.toolbarButtonText, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Виджет</Text>
+                        <Plus size={18} color={toolbarTextColor} />
+                        <Text style={[styles.toolbarButtonText, { color: toolbarTextColor }]}>Виджет</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -559,6 +668,66 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
+    },
+    widgetMenuHintCard: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 196,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        overflow: 'hidden',
+    },
+    widgetMenuHintTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        marginBottom: 4,
+    },
+    widgetMenuHintBody: {
+        fontSize: 12,
+        lineHeight: 18,
+        marginBottom: 10,
+    },
+    widgetMenuHintAction: {
+        minHeight: 40,
+        borderRadius: 14,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    widgetMenuHintActionText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    pageIndicatorContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 144,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    pageIndicatorDots: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    pageIndicatorDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    pageIndicatorText: {
+        fontSize: 12,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     quickAccessDock: {
         position: 'absolute',

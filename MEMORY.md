@@ -11,11 +11,36 @@
 - `run-ios.js` должен запускать только `com.vedicai.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
 - Для пушей iOS default Firebase app инициализируется нативно в `frontend/ios/vedamatch/AppDelegate.mm` (`[FIRApp configure]` с guard), чтобы исключить warning `No Firebase App '[DEFAULT]'`.
 - В `frontend/index.js` background-handler пушей регистрируется только если `getApps().length > 0`; при отсутствии default app handler пропускается без шумной ошибки в DEV-консоли.
+- `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и актуальный `BUNDLE_ID=com.vedicai.vedamatch`; иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]`.
+- В `frontend/ios/vedamatch/AppDelegate.mm` добавлен runtime-guard для Firebase: при невалидном/пустом `API_KEY` конфигурация Firebase пропускается (`NSLog`) вместо падения приложения.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
 - При изменениях, затрагивающих другие платформы, писать запись в `Docs/IOS_CHANGES_FOR_MIGRATION.md`:
   дата, измененные файлы, суть правки (старое -> новое), сниппеты.
+
+## Feed V2 Service
+- Публичные маршруты ленты (protected): `GET /api/v2/feed`, `GET /api/v2/feed/item/:type/:id`, `POST /api/v2/feed/item/:type/:id/impression`, `POST /api/v2/feed/item/:type/:id/reactions`, `GET/POST /api/v2/feed/item/:type/:id/comments` (`server/cmd/api/main.go`, `server/internal/handlers/feed_v2_handler.go`).
+- Вход в `GetFeed` закрыт feature-flag rollout'ом через `FEED_V2_ENABLED` и `FEED_V2_ROLLOUT_PERCENT` (берутся из `system_settings` с fallback в env).
+- Лента смешивает `posts` и `video_circles`, считает score по формуле recency + engagement + proBoost, затем сортирует и выдает cursor-based пагинацию (`server/internal/services/feed_v2_service.go`).
+- Для первой страницы есть быстрый путь из материализованной таблицы `feed_items`; пересчет materialized-данных выполняет `FeedRebuildWorker` батчами пользователей (`server/internal/workers/feed_rebuild_worker.go`, `server/cmd/feed_worker/main.go`).
+- Админ-контур управления: `GET/PUT /api/admin/feed/config`, `GET /api/admin/feed/metrics`, `POST /api/admin/feed/rebuild`, `GET /api/admin/feed/cdn-health`, `GET /api/admin/feed/workers-health` (`server/internal/handlers/admin_feed_handler.go`).
+- На мобильном клиенте прямой вызов `feed v2` сейчас используется в `FeedMixWidget` (`frontend/components/portal/FeedMixWidget.tsx`) через `frontend/services/feedService.ts`.
+- CDN для feed-контента берется из `media_assets.cdn_url` как есть; отдельного rewrite внутри `FeedV2Service` нет. Rewrite по `CDN_ENABLED/CDN_BASE_URL` реализован в `VideoService` для multimedia URL.
+- Конфиг-риск: `s3_service.go` ожидает `S3_BUCKET_NAME`, но в `server/.env.example` указан `S3_BUCKET`; при использовании server-шаблона без ручной правки S3/CDN загрузка может не инициализироваться.
+
+## Trademark / MKTU Coverage
+- Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.
+- Подтвержденные направления по продукту:
+  - Соцсеть/коммуникации/контент: чаты, каналы, форумы-like фиды, стриминг/мультимедиа (`/channels`, `/support`, `/multimedia`, `/feed`).
+  - Коммерция: маркетплейс/магазины/товары/объявления/реклама (`/shops`, `/products`, `/ads`, promoted ads).
+  - Образование: курсы, экзамены, AI-tutor (`/education`).
+  - Путешествия и размещение: yatra/shelter/cafe (`/yatra`, `/shelter`, `/cafes`).
+  - Консультационные сервисы в приложении (в т.ч. духовные/астро) через модуль `services`.
+- Важная правовая оговорка по LKM:
+  - Для сторов зафиксирована позиция "LKM — внутренняя неплатежная единица, не legal tender/не payment instrument" (`docs/store-submission-packet-p0.md`).
+  - Формулировки МКТУ 36 про "выпуск/обмен/торговлю цифровой валютой" потенциально конфликтны с этой позицией и требуют узкой юридической корректировки.
+- Если 36 класс реализуется вне приложения (сайт/Telegram-бот), для стора сохранять политику "в приложении нет обмена/торговли цифровой валютой", а 36 класс формулировать отдельно под внешний сервис.
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
@@ -27,6 +52,9 @@
   - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
   - iOS: `xcodebuild ... -configuration Release ... install` формирует подписанный `.app` в локальном `InstallationBuildProductsLocation`, но не гарантирует выкладку на устройство.
   - Для фактической установки на iPhone использовать отдельный deploy-шаг (`ios-deploy --bundle <...>.app` или `devicectl device install app`).
+- Критичная настройка для iOS сборок с RN bundle script:
+  - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` для `Debug/Release` должно быть `ENABLE_USER_SCRIPT_SANDBOXING = NO`.
+  - При `YES` возможен сбой `Bundle React Native code and images` с `Operation not permitted` на записи `vedamatch.app/ip.txt` и итогом `** INSTALL FAILED **`.
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
   - `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`
@@ -43,6 +71,9 @@
   - fallback role blueprints (`frontend/constants/portalRoles.ts`);
   - нормализация quick access при инициализации layout (`frontend/services/portalLayoutService.ts`), включая автозамену `history -> services`.
 - Для существующих layout добавлена миграция `services_catalog` в первую страницу (рядом с `services` или после 1-го ряда при отсутствии `services`) в `frontend/services/portalLayoutService.ts`.
+- Добавлен отдельный сервисный ярлык `feed` (`Лента`, `PlayCircle`) в `DEFAULT_SERVICES`; для существующих layout он подтягивается через `ensureDefaultServices` при инициализации.
+- Для повышения заметности `feed` добавлена миграция `ensureFeedShortcut` (`frontend/services/portalLayoutService.ts`): если ярлыка нет, он вставляется на первую страницу рядом с `channels`.
+- В `frontend/screens/portal/serviceLaunchResolver.ts` `feed` направляется в `ChannelsHub` (лента открывается по умолчанию).
 - Навигация сервис-ярлыков унифицирована между Portal и Widget Dock через `frontend/screens/portal/serviceLaunchResolver.ts`; в `PortalMainScreen` и `WidgetSelectionScreen` больше нет расхождений по `services`.
 
 ## Portal Widget Canvas (Shared Layer)
@@ -116,6 +147,7 @@
 - Это устраняет кейс “верный пароль, но Invalid password” для пользователей со старыми/нехешированными записями.
 - DEV-login устойчивость (`frontend/screens/LoginScreen.tsx`):
   - `Быстрый вход (DEV)` сначала пробует статичный аккаунт `dev_admin_yatra@example.com`.
+  - Для регистрации через публичный `/register` используется только обычная роль (`role: user`, `identity: Dev`), потому что backend блокирует `role: admin/superadmin`.
   - При конфликте/ошибке добавлен fallback на уникальный email `dev_admin_yatra_${Date.now()}@example.com` с регистрацией + логином, чтобы вход в dev не блокировался существующим пользователем.
   - Для обхода `Axios Network Error` на iOS dev-flow auth переведен на прямой `fetch` с fallback по базовым URL:
     - `API_PATH` (текущий env),
@@ -133,11 +165,26 @@
   - `frontend/context/WebSocketContext.tsx` (`Auth refresh failed, logging out...`)
   - `frontend/context/UserContext.tsx` (`Heartbeat auth refresh failed, logging out`)
 
+## Push Runtime Notes
+- На iOS в debug/dev окружении возможна recoverable ошибка FCM `[messaging/unknown] ... aps-environment ... not found` (нет push-entitlement в текущем signing profile/capabilities).
+- В `frontend/services/notificationService.ts` такие ошибки не должны поднимать RedBox:
+  - для `aps-environment` используется `console.warn` + telemetry `token_register_skipped: missing_aps_environment`;
+  - recoverable catch-ветки сервиса логируют через `console.warn`, а не `console.error`.
+
 ## Profile Runtime Notes
 - `frontend/screens/settings/EditProfileScreen.tsx` не должен предполагать, что `/contacts` всегда возвращает массив: backend может вернуть и paginated-формат `{ items: [...] }`.
 - Для загрузки собственного профиля в `EditProfile` используется безопасный парсинг:
   - `Array.isArray(response.data) ? response.data : response.data?.items ?? []`.
 - В обработанных `catch` ветках экрана `EditProfile` используется `console.warn` (вместо `console.error`), чтобы dev RedBox не блокировал экран при recoverable ошибках.
+
+## Seller Orders Runtime Notes
+- В `frontend/screens/portal/shops/SellerOrdersScreen.tsx` загрузка CRM-заказов больше не должна поднимать RedBox при обработанном backend-сбое:
+  - вместо `console.error` используется `console.warn`,
+  - добавлено UI-состояние `ordersLoadError` с баннером на экране.
+- Для `HTTP 500` в режиме фильтра канала (`sourceChannelId`) выводится понятный fallback-текст: проверить наличие магазина у аккаунта и повторить загрузку.
+- Backend-контракт `GET /orders/seller` обновлен:
+  - в `server/internal/services/order_service.go` добавлен sentinel `ErrSellerShopNotFound`;
+  - в `server/internal/handlers/order_handler.go` при этой ошибке возвращается `404` (`Seller shop not found`) вместо generic `500`.
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
@@ -182,6 +229,16 @@
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.
+- Контрастный фикс `ChannelDetailsScreen` (`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`):
+  - gradient теперь зависит от темы (`dark -> roleTheme.gradient`, `light -> colors.background/surface/background`);
+  - это убирает кейс "темный текст на темном фоне" в light mode на экране деталей канала.
+- Навигация `Portal` ↔ `WidgetSelection`:
+  - на главной портала добавлен свайп влево (right-to-left) для открытия `WidgetSelection`;
+  - на экране виджетов добавлен свайп вправо (left-to-right) для возврата в портал;
+  - на обоих экранах показаны 2 точки пагинации с активным состоянием текущего экрана и подписью направления свайпа.
+- UX меню виджетов (`WidgetSelectionScreen`):
+  - добавлена отдельная карточка-подсказка `Как открыть меню виджетов` с явной кнопкой `Открыть меню виджетов`;
+  - улучшен контраст текста и рамок toolbar/подсказок в light theme (явные темные цвета текста и мягкая светлая подложка).
 
 ## Unified Screen Styling
 - Введен единый шафран‑золотой screen-layer:

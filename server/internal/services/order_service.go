@@ -34,6 +34,7 @@ var (
 	ErrUnauthorizedOrder  = errors.New("unauthorized to access this order")
 	ErrEmptyCart          = errors.New("cart is empty")
 	ErrInvalidOrderStatus = errors.New("invalid order status transition")
+	ErrSellerShopNotFound = errors.New("seller shop not found")
 )
 
 func normalizeMarketPaymentMethod(method string) string {
@@ -415,7 +416,7 @@ func (s *OrderService) GetSellerOrders(sellerID uint, filters models.OrderFilter
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
-		return nil, errors.New("shop not found")
+		return nil, ErrSellerShopNotFound
 	}
 	filters.ShopID = &shop.ID
 	return s.getOrders(filters)

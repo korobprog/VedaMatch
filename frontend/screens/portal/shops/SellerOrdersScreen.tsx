@@ -55,6 +55,7 @@ export const SellerOrdersScreen: React.FC = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
+    const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null);
     const channelSourceId = route.params?.sourceChannelId;
     const sourceFilter = route.params?.source || (channelSourceId ? 'channel_post' : undefined);
 
@@ -66,7 +67,9 @@ export const SellerOrdersScreen: React.FC = () => {
 
     const loadOrders = async (pageNum: number, reset: boolean = false) => {
         try {
-            if (reset) setLoading(true);
+            if (reset) {
+                setLoading(true);
+            }
 
             const result = await marketService.getSellerOrders(
                 pageNum,
@@ -77,6 +80,7 @@ export const SellerOrdersScreen: React.FC = () => {
                     sourceChannelId: channelSourceId,
                 }
             );
+            setOrdersLoadError(null);
 
             if (reset) {
                 setOrders(result.orders || []);
@@ -86,8 +90,31 @@ export const SellerOrdersScreen: React.FC = () => {
 
             setPage(result.page);
             setTotalPages(result.totalPages);
-        } catch (error) {
-            console.error('Error loading orders:', error);
+        } catch (error: any) {
+            const responseData = error?.response?.data;
+            const statusCode = typeof error?.response?.status === 'number' ? error.response.status : undefined;
+            const serverMessage = typeof responseData === 'string'
+                ? responseData.trim()
+                : typeof responseData?.error === 'string'
+                    ? responseData.error
+                    : typeof responseData?.message === 'string'
+                        ? responseData.message
+                        : '';
+            const fallbackMessage = channelSourceId
+                ? 'Не удалось загрузить CRM-заказы канала. Убедитесь, что у аккаунта есть магазин, и попробуйте снова.'
+                : 'Не удалось загрузить список заказов. Попробуйте снова.';
+
+            if (statusCode === 500) {
+                setOrdersLoadError(fallbackMessage);
+            } else {
+                setOrdersLoadError(serverMessage || fallbackMessage);
+            }
+
+            console.warn('[SellerOrders] Failed to load orders', {
+                statusCode,
+                sourceFilter,
+                channelSourceId,
+            });
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -268,6 +295,12 @@ export const SellerOrdersScreen: React.FC = () => {
 
     const renderHeader = () => (
         <View style={styles.filterSection}>
+            {ordersLoadError ? (
+                <View style={styles.errorBanner}>
+                    <Text style={styles.errorBannerTitle}>Ошибка загрузки заказов</Text>
+                    <Text style={styles.errorBannerText}>{ordersLoadError}</Text>
+                </View>
+            ) : null}
             {channelSourceId ? (
                 <View style={styles.sourceBanner}>
                     <Text style={styles.sourceBannerText}>
@@ -371,6 +404,28 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     },
     filterSection: {
         marginBottom: 12,
+    },
+    errorBanner: {
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: 4,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: colors.surfaceElevated,
+        borderWidth: 1,
+        borderColor: colors.danger,
+    },
+    errorBannerTitle: {
+        color: colors.danger,
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    errorBannerText: {
+        color: colors.textPrimary,
+        fontSize: 12,
+        lineHeight: 18,
     },
     sourceBanner: {
         marginHorizontal: 16,

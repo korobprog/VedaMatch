@@ -263,6 +263,11 @@ func (h *OrderHandler) GetSellerOrders(c *fiber.Ctx) error {
 
 	result, err := h.orderService.GetSellerOrders(userID, filters)
 	if err != nil {
+		if errors.Is(err, services.ErrSellerShopNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Seller shop not found",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not fetch orders",
 		})

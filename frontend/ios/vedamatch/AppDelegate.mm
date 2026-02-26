@@ -7,7 +7,21 @@
 
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-  if ([FIRApp defaultApp] == nil) {
+  NSURL *firebasePlistURL =
+      [[NSBundle mainBundle] URLForResource:@"GoogleService-Info"
+                               withExtension:@"plist"];
+  NSDictionary *firebasePlist = firebasePlistURL != nil
+                                    ? [NSDictionary dictionaryWithContentsOfURL:firebasePlistURL]
+                                    : nil;
+  NSString *apiKey = [firebasePlist[@"API_KEY"] isKindOfClass:[NSString class]]
+                         ? firebasePlist[@"API_KEY"]
+                         : nil;
+  BOOL hasValidApiKey =
+      apiKey != nil && [apiKey hasPrefix:@"AIza"] && apiKey.length == 39;
+
+  if (!hasValidApiKey) {
+    NSLog(@"[Firebase] Skipping configure: invalid or missing API_KEY in GoogleService-Info.plist");
+  } else if ([FIRApp defaultApp] == nil) {
     [FIRApp configure];
   }
 

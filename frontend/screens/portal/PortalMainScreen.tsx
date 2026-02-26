@@ -10,6 +10,7 @@ import {
     Animated,
     AppState,
     BackHandler,
+    GestureResponderEvent,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
@@ -65,6 +66,10 @@ import {
 
 type ServiceTab = EmbeddedPortalTab;
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
+type WidgetSelectionSource = Exclude<NonNullable<RootStackParamList['WidgetSelection']>['source'], undefined>;
+const SWIPE_MAX_DURATION_MS = 600;
+const SWIPE_MIN_DISTANCE_PX = 70;
+const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
@@ -106,6 +111,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const widgetNavLockRef = useRef(false);
     const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const swipeStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -128,19 +134,50 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         };
     }, [releaseWidgetNavigationLock]);
 
-    const openWidgetSelection = useCallback(() => {
+    const openWidgetSelection = useCallback((source: WidgetSelectionSource = 'portal_header') => {
         if (widgetNavLockRef.current) {
             return;
         }
         widgetNavLockRef.current = true;
-        console.log('[portal_widgets_open] source=portal_header');
+        console.log(`[portal_widgets_open] source=${source}`);
         requestAnimationFrame(() => {
-            navigation.navigate('WidgetSelection', { source: 'portal_header' });
+            navigation.navigate('WidgetSelection', { source });
         });
         widgetNavUnlockTimerRef.current = setTimeout(() => {
             releaseWidgetNavigationLock();
         }, 450);
     }, [navigation, releaseWidgetNavigationLock]);
+
+    const handleGridTouchStart = useCallback((event: GestureResponderEvent) => {
+        if (activeTab !== null) {
+            return;
+        }
+        const { pageX, pageY } = event.nativeEvent;
+        swipeStartRef.current = { x: pageX, y: pageY, ts: Date.now() };
+    }, [activeTab]);
+
+    const handleGridTouchEnd = useCallback((event: GestureResponderEvent) => {
+        if (activeTab !== null) {
+            swipeStartRef.current = null;
+            return;
+        }
+        const start = swipeStartRef.current;
+        swipeStartRef.current = null;
+        if (!start) {
+            return;
+        }
+        const { pageX, pageY } = event.nativeEvent;
+        const dx = pageX - start.x;
+        const dy = pageY - start.y;
+        const elapsedMs = Date.now() - start.ts;
+        if (
+            elapsedMs <= SWIPE_MAX_DURATION_MS &&
+            dx <= -SWIPE_MIN_DISTANCE_PX &&
+            Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
+        ) {
+            openWidgetSelection('portal_swipe');
+        }
+    }, [activeTab, openWidgetSelection]);
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -162,7 +199,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }, [refreshSupportUnread])
     );
 
-    const { effectiveBackground: effectiveBg, effectiveBackgroundType: effectiveBgType } = useMemo(
+    const { effectiveBackgroundType: effectiveBgType } = useMemo(
         () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),
         [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
     );
@@ -435,6 +472,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     enableAura={!useClassicWallpaper}
                     transparentBackground={useClassicWallpaper}
                 >
+                <View
+                    style={styles.gridRoot}
+                    onTouchStart={handleGridTouchStart}
+                    onTouchEnd={handleGridTouchEnd}
+                >
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
@@ -485,7 +527,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={openWidgetSelection}
+                                onPress={() => openWidgetSelection('portal_header')}
                                 activeOpacity={0.9}
                                 style={[
                                     styles.headerCircularButton,
@@ -650,9 +692,31 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 </View>
 
                 {/* Hint text */}
-                <View style={styles.hintContainer}>
-                    <Text style={[styles.hintText, { color: effectiveBgType === 'color' && effectiveBg === '#ffffff' ? vTheme.colors.textSecondary : '#ffffff' }]}>
-                        Удерживайте для редактирования
+                <View style={styles.pageIndicatorContainer}>
+                    <View style={styles.pageIndicatorDots}>
+                        <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
+                        <View
+                            style={[
+                                styles.pageIndicatorDot,
+                                {
+                                    backgroundColor: effectiveBgType === 'image' && isDarkMode
+                                        ? 'rgba(255,255,255,0.45)'
+                                        : 'rgba(15,23,42,0.28)',
+                                },
+                            ]}
+                        />
+                    </View>
+                    <Text
+                        style={[
+                            styles.pageIndicatorText,
+                            {
+                                color: effectiveBgType === 'image' && isDarkMode
+                                    ? '#FFFFFF'
+                                    : vTheme.colors.textSecondary,
+                            },
+                        ]}
+                    >
+                        Портал · свайп влево для виджетов
                     </Text>
                 </View>
 
@@ -668,6 +732,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     }}
                 />
                 <NotificationPanel />
+                </View>
                 </ScreenScaffold>
             </PortalBackgroundLayer>
         );
@@ -865,6 +930,9 @@ const styles = StyleSheet.create({
     gridContent: {
         flex: 1,
     },
+    gridRoot: {
+        flex: 1,
+    },
     roleDescriptorCard: {
         marginHorizontal: 12,
         marginBottom: 10,
@@ -915,16 +983,30 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         opacity: 0.9,
     },
-    hintContainer: {
+    pageIndicatorContainer: {
         position: 'absolute',
-        bottom: 8,
+        bottom: 116,
         left: 0,
         right: 0,
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
     },
-    hintText: {
+    pageIndicatorDots: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    pageIndicatorDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    pageIndicatorText: {
         fontSize: 12,
-        opacity: 0.6,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     fallbackContent: {
         flex: 1,

@@ -73,6 +73,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
         return { kind: 'navigate', screen: 'ChannelsHub' };
     }
 
+    if (serviceId === 'feed') {
+        return { kind: 'navigate', screen: 'ChannelsHub' };
+    }
+
     if (serviceId === 'video_circles') {
         return { kind: 'navigate', screen: 'VideoCirclesScreen' };
     }
@@ -98,4 +102,3 @@ export const resolvePortalInitialTabLaunch = (initialTab?: PortalInitialTab): Se
     }
     return resolveServiceLaunch(initialTab);
 };
-

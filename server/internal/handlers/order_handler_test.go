@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -124,6 +125,29 @@ func TestOrderHandler_GetSellerOrders_InvalidSourcePostIDIgnored(t *testing.T) {
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestOrderHandler_GetSellerOrders_MissingShopReturnsNotFound(t *testing.T) {
+	app := fiber.New()
+	handler := NewOrderHandlerWithService(&mockOrderService{
+		getSellerOrdersFn: func(sellerID uint, filters models.OrderFilters) (*models.OrderListResponse, error) {
+			return nil, services.ErrSellerShopNotFound
+		},
+	})
+
+	app.Get("/orders/seller", func(c *fiber.Ctx) error {
+		c.Locals("userID", "77")
+		return handler.GetSellerOrders(c)
+	})
+
+	req := httptest.NewRequest("GET", "/orders/seller", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusNotFound)
 	}
 }
 
