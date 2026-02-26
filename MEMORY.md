@@ -19,13 +19,14 @@
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
-- Текущие версии после bump (2026-02-24):
+- Текущие версии (2026-02-26):
   - Android: `versionCode=16`, `versionName=1.1.14`
-  - iOS: `MARKETING_VERSION=1.1.4`, `CURRENT_PROJECT_VERSION=6`
-- Статус production-сборок (2026-02-24):
+  - iOS: `MARKETING_VERSION=1.1.15`, `CURRENT_PROJECT_VERSION=7`
+- Статус production-сборок (2026-02-26):
   - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
   - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
-  - iOS: `xcodebuild ... -configuration Release ... install` успешно (`** INSTALL SUCCEEDED **`), пакет: `/Users/mamu/Library/Developer/Xcode/DerivedData/vedamatch-dsoltsxeayyfdqdhtfxuopvbotum/Build/Intermediates.noindex/ArchiveIntermediates/vedamatch/InstallationBuildProductsLocation/Applications/vedamatch.app`.
+  - iOS: `xcodebuild ... -configuration Release ... install` формирует подписанный `.app` в локальном `InstallationBuildProductsLocation`, но не гарантирует выкладку на устройство.
+  - Для фактической установки на iPhone использовать отдельный deploy-шаг (`ios-deploy --bundle <...>.app` или `devicectl device install app`).
 - Ограничение окружения (локально): Android debug build требует установленный Java Runtime (JDK/JRE); без него `./gradlew assembleDebug` не запускается.
 - Для текущего хоста Java настроена через JDK Android Studio в `~/.zshrc`:
   - `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`

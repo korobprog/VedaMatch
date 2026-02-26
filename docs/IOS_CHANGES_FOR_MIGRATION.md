@@ -1,5 +1,26 @@
 # IOS Changes For Migration
 
+## 2026-02-26 (iOS production version bump + install pipeline correction)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Версионирование iOS app target:
+  - Было: `MARKETING_VERSION = 1.1.4`, `CURRENT_PROJECT_VERSION = 6`.
+  - Стало: `MARKETING_VERSION = 1.1.15`, `CURRENT_PROJECT_VERSION = 7`.
+- Операционный вывод для релизной установки:
+  - Было: `xcodebuild ... install` трактовался как установка на устройство.
+  - Стало: используем это как этап подготовки `.app`; фактическую установку на iPhone выполняем отдельным deploy-шагом (`ios-deploy`/`devicectl`).
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+CURRENT_PROJECT_VERSION = 7;
+MARKETING_VERSION = 1.1.15;
+```
+
 ## 2026-02-24 (MMKV LogBox noise fix: no component stack in dev)
 
 ### Измененные файлы
