@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Switch,
@@ -24,6 +25,7 @@ import { contactService, UserContact } from '../../../../services/contactService
 import { marketService } from '../../../../services/marketService';
 import { CATEGORY_LABELS } from '../../../../services/serviceService';
 import { KeyboardAwareContainer } from '../../../../components/ui/KeyboardAwareContainer';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 type RouteParams = {
   ChannelManage: {
@@ -94,6 +96,7 @@ export default function ChannelManageScreen() {
 
   const [loading, setLoading] = useState(true);
   const [savingBranding, setSavingBranding] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [creatingShowcase, setCreatingShowcase] = useState(false);
   const [memberActionBusy, setMemberActionBusy] = useState<string>('');
@@ -375,6 +378,43 @@ export default function ChannelManageScreen() {
       Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить брендирование');
     } finally {
       setSavingBranding(false);
+    }
+  };
+
+  const pickAndUploadCover = async () => {
+    if (!channelId) {
+      return;
+    }
+
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.9,
+        includeBase64: false,
+      });
+      if (result.didCancel || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset.uri) {
+        Alert.alert('Ошибка', 'Не удалось получить путь к изображению');
+        return;
+      }
+
+      setUploadingCover(true);
+      const updated = await channelService.uploadCover(channelId, {
+        uri: asset.uri,
+        name: asset.fileName || `channel-cover-${Date.now()}.jpg`,
+        type: asset.type || 'image/jpeg',
+      });
+      setChannel(updated);
+      setCoverUrl(updated.coverUrl || '');
+      Alert.alert('Готово', 'Обложка загружена и автоматически подогнана под 16:9');
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить обложку');
+    } finally {
+      setUploadingCover(false);
     }
   };
 
@@ -695,6 +735,10 @@ export default function ChannelManageScreen() {
             style={styles.input}
             autoCapitalize="none"
           />
+          {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.coverPreview} resizeMode="cover" /> : null}
+          <TouchableOpacity style={styles.secondaryBtn} onPress={pickAndUploadCover} disabled={uploadingCover}>
+            {uploadingCover ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.secondaryBtnText}>Загрузить обложку (16:9)</Text>}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.primaryBtn} onPress={saveBranding} disabled={savingBranding}>
             {savingBranding ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Сохранить брендинг</Text>}
           </TouchableOpacity>
@@ -1130,6 +1174,14 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     textArea: {
       minHeight: 90,
       textAlignVertical: 'top',
+    },
+    coverPreview: {
+      width: '100%',
+      aspectRatio: 16 / 9,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
     },
     primaryBtn: {
       borderRadius: 12,

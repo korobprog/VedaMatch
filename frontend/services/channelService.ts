@@ -10,6 +10,7 @@ import {
   ChannelMemberRole,
   ChannelMemberResponse,
   ChannelPost,
+  ChannelPostComment,
   ChannelPostCreateRequest,
   ChannelPostUpdateRequest,
   ChannelSchedulePostRequest,
@@ -50,6 +51,19 @@ class ChannelService {
 
   async updateBranding(channelId: number, payload: ChannelBrandingUpdateRequest): Promise<Channel> {
     const response = await apiClient.patch(`/channels/${channelId}/branding`, payload);
+    return response.data;
+  }
+
+  async uploadCover(channelId: number, file: { uri: string; name?: string; type?: string }): Promise<Channel> {
+    const form = new FormData();
+    form.append('cover', {
+      uri: file.uri,
+      name: file.name || `channel-cover-${Date.now()}.jpg`,
+      type: file.type || 'image/jpeg',
+    } as any);
+    const response = await apiClient.post(`/channels/${channelId}/cover/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   }
 
@@ -112,6 +126,34 @@ class ChannelService {
 
   async trackPostCtaClick(channelId: number, postId: number): Promise<void> {
     await apiClient.post(`/channels/${channelId}/posts/${postId}/cta-click`, {});
+  }
+
+  async trackView(channelId: number, postId: number): Promise<void> {
+    await apiClient.post(`/channels/${channelId}/posts/${postId}/view`, {});
+  }
+
+  async setReaction(channelId: number, postId: number, emoji: string): Promise<ChannelPost> {
+    const response = await apiClient.post(`/channels/${channelId}/posts/${postId}/reactions`, { emoji });
+    return response.data;
+  }
+
+  async removeReaction(channelId: number, postId: number): Promise<ChannelPost> {
+    const response = await apiClient.delete(`/channels/${channelId}/posts/${postId}/reactions`);
+    return response.data;
+  }
+
+  async listComments(channelId: number, postId: number, params: { limit?: number; cursor?: number } = {}): Promise<{ comments: ChannelPostComment[]; nextCursor?: number }> {
+    const response = await apiClient.get(`/channels/${channelId}/posts/${postId}/comments`, { params });
+    return response.data;
+  }
+
+  async addComment(channelId: number, postId: number, body: string): Promise<ChannelPostComment> {
+    const response = await apiClient.post(`/channels/${channelId}/posts/${postId}/comments`, { body });
+    return response.data;
+  }
+
+  async trackShare(channelId: number, postId: number): Promise<void> {
+    await apiClient.post(`/channels/${channelId}/posts/${postId}/share`, {});
   }
 
   async getPromptStatus(keys: string[]): Promise<Record<string, boolean>> {

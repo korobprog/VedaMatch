@@ -63,6 +63,10 @@ const menuItems = [
     { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
+const guestMenuItems = [
+    { icon: Waves, label: 'Feed Posts', path: '/feed-posts' },
+];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -72,8 +76,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
+        const isGuestAllowedRoute = pathname === '/feed-posts';
         if (!data) {
-            if (pathname !== '/login' && pathname !== '/' && pathname !== '/register') {
+            if (!isGuestAllowedRoute && pathname !== '/login' && pathname !== '/' && pathname !== '/register') {
                 router.push('/login');
             }
         } else {
@@ -119,13 +124,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // For regular users, we don't want the admin sidebar/layout on dashboard and shared portal routes
     const isAdmin = admin?.role === 'admin' || admin?.role === 'superadmin';
+    const isGuestFeedPostsRoute = !admin && pathname === '/feed-posts';
+    const sidebarMenuItems = isAdmin ? menuItems : guestMenuItems;
 
-    if (isPublicRoute || isUserDashboard || (!isAdmin && isSharedRoute)) return <>{children}</>;
+    if (isPublicRoute || isUserDashboard || (!isAdmin && isSharedRoute && !isGuestFeedPostsRoute)) return <>{children}</>;
 
     return (
         <div className="min-h-screen bg-[var(--background)] flex">
             {/* Sidebar - Desktop */}
-            {isAdmin && (
+            {(isAdmin || isGuestFeedPostsRoute) && (
                 <aside
                     className={`hidden md:flex flex-col border-r border-[var(--border)] bg-[var(--card)] transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'
                         }`}
@@ -138,7 +145,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </div>
 
                     <nav className="flex-1 px-3 space-y-1">
-                        {menuItems.map((item) => (
+                        {sidebarMenuItems.map((item) => (
                             <button
                                 key={item.path}
                                 onClick={() => router.push(item.path)}
@@ -154,13 +161,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </nav>
 
                     <div className="p-4 border-t border-[var(--border)]">
-                        <button
-                            onClick={handleLogout}
-                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-all font-medium"
-                        >
-                            <LogOut className="w-5 h-5 shrink-0" />
-                            {isSidebarOpen && <span>Logout</span>}
-                        </button>
+                        {isAdmin && (
+                            <button
+                                onClick={handleLogout}
+                                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-all font-medium"
+                            >
+                                <LogOut className="w-5 h-5 shrink-0" />
+                                {isSidebarOpen && <span>Logout</span>}
+                            </button>
+                        )}
                     </div>
                 </aside>
             )}
@@ -170,7 +179,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {/* Header */}
                 <header className="h-16 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-4 md:px-8">
                     <div className="flex items-center gap-4">
-                        {isAdmin && (
+                        {(isAdmin || isGuestFeedPostsRoute) && (
                             <>
                                 <button
                                     className="md:hidden p-2 hover:bg-[var(--secondary)] rounded-lg"
@@ -248,7 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 </button>
                             </div>
                             <nav className="flex-1 px-4 space-y-2 mt-4">
-                                {menuItems.map((item) => (
+                                {sidebarMenuItems.map((item) => (
                                     <button
                                         key={item.path}
                                         onClick={() => {
@@ -265,15 +274,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                     </button>
                                 ))}
                             </nav>
-                            <div className="p-6 border-t border-[var(--border)]">
-                                <button
-                                    onClick={handleLogout}
-                                    className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-500 hover:bg-red-50 font-medium text-lg"
-                                >
-                                    <LogOut className="w-6 h-6" />
-                                    <span>Logout</span>
-                                </button>
-                            </div>
+                            {isAdmin && (
+                                <div className="p-6 border-t border-[var(--border)]">
+                                    <button
+                                        onClick={handleLogout}
+                                        className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-500 hover:bg-red-50 font-medium text-lg"
+                                    >
+                                        <LogOut className="w-6 h-6" />
+                                        <span>Logout</span>
+                                    </button>
+                                </div>
+                            )}
                         </motion.div>
                     </>
                 )}

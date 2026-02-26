@@ -2635,6 +2635,87 @@ return `${apiOrigin}${normalizedPath}`;
 ### Validation
 - `pnpm -C admin exec tsc --noEmit` — success.
 
+## 2026-02-27 (Channels/Feed v1: 24h edit window, cover upload, post action bar)
+
+### Changed Files
+- `server/internal/models/channel.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelManageScreen.tsx`
+
+### Old -> New
+- Old:
+  - у channel posts не было счетчиков `views/reactions/comments/shares`, API для реакций/комментариев/share/view отсутствовали;
+  - автор-редактор не имел отдельного окна редактирования опубликованного поста на 24 часа;
+  - обложка канала редактировалась только URL-строкой, без загрузки изображения;
+  - в карточке поста ленты не было action bar с интеракциями.
+- New:
+  - добавлены поля счетчиков в `channel_posts` и таблицы `channel_post_reactions`, `channel_post_comments`;
+  - добавлены endpoints:
+    - `POST /api/channels/:channelId/posts/:postId/view`
+    - `POST /api/channels/:channelId/posts/:postId/share`
+    - `POST/DELETE /api/channels/:channelId/posts/:postId/reactions`
+    - `GET/POST /api/channels/:channelId/posts/:postId/comments`
+  - добавлено правило редактирования: для `editor`-автора опубликованного поста окно 24ч; после этого `400` + `POST_EDIT_WINDOW_EXPIRED`;
+  - добавлен upload обложки `POST /api/channels/:id/cover/upload` (owner/admin) с backend auto center-crop 16:9, resize `1600x900`, JPEG optimize и загрузкой в S3/CDN;
+  - на iOS/RN в `ChannelsHubScreen` добавлен action bar (emoji reaction, comments, share, views), в `ChannelManageScreen` — загрузка cover с preview.
+
+### Code Snippets
+
+`server/internal/services/channel_service.go`:
+```go
+if post.Status == models.ChannelPostStatusPublished {
+	if post.PublishedAt == nil {
+		return ErrPostEditWindow
+	}
+	if time.Since(post.PublishedAt.UTC()) <= postAuthorEditWindow {
+		return nil
+	}
+	return ErrPostEditWindow
+}
+```
+
+```go
+func (s *ChannelService) TrackPostView(channelID, postID, viewerID uint) error {
+	...
+	return s.db.Model(&models.ChannelPost{}).
+		Where("id = ?", post.ID).
+		Update("view_count", gorm.Expr("view_count + 1")).Error
+}
+```
+
+`frontend/screens/portal/services/channels/ChannelManageScreen.tsx`:
+```ts
+const updated = await channelService.uploadCover(channelId, {
+  uri: asset.uri,
+  name: asset.fileName || `channel-cover-${Date.now()}.jpg`,
+  type: asset.type || 'image/jpeg',
+});
+setCoverUrl(updated.coverUrl || '');
+```
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```tsx
+<View style={styles.actionRow}>
+  <TouchableOpacity style={styles.actionItem} onPress={() => toggleReaction(item)}>
+    <Smile size={14} color={colors.textSecondary} />
+    <Text style={styles.actionText}>{item.myReaction || '❤️'} {getPostStats(item).reactions}</Text>
+  </TouchableOpacity>
+  ...
+</View>
+```
+
+### Validation
+- `cd server && go test ./...` — success.
+- `cd frontend && npx tsc --noEmit` — success.
+
 ## 2026-02-26 (Admin TV Series: bypass Next image optimizer for external S3 covers)
 
 ### Changed Files

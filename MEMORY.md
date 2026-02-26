@@ -243,6 +243,16 @@
 - Для `catch` используется throttled `console.warn` с коротким форматом (`status/message`) без передачи полного объекта `AxiosError`.
 - При падении загрузки первой страницы feed устанавливается `feedHasMore=false`, чтобы `onEndReached` не создавал повторный сетевой шторм.
 - Для локального offline DEV профиля (`user.ID=999999`) добавлен ранний выход без серверных запросов на feed и my channels.
+- Реализован v1 action bar для постов ленты:
+  - backend: `view/reaction/comment/share` endpoints для channel posts, новые счетчики в `channel_posts`, `myReaction` и `stats` в ответах;
+  - frontend: в `ChannelsHubScreen` добавлены элементы действий (emoji reaction, comments preview, native share, views) с optimistic reaction update.
+- Правило редактирования опубликованного поста:
+  - автор с ролью `editor` может редактировать только в первые 24 часа после `publishedAt`;
+  - после окна возвращается `400` с кодом `POST_EDIT_WINDOW_EXPIRED`, метрика `channel_post_edit_window_rejected_total`.
+- Добавлена загрузка обложки канала:
+  - новый endpoint `POST /api/channels/:id/cover/upload` (owner/admin);
+  - сервер делает center-crop 16:9 + resize `1600x900` + JPEG optimize и сохраняет в S3 (`channels/covers/{channelId}/...jpg`);
+  - `ChannelManageScreen` получил кнопку выбора изображения и upload обложки с preview.
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
@@ -275,6 +285,7 @@
 - На фронте контроль доступа реализован клиентски через `localStorage` в `admin/src/components/AdminLayout.tsx`; отдельного `middleware.ts` в `admin/src/` нет.
 - Добавлена admin-only страница `admin/src/app/feed-posts/page.tsx` с read-only списком постов из публичного `GET /api/feed` (карточки постов + loading/error/empty + пагинация `Prev/Next`).
 - В `admin/src/components/AdminLayout.tsx` добавлен пункт меню `Feed Posts` (`/feed-posts`) и маршрут внесен в `exclusiveAdminRoutes`.
+- `/feed-posts` сделан доступным для гостей: при отсутствии `admin_data` нет редиректа на `/login` для этого маршрута, и в layout показывается гостевое меню с пунктом `Feed Posts`.
 - Legacy media edge-case: если в админку приходит bare filename вида `7_1767761761.jpg` (без `/uploads/...`), нужно нормализовать его в `/uploads/avatars/<filename>`, иначе браузер запрашивает файл из корня домена и получает `404`.
 - Для `admin/src/app/dating/page.tsx` добавлен runtime-fallback для битых avatar URL: после первого `img onError` URL попадает в `brokenMediaUrls` и больше не рендерится как `<img>`, что убирает повторные 404-спайки в `Union Management`.
 - Для `admin/src/app/series/page.tsx` cover в карточках TV Series рендерится с `next/image unoptimized`, чтобы обойти `/_next/image` 400 для части внешних S3 URL.

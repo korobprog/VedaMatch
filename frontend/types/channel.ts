@@ -69,10 +69,37 @@ export interface ChannelPost {
   publishedAt?: string;
   isPinned: boolean;
   pinnedAt?: string;
+  viewCount?: number;
+  reactionCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  stats?: {
+    views: number;
+    reactions: number;
+    comments: number;
+    shares: number;
+  };
+  myReaction?: string;
   CreatedAt: string;
   UpdatedAt: string;
   author?: any;
   channel?: Channel;
+}
+
+export interface ChannelPostComment {
+  ID: number;
+  postId: number;
+  userId: number;
+  body: string;
+  isDeleted: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
+  user?: {
+    id: number;
+    spiritualName?: string;
+    karmicName?: string;
+    avatarUrl?: string;
+  };
 }
 
 export interface ChannelShowcase {

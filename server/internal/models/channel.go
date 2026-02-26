@@ -96,7 +96,8 @@ type ChannelPost struct {
 	CommentCount  int `json:"commentCount" gorm:"default:0"`
 	ShareCount    int `json:"shareCount" gorm:"default:0"`
 
-	MyReaction *string `json:"myReaction,omitempty" gorm:"-"`
+	Stats      *ChannelPostStats `json:"stats,omitempty" gorm:"-"`
+	MyReaction *string           `json:"myReaction,omitempty" gorm:"-"`
 }
 
 type ChannelPostReaction struct {
@@ -111,8 +112,8 @@ type ChannelPostComment struct {
 	gorm.Model
 	PostID uint `json:"postId" gorm:"not null;index:idx_channel_post_comments_created"`
 	Post   *ChannelPost
-	UserID uint  `json:"userId" gorm:"not null;index"`
-	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	UserID uint   `json:"userId" gorm:"not null;index"`
+	User   *User  `json:"user,omitempty" gorm:"foreignKey:UserID"`
 	Body   string `json:"body" gorm:"type:text;not null"`
 
 	IsDeleted bool `json:"isDeleted" gorm:"default:false;index"`

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Pin, Plus, Radio } from 'lucide-react-native';
+import { ArrowLeft, Eye, MessageCircle, Pin, Plus, Radio, Share2, Smile } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel, ChannelPost, ChannelPromotedAd } from '../../../../types/channel';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -67,6 +69,7 @@ export default function ChannelsHubScreen() {
   const latestMyReqRef = useRef(0);
   const lastFeedErrorLogAtRef = useRef(0);
   const lastMyErrorLogAtRef = useRef(0);
+  const viewedPostIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -206,6 +209,91 @@ export default function ChannelsHubScreen() {
     void loadFeed(feedPage + 1, false);
   };
 
+  const getPostStats = useCallback((post: ChannelPost) => {
+    const stats = post.stats;
+    return {
+      views: stats?.views ?? post.viewCount ?? 0,
+      reactions: stats?.reactions ?? post.reactionCount ?? 0,
+      comments: stats?.comments ?? post.commentCount ?? 0,
+      shares: stats?.shares ?? post.shareCount ?? 0,
+    };
+  }, []);
+
+  const patchFeedPost = useCallback((postId: number, patcher: (post: ChannelPost) => ChannelPost) => {
+    setFeedPosts(prev => prev.map(post => (post.ID === postId ? patcher(post) : post)));
+  }, []);
+
+  const trackViewOnce = useCallback((post: ChannelPost) => {
+    if (viewedPostIdsRef.current.has(post.ID)) {
+      return;
+    }
+    viewedPostIdsRef.current.add(post.ID);
+    patchFeedPost(post.ID, current => {
+      const stats = getPostStats(current);
+      return { ...current, viewCount: stats.views + 1 };
+    });
+    void channelService.trackView(post.channelId, post.ID).catch(() => {
+      viewedPostIdsRef.current.delete(post.ID);
+    });
+  }, [getPostStats, patchFeedPost]);
+
+  const toggleReaction = useCallback((post: ChannelPost) => {
+    const reactionEmoji = '❤️';
+    const hadReaction = Boolean(post.myReaction);
+    const stats = getPostStats(post);
+
+    patchFeedPost(post.ID, current => ({
+      ...current,
+      myReaction: hadReaction ? undefined : reactionEmoji,
+      reactionCount: Math.max(0, stats.reactions + (hadReaction ? -1 : 1)),
+    }));
+
+    const request = hadReaction
+      ? channelService.removeReaction(post.channelId, post.ID)
+      : channelService.setReaction(post.channelId, post.ID, reactionEmoji);
+
+    void request.catch(() => {
+      patchFeedPost(post.ID, current => ({
+        ...current,
+        myReaction: post.myReaction,
+        reactionCount: stats.reactions,
+      }));
+    });
+  }, [getPostStats, patchFeedPost]);
+
+  const openComments = useCallback(async (post: ChannelPost) => {
+    try {
+      const response = await channelService.listComments(post.channelId, post.ID, { limit: 10 });
+      const comments = response.comments || [];
+      if (comments.length === 0) {
+        Alert.alert('Комментарии', 'Комментариев пока нет');
+        return;
+      }
+      const preview = comments
+        .slice(0, 5)
+        .map(item => `• ${item.body}`)
+        .join('\n');
+      Alert.alert('Комментарии', preview);
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось загрузить комментарии');
+    }
+  }, []);
+
+  const sharePost = useCallback(async (post: ChannelPost) => {
+    try {
+      await Share.share({
+        message: `${post.content || 'Пост в канале'}\n\nКанал: ${post.channel?.title || `#${post.channelId}`}`,
+      });
+      patchFeedPost(post.ID, current => {
+        const stats = getPostStats(current);
+        return { ...current, shareCount: stats.shares + 1 };
+      });
+      await channelService.trackShare(post.channelId, post.ID);
+    } catch {
+      // no-op: пользователь мог отменить share sheet
+    }
+  }, [getPostStats, patchFeedPost]);
+
   const renderFeedPost = (item: ChannelPost) => {
     const ctaLabel = getChannelPostCtaLabel(item);
     const publishedAt = item.publishedAt || item.CreatedAt;
@@ -214,7 +302,10 @@ export default function ChannelsHubScreen() {
       <TouchableOpacity
         style={styles.postCard}
         activeOpacity={0.9}
-        onPress={() => navigation.navigate('ChannelDetails', { channelId: item.channelId })}
+        onPress={() => {
+          trackViewOnce(item);
+          navigation.navigate('ChannelDetails', { channelId: item.channelId });
+        }}
       >
         <View style={styles.postHeader}>
           <View style={styles.postHeaderLeft}>
@@ -247,6 +338,25 @@ export default function ChannelsHubScreen() {
               <Text style={styles.ctaButtonText}>{ctaLabel}</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => toggleReaction(item)}>
+            <Smile size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{item.myReaction || '❤️'} {getPostStats(item).reactions}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => void openComments(item)}>
+            <MessageCircle size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).comments}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => void sharePost(item)}>
+            <Share2 size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).shares}</Text>
+          </TouchableOpacity>
+          <View style={styles.actionItem}>
+            <Eye size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).views}</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -589,6 +699,27 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: 10,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+    },
+    actionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+      paddingHorizontal: 6,
+      borderRadius: 8,
+    },
+    actionText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     postDate: {
       color: colors.textSecondary,

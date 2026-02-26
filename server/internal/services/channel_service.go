@@ -572,6 +572,7 @@ func (s *ChannelService) ListPosts(channelID, viewerID uint, page, limit int, in
 		Find(&posts).Error; err != nil {
 		return nil, "", err
 	}
+	hydrateChannelPostStats(posts)
 	if err := s.hydrateMyReactions(posts, viewerID); err != nil {
 		return nil, "", err
 	}
@@ -663,6 +664,12 @@ func (s *ChannelService) UpdatePost(channelID, postID, actorID uint, req models.
 
 	if err := s.db.Preload("Author").Preload("Channel").First(post, post.ID).Error; err != nil {
 		return nil, err
+	}
+	post.Stats = &models.ChannelPostStats{
+		Views:     post.ViewCount,
+		Reactions: post.ReactionCount,
+		Comments:  post.CommentCount,
+		Shares:    post.ShareCount,
 	}
 	return post, nil
 }
@@ -972,6 +979,12 @@ func (s *ChannelService) SetPostReaction(channelID, postID, userID uint, emoji s
 	}
 	emojiCopy := emoji
 	updated.MyReaction = &emojiCopy
+	updated.Stats = &models.ChannelPostStats{
+		Views:     updated.ViewCount,
+		Reactions: updated.ReactionCount,
+		Comments:  updated.CommentCount,
+		Shares:    updated.ShareCount,
+	}
 	return &updated, nil
 }
 
@@ -1017,6 +1030,12 @@ func (s *ChannelService) RemovePostReaction(channelID, postID, userID uint) (*mo
 	var updated models.ChannelPost
 	if err := s.db.Preload("Author").Preload("Channel").First(&updated, post.ID).Error; err != nil {
 		return nil, err
+	}
+	updated.Stats = &models.ChannelPostStats{
+		Views:     updated.ViewCount,
+		Reactions: updated.ReactionCount,
+		Comments:  updated.CommentCount,
+		Shares:    updated.ShareCount,
 	}
 	return &updated, nil
 }
@@ -1305,6 +1324,7 @@ func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFee
 		Find(&posts).Error; err != nil {
 		return nil, err
 	}
+	hydrateChannelPostStats(posts)
 	if err := s.hydrateMyReactions(posts, filters.ViewerID); err != nil {
 		return nil, err
 	}
@@ -2355,6 +2375,18 @@ func (s *ChannelService) hydrateMyReactions(posts []models.ChannelPost, viewerID
 	}
 
 	return nil
+}
+
+func hydrateChannelPostStats(posts []models.ChannelPost) {
+	for i := range posts {
+		stats := models.ChannelPostStats{
+			Views:     posts[i].ViewCount,
+			Reactions: posts[i].ReactionCount,
+			Comments:  posts[i].CommentCount,
+			Shares:    posts[i].ShareCount,
+		}
+		posts[i].Stats = &stats
+	}
 }
 
 func validateSchedulePostRequest(status models.ChannelPostStatus, scheduledAt time.Time) error {
