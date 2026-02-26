@@ -2445,3 +2445,40 @@ S3_PUBLIC_URL=https://s3.firstvds.ru/<synced-from-remote>
 
 ### Validation
 - Remote source: `docker inspect vedamatch-server-... | egrep '^(S3_|CDN_)'`.
+
+## 2026-02-26 (iOS dev: suppress RedBox on handled assistant send errors)
+
+### Changed Files
+- `frontend/context/ChatContext.tsx`
+- `frontend/services/openaiService.ts`
+
+### Old -> New
+- Old:
+  - при сетевой ошибке отправки сообщения ассистенту код логировал `console.error(...)` в обработанном `catch`;
+  - в iOS dev это поднимало Console Error/RedBox, хотя ошибка уже была обработана и показана пользователю.
+- New:
+  - в обработанных `catch` заменено логирование на `console.warn(...)` с текстовым сообщением;
+  - пользователь продолжает видеть чатовый fallback/error message, но без dev RedBox из-за обработанной ошибки.
+
+### Code Snippets
+
+`frontend/context/ChatContext.tsx`:
+```ts
+// Old
+console.error('Ошибка при отправке сообщения:', error);
+
+// New
+console.warn('Ошибка при отправке сообщения:', message || 'unknown error');
+```
+
+`frontend/services/openaiService.ts`:
+```ts
+// Old
+console.error('Ошибка в sendMessage:', error);
+
+// New
+console.warn('Ошибка в sendMessage:', error?.message || 'unknown error');
+```
+
+### Validation
+- Локальная проверка: отправка сообщения ассистенту при недоступном API больше не должна открывать RedBox только из-за `console.error` в обработанном `catch`.

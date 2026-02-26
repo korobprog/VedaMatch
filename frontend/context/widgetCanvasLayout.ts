@@ -45,6 +45,10 @@ export const removeWidgetFromCanvas = (widgets: PortalWidget[], widgetId: string
 
 export const reorderWidgetCanvas = (widgets: PortalWidget[], fromIndex: number, toIndex: number): PortalWidget[] => {
     const orderedWidgets = normalizeWidgetPositions([...widgets]);
+    if (orderedWidgets.length === 1 && fromIndex === 0 && toIndex >= 0) {
+        const [singleWidget] = orderedWidgets;
+        return [{ ...singleWidget, position: toIndex }];
+    }
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= orderedWidgets.length || toIndex >= orderedWidgets.length) {
         return orderedWidgets;
     }

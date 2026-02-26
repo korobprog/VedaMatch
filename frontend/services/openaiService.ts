@@ -207,7 +207,8 @@ export const sendMessage = async (
       };
     }
   } catch (error: any) {
-    console.error('Ошибка в sendMessage:', error);
+    // Keep recoverable request failures out of RN dev redbox.
+    console.warn('Ошибка в sendMessage:', error?.message || 'unknown error');
     throw new Error(error.message || 'Ошибка при отправке сообщения');
   }
 };

@@ -148,6 +148,13 @@
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` переход в чат переведен на guarded flow (`runWithNavigationLock` + единый `openChat`), чтобы избежать двойного `navigate` из вложенных touchable.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.
 - В `frontend/components/chat/MessageList.tsx` на iOS отключен `maintainVisibleContentPosition` и ограничен blur для bubble (только photo background), что снижает риск пустого/неотрисованного списка сообщений.
+- Для AI-отправки в `frontend/context/ChatContext.tsx` и `frontend/services/openaiService.ts` обработанные сетевые ошибки (`Connection error` и т.п.) логируются через `console.warn`, а не `console.error`, чтобы в iOS dev не поднимать RedBox при уже обработанном fallback.
+
+## AI Assistant (Krishna Das) Runtime
+- Персона «Кришна Дас» в мобильном UI — это режим `assistantType='smiley'`, выбирается в `frontend/screens/settings/AppSettingsScreen.tsx` и сохраняется в `AsyncStorage` ключом `assistant_type` через `frontend/context/SettingsContext.tsx`.
+- Бизнес-логика ответа ассистента находится в `frontend/context/ChatContext.tsx`: перед LLM-запросом вызывается `ragService.queryHybrid('/rag/query-hybrid')`, затем отправка в LLM идет через `sendMessage()` -> `POST /v1/chat/completions`.
+- Источники RAG и метаданные (`retrieverPath`, `confidence`) прикрепляются к сообщению как `assistantContext` и отображаются в `frontend/components/chat/MessageList.tsx`.
+- Текущий дефолт text-stack зафиксирован как `model='auto'`, `provider='PolzaAI'` (`frontend/config/models.config.ts` + фиксация в `SettingsContext.fetchModels`).
 
 ## Auth Login Notes
 - В `server/internal/handlers/auth_handler.go` логин поддерживает legacy-формат пароля:

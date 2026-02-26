@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { PortalWidget } from '../../../types/portal';
 import { useSettings } from '../../../context/SettingsContext';
 import { DraggablePortalItem } from '../DraggablePortalItem';
@@ -16,6 +16,9 @@ interface WidgetCanvasGridProps {
     onReorderWidgets: (fromIndex: number, toIndex: number) => void;
 }
 
+const WIDGET_GRID_ROW_STEP = 92;
+const WIDGET_GRID_COL_STEP = 88;
+
 export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     widgets,
     isEditMode,
@@ -28,16 +31,31 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     const { height: viewportHeight } = useWindowDimensions();
     const isPhotoBg = screenVisualStyle === 'classic' && portalBackgroundType === 'image' && isDarkMode;
     const [isDraggingItem, setIsDraggingItem] = useState(false);
+    const canvasRef = useRef<View | null>(null);
+    const canvasBoundsRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
     const canvasMinHeight = useMemo(() => Math.max(320, viewportHeight - 330), [viewportHeight]);
     const orderedWidgets = useMemo(
         () => [...widgets].sort((a, b) => a.position - b.position),
         [widgets],
     );
+    const singleWidget = orderedWidgets.length === 1 ? orderedWidgets[0] : null;
 
     const dnd = useGridReorderDnd({
         items: orderedWidgets,
         onReorder: onReorderWidgets,
     });
+
+    const measureCanvasBounds = useCallback(() => {
+        if (!canvasRef.current) return;
+        (canvasRef.current as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+            if (typeof x !== 'number' || typeof y !== 'number' || width <= 0 || height <= 0) return;
+            canvasBoundsRef.current = { x, y, width, height };
+        });
+    }, []);
+
+    const handleCanvasLayout = useCallback(() => {
+        measureCanvasBounds();
+    }, [measureCanvasBounds]);
 
     const handleCanvasLongPress = useCallback(() => {
         if (dnd.isDragging || isDraggingItem) return;
@@ -54,20 +72,61 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
         onSetEditMode(true);
+        measureCanvasBounds();
         dnd.onDragStart();
-    }, [dnd, onSetEditMode]);
+    }, [dnd, measureCanvasBounds, onSetEditMode]);
 
     const handleDragEnd = useCallback((id: string, x: number, y: number) => {
         setIsDraggingItem(false);
+        if (singleWidget && singleWidget.id === id && canvasBoundsRef.current.width > 0) {
+            const bounds = canvasBoundsRef.current;
+            const clampedX = Math.max(bounds.x, Math.min(bounds.x + bounds.width - 1, x));
+            const clampedY = Math.max(bounds.y, Math.min(bounds.y + bounds.height - 1, y));
+            const relX = clampedX - bounds.x;
+            const relY = clampedY - bounds.y;
+            const maxRows = Math.max(0, Math.floor((canvasMinHeight - 80) / WIDGET_GRID_ROW_STEP));
+
+            let targetPosition = 0;
+            if (singleWidget.size === '1x1') {
+                const col = relX >= bounds.width / 2 ? 1 : 0;
+                const row = Math.max(0, Math.min(maxRows, Math.floor(relY / WIDGET_GRID_ROW_STEP)));
+                targetPosition = row * 2 + col;
+            } else {
+                targetPosition = Math.max(0, Math.min(maxRows, Math.floor(relY / WIDGET_GRID_ROW_STEP)));
+            }
+
+            if (targetPosition !== Math.max(0, singleWidget.position)) {
+                onReorderWidgets(0, targetPosition);
+            }
+            return;
+        }
         dnd.onDragEnd(id, x, y);
-    }, [dnd]);
+    }, [canvasMinHeight, dnd, onReorderWidgets, singleWidget]);
+
+    const singleWidgetOffsetStyle = useMemo<ViewStyle | undefined>(() => {
+        if (!singleWidget) return undefined;
+        const normalizedPosition = Math.max(0, singleWidget.position || 0);
+        if (singleWidget.size === '1x1') {
+            const row = Math.floor(normalizedPosition / 2);
+            const col = normalizedPosition % 2;
+            return {
+                marginTop: row * WIDGET_GRID_ROW_STEP,
+                marginLeft: col * WIDGET_GRID_COL_STEP,
+            };
+        }
+        return {
+            marginTop: normalizedPosition * WIDGET_GRID_ROW_STEP,
+        };
+    }, [singleWidget]);
 
     if (orderedWidgets.length === 0) {
         return (
             <View style={[styles.emptyCanvas, { minHeight: canvasMinHeight }]}>
                 <Pressable
                     testID="widget-canvas-empty-zone"
+                    ref={canvasRef}
                     style={styles.emptyCanvasPressable}
+                    onLayout={handleCanvasLayout}
                     onLongPress={handleCanvasLongPress}
                     onPress={handleCanvasPress}
                 >
@@ -101,15 +160,17 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
             scrollEnabled={!dnd.isDragging}
         >
             <Pressable
+                ref={canvasRef}
                 onLongPress={handleCanvasLongPress}
                 onPress={handleCanvasPress}
+                onLayout={handleCanvasLayout}
                 style={[styles.canvasPressable, { minHeight: canvasMinHeight }]}
             >
                 <View style={styles.gridWrap}>
                     {orderedWidgets.map((widget) => (
                         <View
                             key={widget.id}
-                            style={styles.gridItem}
+                            style={[styles.gridItem, singleWidget?.id === widget.id ? singleWidgetOffsetStyle : null]}
                         >
                             <DraggablePortalItem
                                 id={widget.id}

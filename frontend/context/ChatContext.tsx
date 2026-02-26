@@ -543,7 +543,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 sender: 'bot',
             };
             setMessages((prev) => [...prev, errorMessage]);
-            console.error('Ошибка при отправке сообщения:', error);
+            // Handled network/provider failures should not trigger RN redbox in dev.
+            console.warn('Ошибка при отправке сообщения:', message || 'unknown error');
         } finally {
             setIsLoading(false);
             abortControllerRef.current = null;
