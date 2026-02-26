@@ -42,6 +42,7 @@ const menuItems = [
     { icon: Gift, label: 'Referrals & Wallet', path: '/referrals' },
     { icon: CreditCard, label: 'LKM Payments', path: '/payments' },
     { icon: Waves, label: 'Feed Control', path: '/feed-control' },
+    { icon: Waves, label: 'Feed Posts', path: '/feed-posts' },
     { icon: PieChart, label: 'Financials (P&L)', path: '/financials' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
@@ -89,6 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/referrals',
                 '/payments',
                 '/feed-control',
+                '/feed-posts',
                 '/admins',
                 '/settings',
                 '/polza',

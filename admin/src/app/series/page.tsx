@@ -320,6 +320,7 @@ function SeriesCard({
             alt={series.title}
             width={80}
             height={112}
+            unoptimized
             className="w-20 h-28 object-cover rounded-lg"
           />
         ) : (

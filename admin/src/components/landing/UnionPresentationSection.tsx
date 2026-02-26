@@ -48,9 +48,15 @@ export function UnionPresentationSection() {
 
     const resolveMediaUrl = (rawUrl?: string | null): string => {
         if (!rawUrl) return '';
-        if (rawUrl.startsWith('http')) return rawUrl;
+        const trimmedUrl = rawUrl.trim();
+        if (!trimmedUrl) return '';
+        if (trimmedUrl.startsWith('http')) return trimmedUrl;
         const origin = getApiOrigin();
-        return rawUrl.startsWith('/') ? `${origin}${rawUrl}` : `${origin}/${rawUrl}`;
+        const normalizedPath = trimmedUrl.startsWith('/') ? trimmedUrl : `/${trimmedUrl}`;
+        if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
+            return `${origin}/uploads/avatars${normalizedPath}`;
+        }
+        return `${origin}${normalizedPath}`;
     };
 
     if (loading) return (

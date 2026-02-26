@@ -53,7 +53,12 @@ const resolveMediaUrl = (rawUrl?: string | null): string => {
         return normalizedUrl;
     }
 
-    return normalizedUrl.startsWith('/') ? `${apiOrigin}${normalizedUrl}` : `${apiOrigin}/${normalizedUrl}`;
+    const normalizedPath = normalizedUrl.startsWith('/') ? normalizedUrl : `/${normalizedUrl}`;
+    if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
+        return `${apiOrigin}/uploads/avatars${normalizedPath}`;
+    }
+
+    return `${apiOrigin}${normalizedPath}`;
 };
 
 const statusColors: Record<string, string> = {

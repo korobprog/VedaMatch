@@ -2531,3 +2531,101 @@ console.warn('Ошибка в sendMessage:', error?.message || 'unknown error');
 
 ### Validation
 - Локальная проверка: отправка сообщения ассистенту при недоступном API больше не должна открывать RedBox только из-за `console.error` в обработанном `catch`.
+
+## 2026-02-26 (Admin web: legacy avatar filename fallback to avoid 404)
+
+### Changed Files
+- `admin/src/components/landing/UnionPresentationSection.tsx`
+- `admin/src/app/dating/page.tsx`
+- `admin/src/app/ads/page.tsx`
+
+### Old -> New
+- Old:
+  - при `avatarUrl/photoUrl` в legacy-формате только с именем файла (`7_1767761761.jpg`) админка строила URL в корне домена (`https://.../7_176...jpg`);
+  - это приводило к `404` в браузерной консоли.
+- New:
+  - для bare filename (без `/` и с image-расширением) добавлен fallback в `/uploads/avatars/<filename>`;
+  - для обычных путей/абсолютных URL поведение сохранено.
+
+### Code Snippets
+
+`admin/src/components/landing/UnionPresentationSection.tsx`:
+```ts
+const normalizedPath = trimmedUrl.startsWith('/') ? trimmedUrl : `/${trimmedUrl}`;
+if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
+  return `${origin}/uploads/avatars${normalizedPath}`;
+}
+return `${origin}${normalizedPath}`;
+```
+
+`admin/src/app/dating/page.tsx` and `admin/src/app/ads/page.tsx`:
+```ts
+const normalizedPath = normalizedUrl.startsWith('/') ? normalizedUrl : `/${normalizedUrl}`;
+if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
+  return `${apiOrigin}/uploads/avatars${normalizedPath}`;
+}
+return `${apiOrigin}${normalizedPath}`;
+```
+
+### Validation
+- `pnpm -C admin exec tsc --noEmit` — success.
+
+## 2026-02-26 (Admin TV Series: bypass Next image optimizer for external S3 covers)
+
+### Changed Files
+- `admin/src/app/series/page.tsx`
+
+### Old -> New
+- Old:
+  - карточка сериала рендерила cover через `next/image` оптимизатор (`/_next/image?...`);
+  - для части внешних S3 URL это приводило к `400 Bad Request` в админке.
+- New:
+  - для `series.coverImageURL` включен `unoptimized`, чтобы использовать прямой remote URL без `/_next/image` проксирования.
+
+### Code Snippets
+
+`admin/src/app/series/page.tsx`:
+```tsx
+<Image
+  src={series.coverImageURL}
+  alt={series.title}
+  width={80}
+  height={112}
+  unoptimized
+  className="w-20 h-28 object-cover rounded-lg"
+/>
+```
+
+### Validation
+- `pnpm -C admin exec tsc --noEmit` — success.
+
+## 2026-02-26 (Union Management: prevent repeated 404 requests for broken avatars)
+
+### Changed Files
+- `admin/src/app/dating/page.tsx`
+
+### Old -> New
+- Old:
+  - при битом `avatarUrl` (например S3 `.../avatars/7_1767761761.jpg` -> `404`) компонент на ререндерах продолжал пытаться загрузить тот же URL;
+  - в консоли накапливались повторные `GET ... 404`.
+- New:
+  - добавлен in-memory blacklist `brokenMediaUrls` на уровне страницы;
+  - после первого `onError` URL помечается как broken и повторно не рендерится как `<img>`, вместо него показывается fallback-аватар.
+
+### Code Snippets
+
+`admin/src/app/dating/page.tsx`:
+```ts
+const [brokenMediaUrls, setBrokenMediaUrls] = useState<Record<string, true>>({});
+const markMediaBroken = (url?: string) => {
+  if (!url) return;
+  setBrokenMediaUrls((prev) => (prev[url] ? prev : { ...prev, [url]: true }));
+};
+```
+
+```tsx
+<img src={avatarUrl} ... onError={() => markMediaBroken(avatarUrl)} />
+```
+
+### Validation
+- `pnpm -C admin exec tsc --noEmit` — success.

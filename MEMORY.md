@@ -155,6 +155,8 @@
 - Бизнес-логика ответа ассистента находится в `frontend/context/ChatContext.tsx`: перед LLM-запросом вызывается `ragService.queryHybrid('/rag/query-hybrid')`, затем отправка в LLM идет через `sendMessage()` -> `POST /v1/chat/completions`.
 - Источники RAG и метаданные (`retrieverPath`, `confidence`) прикрепляются к сообщению как `assistantContext` и отображаются в `frontend/components/chat/MessageList.tsx`.
 - Текущий дефолт text-stack зафиксирован как `model='auto'`, `provider='PolzaAI'` (`frontend/config/models.config.ts` + фиксация в `SettingsContext.fetchModels`).
+- Прод-инцидент 2026-02-26 (закрыт): `POST /api/v1/chat/completions` возвращал `502` из-за upstream `401 Некорректный API ключ` от Polza.
+- Причина и фиксация: в `system_settings.POLZA_API_KEY` была маска вместо реального секрета; после обновления ключа в админке `system_settings` содержит валидный `pza_...`, и продовый `POST /api/v1/chat/completions` снова отвечает `200`.
 
 ## Auth Login Notes
 - В `server/internal/handlers/auth_handler.go` логин поддерживает legacy-формат пароля:
@@ -242,6 +244,11 @@
 - Основной UI админки расположен в `admin/` (Next.js App Router, `next@16.1.1-canary`, React 19 RC), backend admin API — в `server/cmd/api/main.go` и `server/internal/handlers/admin_handler.go`.
 - Backend admin-маршруты корректно защищены `middleware.Protected()` + `middleware.AdminProtected()` для `/api/admin/*`.
 - На фронте контроль доступа реализован клиентски через `localStorage` в `admin/src/components/AdminLayout.tsx`; отдельного `middleware.ts` в `admin/src/` нет.
+- Добавлена admin-only страница `admin/src/app/feed-posts/page.tsx` с read-only списком постов из публичного `GET /api/feed` (карточки постов + loading/error/empty + пагинация `Prev/Next`).
+- В `admin/src/components/AdminLayout.tsx` добавлен пункт меню `Feed Posts` (`/feed-posts`) и маршрут внесен в `exclusiveAdminRoutes`.
+- Legacy media edge-case: если в админку приходит bare filename вида `7_1767761761.jpg` (без `/uploads/...`), нужно нормализовать его в `/uploads/avatars/<filename>`, иначе браузер запрашивает файл из корня домена и получает `404`.
+- Для `admin/src/app/dating/page.tsx` добавлен runtime-fallback для битых avatar URL: после первого `img onError` URL попадает в `brokenMediaUrls` и больше не рендерится как `<img>`, что убирает повторные 404-спайки в `Union Management`.
+- Для `admin/src/app/series/page.tsx` cover в карточках TV Series рендерится с `next/image unoptimized`, чтобы обойти `/_next/image` 400 для части внешних S3 URL.
 - `Welcome Bonus` сделан конфигурируемым через `SystemSetting` ключ `WELCOME_BONUS_LKM`:
   - редактирование в `admin/src/app/referrals/page.tsx` (блок `Economic Pulse`);
   - значение прокинуто в `/api/admin/wallet/global-stats` (`welcomeBonusLKM`);
@@ -251,6 +258,10 @@
   - В `admin/src/app/admins/page.tsx` запрос `/admin/users?role=admin&role=superadmin` логически конфликтует с backend `c.Query("role")` (берется один `role`), список админов неполный.
   - `GET /admin/settings` отдает маскированные секреты `***`, но `admin/src/app/settings/page.tsx` отправляет весь объект обратно в `POST /admin/settings`; есть риск перезаписи реальных секретов маской.
   - Есть небезопасные `JSON.parse(localStorage.admin_data)` без `try/catch` в ряде критичных мест (`AdminLayout`, `login`, `api` interceptor), что может ломать UI при поврежденном localStorage.
+
+## LKM Web (Next.js) Analytics
+- Yandex.Metrika (`id=107021597`) подключена в корневом layout `lkm/src/app/layout.tsx` через `next/script` (`strategy="afterInteractive"`), чтобы скрипт инициализировался на клиенте без SSR-ошибок.
+- `noscript` fallback-счетчик (`https://mc.yandex.ru/watch/107021597`) добавлен в `<body>` того же layout.
 
 ## Portal UI Notes
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:

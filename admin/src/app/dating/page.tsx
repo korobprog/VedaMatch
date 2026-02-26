@@ -52,14 +52,28 @@ const resolveMediaUrl = (rawUrl?: string | null): string => {
         return normalizedUrl;
     }
 
-    return normalizedUrl.startsWith('/') ? `${apiOrigin}${normalizedUrl}` : `${apiOrigin}/${normalizedUrl}`;
+    const normalizedPath = normalizedUrl.startsWith('/') ? normalizedUrl : `/${normalizedUrl}`;
+    if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
+        return `${apiOrigin}/uploads/avatars${normalizedPath}`;
+    }
+
+    return `${apiOrigin}${normalizedPath}`;
 };
 
 export default function DatingManagementPage() {
     const [search, setSearch] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<any>(null);
-    const selectedAvatarUrl = resolveMediaUrl(selectedProfile?.avatarUrl);
+    const [brokenMediaUrls, setBrokenMediaUrls] = useState<Record<string, true>>({});
+    const selectedAvatarCandidate = resolveMediaUrl(selectedProfile?.avatarUrl);
+    const selectedAvatarUrl = selectedAvatarCandidate && !brokenMediaUrls[selectedAvatarCandidate]
+        ? selectedAvatarCandidate
+        : '';
+
+    const markMediaBroken = (url?: string) => {
+        if (!url) return;
+        setBrokenMediaUrls((prev) => (prev[url] ? prev : { ...prev, [url]: true }));
+    };
 
     const { data: profiles, error, mutate } = useSWR(
         `/admin/dating/profiles?search=${search}`,
@@ -131,7 +145,8 @@ export default function DatingManagementPage() {
                     {profiles.map((user: any) => {
                         const suspicious = isSuspicious(user.bio) || isSuspicious(user.interests);
                         const flagged = user.isFlagged;
-                        const avatarUrl = resolveMediaUrl(user.avatarUrl);
+                        const avatarCandidate = resolveMediaUrl(user.avatarUrl);
+                        const avatarUrl = avatarCandidate && !brokenMediaUrls[avatarCandidate] ? avatarCandidate : '';
 
                         return (
                             <motion.div
@@ -158,7 +173,12 @@ export default function DatingManagementPage() {
                                 <div className="flex items-start gap-4">
                                     <div className="w-16 h-16 bg-[var(--secondary)] rounded-2xl flex items-center justify-center font-bold text-2xl text-[var(--primary)] border border-[var(--border)] overflow-hidden shrink-0">
                                         {avatarUrl ? (
-                                            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                            <img
+                                                src={avatarUrl}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                                onError={() => markMediaBroken(avatarUrl)}
+                                            />
                                         ) : (
                                             user.spiritualName?.[0] || user.karmicName?.[0] || '?'
                                         )}
@@ -244,7 +264,12 @@ export default function DatingManagementPage() {
                                 <div className="absolute -bottom-12 left-8 p-1 bg-[var(--card)] rounded-3xl border-4 border-[var(--card)]">
                                     <div className="w-24 h-24 bg-[var(--secondary)] rounded-2xl flex items-center justify-center text-4xl overflow-hidden">
                                         {selectedAvatarUrl ? (
-                                            <img src={selectedAvatarUrl} alt="" className="w-full h-full object-cover" />
+                                            <img
+                                                src={selectedAvatarUrl}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                                onError={() => markMediaBroken(selectedAvatarUrl)}
+                                            />
                                         ) : '👤'}
                                     </div>
                                 </div>
