@@ -54,6 +54,11 @@ const (
 	MetricVideoCirclesCreateRejectedNonCDN   = "video_circles_create_rejected_non_cdn_total"
 	MetricVideoCirclesUploadS3FailTotal      = "video_circles_upload_s3_fail_total"
 	MetricVideoCirclesNonCDNDetectedTotal    = "video_circles_non_cdn_detected_total"
+	MetricChannelPostEditWindowRejectedTotal = "channel_post_edit_window_rejected_total"
+	MetricChannelPostReactionSetTotal         = "channel_post_reaction_set_total"
+	MetricChannelPostCommentCreateTotal       = "channel_post_comment_create_total"
+	MetricChannelPostShareTotal               = "channel_post_share_total"
+	MetricChannelPostViewTotal                = "channel_post_view_total"
 )
 
 type MetricsService struct {

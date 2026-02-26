@@ -63,6 +63,7 @@ func Connect() {
 		&models.AdminPermissionGrant{},
 		&models.Room{}, &models.RoomMember{}, &models.RoomInviteToken{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
+		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelPromotedAdImpression{},
 		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
@@ -167,6 +168,10 @@ func Connect() {
 	// Idempotency for personal channel post fanout.
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_post_delivery_unique
 		ON channel_post_deliveries (post_id, user_id, delivery_type)`)
+
+	// Channel post reactions/comments query paths.
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_post_comments_post_created_desc
+		ON channel_post_comments (post_id, created_at DESC)`)
 
 	// Message history pagination indexes
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_id_id_desc

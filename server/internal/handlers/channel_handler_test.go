@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -49,6 +50,9 @@ func (m *mockChannelService) UpdateChannel(channelID, actorID uint, req models.C
 func (m *mockChannelService) UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error) {
 	return &models.Channel{}, nil
 }
+func (m *mockChannelService) UploadChannelCover(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.Channel, error) {
+	return &models.Channel{}, nil
+}
 func (m *mockChannelService) AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error) {
 	return &models.ChannelMember{}, nil
 }
@@ -87,6 +91,20 @@ func (m *mockChannelService) SchedulePost(channelID, postID, actorID uint, sched
 	return &models.ChannelPost{}, nil
 }
 func (m *mockChannelService) TrackCTAClick(channelID, postID, viewerID uint) error { return nil }
+func (m *mockChannelService) TrackPostView(channelID, postID, viewerID uint) error { return nil }
+func (m *mockChannelService) SetPostReaction(channelID, postID, userID uint, emoji string) (*models.ChannelPost, error) {
+	return &models.ChannelPost{}, nil
+}
+func (m *mockChannelService) RemovePostReaction(channelID, postID, userID uint) (*models.ChannelPost, error) {
+	return &models.ChannelPost{}, nil
+}
+func (m *mockChannelService) ListPostComments(channelID, postID, viewerID uint, limit int, cursorID uint) ([]models.ChannelPostComment, error) {
+	return []models.ChannelPostComment{}, nil
+}
+func (m *mockChannelService) AddPostComment(channelID, postID, userID uint, body string) (*models.ChannelPostComment, error) {
+	return &models.ChannelPostComment{}, nil
+}
+func (m *mockChannelService) TrackPostShare(channelID, postID, viewerID uint) error { return nil }
 func (m *mockChannelService) TrackPromotedAdClick(adID uint, viewerID uint) error {
 	if m.trackPromotedAdClickFn != nil {
 		return m.trackPromotedAdClickFn(adID, viewerID)

@@ -1,11 +1,19 @@
 package services
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	stdDraw "image/draw"
+	"image/jpeg"
+	_ "image/png"
+	"io"
 	"log"
 	"math"
+	"mime/multipart"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -15,6 +23,8 @@ import (
 	"time"
 	"unicode"
 
+	xDraw "golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -53,6 +63,7 @@ var (
 	ErrChannelPostNotFound = errors.New("channel post not found")
 	ErrInvalidPostStatus   = errors.New("invalid post status")
 	ErrInvalidPayload      = errors.New("invalid payload")
+	ErrPostEditWindow      = errors.New("post edit window expired")
 )
 
 const (
@@ -60,6 +71,10 @@ const (
 	defaultPromotedAdDailyCap       = 3
 	defaultPromotedAdCooldownHours  = 6
 	defaultPromotedInsertEvery      = 4
+	postAuthorEditWindow            = 24 * time.Hour
+	channelCoverMaxBytes            = 8 << 20
+	channelCoverWidth               = 1600
+	channelCoverHeight              = 900
 )
 
 func NewChannelService() *ChannelService {
@@ -276,6 +291,63 @@ func (s *ChannelService) UpdateChannelBranding(channelID, actorID uint, req mode
 		if err := s.db.Model(channel).Updates(updates).Error; err != nil {
 			return nil, err
 		}
+	}
+
+	return s.GetChannelByID(channelID, actorID)
+}
+
+func (s *ChannelService) UploadChannelCover(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.Channel, error) {
+	if fileHeader == nil {
+		return nil, errors.New("cover file is required")
+	}
+
+	_, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleAdmin)
+	if err != nil {
+		return nil, err
+	}
+	if rankRole(role) < rankRole(models.ChannelMemberRoleAdmin) {
+		return nil, ErrChannelForbidden
+	}
+
+	if fileHeader.Size <= 0 {
+		return nil, errors.New("empty cover file")
+	}
+	if fileHeader.Size > channelCoverMaxBytes {
+		return nil, errors.New("cover file is too large")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	processedImage, err := buildChannelCoverImage(file)
+	if err != nil {
+		return nil, err
+	}
+
+	s3Service := NewS3Service()
+	if s3Service == nil {
+		return nil, errors.New("media service unavailable")
+	}
+
+	key := fmt.Sprintf("channels/covers/%d/%d.jpg", channelID, time.Now().UTC().UnixNano())
+	url, err := s3Service.UploadFile(
+		context.Background(),
+		bytes.NewReader(processedImage),
+		key,
+		"image/jpeg",
+		int64(len(processedImage)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("cover_url", strings.TrimSpace(url)).Error; err != nil {
+		return nil, err
 	}
 
 	return s.GetChannelByID(channelID, actorID)
@@ -500,6 +572,9 @@ func (s *ChannelService) ListPosts(channelID, viewerID uint, page, limit int, in
 		Find(&posts).Error; err != nil {
 		return nil, "", err
 	}
+	if err := s.hydrateMyReactions(posts, viewerID); err != nil {
+		return nil, "", err
+	}
 
 	totalPages := calculateChannelTotalPages(total, limit)
 
@@ -526,6 +601,9 @@ func (s *ChannelService) UpdatePost(channelID, postID, actorID uint, req models.
 		return nil, ErrChannelForbidden
 	}
 	if err := validatePostUpdatePermission(role, actorID, post); err != nil {
+		if errors.Is(err, ErrPostEditWindow) {
+			s.incrementMetricSafe(MetricChannelPostEditWindowRejectedTotal, 1)
+		}
 		return nil, err
 	}
 
@@ -803,6 +881,257 @@ func (s *ChannelService) TrackCTAClick(channelID, postID, viewerID uint) error {
 	return nil
 }
 
+func (s *ChannelService) TrackPostView(channelID, postID, viewerID uint) error {
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, viewerID); err != nil {
+		return err
+	}
+
+	if err := s.db.Model(&models.ChannelPost{}).
+		Where("id = ?", post.ID).
+		Update("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+		return err
+	}
+	s.incrementMetricSafe(MetricChannelPostViewTotal, 1)
+	return nil
+}
+
+func (s *ChannelService) SetPostReaction(channelID, postID, userID uint, emoji string) (*models.ChannelPost, error) {
+	if userID == 0 {
+		return nil, ErrChannelForbidden
+	}
+	emoji = strings.TrimSpace(emoji)
+	if !isAllowedChannelReaction(emoji) {
+		return nil, errors.New("invalid emoji")
+	}
+
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return nil, err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return nil, ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, userID); err != nil {
+		return nil, err
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	var existing models.ChannelPostReaction
+	err = tx.Where("post_id = ? AND user_id = ?", post.ID, userID).First(&existing).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		reaction := models.ChannelPostReaction{
+			PostID: post.ID,
+			UserID: userID,
+			Emoji:  emoji,
+		}
+		if err := tx.Create(&reaction).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := tx.Model(&models.ChannelPost{}).
+			Where("id = ?", post.ID).
+			Update("reaction_count", gorm.Expr("reaction_count + 1")).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	case err != nil:
+		tx.Rollback()
+		return nil, err
+	default:
+		if existing.Emoji != emoji {
+			if err := tx.Model(&models.ChannelPostReaction{}).
+				Where("id = ?", existing.ID).
+				Update("emoji", emoji).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	s.incrementMetricSafe(MetricChannelPostReactionSetTotal, 1)
+
+	var updated models.ChannelPost
+	if err := s.db.Preload("Author").Preload("Channel").First(&updated, post.ID).Error; err != nil {
+		return nil, err
+	}
+	emojiCopy := emoji
+	updated.MyReaction = &emojiCopy
+	return &updated, nil
+}
+
+func (s *ChannelService) RemovePostReaction(channelID, postID, userID uint) (*models.ChannelPost, error) {
+	if userID == 0 {
+		return nil, ErrChannelForbidden
+	}
+
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return nil, err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return nil, ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, userID); err != nil {
+		return nil, err
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	result := tx.Where("post_id = ? AND user_id = ?", post.ID, userID).Delete(&models.ChannelPostReaction{})
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+	if result.RowsAffected > 0 {
+		if err := tx.Model(&models.ChannelPost{}).
+			Where("id = ?", post.ID).
+			Update("reaction_count", gorm.Expr("GREATEST(reaction_count - 1, 0)")).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	var updated models.ChannelPost
+	if err := s.db.Preload("Author").Preload("Channel").First(&updated, post.ID).Error; err != nil {
+		return nil, err
+	}
+	return &updated, nil
+}
+
+func (s *ChannelService) ListPostComments(channelID, postID, viewerID uint, limit int, cursorID uint) ([]models.ChannelPostComment, error) {
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return nil, err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return nil, ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, viewerID); err != nil {
+		return nil, err
+	}
+
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	query := s.db.Model(&models.ChannelPostComment{}).
+		Where("post_id = ? AND is_deleted = ?", post.ID, false)
+	if cursorID > 0 {
+		query = query.Where("id < ?", cursorID)
+	}
+
+	var comments []models.ChannelPostComment
+	if err := query.
+		Preload("User", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "spiritual_name", "karmic_name", "avatar_url")
+		}).
+		Order("created_at DESC").
+		Order("id DESC").
+		Limit(limit).
+		Find(&comments).Error; err != nil {
+		return nil, err
+	}
+	return comments, nil
+}
+
+func (s *ChannelService) AddPostComment(channelID, postID, userID uint, body string) (*models.ChannelPostComment, error) {
+	if userID == 0 {
+		return nil, ErrChannelForbidden
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return nil, errors.New("comment body is required")
+	}
+
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return nil, err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return nil, ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, userID); err != nil {
+		return nil, err
+	}
+
+	comment := models.ChannelPostComment{
+		PostID: post.ID,
+		UserID: userID,
+		Body:   body,
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if err := tx.Create(&comment).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Model(&models.ChannelPost{}).
+		Where("id = ?", post.ID).
+		Update("comment_count", gorm.Expr("comment_count + 1")).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Preload("User", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "spiritual_name", "karmic_name", "avatar_url")
+	}).First(&comment, comment.ID).Error; err != nil {
+		return nil, err
+	}
+
+	s.incrementMetricSafe(MetricChannelPostCommentCreateTotal, 1)
+	return &comment, nil
+}
+
+func (s *ChannelService) TrackPostShare(channelID, postID, viewerID uint) error {
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return ErrInvalidPostStatus
+	}
+	if _, err := s.GetChannelByID(channelID, viewerID); err != nil {
+		return err
+	}
+
+	if err := s.db.Model(&models.ChannelPost{}).
+		Where("id = ?", post.ID).
+		Update("share_count", gorm.Expr("share_count + 1")).Error; err != nil {
+		return err
+	}
+	s.incrementMetricSafe(MetricChannelPostShareTotal, 1)
+	return nil
+}
+
 func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 	return GetMetricsService().Snapshot([]string{
 		MetricChannelPostsPublishedTotal,
@@ -816,6 +1145,11 @@ func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 		MetricChannelPersonalDeliveryFailedTotal,
 		MetricPromotedAdsServedTotal,
 		MetricPromotedAdsClickedTotal,
+		MetricChannelPostEditWindowRejectedTotal,
+		MetricChannelPostReactionSetTotal,
+		MetricChannelPostCommentCreateTotal,
+		MetricChannelPostShareTotal,
+		MetricChannelPostViewTotal,
 	})
 }
 
@@ -969,6 +1303,9 @@ func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFee
 		Offset(offset).
 		Limit(filters.Limit).
 		Find(&posts).Error; err != nil {
+		return nil, err
+	}
+	if err := s.hydrateMyReactions(posts, filters.ViewerID); err != nil {
 		return nil, err
 	}
 
@@ -1962,9 +2299,61 @@ func validatePostUpdatePermission(role models.ChannelMemberRole, actorID uint, p
 	if post.AuthorID != actorID {
 		return ErrChannelForbidden
 	}
-	if post.Status != models.ChannelPostStatusDraft {
-		return errors.New("editor can only edit draft posts")
+	if post.Status == models.ChannelPostStatusDraft {
+		return nil
 	}
+	if post.Status == models.ChannelPostStatusPublished {
+		if post.PublishedAt == nil {
+			return ErrPostEditWindow
+		}
+		if time.Since(post.PublishedAt.UTC()) <= postAuthorEditWindow {
+			return nil
+		}
+		return ErrPostEditWindow
+	}
+	return errors.New("editor can only edit draft posts")
+}
+
+func isAllowedChannelReaction(emoji string) bool {
+	switch emoji {
+	case "👍", "❤️", "🔥", "🙏", "😂", "😮":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *ChannelService) hydrateMyReactions(posts []models.ChannelPost, viewerID uint) error {
+	if viewerID == 0 || len(posts) == 0 {
+		return nil
+	}
+
+	postIDs := make([]uint, 0, len(posts))
+	for _, post := range posts {
+		postIDs = append(postIDs, post.ID)
+	}
+
+	var reactions []models.ChannelPostReaction
+	if err := s.db.Where("post_id IN ? AND user_id = ?", postIDs, viewerID).
+		Find(&reactions).Error; err != nil {
+		return err
+	}
+	if len(reactions) == 0 {
+		return nil
+	}
+
+	myReactionByPostID := make(map[uint]string, len(reactions))
+	for _, item := range reactions {
+		myReactionByPostID[item.PostID] = item.Emoji
+	}
+
+	for i := range posts {
+		if emoji, ok := myReactionByPostID[posts[i].ID]; ok {
+			emojiCopy := emoji
+			posts[i].MyReaction = &emojiCopy
+		}
+	}
+
 	return nil
 }
 
@@ -2044,6 +2433,66 @@ func extractPositiveUint(value interface{}) (uint, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func buildChannelCoverImage(file multipart.File) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(file, channelCoverMaxBytes+1))
+	if err != nil {
+		return nil, errors.New("failed to read cover file")
+	}
+	if len(raw) == 0 {
+		return nil, errors.New("empty cover file")
+	}
+	if len(raw) > channelCoverMaxBytes {
+		return nil, errors.New("cover file is too large")
+	}
+
+	sourceImage, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, errors.New("invalid image format")
+	}
+
+	sourceBounds := sourceImage.Bounds()
+	sourceWidth := sourceBounds.Dx()
+	sourceHeight := sourceBounds.Dy()
+	if sourceWidth <= 0 || sourceHeight <= 0 {
+		return nil, errors.New("invalid image dimensions")
+	}
+
+	targetRatio := float64(channelCoverWidth) / float64(channelCoverHeight)
+	sourceRatio := float64(sourceWidth) / float64(sourceHeight)
+
+	cropWidth := sourceWidth
+	cropHeight := sourceHeight
+	cropX := 0
+	cropY := 0
+
+	if sourceRatio > targetRatio {
+		cropWidth = int(float64(sourceHeight) * targetRatio)
+		cropX = (sourceWidth - cropWidth) / 2
+	} else if sourceRatio < targetRatio {
+		cropHeight = int(float64(sourceWidth) / targetRatio)
+		cropY = (sourceHeight - cropHeight) / 2
+	}
+
+	cropped := image.NewRGBA(image.Rect(0, 0, cropWidth, cropHeight))
+	stdDraw.Draw(
+		cropped,
+		cropped.Bounds(),
+		sourceImage,
+		image.Point{X: sourceBounds.Min.X + cropX, Y: sourceBounds.Min.Y + cropY},
+		stdDraw.Src,
+	)
+
+	resized := image.NewRGBA(image.Rect(0, 0, channelCoverWidth, channelCoverHeight))
+	xDraw.CatmullRom.Scale(resized, resized.Bounds(), cropped, cropped.Bounds(), stdDraw.Over, nil)
+
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, resized, &jpeg.Options{Quality: 85}); err != nil {
+		return nil, errors.New("failed to encode cover image")
+	}
+
+	return out.Bytes(), nil
 }
 
 func extractPositiveUintFromMap(data map[string]interface{}, keys ...string) (uint, bool) {

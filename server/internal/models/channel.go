@@ -90,6 +90,39 @@ type ChannelPost struct {
 
 	IsPinned bool       `json:"isPinned" gorm:"default:false;index"`
 	PinnedAt *time.Time `json:"pinnedAt" gorm:"index"`
+
+	ViewCount     int `json:"viewCount" gorm:"default:0"`
+	ReactionCount int `json:"reactionCount" gorm:"default:0"`
+	CommentCount  int `json:"commentCount" gorm:"default:0"`
+	ShareCount    int `json:"shareCount" gorm:"default:0"`
+
+	MyReaction *string `json:"myReaction,omitempty" gorm:"-"`
+}
+
+type ChannelPostReaction struct {
+	gorm.Model
+	PostID uint `json:"postId" gorm:"not null;index:idx_channel_post_reaction_user,unique;index:idx_channel_post_reaction_emoji"`
+	Post   *ChannelPost
+	UserID uint   `json:"userId" gorm:"not null;index:idx_channel_post_reaction_user,unique"`
+	Emoji  string `json:"emoji" gorm:"type:varchar(16);not null;index:idx_channel_post_reaction_emoji"`
+}
+
+type ChannelPostComment struct {
+	gorm.Model
+	PostID uint `json:"postId" gorm:"not null;index:idx_channel_post_comments_created"`
+	Post   *ChannelPost
+	UserID uint  `json:"userId" gorm:"not null;index"`
+	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	Body   string `json:"body" gorm:"type:text;not null"`
+
+	IsDeleted bool `json:"isDeleted" gorm:"default:false;index"`
+}
+
+type ChannelPostStats struct {
+	Views     int `json:"views"`
+	Reactions int `json:"reactions"`
+	Comments  int `json:"comments"`
+	Shares    int `json:"shares"`
 }
 
 // ChannelShowcase stores configured product/service windows on channel home.

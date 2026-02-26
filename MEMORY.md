@@ -19,6 +19,27 @@
 - При изменениях, затрагивающих другие платформы, писать запись в `Docs/IOS_CHANGES_FOR_MIGRATION.md`:
   дата, измененные файлы, суть правки (старое -> новое), сниппеты.
 
+## Disk Space / Build Artifacts
+- Диагностика от `2026-02-26`:
+  - Свободно на `/System/Volumes/Data`: `~4.6GiB` (`df -h`), раздел заполнен на `98%`.
+  - Главные потребители: `~/Library` (`81G`), `~/Documents/vedicai` (`32G`), `~/.gradle` (`13G`), `~/.android` (`9.1G`).
+- Внутри проекта `vedicai` основной объем в `frontend`:
+  - `frontend/ios` (`20G`): `ios/build` (`9.2G`), `ios/build_release_prod` (`4.7G`), `ios/build_debug_device` (`2.9G`), `ios/build_release` (`2.4G`).
+  - `frontend/build` (`5.0G`): временные iOS release build-папки.
+  - `frontend/node_modules` (`3.4G`), `frontend/android/app/build` (`1.3G`).
+- Крупный внешний dev-кэш iOS:
+  - `~/Library/Developer/Xcode/DerivedData` (`38G`), где крупные папки `vedamatch*`.
+- Безболезненно удаляемые артефакты (пересобираются автоматически):
+  - `frontend/ios/build`, `frontend/ios/build_release*`, `frontend/ios/build_debug_device`.
+  - `frontend/build`.
+  - `frontend/android/app/build`.
+  - `~/Library/Developer/Xcode/DerivedData`.
+  - `~/.gradle/caches`, `~/.gradle/wrapper` (с осторожностью: последующий Android build будет дольше).
+  - Старые эмуляторы `~/.android/avd` (только неиспользуемые AVD).
+- Фактическая очистка от `2026-02-27` выполнена:
+  - удалены `frontend/ios/build*`, `frontend/build`, `frontend/android/app/build`, `~/Library/Developer/Xcode/DerivedData`, `~/.gradle/caches`, `~/.gradle/wrapper`, `ragagent-release.apk`;
+  - свободное место на `/System/Volumes/Data` выросло с `~4.7GiB` до `~78GiB`.
+
 ## Feed V2 Service
 - Публичные маршруты ленты (protected): `GET /api/v2/feed`, `GET /api/v2/feed/item/:type/:id`, `POST /api/v2/feed/item/:type/:id/impression`, `POST /api/v2/feed/item/:type/:id/reactions`, `GET/POST /api/v2/feed/item/:type/:id/comments` (`server/cmd/api/main.go`, `server/internal/handlers/feed_v2_handler.go`).
 - Вход в `GetFeed` закрыт feature-flag rollout'ом через `FEED_V2_ENABLED` и `FEED_V2_ROLLOUT_PERCENT` (берутся из `system_settings` с fallback в env).
@@ -84,6 +105,8 @@
 - Для повышения заметности `feed` добавлена миграция `ensureFeedShortcut` (`frontend/services/portalLayoutService.ts`): если ярлыка нет, он вставляется на первую страницу рядом с `channels`.
 - В `frontend/screens/portal/serviceLaunchResolver.ts` `feed` направляется в `ChannelsHub` (лента открывается по умолчанию).
 - Навигация сервис-ярлыков унифицирована между Portal и Widget Dock через `frontend/screens/portal/serviceLaunchResolver.ts`; в `PortalMainScreen` и `WidgetSelectionScreen` больше нет расхождений по `services`.
+- Контрастный фикс экрана создания канала (`frontend/screens/portal/services/channels/CreateChannelScreen.tsx`):
+  - для темных role-gradient добавлен `onGradient` режим (`#F8FAFC` / `#E2E8F0`) для `headerTitle`, `label`, `visibilityTitle`, `visibilitySub`, `createButtonText`, чтобы текст не «тонул» на темном фоне в iOS эмуляторе.
 
 ## Portal Widget Canvas (Shared Layer)
 - Для виджетов добавлен отдельный top-level слой хранения `layout.widgetCanvas` (`frontend/types/portal.ts`) вместо зависимости от `pages[currentPage].widgets`.
@@ -214,6 +237,12 @@
   - в `server/internal/handlers/order_handler.go` при этой ошибке возвращается `404` (`Seller shop not found`) вместо generic `500`.
 - В `frontend/services/marketService.ts` для `getSellerOrders` логирование переведено на безопасный режим (`console.log` в dev / `console.warn` в prod) без передачи объекта `AxiosError`, чтобы не поднимать RedBox на `404`.
 - В `frontend/screens/portal/shops/SellerOrdersScreen.tsx` для `404` показывается явный UX-текст: CRM-заказы доступны после создания магазина у аккаунта.
+
+## Channels Runtime Notes
+- В `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx` ошибки загрузки feed/my channels не должны логироваться через `console.error` в DEV (иначе RedBox).
+- Для `catch` используется throttled `console.warn` с коротким форматом (`status/message`) без передачи полного объекта `AxiosError`.
+- При падении загрузки первой страницы feed устанавливается `feedHasMore=false`, чтобы `onEndReached` не создавал повторный сетевой шторм.
+- Для локального offline DEV профиля (`user.ID=999999`) добавлен ранний выход без серверных запросов на feed и my channels.
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.

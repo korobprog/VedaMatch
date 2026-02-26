@@ -27,6 +27,18 @@ type FeedListItem =
   | { type: 'ad'; key: string; ad: ChannelPromotedAd };
 
 const FEED_PROMOTED_INTERVAL = 4;
+const ERROR_LOG_THROTTLE_MS = 15000;
+const OFFLINE_DEV_USER_ID = 999999;
+
+const extractRequestErrorInfo = (error: unknown): { message: string; status: number | null } => {
+  const maybeError = error as { message?: unknown; response?: { status?: unknown } };
+  const status = typeof maybeError?.response?.status === 'number' ? maybeError.response.status : null;
+  const rawMessage = typeof maybeError?.message === 'string' ? maybeError.message.trim() : '';
+  return {
+    message: rawMessage || 'unknown_error',
+    status,
+  };
+};
 
 export default function ChannelsHubScreen() {
   const navigation = useNavigation<any>();
@@ -53,6 +65,8 @@ export default function ChannelsHubScreen() {
   const mountedRef = useRef(true);
   const latestFeedReqRef = useRef(0);
   const latestMyReqRef = useRef(0);
+  const lastFeedErrorLogAtRef = useRef(0);
+  const lastMyErrorLogAtRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -64,6 +78,19 @@ export default function ChannelsHubScreen() {
   }, []);
 
   const loadFeed = useCallback(async (page: number, reset: boolean) => {
+    if (user?.ID === OFFLINE_DEV_USER_ID) {
+      if (page === 1) {
+        setFeedPosts([]);
+        setFeedPromotedAds([]);
+        setFeedPage(1);
+        setFeedHasMore(false);
+      }
+      setFeedLoading(false);
+      setFeedRefreshing(false);
+      setFeedLoadingMore(false);
+      return;
+    }
+
     const reqId = ++latestFeedReqRef.current;
     if (page === 1) {
       reset ? setFeedLoading(true) : setFeedRefreshing(true);
@@ -95,7 +122,16 @@ export default function ChannelsHubScreen() {
       setFeedPage(page);
       setFeedHasMore(page < response.totalPages);
     } catch (error) {
-      console.error('[ChannelsHub] Failed to load feed:', error);
+      if (mountedRef.current && reqId === latestFeedReqRef.current && page === 1) {
+        setFeedHasMore(false);
+      }
+      const { message, status } = extractRequestErrorInfo(error);
+      const now = Date.now();
+      if (now - lastFeedErrorLogAtRef.current > ERROR_LOG_THROTTLE_MS) {
+        lastFeedErrorLogAtRef.current = now;
+        const statusTag = status === null ? 'network' : String(status);
+        console.warn(`[ChannelsHub] Failed to load feed (status=${statusTag}, message=${message})`);
+      }
     } finally {
       if (mountedRef.current && reqId === latestFeedReqRef.current) {
         setFeedLoading(false);
@@ -103,9 +139,16 @@ export default function ChannelsHubScreen() {
         setFeedLoadingMore(false);
       }
     }
-  }, []);
+  }, [user?.ID]);
 
   const loadMyChannels = useCallback(async () => {
+    if (user?.ID === OFFLINE_DEV_USER_ID) {
+      setMyChannels([]);
+      setMyLoading(false);
+      setMyRefreshing(false);
+      return;
+    }
+
     const reqId = ++latestMyReqRef.current;
     setMyLoading(true);
     try {
@@ -115,7 +158,13 @@ export default function ChannelsHubScreen() {
       }
       setMyChannels(response.channels);
     } catch (error) {
-      console.error('[ChannelsHub] Failed to load my channels:', error);
+      const { message, status } = extractRequestErrorInfo(error);
+      const now = Date.now();
+      if (now - lastMyErrorLogAtRef.current > ERROR_LOG_THROTTLE_MS) {
+        lastMyErrorLogAtRef.current = now;
+        const statusTag = status === null ? 'network' : String(status);
+        console.warn(`[ChannelsHub] Failed to load my channels (status=${statusTag}, message=${message})`);
+      }
       if (mountedRef.current && reqId === latestMyReqRef.current) {
         setMyChannels([]);
       }
@@ -125,7 +174,7 @@ export default function ChannelsHubScreen() {
         setMyRefreshing(false);
       }
     }
-  }, []);
+  }, [user?.ID]);
 
   useEffect(() => {
     if (activeTab === 'feed') {

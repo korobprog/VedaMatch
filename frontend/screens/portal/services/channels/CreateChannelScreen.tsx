@@ -25,7 +25,7 @@ export default function CreateChannelScreen() {
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, roleTheme.gradient), [colors, roleTheme.gradient]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -121,8 +121,20 @@ export default function CreateChannelScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
-  StyleSheet.create({
+const createStyles = (
+  colors: ReturnType<typeof useRoleTheme>['colors'],
+  gradient: ReturnType<typeof useRoleTheme>['roleTheme']['gradient']
+) => {
+  const gradientToken = (gradient || []).join(',').toLowerCase();
+  const useLightText =
+    gradientToken.includes('0b') ||
+    gradientToken.includes('102a43') ||
+    gradientToken.includes('1e3a8a') ||
+    gradientToken.includes('0f172a');
+  const onGradientPrimary = useLightText ? '#F8FAFC' : colors.textPrimary;
+  const onGradientSecondary = useLightText ? '#E2E8F0' : colors.textSecondary;
+
+  return StyleSheet.create({
     gradient: {
       flex: 1,
     },
@@ -148,7 +160,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     headerTitle: {
       flex: 1,
       textAlign: 'center',
-      color: colors.textPrimary,
+      color: onGradientPrimary,
       fontSize: 20,
       fontWeight: '800',
     },
@@ -162,7 +174,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       gap: 10,
     },
     label: {
-      color: colors.textPrimary,
+      color: onGradientPrimary,
       fontSize: 14,
       fontWeight: '700',
       marginTop: 6,
@@ -213,8 +225,9 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       paddingVertical: 14,
     },
     createButtonText: {
-      color: colors.textPrimary,
+      color: onGradientPrimary,
       fontSize: 16,
       fontWeight: '800',
     },
   });
+};

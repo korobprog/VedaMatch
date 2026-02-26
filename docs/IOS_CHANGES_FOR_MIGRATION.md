@@ -1,5 +1,70 @@
 # IOS Changes For Migration
 
+## 2026-02-26 (CreateChannelScreen contrast fix on dark gradient)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/CreateChannelScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Контраст текста на экране создания канала (`Новый канал`) на темном градиенте:
+  - Было: заголовки/лейблы/текст кнопки использовали `colors.textPrimary`, что на некоторых role-gradient давало слишком темный текст и низкую читаемость.
+  - Стало: добавлен `onGradient` контрастный режим для темных градиентов (`onGradientPrimary/onGradientSecondary`), который принудительно использует светлые оттенки текста поверх темного фона.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/CreateChannelScreen.tsx`:
+```ts
+const useLightText =
+  gradientToken.includes('0b') ||
+  gradientToken.includes('102a43') ||
+  gradientToken.includes('1e3a8a') ||
+  gradientToken.includes('0f172a');
+const onGradientPrimary = useLightText ? '#F8FAFC' : colors.textPrimary;
+```
+
+```ts
+label: {
+  color: onGradientPrimary,
+}
+```
+
+## 2026-02-26 (ChannelsHub: suppress dev RedBox on network failures)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Обработка сетевых ошибок загрузки ленты/каналов:
+  - Было: использовался `console.error(..., error)` в `catch`, что в RN dev поднимало RedBox (`[ChannelsHub] Failed to load feed: AxiosError: Network Error`).
+  - Стало: лог переведен в throttled `console.warn` c коротким сообщением (`status/message`) без передачи объекта ошибки.
+- Защита от сетевого шторма при падении feed-запроса:
+  - Было: после ошибки первой страницы `feedHasMore` оставался `true`, из-за чего `onEndReached` мог продолжать дергать новые страницы и множить ошибки.
+  - Стало: при ошибке загрузки первой страницы выставляется `feedHasMore=false`, что останавливает авто-догрузку до явного refresh.
+- Offline DEV профиль:
+  - Было: для локального fallback пользователя (`ID=999999`) экран продолжал выполнять серверные запросы.
+  - Стало: добавлен ранний выход без сетевых вызовов для `feed` и `my channels`, чтобы не спамить `Network Error` в DEV.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```ts
+if (user?.ID === OFFLINE_DEV_USER_ID) {
+  setFeedHasMore(false);
+  return;
+}
+```
+
+```ts
+const { message, status } = extractRequestErrorInfo(error);
+console.warn(`[ChannelsHub] Failed to load feed (status=${statusTag}, message=${message})`);
+```
+
+```ts
+if (mountedRef.current && reqId === latestFeedReqRef.current && page === 1) {
+  setFeedHasMore(false);
+}
+```
+
 ## 2026-02-26 (iOS push token flow: remove redundant RNFirebase registration warning)
 
 ### Измененные файлы

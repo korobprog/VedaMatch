@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"mime/multipart"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
@@ -21,6 +22,7 @@ type channelService interface {
 	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
 	UpdateChannel(channelID, actorID uint, req models.ChannelUpdateRequest) (*models.Channel, error)
 	UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error)
+	UploadChannelCover(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.Channel, error)
 	AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error)
 	ListMembers(channelID, actorID uint) ([]models.ChannelMember, error)
 	UpdateMemberRole(channelID, actorID, memberUserID uint, role models.ChannelMemberRole) (*models.ChannelMember, error)
@@ -33,6 +35,12 @@ type channelService interface {
 	PublishPost(channelID, postID, actorID uint) (*models.ChannelPost, error)
 	SchedulePost(channelID, postID, actorID uint, scheduledAt time.Time) (*models.ChannelPost, error)
 	TrackCTAClick(channelID, postID, viewerID uint) error
+	TrackPostView(channelID, postID, viewerID uint) error
+	SetPostReaction(channelID, postID, userID uint, emoji string) (*models.ChannelPost, error)
+	RemovePostReaction(channelID, postID, userID uint) (*models.ChannelPost, error)
+	ListPostComments(channelID, postID, viewerID uint, limit int, cursorID uint) ([]models.ChannelPostComment, error)
+	AddPostComment(channelID, postID, userID uint, body string) (*models.ChannelPostComment, error)
+	TrackPostShare(channelID, postID, viewerID uint) error
 	TrackPromotedAdClick(adID uint, viewerID uint) error
 	GetFeed(filters services.ChannelFeedFilters) (*models.ChannelFeedResponse, error)
 	CreateShowcase(channelID, actorID uint, req models.ChannelShowcaseCreateRequest) (*models.ChannelShowcase, error)
@@ -216,6 +224,32 @@ func (h *ChannelHandler) UpdateBranding(c *fiber.Ctx) error {
 		return respondChannelError(c, err)
 	}
 
+	return c.JSON(channel)
+}
+
+func (h *ChannelHandler) UploadCover(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	fileHeader, err := c.FormFile("cover")
+	if err != nil || fileHeader == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cover file is required"})
+	}
+
+	channel, err := h.service.UploadChannelCover(channelID, userID, fileHeader)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
 	return c.JSON(channel)
 }
 
@@ -570,6 +604,182 @@ func (h *ChannelHandler) TrackCTAClick(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true})
 }
 
+func (h *ChannelHandler) TrackPostView(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	if err := h.service.TrackPostView(channelID, postID, viewerID); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func (h *ChannelHandler) SetPostReaction(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	post, err := h.service.SetPostReaction(channelID, postID, userID, req.Emoji)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(post)
+}
+
+func (h *ChannelHandler) RemovePostReaction(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	post, err := h.service.RemovePostReaction(channelID, postID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(post)
+}
+
+func (h *ChannelHandler) ListPostComments(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	viewerID := middleware.GetUserID(c)
+
+	limit := parseQueryIntWithDefault(c, "limit", 20)
+	var cursorID uint
+	cursorRaw := strings.TrimSpace(c.Query("cursor"))
+	if cursorRaw != "" {
+		parsed, parseErr := strconv.ParseUint(cursorRaw, 10, 32)
+		if parseErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cursor"})
+		}
+		cursorID = uint(parsed)
+	}
+
+	comments, err := h.service.ListPostComments(channelID, postID, viewerID, limit, cursorID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	var nextCursor *uint
+	if len(comments) == limit {
+		lastID := comments[len(comments)-1].ID
+		nextCursor = &lastID
+	}
+
+	return c.JSON(fiber.Map{
+		"comments":   comments,
+		"nextCursor": nextCursor,
+	})
+}
+
+func (h *ChannelHandler) AddPostComment(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	comment, err := h.service.AddPostComment(channelID, postID, userID, req.Body)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(comment)
+}
+
+func (h *ChannelHandler) TrackPostShare(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "channelId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	if err := h.service.TrackPostShare(channelID, postID, viewerID); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
 func (h *ChannelHandler) TrackPromotedAdClick(c *fiber.Ctx) error {
 	if err := h.ensureFeatureEnabled(c); err != nil {
 		return err
@@ -834,6 +1044,11 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrChannelForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	case errors.Is(err, services.ErrPostEditWindow):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+			"code":  "POST_EDIT_WINDOW_EXPIRED",
+		})
 	case errors.Is(err, services.ErrInvalidPayload), errors.Is(err, services.ErrInvalidPostStatus):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	case strings.Contains(msg, "not found"):
