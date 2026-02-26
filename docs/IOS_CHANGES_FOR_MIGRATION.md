@@ -524,7 +524,7 @@ identity: 'Dev'
   - Стало: `API_KEY = AIzaSyCFipO88EX0xchqWqBOt3ODNx7YyjZLQHg`.
 - Bundle id в iOS plist:
   - Было: `BUNDLE_ID = org.reactjs.native.example.vedamatch`.
-  - Стало: `BUNDLE_ID = com.vedicai.vedamatch`.
+  - Стало: `BUNDLE_ID = com.VedaMatch.vedamatch`.
 - Защита от падения при невалидной Firebase-конфигурации:
   - Было: безусловный вызов `[FIRApp configure]`.
   - Стало: перед конфигурацией проверяется `API_KEY` (`AIza...`, длина 39); при невалидном ключе Firebase пропускается и приложение не падает.
@@ -542,7 +542,7 @@ identity: 'Dev'
 ```
 ```xml
 <key>BUNDLE_ID</key>
-<string>com.vedicai.vedamatch</string>
+<string>com.VedaMatch.vedamatch</string>
 ```
 
 `frontend/ios/vedamatch/AppDelegate.mm`:
@@ -2075,17 +2075,17 @@ const sanitizeApiBaseUrl = (url: string): string => {
   - скрипт запускал bundle id `org.reactjs.native.example.vedamatch` (legacy);
   - на симуляторе/виртуалке могли существовать два приложения `VedaMatch` с разными bundle id, и запускался старый экземпляр с устаревшим env.
 - New:
-  - launch id обновлен на актуальный `com.vedicai.vedamatch` (как в `frontend/ios/vedamatch.xcodeproj/project.pbxproj`).
+  - launch id обновлен на актуальный `com.VedaMatch.vedamatch` (как в `frontend/ios/vedamatch.xcodeproj/project.pbxproj`).
 
 ### Code Snippets
 
 `run-ios.js`:
 ```js
-execSync(`xcrun simctl launch "${targetDevice.udid}" com.vedicai.vedamatch`, { stdio: 'inherit' });
+execSync(`xcrun simctl launch "${targetDevice.udid}" com.VedaMatch.vedamatch`, { stdio: 'inherit' });
 ```
 
 ### Validation
-- Проверено по конфигу iOS target: `PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatch`.
+- Проверено по конфигу iOS target: `PRODUCT_BUNDLE_IDENTIFIER = com.VedaMatch.vedamatch`.
 - Portal/widget regression tests — success.
 
 ## 2026-02-24 (Top Bar Contrast Fix: Rooms/Service Header + Widget Header)
@@ -2775,3 +2775,26 @@ const markMediaBroken = (url?: string) => {
 
 ### Validation
 - `pnpm -C admin exec tsc --noEmit` — success.
+
+## 2026-02-27 (iOS production version bump for release install)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Версия iOS production перед установкой на устройство:
+  - Было: `MARKETING_VERSION = 1.1.15`, `CURRENT_PROJECT_VERSION = 7`
+  - Стало: `MARKETING_VERSION = 1.1.16`, `CURRENT_PROJECT_VERSION = 8`
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+MARKETING_VERSION = 1.1.15;
+CURRENT_PROJECT_VERSION = 7;
+```
+
+```pbxproj
+MARKETING_VERSION = 1.1.16;
+CURRENT_PROJECT_VERSION = 8;
+```

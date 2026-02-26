@@ -60,7 +60,7 @@ func createYatraHandlerUser(t *testing.T, db *gorm.DB, suffix string, role strin
 	t.Helper()
 	invite := strings.ToUpper(fmt.Sprintf("H%07d", time.Now().UnixNano()%10000000))
 	user := models.User{
-		Email:             fmt.Sprintf("yatra-handler-it-%s-%d@vedicai.local", suffix, time.Now().UnixNano()),
+		Email:             fmt.Sprintf("yatra-handler-it-%s-%d@VedaMatch.local", suffix, time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "Handler",
 		IsProfileComplete: true,

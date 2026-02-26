@@ -179,7 +179,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         >
                             {/* App Branding */}
                             <View style={styles.brandingRow}>
-                                <Text style={styles.brandingText}>VedicAI</Text>
+                                <Text style={styles.brandingText}>Veda Match</Text>
                                 <Text style={styles.brandingSubtext}>Духовный Кошелёк</Text>
                             </View>
 

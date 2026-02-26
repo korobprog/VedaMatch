@@ -5,7 +5,7 @@ Date: 2026-02-14
 ## Быстрый запуск (автоматизированный)
 
 Используйте скрипт:
-- `/Users/mamu/Documents/vedicai/script/push_staging_smoke_run.sh`
+- `/Users/mamu/Documents/VedaMatch/script/push_staging_smoke_run.sh`
 
 Обязательные переменные:
 - `API_URL` (с суффиксом `/api`)
@@ -26,7 +26,7 @@ export CLIENT_PUSH_TOKEN="<real-fcm-token-client-device>"
 export PROVIDER_PLATFORM="android"
 export CLIENT_PLATFORM="ios"
 
-/Users/mamu/Documents/vedicai/script/push_staging_smoke_run.sh
+/Users/mamu/Documents/VedaMatch/script/push_staging_smoke_run.sh
 ```
 
 Что делает скрипт:

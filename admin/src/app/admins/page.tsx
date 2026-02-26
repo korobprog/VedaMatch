@@ -77,7 +77,7 @@ export default function AdminsPage() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         className="w-full bg-[var(--secondary)] border-none rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                                        placeholder="admin@vedicai.com"
+                                        placeholder="admin@VedaMatch.com"
                                         required
                                     />
                                 </div>
@@ -105,8 +105,8 @@ export default function AdminsPage() {
                                         type="button"
                                         onClick={() => setRole('admin')}
                                         className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${role === 'admin'
-                                                ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                                                : 'bg-[var(--secondary)] text-[var(--muted-foreground)] border-transparent'
+                                            ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                                            : 'bg-[var(--secondary)] text-[var(--muted-foreground)] border-transparent'
                                             }`}
                                     >
                                         ADMIN
@@ -115,8 +115,8 @@ export default function AdminsPage() {
                                         type="button"
                                         onClick={() => setRole('superadmin')}
                                         className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${role === 'superadmin'
-                                                ? 'bg-purple-600 text-white border-purple-600'
-                                                : 'bg-[var(--secondary)] text-[var(--muted-foreground)] border-transparent'
+                                            ? 'bg-purple-600 text-white border-purple-600'
+                                            : 'bg-[var(--secondary)] text-[var(--muted-foreground)] border-transparent'
                                             }`}
                                     >
                                         SUPER ADMIN

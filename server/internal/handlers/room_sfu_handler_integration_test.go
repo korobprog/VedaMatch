@@ -62,7 +62,7 @@ func createRoomIntegrationUser(t *testing.T, suffix string) models.User {
 	now := time.Now().UnixNano()
 	inviteCode := makeTestInviteCode()
 	user := models.User{
-		Email:             fmt.Sprintf("room-sfu-%s-%d@vedicai.local", suffix, now),
+		Email:             fmt.Sprintf("room-sfu-%s-%d@VedaMatch.local", suffix, now),
 		Password:          "hash",
 		KarmicName:        "Room",
 		IsProfileComplete: true,

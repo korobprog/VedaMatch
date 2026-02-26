@@ -1208,7 +1208,7 @@ index 0000000..644b7b9
 +++ b/node_modules/react-native-svg/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
 @@ -0,0 +1,2 @@
 +<?xml version="1.0" encoding="utf-8"?>
-+<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/build/generated/res/resValues/debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/build/generated/res/resValues/debug"/></dataSet><mergedItems/></merger>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/build/generated/res/resValues/debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/build/generated/res/resValues/debug"/></dataSet><mergedItems/></merger>
 \ No newline at end of file
 diff --git a/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml b/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
 new file mode 100644
@@ -1217,7 +1217,7 @@ index 0000000..6571dba
 +++ b/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
 @@ -0,0 +1,2 @@
 +<?xml version="1.0" encoding="utf-8"?>
-+<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/jniLibs"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/debug/jniLibs"/></dataSet></merger>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/jniLibs"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/debug/jniLibs"/></dataSet></merger>
 \ No newline at end of file
 diff --git a/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugShaders/merger.xml b/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
 new file mode 100644
@@ -1226,7 +1226,7 @@ index 0000000..8d3cb12
 +++ b/node_modules/react-native-svg/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
 @@ -0,0 +1,2 @@
 +<?xml version="1.0" encoding="utf-8"?>
-+<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/shaders"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/debug/shaders"/></dataSet></merger>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/shaders"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/debug/shaders"/></dataSet></merger>
 \ No newline at end of file
 diff --git a/node_modules/react-native-svg/android/build/intermediates/incremental/packageDebugAssets/merger.xml b/node_modules/react-native-svg/android/build/intermediates/incremental/packageDebugAssets/merger.xml
 new file mode 100644
@@ -1235,7 +1235,7 @@ index 0000000..e389c47
 +++ b/node_modules/react-native-svg/android/build/intermediates/incremental/packageDebugAssets/merger.xml
 @@ -0,0 +1,2 @@
 +<?xml version="1.0" encoding="utf-8"?>
-+<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/debug/assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/build/intermediates/shader_assets/debug/compileDebugShaders/out"/></dataSet></merger>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/debug/assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/build/intermediates/shader_assets/debug/compileDebugShaders/out"/></dataSet></merger>
 \ No newline at end of file
 diff --git a/node_modules/react-native-svg/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/viewmanagers/RNSVGCircleManagerDelegate.class b/node_modules/react-native-svg/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/facebook/react/viewmanagers/RNSVGCircleManagerDelegate.class
 new file mode 100644
@@ -2706,19 +2706,19 @@ index 0000000..bcbe635
 @@ -0,0 +1,15 @@
 +-- Merging decision tree log ---
 +manifest
-+ADDED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:1-2:12
-+INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:1-2:12
++ADDED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:1-2:12
++INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:1-2:12
 +	package
-+		ADDED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:11-36
-+		INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
++		ADDED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml:1:11-36
++		INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
 +uses-sdk
-+INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
-+INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
-+INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
++INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
++INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
 +	android:targetSdkVersion
-+		INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
++		INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
 +	android:minSdkVersion
-+		INJECTED from /Users/mamu/Documents/vedicai/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
++		INJECTED from /Users/mamu/Documents/VedaMatch/frontend/node_modules/react-native-svg/android/src/main/AndroidManifest.xml
 diff --git a/node_modules/react-native-svg/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin b/node_modules/react-native-svg/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
 new file mode 100644
 index 0000000..3bd3840

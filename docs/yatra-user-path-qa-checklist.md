@@ -7,7 +7,7 @@
 Сценарий покрывает путь `publish -> join -> approve/reject -> chat -> broadcast -> remove`.
 
 Скрипт:
-- `/Users/mamu/Documents/vedicai/script/yatra_user_path_smoke.sh`
+- `/Users/mamu/Documents/VedaMatch/script/yatra_user_path_smoke.sh`
 
 Пример запуска:
 
@@ -17,7 +17,7 @@ ORGANIZER_TOKEN="..." \
 PILGRIM_TOKEN="..." \
 SECOND_PILGRIM_TOKEN="..." \
 ADMIN_TOKEN="..." \
-/Users/mamu/Documents/vedicai/script/yatra_user_path_smoke.sh
+/Users/mamu/Documents/VedaMatch/script/yatra_user_path_smoke.sh
 ```
 
 Критерий PASS:

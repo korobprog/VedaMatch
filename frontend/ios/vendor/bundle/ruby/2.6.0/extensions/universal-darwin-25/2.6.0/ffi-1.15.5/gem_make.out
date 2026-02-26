@@ -1,4 +1,4 @@
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
 /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20260130-27147-4ikz4o.rb extconf.rb
 checking for ffi.h... no
 checking for ffi.h in /usr/local/include,/usr/include/ffi,/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/ffi,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/ffi... yes
@@ -10,10 +10,10 @@ checking for whether -pthread is accepted as LDFLAGS... yes
 creating extconf.h
 creating Makefile
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
 make "DESTDIR=" clean
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
 make "DESTDIR="
 compiling AbstractMemory.c
 AbstractMemory.c:1100:17: warning: '(' and '{' tokens introducing statement expression appear in different macro expansion contexts [-Wcompound-token-split-by-macro]
@@ -4088,6 +4088,6 @@ compiling ffi.c
 linking shared-object ffi_c.bundle
 ld: warning: search path '/AppleInternal/Library/BuildRoots/4~CB3uugBQxypsiyQCrI82QcTPBCns7_J7YMudMGY/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.Internal.sdk/usr/local/lib' not found
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/ffi-1.15.5/ext/ffi_c
 make "DESTDIR=" install
 /usr/bin/install -c -m 0755 ffi_c.bundle ./.gem.20260130-27147-mtgylx

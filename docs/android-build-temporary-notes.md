@@ -5,7 +5,7 @@ Date: 2026-02-21
 ## What was temporarily disabled to make `installDebug` build pass
 
 1. Android autolinking for LiveKit modules in:
-`/Users/mamu/Documents/vedicai/frontend/react-native.config.js`
+`/Users/mamu/Documents/VedaMatch/frontend/react-native.config.js`
 
 Disabled entries:
 - `@livekit/react-native` (`platforms.android = null`)
@@ -20,11 +20,11 @@ Impact:
 ## What was enabled/added (required for Firebase push)
 
 1. Google Services Gradle plugin classpath in:
-`/Users/mamu/Documents/vedicai/frontend/android/build.gradle`
+`/Users/mamu/Documents/VedaMatch/frontend/android/build.gradle`
 - `classpath("com.google.gms:google-services:4.4.2")`
 
 2. Google Services plugin apply in:
-`/Users/mamu/Documents/vedicai/frontend/android/app/build.gradle`
+`/Users/mamu/Documents/VedaMatch/frontend/android/app/build.gradle`
 - `apply plugin: "com.google.gms.google-services"`
 
 3. Correct Android Firebase config file:
@@ -55,4 +55,4 @@ Impact:
   - after any force-stop, relaunch app once before push test.
 
 Related checklist:
-- `/Users/mamu/Documents/vedicai/docs/android-stability-visual-smoke-checklist.md`
+- `/Users/mamu/Documents/VedaMatch/docs/android-stability-visual-smoke-checklist.md`

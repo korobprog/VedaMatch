@@ -74,7 +74,7 @@ func newAuthHandlerWithUserContext(handler *AuthHandler, userID uint) *fiber.App
 func createIntegrationUser(t *testing.T, suffix string) models.User {
 	t.Helper()
 	user := models.User{
-		Email:             fmt.Sprintf("push-it-%s-%d@vedicai.local", suffix, time.Now().UnixNano()),
+		Email:             fmt.Sprintf("push-it-%s-%d@VedaMatch.local", suffix, time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "Push",
 		IsProfileComplete: true,

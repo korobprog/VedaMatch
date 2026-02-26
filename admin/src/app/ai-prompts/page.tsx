@@ -445,7 +445,7 @@ export default function AIPromptsPage() {
                                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         required
                                         rows={6}
-                                        placeholder="Ты — VedicAI, духовный помощник. Отвечай на вопросы о ведической философии..."
+                                        placeholder="Ты — Кришна дас, духовный помощник. Отвечай на вопросы о ведической философии..."
                                         className="w-full bg-[var(--secondary)] border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-[var(--primary)]/20 outline-none resize-none"
                                     />
                                 </div>

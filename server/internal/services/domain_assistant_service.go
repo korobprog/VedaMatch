@@ -512,7 +512,7 @@ func (s *DomainAssistantService) BuildPromptSnippet(ctxResp *DomainContextRespon
 	}
 
 	var b strings.Builder
-	b.WriteString("Assistant context (facts from VedicAI services):\n")
+	b.WriteString("Assistant context (facts from VedaMatch services):\n")
 	for i, src := range ctxResp.Sources {
 		b.WriteString(fmt.Sprintf("[%d] (%s) %s\n", i+1, src.Domain, strings.TrimSpace(src.Snippet)))
 		if src.SourceURL != "" {

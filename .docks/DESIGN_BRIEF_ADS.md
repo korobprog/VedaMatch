@@ -1,4 +1,4 @@
-# Design Brief: VedicAI Объявления
+# Design Brief: VedaMatch Объявления
 
 ## 🎯 Краткое описание
 

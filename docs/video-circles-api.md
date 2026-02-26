@@ -6,11 +6,11 @@
 
 QA checklist для ручной проверки:
 
-- `/Users/mamu/Documents/vedicai/docs/video-circles-qa-checklist.md`
+- `/Users/mamu/Documents/VedaMatch/docs/video-circles-qa-checklist.md`
 
 Go-live checklist:
 
-- `/Users/mamu/Documents/vedicai/docs/video-circles-go-live-checklist.md`
+- `/Users/mamu/Documents/VedaMatch/docs/video-circles-go-live-checklist.md`
 
 ## Base URL
 

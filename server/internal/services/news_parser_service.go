@@ -191,7 +191,7 @@ func (p *RSSParser) Parse(ctx context.Context, sourceURL string) ([]ParsedConten
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", "VedicAI News Bot/1.0")
+	req.Header.Set("User-Agent", "VedaMatch News Bot/1.0")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
@@ -319,7 +319,7 @@ func (p *URLParser) Parse(ctx context.Context, sourceURL string) ([]ParsedConten
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", "VedicAI News Bot/1.0")
+	req.Header.Set("User-Agent", "VedaMatch News Bot/1.0")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 
 	resp, err := p.client.Do(req)

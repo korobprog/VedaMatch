@@ -644,7 +644,7 @@ export default {
     *   Создан профиль для Cyberduck (`server/s3profil/firstvds-s3.cyberduckprofile`) для удобного управления файлами.
     *   Конфигурация бэкенда сохранена в Path-Style режиме для совместимости с FirstVDS.
 
-## Design System: VedicAI "Liquid Glass" (Февраль 2026)
+## Design System: VedaMatch "Liquid Glass" (Февраль 2026)
 
 В феврале 2026 года в проект была внедрена новая дизайн-система для разделов **Marketplace (Services)** и **Wallet**, целью которой является создание ощущения премиального, "дорогого" и технологичного продукта.
 

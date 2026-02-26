@@ -72,7 +72,7 @@ export default function FeedPostsPage() {
             <Rss className="w-8 h-8 text-[var(--primary)]" />
             Feed Posts
           </h1>
-          <p className="text-[var(--muted-foreground)] mt-1">Read-only лента постов из сервиса /api/feed</p>
+          <p className="text-[var(--muted-foreground)] mt-1">Лента постов</p>
         </div>
         <div className="text-sm text-[var(--muted-foreground)]">Total: {total}</div>
       </div>

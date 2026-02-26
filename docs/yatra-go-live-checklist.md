@@ -8,14 +8,14 @@
   - [ ] `go test ./internal/services -run Yatra -count=1`
   - [ ] `go test ./internal/handlers -run Yatra -count=1`
 - [ ] Smoke script готов к запуску:
-  - [ ] `/Users/mamu/Documents/vedicai/script/yatra_user_path_smoke.sh`
+  - [ ] `/Users/mamu/Documents/VedaMatch/script/yatra_user_path_smoke.sh`
 - [ ] Миграции/схема актуальны в staging.
 
 ## B. Staging validation
 
 - [ ] Запустить automated smoke:
   - [ ] `FAIL=0`
-- [ ] Пройти manual mobile smoke по `/Users/mamu/Documents/vedicai/docs/yatra-user-path-qa-checklist.md`
+- [ ] Пройти manual mobile smoke по `/Users/mamu/Documents/VedaMatch/docs/yatra-user-path-qa-checklist.md`
 - [ ] Проверить admin push-health:
   - [ ] `GET /api/admin/push/health/yatra?window_hours=24`
   - [ ] `status != critical`

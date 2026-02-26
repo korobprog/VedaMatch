@@ -32,7 +32,7 @@
 
 Script:
 
-- `/Users/mamu/Documents/vedicai/script/video_circles_smoke.sh`
+- `/Users/mamu/Documents/VedaMatch/script/video_circles_smoke.sh`
 
 Run:
 
@@ -40,7 +40,7 @@ Run:
 API_BASE="http://<host>:8000/api" \
 USER_TOKEN="<user_jwt>" \
 ADMIN_TOKEN="<admin_jwt>" \
-bash /Users/mamu/Documents/vedicai/script/video_circles_smoke.sh
+bash /Users/mamu/Documents/VedaMatch/script/video_circles_smoke.sh
 ```
 
 Expected:
@@ -52,7 +52,7 @@ Expected:
 
 Reference:
 
-- `/Users/mamu/Documents/vedicai/docs/video-circles-qa-checklist.md`
+- `/Users/mamu/Documents/VedaMatch/docs/video-circles-qa-checklist.md`
 
 Mandatory pass cases:
 

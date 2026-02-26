@@ -60,7 +60,7 @@ func setupLKMTopupIntegrationDB(t *testing.T) *gorm.DB {
 func createLKMTopupTestUser(t *testing.T, db *gorm.DB, suffix string) models.User {
 	t.Helper()
 	user := models.User{
-		Email:             fmt.Sprintf("lkm-topup-%s-%d@vedicai.local", suffix, time.Now().UnixNano()),
+		Email:             fmt.Sprintf("lkm-topup-%s-%d@VedaMatch.local", suffix, time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "LKM Test",
 		Role:              models.RoleUser,

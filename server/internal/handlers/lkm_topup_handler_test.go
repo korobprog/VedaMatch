@@ -100,7 +100,7 @@ func setupLKMTopupHandlerApp(t *testing.T) (*fiber.App, *gorm.DB, models.User) {
 func createLKMTopupHandlerUser(t *testing.T, db *gorm.DB, suffix string) models.User {
 	t.Helper()
 	user := models.User{
-		Email:             fmt.Sprintf("lkm-handler-%s-%d@vedicai.local", suffix, time.Now().UnixNano()),
+		Email:             fmt.Sprintf("lkm-handler-%s-%d@VedaMatch.local", suffix, time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "handler",
 		Role:              models.RoleUser,

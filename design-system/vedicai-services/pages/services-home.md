@@ -1,6 +1,6 @@
 # Services Home Page Overrides
 
-> **PROJECT:** VedicAI Services
+> **PROJECT:** VedaMatch Services
 > **Generated:** 2026-02-04 23:01:12
 > **Page Type:** Landing / Marketing
 

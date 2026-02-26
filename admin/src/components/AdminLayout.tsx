@@ -141,7 +141,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center shrink-0">
                             <ShieldAlert className="w-5 h-5 text-white" />
                         </div>
-                        {isSidebarOpen && <span className="font-bold text-xl tracking-tight">VedicAI</span>}
+                        {isSidebarOpen && <span className="font-bold text-xl tracking-tight">Veda Match</span>}
                     </div>
 
                     <nav className="flex-1 px-3 space-y-1">
@@ -247,7 +247,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                     <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center">
                                         <ShieldAlert className="w-5 h-5 text-white" />
                                     </div>
-                                    <span className="font-bold text-xl">VedicAI</span>
+                                    <span className="font-bold text-xl">VedaMatch</span>
                                 </div>
                                 <button
                                     className="p-2 hover:bg-[var(--secondary)] rounded-lg"

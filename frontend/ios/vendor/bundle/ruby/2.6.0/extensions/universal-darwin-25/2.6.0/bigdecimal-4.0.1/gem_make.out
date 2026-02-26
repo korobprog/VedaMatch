@@ -1,4 +1,4 @@
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
 /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20260130-28352-1mas7bq.rb extconf.rb
 checking for __builtin_clz()... yes
 checking for __builtin_clzl()... yes
@@ -19,10 +19,10 @@ checking for rb_category_warn() in ruby.h... no
 checking for RB_WARN_CATEGORY_DEPRECATED in ruby.h... no
 creating Makefile
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
 make "DESTDIR=" clean
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
 make "DESTDIR="
 compiling bigdecimal.c
 bigdecimal.c:1108:34: warning: '(' and '{' tokens introducing statement expression appear in different macro expansion contexts [-Wcompound-token-split-by-macro]
@@ -534,6 +534,6 @@ compiling missing.c
 linking shared-object bigdecimal.bundle
 ld: warning: search path '/AppleInternal/Library/BuildRoots/4~CB3uugBQxypsiyQCrI82QcTPBCns7_J7YMudMGY/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.Internal.sdk/usr/local/lib' not found
 
-current directory: /Users/mamu/Documents/vedicai/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
+current directory: /Users/mamu/Documents/VedaMatch/frontend/ios/vendor/bundle/ruby/2.6.0/gems/bigdecimal-4.0.1/ext/bigdecimal
 make "DESTDIR=" install
 /usr/bin/install -c -m 0755 bigdecimal.bundle ./.gem.20260130-28352-b45yaw

@@ -66,7 +66,7 @@ func setupMultimediaHandlerIntegrationDB(t *testing.T) *gorm.DB {
 func createMultimediaHandlerTestUser(t *testing.T, db *gorm.DB) models.User {
 	t.Helper()
 	user := models.User{
-		Email:             fmt.Sprintf("multimedia-handler-%d@vedicai.local", time.Now().UnixNano()),
+		Email:             fmt.Sprintf("multimedia-handler-%d@VedaMatch.local", time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "MMHandler",
 		IsProfileComplete: true,

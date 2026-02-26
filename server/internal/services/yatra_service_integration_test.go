@@ -78,7 +78,7 @@ func createYatraIntegrationUser(t *testing.T, db *gorm.DB, suffix string) models
 
 	invite := strings.ToUpper(fmt.Sprintf("Y%07d", time.Now().UnixNano()%10000000))
 	user := models.User{
-		Email:             fmt.Sprintf("yatra-it-%s-%d@vedicai.local", suffix, time.Now().UnixNano()),
+		Email:             fmt.Sprintf("yatra-it-%s-%d@VedaMatch.local", suffix, time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "Yatra",
 		IsProfileComplete: true,

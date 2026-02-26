@@ -1,7 +1,7 @@
 # Store Submission Packet (P0) — VedaMatch
 
 ## 0) Build identity (фиксируем перед сабмитом)
-- iOS bundle id: `com.vedicai.vedamatch`
+- iOS bundle id: `com.VedaMatch.vedamatch`
 - iOS version/build: `1.1.0 (2)`
 - Android applicationId: `com.ragagent`
 - Android versionName/versionCode: `1.1.0 / 2`

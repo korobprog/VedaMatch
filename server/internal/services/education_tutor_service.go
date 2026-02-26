@@ -535,14 +535,14 @@ func (s *EducationTutorService) generateTutorReply(
 func (s *EducationTutorService) buildTutorSystemPrompt(language string, ctxResp *DomainContextResponse, weakTopics []WeakTopicSnapshot) string {
 	var b strings.Builder
 	if language == "ru" {
-		b.WriteString("Ты AI Tutor для раздела Education в приложении VedicAI.\n")
+		b.WriteString("Ты AI Tutor для раздела Education в приложении VedaMatch.\n")
 		b.WriteString("Правила:\n")
 		b.WriteString("- Используй только факты из Assistant context.\n")
 		b.WriteString("- Если фактов недостаточно, ответь ровно: \"не найдено достаточно данных\".\n")
 		b.WriteString("- Давай краткое, понятное и практичное объяснение.\n")
 		b.WriteString("- В конце всегда добавляй 1-2 источника.\n")
 	} else {
-		b.WriteString("You are AI Tutor for Education in VedicAI.\n")
+		b.WriteString("You are AI Tutor for Education in VedaMatch.\n")
 		b.WriteString("Rules:\n")
 		b.WriteString("- Use only facts from Assistant context.\n")
 		b.WriteString("- If facts are insufficient, answer exactly: \"не найдено достаточно данных\".\n")

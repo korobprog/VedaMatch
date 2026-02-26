@@ -66,7 +66,7 @@ func setupMultimediaServiceIntegrationDB(t *testing.T) *gorm.DB {
 func createMultimediaTestUser(t *testing.T, db *gorm.DB) models.User {
 	t.Helper()
 	user := models.User{
-		Email:             fmt.Sprintf("multimedia-it-%d@vedicai.local", time.Now().UnixNano()),
+		Email:             fmt.Sprintf("multimedia-it-%d@VedaMatch.local", time.Now().UnixNano()),
 		Password:          "hash",
 		KarmicName:        "MMUser",
 		IsProfileComplete: true,

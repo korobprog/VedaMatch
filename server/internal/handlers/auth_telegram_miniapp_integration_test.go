@@ -100,7 +100,7 @@ func TestAuthTelegramMiniAppLogin_SuccessForLinkedUser(t *testing.T) {
 
 	telegramID := int64(700001)
 	_ = createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
-		Email:          fmt.Sprintf("linked-%d@vedicai.local", time.Now().UnixNano()),
+		Email:          fmt.Sprintf("linked-%d@VedaMatch.local", time.Now().UnixNano()),
 		Password:       "password123",
 		TelegramUserID: &telegramID,
 	})
@@ -156,7 +156,7 @@ func TestAuthTelegramMiniAppLink_Success(t *testing.T) {
 	setupAuthTelegramMiniAppIntegrationDB(t)
 	app := newAuthTelegramMiniAppTestApp()
 
-	email := fmt.Sprintf("link-%d@vedicai.local", time.Now().UnixNano())
+	email := fmt.Sprintf("link-%d@VedaMatch.local", time.Now().UnixNano())
 	user := createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
 		Email:    email,
 		Password: "password123",
@@ -198,12 +198,12 @@ func TestAuthTelegramMiniAppLink_Conflict(t *testing.T) {
 
 	telegramID := int64(703333)
 	_ = createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
-		Email:          fmt.Sprintf("owner-%d@vedicai.local", time.Now().UnixNano()),
+		Email:          fmt.Sprintf("owner-%d@VedaMatch.local", time.Now().UnixNano()),
 		Password:       "password123",
 		TelegramUserID: &telegramID,
 	})
 
-	email := fmt.Sprintf("target-%d@vedicai.local", time.Now().UnixNano())
+	email := fmt.Sprintf("target-%d@VedaMatch.local", time.Now().UnixNano())
 	_ = createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
 		Email:    email,
 		Password: "password123",
@@ -236,7 +236,7 @@ func TestAuthTelegramMiniAppLink_RebindForSameUser(t *testing.T) {
 	app := newAuthTelegramMiniAppTestApp()
 
 	oldTelegramID := int64(704444)
-	email := fmt.Sprintf("rebind-%d@vedicai.local", time.Now().UnixNano())
+	email := fmt.Sprintf("rebind-%d@VedaMatch.local", time.Now().UnixNano())
 	user := createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
 		Email:          email,
 		Password:       "password123",

@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** VedicAI Wallet
+**Project:** VedaMatch Wallet
 **Generated:** 2026-02-04 22:56:38
 **Category:** Fintech/Crypto
 

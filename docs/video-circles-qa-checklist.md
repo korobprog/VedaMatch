@@ -7,7 +7,7 @@
 
 Скрипт:
 
-- `/Users/mamu/Documents/vedicai/script/video_circles_smoke.sh`
+- `/Users/mamu/Documents/VedaMatch/script/video_circles_smoke.sh`
 
 Пример запуска:
 
@@ -15,7 +15,7 @@
 API_BASE="http://localhost:8080/api" \
 USER_TOKEN="<user_jwt>" \
 ADMIN_TOKEN="<admin_jwt>" \
-bash /Users/mamu/Documents/vedicai/script/video_circles_smoke.sh
+bash /Users/mamu/Documents/VedaMatch/script/video_circles_smoke.sh
 ```
 
 ## Preconditions

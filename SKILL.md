@@ -1,9 +1,9 @@
 ---
-name: vedicai
+name: VedaMatch
 description: A brief description of what this skill does
 ---
 
-# vedicai
+# VedaMatch
 
 Instructions for the agent to follow when this skill is activated.
 

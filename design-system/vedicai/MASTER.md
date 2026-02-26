@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** VedicAI
+**Project:** VedaMatch
 **Generated:** 2026-02-04 21:29:45
 **Category:** Luxury/Premium Brand
 

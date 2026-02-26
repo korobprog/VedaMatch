@@ -71,7 +71,7 @@ go build -o server cmd/api/main.go
 
 Подробная спецификация:
 
-- `/Users/mamu/Documents/vedicai/docs/video-circles-api.md`
+- `/Users/mamu/Documents/VedaMatch/docs/video-circles-api.md`
 
 ## Структура проекта
 

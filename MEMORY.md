@@ -8,11 +8,16 @@
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
 - Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.
 - Дополнительная runtime-страховка в `frontend/config/api.config.ts`: на iOS любые `localhost/127.0.0.1` автоматически санитизируются в `https://api.vedamatch.ru`, чтобы убрать `Network Error` в login/map при устаревшем env.
-- `run-ios.js` должен запускать только `com.vedicai.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
+- `run-ios.js` должен запускать только `com.VedaMatch.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
 - Для пушей iOS default Firebase app инициализируется нативно в `frontend/ios/vedamatch/AppDelegate.mm` (`[FIRApp configure]` с guard), чтобы исключить warning `No Firebase App '[DEFAULT]'`.
 - В `frontend/index.js` background-handler пушей регистрируется только если `getApps().length > 0`; при отсутствии default app handler пропускается без шумной ошибки в DEV-консоли.
-- `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и актуальный `BUNDLE_ID=com.vedicai.vedamatch`; иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]`.
+- `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и актуальный `BUNDLE_ID=com.VedaMatch.vedamatch`; иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]`.
 - В `frontend/ios/vedamatch/AppDelegate.mm` добавлен runtime-guard для Firebase: при невалидном/пустом `API_KEY` конфигурация Firebase пропускается (`NSLog`) вместо падения приложения.
+
+## iOS Build Troubleshooting
+- Сбой `xcodebuild` в Debug для симулятора с ошибкой `FBReactNativeSpec.h: No such file or directory` (target `ReactCodegen`) связан с отсутствующими сгенерированными iOS codegen-артефактами в `frontend/ios/build/generated/ios`.
+- Рабочий фикс: выполнить `cd frontend/ios && pod install`, затем перезапустить iOS build (`pnpm run ios:dev` или `xcodebuild ... build`).
+- После `pod install` первый прогон может быть очень долгим из-за полного пересбора pod-ов (`React-RCTFabric`, `VisionCamera`, `NitroModules` и др.) без обязательного нового фатального падения.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
@@ -22,8 +27,8 @@
 ## Disk Space / Build Artifacts
 - Диагностика от `2026-02-26`:
   - Свободно на `/System/Volumes/Data`: `~4.6GiB` (`df -h`), раздел заполнен на `98%`.
-  - Главные потребители: `~/Library` (`81G`), `~/Documents/vedicai` (`32G`), `~/.gradle` (`13G`), `~/.android` (`9.1G`).
-- Внутри проекта `vedicai` основной объем в `frontend`:
+  - Главные потребители: `~/Library` (`81G`), `~/Documents/VedaMatch` (`32G`), `~/.gradle` (`13G`), `~/.android` (`9.1G`).
+- Внутри проекта `VedaMatch` основной объем в `frontend`:
   - `frontend/ios` (`20G`): `ios/build` (`9.2G`), `ios/build_release_prod` (`4.7G`), `ios/build_debug_device` (`2.9G`), `ios/build_release` (`2.4G`).
   - `frontend/build` (`5.0G`): временные iOS release build-папки.
   - `frontend/node_modules` (`3.4G`), `frontend/android/app/build` (`1.3G`).
@@ -73,15 +78,16 @@
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
-- Текущие версии (2026-02-26):
-  - Android: `versionCode=16`, `versionName=1.1.14`
-  - iOS: `MARKETING_VERSION=1.1.15`, `CURRENT_PROJECT_VERSION=7`
-- Статус production-сборок (2026-02-26):
+- Текущие версии (2026-02-27):
+  - Android: `versionCode=17`, `versionName=1.1.15`
+  - iOS: `MARKETING_VERSION=1.1.16`, `CURRENT_PROJECT_VERSION=8`
+- Статус production-сборок (2026-02-27):
   - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
-  - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
-  - iOS: `xcodebuild ... -configuration Release ... install` формирует подписанный `.app` в локальном `InstallationBuildProductsLocation`, но не гарантирует выкладку на устройство.
-  - Для фактической установки на iPhone использовать отдельный deploy-шаг (`ios-deploy --bundle <...>.app` или `devicectl device install app`).
-  - iOS устройство (`00008101-000C78913E87001E`, iPhone 12): `ios-deploy --bundle .../vedamatch.app --justlaunch` показал `InstallComplete` и `Installed package .../vedamatch.app`; финальный warning про `DeveloperDiskImage.dmg` относится к debug-attach и не отменяет успешную установку.
+  - Android metadata (`output-metadata.json`): `applicationId=com.ragagent`, `versionCode=17`, `versionName=1.1.15`.
+  - iOS: `xcodebuild ... -configuration Release ... install` успешно (`** INSTALL SUCCEEDED **`), собранный `.app`: `.../DerivedData/vedamatch-prod/.../Applications/vedamatch.app`.
+  - iOS metadata собранного `.app`: `CFBundleIdentifier=com.VedaMatch.vedamatch`, `CFBundleShortVersionString=1.1.16`, `CFBundleVersion=8`.
+  - iOS устройство (`00008101-000C78913E87001E`): через `devicectl` подтверждена установка `com.VedaMatch.vedamatch 1.1.16 (8)`.
+  - На устройстве параллельно остается старый пакет `com.vedicai.vedamatch 1.1.15 (7)`; это другой bundle id.
 - Критичная настройка для iOS сборок с RN bundle script:
   - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` для `Debug/Release` должно быть `ENABLE_USER_SCRIPT_SANDBOXING = NO`.
   - При `YES` возможен сбой `Bundle React Native code and images` с `Operation not permitted` на записи `vedamatch.app/ip.txt` и итогом `** INSTALL FAILED **`.

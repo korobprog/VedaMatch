@@ -1,7 +1,7 @@
 # Task: UI/UX Redesign - Services Module
 
 ## 🎯 Goal
-Upgrade the Services module (Home, My Services, Multi-step creation) to match the premium VedicAI design language: Dark Mode, Glassmorphism, and Gold Accents. Replace all emojis with professional Lucide icons.
+Upgrade the Services module (Home, My Services, Multi-step creation) to match the premium VedaMatch design language: Dark Mode, Glassmorphism, and Gold Accents. Replace all emojis with professional Lucide icons.
 
 ---
 
