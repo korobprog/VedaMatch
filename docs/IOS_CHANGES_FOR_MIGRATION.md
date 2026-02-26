@@ -1,5 +1,126 @@
 # IOS Changes For Migration
 
+## 2026-02-26 (Video Circles CDN policy: fail-fast upload + URL validation)
+
+### Измененные файлы
+- `server/internal/services/video_circle_cdn_policy.go`
+- `server/internal/services/video_circle_service.go`
+- `server/internal/handlers/video_circle_handler.go`
+- `server/internal/services/feed_v2_service.go`
+- `server/internal/handlers/admin_feed_handler.go`
+- `server/internal/services/metrics_service.go`
+- `server/.env.example`
+- `.env.example`
+- `frontend/services/videoCirclesService.ts`
+- `frontend/screens/multimedia/VideoCirclesScreen.tsx`
+- `docs/feed-v2-yandex-cdn-checklist.md`
+- `server/scripts/video_circles_cdn_migration.sql`
+
+### Суть правки (от старого к новому)
+- CDN policy для video circles:
+  - Было: `video-circles/upload` мог падать в локальный fallback (`/uploads/...`) при недоступном S3.
+  - Стало: fail-fast policy — при ошибках S3/CDN upload кружок не создается.
+- Валидация URL в `CreateCircle`:
+  - Было: принимался любой `mediaUrl`/`thumbnailUrl`.
+  - Стало: разрешены только `CDN_BASE_URL` и `S3_PUBLIC_URL` (S3 URL нормализуется в CDN).
+- Feed guard для кружков:
+  - Было: кружки с non-CDN URL попадали в feed без диагностики.
+  - Стало: добавлен warning + метрика `video_circles_non_cdn_detected_total`.
+- Диагностика/метрики:
+  - Добавлены метрики `video_circles_created_total`, `video_circles_create_rejected_non_cdn_total`, `video_circles_upload_s3_fail_total`, `video_circles_non_cdn_detected_total`.
+  - `GET /api/admin/feed/cdn-health` расширен полями `videoCirclesCdnReady` и `videoCirclesUrlPolicy`.
+- iOS/RN UX при ошибках публикации:
+  - Было: generic publish error.
+  - Стало: явные сообщения про недоступность media/CDN сервиса и policy-ошибки URL.
+
+### Сниппеты кода
+
+`server/internal/services/video_circle_cdn_policy.go`:
+```go
+if hasURLPrefix(value, s3PublicURL) {
+    return cdnBaseURL + strings.TrimPrefix(value, s3PublicURL), nil
+}
+return "", ErrVideoCircleMediaURLNotAllowed
+```
+
+`server/internal/handlers/video_circle_handler.go`:
+```go
+if s3Service == nil {
+    _ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+    return "", errors.New("media service is temporarily unavailable")
+}
+```
+
+`server/internal/services/video_circle_service.go`:
+```go
+normalizedMediaURL, err := NormalizeVideoCircleMediaURL(mediaURL)
+if err != nil {
+    _ = GetMetricsService().Increment(MetricVideoCirclesCreateRejectedNonCDN, 1)
+    return nil, err
+}
+```
+
+`frontend/screens/multimedia/VideoCirclesScreen.tsx`:
+```ts
+if (normalizedError.includes('media_service_unavailable')) {
+  return 'Сервис медиа временно недоступен, попробуйте позже';
+}
+```
+
+## 2026-02-26 (Seller orders 404 UX + reliable iOS swipe gestures)
+
+### Измененные файлы
+- `frontend/services/marketService.ts`
+- `frontend/screens/portal/shops/SellerOrdersScreen.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (от старого к новому)
+- RedBox при `GET /orders/seller` с `404`:
+  - Было: `marketService.getSellerOrders` логировал `console.error(..., error)`, что поднимало dev RedBox (`Error fetching seller orders: AxiosError 404`).
+  - Стало: лог переведен в безопасный формат (`console.log` в dev / `console.warn` в prod) без передачи объекта ошибки.
+- Сообщение пользователю при `404` на экране CRM-заказов:
+  - Было: мог отображаться технический текст backend (`Seller shop not found`) или generic fallback.
+  - Стало: отдельный человекочитаемый текст про необходимость создать магазин для аккаунта.
+- Жесты перехода `Portal ↔ WidgetSelection`:
+  - Было: `onTouchStart/onTouchEnd` с ручным расчетом свайпа (на iPhone работало нестабильно, через раз).
+  - Стало: переход на `react-native-gesture-handler` (`GestureDetector + Gesture.Pan`) с порогами `activeOffsetX`/`failOffsetY`, что дает более стабильное распознавание горизонтального свайпа.
+
+### Сниппеты кода
+
+`frontend/services/marketService.ts`:
+```ts
+const logMessage = `[SellerOrders] fetch failed (status=${statusCode}): ${details}`;
+if (__DEV__) {
+    console.log(logMessage);
+} else {
+    console.warn(logMessage);
+}
+```
+
+`frontend/screens/portal/shops/SellerOrdersScreen.tsx`:
+```ts
+if (statusCode === 404) {
+    setOrdersLoadError('CRM-заказы канала доступны только после создания магазина для этого аккаунта.');
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+const portalSwipeGesture = Gesture.Pan()
+  .runOnJS(true)
+  .activeOffsetX([-16, 16])
+  .failOffsetY([-32, 32]);
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```ts
+const portalBackSwipeGesture = Gesture.Pan()
+  .runOnJS(true)
+  .activeOffsetX([-16, 16])
+  .failOffsetY([-32, 32]);
+```
+
 ## 2026-02-26 (Portal <-> Widgets swipe pagination + widget menu UX)
 
 ### Измененные файлы

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"math"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -770,6 +771,10 @@ func (s *FeedV2Service) loadCircleCandidates(userID uint, allowed []uint, isPro 
 	now := time.Now().UTC()
 	result := make([]feedCandidate, 0, len(circles))
 	for _, c := range circles {
+		if strings.TrimSpace(c.MediaURL) == "" || !IsVideoCircleMediaURLAllowed(c.MediaURL) {
+			_ = GetMetricsService().Increment(MetricVideoCirclesNonCDNDetectedTotal, 1)
+			log.Printf("[FeedV2] non_cdn_circle_media_url_detected circle_id=%d media_url=%s", c.ID, strings.TrimSpace(c.MediaURL))
+		}
 		recency := calcRecencyScore(now.Sub(c.CreatedAt), 8.0)
 		engagement := normalizeEngagement(float64(c.LikeCount), float64(c.CommentCount), float64(c.ChatCount))
 		score := 0.58*recency + 0.30*engagement + 0.12*proBoost(isPro)

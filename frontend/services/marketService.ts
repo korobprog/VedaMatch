@@ -362,8 +362,22 @@ class MarketService {
                 params: { page, limit, status, ...extraFilters },
             });
             return response.data;
-        } catch (error) {
-            console.error('Error fetching seller orders:', error);
+        } catch (error: any) {
+            const statusCode = typeof error?.response?.status === 'number' ? error.response.status : 'n/a';
+            const responseData = error?.response?.data;
+            const details = typeof responseData === 'string'
+                ? responseData.trim()
+                : typeof responseData?.error === 'string'
+                    ? responseData.error
+                    : typeof responseData?.message === 'string'
+                        ? responseData.message
+                        : (error?.message || 'Unknown error');
+            const logMessage = `[SellerOrders] fetch failed (status=${statusCode}): ${details}`;
+            if (__DEV__) {
+                console.log(logMessage);
+            } else {
+                console.warn(logMessage);
+            }
             throw error;
         }
     }

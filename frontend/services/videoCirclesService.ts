@@ -127,6 +127,23 @@ const isUploadAbort = (error: unknown): boolean => {
   return axiosError?.code === 'ERR_CANCELED' || axiosError?.code === 'ECONNABORTED';
 };
 
+const isLikelyNonCdnUrl = (value: string): boolean => {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return true;
+  }
+  if (raw.startsWith('/uploads/')) {
+    return true;
+  }
+  try {
+    const parsed = new URL(raw);
+    const host = (parsed.hostname || '').toLowerCase();
+    return !host.includes('cdn.');
+  } catch {
+    return true;
+  }
+};
+
 class VideoCirclesService {
   private readonly uploadTimeoutMs = 3 * 60 * 1000;
 
@@ -145,7 +162,13 @@ class VideoCirclesService {
 
     try {
       const response = await apiClient.get<VideoCircleListResponse>('/video-circles', { params });
-      return response.data;
+      const data = response.data;
+      const circles = Array.isArray(data?.circles) ? data.circles : [];
+      const nonCdnCount = circles.filter((item) => isLikelyNonCdnUrl(item?.mediaUrl || '')).length;
+      if (nonCdnCount > 0) {
+        console.warn(`[VideoCircles] Detected ${nonCdnCount} non-CDN mediaUrl item(s) in feed response`);
+      }
+      return data;
     } catch (error) {
       throw new Error(getApiErrorMessage(error, 'Failed to fetch video circles'));
     }
@@ -261,6 +284,14 @@ class VideoCirclesService {
 
       return response.data;
     } catch (error: unknown) {
+      const axiosError = error as AxiosError<any>;
+      const serverCode = axiosError?.response?.data?.code;
+      if (serverCode === 'MEDIA_URL_NOT_ALLOWED') {
+        throw new Error('MEDIA_URL_NOT_ALLOWED');
+      }
+      if (serverCode === 'CDN_NOT_CONFIGURED') {
+        throw new Error('MEDIA_SERVICE_UNAVAILABLE');
+      }
       if (isUploadAbort(error)) {
         throw new Error('UPLOAD_TIMEOUT');
       }

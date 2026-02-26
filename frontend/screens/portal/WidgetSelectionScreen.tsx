@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Alert,
     AppState,
-    GestureResponderEvent,
     Platform,
     StatusBar,
     StyleSheet,
@@ -10,6 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Film, Gift, LayoutGrid, List, MessageSquare, Plus, Settings } from 'lucide-react-native';
@@ -29,8 +29,8 @@ import { useChat } from '../../context/ChatContext';
 import { resolveServiceLaunch } from './serviceLaunchResolver';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
-const SWIPE_MAX_DURATION_MS = 600;
 const SWIPE_MIN_DISTANCE_PX = 70;
+const SWIPE_MIN_VELOCITY_PX = 650;
 const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
@@ -61,7 +61,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     } = useSettings();
 
     const [isPickerOpen, setIsPickerOpen] = useState(false);
-    const swipeStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
     const openSource = route.params?.source || 'unknown';
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
@@ -156,29 +155,23 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         setIsPickerOpen(true);
     }, [setEditMode]);
 
-    const handleWidgetTouchStart = useCallback((event: GestureResponderEvent) => {
-        const { pageX, pageY } = event.nativeEvent;
-        swipeStartRef.current = { x: pageX, y: pageY, ts: Date.now() };
-    }, []);
-
-    const handleWidgetTouchEnd = useCallback((event: GestureResponderEvent) => {
-        const start = swipeStartRef.current;
-        swipeStartRef.current = null;
-        if (!start) {
-            return;
-        }
-        const { pageX, pageY } = event.nativeEvent;
-        const dx = pageX - start.x;
-        const dy = pageY - start.y;
-        const elapsedMs = Date.now() - start.ts;
-        if (
-            elapsedMs <= SWIPE_MAX_DURATION_MS &&
-            dx >= SWIPE_MIN_DISTANCE_PX &&
-            Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
-        ) {
-            handleBackToPortal();
-        }
-    }, [handleBackToPortal]);
+    const portalBackSwipeGesture = useMemo(
+        () => Gesture.Pan()
+            .runOnJS(true)
+            .maxPointers(1)
+            .activeOffsetX([-16, 16])
+            .failOffsetY([-32, 32])
+            .onEnd((event) => {
+                const isHorizontalSwipe =
+                    event.translationX >= SWIPE_MIN_DISTANCE_PX ||
+                    event.velocityX >= SWIPE_MIN_VELOCITY_PX;
+                const isMostlyHorizontal = Math.abs(event.translationY) <= SWIPE_MAX_VERTICAL_DELTA_PX;
+                if (isHorizontalSwipe && isMostlyHorizontal) {
+                    handleBackToPortal();
+                }
+            }),
+        [handleBackToPortal],
+    );
 
     const navigateResolvedScreen = useCallback((screen: keyof RootStackParamList) => {
         if (screen === 'AppSettings') {
@@ -251,11 +244,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [addWidget]);
 
     const content = (
-        <View
-            style={styles.container}
-            onTouchStart={handleWidgetTouchStart}
-            onTouchEnd={handleWidgetTouchEnd}
-        >
+        <View style={styles.container}>
             <StatusBar barStyle={isPhotoBg || isDarkMode ? 'light-content' : 'dark-content'} />
 
             <View style={styles.header}>
@@ -591,7 +580,9 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 enableAura={!useClassicWallpaper}
                 transparentBackground={useClassicWallpaper}
             >
-                {content}
+                <GestureDetector gesture={portalBackSwipeGesture}>
+                    {content}
+                </GestureDetector>
             </ScreenScaffold>
         </PortalBackgroundLayer>
     );

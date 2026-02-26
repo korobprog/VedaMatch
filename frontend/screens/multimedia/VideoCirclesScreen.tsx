@@ -529,6 +529,15 @@ export const VideoCirclesScreen: React.FC = () => {
     if (normalizedError.includes('matha is required')) {
       return t('videoCircles.requiredMatha');
     }
+    if (normalizedError.includes('media_service_unavailable')) {
+      return 'Сервис медиа временно недоступен, попробуйте позже';
+    }
+    if (normalizedError.includes('media_url_not_allowed')) {
+      return 'Некорректный источник медиа. Используйте видео через CDN';
+    }
+    if (normalizedError.includes('media service is temporarily unavailable')) {
+      return 'Сервис медиа временно недоступен, попробуйте позже';
+    }
     return t('videoCircles.errorPublish');
   }, [t]);
 

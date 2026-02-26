@@ -378,7 +378,24 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	if mediaURL == "" {
 		return nil, errors.New("mediaUrl is required")
 	}
+	normalizedMediaURL, err := NormalizeVideoCircleMediaURL(mediaURL)
+	if err != nil {
+		if errors.Is(err, ErrVideoCircleMediaURLNotAllowed) {
+			_ = GetMetricsService().Increment(MetricVideoCirclesCreateRejectedNonCDN, 1)
+		}
+		return nil, err
+	}
 	thumbnailURL := strings.TrimSpace(req.ThumbnailURL)
+	if thumbnailURL != "" {
+		normalizedThumbnailURL, err := NormalizeVideoCircleMediaURL(thumbnailURL)
+		if err != nil {
+			if errors.Is(err, ErrVideoCircleMediaURLNotAllowed) {
+				_ = GetMetricsService().Increment(MetricVideoCirclesCreateRejectedNonCDN, 1)
+			}
+			return nil, err
+		}
+		thumbnailURL = normalizedThumbnailURL
+	}
 	city := strings.TrimSpace(req.City)
 	category := strings.TrimSpace(req.Category)
 	if category == "" {
@@ -430,7 +447,7 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	circle := models.VideoCircle{
 		AuthorID:           userID,
 		ChannelID:          channelID,
-		MediaURL:           mediaURL,
+		MediaURL:           normalizedMediaURL,
 		ThumbnailURL:       thumbnailURL,
 		City:               city,
 		Matha:              matha,
@@ -444,6 +461,7 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	if err := s.db.Create(&circle).Error; err != nil {
 		return nil, err
 	}
+	_ = GetMetricsService().Increment(MetricVideoCirclesCreatedTotal, 1)
 
 	remaining := remainingSecondsUntil(circle.ExpiresAt, now)
 
@@ -571,7 +589,15 @@ func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, re
 		updates["category"] = category
 	}
 	if req.ThumbnailURL != nil {
-		updates["thumbnail_url"] = strings.TrimSpace(*req.ThumbnailURL)
+		thumbnailURL := strings.TrimSpace(*req.ThumbnailURL)
+		if thumbnailURL != "" {
+			normalizedThumbnailURL, err := NormalizeVideoCircleMediaURL(thumbnailURL)
+			if err != nil {
+				return nil, err
+			}
+			thumbnailURL = normalizedThumbnailURL
+		}
+		updates["thumbnail_url"] = thumbnailURL
 	}
 	if req.Matha != nil {
 		matha := resolveVideoCircleMatha(*req.Matha, actor, role)

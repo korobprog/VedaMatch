@@ -146,6 +146,18 @@ func (h *VideoCircleHandler) CreateVideoCircle(c *fiber.Ctx) error {
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
 		h.sendPublishFailedAsync(userID, err.Error())
+		if errors.Is(err, services.ErrVideoCircleMediaURLNotAllowed) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+				"code":  "MEDIA_URL_NOT_ALLOWED",
+			})
+		}
+		if errors.Is(err, services.ErrVideoCircleCDNNotConfigured) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Media service is temporarily unavailable",
+				"code":  "CDN_NOT_CONFIGURED",
+			})
+		}
 		if errors.Is(err, services.ErrChannelNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -210,8 +222,11 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 			}
 			if generated, fallbackErr := tryGenerateCircleThumbnail(mediaURL); fallbackErr == nil && generated != "" {
 				thumbnailURL = generated
-			} else if fallbackErr != nil {
-				log.Printf("[VideoCircles] thumbnail_fallback_failed media=%s error=%v", mediaURL, fallbackErr)
+			} else {
+				if fallbackErr != nil {
+					log.Printf("[VideoCircles] thumbnail_fallback_failed media=%s error=%v", mediaURL, fallbackErr)
+				}
+				return failPublish(fiber.StatusInternalServerError, "Media service is temporarily unavailable")
 			}
 		}
 	}
@@ -251,6 +266,18 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
 		h.sendPublishFailedAsync(userID, err.Error())
+		if errors.Is(err, services.ErrVideoCircleMediaURLNotAllowed) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+				"code":  "MEDIA_URL_NOT_ALLOWED",
+			})
+		}
+		if errors.Is(err, services.ErrVideoCircleCDNNotConfigured) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Media service is temporarily unavailable",
+				"code":  "CDN_NOT_CONFIGURED",
+			})
+		}
 		if errors.Is(err, services.ErrChannelNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -590,35 +617,29 @@ func parseOptionalChannelIDFromValues(values ...string) (*uint, error) {
 
 func saveUploadedCircleFile(c *fiber.Ctx, fileHeader *multipart.FileHeader, fileKind string) (string, error) {
 	s3Service := services.GetS3Service()
-	if s3Service != nil {
-		reader, err := fileHeader.Open()
-		if err != nil {
-			return "", err
-		}
-		defer reader.Close()
-
-		ext := filepath.Ext(fileHeader.Filename)
-		key := fmt.Sprintf("video-circles/%s/%d_%d%s", fileKind, time.Now().Unix(), time.Now().UnixNano(), ext)
-		contentType := fileHeader.Header.Get("Content-Type")
-		url, err := s3Service.UploadFile(c.UserContext(), reader, key, contentType, fileHeader.Size)
-		if err == nil {
-			return url, nil
-		}
+	if s3Service == nil {
+		_ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+		return "", errors.New("media service is temporarily unavailable")
 	}
-
-	localDir := "./uploads/video-circles/" + fileKind
-	if err := os.MkdirAll(localDir, 0755); err != nil {
+	reader, err := fileHeader.Open()
+	if err != nil {
 		return "", err
 	}
-
+	defer reader.Close()
 	ext := filepath.Ext(fileHeader.Filename)
-	filename := fmt.Sprintf("%d_%d%s", time.Now().Unix(), time.Now().UnixNano(), ext)
-	localPath := filepath.Join(localDir, filename)
-	if err := c.SaveFile(fileHeader, localPath); err != nil {
-		return "", err
+	key := fmt.Sprintf("video-circles/%s/%d_%d%s", fileKind, time.Now().Unix(), time.Now().UnixNano(), ext)
+	contentType := fileHeader.Header.Get("Content-Type")
+	url, err := s3Service.UploadFile(c.UserContext(), reader, key, contentType, fileHeader.Size)
+	if err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+		return "", errors.New("media service is temporarily unavailable")
 	}
-
-	return strings.TrimPrefix(localPath, "."), nil
+	normalizedURL, err := services.NormalizeVideoCircleMediaURL(url)
+	if err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+		return "", errors.New("media service is temporarily unavailable")
+	}
+	return normalizedURL, nil
 }
 
 func tryGenerateCircleThumbnail(mediaURL string) (string, error) {
@@ -644,11 +665,14 @@ func tryGenerateCircleThumbnail(mediaURL string) (string, error) {
 		key := fmt.Sprintf("video-circles/thumbnail/thumb_%d.jpg", time.Now().UnixNano())
 		if url, err := thumbnailService.GenerateAndUploadThumbnail(context.Background(), inputPath, key); err == nil {
 			_ = os.Remove(outputPath)
-			return url, nil
+			normalizedURL, normErr := services.NormalizeVideoCircleMediaURL(url)
+			if normErr == nil {
+				return normalizedURL, nil
+			}
 		}
 	}
-
-	return strings.TrimPrefix(outputPath, "."), nil
+	_ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+	return "", errors.New("media service is temporarily unavailable")
 }
 
 func tryGenerateCircleThumbnailFromUpload(c *fiber.Ctx, videoFile *multipart.FileHeader) (string, error) {
@@ -710,13 +734,16 @@ func tryGenerateCircleThumbnailFromUpload(c *fiber.Ctx, videoFile *multipart.Fil
 				key := fmt.Sprintf("video-circles/thumbnail/thumb_%d.jpg", time.Now().UnixNano())
 				if url, uploadErr := s3Service.UploadFile(c.UserContext(), thumbReader, key, "image/jpeg", stat.Size()); uploadErr == nil {
 					_ = os.Remove(outputPath)
-					return url, nil
+					normalizedURL, normErr := services.NormalizeVideoCircleMediaURL(url)
+					if normErr == nil {
+						return normalizedURL, nil
+					}
 				}
 			}
 		}
 	}
-
-	return strings.TrimPrefix(outputPath, "."), nil
+	_ = services.GetMetricsService().Increment(services.MetricVideoCirclesUploadS3FailTotal, 1)
+	return "", errors.New("media service is temporarily unavailable")
 }
 
 func maybeScheduleVideoCircleCompression(circleID uint, mediaURL string) {

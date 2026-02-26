@@ -30,19 +30,31 @@ CDN_BASE_URL=https://cdn.vedamatch.ru
 
 ## 5. API
 - Feed v2 endpoint: `GET /api/v2/feed`
+- Video circles policy:
+  - `POST /api/video-circles/upload` uses fail-fast S3/CDN upload in production (no local `/uploads` fallback).
+  - `POST /api/video-circles` accepts media URLs only from `CDN_BASE_URL` or `S3_PUBLIC_URL` (S3 normalized to CDN).
 - Admin feed control:
   - `GET/PUT /api/admin/feed/config`
   - `GET /api/admin/feed/metrics`
   - `POST /api/admin/feed/rebuild`
   - `GET /api/admin/feed/cdn-health`
 
-## 6. Validation
+## 6. Metrics (Video Circles + CDN)
+- `video_circles_created_total`
+- `video_circles_create_rejected_non_cdn_total`
+- `video_circles_upload_s3_fail_total`
+- `video_circles_non_cdn_detected_total`
+- `GET /api/admin/feed/cdn-health` now includes:
+  - `videoCirclesCdnReady`
+  - `videoCirclesUrlPolicy` (`cdn_only` or `misconfigured`)
+
+## 7. Validation
 ```bash
 curl -I https://cdn.vedamatch.ru/path/to/file.jpg
 curl -H 'Authorization: Bearer <token>' 'https://api.vedamatch.ru/api/v2/feed?limit=10'
 ```
 
-## 7. Workers smoke
+## 8. Workers smoke
 ```bash
 # Local/dev
 docker compose up -d postgres redis server feed-worker media-worker

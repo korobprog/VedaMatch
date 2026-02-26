@@ -67,6 +67,10 @@ func (h *AdminFeedHandler) GetMetrics(c *fiber.Ctx) error {
 		"feed_v2_circle_impressions_total",
 		"feed_v2_requests_total",
 		"feed_v2_errors_total",
+		services.MetricVideoCirclesCreatedTotal,
+		services.MetricVideoCirclesCreateRejectedNonCDN,
+		services.MetricVideoCirclesUploadS3FailTotal,
+		services.MetricVideoCirclesNonCDNDetectedTotal,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -126,14 +130,22 @@ func (h *AdminFeedHandler) CDNHealth(c *fiber.Ctx) error {
 	cdnBaseURL := strings.TrimSpace(os.Getenv("CDN_BASE_URL"))
 	s3PublicURL := strings.TrimSpace(os.Getenv("S3_PUBLIC_URL"))
 	s3Endpoint := strings.TrimSpace(os.Getenv("S3_ENDPOINT"))
+	videoCirclesCDNReady := services.IsVideoCirclesCDNReady()
 
 	return c.JSON(fiber.Map{
-		"cdnEnabled":    cdnEnabled,
-		"cdnBaseUrl":    cdnBaseURL,
-		"s3PublicUrl":   s3PublicURL,
-		"s3Endpoint":    s3Endpoint,
-		"originHealthy": s3Endpoint != "",
-		"configuredAt":  time.Now().UTC(),
+		"cdnEnabled":           cdnEnabled,
+		"cdnBaseUrl":           cdnBaseURL,
+		"s3PublicUrl":          s3PublicURL,
+		"s3Endpoint":           s3Endpoint,
+		"originHealthy":        s3Endpoint != "",
+		"videoCirclesCdnReady": videoCirclesCDNReady,
+		"videoCirclesUrlPolicy": func() string {
+			if videoCirclesCDNReady {
+				return "cdn_only"
+			}
+			return "misconfigured"
+		}(),
+		"configuredAt": time.Now().UTC(),
 	})
 }
 

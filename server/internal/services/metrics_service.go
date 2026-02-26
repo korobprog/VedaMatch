@@ -50,6 +50,10 @@ const (
 	MetricEduTutorTurnLatencyMsTotal         = "edu_tutor_turn_latency_ms_total"
 	MetricEduTutorRetrievalLatencyMsTotal    = "edu_tutor_retrieval_latency_ms_total"
 	MetricEduTutorRetrievalErrorTotal        = "edu_tutor_retrieval_error_total"
+	MetricVideoCirclesCreatedTotal           = "video_circles_created_total"
+	MetricVideoCirclesCreateRejectedNonCDN   = "video_circles_create_rejected_non_cdn_total"
+	MetricVideoCirclesUploadS3FailTotal      = "video_circles_upload_s3_fail_total"
+	MetricVideoCirclesNonCDNDetectedTotal    = "video_circles_non_cdn_detected_total"
 )
 
 type MetricsService struct {

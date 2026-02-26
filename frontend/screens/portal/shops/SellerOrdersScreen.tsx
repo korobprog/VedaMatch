@@ -103,8 +103,13 @@ export const SellerOrdersScreen: React.FC = () => {
             const fallbackMessage = channelSourceId
                 ? 'Не удалось загрузить CRM-заказы канала. Убедитесь, что у аккаунта есть магазин, и попробуйте снова.'
                 : 'Не удалось загрузить список заказов. Попробуйте снова.';
+            const missingShopMessage = channelSourceId
+                ? 'CRM-заказы канала доступны только после создания магазина для этого аккаунта.'
+                : 'Заказы продавца недоступны, пока не создан магазин.';
 
-            if (statusCode === 500) {
+            if (statusCode === 404) {
+                setOrdersLoadError(missingShopMessage);
+            } else if (statusCode === 500) {
                 setOrdersLoadError(fallbackMessage);
             } else {
                 setOrdersLoadError(serverMessage || fallbackMessage);

@@ -27,7 +27,15 @@
 - Админ-контур управления: `GET/PUT /api/admin/feed/config`, `GET /api/admin/feed/metrics`, `POST /api/admin/feed/rebuild`, `GET /api/admin/feed/cdn-health`, `GET /api/admin/feed/workers-health` (`server/internal/handlers/admin_feed_handler.go`).
 - На мобильном клиенте прямой вызов `feed v2` сейчас используется в `FeedMixWidget` (`frontend/components/portal/FeedMixWidget.tsx`) через `frontend/services/feedService.ts`.
 - CDN для feed-контента берется из `media_assets.cdn_url` как есть; отдельного rewrite внутри `FeedV2Service` нет. Rewrite по `CDN_ENABLED/CDN_BASE_URL` реализован в `VideoService` для multimedia URL.
-- Конфиг-риск: `s3_service.go` ожидает `S3_BUCKET_NAME`, но в `server/.env.example` указан `S3_BUCKET`; при использовании server-шаблона без ручной правки S3/CDN загрузка может не инициализироваться.
+- Для `video_circles` в feed превью-видео берется напрямую из `video_circles.media_url` (`loadCircleCandidates`), без дополнительного CDN-rewrite.
+- Для video circles введена policy `cdn_only`:
+  - `POST /video-circles` принимает только `CDN_BASE_URL` или `S3_PUBLIC_URL` (S3 нормализуется в CDN);
+  - `POST /video-circles/upload` работает в fail-fast режиме (без fallback в локальный `/uploads`).
+- Для мониторинга добавлены метрики:
+  - `video_circles_created_total`
+  - `video_circles_create_rejected_non_cdn_total`
+  - `video_circles_upload_s3_fail_total`
+  - `video_circles_non_cdn_detected_total`
 
 ## Trademark / MKTU Coverage
 - Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.
@@ -52,6 +60,7 @@
   - Android устройство (`com.ragagent`): установлена версия `versionCode=16`, `versionName=1.1.14`.
   - iOS: `xcodebuild ... -configuration Release ... install` формирует подписанный `.app` в локальном `InstallationBuildProductsLocation`, но не гарантирует выкладку на устройство.
   - Для фактической установки на iPhone использовать отдельный deploy-шаг (`ios-deploy --bundle <...>.app` или `devicectl device install app`).
+  - iOS устройство (`00008101-000C78913E87001E`, iPhone 12): `ios-deploy --bundle .../vedamatch.app --justlaunch` показал `InstallComplete` и `Installed package .../vedamatch.app`; финальный warning про `DeveloperDiskImage.dmg` относится к debug-attach и не отменяет успешную установку.
 - Критичная настройка для iOS сборок с RN bundle script:
   - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` для `Debug/Release` должно быть `ENABLE_USER_SCRIPT_SANDBOXING = NO`.
   - При `YES` возможен сбой `Bundle React Native code and images` с `Operation not permitted` на записи `vedamatch.app/ip.txt` и итогом `** INSTALL FAILED **`.
@@ -185,6 +194,8 @@
 - Backend-контракт `GET /orders/seller` обновлен:
   - в `server/internal/services/order_service.go` добавлен sentinel `ErrSellerShopNotFound`;
   - в `server/internal/handlers/order_handler.go` при этой ошибке возвращается `404` (`Seller shop not found`) вместо generic `500`.
+- В `frontend/services/marketService.ts` для `getSellerOrders` логирование переведено на безопасный режим (`console.log` в dev / `console.warn` в prod) без передачи объекта `AxiosError`, чтобы не поднимать RedBox на `404`.
+- В `frontend/screens/portal/shops/SellerOrdersScreen.tsx` для `404` показывается явный UX-текст: CRM-заказы доступны после создания магазина у аккаунта.
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
@@ -236,6 +247,7 @@
   - на главной портала добавлен свайп влево (right-to-left) для открытия `WidgetSelection`;
   - на экране виджетов добавлен свайп вправо (left-to-right) для возврата в портал;
   - на обоих экранах показаны 2 точки пагинации с активным состоянием текущего экрана и подписью направления свайпа.
+  - реализация свайпа переведена с `onTouchStart/onTouchEnd` на `react-native-gesture-handler` (`GestureDetector + Gesture.Pan` с `activeOffsetX/failOffsetY`) для более стабильной работы на iOS.
 - UX меню виджетов (`WidgetSelectionScreen`):
   - добавлена отдельная карточка-подсказка `Как открыть меню виджетов` с явной кнопкой `Открыть меню виджетов`;
   - улучшен контраст текста и рамок toolbar/подсказок в light theme (явные темные цвета текста и мягкая светлая подложка).

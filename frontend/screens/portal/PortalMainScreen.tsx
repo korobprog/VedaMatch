@@ -10,8 +10,8 @@ import {
     Animated,
     AppState,
     BackHandler,
-    GestureResponderEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -67,8 +67,8 @@ import {
 type ServiceTab = EmbeddedPortalTab;
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
 type WidgetSelectionSource = Exclude<NonNullable<RootStackParamList['WidgetSelection']>['source'], undefined>;
-const SWIPE_MAX_DURATION_MS = 600;
 const SWIPE_MIN_DISTANCE_PX = 70;
+const SWIPE_MIN_VELOCITY_PX = 650;
 const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 // Inner component that uses portal layout context
@@ -111,7 +111,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const widgetNavLockRef = useRef(false);
     const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const swipeStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -148,36 +147,26 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }, 450);
     }, [navigation, releaseWidgetNavigationLock]);
 
-    const handleGridTouchStart = useCallback((event: GestureResponderEvent) => {
-        if (activeTab !== null) {
-            return;
-        }
-        const { pageX, pageY } = event.nativeEvent;
-        swipeStartRef.current = { x: pageX, y: pageY, ts: Date.now() };
-    }, [activeTab]);
-
-    const handleGridTouchEnd = useCallback((event: GestureResponderEvent) => {
-        if (activeTab !== null) {
-            swipeStartRef.current = null;
-            return;
-        }
-        const start = swipeStartRef.current;
-        swipeStartRef.current = null;
-        if (!start) {
-            return;
-        }
-        const { pageX, pageY } = event.nativeEvent;
-        const dx = pageX - start.x;
-        const dy = pageY - start.y;
-        const elapsedMs = Date.now() - start.ts;
-        if (
-            elapsedMs <= SWIPE_MAX_DURATION_MS &&
-            dx <= -SWIPE_MIN_DISTANCE_PX &&
-            Math.abs(dy) <= SWIPE_MAX_VERTICAL_DELTA_PX
-        ) {
-            openWidgetSelection('portal_swipe');
-        }
-    }, [activeTab, openWidgetSelection]);
+    const portalSwipeGesture = useMemo(
+        () => Gesture.Pan()
+            .runOnJS(true)
+            .maxPointers(1)
+            .activeOffsetX([-16, 16])
+            .failOffsetY([-32, 32])
+            .onEnd((event) => {
+                if (activeTab !== null) {
+                    return;
+                }
+                const isHorizontalSwipe =
+                    event.translationX <= -SWIPE_MIN_DISTANCE_PX ||
+                    event.velocityX <= -SWIPE_MIN_VELOCITY_PX;
+                const isMostlyHorizontal = Math.abs(event.translationY) <= SWIPE_MAX_VERTICAL_DELTA_PX;
+                if (isHorizontalSwipe && isMostlyHorizontal) {
+                    openWidgetSelection('portal_swipe');
+                }
+            }),
+        [activeTab, openWidgetSelection],
+    );
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -472,11 +461,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     enableAura={!useClassicWallpaper}
                     transparentBackground={useClassicWallpaper}
                 >
-                <View
-                    style={styles.gridRoot}
-                    onTouchStart={handleGridTouchStart}
-                    onTouchEnd={handleGridTouchEnd}
-                >
+                <GestureDetector gesture={portalSwipeGesture}>
+                <View style={styles.gridRoot}>
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
@@ -733,6 +719,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 />
                 <NotificationPanel />
                 </View>
+                </GestureDetector>
                 </ScreenScaffold>
             </PortalBackgroundLayer>
         );
