@@ -28,7 +28,7 @@ type VideoCircleHandler struct {
 type VideoCircleService interface {
 	ListCircles(userID uint, role string, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error)
 	CreateCircle(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error)
-	ListMyCircles(userID uint, page, limit int) (*models.VideoCircleListResponse, error)
+	ListMyCircles(userID uint, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error)
 	DeleteCircle(circleID, userID uint, role string) error
 	UpdateCircle(circleID, userID uint, role string, req models.VideoCircleUpdateRequest) (*models.VideoCircleResponse, error)
 	RepublishCircle(circleID, userID uint, role string, req models.VideoCircleRepublishRequest) (*models.VideoCircleResponse, error)
@@ -301,10 +301,21 @@ func (h *VideoCircleHandler) GetMyVideoCircles(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 20)
-	result, err := h.service.ListMyCircles(userID, page, limit)
+	channelID, err := parseOptionalChannelIDParam(c)
 	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
+	}
+
+	result, err := h.service.ListMyCircles(userID, models.VideoCircleListParams{
+		ChannelID: channelID,
+		Status:    strings.TrimSpace(c.Query("status")),
+		Page:      c.QueryInt("page", 1),
+		Limit:     c.QueryInt("limit", 20),
+	})
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidPayload) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

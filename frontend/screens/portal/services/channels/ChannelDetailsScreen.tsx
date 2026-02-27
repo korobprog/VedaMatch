@@ -4,18 +4,29 @@ import {
   Alert,
   FlatList,
   Image,
+  Modal,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Pin, PlusCircle, Settings2 } from 'lucide-react-native';
+import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, Video } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
-import { Channel, ChannelMemberRole, ChannelPost, ChannelShowcase } from '../../../../types/channel';
+import {
+  Channel,
+  ChannelMemberRole,
+  ChannelPost,
+  ChannelPostComment,
+  ChannelPostMediaCircle,
+  ChannelPostMediaImage,
+  ChannelShowcase,
+} from '../../../../types/channel';
 import { marketService } from '../../../../services/marketService';
 import { getServiceById, getServices } from '../../../../services/serviceService';
 import type { Product } from '../../../../types/market';
@@ -36,6 +47,12 @@ const canEditPosts = (role?: ChannelMemberRole) => role === 'owner' || role === 
 const canModeratePosts = (role?: ChannelMemberRole) => role === 'owner' || role === 'admin';
 const MAX_SHOWCASE_PREVIEW_ITEMS = 4;
 const CHANNEL_PROMPT_KEY = 'channels_channel_details_tip_v1';
+const POST_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+type ParsedPostMedia = {
+  images: ChannelPostMediaImage[];
+  circles: ChannelPostMediaCircle[];
+};
 
 type ShowcaseFilterPayload = {
   category?: string;
@@ -76,6 +93,45 @@ const resolvePreviewLimit = (filter: ShowcaseFilterPayload): number => {
   return MAX_SHOWCASE_PREVIEW_ITEMS;
 };
 
+const parsePostMedia = (raw: string): ParsedPostMedia => {
+  const fallback: ParsedPostMedia = { images: [], circles: [] };
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { images?: ChannelPostMediaImage[]; circles?: ChannelPostMediaCircle[] };
+    const images = Array.isArray(parsed?.images)
+      ? parsed.images.filter(item => item && item.url)
+      : [];
+    const circles = Array.isArray(parsed?.circles)
+      ? parsed.circles.filter(item => item && Number(item.id) > 0 && item.mediaUrl)
+      : [];
+    return {
+      images: images.slice(0, 5),
+      circles: circles.slice(0, 10),
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+const isAuthorEditAllowed = (post: ChannelPost): boolean => {
+  if (post.status !== 'published') {
+    return true;
+  }
+  const publishedRaw = post.publishedAt || post.CreatedAt;
+  if (!publishedRaw) {
+    return false;
+  }
+  const publishedAt = new Date(publishedRaw);
+  if (Number.isNaN(publishedAt.getTime())) {
+    return false;
+  }
+  return Date.now() - publishedAt.getTime() <= POST_EDIT_WINDOW_MS;
+};
+
 export default function ChannelDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RouteParams, 'ChannelDetails'>>();
@@ -106,6 +162,13 @@ export default function ChannelDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPostId, setBusyPostId] = useState<number | null>(null);
+  const [commentsSheetVisible, setCommentsSheetVisible] = useState(false);
+  const [commentsSheetPost, setCommentsSheetPost] = useState<ChannelPost | null>(null);
+  const [commentsSheetItems, setCommentsSheetItems] = useState<ChannelPostComment[]>([]);
+  const [commentsSheetCursor, setCommentsSheetCursor] = useState<number | undefined>(undefined);
+  const [commentsSheetLoading, setCommentsSheetLoading] = useState(false);
+  const [commentsSheetSubmitting, setCommentsSheetSubmitting] = useState(false);
+  const [commentsSheetText, setCommentsSheetText] = useState('');
 
   const mountedRef = useRef(true);
   const latestLoadRef = useRef(0);
@@ -340,6 +403,242 @@ export default function ChannelDetailsScreen() {
     }
   };
 
+  const getPostStats = useCallback((post: ChannelPost) => {
+    const stats = post.stats;
+    return {
+      views: stats?.views ?? post.viewCount ?? 0,
+      reactions: stats?.reactions ?? post.reactionCount ?? 0,
+      comments: stats?.comments ?? post.commentCount ?? 0,
+      shares: stats?.shares ?? post.shareCount ?? 0,
+    };
+  }, []);
+
+  const patchPostInState = useCallback((postID: number, patcher: (post: ChannelPost) => ChannelPost) => {
+    setPosts(prev => prev.map(post => (post.ID === postID ? patcher(post) : post)));
+  }, []);
+
+  const toggleReaction = useCallback((post: ChannelPost) => {
+    if (!channelId) return;
+
+    const reactionEmoji = '❤️';
+    const hadReaction = Boolean(post.myReaction);
+    const stats = getPostStats(post);
+
+    patchPostInState(post.ID, current => ({
+      ...current,
+      myReaction: hadReaction ? undefined : reactionEmoji,
+      reactionCount: Math.max(0, stats.reactions + (hadReaction ? -1 : 1)),
+    }));
+
+    const request = hadReaction
+      ? channelService.removeReaction(channelId, post.ID)
+      : channelService.setReaction(channelId, post.ID, reactionEmoji);
+
+    void request.catch(() => {
+      patchPostInState(post.ID, current => ({
+        ...current,
+        myReaction: post.myReaction,
+        reactionCount: stats.reactions,
+      }));
+    });
+  }, [channelId, getPostStats, patchPostInState]);
+
+  const sharePost = useCallback(async (post: ChannelPost) => {
+    if (!channelId) return;
+
+    try {
+      await Share.share({
+        message: `${post.content || 'Пост в канале'}\n\nКанал: ${channel?.title || `#${post.channelId}`}`,
+      });
+      patchPostInState(post.ID, current => {
+        const stats = getPostStats(current);
+        return { ...current, shareCount: stats.shares + 1 };
+      });
+      await channelService.trackShare(channelId, post.ID);
+    } catch {
+      // no-op
+    }
+  }, [channel?.title, channelId, getPostStats, patchPostInState]);
+
+  const loadComments = useCallback(async (post: ChannelPost, cursor?: number, append = false) => {
+    setCommentsSheetLoading(true);
+    try {
+      const response = await channelService.listComments(post.channelId, post.ID, {
+        limit: 20,
+        ...(cursor ? { cursor } : {}),
+      });
+      const items = response.comments || [];
+      setCommentsSheetItems(prev => (append ? [...prev, ...items] : items));
+      setCommentsSheetCursor(response.nextCursor);
+    } catch {
+      if (!append) {
+        setCommentsSheetItems([]);
+      }
+      Alert.alert('Ошибка', 'Не удалось загрузить комментарии');
+    } finally {
+      setCommentsSheetLoading(false);
+    }
+  }, []);
+
+  const openComments = useCallback((post: ChannelPost) => {
+    setCommentsSheetPost(post);
+    setCommentsSheetVisible(true);
+    setCommentsSheetItems([]);
+    setCommentsSheetCursor(undefined);
+    setCommentsSheetText('');
+    void loadComments(post, undefined, false);
+  }, [loadComments]);
+
+  const closeComments = useCallback(() => {
+    setCommentsSheetVisible(false);
+    setCommentsSheetPost(null);
+    setCommentsSheetItems([]);
+    setCommentsSheetCursor(undefined);
+    setCommentsSheetText('');
+  }, []);
+
+  const submitComment = useCallback(async () => {
+    const post = commentsSheetPost;
+    const body = commentsSheetText.trim();
+    if (!post || !body || commentsSheetSubmitting) {
+      return;
+    }
+
+    const optimisticID = Date.now() * -1;
+    const optimisticComment: ChannelPostComment = {
+      ID: optimisticID,
+      postId: post.ID,
+      userId: user?.ID || 0,
+      body,
+      isDeleted: false,
+      CreatedAt: new Date().toISOString(),
+      UpdatedAt: new Date().toISOString(),
+      user: {
+        id: user?.ID || 0,
+        spiritualName: user?.spiritualName || '',
+        karmicName: user?.karmicName || '',
+        avatarUrl: user?.avatar || '',
+      },
+    };
+
+    setCommentsSheetSubmitting(true);
+    setCommentsSheetText('');
+    setCommentsSheetItems(prev => [optimisticComment, ...prev]);
+    patchPostInState(post.ID, current => {
+      const stats = getPostStats(current);
+      return { ...current, commentCount: stats.comments + 1 };
+    });
+
+    try {
+      const created = await channelService.addComment(post.channelId, post.ID, body);
+      setCommentsSheetItems(prev => prev.map(item => (item.ID === optimisticID ? created : item)));
+    } catch (error: any) {
+      setCommentsSheetItems(prev => prev.filter(item => item.ID !== optimisticID));
+      patchPostInState(post.ID, current => {
+        const stats = getPostStats(current);
+        return { ...current, commentCount: Math.max(0, stats.comments - 1) };
+      });
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось отправить комментарий');
+    } finally {
+      setCommentsSheetSubmitting(false);
+    }
+  }, [commentsSheetPost, commentsSheetSubmitting, commentsSheetText, getPostStats, patchPostInState, user]);
+
+  const loadMoreComments = useCallback(() => {
+    if (!commentsSheetPost || !commentsSheetCursor || commentsSheetLoading) {
+      return;
+    }
+    void loadComments(commentsSheetPost, commentsSheetCursor, true);
+  }, [commentsSheetCursor, commentsSheetLoading, commentsSheetPost, loadComments]);
+
+  const openPostMenu = useCallback((post: ChannelPost) => {
+    const editable = isAuthorEditAllowed(post);
+    Alert.alert('Пост', editable ? 'Действия с постом' : 'Редактирование опубликованного поста доступно только в первые 24 часа', [
+      {
+        text: 'Редактировать',
+        onPress: () => {
+          if (!editable) {
+            Alert.alert('Недоступно', 'Окно редактирования этого поста уже закрыто.');
+            return;
+          }
+          navigation.navigate('ChannelPostComposer', {
+            channelId: post.channelId,
+            mode: 'edit',
+            postId: post.ID,
+            initialPost: post,
+          });
+        },
+      },
+      { text: 'Отмена', style: 'cancel' },
+    ]);
+  }, [navigation]);
+
+  const renderMediaBlock = useCallback((post: ChannelPost) => {
+    const media = parsePostMedia(post.mediaJson);
+    if (media.images.length === 0 && media.circles.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.mediaBlock}>
+        {media.images.length > 0 ? (
+          <FlatList
+            data={media.images}
+            keyExtractor={(item, index) => `${item.url}-${index}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mediaRow}
+            renderItem={({ item }) => (
+              <Image source={{ uri: item.url }} style={styles.postImage} resizeMode="cover" />
+            )}
+          />
+        ) : null}
+
+        {media.circles.length > 0 ? (
+          <FlatList
+            data={media.circles}
+            keyExtractor={(item) => `circle-${item.id}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mediaRow}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.circleCard}
+                onPress={() =>
+                  navigation.navigate('VideoPlayer', {
+                    video: { uri: item.mediaUrl, title: `Кружок #${item.id}` },
+                    source: 'video_circles',
+                    circle: {
+                      id: item.id,
+                      authorId: post.authorId,
+                      mediaUrl: item.mediaUrl,
+                      thumbnailUrl: item.thumbnailUrl,
+                      city: '',
+                      matha: '',
+                      category: '',
+                      likeCount: 0,
+                      commentCount: 0,
+                      chatCount: 0,
+                    },
+                  })
+                }
+              >
+                {item.thumbnailUrl ? (
+                  <Image source={{ uri: item.thumbnailUrl }} style={styles.circleThumb} />
+                ) : (
+                  <View style={styles.circleThumbFallback}>
+                    <Video size={15} color={colors.textSecondary} />
+                  </View>
+                )}
+                <Text style={styles.circleLabel}>Кружок #{item.id}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        ) : null}
+      </View>
+    );
+  }, [colors.textSecondary, navigation, styles.circleCard, styles.circleLabel, styles.circleThumb, styles.circleThumbFallback, styles.mediaBlock, styles.mediaRow, styles.postImage]);
+
   const roleLabel = useMemo(() => {
     if (!viewerRole) {
       return 'Читатель';
@@ -356,6 +655,7 @@ export default function ChannelDetailsScreen() {
   const renderPost = ({ item }: { item: ChannelPost }) => {
     const ctaLabel = getChannelPostCtaLabel(item);
     const postDate = item.publishedAt || item.scheduledAt || item.CreatedAt;
+    const isAuthor = Boolean(user?.ID) && item.authorId === user?.ID;
 
     return (
       <View style={styles.postCard}>
@@ -369,10 +669,22 @@ export default function ChannelDetailsScreen() {
             ) : null}
             <Text style={styles.postStatus}>{item.status}</Text>
           </View>
-          <Text style={styles.postDate}>{new Date(postDate).toLocaleString('ru-RU')}</Text>
+          <View style={styles.postHeaderRight}>
+            <Text style={styles.postDate}>{new Date(postDate).toLocaleString('ru-RU')}</Text>
+            {isAuthor ? (
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => openPostMenu(item)}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              >
+                <MoreHorizontal size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         <Text style={styles.postContent}>{item.content || 'Без текста'}</Text>
+        {renderMediaBlock(item)}
 
         <View style={styles.postActions}>
           {ctaLabel ? (
@@ -394,6 +706,25 @@ export default function ChannelDetailsScreen() {
                 <Text style={styles.secondaryActionText}>Опубликовать</Text>
               </TouchableOpacity>
             ) : null}
+          </View>
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => toggleReaction(item)}>
+            <Smile size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{item.myReaction || '❤️'} {getPostStats(item).reactions}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => openComments(item)}>
+            <MessageCircle size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).comments}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => void sharePost(item)}>
+            <Share2 size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).shares}</Text>
+          </TouchableOpacity>
+          <View style={styles.actionItem}>
+            <Eye size={14} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{getPostStats(item).views}</Text>
           </View>
         </View>
       </View>
@@ -626,6 +957,70 @@ export default function ChannelDetailsScreen() {
             </View>
           }
         />
+
+        <Modal visible={commentsSheetVisible} transparent animationType="slide" onRequestClose={closeComments}>
+          <View style={styles.commentsOverlay}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeComments} />
+            <View style={styles.commentsSheet}>
+              <View style={styles.commentsHeader}>
+                <Text style={styles.commentsTitle}>Комментарии</Text>
+                <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
+                  <Text style={styles.commentsCloseText}>Закрыть</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.commentsSubtitle}>
+                {commentsSheetPost?.channel?.title || `Канал #${commentsSheetPost?.channelId || ''}`}
+              </Text>
+
+              {commentsSheetLoading && commentsSheetItems.length === 0 ? (
+                <View style={styles.commentsLoader}>
+                  <ActivityIndicator color={colors.accent} />
+                </View>
+              ) : (
+                <FlatList
+                  data={commentsSheetItems}
+                  keyExtractor={item => item.ID.toString()}
+                  style={styles.commentsList}
+                  contentContainerStyle={styles.commentsListContent}
+                  renderItem={({ item }) => (
+                    <View style={styles.commentItem}>
+                      <Text style={styles.commentAuthor}>
+                        {item.user?.spiritualName || item.user?.karmicName || `User #${item.userId}`}
+                      </Text>
+                      <Text style={styles.commentBody}>{item.body}</Text>
+                    </View>
+                  )}
+                  ListEmptyComponent={<Text style={styles.commentsEmpty}>Комментариев пока нет</Text>}
+                  ListFooterComponent={
+                    commentsSheetCursor ? (
+                      <TouchableOpacity style={styles.moreCommentsBtn} onPress={loadMoreComments}>
+                        <Text style={styles.moreCommentsText}>Загрузить еще</Text>
+                      </TouchableOpacity>
+                    ) : null
+                  }
+                />
+              )}
+
+              <View style={styles.commentComposer}>
+                <TextInput
+                  value={commentsSheetText}
+                  onChangeText={setCommentsSheetText}
+                  placeholder="Написать комментарий..."
+                  placeholderTextColor={colors.textSecondary}
+                  style={styles.commentInput}
+                  editable={!commentsSheetSubmitting}
+                />
+                <TouchableOpacity
+                  style={[styles.sendCommentBtn, commentsSheetSubmitting && styles.sendCommentBtnDisabled]}
+                  onPress={() => void submitComment()}
+                  disabled={commentsSheetSubmitting}
+                >
+                  {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -971,6 +1366,21 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       alignItems: 'center',
       gap: 8,
     },
+    postHeaderRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    menuButton: {
+      width: 26,
+      height: 26,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     postMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1003,6 +1413,54 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 15,
       lineHeight: 21,
+    },
+    mediaBlock: {
+      gap: 8,
+    },
+    mediaRow: {
+      gap: 8,
+    },
+    postImage: {
+      width: 126,
+      height: 158,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+    },
+    circleCard: {
+      width: 92,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+    },
+    circleThumb: {
+      width: 52,
+      height: 52,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    circleThumbFallback: {
+      width: 52,
+      height: 52,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    circleLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      textAlign: 'center',
     },
     postActions: {
       flexDirection: 'row',
@@ -1038,6 +1496,159 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 12,
       fontWeight: '700',
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+    },
+    actionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+      paddingHorizontal: 6,
+      borderRadius: 8,
+    },
+    actionText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    commentsOverlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(5, 7, 12, 0.45)',
+    },
+    commentsSheet: {
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderBottomWidth: 0,
+      backgroundColor: colors.background,
+      minHeight: '45%',
+      maxHeight: '80%',
+      paddingTop: 14,
+      paddingHorizontal: 14,
+      paddingBottom: 18,
+      gap: 10,
+    },
+    commentsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    commentsTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    commentsCloseBtn: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: colors.surface,
+    },
+    commentsCloseText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    commentsSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    commentsLoader: {
+      paddingVertical: 20,
+      alignItems: 'center',
+    },
+    commentsList: {
+      maxHeight: 320,
+    },
+    commentsListContent: {
+      gap: 8,
+      paddingBottom: 4,
+    },
+    commentItem: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 4,
+    },
+    commentAuthor: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    commentBody: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    commentsEmpty: {
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: 16,
+    },
+    moreCommentsBtn: {
+      alignSelf: 'center',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      marginTop: 4,
+    },
+    moreCommentsText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    commentComposer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+    },
+    commentInput: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.textPrimary,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      fontSize: 13,
+    },
+    sendCommentBtn: {
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 88,
+    },
+    sendCommentBtnDisabled: {
+      opacity: 0.8,
+    },
+    sendCommentText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
     },
     emptyState: {
       alignItems: 'center',

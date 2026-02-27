@@ -17,6 +17,7 @@ import (
 
 type mockChannelService struct {
 	isFeatureEnabledForUserFn func(userID uint) bool
+	uploadPostMediaFn         func(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error)
 	pinPostFn                 func(channelID, postID, actorID uint) (*models.ChannelPost, error)
 	schedulePostFn            func(channelID, postID, actorID uint, scheduledAt time.Time) (*models.ChannelPost, error)
 	trackPromotedAdClickFn    func(adID uint, viewerID uint) error
@@ -52,6 +53,17 @@ func (m *mockChannelService) UpdateChannelBranding(channelID, actorID uint, req 
 }
 func (m *mockChannelService) UploadChannelCover(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.Channel, error) {
 	return &models.Channel{}, nil
+}
+func (m *mockChannelService) UploadPostMedia(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error) {
+	if m.uploadPostMediaFn != nil {
+		return m.uploadPostMediaFn(channelID, actorID, fileHeader)
+	}
+	return &models.ChannelPostMediaUploadResponse{
+		URL:      "https://cdn.example.com/channels/posts/1/1/test.jpg",
+		Width:    1080,
+		Height:   1350,
+		MimeType: "image/jpeg",
+	}, nil
 }
 func (m *mockChannelService) AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error) {
 	return &models.ChannelMember{}, nil
@@ -311,6 +323,82 @@ func TestChannelHandler_GetFeedParsesFilters(t *testing.T) {
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestChannelHandler_UploadPostMediaRequiresFile(t *testing.T) {
+	app := fiber.New()
+	handler := NewChannelHandlerWithService(&mockChannelService{})
+
+	app.Post("/channels/:id/posts/media/upload", func(c *fiber.Ctx) error {
+		c.Locals("userID", "7")
+		return handler.UploadPostMedia(c)
+	})
+
+	req := httptest.NewRequest("POST", "/channels/1/posts/media/upload", bytes.NewBuffer(nil))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=----test")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusBadRequest)
+	}
+}
+
+func TestChannelHandler_UploadPostMediaSuccess(t *testing.T) {
+	app := fiber.New()
+	serviceCalled := false
+	handler := NewChannelHandlerWithService(&mockChannelService{
+		uploadPostMediaFn: func(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error) {
+			serviceCalled = true
+			if channelID != 15 {
+				t.Fatalf("channelID=%d, want=15", channelID)
+			}
+			if actorID != 7 {
+				t.Fatalf("actorID=%d, want=7", actorID)
+			}
+			if fileHeader == nil || fileHeader.Filename == "" {
+				t.Fatalf("expected file header")
+			}
+			return &models.ChannelPostMediaUploadResponse{
+				URL:      "https://cdn.example.com/channels/posts/15/7/test.jpg",
+				Width:    1080,
+				Height:   1350,
+				MimeType: "image/jpeg",
+			}, nil
+		},
+	})
+
+	app.Post("/channels/:id/posts/media/upload", func(c *fiber.Ctx) error {
+		c.Locals("userID", "7")
+		return handler.UploadPostMedia(c)
+	})
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("media", "post.jpg")
+	if err != nil {
+		t.Fatalf("CreateFormFile error: %v", err)
+	}
+	if _, err := part.Write([]byte("fake-image-binary")); err != nil {
+		t.Fatalf("part.Write error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close error: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/channels/15/posts/media/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+	if !serviceCalled {
+		t.Fatalf("expected service call")
 	}
 }
 

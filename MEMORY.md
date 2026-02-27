@@ -13,6 +13,10 @@
 - В `frontend/index.js` background-handler пушей регистрируется только если `getApps().length > 0`; при отсутствии default app handler пропускается без шумной ошибки в DEV-консоли.
 - `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и актуальный `BUNDLE_ID=com.VedaMatch.vedamatch`; иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]`.
 - В `frontend/ios/vedamatch/AppDelegate.mm` добавлен runtime-guard для Firebase: при невалидном/пустом `API_KEY` конфигурация Firebase пропускается (`NSLog`) вместо падения приложения.
+- При включенном Happ VPN (`su.ffg.happ.plus`) в iOS Simulator возможен `NSURLErrorDomain -1003` на `https://api.vedamatch.ru/api/*` внутри приложения, даже если `curl` из host/simctl работает.
+- В Happ не обнаружен явный per-app split tunneling по bundle id для Simulator; рабочий путь — исключать домены/маршруты через routing rules.
+- Рабочая настройка Happ: `Настройки` -> `Использовать роутинг` -> `Таблица маршрутов` -> `Редактировать правила` -> секция `НАПРАВИТЬ НАПРЯМУЮ URL ИЛИ IP`; добавить `api.vedamatch.ru`, `cdn.vedamatch.ru`, `vedamatch.ru`, `s3.firstvds.ru`, сохранить и перезапустить TUNNEL.
+- Проверка после настройки: в `~/Library/Group Containers/group.su.ffg.happ.plus/Library/Application Support/Xray/logs/access.log` для IP этих хостов должен появляться маршрут `... [socks-in >> direct]` вместо `... [socks-in >> proxy]`.
 
 ## iOS Build Troubleshooting
 - Сбой `xcodebuild` в Debug для симулятора с ошибкой `FBReactNativeSpec.h: No such file or directory` (target `ReactCodegen`) связан с отсутствующими сгенерированными iOS codegen-артефактами в `frontend/ios/build/generated/ios`.
@@ -226,6 +230,10 @@
   - recoverable catch-ветки сервиса логируют через `console.warn`, а не `console.error`.
 - В текущей конфигурации RNFirebase для iOS используется auto-registration; ручной вызов `registerDeviceForRemoteMessages()` удален как избыточный (убирает warning `Usage of ... is not required`).
 - Для iOS добавлен early-skip: если `getAPNSToken()` вернул `null`, `getToken()` не вызывается, и пишется telemetry `token_register_skipped: apns_token_unavailable`.
+- В `frontend/services/notificationService.ts` добавлен defensive iOS flow против `messaging/unregistered`:
+  - перед APNS/FCM запросами вызывается `ensureIosRemoteMessageRegistration()` (через `isDeviceRegisteredForRemoteMessages` + `registerDeviceForRemoteMessages` при необходимости);
+  - APNS читается с коротким retry polling (`waitForIosApnsToken`), чтобы избежать race сразу после выдачи permissions;
+  - при `messaging/unregistered` выполняется один retry регистрации/получения токена и отдельная telemetry `token_register_retry_success`.
 
 ## Profile Runtime Notes
 - `frontend/screens/settings/EditProfileScreen.tsx` не должен предполагать, что `/contacts` всегда возвращает массив: backend может вернуть и paginated-формат `{ items: [...] }`.
@@ -248,17 +256,29 @@
 - В `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx` ошибки загрузки feed/my channels не должны логироваться через `console.error` в DEV (иначе RedBox).
 - Для `catch` используется throttled `console.warn` с коротким форматом (`status/message`) без передачи полного объекта `AxiosError`.
 - При падении загрузки первой страницы feed устанавливается `feedHasMore=false`, чтобы `onEndReached` не создавал повторный сетевой шторм.
-- Для локального offline DEV профиля (`user.ID=999999`) добавлен ранний выход без серверных запросов на feed и my channels.
-- Реализован v1 action bar для постов ленты:
-  - backend: `view/reaction/comment/share` endpoints для channel posts, новые счетчики в `channel_posts`, `myReaction` и `stats` в ответах;
-  - frontend: в `ChannelsHubScreen` добавлены элементы действий (emoji reaction, comments preview, native share, views) с optimistic reaction update.
-- Правило редактирования опубликованного поста:
-  - автор с ролью `editor` может редактировать только в первые 24 часа после `publishedAt`;
-  - после окна возвращается `400` с кодом `POST_EDIT_WINDOW_EXPIRED`, метрика `channel_post_edit_window_rejected_total`.
+- Реализован v1.1 для постов каналов:
+  - backend endpoint `POST /api/channels/:id/posts/media/upload` (editor+) принимает `image/jpeg|png|webp` до 8MB, делает center-crop/resize `1080x1350` и возвращает `url/width/height/mimeType`;
+  - в `CreatePost/UpdatePost` введена строгая валидация `mediaJson`:
+    - `images` максимум 5;
+    - `circles` максимум 10;
+    - `circles[].id` уникальны и обязаны принадлежать `channelId` поста;
+    - при ошибке возвращается `400 invalid payload`.
+- `/api/video-circles/my` теперь поддерживает `channelId` и `status` для picker в композере поста.
+- В `ChannelPostComposerScreen` добавлены режимы `create/edit` и медиаблоки:
+  - фото до 5 (upload через новый backend endpoint);
+  - кружки до 10 (выбор существующих + переход в создание кружка и авто-подхват последнего).
+- В `ChannelsHubScreen` и `ChannelDetailsScreen`:
+  - добавлен `⋯`-entrypoint редактирования (виден только автору);
+  - для published-поста автора действует окно 24 часа (UI учитывает backend-правило `POST_EDIT_WINDOW_EXPIRED`);
+  - комментарии работают через bottom sheet (list + send);
+  - `mediaJson` рендерится безопасно (fallback без падения при битом JSON).
 - Добавлена загрузка обложки канала:
-  - новый endpoint `POST /api/channels/:id/cover/upload` (owner/admin);
+  - endpoint `POST /api/channels/:id/cover/upload` (owner/admin);
   - сервер делает center-crop 16:9 + resize `1600x900` + JPEG optimize и сохраняет в S3 (`channels/covers/{channelId}/...jpg`);
   - `ChannelManageScreen` получил кнопку выбора изображения и upload обложки с preview.
+- Для пустой ленты в эмуляторе:
+  - убран старый hardcoded early return для offline-dev пользователя в `ChannelsHubScreen`;
+  - feed и my-channels теперь запрашиваются для всех пользователей.
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.

@@ -795,6 +795,7 @@ func main() {
 	protected.Patch("/channels/:id", channelHandler.UpdateChannel)
 	protected.Patch("/channels/:id/branding", channelHandler.UpdateBranding)
 	protected.Post("/channels/:id/cover/upload", channelHandler.UploadCover)
+	protected.Post("/channels/:id/posts/media/upload", channelHandler.UploadPostMedia)
 	protected.Post("/channels/:id/members", channelHandler.AddMember)
 	protected.Get("/channels/:id/members", channelHandler.ListMembers)
 	protected.Patch("/channels/:id/members/:userId", channelHandler.UpdateMemberRole)

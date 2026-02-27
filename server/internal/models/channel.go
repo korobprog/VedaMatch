@@ -126,6 +126,33 @@ type ChannelPostStats struct {
 	Shares    int `json:"shares"`
 }
 
+type ChannelPostMediaPayload struct {
+	Images  []ChannelPostMediaImage  `json:"images,omitempty"`
+	Circles []ChannelPostMediaCircle `json:"circles,omitempty"`
+}
+
+type ChannelPostMediaImage struct {
+	URL      string `json:"url"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	MimeType string `json:"mimeType"`
+}
+
+type ChannelPostMediaCircle struct {
+	ID           uint       `json:"id"`
+	MediaURL     string     `json:"mediaUrl"`
+	ThumbnailURL string     `json:"thumbnailUrl,omitempty"`
+	DurationSec  int        `json:"durationSec,omitempty"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+}
+
+type ChannelPostMediaUploadResponse struct {
+	URL      string `json:"url"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	MimeType string `json:"mimeType"`
+}
+
 // ChannelShowcase stores configured product/service windows on channel home.
 type ChannelShowcase struct {
 	gorm.Model

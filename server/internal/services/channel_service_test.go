@@ -114,6 +114,111 @@ func TestExtractPositiveUintFromMapAliases(t *testing.T) {
 	}
 }
 
+func TestValidateChannelPostMediaPayload(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	valid := models.ChannelPostMediaPayload{
+		Images: []models.ChannelPostMediaImage{
+			{
+				URL:      "https://cdn.example.com/channels/posts/1/1/a.jpg",
+				Width:    1080,
+				Height:   1350,
+				MimeType: "image/jpeg",
+			},
+		},
+		Circles: []models.ChannelPostMediaCircle{
+			{
+				ID:           10,
+				MediaURL:     "https://cdn.example.com/video/circle.mp4",
+				ThumbnailURL: "https://cdn.example.com/video/circle.jpg",
+				DurationSec:  60,
+				ExpiresAt:    &now,
+			},
+		},
+	}
+	if err := validateChannelPostMediaPayload(&valid); err != nil {
+		t.Fatalf("expected valid payload, got error: %v", err)
+	}
+
+	tooManyImages := models.ChannelPostMediaPayload{
+		Images: make([]models.ChannelPostMediaImage, channelPostImagesLimit+1),
+	}
+	for i := range tooManyImages.Images {
+		tooManyImages.Images[i] = models.ChannelPostMediaImage{
+			URL:      "https://cdn.example.com/channels/posts/1/1/a.jpg",
+			Width:    1080,
+			Height:   1350,
+			MimeType: "image/jpeg",
+		}
+	}
+	if err := validateChannelPostMediaPayload(&tooManyImages); err == nil {
+		t.Fatalf("expected error for images limit")
+	}
+
+	tooManyCircles := models.ChannelPostMediaPayload{
+		Circles: make([]models.ChannelPostMediaCircle, channelPostCirclesLimit+1),
+	}
+	for i := range tooManyCircles.Circles {
+		tooManyCircles.Circles[i] = models.ChannelPostMediaCircle{
+			ID:       uint(i + 1),
+			MediaURL: "https://cdn.example.com/video/circle.mp4",
+		}
+	}
+	if err := validateChannelPostMediaPayload(&tooManyCircles); err == nil {
+		t.Fatalf("expected error for circles limit")
+	}
+
+	duplicateCircles := models.ChannelPostMediaPayload{
+		Circles: []models.ChannelPostMediaCircle{
+			{ID: 7, MediaURL: "https://cdn.example.com/video/7.mp4"},
+			{ID: 7, MediaURL: "https://cdn.example.com/video/7-new.mp4"},
+		},
+	}
+	if err := validateChannelPostMediaPayload(&duplicateCircles); err == nil {
+		t.Fatalf("expected error for duplicate circle ids")
+	}
+
+	invalidMime := models.ChannelPostMediaPayload{
+		Images: []models.ChannelPostMediaImage{
+			{
+				URL:      "https://cdn.example.com/channels/posts/1/1/a.gif",
+				Width:    1080,
+				Height:   1350,
+				MimeType: "image/gif",
+			},
+		},
+	}
+	if err := validateChannelPostMediaPayload(&invalidMime); err == nil {
+		t.Fatalf("expected error for unsupported image mime")
+	}
+}
+
+func TestNormalizeImageContentType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "jpeg", raw: "image/jpeg", want: "image/jpeg"},
+		{name: "jpg alias", raw: "image/jpg", want: "image/jpeg"},
+		{name: "with charset", raw: "image/png; charset=utf-8", want: "image/png"},
+		{name: "trim and lower", raw: " IMAGE/WEBP ", want: "image/webp"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeImageContentType(tc.raw); got != tc.want {
+				t.Fatalf("normalizeImageContentType(%q) = %q, want %q", tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractPositiveUint(t *testing.T) {
 	t.Parallel()
 

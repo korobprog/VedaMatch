@@ -75,6 +75,12 @@ const (
 	channelCoverMaxBytes            = 8 << 20
 	channelCoverWidth               = 1600
 	channelCoverHeight              = 900
+	channelPostMediaMaxBytes        = 8 << 20
+	channelPostImageWidth           = 1080
+	channelPostImageHeight          = 1350
+	channelPostImageMimeType        = "image/jpeg"
+	channelPostImagesLimit          = 5
+	channelPostCirclesLimit         = 10
 )
 
 func NewChannelService() *ChannelService {
@@ -353,6 +359,63 @@ func (s *ChannelService) UploadChannelCover(channelID, actorID uint, fileHeader 
 	return s.GetChannelByID(channelID, actorID)
 }
 
+func (s *ChannelService) UploadPostMedia(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error) {
+	if fileHeader == nil {
+		return nil, errors.New("media file is required")
+	}
+	if fileHeader.Size <= 0 {
+		return nil, errors.New("empty media file")
+	}
+	if fileHeader.Size > channelPostMediaMaxBytes {
+		return nil, errors.New("media file is too large")
+	}
+
+	_, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := normalizeImageContentType(fileHeader.Header.Get("Content-Type"))
+	if !isAllowedChannelPostUploadMime(contentType) {
+		return nil, errors.New("unsupported media type")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	processedImage, err := buildChannelPostImage(file)
+	if err != nil {
+		return nil, err
+	}
+
+	s3Service := NewS3Service()
+	if s3Service == nil {
+		return nil, errors.New("media service unavailable")
+	}
+
+	key := fmt.Sprintf("channels/posts/%d/%d/%d.jpg", channelID, actorID, time.Now().UTC().UnixNano())
+	url, err := s3Service.UploadFile(
+		context.Background(),
+		bytes.NewReader(processedImage),
+		key,
+		channelPostImageMimeType,
+		int64(len(processedImage)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.ChannelPostMediaUploadResponse{
+		URL:      strings.TrimSpace(url),
+		Width:    channelPostImageWidth,
+		Height:   channelPostImageHeight,
+		MimeType: channelPostImageMimeType,
+	}, nil
+}
+
 func (s *ChannelService) AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error) {
 	_, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleOwner)
 	if err != nil {
@@ -491,9 +554,9 @@ func (s *ChannelService) CreatePost(channelID, actorID uint, req models.ChannelP
 		return nil, errors.New("invalid ctaType")
 	}
 
-	mediaJSON := strings.TrimSpace(req.MediaJSON)
-	if mediaJSON != "" && !json.Valid([]byte(mediaJSON)) {
-		return nil, ErrInvalidPayload
+	mediaJSON, err := s.normalizePostMediaJSON(channel.ID, strings.TrimSpace(req.MediaJSON))
+	if err != nil {
+		return nil, err
 	}
 
 	ctaPayload := strings.TrimSpace(req.CTAPayloadJSON)
@@ -621,9 +684,9 @@ func (s *ChannelService) UpdatePost(channelID, postID, actorID uint, req models.
 		updates["content"] = strings.TrimSpace(*req.Content)
 	}
 	if req.MediaJSON != nil {
-		trimmed := strings.TrimSpace(*req.MediaJSON)
-		if trimmed != "" && !json.Valid([]byte(trimmed)) {
-			return nil, ErrInvalidPayload
+		trimmed, err := s.normalizePostMediaJSON(channel.ID, strings.TrimSpace(*req.MediaJSON))
+		if err != nil {
+			return nil, err
 		}
 		updates["media_json"] = trimmed
 	}
@@ -2409,6 +2472,123 @@ func validatePinPostStatus(status models.ChannelPostStatus) error {
 	return nil
 }
 
+func (s *ChannelService) normalizePostMediaJSON(channelID uint, raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	var payload models.ChannelPostMediaPayload
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		return "", ErrInvalidPayload
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return "", ErrInvalidPayload
+	}
+
+	if err := validateChannelPostMediaPayload(&payload); err != nil {
+		return "", err
+	}
+	if err := s.validateChannelPostMediaCircles(channelID, payload.Circles); err != nil {
+		return "", err
+	}
+
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return "", ErrInvalidPayload
+	}
+	return string(normalized), nil
+}
+
+func validateChannelPostMediaPayload(payload *models.ChannelPostMediaPayload) error {
+	if payload == nil {
+		return nil
+	}
+	if len(payload.Images) > channelPostImagesLimit {
+		return ErrInvalidPayload
+	}
+	if len(payload.Circles) > channelPostCirclesLimit {
+		return ErrInvalidPayload
+	}
+
+	for i := range payload.Images {
+		payload.Images[i].URL = strings.TrimSpace(payload.Images[i].URL)
+		payload.Images[i].MimeType = normalizeImageContentType(payload.Images[i].MimeType)
+		if payload.Images[i].URL == "" {
+			return ErrInvalidPayload
+		}
+		if payload.Images[i].Width <= 0 || payload.Images[i].Height <= 0 {
+			return ErrInvalidPayload
+		}
+		if !isAllowedChannelPostUploadMime(payload.Images[i].MimeType) {
+			return ErrInvalidPayload
+		}
+	}
+
+	seenCircleIDs := make(map[uint]struct{}, len(payload.Circles))
+	for i := range payload.Circles {
+		payload.Circles[i].MediaURL = strings.TrimSpace(payload.Circles[i].MediaURL)
+		payload.Circles[i].ThumbnailURL = strings.TrimSpace(payload.Circles[i].ThumbnailURL)
+		if payload.Circles[i].ID == 0 {
+			return ErrInvalidPayload
+		}
+		if payload.Circles[i].MediaURL == "" {
+			return ErrInvalidPayload
+		}
+		if _, exists := seenCircleIDs[payload.Circles[i].ID]; exists {
+			return ErrInvalidPayload
+		}
+		seenCircleIDs[payload.Circles[i].ID] = struct{}{}
+	}
+
+	return nil
+}
+
+func (s *ChannelService) validateChannelPostMediaCircles(channelID uint, circles []models.ChannelPostMediaCircle) error {
+	if len(circles) == 0 {
+		return nil
+	}
+
+	circleIDs := make([]uint, 0, len(circles))
+	for _, item := range circles {
+		circleIDs = append(circleIDs, item.ID)
+	}
+
+	var count int64
+	if err := s.db.Model(&models.VideoCircle{}).
+		Where("id IN ? AND channel_id = ? AND status <> ?", circleIDs, channelID, models.VideoCircleStatusDeleted).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if int(count) != len(circleIDs) {
+		return ErrInvalidPayload
+	}
+
+	return nil
+}
+
+func normalizeImageContentType(raw string) string {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if idx := strings.Index(normalized, ";"); idx >= 0 {
+		normalized = strings.TrimSpace(normalized[:idx])
+	}
+	if normalized == "image/jpg" {
+		return "image/jpeg"
+	}
+	return normalized
+}
+
+func isAllowedChannelPostUploadMime(contentType string) bool {
+	switch contentType {
+	case "image/jpeg", "image/png", "image/webp":
+		return true
+	default:
+		return false
+	}
+}
+
 func extractPositiveUint(value interface{}) (uint, bool) {
 	const maxAllowedID = uint64(^uint32(0))
 
@@ -2522,6 +2702,66 @@ func buildChannelCoverImage(file multipart.File) ([]byte, error) {
 	var out bytes.Buffer
 	if err := jpeg.Encode(&out, resized, &jpeg.Options{Quality: 85}); err != nil {
 		return nil, errors.New("failed to encode cover image")
+	}
+
+	return out.Bytes(), nil
+}
+
+func buildChannelPostImage(file multipart.File) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(file, channelPostMediaMaxBytes+1))
+	if err != nil {
+		return nil, errors.New("failed to read media file")
+	}
+	if len(raw) == 0 {
+		return nil, errors.New("empty media file")
+	}
+	if len(raw) > channelPostMediaMaxBytes {
+		return nil, errors.New("media file is too large")
+	}
+
+	sourceImage, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, errors.New("invalid image format")
+	}
+
+	sourceBounds := sourceImage.Bounds()
+	sourceWidth := sourceBounds.Dx()
+	sourceHeight := sourceBounds.Dy()
+	if sourceWidth <= 0 || sourceHeight <= 0 {
+		return nil, errors.New("invalid image dimensions")
+	}
+
+	targetRatio := float64(channelPostImageWidth) / float64(channelPostImageHeight)
+	sourceRatio := float64(sourceWidth) / float64(sourceHeight)
+
+	cropWidth := sourceWidth
+	cropHeight := sourceHeight
+	cropX := 0
+	cropY := 0
+
+	if sourceRatio > targetRatio {
+		cropWidth = int(float64(sourceHeight) * targetRatio)
+		cropX = (sourceWidth - cropWidth) / 2
+	} else if sourceRatio < targetRatio {
+		cropHeight = int(float64(sourceWidth) / targetRatio)
+		cropY = (sourceHeight - cropHeight) / 2
+	}
+
+	cropped := image.NewRGBA(image.Rect(0, 0, cropWidth, cropHeight))
+	stdDraw.Draw(
+		cropped,
+		cropped.Bounds(),
+		sourceImage,
+		image.Point{X: sourceBounds.Min.X + cropX, Y: sourceBounds.Min.Y + cropY},
+		stdDraw.Src,
+	)
+
+	resized := image.NewRGBA(image.Rect(0, 0, channelPostImageWidth, channelPostImageHeight))
+	xDraw.CatmullRom.Scale(resized, resized.Bounds(), cropped, cropped.Bounds(), stdDraw.Over, nil)
+
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, resized, &jpeg.Options{Quality: 85}); err != nil {
+		return nil, errors.New("failed to encode post image")
 	}
 
 	return out.Bytes(), nil

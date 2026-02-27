@@ -12,6 +12,7 @@ import {
   ChannelPost,
   ChannelPostComment,
   ChannelPostCreateRequest,
+  ChannelPostMediaUploadResponse,
   ChannelPostUpdateRequest,
   ChannelSchedulePostRequest,
   ChannelShowcase,
@@ -62,6 +63,23 @@ class ChannelService {
       type: file.type || 'image/jpeg',
     } as any);
     const response = await apiClient.post(`/channels/${channelId}/cover/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async uploadPostImage(
+    channelId: number,
+    file: { uri: string; name?: string; type?: string }
+  ): Promise<ChannelPostMediaUploadResponse> {
+    const form = new FormData();
+    form.append('media', {
+      uri: file.uri,
+      name: file.name || `channel-post-${Date.now()}.jpg`,
+      type: file.type || 'image/jpeg',
+    } as any);
+
+    const response = await apiClient.post(`/channels/${channelId}/posts/media/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;

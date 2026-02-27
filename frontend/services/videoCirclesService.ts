@@ -183,10 +183,19 @@ class VideoCirclesService {
     }
   }
 
-  async getMyVideoCircles(page = 1, limit = 30): Promise<VideoCircleListResponse> {
+  async getMyVideoCircles(
+    page = 1,
+    limit = 30,
+    filters: { channelId?: number; status?: VideoCircleStatus } = {}
+  ): Promise<VideoCircleListResponse> {
     try {
       const response = await apiClient.get<VideoCircleListResponse>('/video-circles/my', {
-        params: { page, limit },
+        params: {
+          page,
+          limit,
+          ...(filters.channelId ? { channelId: filters.channelId } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+        },
       });
       return response.data;
     } catch (error) {

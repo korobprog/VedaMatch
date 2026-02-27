@@ -486,7 +486,9 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	}, nil
 }
 
-func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*models.VideoCircleListResponse, error) {
+func (s *VideoCircleService) ListMyCircles(userID uint, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
+	page := params.Page
+	limit := params.Limit
 	if page < 1 {
 		page = 1
 	}
@@ -494,8 +496,26 @@ func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*model
 		limit = 20
 	}
 
+	status := strings.TrimSpace(strings.ToLower(params.Status))
+	if status != "" &&
+		status != string(models.VideoCircleStatusActive) &&
+		status != string(models.VideoCircleStatusExpired) &&
+		status != string(models.VideoCircleStatusDeleted) {
+		return nil, ErrInvalidPayload
+	}
+
 	var total int64
 	query := s.db.Model(&models.VideoCircle{}).Where("author_id = ?", userID).Order("created_at DESC")
+	if params.ChannelID != nil {
+		query = query.Where("channel_id = ?", *params.ChannelID)
+	}
+	if status != "" {
+		if status == string(models.VideoCircleStatusActive) {
+			query = query.Where("status = ? AND expires_at > ?", models.VideoCircleStatusActive, time.Now().UTC())
+		} else {
+			query = query.Where("status = ?", status)
+		}
+	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}

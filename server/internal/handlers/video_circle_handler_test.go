@@ -17,7 +17,7 @@ import (
 type mockVideoCircleService struct {
 	listCirclesFn     func(userID uint, role string, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error)
 	createCircleFn    func(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error)
-	listMyCirclesFn   func(userID uint, page, limit int) (*models.VideoCircleListResponse, error)
+	listMyCirclesFn   func(userID uint, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error)
 	deleteCircleFn    func(circleID, userID uint, role string) error
 	updateCircleFn    func(circleID, userID uint, role string, req models.VideoCircleUpdateRequest) (*models.VideoCircleResponse, error)
 	republishCircleFn func(circleID, userID uint, role string, req models.VideoCircleRepublishRequest) (*models.VideoCircleResponse, error)
@@ -45,9 +45,9 @@ func (m *mockVideoCircleService) CreateCircle(userID uint, role string, req mode
 	}
 	return &models.VideoCircleResponse{}, nil
 }
-func (m *mockVideoCircleService) ListMyCircles(userID uint, page, limit int) (*models.VideoCircleListResponse, error) {
+func (m *mockVideoCircleService) ListMyCircles(userID uint, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
 	if m.listMyCirclesFn != nil {
-		return m.listMyCirclesFn(userID, page, limit)
+		return m.listMyCirclesFn(userID, params)
 	}
 	return &models.VideoCircleListResponse{}, nil
 }
@@ -230,6 +230,71 @@ func TestParseOptionalChannelIDFromValues(t *testing.T) {
 				t.Fatalf("value = %d, want %d", *got, tt.wantValue)
 			}
 		})
+	}
+}
+
+func TestGetMyVideoCircles_ParsesFilters(t *testing.T) {
+	handler := NewVideoCircleHandlerWithDependencies(
+		&mockVideoCircleService{
+			listMyCirclesFn: func(userID uint, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
+				if userID != 77 {
+					t.Fatalf("userID=%d, want=77", userID)
+				}
+				if params.Page != 3 {
+					t.Fatalf("page=%d, want=3", params.Page)
+				}
+				if params.Limit != 15 {
+					t.Fatalf("limit=%d, want=15", params.Limit)
+				}
+				if params.ChannelID == nil || *params.ChannelID != 22 {
+					t.Fatalf("channelID=%v, want=22", params.ChannelID)
+				}
+				if params.Status != "active" {
+					t.Fatalf("status=%q, want=active", params.Status)
+				}
+				return &models.VideoCircleListResponse{
+					Circles:    []models.VideoCircleResponse{},
+					Page:       params.Page,
+					Limit:      params.Limit,
+					TotalPages: 1,
+				}, nil
+			},
+		},
+		&mockVideoCirclePushNotifier{},
+	)
+
+	app := fiber.New()
+	app.Get("/video-circles/my", func(c *fiber.Ctx) error {
+		c.Locals("userID", "77")
+		return handler.GetMyVideoCircles(c)
+	})
+
+	req := httptest.NewRequest("GET", "/video-circles/my?page=3&limit=15&channelId=22&status=active", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestGetMyVideoCircles_InvalidChannelID(t *testing.T) {
+	handler := NewVideoCircleHandlerWithDependencies(&mockVideoCircleService{}, &mockVideoCirclePushNotifier{})
+
+	app := fiber.New()
+	app.Get("/video-circles/my", func(c *fiber.Ctx) error {
+		c.Locals("userID", "77")
+		return handler.GetMyVideoCircles(c)
+	})
+
+	req := httptest.NewRequest("GET", "/video-circles/my?channelId=bad", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusBadRequest)
 	}
 }
 

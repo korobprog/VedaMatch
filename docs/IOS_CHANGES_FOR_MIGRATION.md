@@ -2716,6 +2716,69 @@ setCoverUrl(updated.coverUrl || '');
 - `cd server && go test ./...` — success.
 - `cd frontend && npx tsc --noEmit` — success.
 
+## 2026-02-27 (iOS emulator: channels feed no longer forced-empty for offline dev user)
+
+### Changed Files
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+
+### Old -> New
+- Old:
+  - для `user.ID === 999999` (`OFFLINE_DEV_USER_ID`) экран `ChannelsHub` делал ранний `return` без сетевых запросов;
+  - результат: в эмуляторе лента и список каналов выглядели пустыми даже при наличии постов на backend.
+- New:
+  - удален hardcoded offline guard;
+  - `loadFeed` и `loadMyChannels` всегда выполняют запросы к API.
+
+### Code Snippet
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```ts
+// removed:
+// if (user?.ID === OFFLINE_DEV_USER_ID) { ... return; }
+```
+
+### Validation
+- `cd frontend && npx tsc --noEmit` — success.
+
+## 2026-02-27 (iOS Push: fix messaging/unregistered before APNS/FCM token fetch)
+
+### Changed Files
+- `frontend/services/notificationService.ts`
+
+### Old -> New
+- Old:
+  - `getFcmToken()` на iOS вызывал `getAPNSToken()`/`getToken()` без явной проверки/регистрации устройства в remote messages;
+  - в некоторых dev/profile сценариях это давало warning/error `[messaging/unregistered] You must be registered for remote messages...`.
+- New:
+  - добавлен шаг `ensureIosRemoteMessageRegistration()`:
+    - проверка `isDeviceRegisteredForRemoteMessages`;
+    - `registerDeviceForRemoteMessages` только при необходимости;
+  - добавлен `waitForIosApnsToken()` с короткими ретраями для APNS race;
+  - добавлен retry-path при `messaging/unregistered` (одна повторная попытка после регистрации).
+
+### Code Snippets
+
+`frontend/services/notificationService.ts`:
+```ts
+const ensureIosRemoteMessageRegistration = async (messaging: any): Promise<void> => {
+  if (Platform.OS !== 'ios') return;
+  const alreadyRegistered = !!isDeviceRegisteredForRemoteMessages(messaging);
+  if (alreadyRegistered) return;
+  await registerDeviceForRemoteMessages(messaging);
+};
+```
+
+```ts
+if (Platform.OS === 'ios') {
+  await ensureIosRemoteMessageRegistration(messaging);
+  const apnsToken = await waitForIosApnsToken(messaging);
+  if (!apnsToken) return null;
+}
+```
+
+### Validation
+- `cd frontend && npx tsc --noEmit` — success.
+
 ## 2026-02-26 (Admin TV Series: bypass Next image optimizer for external S3 covers)
 
 ### Changed Files
@@ -2797,4 +2860,72 @@ CURRENT_PROJECT_VERSION = 7;
 ```pbxproj
 MARKETING_VERSION = 1.1.16;
 CURRENT_PROJECT_VERSION = 8;
+```
+
+## 2026-02-27 (Channels v1.1: post media upload, comments sheet, edit discoverability)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelPostComposerScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/services/channelService.ts`
+- `frontend/services/videoCirclesService.ts`
+- `frontend/types/channel.ts`
+- `frontend/types/navigation.ts`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/video_circle_handler.go`
+- `server/internal/services/video_circle_service.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - композер поста поддерживал только текст/CTA;
+  - в ленте комментарии открывались через `Alert` preview;
+  - у автора не было явной точки входа в редактирование поста;
+  - backend не имел upload endpoint для фото поста и строгой валидации `mediaJson` (лимиты/принадлежность кружков каналу);
+  - `/api/video-circles/my` не поддерживал `channelId/status` фильтры.
+- Стало:
+  - композер поддерживает `create/edit`, до 5 фото и до 10 кружков, picker кружков + переход в создание кружка;
+  - `ChannelsHub` и `ChannelDetails` показывают `⋯` (только автору), action bar и bottom-sheet комментариев с отправкой;
+  - backend добавил `POST /api/channels/:id/posts/media/upload` (image/jpeg|png|webp, max 8MB, авто-crop/resize 1080x1350 jpeg);
+  - `CreatePost/UpdatePost` валидируют `mediaJson`: `images<=5`, `circles<=10`, уникальные `circle.id`, проверка принадлежности `circle.id` к `channelId`;
+  - `/api/video-circles/my` принимает `channelId` и `status`.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Post("/channels/:id/posts/media/upload", channelHandler.UploadPostMedia)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) UploadPostMedia(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error)
+```
+
+```go
+const (
+    channelPostMediaMaxBytes = 8 << 20
+    channelPostImageWidth    = 1080
+    channelPostImageHeight   = 1350
+)
+```
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```tsx
+<TouchableOpacity testID={`post-menu-${item.ID}`} onPress={() => openPostMenu(item)}>
+  <MoreHorizontal size={16} color={colors.textSecondary} />
+</TouchableOpacity>
+```
+
+`frontend/screens/portal/services/channels/ChannelPostComposerScreen.tsx`:
+```tsx
+<Text style={styles.label}>Фото {images.length}/5</Text>
+<Text style={styles.label}>Кружки {circles.length}/10</Text>
+```
+
+`frontend/services/videoCirclesService.ts`:
+```ts
+getMyVideoCircles(page, limit, { channelId, status })
 ```

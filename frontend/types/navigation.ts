@@ -1,4 +1,5 @@
 import { CartItem } from './market';
+import type { ChannelPost } from './channel';
 
 export type PortalInitialTab =
     | 'contacts'
@@ -173,7 +174,7 @@ export type RootStackParamList = {
     ChannelsHub: undefined;
     ChannelDetails: { channelId: number };
     CreateChannel: undefined;
-    ChannelPostComposer: { channelId: number };
+    ChannelPostComposer: { channelId: number; mode?: 'create' | 'edit'; postId?: number; initialPost?: ChannelPost };
     ChannelManage: { channelId: number };
 
     // Wallet Routes

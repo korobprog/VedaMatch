@@ -86,6 +86,33 @@ export interface ChannelPost {
   channel?: Channel;
 }
 
+export interface ChannelPostMediaImage {
+  url: string;
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+}
+
+export interface ChannelPostMediaCircle {
+  id: number;
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  durationSec?: number;
+  expiresAt?: string;
+}
+
+export interface ChannelPostMedia {
+  images?: ChannelPostMediaImage[];
+  circles?: ChannelPostMediaCircle[];
+}
+
+export interface ChannelPostMediaUploadResponse {
+  url: string;
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg';
+}
+
 export interface ChannelPostComment {
   ID: number;
   postId: number;

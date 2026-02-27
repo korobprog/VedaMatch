@@ -23,6 +23,7 @@ type channelService interface {
 	UpdateChannel(channelID, actorID uint, req models.ChannelUpdateRequest) (*models.Channel, error)
 	UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error)
 	UploadChannelCover(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.Channel, error)
+	UploadPostMedia(channelID, actorID uint, fileHeader *multipart.FileHeader) (*models.ChannelPostMediaUploadResponse, error)
 	AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error)
 	ListMembers(channelID, actorID uint) ([]models.ChannelMember, error)
 	UpdateMemberRole(channelID, actorID, memberUserID uint, role models.ChannelMemberRole) (*models.ChannelMember, error)
@@ -251,6 +252,38 @@ func (h *ChannelHandler) UploadCover(c *fiber.Ctx) error {
 		return respondChannelError(c, err)
 	}
 	return c.JSON(channel)
+}
+
+func (h *ChannelHandler) UploadPostMedia(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	fileHeader, err := c.FormFile("media")
+	if err != nil || fileHeader == nil {
+		fileHeader, err = c.FormFile("file")
+	}
+	if err != nil || fileHeader == nil {
+		fileHeader, err = c.FormFile("image")
+	}
+	if err != nil || fileHeader == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "media file is required"})
+	}
+
+	result, err := h.service.UploadPostMedia(channelID, userID, fileHeader)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(result)
 }
 
 func (h *ChannelHandler) AddMember(c *fiber.Ctx) error {
@@ -1056,7 +1089,11 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 	case strings.Contains(msg, "forbidden"), strings.Contains(msg, "not authorized"), strings.Contains(msg, "unauthorized"):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	default:
-		if strings.Contains(msg, "invalid") || strings.Contains(msg, "required") {
+		if strings.Contains(msg, "invalid") ||
+			strings.Contains(msg, "required") ||
+			strings.Contains(msg, "too large") ||
+			strings.Contains(msg, "empty") ||
+			strings.Contains(msg, "unsupported") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

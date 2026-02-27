@@ -7,6 +7,7 @@ const mockGoBack = jest.fn();
 const mockGetFeed = jest.fn();
 const mockGetMyChannels = jest.fn();
 const mockTrackPromotedAdClick = jest.fn();
+const mockUser: any = { ID: 1, role: 'admin' };
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
@@ -25,7 +26,7 @@ jest.mock('../../../../../context/SettingsContext', () => ({
 }));
 
 jest.mock('../../../../../context/UserContext', () => ({
-  useUser: () => ({ user: { role: 'admin' } }),
+  useUser: () => ({ user: mockUser }),
 }));
 
 jest.mock('../../../../../hooks/useRoleTheme', () => ({
@@ -54,6 +55,12 @@ jest.mock('../../../../../services/channelService', () => ({
     getFeed: (...args: any[]) => mockGetFeed(...args),
     getMyChannels: (...args: any[]) => mockGetMyChannels(...args),
     trackPromotedAdClick: (...args: any[]) => mockTrackPromotedAdClick(...args),
+    trackView: jest.fn(),
+    setReaction: jest.fn(),
+    removeReaction: jest.fn(),
+    listComments: jest.fn(),
+    addComment: jest.fn(),
+    trackShare: jest.fn(),
   },
 }));
 
@@ -114,6 +121,8 @@ const makeAd = (id: number, title: string) => ({
 describe('ChannelsHubScreen feed interleaving', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUser.ID = 1;
+    mockUser.role = 'admin';
     mockGetMyChannels.mockResolvedValue({
       channels: [],
       total: 0,
@@ -186,5 +195,30 @@ describe('ChannelsHubScreen feed interleaving', () => {
 
     const order = readFeedOrder(UNSAFE_getAllByType);
     expect(order).toEqual(['TAIL-POST-1', 'TAIL-AD-1']);
+  });
+
+  it('shows overflow menu only for author post', async () => {
+    mockGetFeed.mockResolvedValue({
+      posts: [
+        makePost(1, 'POST-AUTHOR'),
+        { ...makePost(2, 'POST-OTHER'), authorId: 77 },
+      ],
+      promotedAds: [],
+      promotedInsertEvery: 4,
+      total: 2,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    });
+
+    const { getByTestId, queryByTestId, getByText } = render(<ChannelsHubScreen />);
+
+    await waitFor(() => {
+      expect(getByText('POST-AUTHOR')).toBeTruthy();
+      expect(getByText('POST-OTHER')).toBeTruthy();
+    });
+
+    expect(getByTestId('post-menu-1')).toBeTruthy();
+    expect(queryByTestId('post-menu-2')).toBeNull();
   });
 });
