@@ -372,7 +372,7 @@ func main() {
 		middleware.ConditionalETag(),
 		channelHandler.GetFeed,
 	)
-	api.Get("/channels", channelHandler.ListPublicChannels)
+	api.Get("/channels", middleware.OptionalAuth(), channelHandler.ListPublicChannels)
 	api.Get("/channels/my", middleware.Protected(), channelHandler.ListMyChannels)
 	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
 	api.Get("/channels/:id/posts",
@@ -809,6 +809,9 @@ func main() {
 	protected.Post("/channels/:channelId/posts/:postId/reactions", channelHandler.SetPostReaction)
 	protected.Delete("/channels/:channelId/posts/:postId/reactions", channelHandler.RemovePostReaction)
 	protected.Post("/channels/:channelId/posts/:postId/comments", channelHandler.AddPostComment)
+	protected.Post("/channels/:id/follow", channelHandler.FollowChannel)
+	protected.Delete("/channels/:id/follow", channelHandler.UnfollowChannel)
+	protected.Get("/channels/:id/follow-status", channelHandler.GetFollowStatus)
 	protected.Post("/channels/:id/showcases", channelHandler.CreateShowcase)
 	protected.Patch("/channels/:id/showcases/:showcaseId", channelHandler.UpdateShowcase)
 	protected.Delete("/channels/:id/showcases/:showcaseId", channelHandler.DeleteShowcase)
@@ -1013,6 +1016,7 @@ func main() {
 	protected.Get("/bookings/my", bookingHandler.GetMyBookings)
 	protected.Get("/bookings/incoming", bookingHandler.GetIncomingBookings)
 	protected.Get("/bookings/upcoming", bookingHandler.GetUpcoming)
+	protected.Get("/bookings/:id/calendar.ics", bookingHandler.ExportBookingICS)
 	protected.Put("/bookings/:id/confirm", bookingHandler.Confirm)
 	protected.Put("/bookings/:id/cancel", bookingHandler.Cancel)
 	protected.Put("/bookings/:id/complete", bookingHandler.Complete)

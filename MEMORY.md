@@ -22,6 +22,9 @@
 - Сбой `xcodebuild` в Debug для симулятора с ошибкой `FBReactNativeSpec.h: No such file or directory` (target `ReactCodegen`) связан с отсутствующими сгенерированными iOS codegen-артефактами в `frontend/ios/build/generated/ios`.
 - Рабочий фикс: выполнить `cd frontend/ios && pod install`, затем перезапустить iOS build (`pnpm run ios:dev` или `xcodebuild ... build`).
 - После `pod install` первый прогон может быть очень долгим из-за полного пересбора pod-ов (`React-RCTFabric`, `VisionCamera`, `NitroModules` и др.) без обязательного нового фатального падения.
+- Ошибка Xcode `Could not compute dependency graph` / `unable to initiate PIF transfer session` обычно лечится reset build-сервисов:
+  `killall Xcode Simulator xcodebuild XCBBuildService SWBBuildService SourceKitService com.apple.dt.SKAgent CoreDeviceService`
+  + очистка кэша `~/Library/Developer/Xcode/DerivedData/*`, `~/Library/Developer/Xcode/ModuleCache.noindex/*`, затем повторный запуск `xcodebuild -workspace ... -list`.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
@@ -67,6 +70,45 @@
   - `video_circles_upload_s3_fail_total`
   - `video_circles_non_cdn_detected_total`
 
+## Sadhu Sanga Module (MVP Contracts)
+- Scope принят как модуль внутри существующего VedaMatch (без отдельного приложения).
+- Подписка на проповедника реализуется через `channels`:
+  - новая роль `subscriber` в `models.ChannelMemberRole`;
+  - self-service API:
+    - `POST /api/channels/:id/follow`
+    - `DELETE /api/channels/:id/follow`
+    - `GET /api/channels/:id/follow-status`
+  - DTO канала теперь содержит:
+    - `followersCount` (по роли `subscriber`)
+    - `isFollowing` (owner/member для текущего viewer).
+  - при `PublishPost` и `PublishDuePosts` добавлена push-рассылка по подписчикам (`subscriber`) с дедупликацией на таблице `channel_post_deliveries`.
+- Каталог проповедников (`GET /api/channels`) расширен фильтрами:
+  - `city` (owner city),
+  - `language` (owner language),
+  - `topic` (через owner tags).
+- Семинары/календарь:
+  - добавлен экспорт `ICS`: `GET /api/bookings/:id/calendar.ics`;
+  - доступ только участнику бронирования или владельцу сервиса.
+  - добавлен дополнительный reminder `10m` в worker (`reminder_10m_sent`) помимо существующих `24h` и `1h`.
+- Support-вопросы проповеднику:
+  - `supportCreateTicketRequest` поддерживает `targetPreacherId`;
+  - при наличии target id entry point нормализуется в `sadhu_sanga_question`;
+  - metadata сохраняется в `support_conversations.meta_json`.
+- Клиентский контракт (RN):
+  - `frontend/services/channelService.ts` содержит `followChannel/unfollowChannel/getFollowStatus` + фильтры `city/language/topic`;
+  - `frontend/services/bookingService.ts` содержит `exportBookingCalendarIcs`.
+  - `frontend/services/supportService.ts` содержит `targetPreacherId` в `CreateSupportTicketPayload`.
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+  - добавлен follow/unfollow UX на карточке поста с optimistic update;
+  - отображается `Подписчиков: N` для поста/канала.
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+  - добавлен self-service follow/unfollow в header для читателя;
+  - добавлена роль-метка `Подписчик` для `subscriber`;
+  - добавлен публичный счетчик `Подписчиков: N` в intro блока канала.
+- `frontend/screens/portal/services/MyBookingsScreen.tsx` + `frontend/screens/portal/services/components/BookingCard.tsx`:
+  - добавлена кнопка `Календарь` для upcoming booking;
+  - действие вызывает `exportBookingCalendarIcs(bookingId)` и открывает системный share sheet с ICS payload.
+
 ## Trademark / MKTU Coverage
 - Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.
 - Подтвержденные направления по продукту:
@@ -79,6 +121,12 @@
   - Для сторов зафиксирована позиция "LKM — внутренняя неплатежная единица, не legal tender/не payment instrument" (`docs/store-submission-packet-p0.md`).
   - Формулировки МКТУ 36 про "выпуск/обмен/торговлю цифровой валютой" потенциально конфликтны с этой позицией и требуют узкой юридической корректировки.
 - Если 36 класс реализуется вне приложения (сайт/Telegram-бот), для стора сохранять политику "в приложении нет обмена/торговли цифровой валютой", а 36 класс формулировать отдельно под внешний сервис.
+- Актуальная рабочая позиция по классам:
+  - Ядро заявки: `09, 35, 38, 41, 42, 45`.
+  - Рекомендуется добавить как фактически используемый в продукте: `39` (travel/transport arrangement).
+  - Рекомендуется добавить как фактически используемый в продукте: `43` (temporary accommodation + cafes/restaurants booking/info).
+  - `36` оставлять только при реальном запуске финсервиса с отдельным compliance-контуром; не смешивать с мобильной витриной, где LKM описывается как non-monetary internal points.
+  - В `42` избегать избыточных формулировок про заказную разработку ПО/B2B-консалтинг, если это не отдельная коммерческая услуга.
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.

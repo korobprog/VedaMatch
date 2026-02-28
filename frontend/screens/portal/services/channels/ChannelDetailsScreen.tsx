@@ -169,6 +169,7 @@ export default function ChannelDetailsScreen() {
   const [commentsSheetLoading, setCommentsSheetLoading] = useState(false);
   const [commentsSheetSubmitting, setCommentsSheetSubmitting] = useState(false);
   const [commentsSheetText, setCommentsSheetText] = useState('');
+  const [followLoading, setFollowLoading] = useState(false);
 
   const mountedRef = useRef(true);
   const latestLoadRef = useRef(0);
@@ -649,8 +650,77 @@ export default function ChannelDetailsScreen() {
     if (viewerRole === 'admin') {
       return 'Admin';
     }
-    return 'Editor';
+    if (viewerRole === 'editor') {
+      return 'Editor';
+    }
+    return 'Подписчик';
   }, [viewerRole]);
+
+  const canFollow = useMemo(() => {
+    if (!channel || !user?.ID) {
+      return false;
+    }
+    if (channel.ownerId === user.ID) {
+      return false;
+    }
+    if (viewerRole === 'owner' || viewerRole === 'admin' || viewerRole === 'editor') {
+      return false;
+    }
+    return true;
+  }, [channel, user?.ID, viewerRole]);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (!channelId || !channel || !canFollow || followLoading) {
+      return;
+    }
+
+    const wasFollowing = Boolean(channel.isFollowing);
+    const prevFollowers = Math.max(0, Number(channel.followersCount) || 0);
+    const nextFollowers = wasFollowing ? Math.max(0, prevFollowers - 1) : prevFollowers + 1;
+
+    setFollowLoading(true);
+    setChannel(prev => (prev ? { ...prev, isFollowing: !wasFollowing, followersCount: nextFollowers } : prev));
+    if (!wasFollowing) {
+      setViewerRole(prev => (prev ? prev : 'subscriber'));
+    } else {
+      setViewerRole(prev => (prev === 'subscriber' ? undefined : prev));
+    }
+
+    try {
+      if (wasFollowing) {
+        await channelService.unfollowChannel(channelId);
+      } else {
+        await channelService.followChannel(channelId);
+      }
+      const followStatus = await channelService.getFollowStatus(channelId);
+      setChannel(prev => (
+        prev
+          ? {
+            ...prev,
+            isFollowing: followStatus.isFollowing,
+            followersCount: followStatus.followersCount,
+          }
+          : prev
+      ));
+      if (followStatus.isFollowing) {
+        setViewerRole(prev => (prev ? prev : 'subscriber'));
+      } else {
+        setViewerRole(prev => (prev === 'subscriber' ? undefined : prev));
+      }
+    } catch (error: any) {
+      setChannel(prev => (prev ? { ...prev, isFollowing: wasFollowing, followersCount: prevFollowers } : prev));
+      if (wasFollowing) {
+        setViewerRole(prev => (prev ? prev : 'subscriber'));
+      } else {
+        setViewerRole(prev => (prev === 'subscriber' ? undefined : prev));
+      }
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить подписку');
+    } finally {
+      if (mountedRef.current) {
+        setFollowLoading(false);
+      }
+    }
+  }, [canFollow, channel, channelId, followLoading]);
 
   const renderPost = ({ item }: { item: ChannelPost }) => {
     const ctaLabel = getChannelPostCtaLabel(item);
@@ -769,6 +839,20 @@ export default function ChannelDetailsScreen() {
                 <PlusCircle size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
+          ) : canFollow ? (
+            <TouchableOpacity
+              style={[
+                styles.followButton,
+                channel?.isFollowing ? styles.followingButton : styles.followDefaultButton,
+                followLoading && styles.followButtonDisabled,
+              ]}
+              onPress={() => void handleFollowToggle()}
+              disabled={followLoading}
+            >
+              <Text style={styles.followButtonText}>
+                {channel?.isFollowing ? 'Вы подписаны' : 'Подписаться'}
+              </Text>
+            </TouchableOpacity>
           ) : (
             <View style={styles.headerPlaceholder} />
           )}
@@ -776,7 +860,12 @@ export default function ChannelDetailsScreen() {
 
         <View style={styles.channelIntro}>
           <Text style={styles.channelDescription}>{channel?.description || 'Описание канала не заполнено'}</Text>
-          <Text style={styles.channelMeta}>@{channel?.slug || 'channel'}</Text>
+          <View style={styles.channelStatsRow}>
+            <Text style={styles.channelMeta}>@{channel?.slug || 'channel'}</Text>
+            <Text style={styles.channelMetaSecondary}>
+              Подписчиков: {Math.max(0, Number(channel?.followersCount) || 0)}
+            </Text>
+          </View>
           {isModerator ? (
             <TouchableOpacity
               style={styles.crmButton}
@@ -1063,6 +1152,30 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     manageButton: {
       backgroundColor: colors.surfaceElevated,
     },
+    followButton: {
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      height: 36,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+    },
+    followDefaultButton: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    followingButton: {
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    followButtonDisabled: {
+      opacity: 0.75,
+    },
+    followButtonText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1103,6 +1216,17 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     },
     channelMeta: {
       color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    channelStatsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    channelMetaSecondary: {
+      color: colors.textSecondary,
       fontSize: 12,
       fontWeight: '700',
     },

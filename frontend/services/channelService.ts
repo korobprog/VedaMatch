@@ -25,7 +25,7 @@ class ChannelService {
     return response.data;
   }
 
-  async getChannels(params: { page?: number; limit?: number; search?: string } = {}): Promise<ChannelListResponse> {
+  async getChannels(params: { page?: number; limit?: number; search?: string; city?: string; language?: string; topic?: string } = {}): Promise<ChannelListResponse> {
     const response = await apiClient.get('/channels', { params });
     return response.data;
   }
@@ -42,6 +42,21 @@ class ChannelService {
 
   async getChannel(channelId: number): Promise<{ channel: Channel; viewerRole?: ChannelMemberRole }> {
     const response = await apiClient.get(`/channels/${channelId}`);
+    return response.data;
+  }
+
+  async followChannel(channelId: number): Promise<{ ok: boolean; channelId: number }> {
+    const response = await apiClient.post(`/channels/${channelId}/follow`, {});
+    return response.data;
+  }
+
+  async unfollowChannel(channelId: number): Promise<{ ok: boolean; channelId: number }> {
+    const response = await apiClient.delete(`/channels/${channelId}/follow`);
+    return response.data;
+  }
+
+  async getFollowStatus(channelId: number): Promise<{ channelId: number; isFollowing: boolean; followersCount: number }> {
+    const response = await apiClient.get(`/channels/${channelId}/follow-status`);
     return response.data;
   }
 

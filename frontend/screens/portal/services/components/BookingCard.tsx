@@ -8,8 +8,9 @@ import {
     StyleSheet,
     TouchableOpacity,
     Image,
+    Platform,
 } from 'react-native';
-import { Calendar, Clock, User, MapPin, Video, MessageCircle, X, Sparkles } from 'lucide-react-native';
+import { Calendar, Clock, User, MapPin, Video, MessageCircle, X, Sparkles, CalendarPlus } from 'lucide-react-native';
 import { ServiceBooking, STATUS_LABELS, STATUS_COLORS } from '../../../../services/bookingService';
 import { CHANNEL_LABELS } from '../../../../services/serviceService';
 
@@ -18,6 +19,7 @@ interface BookingCardProps {
     onPress: () => void;
     onCancel?: () => void;
     onChat?: () => void;
+    onAddToCalendar?: () => void;
 }
 
 export default function BookingCard({
@@ -25,6 +27,7 @@ export default function BookingCard({
     onPress,
     onCancel,
     onChat,
+    onAddToCalendar,
 }: BookingCardProps) {
     const statusColor = STATUS_COLORS[booking.status] || 'rgba(158, 158, 158, 1)';
     const isUpcoming = booking.status === 'confirmed' || booking.status === 'pending';
@@ -126,6 +129,14 @@ export default function BookingCard({
                         <TouchableOpacity style={styles.chatAction} onPress={onChat}>
                             <MessageCircle size={18} color="rgba(245,158,11,1)" />
                             <Text style={styles.chatActionText}>Обсудить в чате</Text>
+                        </TouchableOpacity>
+                    )}
+                    {onAddToCalendar && (
+                        <TouchableOpacity style={styles.calendarAction} onPress={onAddToCalendar}>
+                            <CalendarPlus size={17} color="rgba(245,158,11,1)" />
+                            <Text style={styles.calendarActionText}>
+                                {Platform.OS === 'ios' ? 'В календарь' : 'Календарь'}
+                            </Text>
                         </TouchableOpacity>
                     )}
                     {canCancel && onCancel && (
@@ -289,6 +300,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    calendarAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        height: 48,
+        borderRadius: 14,
+        backgroundColor: 'rgba(245, 158, 11, 0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    calendarActionText: {
+        color: 'rgba(245,158,11,1)',
+        fontSize: 13,
+        fontWeight: '800',
     },
     noteOverlay: {
         marginTop: 16,

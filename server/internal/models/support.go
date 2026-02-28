@@ -59,27 +59,28 @@ type SupportContact struct {
 // SupportConversation is an active or resolved support thread for a contact.
 type SupportConversation struct {
 	gorm.Model
-	ContactID           *uint                     `json:"contactId,omitempty" gorm:"index"`
-	Contact             SupportContact            `json:"contact,omitempty"`
-	AppUserID           *uint                     `json:"appUserId,omitempty" gorm:"index;uniqueIndex:idx_support_client_request"`
-	AppUser             User                      `json:"appUser,omitempty"`
+	ContactID           *uint                      `json:"contactId,omitempty" gorm:"index"`
+	Contact             SupportContact             `json:"contact,omitempty"`
+	AppUserID           *uint                      `json:"appUserId,omitempty" gorm:"index;uniqueIndex:idx_support_client_request"`
+	AppUser             User                       `json:"appUser,omitempty"`
 	Channel             SupportConversationChannel `json:"channel" gorm:"type:varchar(20);index;default:'telegram'"`
-	TicketNumber        *string                   `json:"ticketNumber,omitempty" gorm:"size:64;uniqueIndex"`
-	Subject             string                    `json:"subject" gorm:"size:255"`
-	RequesterName       string                    `json:"requesterName" gorm:"size:255"`
-	RequesterContact    string                    `json:"requesterContact" gorm:"size:255;index;uniqueIndex:idx_support_client_request"`
-	ClientRequestID     *string                   `json:"clientRequestId,omitempty" gorm:"size:128;index;uniqueIndex:idx_support_client_request"`
-	EntryPoint          string                    `json:"entryPoint" gorm:"size:100;index"`
-	Status              SupportConversationStatus `json:"status" gorm:"type:varchar(20);index;default:'open'"`
-	TelegramChatID      int64                     `json:"telegramChatId" gorm:"index;not null"`
-	LastMessageAt       *time.Time                `json:"lastMessageAt"`
-	LastMessagePreview  string                    `json:"lastMessagePreview" gorm:"type:text"`
-	EscalatedToOperator bool                      `json:"escalatedToOperator" gorm:"default:false"`
-	EscalatedAt         *time.Time                `json:"escalatedAt"`
-	LastUserReadAt      *time.Time                `json:"lastUserReadAt"`
-	FirstResponseAt     *time.Time                `json:"firstResponseAt"`
-	ResolvedAt          *time.Time                `json:"resolvedAt"`
-	ResolvedBy          *uint                     `json:"resolvedBy"`
+	TicketNumber        *string                    `json:"ticketNumber,omitempty" gorm:"size:64;uniqueIndex"`
+	Subject             string                     `json:"subject" gorm:"size:255"`
+	RequesterName       string                     `json:"requesterName" gorm:"size:255"`
+	RequesterContact    string                     `json:"requesterContact" gorm:"size:255;index;uniqueIndex:idx_support_client_request"`
+	ClientRequestID     *string                    `json:"clientRequestId,omitempty" gorm:"size:128;index;uniqueIndex:idx_support_client_request"`
+	EntryPoint          string                     `json:"entryPoint" gorm:"size:100;index"`
+	MetaJSON            string                     `json:"metaJson,omitempty" gorm:"type:text"`
+	Status              SupportConversationStatus  `json:"status" gorm:"type:varchar(20);index;default:'open'"`
+	TelegramChatID      int64                      `json:"telegramChatId" gorm:"index;not null"`
+	LastMessageAt       *time.Time                 `json:"lastMessageAt"`
+	LastMessagePreview  string                     `json:"lastMessagePreview" gorm:"type:text"`
+	EscalatedToOperator bool                       `json:"escalatedToOperator" gorm:"default:false"`
+	EscalatedAt         *time.Time                 `json:"escalatedAt"`
+	LastUserReadAt      *time.Time                 `json:"lastUserReadAt"`
+	FirstResponseAt     *time.Time                 `json:"firstResponseAt"`
+	ResolvedAt          *time.Time                 `json:"resolvedAt"`
+	ResolvedBy          *uint                      `json:"resolvedBy"`
 }
 
 // SupportMessage stores user/bot/operator messages in a support conversation.

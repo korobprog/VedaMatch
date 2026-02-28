@@ -757,3 +757,30 @@ func (s *BookingService) GetUpcoming(ownerID uint) (*models.UpcomingBookingsResp
 
 	return response, nil
 }
+
+// GetBookingForUser returns booking if user is a client or the service owner.
+func (s *BookingService) GetBookingForUser(bookingID, userID uint) (*models.ServiceBooking, error) {
+	if userID == 0 {
+		return nil, errors.New("unauthorized")
+	}
+
+	var booking models.ServiceBooking
+	if err := database.DB.
+		Preload("Service").
+		Preload("Tariff").
+		Preload("Client").
+		First(&booking, bookingID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("booking not found")
+		}
+		return nil, err
+	}
+
+	if booking.ClientID != userID {
+		if booking.Service == nil || booking.Service.OwnerID != userID {
+			return nil, errors.New("forbidden")
+		}
+	}
+
+	return &booking, nil
+}

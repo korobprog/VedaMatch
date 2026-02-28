@@ -1,4 +1,4 @@
-export type ChannelMemberRole = 'owner' | 'admin' | 'editor';
+export type ChannelMemberRole = 'owner' | 'admin' | 'editor' | 'subscriber';
 
 export type ChannelPostType = 'text' | 'media' | 'showcase';
 
@@ -23,6 +23,8 @@ export interface Channel {
   coverUrl: string;
   timezone: string;
   isPublic: boolean;
+  followersCount?: number;
+  isFollowing?: boolean;
   CreatedAt: string;
   UpdatedAt: string;
   owner?: ChannelOwnerInfo;

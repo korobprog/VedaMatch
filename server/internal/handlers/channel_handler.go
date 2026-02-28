@@ -19,6 +19,9 @@ type channelService interface {
 	ListPublicChannels(filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error)
+	FollowChannel(channelID, followerID uint) (*models.ChannelMember, error)
+	UnfollowChannel(channelID, followerID uint) error
+	GetFollowStatus(channelID, viewerID uint) (bool, int64, error)
 	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
 	UpdateChannel(channelID, actorID uint, req models.ChannelUpdateRequest) (*models.Channel, error)
 	UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error)
@@ -104,11 +107,19 @@ func (h *ChannelHandler) ListPublicChannels(c *fiber.Ctx) error {
 	page := parseQueryIntWithDefault(c, "page", 1)
 	limit := parseQueryIntWithDefault(c, "limit", 20)
 	search := strings.TrimSpace(c.Query("search"))
+	city := strings.TrimSpace(c.Query("city"))
+	language := strings.TrimSpace(c.Query("language"))
+	topic := strings.TrimSpace(c.Query("topic"))
+	viewerID := middleware.GetUserID(c)
 
 	result, err := h.service.ListPublicChannels(services.ChannelListFilters{
-		Search: search,
-		Page:   page,
-		Limit:  limit,
+		Search:   search,
+		City:     city,
+		Language: language,
+		Topic:    topic,
+		Page:     page,
+		Limit:    limit,
+		ViewerID: viewerID,
 	})
 	if err != nil {
 		return respondChannelError(c, err)
@@ -131,9 +142,10 @@ func (h *ChannelHandler) ListMyChannels(c *fiber.Ctx) error {
 	search := strings.TrimSpace(c.Query("search"))
 
 	result, err := h.service.ListMyChannels(userID, services.ChannelListFilters{
-		Search: search,
-		Page:   page,
-		Limit:  limit,
+		Search:   search,
+		Page:     page,
+		Limit:    limit,
+		ViewerID: userID,
 	})
 	if err != nil {
 		return respondChannelError(c, err)
@@ -171,6 +183,85 @@ func (h *ChannelHandler) getChannelWithViewer(c *fiber.Ctx, viewerID uint) error
 	return c.JSON(fiber.Map{
 		"channel":    channel,
 		"viewerRole": role,
+	})
+}
+
+func (h *ChannelHandler) FollowChannel(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	member, err := h.service.FollowChannel(channelID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"ok":        true,
+		"channelId": channelID,
+		"member":    member,
+	})
+}
+
+func (h *ChannelHandler) UnfollowChannel(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	if err := h.service.UnfollowChannel(channelID, userID); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":        true,
+		"channelId": channelID,
+	})
+}
+
+func (h *ChannelHandler) GetFollowStatus(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	isFollowing, followersCount, err := h.service.GetFollowStatus(channelID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"channelId":      channelID,
+		"isFollowing":    isFollowing,
+		"followersCount": followersCount,
 	})
 }
 

@@ -58,6 +58,7 @@ export interface CreateSupportTicketPayload {
     contact?: string;
     name?: string;
     entryPoint?: string;
+    targetPreacherId?: number;
     attachmentUrl?: string;
     attachmentMimeType?: string;
     clientRequestId?: string;

@@ -51,9 +51,13 @@ type ChannelFeedFilters struct {
 }
 
 type ChannelListFilters struct {
-	Search string
-	Page   int
-	Limit  int
+	Search   string
+	City     string
+	Language string
+	Topic    string
+	Page     int
+	Limit    int
+	ViewerID uint
 }
 
 var (
@@ -183,6 +187,9 @@ func (s *ChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.
 	}
 
 	if channel.IsPublic {
+		if err := s.enrichChannelsFollowMeta([]*models.Channel{&channel}, viewerID); err != nil {
+			return nil, err
+		}
 		return &channel, nil
 	}
 
@@ -192,6 +199,10 @@ func (s *ChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.
 	}
 	if role == "" {
 		return nil, ErrChannelForbidden
+	}
+
+	if err := s.enrichChannelsFollowMeta([]*models.Channel{&channel}, viewerID); err != nil {
+		return nil, err
 	}
 
 	return &channel, nil
@@ -210,6 +221,126 @@ func (s *ChannelService) ListMyChannels(ownerID uint, filters ChannelListFilters
 		Or("id IN (?)", memberChannelIDs)
 
 	return s.listChannels(baseQuery, filters)
+}
+
+func (s *ChannelService) FollowChannel(channelID, followerID uint) (*models.ChannelMember, error) {
+	if followerID == 0 {
+		return nil, ErrChannelForbidden
+	}
+
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id", "is_public").First(&channel, channelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelNotFound
+		}
+		return nil, err
+	}
+
+	if channel.OwnerID == followerID {
+		return nil, errors.New("owner cannot follow own channel")
+	}
+
+	var existing models.ChannelMember
+	if err := s.db.Where("channel_id = ? AND user_id = ?", channelID, followerID).First(&existing).Error; err == nil {
+		if existing.Role == models.ChannelMemberRoleSubscriber {
+			return &existing, nil
+		}
+		return nil, errors.New("channel membership already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if !channel.IsPublic {
+		return nil, ErrChannelForbidden
+	}
+
+	member := models.ChannelMember{
+		ChannelID: channelID,
+		UserID:    followerID,
+		Role:      models.ChannelMemberRoleSubscriber,
+	}
+	if err := s.db.Create(&member).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			if getErr := s.db.Where("channel_id = ? AND user_id = ?", channelID, followerID).First(&existing).Error; getErr != nil {
+				return nil, getErr
+			}
+			return &existing, nil
+		}
+		return nil, err
+	}
+
+	return &member, nil
+}
+
+func (s *ChannelService) UnfollowChannel(channelID, followerID uint) error {
+	if followerID == 0 {
+		return ErrChannelForbidden
+	}
+
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id").First(&channel, channelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChannelNotFound
+		}
+		return err
+	}
+	if channel.OwnerID == followerID {
+		return errors.New("owner cannot unfollow own channel")
+	}
+
+	var existing models.ChannelMember
+	if err := s.db.Where("channel_id = ? AND user_id = ?", channelID, followerID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	if existing.Role != models.ChannelMemberRoleSubscriber {
+		return errors.New("cannot unfollow channel with elevated role")
+	}
+
+	return s.db.Where("id = ?", existing.ID).Delete(&models.ChannelMember{}).Error
+}
+
+func (s *ChannelService) GetFollowStatus(channelID, viewerID uint) (bool, int64, error) {
+	if viewerID == 0 {
+		return false, 0, ErrChannelForbidden
+	}
+
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id", "is_public").First(&channel, channelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, 0, ErrChannelNotFound
+		}
+		return false, 0, err
+	}
+
+	if !channel.IsPublic {
+		role, err := s.getActorRole(&channel, viewerID)
+		if err != nil {
+			return false, 0, err
+		}
+		if role == "" {
+			return false, 0, ErrChannelForbidden
+		}
+	}
+
+	counts, err := s.fetchFollowersCountMap([]uint{channelID})
+	if err != nil {
+		return false, 0, err
+	}
+
+	isFollowing := channel.OwnerID == viewerID
+	if !isFollowing {
+		rolesByChannel, roleErr := s.fetchViewerChannelRoleMap(viewerID, []uint{channelID})
+		if roleErr != nil {
+			return false, 0, roleErr
+		}
+		_, isFollowing = rolesByChannel[channelID]
+	}
+
+	return isFollowing, counts[channelID], nil
 }
 
 func (s *ChannelService) GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error) {
@@ -629,7 +760,7 @@ func (s *ChannelService) ListPosts(channelID, viewerID uint, page, limit int, in
 		Order("is_pinned DESC").
 		Order("pinned_at DESC NULLS LAST").
 		Order("published_at DESC NULLS LAST").
-		Order("created_at DESC").
+		Order("channels.created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&posts).Error; err != nil {
@@ -776,6 +907,9 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 	}
 	if err := s.deliverPostPersonally(post); err != nil {
 		log.Printf("[Channels] personal delivery failed post=%d: %v", post.ID, err)
+	}
+	if err := s.deliverPostToSubscribers(post); err != nil {
+		log.Printf("[Channels] subscriber delivery failed post=%d: %v", post.ID, err)
 	}
 	return post, nil
 }
@@ -926,6 +1060,12 @@ func (s *ChannelService) PublishDuePosts(limit int) (int, error) {
 				firstDeliveryErr = err
 			}
 			log.Printf("[Channels] personal delivery failed for scheduled post=%d: %v", postID, err)
+		}
+		if err := s.deliverPostToSubscribersByID(postID); err != nil {
+			if firstDeliveryErr == nil {
+				firstDeliveryErr = err
+			}
+			log.Printf("[Channels] subscriber delivery failed for scheduled post=%d: %v", postID, err)
 		}
 	}
 
@@ -1702,6 +1842,61 @@ func (s *ChannelService) deliverPostPersonallyByID(postID uint) error {
 	return s.deliverPostPersonally(&post)
 }
 
+func (s *ChannelService) deliverPostToSubscribersByID(postID uint) error {
+	if postID == 0 {
+		return nil
+	}
+
+	var post models.ChannelPost
+	if err := s.db.Preload("Channel").Preload("Author").First(&post, postID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	return s.deliverPostToSubscribers(&post)
+}
+
+func (s *ChannelService) deliverPostToSubscribers(post *models.ChannelPost) error {
+	if post == nil || post.Status != models.ChannelPostStatusPublished {
+		return nil
+	}
+
+	channel := post.Channel
+	if channel == nil {
+		var loaded models.Channel
+		if err := s.db.Select("id", "owner_id", "title", "is_public").First(&loaded, post.ChannelID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		channel = &loaded
+		post.Channel = channel
+	}
+
+	var members []models.ChannelMember
+	if err := s.db.Select("user_id").
+		Where("channel_id = ? AND role = ? AND user_id <> ?", post.ChannelID, models.ChannelMemberRoleSubscriber, post.AuthorID).
+		Find(&members).Error; err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+
+	var firstErr error
+	for _, member := range members {
+		if err := s.sendSubscriberPostPush(post, channel, member.UserID); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			log.Printf("[Channels] subscriber push failed post=%d user=%d: %v", post.ID, member.UserID, err)
+		}
+	}
+	return firstErr
+}
+
 func (s *ChannelService) deliverPostPersonally(post *models.ChannelPost) error {
 	if post == nil {
 		return nil
@@ -1803,6 +1998,43 @@ func (s *ChannelService) createPersonalDeliveryDM(post *models.ChannelPost, chan
 }
 
 func (s *ChannelService) sendPersonalDeliveryPush(post *models.ChannelPost, channel *models.Channel, userID uint) error {
+	deliveryID, shouldSend, err := s.reservePostDelivery(post.ID, userID, models.ChannelPostDeliveryTypePush)
+	if err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+	if !shouldSend {
+		return nil
+	}
+
+	pushMessage := PushMessage{
+		Title:    buildPersonalPushTitle(channel),
+		Body:     buildPersonalPushBody(post),
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "channel_news_personal",
+			"channelId": strconv.FormatUint(uint64(post.ChannelID), 10),
+			"postId":    strconv.FormatUint(uint64(post.ID), 10),
+		},
+	}
+
+	if err := GetPushService().SendToUser(userID, pushMessage); err != nil {
+		_ = s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusFailed)
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	if err := s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusSuccess); err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	s.incrementMetricSafe(MetricChannelPersonalPushSentTotal, 1)
+	s.incrementMetricSafe(MetricChannelPersonalDeliveriesTotal, 1)
+	return nil
+}
+
+func (s *ChannelService) sendSubscriberPostPush(post *models.ChannelPost, channel *models.Channel, userID uint) error {
 	deliveryID, shouldSend, err := s.reservePostDelivery(post.ID, userID, models.ChannelPostDeliveryTypePush)
 	if err != nil {
 		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
@@ -2116,8 +2348,31 @@ func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFil
 	offset := (page - 1) * limit
 
 	query := baseQuery.Model(&models.Channel{})
+	joinedOwner := false
 	if search := strings.TrimSpace(filters.Search); search != "" {
 		query = query.Where("title ILIKE ? OR description ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+	if city := strings.TrimSpace(filters.City); city != "" {
+		if !joinedOwner {
+			query = query.Joins("JOIN users ON users.id = channels.owner_id")
+			joinedOwner = true
+		}
+		query = query.Where("LOWER(users.city) = LOWER(?)", city)
+	}
+	if language := strings.TrimSpace(filters.Language); language != "" {
+		if !joinedOwner {
+			query = query.Joins("JOIN users ON users.id = channels.owner_id")
+			joinedOwner = true
+		}
+		query = query.Where("LOWER(users.language) = LOWER(?)", language)
+	}
+	if topic := strings.TrimSpace(filters.Topic); topic != "" {
+		ownerByTopic := s.db.
+			Table("user_tags").
+			Select("DISTINCT user_tags.user_id").
+			Joins("JOIN tags ON tags.id = user_tags.tag_id").
+			Where("LOWER(tags.name) LIKE ?", "%"+strings.ToLower(topic)+"%")
+		query = query.Where("channels.owner_id IN (?)", ownerByTopic)
 	}
 
 	var total int64
@@ -2128,10 +2383,19 @@ func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFil
 	var channels []models.Channel
 	if err := query.
 		Preload("Owner").
+		Distinct("channels.*").
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	channelPointers := make([]*models.Channel, 0, len(channels))
+	for i := range channels {
+		channelPointers = append(channelPointers, &channels[i])
+	}
+	if err := s.enrichChannelsFollowMeta(channelPointers, filters.ViewerID); err != nil {
 		return nil, err
 	}
 
@@ -2264,9 +2528,102 @@ func rankRole(role models.ChannelMemberRole) int {
 		return 2
 	case models.ChannelMemberRoleEditor:
 		return 1
+	case models.ChannelMemberRoleSubscriber:
+		return 0
 	default:
 		return 0
 	}
+}
+
+func (s *ChannelService) enrichChannelsFollowMeta(channels []*models.Channel, viewerID uint) error {
+	if len(channels) == 0 {
+		return nil
+	}
+
+	channelIDs := make([]uint, 0, len(channels))
+	for _, channel := range channels {
+		if channel == nil || channel.ID == 0 {
+			continue
+		}
+		channelIDs = append(channelIDs, channel.ID)
+	}
+	if len(channelIDs) == 0 {
+		return nil
+	}
+
+	countsByChannel, err := s.fetchFollowersCountMap(channelIDs)
+	if err != nil {
+		return err
+	}
+
+	rolesByChannel := map[uint]models.ChannelMemberRole{}
+	if viewerID > 0 {
+		rolesByChannel, err = s.fetchViewerChannelRoleMap(viewerID, channelIDs)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		channel.FollowersCount = countsByChannel[channel.ID]
+		channel.IsFollowing = false
+		if viewerID > 0 {
+			if channel.OwnerID == viewerID {
+				channel.IsFollowing = true
+				continue
+			}
+			_, channel.IsFollowing = rolesByChannel[channel.ID]
+		}
+	}
+
+	return nil
+}
+
+func (s *ChannelService) fetchFollowersCountMap(channelIDs []uint) (map[uint]int64, error) {
+	type followersCountRow struct {
+		ChannelID uint
+		Count     int64
+	}
+
+	countsByChannel := make(map[uint]int64, len(channelIDs))
+	if len(channelIDs) == 0 {
+		return countsByChannel, nil
+	}
+
+	var rows []followersCountRow
+	if err := s.db.Model(&models.ChannelMember{}).
+		Select("channel_id, COUNT(*) AS count").
+		Where("channel_id IN ? AND role = ?", channelIDs, models.ChannelMemberRoleSubscriber).
+		Group("channel_id").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		countsByChannel[row.ChannelID] = row.Count
+	}
+	return countsByChannel, nil
+}
+
+func (s *ChannelService) fetchViewerChannelRoleMap(viewerID uint, channelIDs []uint) (map[uint]models.ChannelMemberRole, error) {
+	roleByChannel := make(map[uint]models.ChannelMemberRole, len(channelIDs))
+	if viewerID == 0 || len(channelIDs) == 0 {
+		return roleByChannel, nil
+	}
+
+	var memberships []models.ChannelMember
+	if err := s.db.Select("channel_id", "role").
+		Where("user_id = ? AND channel_id IN ?", viewerID, channelIDs).
+		Find(&memberships).Error; err != nil {
+		return nil, err
+	}
+	for _, membership := range memberships {
+		roleByChannel[membership.ChannelID] = membership.Role
+	}
+	return roleByChannel, nil
 }
 
 func resolveDeliverPersonally(isPublic bool, requested *bool) bool {

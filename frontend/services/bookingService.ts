@@ -221,6 +221,16 @@ export async function getBusyTimes(
     return response.data;
 }
 
+/**
+ * Export booking to iCalendar (.ics) text payload
+ */
+export async function exportBookingCalendarIcs(bookingId: number): Promise<string> {
+    const response = await apiClient.get(`/bookings/${bookingId}/calendar.ics`, {
+        responseType: 'text',
+    });
+    return typeof response.data === 'string' ? response.data : String(response.data || '');
+}
+
 // ==================== DATE HELPERS ====================
 
 /**

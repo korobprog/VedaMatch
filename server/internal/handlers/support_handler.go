@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -54,6 +55,7 @@ type supportCreateTicketRequest struct {
 	Contact            string `json:"contact"`
 	Name               string `json:"name"`
 	EntryPoint         string `json:"entryPoint"`
+	TargetPreacherID   *uint  `json:"targetPreacherId"`
 	AttachmentURL      string `json:"attachmentUrl"`
 	AttachmentMimeType string `json:"attachmentMimeType"`
 	ClientRequestID    string `json:"clientRequestId"`
@@ -956,6 +958,12 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	if req.Subject == "" {
 		req.Subject = "Support request"
 	}
+	if req.TargetPreacherID != nil && *req.TargetPreacherID == 0 {
+		req.TargetPreacherID = nil
+	}
+	if req.TargetPreacherID != nil && req.EntryPoint == "" {
+		req.EntryPoint = "sadhu_sanga_question"
+	}
 	if req.EntryPoint == "" {
 		req.EntryPoint = "unknown"
 	}
@@ -1021,6 +1029,21 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		clientRequestID = &req.ClientRequestID
 	}
 	ticketNumberPtr := &ticketNumber
+	metaJSON := ""
+	if req.TargetPreacherID != nil {
+		meta := map[string]interface{}{
+			"targetPreacherId": *req.TargetPreacherID,
+			"scope":            "sadhu_sanga",
+		}
+		if req.EntryPoint == "unknown" {
+			req.EntryPoint = "sadhu_sanga_question"
+		}
+		encodedMeta, err := json.Marshal(meta)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid support metadata"})
+		}
+		metaJSON = string(encodedMeta)
+	}
 
 	conversation := models.SupportConversation{
 		AppUserID:        appUserID,
@@ -1031,6 +1054,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		RequesterContact: req.Contact,
 		ClientRequestID:  clientRequestID,
 		EntryPoint:       req.EntryPoint,
+		MetaJSON:         metaJSON,
 		Status:           models.SupportConversationStatusOpen,
 		TelegramChatID:   0,
 		LastMessageAt:    &now,

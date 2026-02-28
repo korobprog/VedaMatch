@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,6 +20,7 @@ type bookingService interface {
 	Cancel(bookingID, userID uint, req models.BookingActionRequest) (*models.ServiceBooking, error)
 	Complete(bookingID, ownerID uint, req models.BookingActionRequest) (*models.ServiceBooking, error)
 	MarkNoShow(bookingID, ownerID uint) (*models.ServiceBooking, error)
+	GetBookingForUser(bookingID, userID uint) (*models.ServiceBooking, error)
 }
 
 type bookingCalendarService interface {
@@ -375,4 +378,89 @@ func (h *BookingHandler) GetBusyTimes(c *fiber.Ctx) error {
 		"dateTo":   dateTo,
 		"bookings": bookings,
 	})
+}
+
+// ExportBookingICS returns calendar event in ICS format.
+// GET /api/bookings/:id/calendar.ics
+func (h *BookingHandler) ExportBookingICS(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	bookingID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid booking ID"})
+	}
+
+	booking, err := h.bookingService.GetBookingForUser(uint(bookingID), userID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if booking.Service == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "service data is unavailable"})
+	}
+
+	nowUTC := time.Now().UTC().Format("20060102T150405Z")
+	startUTC := booking.ScheduledAt.UTC().Format("20060102T150405Z")
+	endUTC := booking.EndAt.UTC().Format("20060102T150405Z")
+
+	summary := escapeICSLine(strings.TrimSpace(booking.Service.Title))
+	if summary == "" {
+		summary = "Sadhu Sanga Seminar"
+	}
+
+	descriptionParts := []string{
+		"Booking #" + strconv.FormatUint(uint64(booking.ID), 10),
+	}
+	if note := strings.TrimSpace(booking.ClientNote); note != "" {
+		descriptionParts = append(descriptionParts, "Note: "+note)
+	}
+	if link := strings.TrimSpace(booking.MeetingLink); link != "" {
+		descriptionParts = append(descriptionParts, "Meeting: "+link)
+	}
+	description := escapeICSLine(strings.Join(descriptionParts, "\\n"))
+
+	location := strings.TrimSpace(booking.Service.OfflineAddress)
+	locationEscaped := escapeICSLine(location)
+
+	uid := fmt.Sprintf("booking-%d@vedicai", booking.ID)
+	ics := strings.Builder{}
+	ics.WriteString("BEGIN:VCALENDAR\r\n")
+	ics.WriteString("VERSION:2.0\r\n")
+	ics.WriteString("PRODID:-//VedaMatch//Sadhu Sanga//EN\r\n")
+	ics.WriteString("CALSCALE:GREGORIAN\r\n")
+	ics.WriteString("METHOD:PUBLISH\r\n")
+	ics.WriteString("BEGIN:VEVENT\r\n")
+	ics.WriteString("UID:" + uid + "\r\n")
+	ics.WriteString("DTSTAMP:" + nowUTC + "\r\n")
+	ics.WriteString("DTSTART:" + startUTC + "\r\n")
+	ics.WriteString("DTEND:" + endUTC + "\r\n")
+	ics.WriteString("SUMMARY:" + summary + "\r\n")
+	ics.WriteString("DESCRIPTION:" + description + "\r\n")
+	if locationEscaped != "" {
+		ics.WriteString("LOCATION:" + locationEscaped + "\r\n")
+	}
+	ics.WriteString("END:VEVENT\r\n")
+	ics.WriteString("END:VCALENDAR\r\n")
+
+	filename := fmt.Sprintf("booking-%d.ics", booking.ID)
+	c.Set("Content-Type", "text/calendar; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	return c.SendString(ics.String())
+}
+
+func escapeICSLine(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	v = strings.ReplaceAll(v, "\\", "\\\\")
+	v = strings.ReplaceAll(v, ";", "\\;")
+	v = strings.ReplaceAll(v, ",", "\\,")
+	v = strings.ReplaceAll(v, "\r\n", "\\n")
+	v = strings.ReplaceAll(v, "\n", "\\n")
+	v = strings.ReplaceAll(v, "\r", "\\n")
+	return v
 }

@@ -19,7 +19,7 @@ func StartBookingReminderWorker() {
 
 func checkReminders() {
 	now := time.Now()
-	
+
 	// 1. Check for 24h reminders
 	// Bookings scheduled between 23.5h and 24h from now
 	sendReminders(
@@ -37,17 +37,27 @@ func checkReminders() {
 		"reminder_1h",
 		60, // 1h in minutes
 	)
+
+	// 3. Check for 10m reminders ("Не пропустить")
+	sendReminders(
+		now.Add(8*time.Minute),
+		now.Add(10*time.Minute),
+		"reminder_10m",
+		10, // 10 minutes
+	)
 }
 
 func sendReminders(startTime, endTime time.Time, reminderType string, minutesBefore int) {
 	var bookings []models.ServiceBooking
-	
+
 	query := database.DB.Preload("Service").
-		Where("status = ? AND scheduled_at >= ? AND scheduled_at <= ?", 
+		Where("status = ? AND scheduled_at >= ? AND scheduled_at <= ?",
 			models.BookingStatusConfirmed, startTime, endTime)
 
 	if reminderType == "reminder_24h" {
 		query = query.Where("reminder_24h_sent = ?", false)
+	} else if reminderType == "reminder_10m" {
+		query = query.Where("reminder_10m_sent = ?", false)
 	} else {
 		query = query.Where("reminder_sent = ?", false)
 	}
@@ -63,17 +73,19 @@ func sendReminders(startTime, endTime time.Time, reminderType string, minutesBef
 	for _, b := range bookings {
 		// Send to Client
 		push.SendBookingReminder(b.ClientID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
-		
+
 		// Send to Provider
 		push.SendBookingReminder(b.Service.OwnerID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
-		
+
 		// Mark as sent
 		if reminderType == "reminder_24h" {
 			database.DB.Model(&b).Update("reminder_24h_sent", true)
+		} else if reminderType == "reminder_10m" {
+			database.DB.Model(&b).Update("reminder_10m_sent", true)
 		} else {
 			database.DB.Model(&b).Update("reminder_sent", true)
 		}
-		
+
 		log.Printf("[Worker] Sent %s reminder for booking %d (Service: %s)", reminderType, b.ID, b.Service.Title)
 	}
 }

@@ -42,6 +42,9 @@ func (m *mockBookingService) Complete(bookingID, ownerID uint, req models.Bookin
 func (m *mockBookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBooking, error) {
 	return &models.ServiceBooking{}, nil
 }
+func (m *mockBookingService) GetBookingForUser(bookingID, userID uint) (*models.ServiceBooking, error) {
+	return &models.ServiceBooking{}, nil
+}
 
 type mockBookingCalendarService struct{}
 

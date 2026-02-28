@@ -42,6 +42,15 @@ func (m *mockChannelService) ListMyChannels(ownerID uint, filters services.Chann
 func (m *mockChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error) {
 	return &models.Channel{OwnerID: viewerID}, nil
 }
+func (m *mockChannelService) FollowChannel(channelID, followerID uint) (*models.ChannelMember, error) {
+	return &models.ChannelMember{ChannelID: channelID, UserID: followerID, Role: models.ChannelMemberRoleSubscriber}, nil
+}
+func (m *mockChannelService) UnfollowChannel(channelID, followerID uint) error {
+	return nil
+}
+func (m *mockChannelService) GetFollowStatus(channelID, viewerID uint) (bool, int64, error) {
+	return true, 1, nil
+}
 func (m *mockChannelService) GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error) {
 	return models.ChannelMemberRoleOwner, nil
 }

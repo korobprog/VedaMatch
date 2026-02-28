@@ -126,6 +126,7 @@ export default function ChannelsHubScreen() {
   const [myChannels, setMyChannels] = useState<Channel[]>([]);
   const [myLoading, setMyLoading] = useState(false);
   const [myRefreshing, setMyRefreshing] = useState(false);
+  const [followStateByChannel, setFollowStateByChannel] = useState<Record<number, { isFollowing: boolean; followersCount: number }>>({});
 
   const [commentsSheetVisible, setCommentsSheetVisible] = useState(false);
   const [commentsSheetPost, setCommentsSheetPost] = useState<ChannelPost | null>(null);
@@ -259,6 +260,56 @@ export default function ChannelsHubScreen() {
     }
     void loadFeed(feedPage + 1, false);
   };
+
+  const hydrateFollowStatus = useCallback(async (channelId: number) => {
+    if (!channelId || !user?.ID) {
+      return;
+    }
+    if (followStateByChannel[channelId]) {
+      return;
+    }
+    try {
+      const status = await channelService.getFollowStatus(channelId);
+      if (!mountedRef.current) {
+        return;
+      }
+      setFollowStateByChannel(prev => ({
+        ...prev,
+        [channelId]: {
+          isFollowing: Boolean(status.isFollowing),
+          followersCount: Number(status.followersCount || 0),
+        },
+      }));
+    } catch {
+      // ignore silent refresh
+    }
+  }, [followStateByChannel, user?.ID]);
+
+  const toggleFollow = useCallback(async (channelId: number, current: { isFollowing: boolean; followersCount: number }) => {
+    if (!channelId || !user?.ID) {
+      return;
+    }
+
+    const optimistic = {
+      isFollowing: !current.isFollowing,
+      followersCount: Math.max(0, current.followersCount + (current.isFollowing ? -1 : 1)),
+    };
+    setFollowStateByChannel(prev => ({ ...prev, [channelId]: optimistic }));
+
+    try {
+      if (current.isFollowing) {
+        await channelService.unfollowChannel(channelId);
+      } else {
+        await channelService.followChannel(channelId);
+      }
+    } catch {
+      if (!mountedRef.current) {
+        return;
+      }
+      setFollowStateByChannel(prev => ({ ...prev, [channelId]: current }));
+      Alert.alert('Ошибка', 'Не удалось обновить подписку');
+    }
+  }, [user?.ID]);
 
   const getPostStats = useCallback((post: ChannelPost) => {
     const stats = post.stats;
@@ -513,6 +564,13 @@ export default function ChannelsHubScreen() {
     const ctaLabel = getChannelPostCtaLabel(item);
     const publishedAt = item.publishedAt || item.CreatedAt;
     const isAuthor = Boolean(user?.ID) && item.authorId === user?.ID;
+    const channelId = item.channelId;
+    const fallbackFollow = {
+      isFollowing: Boolean(item.channel?.isFollowing),
+      followersCount: Number(item.channel?.followersCount || 0),
+    };
+    const followState = followStateByChannel[channelId] || fallbackFollow;
+    const canFollow = Boolean(user?.ID) && !isAuthor;
 
     return (
       <TouchableOpacity
@@ -531,6 +589,16 @@ export default function ChannelsHubScreen() {
             </Text>
           </View>
           <View style={styles.postHeaderRight}>
+            {canFollow ? (
+              <TouchableOpacity
+                style={[styles.followButton, followState.isFollowing && styles.followButtonActive]}
+                onPress={() => void toggleFollow(channelId, followState)}
+              >
+                <Text style={[styles.followButtonText, followState.isFollowing && styles.followButtonTextActive]}>
+                  {followState.isFollowing ? 'Подписан' : 'Подписаться'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             {item.isPinned ? (
               <View style={styles.pinnedBadge}>
                 <Pin size={12} color={colors.accent} />
@@ -553,6 +621,11 @@ export default function ChannelsHubScreen() {
         <Text style={styles.postContent} numberOfLines={4}>
           {item.content || 'Без текста'}
         </Text>
+        {canFollow ? (
+          <Text style={styles.followersHint} onPress={() => void hydrateFollowStatus(channelId)}>
+            Подписчиков: {followState.followersCount}
+          </Text>
+        ) : null}
 
         {renderMediaBlock(item)}
 
@@ -689,6 +762,7 @@ export default function ChannelsHubScreen() {
         {item.description || 'Описание канала не заполнено'}
       </Text>
       <Text style={styles.channelMeta}>@{item.slug}</Text>
+      <Text style={styles.channelFollowers}>Подписчиков: {item.followersCount || 0}</Text>
     </TouchableOpacity>
   );
 
@@ -978,6 +1052,25 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       alignItems: 'center',
       gap: 6,
     },
+    followButton: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      backgroundColor: 'transparent',
+    },
+    followButtonActive: {
+      backgroundColor: colors.accent,
+    },
+    followButtonText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    followButtonTextActive: {
+      color: '#FFFFFF',
+    },
     menuButton: {
       width: 26,
       height: 26,
@@ -998,6 +1091,13 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 15,
       lineHeight: 21,
+    },
+    followersHint: {
+      marginTop: -4,
+      marginBottom: 8,
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
     },
     mediaBlock: {
       gap: 8,
@@ -1191,6 +1291,11 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.accent,
       fontSize: 12,
       fontWeight: '700',
+    },
+    channelFollowers: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
     },
     footerLoader: {
       paddingVertical: 16,

@@ -66,6 +66,7 @@ type ServiceBooking struct {
 	// Reminders tracking
 	ReminderSent    bool `json:"reminderSent" gorm:"default:false"`                             // 1-hour reminder
 	Reminder24hSent bool `json:"reminder24hSent" gorm:"column:reminder_24h_sent;default:false"` // 24-hour reminder
+	Reminder10mSent bool `json:"reminder10mSent" gorm:"column:reminder_10m_sent;default:false"` // 10-minute reminder
 
 	// Moderation timestamps
 	ConfirmedAt *time.Time `json:"confirmedAt"`

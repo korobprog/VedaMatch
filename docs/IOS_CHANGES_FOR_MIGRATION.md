@@ -1,5 +1,60 @@
 # IOS Changes For Migration
 
+## 2026-02-28 (Sadhu Sanga UX: follow in ChannelDetails + calendar add from bookings)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/screens/portal/services/MyBookingsScreen.tsx`
+- `frontend/screens/portal/services/components/BookingCard.tsx`
+
+### Суть правки (от старого к новому)
+- Подписка в деталях канала:
+  - Было: на `ChannelDetails` для обычного читателя не было self-service кнопки подписки/отписки; роль `subscriber` отображалась как `Editor`.
+  - Стало: добавлена кнопка `Подписаться/Вы подписаны` в хедер с optimistic update и финальной синхронизацией через `GET /channels/:id/follow-status`; `subscriber` отображается отдельным label (`Подписчик`).
+- Публичный счетчик:
+  - Было: в карточке канала отображался только `@slug`.
+  - Стало: рядом показывается `Подписчиков: N` (из `followersCount`).
+- Календарь для бронирования:
+  - Было: в `MyBookings` не было действия добавления события в календарь.
+  - Стало: в `BookingCard` добавлена кнопка календаря (`CalendarPlus`), а в `MyBookings` подключен `exportBookingCalendarIcs(bookingId)` и шаринг ICS payload через системный share sheet.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+if (viewerRole === 'editor') {
+  return 'Editor';
+}
+return 'Подписчик';
+```
+
+```ts
+const followStatus = await channelService.getFollowStatus(channelId);
+setChannel(prev => prev ? { ...prev, isFollowing: followStatus.isFollowing, followersCount: followStatus.followersCount } : prev);
+```
+
+```tsx
+<Text style={styles.channelMetaSecondary}>
+  Подписчиков: {Math.max(0, Number(channel?.followersCount) || 0)}
+</Text>
+```
+
+`frontend/screens/portal/services/MyBookingsScreen.tsx`:
+```ts
+const icsPayload = await exportBookingCalendarIcs(booking.id);
+await Share.share({ title: shareTitle, message: icsPayload });
+```
+
+`frontend/screens/portal/services/components/BookingCard.tsx`:
+```tsx
+{onAddToCalendar && (
+  <TouchableOpacity style={styles.calendarAction} onPress={onAddToCalendar}>
+    <CalendarPlus size={17} color="rgba(245,158,11,1)" />
+    <Text style={styles.calendarActionText}>Календарь</Text>
+  </TouchableOpacity>
+)}
+```
+
 ## 2026-02-26 (CreateChannelScreen contrast fix on dark gradient)
 
 ### Измененные файлы
@@ -258,6 +313,172 @@ if (statusCode === 404) {
 `frontend/screens/portal/PortalMainScreen.tsx`:
 ```ts
 const portalSwipeGesture = Gesture.Pan()
+
+## 2026-02-28 (Sadhu Sanga MVP backend/client integration)
+
+### Измененные файлы
+- `server/internal/models/channel.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/cmd/api/main.go`
+- `server/internal/services/booking_service.go`
+- `server/internal/handlers/booking_handler.go`
+- `server/internal/models/support.go`
+- `server/internal/handlers/support_handler.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/services/bookingService.ts`
+
+### Суть правки (от старого к новому)
+- Подписка на проповедника через каналы:
+  - Было: роли канала ограничены `owner/admin/editor`, self-service follow API отсутствовал.
+  - Стало: добавлена роль `subscriber`, endpoints `POST/DELETE /channels/:id/follow` и `GET /channels/:id/follow-status`, в DTO канала добавлены `followersCount` и `isFollowing`.
+- Каталог проповедников (каналов):
+  - Было: фильтрация только по `search`.
+  - Стало: добавлены фильтры `city`, `language`, `topic` (topic через owner tags).
+- Календарь семинаров:
+  - Было: отсутствовал экспорт события.
+  - Стало: добавлен `GET /api/bookings/:id/calendar.ics` (iCalendar экспорт для iOS/OS calendar).
+- Вопросы проповеднику:
+  - Было: support ticket без `targetPreacherId` metadata.
+  - Стало: в support request добавлен `targetPreacherId`, сохраняется в `support_conversations.meta_json`, автоматически нормализуется `entryPoint=sadhu_sanga_question`.
+
+### Сниппеты кода
+
+`server/internal/models/channel.go`:
+```go
+const (
+    ChannelMemberRoleOwner      ChannelMemberRole = "owner"
+    ChannelMemberRoleAdmin      ChannelMemberRole = "admin"
+    ChannelMemberRoleEditor     ChannelMemberRole = "editor"
+    ChannelMemberRoleSubscriber ChannelMemberRole = "subscriber"
+)
+```
+
+`server/internal/handlers/channel_handler.go`:
+```go
+protected.Post("/channels/:id/follow", channelHandler.FollowChannel)
+protected.Delete("/channels/:id/follow", channelHandler.UnfollowChannel)
+protected.Get("/channels/:id/follow-status", channelHandler.GetFollowStatus)
+```
+
+`server/internal/handlers/booking_handler.go`:
+```go
+// GET /api/bookings/:id/calendar.ics
+func (h *BookingHandler) ExportBookingICS(c *fiber.Ctx) error { ... }
+```
+
+`server/internal/handlers/support_handler.go`:
+```go
+type supportCreateTicketRequest struct {
+    EntryPoint       string `json:"entryPoint"`
+    TargetPreacherID *uint  `json:"targetPreacherId"`
+}
+```
+
+`frontend/services/channelService.ts`:
+```ts
+async followChannel(channelId: number) { return (await apiClient.post(`/channels/${channelId}/follow`, {})).data; }
+async getFollowStatus(channelId: number) { return (await apiClient.get(`/channels/${channelId}/follow-status`)).data; }
+```
+
+## 2026-02-28 (Sadhu Sanga continuation: 10m reminders + support payload)
+
+### Измененные файлы
+- `server/internal/models/service_booking.go`
+- `server/internal/workers/booking_reminder_worker.go`
+- `frontend/services/supportService.ts`
+
+### Суть правки (от старого к новому)
+- Режим «Не пропустить» для семинаров:
+  - Было: worker отправлял только `24h` и `1h` напоминания.
+  - Стало: добавлено `10m` напоминание перед событием (`reminder_10m`) и флаг дедупликации `reminder_10m_sent`.
+- Support client payload:
+  - Было: тип `CreateSupportTicketPayload` не содержал `targetPreacherId`.
+  - Стало: добавлено поле `targetPreacherId`, чтобы iOS/RN мог передавать вопрос конкретному проповеднику.
+
+### Сниппеты кода
+
+`server/internal/workers/booking_reminder_worker.go`:
+```go
+sendReminders(
+    now.Add(8*time.Minute),
+    now.Add(10*time.Minute),
+    "reminder_10m",
+    10,
+)
+```
+
+`server/internal/models/service_booking.go`:
+```go
+Reminder10mSent bool `json:"reminder10mSent" gorm:"column:reminder_10m_sent;default:false"`
+```
+
+`frontend/services/supportService.ts`:
+```ts
+export interface CreateSupportTicketPayload {
+  entryPoint?: string;
+  targetPreacherId?: number;
+}
+```
+
+## 2026-02-28 (Sadhu Sanga continuation: subscriber push delivery on publish)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+
+### Суть правки (от старого к новому)
+- Push для подписчиков проповедника:
+  - Было: push-доставка поста работала только через personal-delivery для приватных каналов (`deliverPersonally=true`), что не покрывало публичный follow-сценарий.
+  - Стало: при публикации поста и при автопубликации scheduled-постов выполняется push-рассылка всем `subscriber` участникам канала (кроме автора) с дедупликацией через `channel_post_deliveries`.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+if err := s.deliverPostToSubscribers(post); err != nil {
+    log.Printf("[Channels] subscriber delivery failed post=%d: %v", post.ID, err)
+}
+```
+
+```go
+Where("channel_id = ? AND role = ? AND user_id <> ?",
+    post.ChannelID,
+    models.ChannelMemberRoleSubscriber,
+    post.AuthorID,
+)
+```
+
+## 2026-02-28 (Sadhu Sanga continuation: follow UX in ChannelsHub)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Лента каналов:
+  - Было: пользователь не мог подписаться/отписаться напрямую из карточки поста.
+  - Стало: добавлена кнопка `Подписаться/Подписан` в шапке поста (для не-автора) с optimistic update и rollback при ошибке.
+- Отображение аудитории:
+  - Было: в карточке поста/канала не показывался явный счетчик подписчиков.
+  - Стало: добавлен вывод `Подписчиков: N` в посте и в карточке канала.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```ts
+const status = await channelService.getFollowStatus(channelId);
+await channelService.followChannel(channelId);
+await channelService.unfollowChannel(channelId);
+```
+
+```tsx
+<TouchableOpacity
+  style={[styles.followButton, followState.isFollowing && styles.followButtonActive]}
+  onPress={() => void toggleFollow(channelId, followState)}
+>
+  <Text>{followState.isFollowing ? 'Подписан' : 'Подписаться'}</Text>
+</TouchableOpacity>
+```
   .runOnJS(true)
   .activeOffsetX([-16, 16])
   .failOffsetY([-32, 32]);

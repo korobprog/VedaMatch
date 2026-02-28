@@ -11,6 +11,7 @@ import {
     RefreshControl,
     ActivityIndicator,
     Alert,
+    Share,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +22,7 @@ import {
     getMyBookings,
     cancelBooking,
     BookingFilters,
+    exportBookingCalendarIcs,
 } from '../../../services/bookingService';
 import BookingCard from './components/BookingCard';
 import { useUser } from '../../../context/UserContext';
@@ -178,6 +180,19 @@ export default function MyBookingsScreen() {
         }
     };
 
+    const handleAddToCalendar = async (booking: ServiceBooking) => {
+        try {
+            const icsPayload = await exportBookingCalendarIcs(booking.id);
+            const shareTitle = `Календарь: ${booking.service?.title || 'Семинар'}`;
+            await Share.share({
+                title: shareTitle,
+                message: icsPayload,
+            });
+        } catch (error: any) {
+            Alert.alert('Ошибка', error?.message || 'Не удалось сформировать событие календаря');
+        }
+    };
+
     const renderEmptyState = () => (
         <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📅</Text>
@@ -276,6 +291,7 @@ export default function MyBookingsScreen() {
                                     onPress={() => handleBookingPress(booking)}
                                     onCancel={() => handleCancelBooking(booking)}
                                     onChat={() => handleOpenChat(booking)}
+                                    onAddToCalendar={() => void handleAddToCalendar(booking)}
                                 />
                             ))
                         )}
