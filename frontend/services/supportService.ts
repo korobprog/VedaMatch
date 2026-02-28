@@ -70,6 +70,16 @@ export interface AddSupportMessagePayload {
     attachmentMimeType?: string;
 }
 
+export interface SupportPreacherQuestion {
+    id: number;
+    ticketNumber?: string;
+    subject: string;
+    excerpt: string;
+    createdAt: string;
+    voteCount: number;
+    myVote: boolean;
+}
+
 const extractErrorMessage = (error: unknown, fallback = 'Request failed'): string => {
     const axiosError = error as AxiosError<any>;
     const payload = axiosError?.response?.data;
@@ -185,6 +195,29 @@ export const supportService = {
             return response.data;
         } catch (error) {
             throw new Error(extractErrorMessage(error, 'Failed to fetch unread support count'));
+        }
+    },
+
+    async getPreacherQuestions(preacherId: number, page: number = 1, limit: number = 20): Promise<{ questions: SupportPreacherQuestion[]; total: number; page: number; limit: number }> {
+        await ensureRequiredAuth();
+        try {
+            const response = await apiClient.get(`/support/preachers/${preacherId}/questions`, {
+                params: { page, limit },
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to fetch preacher questions'));
+        }
+    },
+
+    async votePreacherQuestion(ticketId: number, value?: boolean): Promise<{ ticketId: number; voted: boolean; votes: number }> {
+        await ensureRequiredAuth();
+        try {
+            const payload = typeof value === 'boolean' ? { value } : {};
+            const response = await apiClient.post(`/support/tickets/${ticketId}/vote`, payload);
+            return response.data;
+        } catch (error) {
+            throw new Error(extractErrorMessage(error, 'Failed to update vote'));
         }
     },
 };

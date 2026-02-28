@@ -65,6 +65,7 @@ func Connect() {
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
+		&models.ChannelSmartPushPreference{},
 		&models.ChannelPromotedAdImpression{},
 		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
 		&models.FeedPost{}, &models.FeedMediaAsset{}, &models.FeedItem{}, &models.FeedCursorState{},
@@ -102,6 +103,7 @@ func Connect() {
 		&models.SupportContact{}, &models.SupportConversation{},
 		&models.SupportMessage{}, &models.SupportOperatorRelay{},
 		&models.SupportFAQItem{}, &models.SupportTelegramUpdate{},
+		&models.SupportQuestionVote{},
 		// Cafe models
 		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
 		&models.CafeReview{}, &models.WaiterCall{},

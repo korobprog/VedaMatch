@@ -13,6 +13,7 @@ import {
     Alert,
     Image,
     Dimensions,
+    Share,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ import {
     Video,
     Sparkles,
     LayoutGrid,
+    CalendarPlus,
 } from 'lucide-react-native';
 import {
     ServiceBooking,
@@ -36,6 +38,7 @@ import {
     cancelBooking,
     completeBooking,
     markNoShow,
+    exportBookingCalendarIcs,
     STATUS_LABELS,
     STATUS_COLORS,
     formatDuration,
@@ -254,6 +257,19 @@ export default function IncomingBookingsScreen() {
         }
     };
 
+    const handleAddToCalendar = async (booking: ServiceBooking) => {
+        try {
+            const icsPayload = await exportBookingCalendarIcs(booking.id);
+            const shareTitle = `Календарь: ${booking.service?.title || 'Семинар'}`;
+            await Share.share({
+                title: shareTitle,
+                message: icsPayload,
+            });
+        } catch (error: any) {
+            Alert.alert('Ошибка', error?.message || 'Не удалось сформировать событие календаря');
+        }
+    };
+
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleDateString('ru-RU', {
@@ -366,6 +382,14 @@ export default function IncomingBookingsScreen() {
                     <TouchableOpacity style={styles.chatButton} onPress={() => handleOpenChat(booking)}>
                         <MessageCircle size={20} color={colors.accent} />
                     </TouchableOpacity>
+                    {!past ? (
+                        <TouchableOpacity
+                            style={[styles.calendarButton, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}
+                            onPress={() => void handleAddToCalendar(booking)}
+                        >
+                            <CalendarPlus size={18} color={colors.accent} />
+                        </TouchableOpacity>
+                    ) : null}
 
                     {booking.status === 'pending' && (
                         <>
@@ -642,6 +666,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    calendarButton: {
+        width: 52,
+        height: 52,
+        borderRadius: 16,
+        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     confirmButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', gap: 10 },
     confirmButtonText: { color: 'rgba(0,0,0,1)', fontSize: 15, fontWeight: '800' },

@@ -34,6 +34,8 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
     const [submitting, setSubmitting] = useState(false);
 
     const entryPoint = useMemo(() => route.params?.entryPoint || 'portal', [route.params?.entryPoint]);
+    const targetPreacherId = useMemo(() => route.params?.targetPreacherId, [route.params?.targetPreacherId]);
+    const targetPreacherName = useMemo(() => route.params?.targetPreacherName, [route.params?.targetPreacherName]);
 
     const pickImage = async () => {
         try {
@@ -101,6 +103,7 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                 contact: trimmedContact,
                 name: trimmedName,
                 entryPoint,
+                targetPreacherId,
                 attachmentUrl,
                 attachmentMimeType,
                 clientRequestId: supportService.randomRequestId(),
@@ -150,6 +153,14 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                 >
                     <Text style={styles.title}>Создать обращение</Text>
                     <Text style={styles.subtitle}>Опишите проблему, и мы ответим в приложении.</Text>
+                    {targetPreacherId ? (
+                        <View style={styles.targetHint}>
+                            <Text style={styles.targetHintLabel}>Вопрос проповеднику</Text>
+                            <Text style={styles.targetHintValue}>
+                                {targetPreacherName ? `${targetPreacherName} (ID ${targetPreacherId})` : `ID ${targetPreacherId}`}
+                            </Text>
+                        </View>
+                    ) : null}
 
                 <View style={styles.field}>
                     <Text style={styles.label}>Тема</Text>
@@ -259,6 +270,26 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
         marginBottom: 18,
+    },
+    targetHint: {
+        backgroundColor: '#EFF6FF',
+        borderColor: '#BFDBFE',
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 14,
+    },
+    targetHintLabel: {
+        color: '#1D4ED8',
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    targetHintValue: {
+        color: '#1E293B',
+        fontSize: 13,
+        fontWeight: '600',
     },
     field: {
         marginBottom: 14,

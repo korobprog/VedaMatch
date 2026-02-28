@@ -1,5 +1,603 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Sadhu Sanga: "Не пропустить" reminder toggles 1h/10m)
+
+### Измененные файлы
+- `server/internal/models/channel_push_preference.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/workers/booking_reminder_worker.go`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Персональные флаги напоминаний:
+  - Было: worker отправлял reminder `1h` и `10m` всем участникам booking без пользовательского контроля.
+  - Стало: в smart push preference добавлены поля `reminder1h` и `reminder10m` (по умолчанию `true`), и booking worker учитывает их перед отправкой push.
+- UX в `SadhuSangaHub`:
+  - Было: в блоке `Умные пуши` не было управления режимом «Не пропустить».
+  - Стало: добавлены переключатели `1ч` и `10м` + сохранение через текущий endpoint smart push preferences.
+
+### Сниппеты кода
+
+`server/internal/workers/booking_reminder_worker.go`:
+```go
+if shouldSendBookingReminderByPreference(b.ClientID, reminderType) {
+    push.SendBookingReminder(...)
+}
+```
+
+`server/internal/models/channel_push_preference.go`:
+```go
+Reminder1h  bool `gorm:"column:reminder_1h;default:true"`
+Reminder10m bool `gorm:"column:reminder_10m;default:true"`
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<TouchableOpacity onPress={() => setPushReminder1h(prev => !prev)}><Text>1ч</Text></TouchableOpacity>
+<TouchableOpacity onPress={() => setPushReminder10m(prev => !prev)}><Text>10м</Text></TouchableOpacity>
+```
+
+## 2026-02-28 (Sadhu Sanga: smart push preferences by city/language/topic/time)
+
+### Измененные файлы
+- `server/internal/models/channel_push_preference.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/cmd/api/main.go`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Персональные фильтры push для Садху-санга:
+  - Было: push по подпискам канала отправлялся всем подписчикам без персональной фильтрации.
+  - Стало: добавлены пользовательские smart-push preferences (`city`, `language`, `topics`, `time window`, `timezone`, `enabled`) и проверка этих фильтров перед отправкой push.
+- Новый API:
+  - `GET /api/channels/sadhu-sanga/push-preferences`
+  - `PUT /api/channels/sadhu-sanga/push-preferences`
+- UX в мобильном экране:
+  - В `SadhuSangaHub` добавлен блок `Умные пуши` с настройкой фильтров и сохранением в backend.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/sadhu-sanga/push-preferences", channelHandler.GetSadhuSangaPushPreference)
+protected.Put("/channels/sadhu-sanga/push-preferences", channelHandler.UpdateSadhuSangaPushPreference)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+shouldSend, _ := s.shouldSendSubscriberPushBySmartPreference(post, channel, &owner, member.UserID)
+if !shouldSend {
+    continue
+}
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+const preference = await channelService.getSadhuSangaPushPreference();
+await channelService.updateSadhuSangaPushPreference({ ... });
+```
+
+## 2026-02-28 (Sadhu Sanga: seminar route button with map deeplink)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Карта/маршрут для офлайн-семинаров:
+  - Было: в карточках семинаров была только кнопка `Записаться`.
+  - Стало: для `offline` семинаров добавлена кнопка `Маршрут`, открывающая карту через deeplink:
+    - по координатам `offlineLat/offlineLng` (если есть),
+    - иначе по `offlineAddress`.
+- Обработка ошибок:
+  - если офлайн-адрес отсутствует или карту нельзя открыть, показывается понятный alert.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+const routeUrl = Number.isFinite(service.offlineLat) && Number.isFinite(service.offlineLng)
+  ? `https://www.google.com/maps/search/?api=1&query=${service.offlineLat},${service.offlineLng}`
+  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(service.offlineAddress || '')}`;
+```
+
+```tsx
+{item.service.channel === 'offline' ? (
+  <TouchableOpacity onPress={() => void openSeminarRoute(item.service)}>
+    <Text>Маршрут</Text>
+  </TouchableOpacity>
+) : null}
+```
+
+## 2026-02-28 (Sadhu Sanga: voting for preacher questions)
+
+### Измененные файлы
+- `server/internal/models/support.go`
+- `server/internal/database/database.go`
+- `server/internal/handlers/support_handler.go`
+- `server/cmd/api/main.go`
+- `frontend/services/supportService.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Голосование за вопросы последователей:
+  - Было: вопрос к проповеднику создавался как support ticket (`sadhu_sanga_question`), но голосовать за важные вопросы было нельзя.
+  - Стало: добавлена таблица голосов `support_question_votes` и API:
+    - `GET /api/support/preachers/:preacherId/questions`
+    - `POST /api/support/tickets/:id/vote`
+- UI в `ChannelDetails` (режим `source='sadhu_sanga'`):
+  - Было: только кнопка `Задать вопрос проповеднику` и блок семинаров.
+  - Стало: добавлен блок `Вопросы последователей` с:
+    - списком вопросов;
+    - числом голосов;
+    - кнопкой `Поддержать` / `Вы поддержали`.
+
+### Сниппеты кода
+
+`server/internal/models/support.go`:
+```go
+type SupportQuestionVote struct {
+    gorm.Model
+    ConversationID uint `gorm:"not null;index;uniqueIndex:idx_support_question_vote"`
+    UserID         uint `gorm:"not null;index;uniqueIndex:idx_support_question_vote"`
+}
+```
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/support/preachers/:preacherId/questions", supportHandler.ListPreacherQuestions)
+protected.Post("/support/tickets/:id/vote", supportHandler.VotePreacherQuestion)
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const response = await supportService.getPreacherQuestions(ownerID, 1, 20);
+const vote = await supportService.votePreacherQuestion(question.id);
+```
+
+```tsx
+<Text style={styles.preacherQuestionsTitle}>Вопросы последователей</Text>
+<Text style={styles.preacherQuestionVotes}>Голосов: {question.voteCount}</Text>
+```
+
+## 2026-02-28 (Sadhu Sanga: seminars filter "Только с датой")
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Фильтрация карточек в блоке `Ближайшие семинары`:
+  - Было: в список попадали элементы без вычисленной даты (`Дата уточняется`).
+  - Стало: добавлен переключатель `Только с датой` (по умолчанию включен), который скрывает семинары без `nextAt`.
+- Сортировка осталась прежней:
+  - Семинары с датой идут по возрастанию ближайшего времени.
+  - Элементы без даты показываются только при отключенном фильтре.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
+...
+const filteredByDate = seminarsOnlyWithDate
+  ? filteredByCity.filter(item => Boolean(item.nextAt))
+  : filteredByCity;
+```
+
+```tsx
+<TouchableOpacity onPress={() => setSeminarsOnlyWithDate(prev => !prev)}>
+  <Text>Только с датой</Text>
+</TouchableOpacity>
+```
+
+## 2026-02-28 (Sadhu Sanga: preacher-specific seminars in ChannelDetails)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Адресный переход к семинарам конкретного проповедника:
+  - Было: кнопка `Семинары` на карточке проповедника вела в общий `ServicesHome`.
+  - Стало: кнопка ведет в `ChannelDetails` этого проповедника с `focusSection='seminars'`.
+- Семинары в деталях проповедника:
+  - Было: в `ChannelDetails` (sadhu mode) не было отдельного списка семинаров владельца канала.
+  - Стало: добавлен блок `Семинары проповедника`, который загружает услуги и отбирает только `service.ownerId === channel.ownerId`, вычисляет ближайшую дату слота (`specificDate`/weekly `dayOfWeek+timeStart`) и дает CTA `Записаться`.
+- Улучшение UX:
+  - `ChannelDetails` умеет автопрокручивать к блоку семинаров при `focusSection='seminars'`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+navigation.navigate('ChannelDetails', {
+  channelId: item.ID,
+  source: 'sadhu_sanga',
+  focusSection: 'seminars',
+})
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+const focusSection = route.params?.focusSection;
+const mine = (response.services || []).filter(service => service.ownerId === ownerID);
+```
+
+```tsx
+<Text style={styles.preacherSeminarsTitle}>Семинары проповедника</Text>
+<TouchableOpacity onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}>
+  <Text>Записаться</Text>
+</TouchableOpacity>
+```
+
+## 2026-02-28 (Sadhu Sanga: upcoming seminars block with booking CTA)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Блок “Ближайшие семинары”:
+  - Было: в `SadhuSangaHub` показывался только каталог проповедников.
+  - Стало: добавлен отдельный блок ближайших семинаров с:
+    - названием;
+    - форматом (`Онлайн/Оффлайн`);
+    - датой ближайшего слота (или `Дата уточняется`);
+    - локацией/ссылкой;
+    - кнопкой `Записаться` -> `ServiceDetail`.
+- Источник данных:
+  - Используется `getServices(...)` + догрузка `getSchedules(serviceId)` для вычисления ближайшей даты.
+  - Поддержан расчет next-occurrence для `specificDate` и weekly `dayOfWeek/timeStart`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+const response = await getServices({ page: 1, limit: 50, language: language.trim() || undefined });
+const loaded = await getSchedules(service.id);
+const nextAt = resolveNearestScheduleDate(schedules, now);
+```
+
+```tsx
+<Text style={styles.seminarDate}>
+  {item.nextAt ? item.nextAt.toLocaleString('ru-RU', ...) : 'Дата уточняется'}
+</Text>
+<TouchableOpacity onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}>
+  <Text>Записаться</Text>
+</TouchableOpacity>
+```
+
+## 2026-02-28 (Sadhu Sanga: quick card actions Question/Seminars)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Быстрые действия на карточке проповедника:
+  - Было: карточка в `SadhuSangaHub` давала только переход в `ChannelDetails` + кнопку follow.
+  - Стало: добавлены CTA:
+    - `Вопрос` -> `SupportTicketForm` с `entryPoint='sadhu_sanga_question'` и `targetPreacherId`.
+    - `Семинары` -> `ServicesHome` (каталог сервисов/записей).
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<TouchableOpacity onPress={() => navigation.navigate('SupportTicketForm', {
+  entryPoint: 'sadhu_sanga_question',
+  targetPreacherId: item.ownerId,
+  targetPreacherName: item.title,
+})}>
+  <Text>Вопрос</Text>
+</TouchableOpacity>
+```
+
+```tsx
+<TouchableOpacity onPress={() => navigation.navigate('ServicesHome')}>
+  <Text>Семинары</Text>
+</TouchableOpacity>
+```
+
+## 2026-02-28 (Sadhu Sanga: ask-preacher question flow in frontend)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/support/SupportTicketFormScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Передача адресного вопроса проповеднику:
+  - Было: `SupportTicketForm` принимал только `entryPoint`; frontend не прокидывал `targetPreacherId` в тикет.
+  - Стало: в route `SupportTicketForm` добавлены `targetPreacherId/targetPreacherName`, а форма отправляет `targetPreacherId` в `supportService.createTicket(...)`.
+- UX в Садху-санга:
+  - Было: в `ChannelDetails` не было явного CTA для вопроса проповеднику.
+  - Стало: в режиме `source='sadhu_sanga'` добавлена кнопка `Задать вопрос проповеднику` с переходом в `SupportTicketForm` (`entryPoint='sadhu_sanga_question'` + target preacher).
+- Защита от пустого target:
+  - Кнопка отключается, если `ownerId` канала не загружен.
+
+### Сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+SupportTicketForm: { entryPoint?: string; targetPreacherId?: number; targetPreacherName?: string } | undefined;
+```
+
+`frontend/screens/support/SupportTicketFormScreen.tsx`:
+```ts
+const targetPreacherId = useMemo(() => route.params?.targetPreacherId, [route.params?.targetPreacherId]);
+...
+await supportService.createTicket({ ..., entryPoint, targetPreacherId, ... });
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+navigation.navigate('SupportTicketForm', {
+  entryPoint: 'sadhu_sanga_question',
+  targetPreacherId: channel.ownerId,
+  targetPreacherName: channel?.title,
+})
+```
+
+## 2026-02-28 (ChannelDetails resilient loading when posts API fails)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- UX при ошибке загрузки постов:
+  - Было: `loadData` использовал `Promise.all`; если `listPosts` падал (например SQL 42P01 на backend), весь экран уходил в error flow и показывал модалку на каждый вход.
+  - Стало: `listPosts` обернут в локальный `catch` с fallback на пустой список постов; экран канала открывается стабильно, ошибка логируется через `console.warn` без блокирующего popup.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+channelService
+  .listPosts(channelId, { page: 1, limit: 100, includeDraft })
+  .catch((error: any) => {
+    console.warn(`[ChannelDetails] Failed to load posts ...`);
+    return { posts: [], total: 0, page: 1, limit: 100, totalPages: 1, viewerRole: undefined };
+  })
+```
+
+## 2026-02-28 (Sadhu Sanga/ChannelDetails SQL 42P01 hotfix)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+
+### Суть правки (от старого к новому)
+- Ошибка при открытии `ChannelDetails`:
+  - Было: в `ListPosts` сортировка использовала `Order("channels.created_at DESC")` без `JOIN channels`, что на PostgreSQL давало `ERROR: missing FROM-clause entry for table "channels" (SQLSTATE 42P01)`.
+  - Стало: сортировка исправлена на `Order("channel_posts.created_at DESC")`.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+Order("published_at DESC NULLS LAST").
+Order("channel_posts.created_at DESC").
+```
+
+## 2026-02-28 (Sadhu Sanga access fix + dedicated ChannelDetails mode)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Невозможность зайти в сервис:
+  - Было: `resolveServiceLaunch('sadhu_sanga')` отдавал `SadhuSangaHub`, но `PortalMainScreen.navigateResolvedScreen` не обрабатывал этот screen, из-за чего tap по иконке не открывал сервис.
+  - Стало: добавлен явный кейс `SadhuSangaHub` в навигационном резолвере портала.
+- Отдельный контекст для сервиса `Садху-санга`:
+  - Было: `ChannelDetails` всегда показывал общий набор секций канала (CRM кнопка, подсказка, кружки, draft toggle, витрины).
+  - Стало: добавлен route-param `source='sadhu_sanga'`; при входе из `SadhuSangaHub` `ChannelDetails` работает в отдельном режиме и скрывает элементы общего канального/коммерческого UX.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'SadhuSangaHub') {
+  navigation.navigate('SadhuSangaHub');
+  return;
+}
+```
+
+`frontend/types/navigation.ts`:
+```ts
+ChannelDetails: { channelId: number; source?: 'sadhu_sanga' };
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```ts
+navigation.navigate('ChannelDetails', { channelId: item.ID, source: 'sadhu_sanga' })
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+const isSadhuSangaMode = route.params?.source === 'sadhu_sanga';
+```
+
+```tsx
+{isModerator && !isSadhuSangaMode ? <TouchableOpacity ... /> : null}
+```
+
+## 2026-02-28 (Sadhu Sanga as separate portal service)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Отдельный сервис вместо общего хаба:
+  - Было: ярлык `sadhu_sanga` открывал `ChannelsHub`, где смешаны лента и каналы.
+  - Стало: добавлен отдельный экран `SadhuSangaHub` и отдельный route `SadhuSangaHub` в stack.
+- Каталог проповедников в отдельном сервисе:
+  - Добавлен самостоятельный UI `SadhuSangaHubScreen` с:
+    - поиском и фильтрами (`city`, `language`, `topic`);
+    - списком каналов-проповедников;
+    - `follow/unfollow` на карточке;
+    - переходом в `ChannelDetails`.
+- Запуск из портала:
+  - Было: `resolveServiceLaunch('sadhu_sanga') -> ChannelsHub`.
+  - Стало: `resolveServiceLaunch('sadhu_sanga') -> SadhuSangaHub`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'sadhu_sanga') {
+  return { kind: 'navigate', screen: 'SadhuSangaHub' };
+}
+```
+
+`frontend/types/navigation.ts`:
+```ts
+SadhuSangaHub: undefined;
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="SadhuSangaHub" component={SadhuSangaHubScreen} options={{ headerShown: false }} />
+```
+
+## 2026-02-28 (Sadhu Sanga: fix ChannelDetails 500 path + suppress dev RedBox)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Ошибка `500` при открытии канала:
+  - Было: при загрузке канала считался `followersCount` и subscriber delivery через SQL-фильтр `role = 'subscriber'`.
+  - Проблема: на инстансах со старым enum-типом роли в БД это могло давать SQL-ошибку и `500`.
+  - Стало: фильтрация переведена на безопасный вид `role NOT IN ('owner','admin','editor')`, без прямого литерала `subscriber` в SQL-запросе.
+- Dev UX на iOS:
+  - Было: `ChannelDetailsScreen` логировал ошибку через `console.error(..., error)`, что в RN dev поднимало RedBox.
+  - Стало: лог переведен на безопасный `console.warn` с коротким `status/message`, alert для пользователя сохранен.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+Where("channel_id IN ? AND role NOT IN ?", channelIDs, []models.ChannelMemberRole{
+    models.ChannelMemberRoleOwner,
+    models.ChannelMemberRoleAdmin,
+    models.ChannelMemberRoleEditor,
+})
+```
+
+```go
+Where("channel_id = ? AND role NOT IN ? AND user_id <> ?", post.ChannelID, []models.ChannelMemberRole{
+    models.ChannelMemberRoleOwner,
+    models.ChannelMemberRoleAdmin,
+    models.ChannelMemberRoleEditor,
+}, post.AuthorID)
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+const status = error?.response?.status ?? 'n/a';
+const message = error?.response?.data?.error || error?.message || 'unknown';
+console.warn(`[ChannelDetails] Failed to load channel (status=${status}): ${message}`);
+```
+
+## 2026-02-28 (Portal: Sadhu Sanga icon deduplication)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/components/portal/PortalIcon.tsx`
+
+### Суть правки (от старого к новому)
+- Визуальное дублирование иконок на портале:
+  - Было: `sadhu_sanga` использовал `Sparkles`, что визуально дублировало существующий сервис «Союз».
+  - Стало: `sadhu_sanga` переведен на отдельную иконку `Flame` (уникальный вид, без совпадения с «Союз»).
+
+### Сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+{ id: 'sadhu_sanga', label: 'Садху-санга', icon: 'Flame', color: '#F59E0B' },
+```
+
+`frontend/components/portal/PortalIcon.tsx`:
+```ts
+import { ..., Flame } from 'lucide-react-native';
+const IconComponents = { ..., Flame };
+```
+
+## 2026-02-28 (Portal: add Sadhu Sanga icon shortcut)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/components/portal/PortalIcon.tsx`
+
+### Суть правки (от старого к новому)
+- Ярлык в портале:
+  - Было: в списке `DEFAULT_SERVICES` не было `sadhu_sanga`, поэтому иконка «Садху-санга» не отображалась в сетке портала.
+  - Стало: добавлен сервис `sadhu_sanga` с label `Садху-санга` и иконкой `Sparkles`.
+- Навигация:
+  - Было: `resolveServiceLaunch` не знал `sadhu_sanga`, нажатие по такому id не имело маршрута.
+  - Стало: `sadhu_sanga` резолвится в `ChannelsHub` (текущий хаб модуля).
+- Premium3D fallback:
+  - Было: для `sadhu_sanga` не было emoji в `SERVICE_EMOJIS`.
+  - Стало: добавлен `🪔` для корректного отображения в emoji-режиме иконок.
+
+### Сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+{ id: 'sadhu_sanga', label: 'Садху-санга', icon: 'Sparkles', color: '#F59E0B' },
+```
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'sadhu_sanga') {
+  return { kind: 'navigate', screen: 'ChannelsHub' };
+}
+```
+
+`frontend/components/portal/PortalIcon.tsx`:
+```ts
+'sadhu_sanga': '🪔',
+```
+
+## 2026-02-28 (Sadhu Sanga UX: provider bookings calendar action)
+
+### Измененные файлы
+- `frontend/screens/portal/services/IncomingBookingsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Входящие записи специалиста:
+  - Было: в карточке входящей записи был быстрый доступ в чат, но не было действия добавить событие в календарь.
+  - Стало: для будущих (`!past`) входящих бронирований добавлена кнопка календаря (`CalendarPlus`), которая вызывает `exportBookingCalendarIcs(booking.id)` и открывает системный share sheet с ICS payload.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/IncomingBookingsScreen.tsx`:
+```ts
+const icsPayload = await exportBookingCalendarIcs(booking.id);
+await Share.share({ title: shareTitle, message: icsPayload });
+```
+
+```tsx
+{!past ? (
+  <TouchableOpacity style={styles.calendarButton} onPress={() => void handleAddToCalendar(booking)}>
+    <CalendarPlus size={18} color={colors.accent} />
+  </TouchableOpacity>
+) : null}
+```
+
 ## 2026-02-28 (Sadhu Sanga UX: follow in ChannelDetails + calendar add from bookings)
 
 ### Измененные файлы

@@ -343,6 +343,99 @@ func (s *ChannelService) GetFollowStatus(channelID, viewerID uint) (bool, int64,
 	return isFollowing, counts[channelID], nil
 }
 
+func (s *ChannelService) GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error) {
+	if userID == 0 {
+		return nil, ErrInvalidPayload
+	}
+
+	var preference models.ChannelSmartPushPreference
+	if err := s.db.Where("user_id = ?", userID).First(&preference).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return &models.ChannelSmartPushPreferenceResponse{
+			UserID:        userID,
+			Enabled:       true,
+			Reminder1h:    true,
+			Reminder10m:   true,
+			City:          "",
+			Language:      "",
+			Topics:        []string{},
+			UseTimeWindow: false,
+			StartHour:     8,
+			EndHour:       22,
+			Timezone:      s.loadUserTimezone(userID),
+		}, nil
+	}
+
+	return &models.ChannelSmartPushPreferenceResponse{
+		UserID:        userID,
+		Enabled:       preference.Enabled,
+		Reminder1h:    preference.Reminder1h,
+		Reminder10m:   preference.Reminder10m,
+		City:          strings.TrimSpace(preference.City),
+		Language:      strings.TrimSpace(preference.Language),
+		Topics:        decodeSmartPushTopics(preference.TopicsJSON),
+		UseTimeWindow: preference.UseTimeWindow,
+		StartHour:     clampSmartPushHour(preference.StartHour),
+		EndHour:       clampSmartPushHour(preference.EndHour),
+		Timezone:      resolveSmartPushTimezone(preference.Timezone, s.loadUserTimezone(userID)),
+	}, nil
+}
+
+func (s *ChannelService) UpsertSadhuSangaPushPreference(userID uint, req models.ChannelSmartPushPreferenceUpsertRequest) (*models.ChannelSmartPushPreferenceResponse, error) {
+	if userID == 0 {
+		return nil, ErrInvalidPayload
+	}
+
+	if req.UseTimeWindow {
+		if req.StartHour < 0 || req.StartHour > 23 {
+			return nil, ErrInvalidPayload
+		}
+		if req.EndHour < 0 || req.EndHour > 23 {
+			return nil, ErrInvalidPayload
+		}
+	}
+
+	topics := normalizeSmartPushTopics(req.Topics)
+	topicsRaw, err := json.Marshal(topics)
+	if err != nil {
+		return nil, ErrInvalidPayload
+	}
+
+	preference := models.ChannelSmartPushPreference{
+		UserID:        userID,
+		Enabled:       req.Enabled,
+		Reminder1h:    req.Reminder1h,
+		Reminder10m:   req.Reminder10m,
+		City:          strings.TrimSpace(req.City),
+		Language:      normalizeLanguageCode(req.Language),
+		TopicsJSON:    string(topicsRaw),
+		UseTimeWindow: req.UseTimeWindow,
+		StartHour:     clampSmartPushHour(req.StartHour),
+		EndHour:       clampSmartPushHour(req.EndHour),
+		Timezone:      resolveSmartPushTimezone(req.Timezone, s.loadUserTimezone(userID)),
+	}
+
+	if err := s.db.Where("user_id = ?", userID).Assign(preference).FirstOrCreate(&preference).Error; err != nil {
+		return nil, err
+	}
+
+	return &models.ChannelSmartPushPreferenceResponse{
+		UserID:        userID,
+		Enabled:       preference.Enabled,
+		Reminder1h:    preference.Reminder1h,
+		Reminder10m:   preference.Reminder10m,
+		City:          strings.TrimSpace(preference.City),
+		Language:      strings.TrimSpace(preference.Language),
+		Topics:        topics,
+		UseTimeWindow: preference.UseTimeWindow,
+		StartHour:     preference.StartHour,
+		EndHour:       preference.EndHour,
+		Timezone:      preference.Timezone,
+	}, nil
+}
+
 func (s *ChannelService) GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error) {
 	if viewerID == 0 {
 		return "", nil
@@ -760,7 +853,7 @@ func (s *ChannelService) ListPosts(channelID, viewerID uint, page, limit int, in
 		Order("is_pinned DESC").
 		Order("pinned_at DESC NULLS LAST").
 		Order("published_at DESC NULLS LAST").
-		Order("channels.created_at DESC").
+		Order("channel_posts.created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&posts).Error; err != nil {
@@ -1877,7 +1970,11 @@ func (s *ChannelService) deliverPostToSubscribers(post *models.ChannelPost) erro
 
 	var members []models.ChannelMember
 	if err := s.db.Select("user_id").
-		Where("channel_id = ? AND role = ? AND user_id <> ?", post.ChannelID, models.ChannelMemberRoleSubscriber, post.AuthorID).
+		Where("channel_id = ? AND role NOT IN ? AND user_id <> ?", post.ChannelID, []models.ChannelMemberRole{
+			models.ChannelMemberRoleOwner,
+			models.ChannelMemberRoleAdmin,
+			models.ChannelMemberRoleEditor,
+		}, post.AuthorID).
 		Find(&members).Error; err != nil {
 		return err
 	}
@@ -1885,8 +1982,23 @@ func (s *ChannelService) deliverPostToSubscribers(post *models.ChannelPost) erro
 		return nil
 	}
 
+	var owner models.User
+	if err := s.db.Select("id", "city", "language", "interests", "bio", "skills", "timezone").First(&owner, channel.OwnerID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	}
+
 	var firstErr error
 	for _, member := range members {
+		shouldSend, filterErr := s.shouldSendSubscriberPushBySmartPreference(post, channel, &owner, member.UserID)
+		if filterErr != nil {
+			log.Printf("[Channels] smart push filter check failed post=%d user=%d: %v", post.ID, member.UserID, filterErr)
+		}
+		if !shouldSend {
+			continue
+		}
+
 		if err := s.sendSubscriberPostPush(post, channel, member.UserID); err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -2069,6 +2181,205 @@ func (s *ChannelService) sendSubscriberPostPush(post *models.ChannelPost, channe
 	s.incrementMetricSafe(MetricChannelPersonalPushSentTotal, 1)
 	s.incrementMetricSafe(MetricChannelPersonalDeliveriesTotal, 1)
 	return nil
+}
+
+func (s *ChannelService) shouldSendSubscriberPushBySmartPreference(
+	post *models.ChannelPost,
+	channel *models.Channel,
+	owner *models.User,
+	userID uint,
+) (bool, error) {
+	if post == nil || channel == nil || userID == 0 {
+		return false, nil
+	}
+
+	var preference models.ChannelSmartPushPreference
+	if err := s.db.Where("user_id = ?", userID).First(&preference).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true, nil
+		}
+		return true, err
+	}
+
+	if !preference.Enabled {
+		return false, nil
+	}
+
+	ownerCity := ""
+	ownerLanguage := ""
+	ownerInterests := ""
+	ownerBio := ""
+	ownerSkills := ""
+	if owner != nil {
+		ownerCity = strings.TrimSpace(owner.City)
+		ownerLanguage = strings.TrimSpace(owner.Language)
+		ownerInterests = strings.TrimSpace(owner.Interests)
+		ownerBio = strings.TrimSpace(owner.Bio)
+		ownerSkills = strings.TrimSpace(owner.Skills)
+	}
+
+	if !matchesSmartPushCity(strings.TrimSpace(preference.City), ownerCity) {
+		return false, nil
+	}
+	if !matchesSmartPushLanguage(strings.TrimSpace(preference.Language), ownerLanguage) {
+		return false, nil
+	}
+
+	topics := decodeSmartPushTopics(preference.TopicsJSON)
+	if len(topics) > 0 {
+		searchCorpus := strings.ToLower(strings.Join([]string{
+			strings.TrimSpace(post.Content),
+			strings.TrimSpace(channel.Title),
+			strings.TrimSpace(channel.Description),
+			ownerInterests,
+			ownerBio,
+			ownerSkills,
+		}, " "))
+		matched := false
+		for _, topic := range topics {
+			topic = strings.ToLower(strings.TrimSpace(topic))
+			if topic == "" {
+				continue
+			}
+			if strings.Contains(searchCorpus, topic) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, nil
+		}
+	}
+
+	if preference.UseTimeWindow {
+		startHour := clampSmartPushHour(preference.StartHour)
+		endHour := clampSmartPushHour(preference.EndHour)
+		if startHour != endHour {
+			now := time.Now().UTC()
+			tz := resolveSmartPushTimezone(preference.Timezone, s.loadUserTimezone(userID))
+			if loc, err := time.LoadLocation(tz); err == nil {
+				now = now.In(loc)
+			}
+			if !isHourInsideWindow(now.Hour(), startHour, endHour) {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func matchesSmartPushCity(filterCity string, ownerCity string) bool {
+	filterCity = strings.ToLower(strings.TrimSpace(filterCity))
+	if filterCity == "" {
+		return true
+	}
+	ownerCity = strings.ToLower(strings.TrimSpace(ownerCity))
+	if ownerCity == "" {
+		return false
+	}
+	return ownerCity == filterCity
+}
+
+func matchesSmartPushLanguage(filterLanguage string, ownerLanguage string) bool {
+	filterLanguage = normalizeLanguageCode(filterLanguage)
+	if filterLanguage == "" {
+		return true
+	}
+	ownerLanguage = normalizeLanguageCode(ownerLanguage)
+	if ownerLanguage == "" {
+		return false
+	}
+	return ownerLanguage == filterLanguage
+}
+
+func decodeSmartPushTopics(raw string) []string {
+	clean := strings.TrimSpace(raw)
+	if clean == "" {
+		return []string{}
+	}
+	var topics []string
+	if err := json.Unmarshal([]byte(clean), &topics); err != nil {
+		return []string{}
+	}
+	return normalizeSmartPushTopics(topics)
+}
+
+func normalizeSmartPushTopics(topics []string) []string {
+	if len(topics) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(topics))
+	result := make([]string, 0, len(topics))
+	for _, topic := range topics {
+		clean := strings.ToLower(strings.TrimSpace(topic))
+		if clean == "" {
+			continue
+		}
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		result = append(result, clean)
+	}
+	return result
+}
+
+func clampSmartPushHour(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 23 {
+		return 23
+	}
+	return value
+}
+
+func isHourInsideWindow(hour, startHour, endHour int) bool {
+	if startHour == endHour {
+		return true
+	}
+	if startHour < endHour {
+		return hour >= startHour && hour < endHour
+	}
+	return hour >= startHour || hour < endHour
+}
+
+func normalizeLanguageCode(raw string) string {
+	clean := strings.ToLower(strings.TrimSpace(raw))
+	if clean == "" {
+		return ""
+	}
+	clean = strings.ReplaceAll(clean, "_", "-")
+	if idx := strings.Index(clean, "-"); idx > 0 {
+		clean = clean[:idx]
+	}
+	return clean
+}
+
+func resolveSmartPushTimezone(preferenceTimezone string, fallback string) string {
+	tz := strings.TrimSpace(preferenceTimezone)
+	if tz == "" {
+		tz = strings.TrimSpace(fallback)
+	}
+	if tz == "" {
+		return "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return "UTC"
+	}
+	return tz
+}
+
+func (s *ChannelService) loadUserTimezone(userID uint) string {
+	if userID == 0 {
+		return "UTC"
+	}
+	var user models.User
+	if err := s.db.Select("timezone").First(&user, userID).Error; err != nil {
+		return "UTC"
+	}
+	return resolveSmartPushTimezone(user.Timezone, "UTC")
 }
 
 func (s *ChannelService) reservePostDelivery(
@@ -2596,7 +2907,11 @@ func (s *ChannelService) fetchFollowersCountMap(channelIDs []uint) (map[uint]int
 	var rows []followersCountRow
 	if err := s.db.Model(&models.ChannelMember{}).
 		Select("channel_id, COUNT(*) AS count").
-		Where("channel_id IN ? AND role = ?", channelIDs, models.ChannelMemberRoleSubscriber).
+		Where("channel_id IN ? AND role NOT IN ?", channelIDs, []models.ChannelMemberRole{
+			models.ChannelMemberRoleOwner,
+			models.ChannelMemberRoleAdmin,
+			models.ChannelMemberRoleEditor,
+		}).
 		Group("channel_id").
 		Find(&rows).Error; err != nil {
 		return nil, err

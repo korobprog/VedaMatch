@@ -43,6 +43,7 @@ import {
     LifeBuoy,
     Sun,
     Bot,
+    Flame,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -96,6 +97,7 @@ const IconComponents: Record<string, any> = {
     LifeBuoy,
     Sun,
     Bot,
+    Flame,
 };
 
 const SERVICE_EMOJIS: Record<string, string> = {
@@ -113,6 +115,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     'multimedia': '🎵',
     'video_circles': '📹',
     'channels': '📻',
+    'sadhu_sanga': '🪔',
     'feed': '📰',
     'news': '📰',
     'map': '🗺️',

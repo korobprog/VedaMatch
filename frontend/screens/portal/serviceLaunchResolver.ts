@@ -73,6 +73,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
         return { kind: 'navigate', screen: 'ChannelsHub' };
     }
 
+    if (serviceId === 'sadhu_sanga') {
+        return { kind: 'navigate', screen: 'SadhuSangaHub' };
+    }
+
     if (serviceId === 'feed') {
         return { kind: 'navigate', screen: 'ChannelsHub' };
     }

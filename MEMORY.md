@@ -105,9 +105,59 @@
   - добавлен self-service follow/unfollow в header для читателя;
   - добавлена роль-метка `Подписчик` для `subscriber`;
   - добавлен публичный счетчик `Подписчиков: N` в intro блока канала.
+- `sadhu_sanga` отделен от общего `ChannelsHub`:
+  - добавлен отдельный экран `SadhuSangaHubScreen` (поиск/фильтры `city/language/topic`, каталог проповедников, follow/unfollow, переход в `ChannelDetails`);
+  - в карточке проповедника добавлены быстрые CTA:
+    - `Вопрос` -> `SupportTicketForm` (`sadhu_sanga_question` + `targetPreacherId`);
+    - `Семинары` -> `ChannelDetails` проповедника с `focusSection='seminars'`;
+  - добавлен блок `Ближайшие семинары` в верхней части экрана:
+    - данные из `getServices` + `getSchedules`;
+    - расчет ближайшей даты слота для `specificDate` и weekly `dayOfWeek/timeStart`;
+    - карточка содержит формат, дату, место/ссылку и CTA `Записаться` -> `ServiceDetail`;
+    - добавлен UI-фильтр `Только с датой` (по умолчанию включен): скрывает элементы без `nextAt`, при этом сортировка остается по ближайшей дате.
+    - для `offline` семинаров добавлена кнопка `Маршрут`, открывающая карту по `offlineLat/offlineLng` или `offlineAddress`.
+  - в `SadhuSangaHub` добавлен блок `Умные пуши` с сохранением персональных фильтров (`city/language/topics/time window/timezone`).
+  - добавлен отдельный route `SadhuSangaHub` и запуск из `serviceLaunchResolver` для service id `sadhu_sanga`.
+  - в `PortalMainScreen.navigateResolvedScreen` добавлен кейс `SadhuSangaHub`; без этого переход по иконке не открывал экран.
+- `ChannelDetails` поддерживает режим `source='sadhu_sanga'`:
+  - из `SadhuSangaHub` в `ChannelDetails` передается источник;
+  - поддерживается `focusSection='seminars'` для автопрокрутки к секции семинаров;
+  - в этом режиме скрываются общие канальные секции (CRM CTA, guide prompt, stories, draft toggle, showcases), чтобы экран соответствовал отдельному сервису.
+  - добавлена отдельная секция `Семинары проповедника`, которая показывает только услуги владельца текущего канала (`service.ownerId === channel.ownerId`) с ближайшей датой и CTA записи.
+  - в карточке семинара проповедника для `offline` добавлена кнопка `Маршрут` (deeplink карты по координатам/адресу).
+  - в этом режиме добавлен CTA `Задать вопрос проповеднику` -> `SupportTicketForm` с `entryPoint='sadhu_sanga_question'` и `targetPreacherId`.
+- `SupportTicketForm` расширен:
+  - принимает route params `targetPreacherId/targetPreacherName`;
+  - передает `targetPreacherId` в `supportService.createTicket(...)` для маршрутизации вопроса конкретному проповеднику.
+- Голосование за вопросы проповеднику (`MVP+`) реализовано через support:
+  - новая модель `support_question_votes` (`conversation_id + user_id`, unique pair);
+  - новый API:
+    - `GET /api/support/preachers/:preacherId/questions` — список вопросов (`sadhu_sanga_question`) с `voteCount` и `myVote`;
+    - `POST /api/support/tickets/:id/vote` — toggle/set голоса за вопрос.
+  - `ChannelDetailsScreen` в режиме `source='sadhu_sanga'` показывает секцию `Вопросы последователей` с кнопкой `Поддержать`.
+- Умные push-уведомления (`MVP+`) для подписчиков каналов:
+  - новая таблица `channel_smart_push_preferences`;
+  - API:
+    - `GET /api/channels/sadhu-sanga/push-preferences`
+    - `PUT /api/channels/sadhu-sanga/push-preferences`
+  - при fanout push в `channel_service.deliverPostToSubscribers` применяется фильтрация по настройкам пользователя (enabled, city, language, topics, local hour window).
+  - режим «Не пропустить»: в preference добавлены флаги `reminder1h/reminder10m`; booking reminder worker проверяет их перед отправкой push для `reminder_1h` и `reminder_10m`.
 - `frontend/screens/portal/services/MyBookingsScreen.tsx` + `frontend/screens/portal/services/components/BookingCard.tsx`:
   - добавлена кнопка `Календарь` для upcoming booking;
   - действие вызывает `exportBookingCalendarIcs(bookingId)` и открывает системный share sheet с ICS payload.
+- `frontend/screens/portal/services/IncomingBookingsScreen.tsx`:
+  - добавлена кнопка `Календарь` для будущих входящих записей специалиста (`!past`);
+  - действие вызывает `exportBookingCalendarIcs(bookingId)` и открывает системный share sheet с ICS payload.
+- Backend hotfix для старых схем БД:
+  - в `channel_service` подсчет подписчиков и subscriber-push выборка больше не используют `role='subscriber'` напрямую;
+  - используется фильтр `role NOT IN ('owner','admin','editor')`, чтобы избежать SQL `500` при старом enum роли.
+- Hotfix SQL для `ChannelDetails`:
+  - в `ListPosts` исправлен `ORDER BY` с `channels.created_at` на `channel_posts.created_at`;
+  - это устраняет PostgreSQL ошибку `missing FROM-clause entry for table "channels"` (SQLSTATE 42P01) при открытии канала.
+- `ChannelDetailsScreen` dev-лог ошибки переведен с `console.error` на `console.warn`, чтобы не поднимать RedBox при обработанных API-ошибках.
+- `ChannelDetailsScreen` загрузка постов сделана устойчивой:
+  - падение `listPosts` (например backend SQL 42P01) больше не роняет весь экран;
+  - используется fallback на пустой список постов и non-blocking `console.warn`.
 
 ## Trademark / MKTU Coverage
 - Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.
@@ -161,6 +211,9 @@
 - Для существующих layout добавлена миграция `services_catalog` в первую страницу (рядом с `services` или после 1-го ряда при отсутствии `services`) в `frontend/services/portalLayoutService.ts`.
 - Добавлен отдельный сервисный ярлык `feed` (`Лента`, `PlayCircle`) в `DEFAULT_SERVICES`; для существующих layout он подтягивается через `ensureDefaultServices` при инициализации.
 - Для повышения заметности `feed` добавлена миграция `ensureFeedShortcut` (`frontend/services/portalLayoutService.ts`): если ярлыка нет, он вставляется на первую страницу рядом с `channels`.
+- Добавлен ярлык `sadhu_sanga` (`Садху-санга`, `Sparkles`) в `DEFAULT_SERVICES`; для существующих layout подтягивается через текущую миграцию `ensureDefaultServices` при инициализации.
+- В `frontend/screens/portal/serviceLaunchResolver.ts` `sadhu_sanga` направляется в `SadhuSangaHub` (отдельный сервисный экран).
+- Иконка `sadhu_sanga` заменена с `Sparkles` на `Flame`, чтобы убрать визуальный дубль с сервисом «Союз» в портале.
 - В `frontend/screens/portal/serviceLaunchResolver.ts` `feed` направляется в `ChannelsHub` (лента открывается по умолчанию).
 - Навигация сервис-ярлыков унифицирована между Portal и Widget Dock через `frontend/screens/portal/serviceLaunchResolver.ts`; в `PortalMainScreen` и `WidgetSelectionScreen` больше нет расхождений по `services`.
 - Контрастный фикс экрана создания канала (`frontend/screens/portal/services/channels/CreateChannelScreen.tsx`):

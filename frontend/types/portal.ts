@@ -72,6 +72,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
     { id: 'video_circles', label: 'Кружки', icon: 'Clapperboard', color: '#EA580C' },
     { id: 'channels', label: 'Каналы', icon: 'Radio', color: '#0EA5A4' },
+    { id: 'sadhu_sanga', label: 'Садху-санга', icon: 'Flame', color: '#F59E0B' },
     { id: 'feed', label: 'Лента', icon: 'PlayCircle', color: '#0EA5E9' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },

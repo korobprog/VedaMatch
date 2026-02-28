@@ -22,6 +22,8 @@ type channelService interface {
 	FollowChannel(channelID, followerID uint) (*models.ChannelMember, error)
 	UnfollowChannel(channelID, followerID uint) error
 	GetFollowStatus(channelID, viewerID uint) (bool, int64, error)
+	GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error)
+	UpsertSadhuSangaPushPreference(userID uint, req models.ChannelSmartPushPreferenceUpsertRequest) (*models.ChannelSmartPushPreferenceResponse, error)
 	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
 	UpdateChannel(channelID, actorID uint, req models.ChannelUpdateRequest) (*models.Channel, error)
 	UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error)
@@ -263,6 +265,45 @@ func (h *ChannelHandler) GetFollowStatus(c *fiber.Ctx) error {
 		"isFollowing":    isFollowing,
 		"followersCount": followersCount,
 	})
+}
+
+func (h *ChannelHandler) GetSadhuSangaPushPreference(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	preference, err := h.service.GetSadhuSangaPushPreference(userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(preference)
+}
+
+func (h *ChannelHandler) UpdateSadhuSangaPushPreference(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req models.ChannelSmartPushPreferenceUpsertRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	preference, err := h.service.UpsertSadhuSangaPushPreference(userID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(preference)
 }
 
 func (h *ChannelHandler) UpdateChannel(c *fiber.Ctx) error {

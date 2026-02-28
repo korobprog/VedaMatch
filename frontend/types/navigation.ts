@@ -57,7 +57,7 @@ export type RootStackParamList = {
     ContactProfile: { userId: number };
     AppSettings: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;
-    SupportTicketForm: { entryPoint?: string } | undefined;
+    SupportTicketForm: { entryPoint?: string; targetPreacherId?: number; targetPreacherName?: string } | undefined;
     SupportInbox: undefined;
     SupportConversation: { conversationId: number };
     EditProfile: undefined;
@@ -172,7 +172,8 @@ export type RootStackParamList = {
     IncomingBookings: undefined;
     ServiceSchedule: { serviceId: number };
     ChannelsHub: undefined;
-    ChannelDetails: { channelId: number };
+    SadhuSangaHub: undefined;
+    ChannelDetails: { channelId: number; source?: 'sadhu_sanga'; focusSection?: 'seminars' };
     CreateChannel: undefined;
     ChannelPostComposer: { channelId: number; mode?: 'create' | 'edit'; postId?: number; initialPost?: ChannelPost };
     ChannelManage: { channelId: number };

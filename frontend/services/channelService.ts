@@ -19,6 +19,20 @@ import {
   ChannelUpdateRequest,
 } from '../types/channel';
 
+export interface SadhuSangaPushPreference {
+  userId: number;
+  enabled: boolean;
+  reminder1h: boolean;
+  reminder10m: boolean;
+  city: string;
+  language: string;
+  topics: string[];
+  useTimeWindow: boolean;
+  startHour: number;
+  endHour: number;
+  timezone: string;
+}
+
 class ChannelService {
   async getFeed(params: { page?: number; limit?: number; search?: string; channelId?: number } = {}): Promise<ChannelFeedResponse> {
     const response = await apiClient.get('/feed', { params });
@@ -57,6 +71,16 @@ class ChannelService {
 
   async getFollowStatus(channelId: number): Promise<{ channelId: number; isFollowing: boolean; followersCount: number }> {
     const response = await apiClient.get(`/channels/${channelId}/follow-status`);
+    return response.data;
+  }
+
+  async getSadhuSangaPushPreference(): Promise<SadhuSangaPushPreference> {
+    const response = await apiClient.get('/channels/sadhu-sanga/push-preferences');
+    return response.data;
+  }
+
+  async updateSadhuSangaPushPreference(payload: Omit<SadhuSangaPushPreference, 'userId'>): Promise<SadhuSangaPushPreference> {
+    const response = await apiClient.put('/channels/sadhu-sanga/push-preferences', payload);
     return response.data;
   }
 

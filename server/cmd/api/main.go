@@ -443,7 +443,9 @@ func main() {
 	protected := api.Group("/", middleware.Protected())
 
 	// Protected Support Routes (in-app tickets)
+	protected.Get("/support/preachers/:preacherId/questions", supportHandler.ListPreacherQuestions)
 	protected.Get("/support/tickets", supportHandler.ListMyTickets)
+	protected.Post("/support/tickets/:id/vote", supportHandler.VotePreacherQuestion)
 	protected.Get("/support/tickets/:id/messages", supportHandler.GetMyTicketMessages)
 	protected.Post("/support/tickets/:id/messages", supportHandler.PostMyTicketMessage)
 	protected.Post("/support/tickets/:id/read", supportHandler.MarkMyTicketRead)
@@ -812,6 +814,8 @@ func main() {
 	protected.Post("/channels/:id/follow", channelHandler.FollowChannel)
 	protected.Delete("/channels/:id/follow", channelHandler.UnfollowChannel)
 	protected.Get("/channels/:id/follow-status", channelHandler.GetFollowStatus)
+	protected.Get("/channels/sadhu-sanga/push-preferences", channelHandler.GetSadhuSangaPushPreference)
+	protected.Put("/channels/sadhu-sanga/push-preferences", channelHandler.UpdateSadhuSangaPushPreference)
 	protected.Post("/channels/:id/showcases", channelHandler.CreateShowcase)
 	protected.Patch("/channels/:id/showcases/:showcaseId", channelHandler.UpdateShowcase)
 	protected.Delete("/channels/:id/showcases/:showcaseId", channelHandler.DeleteShowcase)

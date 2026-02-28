@@ -1,4 +1,5 @@
 export { default as ChannelsHubScreen } from './ChannelsHubScreen';
+export { default as SadhuSangaHubScreen } from './SadhuSangaHubScreen';
 export { default as ChannelDetailsScreen } from './ChannelDetailsScreen';
 export { default as CreateChannelScreen } from './CreateChannelScreen';
 export { default as ChannelPostComposerScreen } from './ChannelPostComposerScreen';

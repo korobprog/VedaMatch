@@ -14,6 +14,7 @@ export { default as IncomingBookingsScreen } from './IncomingBookingsScreen';
 export { default as ServiceScheduleScreen } from './ServiceScheduleScreen';
 export {
     ChannelsHubScreen,
+    SadhuSangaHubScreen,
     ChannelDetailsScreen,
     CreateChannelScreen,
     ChannelPostComposerScreen,

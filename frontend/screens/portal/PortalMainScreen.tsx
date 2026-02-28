@@ -288,6 +288,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('ChannelsHub');
             return;
         }
+        if (screen === 'SadhuSangaHub') {
+            navigation.navigate('SadhuSangaHub');
+            return;
+        }
         if (screen === 'VideoCirclesScreen') {
             navigation.navigate('VideoCirclesScreen');
             return;

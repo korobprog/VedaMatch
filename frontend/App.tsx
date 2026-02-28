@@ -148,6 +148,7 @@ import {
   IncomingBookingsScreen,
   ServiceScheduleScreen,
   ChannelsHubScreen,
+  SadhuSangaHubScreen,
   ChannelDetailsScreen,
   CreateChannelScreen,
   ChannelPostComposerScreen,
@@ -605,6 +606,7 @@ const AppContent = () => {
                   <Stack.Screen name="IncomingBookings" component={IncomingBookingsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ServiceSchedule" component={ServiceScheduleScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelsHub" component={ChannelsHubScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SadhuSangaHub" component={SadhuSangaHubScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelDetails" component={ChannelDetailsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="CreateChannel" component={CreateChannelScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelPostComposer" component={ChannelPostComposerScreen} options={{ headerShown: false }} />

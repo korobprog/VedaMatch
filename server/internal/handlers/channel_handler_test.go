@@ -51,6 +51,32 @@ func (m *mockChannelService) UnfollowChannel(channelID, followerID uint) error {
 func (m *mockChannelService) GetFollowStatus(channelID, viewerID uint) (bool, int64, error) {
 	return true, 1, nil
 }
+func (m *mockChannelService) GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error) {
+	return &models.ChannelSmartPushPreferenceResponse{
+		UserID:        userID,
+		Enabled:       true,
+		City:          "",
+		Language:      "",
+		Topics:        []string{},
+		UseTimeWindow: false,
+		StartHour:     8,
+		EndHour:       22,
+		Timezone:      "UTC",
+	}, nil
+}
+func (m *mockChannelService) UpsertSadhuSangaPushPreference(userID uint, req models.ChannelSmartPushPreferenceUpsertRequest) (*models.ChannelSmartPushPreferenceResponse, error) {
+	return &models.ChannelSmartPushPreferenceResponse{
+		UserID:        userID,
+		Enabled:       req.Enabled,
+		City:          req.City,
+		Language:      req.Language,
+		Topics:        req.Topics,
+		UseTimeWindow: req.UseTimeWindow,
+		StartHour:     req.StartHour,
+		EndHour:       req.EndHour,
+		Timezone:      req.Timezone,
+	}, nil
+}
 func (m *mockChannelService) GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error) {
 	return models.ChannelMemberRoleOwner, nil
 }

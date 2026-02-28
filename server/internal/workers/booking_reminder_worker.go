@@ -72,10 +72,14 @@ func sendReminders(startTime, endTime time.Time, reminderType string, minutesBef
 	push := services.GetPushService()
 	for _, b := range bookings {
 		// Send to Client
-		push.SendBookingReminder(b.ClientID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
+		if shouldSendBookingReminderByPreference(b.ClientID, reminderType) {
+			push.SendBookingReminder(b.ClientID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
+		}
 
 		// Send to Provider
-		push.SendBookingReminder(b.Service.OwnerID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
+		if shouldSendBookingReminderByPreference(b.Service.OwnerID, reminderType) {
+			push.SendBookingReminder(b.Service.OwnerID, b.ID, b.Service.Title, b.ScheduledAt, minutesBefore)
+		}
 
 		// Mark as sent
 		if reminderType == "reminder_24h" {
@@ -87,5 +91,31 @@ func sendReminders(startTime, endTime time.Time, reminderType string, minutesBef
 		}
 
 		log.Printf("[Worker] Sent %s reminder for booking %d (Service: %s)", reminderType, b.ID, b.Service.Title)
+	}
+}
+
+func shouldSendBookingReminderByPreference(userID uint, reminderType string) bool {
+	if userID == 0 {
+		return true
+	}
+
+	var pref models.ChannelSmartPushPreference
+	if err := database.DB.Select("enabled", "reminder_1h", "reminder_10m").
+		Where("user_id = ?", userID).
+		First(&pref).Error; err != nil {
+		return true
+	}
+
+	if !pref.Enabled {
+		return false
+	}
+
+	switch reminderType {
+	case "reminder_1h":
+		return pref.Reminder1h
+	case "reminder_10m":
+		return pref.Reminder10m
+	default:
+		return true
 	}
 }

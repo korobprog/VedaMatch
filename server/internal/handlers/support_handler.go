@@ -96,6 +96,20 @@ type supportConversationListItem struct {
 	UnreadCount int64 `json:"unreadCount"`
 }
 
+type supportPreacherQuestionListItem struct {
+	ID           uint      `json:"id"`
+	TicketNumber string    `json:"ticketNumber,omitempty"`
+	Subject      string    `json:"subject"`
+	Excerpt      string    `json:"excerpt"`
+	CreatedAt    time.Time `json:"createdAt"`
+	VoteCount    int64     `json:"voteCount"`
+	MyVote       bool      `json:"myVote"`
+}
+
+type supportToggleQuestionVoteRequest struct {
+	Value *bool `json:"value"`
+}
+
 func NewSupportHandler() *SupportHandler {
 	tokenProvider := func() string {
 		return strings.TrimSpace(getSupportSetting("SUPPORT_TELEGRAM_BOT_TOKEN"))
@@ -1398,6 +1412,184 @@ func (h *SupportHandler) GetMyUnreadCount(c *fiber.Ctx) error {
 	})
 }
 
+// ListPreacherQuestions returns Sadhu Sanga questions for one preacher.
+// GET /api/support/preachers/:preacherId/questions
+func (h *SupportHandler) ListPreacherQuestions(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	preacherID, err := parseSupportPositiveUintParam(c, "preacherId", "preacher id")
+	if err != nil {
+		return err
+	}
+
+	page := parseSupportInt(c.Query("page"), 1, 1, 100000)
+	limit := parseSupportInt(c.Query("limit"), 20, 1, 50)
+	status := strings.TrimSpace(strings.ToLower(c.Query("status")))
+	metaLikeWithComma := fmt.Sprintf("%%\"targetPreacherId\":%d,%%", preacherID)
+	metaLikeWithBrace := fmt.Sprintf("%%\"targetPreacherId\":%d}%%", preacherID)
+
+	query := database.DB.Model(&models.SupportConversation{}).
+		Where("channel = ? AND entry_point = ?", models.SupportConversationChannelInApp, "sadhu_sanga_question").
+		Where("(meta_json LIKE ? OR meta_json LIKE ?)", metaLikeWithComma, metaLikeWithBrace)
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count questions"})
+	}
+
+	var conversations []models.SupportConversation
+	if err := query.
+		Order("created_at DESC, id DESC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&conversations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load questions"})
+	}
+
+	conversationIDs := make([]uint, 0, len(conversations))
+	for _, conversation := range conversations {
+		conversationIDs = append(conversationIDs, conversation.ID)
+	}
+
+	voteCountByConversation, voteCountErr := loadSupportQuestionVoteCounts(conversationIDs)
+	if voteCountErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count votes"})
+	}
+	myVoteByConversation, myVoteErr := loadSupportQuestionUserVotes(conversationIDs, userID)
+	if myVoteErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load user votes"})
+	}
+
+	items := make([]supportPreacherQuestionListItem, 0, len(conversations))
+	for _, conversation := range conversations {
+		targetID := parseSupportTargetPreacherID(conversation.MetaJSON)
+		if targetID > 0 && targetID != preacherID {
+			continue
+		}
+
+		ticketNumber := ""
+		if conversation.TicketNumber != nil {
+			ticketNumber = strings.TrimSpace(*conversation.TicketNumber)
+		}
+
+		subject := strings.TrimSpace(conversation.Subject)
+		if subject == "" {
+			subject = "Вопрос к проповеднику"
+		}
+		excerpt := h.preview(conversation.LastMessagePreview)
+		if excerpt == "" {
+			excerpt = subject
+		}
+
+		items = append(items, supportPreacherQuestionListItem{
+			ID:           conversation.ID,
+			TicketNumber: ticketNumber,
+			Subject:      subject,
+			Excerpt:      excerpt,
+			CreatedAt:    conversation.CreatedAt,
+			VoteCount:    voteCountByConversation[conversation.ID],
+			MyVote:       myVoteByConversation[conversation.ID],
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"questions": items,
+		"total":     total,
+		"page":      page,
+		"limit":     limit,
+	})
+}
+
+// VotePreacherQuestion toggles vote for a Sadhu Sanga question ticket.
+// POST /api/support/tickets/:id/vote
+func (h *SupportHandler) VotePreacherQuestion(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "ticket id")
+	if err != nil {
+		return err
+	}
+
+	var conversation models.SupportConversation
+	if err := database.DB.Select("id,channel,entry_point").First(&conversation, conversationID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "question not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load question"})
+	}
+	if conversation.Channel != models.SupportConversationChannelInApp || strings.TrimSpace(strings.ToLower(conversation.EntryPoint)) != "sadhu_sanga_question" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ticket is not a Sadhu Sanga question"})
+	}
+
+	var req supportToggleQuestionVoteRequest
+	body := strings.TrimSpace(string(c.Body()))
+	if body != "" {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		}
+	}
+
+	var existingCount int64
+	if err := database.DB.Model(&models.SupportQuestionVote{}).
+		Where("conversation_id = ? AND user_id = ?", conversation.ID, userID).
+		Count(&existingCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load vote"})
+	}
+
+	shouldVote := existingCount == 0
+	if req.Value != nil {
+		shouldVote = *req.Value
+	}
+
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if shouldVote {
+			if existingCount == 0 {
+				vote := models.SupportQuestionVote{
+					ConversationID: conversation.ID,
+					UserID:         userID,
+				}
+				if err := tx.Create(&vote).Error; err != nil && !isUniqueViolation(err) {
+					return err
+				}
+			}
+			return nil
+		}
+		return tx.Where("conversation_id = ? AND user_id = ?", conversation.ID, userID).
+			Delete(&models.SupportQuestionVote{}).Error
+	}); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update vote"})
+	}
+
+	var voteCount int64
+	if err := database.DB.Model(&models.SupportQuestionVote{}).
+		Where("conversation_id = ?", conversation.ID).
+		Count(&voteCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count votes"})
+	}
+
+	var currentUserVoteCount int64
+	if err := database.DB.Model(&models.SupportQuestionVote{}).
+		Where("conversation_id = ? AND user_id = ?", conversation.ID, userID).
+		Count(&currentUserVoteCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load current vote state"})
+	}
+
+	return c.JSON(fiber.Map{
+		"ticketId": conversation.ID,
+		"voted":    currentUserVoteCount > 0,
+		"votes":    voteCount,
+	})
+}
+
 // GetSupportMetrics returns admin support metrics for in-app tickets.
 // GET /api/admin/support/metrics
 func (h *SupportHandler) GetSupportMetrics(c *fiber.Ctx) error {
@@ -1813,4 +2005,70 @@ func loadSupportUnreadCounts(conversationIDs []uint) (map[uint]int64, error) {
 		counts[row.ConversationID] = row.Count
 	}
 	return counts, nil
+}
+
+func parseSupportTargetPreacherID(metaJSON string) uint {
+	clean := strings.TrimSpace(metaJSON)
+	if clean == "" {
+		return 0
+	}
+	var payload struct {
+		TargetPreacherID uint `json:"targetPreacherId"`
+	}
+	if err := json.Unmarshal([]byte(clean), &payload); err != nil {
+		return 0
+	}
+	return payload.TargetPreacherID
+}
+
+func loadSupportQuestionVoteCounts(conversationIDs []uint) (map[uint]int64, error) {
+	counts := make(map[uint]int64, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return counts, nil
+	}
+	if database.DB == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	type voteCountRow struct {
+		ConversationID uint
+		Count          int64
+	}
+	var rows []voteCountRow
+	if err := database.DB.Model(&models.SupportQuestionVote{}).
+		Select("conversation_id, COUNT(*) AS count").
+		Where("conversation_id IN ?", conversationIDs).
+		Group("conversation_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.ConversationID] = row.Count
+	}
+	return counts, nil
+}
+
+func loadSupportQuestionUserVotes(conversationIDs []uint, userID uint) (map[uint]bool, error) {
+	votes := make(map[uint]bool, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return votes, nil
+	}
+	if userID == 0 {
+		return votes, nil
+	}
+	if database.DB == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	var rows []models.SupportQuestionVote
+	if err := database.DB.Model(&models.SupportQuestionVote{}).
+		Select("conversation_id").
+		Where("conversation_id IN ? AND user_id = ?", conversationIDs, userID).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		votes[row.ConversationID] = true
+	}
+	return votes, nil
 }

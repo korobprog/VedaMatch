@@ -131,6 +131,15 @@ type SupportTelegramUpdate struct {
 	ProcessedAt time.Time `json:"processedAt" gorm:"index;not null"`
 }
 
+// SupportQuestionVote stores user votes for Sadhu Sanga in-app questions.
+type SupportQuestionVote struct {
+	gorm.Model
+	ConversationID uint                `json:"conversationId" gorm:"not null;index;uniqueIndex:idx_support_question_vote"`
+	Conversation   SupportConversation `json:"conversation,omitempty"`
+	UserID         uint                `json:"userId" gorm:"not null;index;uniqueIndex:idx_support_question_vote"`
+	User           User                `json:"user,omitempty"`
+}
+
 func (SupportContact) TableName() string {
 	return "support_contacts"
 }
@@ -153,4 +162,8 @@ func (SupportFAQItem) TableName() string {
 
 func (SupportTelegramUpdate) TableName() string {
 	return "support_telegram_updates"
+}
+
+func (SupportQuestionVote) TableName() string {
+	return "support_question_votes"
 }
