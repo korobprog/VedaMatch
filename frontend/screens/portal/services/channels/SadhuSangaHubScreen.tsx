@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  Image,
   Linking,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,15 +13,14 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Search, Sparkles, MessageCircle, CalendarDays, Radio } from 'lucide-react-native';
+import { Search, Sparkles, MessageCircle, CalendarDays, Radio, PlayCircle, MapPin, Clock3, Heart } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel } from '../../../../types/channel';
 import { Service, ServiceSchedule, getSchedules, getServices } from '../../../../services/serviceService';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import SadhuSangaLayout from './components/SadhuSangaLayout';
 
 type FollowState = {
   isFollowing: boolean;
@@ -33,15 +33,7 @@ type SeminarPreview = {
   formatLabel: string;
   venueLabel: string;
 };
-
-const detectDeviceTimezone = (): string => {
-  try {
-    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return resolved || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-};
+type ServiceTab = 'home' | 'schedule' | 'live' | 'profile';
 
 const parseServiceFormats = (raw: string): string[] => {
   if (!raw) {
@@ -132,7 +124,7 @@ export default function SadhuSangaHubScreen() {
   const navigation = useNavigation<any>();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
-  const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+  const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -147,18 +139,6 @@ export default function SadhuSangaHubScreen() {
   const [seminarsLoading, setSeminarsLoading] = useState(false);
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
   const [liveJoinLoadingChannelId, setLiveJoinLoadingChannelId] = useState<number | null>(null);
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [pushReminder1h, setPushReminder1h] = useState(true);
-  const [pushReminder10m, setPushReminder10m] = useState(true);
-  const [pushCity, setPushCity] = useState('');
-  const [pushLanguage, setPushLanguage] = useState('');
-  const [pushTopic, setPushTopic] = useState('');
-  const [pushUseTimeWindow, setPushUseTimeWindow] = useState(false);
-  const [pushStartHour, setPushStartHour] = useState('8');
-  const [pushEndHour, setPushEndHour] = useState('22');
-  const [pushTimezone, setPushTimezone] = useState(detectDeviceTimezone());
-  const [smartPushLoading, setSmartPushLoading] = useState(false);
-  const [smartPushSaving, setSmartPushSaving] = useState(false);
 
   const mountedRef = useRef(true);
   const latestReqRef = useRef(0);
@@ -222,34 +202,6 @@ export default function SadhuSangaHubScreen() {
       }
     }
   }, [city, language, search, topic]);
-
-  const loadSmartPushPreference = useCallback(async () => {
-    setSmartPushLoading(true);
-    try {
-      const preference = await channelService.getSadhuSangaPushPreference();
-      if (!mountedRef.current) {
-        return;
-      }
-      setPushEnabled(Boolean(preference.enabled));
-      setPushReminder1h(Boolean(preference.reminder1h ?? true));
-      setPushReminder10m(Boolean(preference.reminder10m ?? true));
-      setPushCity(preference.city || '');
-      setPushLanguage(preference.language || '');
-      setPushTopic((preference.topics || []).join(', '));
-      setPushUseTimeWindow(Boolean(preference.useTimeWindow));
-      setPushStartHour(String(preference.startHour ?? 8));
-      setPushEndHour(String(preference.endHour ?? 22));
-      setPushTimezone(preference.timezone || detectDeviceTimezone());
-    } catch (error: any) {
-      if (mountedRef.current) {
-        console.warn(`[SadhuSangaHub] Smart push preference load failed: ${error?.message || 'unknown'}`);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setSmartPushLoading(false);
-      }
-    }
-  }, []);
 
   const loadUpcomingSeminars = useCallback(async () => {
     setSeminarsLoading(true);
@@ -348,10 +300,6 @@ export default function SadhuSangaHubScreen() {
     void loadUpcomingSeminars();
   }, [loadUpcomingSeminars]);
 
-  useEffect(() => {
-    void loadSmartPushPreference();
-  }, [loadSmartPushPreference]);
-
   const onRefresh = () => {
     if (loading || refreshing) {
       return;
@@ -399,56 +347,6 @@ export default function SadhuSangaHubScreen() {
     }
   }, [followStateByChannel, user?.ID]);
 
-  const saveSmartPushPreference = useCallback(async () => {
-    if (smartPushSaving) {
-      return;
-    }
-    const startHour = Math.max(0, Math.min(23, Number(pushStartHour) || 0));
-    const endHour = Math.max(0, Math.min(23, Number(pushEndHour) || 0));
-    const topics = pushTopic
-      .split(',')
-      .map(topicItem => topicItem.trim())
-      .filter(Boolean);
-
-    setSmartPushSaving(true);
-    try {
-      const updated = await channelService.updateSadhuSangaPushPreference({
-        enabled: pushEnabled,
-        reminder1h: pushReminder1h,
-        reminder10m: pushReminder10m,
-        city: pushCity.trim(),
-        language: pushLanguage.trim(),
-        topics,
-        useTimeWindow: pushUseTimeWindow,
-        startHour,
-        endHour,
-        timezone: pushTimezone.trim() || detectDeviceTimezone(),
-      });
-      if (!mountedRef.current) {
-        return;
-      }
-      setPushEnabled(Boolean(updated.enabled));
-      setPushReminder1h(Boolean(updated.reminder1h ?? true));
-      setPushReminder10m(Boolean(updated.reminder10m ?? true));
-      setPushCity(updated.city || '');
-      setPushLanguage(updated.language || '');
-      setPushTopic((updated.topics || []).join(', '));
-      setPushUseTimeWindow(Boolean(updated.useTimeWindow));
-      setPushStartHour(String(updated.startHour ?? startHour));
-      setPushEndHour(String(updated.endHour ?? endHour));
-      setPushTimezone(updated.timezone || detectDeviceTimezone());
-      Alert.alert('Готово', 'Умные пуши сохранены.');
-    } catch (error: any) {
-      if (mountedRef.current) {
-        Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось сохранить умные пуши');
-      }
-    } finally {
-      if (mountedRef.current) {
-        setSmartPushSaving(false);
-      }
-    }
-  }, [pushCity, pushEnabled, pushEndHour, pushLanguage, pushReminder10m, pushReminder1h, pushStartHour, pushTimezone, pushTopic, pushUseTimeWindow, smartPushSaving]);
-
   const openSeminarRoute = useCallback(async (service: Service) => {
     if (service.channel !== 'offline') {
       Alert.alert('Маршрут', 'Маршрут доступен только для офлайн-семинаров.');
@@ -486,8 +384,15 @@ export default function SadhuSangaHubScreen() {
       >
         <View style={styles.channelRowTop}>
           <View style={styles.channelTitleBox}>
-            <Text style={styles.channelTitle} numberOfLines={1}>{item.title}</Text>
-            <Text style={styles.channelMeta}>@{item.slug}</Text>
+            {item.avatarUrl ? (
+              <Image source={{ uri: item.avatarUrl }} style={styles.channelAvatar} />
+            ) : (
+              <View style={styles.channelAvatar} />
+            )}
+            <View style={styles.channelTitleTextWrap}>
+              <Text style={styles.channelTitle} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.channelMeta}>@{item.slug}</Text>
+            </View>
           </View>
           {canFollow ? (
             <TouchableOpacity
@@ -592,358 +497,469 @@ export default function SadhuSangaHubScreen() {
     }
   }, [followStateByChannel, liveJoinLoadingChannelId, loadChannels, navigation, user?.ID, user?.karmicName, user?.spiritualName]);
 
+  const openServiceTab = useCallback((tab: ServiceTab) => {
+    const tabRouteMap: Record<ServiceTab, 'SadhuSangaHub' | 'SadhuSangaSchedule' | 'SadhuSangaLive' | 'SadhuSangaProfile'> = {
+      home: 'SadhuSangaHub',
+      schedule: 'SadhuSangaSchedule',
+      live: 'SadhuSangaLive',
+      profile: 'SadhuSangaProfile',
+    };
+    const targetRoute = tabRouteMap[tab];
+    if (targetRoute === 'SadhuSangaHub') {
+      return;
+    }
+    navigation.replace(targetRoute);
+  }, [navigation]);
+
+  const openFeatureCard = useCallback((feature: 'live' | 'seminars' | 'qa' | 'schedule') => {
+    if (feature === 'live') {
+      const firstLive = liveChannels[0];
+      if (!firstLive) {
+        Alert.alert('Прямые эфиры', 'Сейчас нет активных эфиров. Проверьте запланированные трансляции ниже.');
+        return;
+      }
+      navigation.navigate('ChannelDetails', { channelId: firstLive.ID, source: 'sadhu_sanga' });
+      return;
+    }
+    if (feature === 'seminars') {
+      const firstSeminar = upcomingSeminars[0];
+      if (!firstSeminar) {
+        Alert.alert('Семинары', 'Ближайшие семинары появятся здесь немного позже.');
+        return;
+      }
+      navigation.navigate('ServiceDetail', { serviceId: firstSeminar.service.id });
+      return;
+    }
+    if (feature === 'qa') {
+      const firstChannel = channels[0];
+      if (!firstChannel) {
+        Alert.alert('Вопрос-ответ', 'Сначала выберите проповедника в каталоге.');
+        return;
+      }
+      navigation.navigate('SupportTicketForm', {
+        entryPoint: 'sadhu_sanga_question',
+        targetPreacherId: firstChannel.ownerId,
+        targetPreacherName: firstChannel.title,
+      });
+      return;
+    }
+    void openServiceTab('schedule');
+  }, [channels, liveChannels, navigation, openServiceTab, upcomingSeminars]);
+
   return (
-    <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Садху-санга</Text>
-            <Text style={styles.headerSubtitle}>Каталог проповедников и лекций</Text>
-          </View>
-        </View>
-
+    <SadhuSangaLayout
+      colors={colors}
+      subtitle="Лекции, эфиры и живая санга каждый день"
+      activeTab="home"
+      onBack={() => navigation.goBack()}
+      onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
+      onTabPress={openServiceTab}
+    >
+        <ScrollView
+          style={styles.mainScroll}
+          contentContainerStyle={styles.mainScrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.accent}
+            />
+          }
+        >
         <View style={styles.filtersBlock}>
-          <View style={styles.searchRow}>
-            <Search size={16} color={colors.textSecondary} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Поиск проповедника"
-              placeholderTextColor={colors.textSecondary}
-              style={styles.searchInput}
-            />
+            <View style={styles.searchRow}>
+              <Search size={16} color={colors.textSecondary} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Поиск проповедника"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.searchInput}
+              />
+            </View>
+
+            <View style={styles.heroCard}>
+              <View style={styles.heroBadge}>
+                <Text style={styles.heroBadgeText}>Новый сервис</Text>
+              </View>
+              <View style={styles.heroRow}>
+                <View style={styles.heroTextWrap}>
+                  <Text style={styles.heroTitle}>Пространство общения</Text>
+                  <Text style={styles.heroSubtitle}>
+                    Будьте ближе к проповедникам, лекциям и живому общению каждый день.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.heroActionButton}
+                    onPress={() => Alert.alert('Садху Санга', 'Листайте ниже: эфиры, семинары, вопросы и подписки уже доступны.')}
+                  >
+                    <Text style={styles.heroActionText}>Узнать больше</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.heroIconWrap}>
+                  <Heart size={54} color="#F6C766" />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.featuresSection}>
+              <Text style={styles.featuresTitle}>Возможности Садху Санга</Text>
+              <View style={styles.featuresGrid}>
+                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('live')}>
+                  <View style={[styles.featureIconWrap, styles.featureIconLive]}>
+                    <PlayCircle size={18} color="#2F67F6" />
+                  </View>
+                  <Text style={styles.featureCardTitle}>Прямые эфиры</Text>
+                  <Text style={styles.featureCardSub}>Смотрите вживую и в записи</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('seminars')}>
+                  <View style={[styles.featureIconWrap, styles.featureIconSeminar]}>
+                    <MapPin size={18} color="#0D9B6C" />
+                  </View>
+                  <Text style={styles.featureCardTitle}>Семинары</Text>
+                  <Text style={styles.featureCardSub}>Онлайн и офлайн в вашем городе</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('qa')}>
+                  <View style={[styles.featureIconWrap, styles.featureIconQuestion]}>
+                    <MessageCircle size={18} color="#8A2BE2" />
+                  </View>
+                  <Text style={styles.featureCardTitle}>Вопрос-ответ</Text>
+                  <Text style={styles.featureCardSub}>Задайте вопрос проповеднику</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('schedule')}>
+                  <View style={[styles.featureIconWrap, styles.featureIconSchedule]}>
+                    <Clock3 size={18} color="#E64173" />
+                  </View>
+                  <Text style={styles.featureCardTitle}>Расписание</Text>
+                  <Text style={styles.featureCardSub}>Уведомления по вашим фильтрам</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inlineFilters}>
+              <TextInput
+                value={city}
+                onChangeText={setCity}
+                placeholder="Город"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.inlineFilterInput}
+              />
+              <TextInput
+                value={language}
+                onChangeText={setLanguage}
+                placeholder="Язык"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.inlineFilterInput}
+              />
+              <TextInput
+                value={topic}
+                onChangeText={setTopic}
+                placeholder="Тема"
+                placeholderTextColor={colors.textSecondary}
+                style={styles.inlineFilterInput}
+              />
+            </View>
           </View>
 
-          <View style={styles.inlineFilters}>
-            <TextInput
-              value={city}
-              onChangeText={setCity}
-              placeholder="Город"
-              placeholderTextColor={colors.textSecondary}
-              style={styles.inlineFilterInput}
-            />
-            <TextInput
-              value={language}
-              onChangeText={setLanguage}
-              placeholder="Язык"
-              placeholderTextColor={colors.textSecondary}
-              style={styles.inlineFilterInput}
-            />
-            <TextInput
-              value={topic}
-              onChangeText={setTopic}
-              placeholder="Тема"
-              placeholderTextColor={colors.textSecondary}
-              style={styles.inlineFilterInput}
-            />
-          </View>
-
-          <View style={styles.smartPushBlock}>
-            <View style={styles.smartPushHeader}>
-              <Text style={styles.smartPushTitle}>Умные пуши</Text>
-              {smartPushLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
-            </View>
-            <Text style={styles.smartPushHint}>Город, язык, темы и временное окно для уведомлений Садху-санга.</Text>
-            <View style={styles.smartPushInlineRow}>
-              <TextInput
-                value={pushCity}
-                onChangeText={setPushCity}
-                placeholder="Город пушей"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.smartPushInput}
-              />
-              <TextInput
-                value={pushLanguage}
-                onChangeText={setPushLanguage}
-                placeholder="Язык пушей"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.smartPushInput}
-              />
-              <TextInput
-                value={pushTopic}
-                onChangeText={setPushTopic}
-                placeholder="Темы (через ,)"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.smartPushInput}
-              />
-            </View>
-            <View style={styles.smartPushControlsRow}>
-              <TouchableOpacity
-                style={[styles.smartPushToggleButton, pushEnabled ? styles.smartPushToggleButtonActive : styles.smartPushToggleButtonInactive]}
-                onPress={() => setPushEnabled(prev => !prev)}
-              >
-                <Text style={[styles.smartPushToggleText, pushEnabled ? styles.smartPushToggleTextActive : styles.smartPushToggleTextInactive]}>
-                  {pushEnabled ? 'Пуши: Вкл' : 'Пуши: Выкл'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.smartPushToggleButton, pushUseTimeWindow ? styles.smartPushToggleButtonActive : styles.smartPushToggleButtonInactive]}
-                onPress={() => setPushUseTimeWindow(prev => !prev)}
-              >
-                <Text style={[styles.smartPushToggleText, pushUseTimeWindow ? styles.smartPushToggleTextActive : styles.smartPushToggleTextInactive]}>
-                  {pushUseTimeWindow ? 'Окно: Вкл' : 'Окно: Выкл'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.smartPushToggleButton, pushReminder1h ? styles.smartPushToggleButtonActive : styles.smartPushToggleButtonInactive]}
-                onPress={() => setPushReminder1h(prev => !prev)}
-              >
-                <Text style={[styles.smartPushToggleText, pushReminder1h ? styles.smartPushToggleTextActive : styles.smartPushToggleTextInactive]}>
-                  1ч
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.smartPushToggleButton, pushReminder10m ? styles.smartPushToggleButtonActive : styles.smartPushToggleButtonInactive]}
-                onPress={() => setPushReminder10m(prev => !prev)}
-              >
-                <Text style={[styles.smartPushToggleText, pushReminder10m ? styles.smartPushToggleTextActive : styles.smartPushToggleTextInactive]}>
-                  10м
-                </Text>
-              </TouchableOpacity>
-              <TextInput
-                value={pushStartHour}
-                onChangeText={setPushStartHour}
-                keyboardType="number-pad"
-                placeholder="с"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.smartPushHourInput}
-                maxLength={2}
-              />
-              <TextInput
-                value={pushEndHour}
-                onChangeText={setPushEndHour}
-                keyboardType="number-pad"
-                placeholder="до"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.smartPushHourInput}
-                maxLength={2}
-              />
-            </View>
-            <TextInput
-              value={pushTimezone}
-              onChangeText={setPushTimezone}
-              placeholder="Timezone (например Europe/Moscow)"
-              placeholderTextColor={colors.textSecondary}
-              style={styles.smartPushTimezoneInput}
-            />
-            <TouchableOpacity
-              style={[styles.smartPushSaveButton, smartPushSaving && styles.smartPushSaveButtonDisabled]}
-              onPress={() => void saveSmartPushPreference()}
-              disabled={smartPushSaving}
-            >
-              <Text style={styles.smartPushSaveButtonText}>{smartPushSaving ? 'Сохраняем...' : 'Сохранить умные пуши'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.seminarsSection}>
-          <View style={styles.liveSection}>
-            <View style={styles.liveHeaderRow}>
-              <Text style={styles.liveTitle}>Прямой эфир</Text>
-            </View>
-            {liveChannels.length === 0 ? (
-              <Text style={styles.liveEmpty}>Скоро здесь появятся эфиры проповедников</Text>
-            ) : (
-              <View style={styles.liveList}>
-                {liveChannels.map((item) => {
-                  const session = item.currentLiveSession!;
-                  const isLive = session.status === 'live';
-                  const actionLoading = liveJoinLoadingChannelId === item.ID;
-                  return (
-                    <View key={`live-${item.ID}-${session.id}`} style={styles.liveCard}>
-                      <View style={styles.liveCardRow}>
-                        <View style={styles.liveTitleWrap}>
-                          <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
-                          <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
-                            {isLive ? 'В эфире' : 'Запланировано'}
-                          </Text>
+          <>
+            <View style={styles.seminarsSection}>
+              <View style={styles.liveSection}>
+                <View style={styles.liveHeaderRow}>
+                  <Text style={styles.liveTitle}>Прямой эфир</Text>
+                </View>
+                {liveChannels.length === 0 ? (
+                  <Text style={styles.liveEmpty}>Скоро здесь появятся эфиры проповедников</Text>
+                ) : (
+                  <View style={styles.liveList}>
+                    {liveChannels.map((item) => {
+                      const session = item.currentLiveSession!;
+                      const isLive = session.status === 'live';
+                      const actionLoading = liveJoinLoadingChannelId === item.ID;
+                      return (
+                        <View key={`live-${item.ID}-${session.id}`} style={styles.liveCard}>
+                          <View style={styles.liveCardRow}>
+                            <View style={styles.liveTitleWrap}>
+                              <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
+                              <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
+                                {isLive ? 'В эфире' : 'Запланировано'}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[
+                                styles.liveActionButton,
+                                !isLive && styles.liveActionButtonDisabled,
+                                actionLoading && styles.liveActionButtonDisabled,
+                              ]}
+                              disabled={!isLive || actionLoading}
+                              onPress={() => void handleJoinLive(item)}
+                            >
+                              {actionLoading ? (
+                                <ActivityIndicator size="small" color={colors.textPrimary} />
+                              ) : (
+                                <>
+                                  <Radio size={14} color={colors.textPrimary} />
+                                  <Text style={styles.liveActionButtonText}>Смотреть эфир</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || 'Эфир'}</Text>
+                          {(session.startedAt || session.scheduledAt) ? (
+                            <Text style={styles.liveCardDate}>
+                              {new Date(session.startedAt || session.scheduledAt || '').toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </Text>
+                          ) : null}
                         </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.liveActionButton,
-                            !isLive && styles.liveActionButtonDisabled,
-                            actionLoading && styles.liveActionButtonDisabled,
-                          ]}
-                          disabled={!isLive || actionLoading}
-                          onPress={() => void handleJoinLive(item)}
-                        >
-                          {actionLoading ? (
-                            <ActivityIndicator size="small" color={colors.textPrimary} />
-                          ) : (
-                            <>
-                              <Radio size={14} color={colors.textPrimary} />
-                              <Text style={styles.liveActionButtonText}>Смотреть эфир</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.seminarsHeaderRow}>
+                <Text style={styles.seminarsTitle}>Ближайшие семинары</Text>
+                <View style={styles.seminarsHeaderActions}>
+                  {seminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+                  <TouchableOpacity
+                    style={[
+                      styles.seminarsDateFilterButton,
+                      seminarsOnlyWithDate
+                        ? styles.seminarsDateFilterButtonActive
+                        : styles.seminarsDateFilterButtonInactive,
+                    ]}
+                    onPress={() => setSeminarsOnlyWithDate(prev => !prev)}
+                    activeOpacity={0.9}
+                  >
+                    <Text
+                      style={[
+                        styles.seminarsDateFilterButtonText,
+                        seminarsOnlyWithDate
+                          ? styles.seminarsDateFilterButtonTextActive
+                          : styles.seminarsDateFilterButtonTextInactive,
+                      ]}
+                    >
+                      Только с датой
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {upcomingSeminars.length === 0 ? (
+                <Text style={styles.seminarsEmpty}>Пока нет ближайших семинаров</Text>
+              ) : (
+                <View style={styles.seminarsList}>
+                  {upcomingSeminars.map((item) => (
+                    <View key={`seminar-${item.service.id}`} style={styles.seminarCard}>
+                      <View style={styles.seminarTopRow}>
+                        <Text style={styles.seminarTitle} numberOfLines={1}>{item.service.title}</Text>
+                        <Text style={styles.seminarFormat}>{item.formatLabel}</Text>
                       </View>
-                      <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || 'Эфир'}</Text>
-                      {(session.startedAt || session.scheduledAt) ? (
-                        <Text style={styles.liveCardDate}>
-                          {new Date(session.startedAt || session.scheduledAt || '').toLocaleString('ru-RU', {
+                      <Text style={styles.seminarDate}>
+                        {item.nextAt
+                          ? item.nextAt.toLocaleString('ru-RU', {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
                             minute: '2-digit',
-                          })}
-                        </Text>
-                      ) : null}
+                          })
+                          : 'Дата уточняется'}
+                      </Text>
+                      <Text style={styles.seminarVenue} numberOfLines={1}>{item.venueLabel}</Text>
+                      <View style={styles.seminarActionsRow}>
+                        <TouchableOpacity
+                          style={styles.seminarBookButton}
+                          onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
+                        >
+                          <Text style={styles.seminarBookButtonText}>Записаться</Text>
+                        </TouchableOpacity>
+                        {item.service.channel === 'offline' ? (
+                          <TouchableOpacity
+                            style={styles.seminarRouteButton}
+                            onPress={() => void openSeminarRoute(item.service)}
+                          >
+                            <Text style={styles.seminarRouteButtonText}>Маршрут</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                     </View>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.seminarsHeaderRow}>
-            <Text style={styles.seminarsTitle}>Ближайшие семинары</Text>
-            <View style={styles.seminarsHeaderActions}>
-              {seminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
-              <TouchableOpacity
-                style={[
-                  styles.seminarsDateFilterButton,
-                  seminarsOnlyWithDate
-                    ? styles.seminarsDateFilterButtonActive
-                    : styles.seminarsDateFilterButtonInactive,
-                ]}
-                onPress={() => setSeminarsOnlyWithDate(prev => !prev)}
-                activeOpacity={0.9}
-              >
-                <Text
-                  style={[
-                    styles.seminarsDateFilterButtonText,
-                    seminarsOnlyWithDate
-                      ? styles.seminarsDateFilterButtonTextActive
-                      : styles.seminarsDateFilterButtonTextInactive,
-                  ]}
-                >
-                  Только с датой
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {upcomingSeminars.length === 0 ? (
-            <Text style={styles.seminarsEmpty}>Пока нет ближайших семинаров</Text>
-          ) : (
-            <View style={styles.seminarsList}>
-              {upcomingSeminars.map((item) => (
-                <View key={`seminar-${item.service.id}`} style={styles.seminarCard}>
-                  <View style={styles.seminarTopRow}>
-                    <Text style={styles.seminarTitle} numberOfLines={1}>{item.service.title}</Text>
-                    <Text style={styles.seminarFormat}>{item.formatLabel}</Text>
-                  </View>
-                  <Text style={styles.seminarDate}>
-                    {item.nextAt
-                      ? item.nextAt.toLocaleString('ru-RU', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                      : 'Дата уточняется'}
-                  </Text>
-                  <Text style={styles.seminarVenue} numberOfLines={1}>{item.venueLabel}</Text>
-                  <View style={styles.seminarActionsRow}>
-                    <TouchableOpacity
-                      style={styles.seminarBookButton}
-                      onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
-                    >
-                      <Text style={styles.seminarBookButtonText}>Записаться</Text>
-                    </TouchableOpacity>
-                    {item.service.channel === 'offline' ? (
-                      <TouchableOpacity
-                        style={styles.seminarRouteButton}
-                        onPress={() => void openSeminarRoute(item.service)}
-                      >
-                        <Text style={styles.seminarRouteButtonText}>Маршрут</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
-          )}
-        </View>
 
-        {loading ? (
-          <View style={styles.loaderWrap}>
-            <ActivityIndicator size="large" color={colors.accent} />
-          </View>
-        ) : (
-          <FlatList
-            data={channels}
-            keyExtractor={item => item.ID.toString()}
-            renderItem={renderChannelCard}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.accent}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Sparkles size={26} color={colors.textSecondary} />
-                <Text style={styles.emptyTitle}>Проповедники не найдены</Text>
-                <Text style={styles.emptySubtitle}>Попробуйте изменить фильтры поиска</Text>
+            {loading ? (
+              <View style={styles.loaderWrap}>
+                <ActivityIndicator size="large" color={colors.accent} />
               </View>
-            }
-          />
-        )}
-      </SafeAreaView>
-    </LinearGradient>
+            ) : (
+              <>
+                <View style={styles.preachersHeader}>
+                  <Text style={styles.preachersTitle}>Проповедники</Text>
+                  <Text style={styles.preachersCount}>Все · {channels.length}</Text>
+                </View>
+                {channels.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Sparkles size={26} color={colors.textSecondary} />
+                    <Text style={styles.emptyTitle}>Проповедники не найдены</Text>
+                    <Text style={styles.emptySubtitle}>Попробуйте изменить фильтры поиска</Text>
+                  </View>
+                ) : (
+                  <View style={styles.listContent}>
+                    {channels.map((item) => (
+                      <View key={item.ID.toString()}>
+                        {renderChannelCard({ item })}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </>
+        </ScrollView>
+    </SadhuSangaLayout>
   );
 }
 
 const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => StyleSheet.create({
-  gradient: { flex: 1 },
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+  mainScroll: {
+    flex: 1,
   },
-  headerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleWrap: { flex: 1 },
-  headerTitle: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  headerSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
+  mainScrollContent: {
+    paddingBottom: 110,
   },
   filtersBlock: {
     marginHorizontal: 16,
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    padding: 10,
+    padding: 12,
+    gap: 12,
+  },
+  heroCard: {
+    borderRadius: 24,
+    backgroundColor: '#FFA300',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.34)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  heroBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  heroTextWrap: {
+    flex: 1,
     gap: 8,
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '900',
+  },
+  heroSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  heroActionButton: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  heroActionText: {
+    color: '#E45400',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  heroIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featuresSection: {
+    gap: 10,
+  },
+  featuresTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  featureCard: {
+    width: '48%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 7,
+  },
+  featureIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureIconLive: {
+    backgroundColor: '#E4EDFF',
+  },
+  featureIconSeminar: {
+    backgroundColor: '#DFF4EC',
+  },
+  featureIconQuestion: {
+    backgroundColor: '#EFE5FA',
+  },
+  featureIconSchedule: {
+    backgroundColor: '#FBE8EE',
+  },
+  featureCardTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  featureCardSub: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
   seminarsSection: {
     marginHorizontal: 16,
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -951,7 +967,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     gap: 8,
   },
   liveSection: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
@@ -965,8 +981,8 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
   },
   liveTitle: {
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
   },
   liveEmpty: {
     color: colors.textSecondary,
@@ -976,7 +992,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     gap: 8,
   },
   liveCard: {
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -1058,8 +1074,8 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
   },
   seminarsTitle: {
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
   },
   seminarsDateFilterButton: {
     borderRadius: 999,
@@ -1093,7 +1109,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     gap: 8,
   },
   seminarCard: {
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
@@ -1163,17 +1179,17 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 10,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 10,
-    height: 40,
+    paddingHorizontal: 12,
+    height: 48,
   },
   searchInput: {
     flex: 1,
     color: colors.textPrimary,
-    fontSize: 14,
+    fontSize: 15,
   },
   inlineFilters: {
     flexDirection: 'row',
@@ -1181,118 +1197,30 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
   },
   inlineFilterInput: {
     flex: 1,
-    height: 36,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
     color: colors.textPrimary,
-    fontSize: 12,
+    fontSize: 13,
     paddingHorizontal: 10,
   },
-  smartPushBlock: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-    padding: 9,
-    gap: 8,
-  },
-  smartPushHeader: {
+  preachersHeader: {
+    marginHorizontal: 16,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  smartPushTitle: {
+  preachersTitle: {
     color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '900',
   },
-  smartPushHint: {
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  smartPushInlineRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  smartPushInput: {
-    flex: 1,
-    height: 34,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.textPrimary,
-    fontSize: 11,
-    paddingHorizontal: 8,
-  },
-  smartPushControlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  smartPushToggleButton: {
-    borderRadius: 9,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  smartPushToggleButtonActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
-  smartPushToggleButtonInactive: {
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  smartPushToggleText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  smartPushToggleTextActive: {
+  preachersCount: {
     color: colors.accent,
-  },
-  smartPushToggleTextInactive: {
-    color: colors.textSecondary,
-  },
-  smartPushHourInput: {
-    width: 42,
-    height: 34,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.textPrimary,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  smartPushTimezoneInput: {
-    height: 34,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.textPrimary,
-    fontSize: 11,
-    paddingHorizontal: 8,
-  },
-  smartPushSaveButton: {
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 36,
-    paddingHorizontal: 10,
-  },
-  smartPushSaveButtonDisabled: {
-    opacity: 0.7,
-  },
-  smartPushSaveButtonText: {
-    color: colors.accent,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
   },
   loaderWrap: {
@@ -1306,7 +1234,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     gap: 10,
   },
   channelCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -1321,11 +1249,25 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
   },
   channelTitleBox: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  channelAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: '#EBDD9C',
+    backgroundColor: colors.surfaceElevated,
+  },
+  channelTitleTextWrap: {
+    flex: 1,
     gap: 2,
   },
   channelTitle: {
     color: colors.textPrimary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
   },
   channelMeta: {

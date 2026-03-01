@@ -1,5 +1,253 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Sadhu Sanga: общий layout-компонент для экранов сервиса)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/components/SadhuSangaLayout.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Ранее:
+  - каждый экран Sadhu Sanga (`Hub/Schedule/Live/Profile`) содержал собственную дублированную разметку `LinearGradient + SafeArea + Header + BottomNav`.
+- Сейчас:
+  - вынесен единый `SadhuSangaLayout` с общим shell, header и нижним баром;
+  - экраны передают в layout только свои параметры (`subtitle`, `activeTab`, обработчики back/notifications/tabPress`) и свой контент;
+  - дублирование кода и риск рассинхронизации UI между экранами снижены.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/components/SadhuSangaLayout.tsx`:
+```tsx
+<SadhuSangaLayout
+  colors={colors}
+  subtitle="Прямые эфиры и архив"
+  activeTab="live"
+  onBack={() => navigation.goBack()}
+  onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
+  onTabPress={openTab}
+>
+  {children}
+</SadhuSangaLayout>
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<SadhuSangaLayout ... activeTab="home" ...>
+  <ScrollView ...>{/* home content */}</ScrollView>
+</SadhuSangaLayout>
+```
+
+## 2026-03-01 (Sadhu Sanga: модерационно-нейтральный CTA вместо «Пожертвовать»)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Текст CTA в профиле Sadhu Sanga:
+  - Было: `Пожертвовать` и описание `Ваше пожертвование помогает...`.
+  - Стало: `Поддержать сервис` и описание `Ваша поддержка помогает...`.
+- Цель: снизить риск отклонения модерацией маркетов за прямые donation-формулировки в этом сервисном блоке.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`:
+```tsx
+<Text style={styles.profileDonateText}>Ваша поддержка помогает нам развивать сервис и делать знание доступнее.</Text>
+<Text style={styles.profileDonateButtonText}>Поддержать сервис</Text>
+```
+
+## 2026-03-01 (Sadhu Sanga Hub: cleanup до home-only)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Hub-экран:
+  - Было: в `SadhuSangaHubScreen` оставались ветки `schedule/live/profile` и вычисление `activeTab`, хотя эти разделы уже вынесены в отдельные экран-файлы.
+  - Стало: `SadhuSangaHubScreen` приведен к чистому `home-only` режиму:
+    - удалены мертвые ветки рендера `schedule/live/profile`,
+    - удалена route-based tab-логика (`forcedTab/useRoute/activeTab`),
+    - нижний бар остался только как навигация в отдельные экраны (`SadhuSangaSchedule/SadhuSangaLive/SadhuSangaProfile`).
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const openServiceTab = useCallback((tab: ServiceTab) => {
+  const tabRouteMap = { home: 'SadhuSangaHub', schedule: 'SadhuSangaSchedule', live: 'SadhuSangaLive', profile: 'SadhuSangaProfile' };
+  const targetRoute = tabRouteMap[tab];
+  if (targetRoute === 'SadhuSangaHub') return;
+  navigation.replace(targetRoute);
+}, [navigation]);
+```
+
+## 2026-03-01 (Sadhu Sanga: самостоятельные Schedule/Live/Profile экраны)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Расписание:
+  - Было: `SadhuSangaScheduleScreen` был прокси-оберткой на `SadhuSangaHubScreen`.
+  - Стало: самостоятельный экран с собственной загрузкой семинаров (`getServices + getSchedules`), фильтром `Только с датой`, CTA `Записаться/Маршрут`.
+- Эфиры:
+  - Было: `SadhuSangaLiveScreen` был прокси-оберткой на `SadhuSangaHubScreen`.
+  - Стало: самостоятельный экран с собственной выборкой live-каналов, `joinChannelLive` и отдельным архивом лекций.
+- Профиль:
+  - Было: обертка на `SadhuSangaHubScreen`, часть значений была плейсхолдерной.
+  - Стало: самостоятельный экран с реальными счетчиками (`подписки/сохраненные лекции/вопросы/город`) из API.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`:
+```tsx
+const response = await getServices({ page: 1, limit: 50 });
+const loaded = await getSchedules(service.id);
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`:
+```tsx
+const response = await channelService.getChannels({ page: 1, limit: 60 });
+const join = await channelService.joinChannelLive(item.ID, session.id, { participantName, metadata: { platform: 'mobile' } });
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`:
+```tsx
+const [channelsResult, favoritesResult, ticketsResult, pushResult] = await Promise.allSettled([
+  channelService.getChannels({ page: 1, limit: 100 }),
+  multimediaService.getFavorites(1, 1),
+  supportService.listMyTickets(1, 200),
+  channelService.getSadhuSangaPushPreference(),
+]);
+```
+
+## 2026-03-01 (Sadhu Sanga Profile: самостоятельный экран с реальными метриками)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Экран профиля:
+  - Было: `SadhuSangaProfileScreen` был прокси-оберткой над `SadhuSangaHubScreen` (`forcedTab=\"profile\"`), а часть значений была плейсхолдерной.
+  - Стало: `SadhuSangaProfileScreen` стал самостоятельным экраном с собственной загрузкой данных и нижним баром.
+- Источники данных:
+  - `Мои подписки` — реальный count по `channelService.getChannels(...).channels[].isFollowing`.
+  - `Сохраненные лекции` — реальный count из `multimediaService.getFavorites(...).total`.
+  - `Мои вопросы` — count тикетов из `supportService.listMyTickets(...)` по `entryPoint='sadhu_sanga_question'`.
+  - `Мой город` — из `getSadhuSangaPushPreference().city` с fallback на профиль пользователя.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`:
+```tsx
+const [channelsResult, favoritesResult, ticketsResult, pushResult] = await Promise.allSettled([
+  channelService.getChannels({ page: 1, limit: 100 }),
+  multimediaService.getFavorites(1, 1),
+  supportService.listMyTickets(1, 200),
+  channelService.getSadhuSangaPushPreference(),
+]);
+```
+
+```tsx
+<TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('SupportInbox')}>
+  <Text style={styles.profileCardTitle}>Мои вопросы</Text>
+  <Text style={styles.profileCardValue}>{questionsCount}</Text>
+</TouchableOpacity>
+```
+
+## 2026-03-01 (Sadhu Sanga: отдельные экраны для нижнего меню)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+
+### Суть правки (от старого к новому)
+- Навигация нижнего меню Sadhu Sanga:
+  - Было: `Расписание/Эфиры/Профиль` переключались как внутренние tab-секции внутри одного `SadhuSangaHubScreen` через локальный state.
+  - Стало: добавлены отдельные route-экраны `SadhuSangaSchedule`, `SadhuSangaLive`, `SadhuSangaProfile` и отдельные файл-экраны для каждого пункта, а нижний бар переключает именно экраны (`navigation.replace`).
+- UI-поведение экранов:
+  - Было: hero/поиск/фичи показывались и при переходе на таб-секции.
+  - Стало: home-блок (`поиск + hero + возможности`) показывается только на `Главная`, остальные экраны отображают только свой профильный контент.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="SadhuSangaSchedule" component={SadhuSangaScheduleScreen} options={{ headerShown: false }} />
+<Stack.Screen name="SadhuSangaLive" component={SadhuSangaLiveScreen} options={{ headerShown: false }} />
+<Stack.Screen name="SadhuSangaProfile" component={SadhuSangaProfileScreen} options={{ headerShown: false }} />
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const openServiceTab = useCallback((tab: ServiceTab) => {
+  const tabRouteMap = { home: 'SadhuSangaHub', schedule: 'SadhuSangaSchedule', live: 'SadhuSangaLive', profile: 'SadhuSangaProfile' };
+  navigation.replace(tabRouteMap[tab]);
+}, [navigation]);
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`:
+```tsx
+export default function SadhuSangaScheduleScreen() {
+  return <SadhuSangaHubScreen forcedTab="schedule" />;
+}
+```
+
+## 2026-03-01 (Sadhu Sanga: умные пуши вынесены в отдельный экран)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Настройки умных пушей:
+  - Было: inline-блок `Умные пуши` внутри `SadhuSangaHubScreen`.
+  - Стало: отдельный экран `SadhuSangaSmartPushScreen` с полной настройкой `enabled/reminder1h/reminder10m/city/language/topics/time window/timezone`.
+- Навигация:
+  - Было: колокольчик в `SadhuSangaHub` показывал только `Alert`.
+  - Стало: колокольчик открывает отдельную страницу `SadhuSangaSmartPush`.
+- UX расписания:
+  - Было: кнопка `Включить уведомления` раскрывала inline-секцию на том же экране.
+  - Стало: кнопка ведет на отдельный экран настроек уведомлений.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<TouchableOpacity style={styles.notifyButton} onPress={() => navigation.navigate('SadhuSangaSmartPush')}>
+  <Bell size={18} color={colors.textPrimary} />
+</TouchableOpacity>
+```
+
+```tsx
+<TouchableOpacity style={styles.scheduleNoticeButton} onPress={() => navigation.navigate('SadhuSangaSmartPush')}>
+  <Text style={styles.scheduleNoticeButtonText}>Включить уведомления</Text>
+</TouchableOpacity>
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`:
+```tsx
+const preference = await channelService.getSadhuSangaPushPreference();
+await channelService.updateSadhuSangaPushPreference({
+  enabled, reminder1h, reminder10m, city, language, topics, useTimeWindow, startHour, endHour, timezone,
+});
+```
+
 ## 2026-03-01 (Sadhu Sanga Stage B: live sessions + join flow + live analytics)
 
 ### Измененные файлы
@@ -4052,3 +4300,147 @@ func TestUniqueChannelMemberUserIDs_DeduplicatesAndSkipsZero(t *testing.T) {
 
 ### Validation
 - `go test ./internal/services -run "Channel|UniqueChannelMemberUserIDs" -count=1` — success.
+
+## 2026-03-01 (Sadhu Sanga UI refresh: reference-aligned hub design)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `SadhuSangaHub` имел функциональные блоки, но визуально выглядел утилитарно и слабо соответствовал референсу (hero/карточки-возможности/навигационные сценарии).
+- Стало:
+  - добавлен выразительный hero-блок с CTA;
+  - добавлена сетка карточек `Возможности Садху Санга` (эфиры/семинары/вопросы/расписание) с привязкой к текущей логике;
+  - добавлена панель быстрых сценариев `Главная/Расписание/Эфиры/Профиль` (без удаления существующих флоу);
+  - улучшена визуальная подача карточек проповедников (аватар + типографика + акценты);
+  - блок `Умные пуши` сделан сворачиваемым/разворачиваемым для cleaner UX.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<View style={styles.heroCard}>
+  <Text style={styles.heroTitle}>Пространство общения</Text>
+  <TouchableOpacity style={styles.heroActionButton} ...>
+    <Text style={styles.heroActionText}>Узнать больше</Text>
+  </TouchableOpacity>
+</View>
+```
+
+```tsx
+<View style={styles.featuresGrid}>
+  <TouchableOpacity ... onPress={() => openFeatureCard('live')} />
+  <TouchableOpacity ... onPress={() => openFeatureCard('seminars')} />
+  <TouchableOpacity ... onPress={() => openFeatureCard('qa')} />
+  <TouchableOpacity ... onPress={() => openFeatureCard('schedule')} />
+</View>
+```
+
+```tsx
+{item.avatarUrl ? (
+  <Image source={{ uri: item.avatarUrl }} style={styles.channelAvatar} />
+) : (
+  <View style={styles.channelAvatar} />
+)}
+```
+
+### Validation
+- `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Sadhu Sanga UI: multi-tab scenarios from references)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `SadhuSangaHub` были только общий hub-флоу и секции home;
+  - сценарии из референса `Расписание / Эфиры(архив) / Профиль` не были представлены как отдельные UX-поверхности.
+- Стало:
+  - добавлены реальные сервисные табы в хабе: `home`, `schedule`, `live`, `profile`;
+  - `Расписание`: day chips + карточки событий + CTA «Включить уведомления»;
+  - `Эфиры`: блок «Архив лекций» с медиа-карточками и таймкодами;
+  - `Профиль`: карточки «Мои подписки / Сохраненные лекции / Мои вопросы / Мой город» + донат-card;
+  - сохранена и связана существующая логика (follow/live/join/seminars/smart-push/support), ничего не вырезано.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const [activeTab, setActiveTab] = useState<ServiceTab>('home');
+```
+
+```tsx
+{activeTab === 'schedule' ? <View style={styles.tabPaneWrap}>...</View> : null}
+{activeTab === 'live' ? <View style={styles.tabPaneWrap}>...</View> : null}
+{activeTab === 'profile' ? <View style={styles.tabPaneWrap}>...</View> : null}
+```
+
+### Validation
+- `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Sadhu Sanga UI polish: compact mobile tuning)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после расширения табов интерфейс был визуально «тяжелым» на небольших экранах: слишком крупные заголовки/карточки и потенциальная нехватка вертикальной прокрутки для tab-pane экранов.
+- Стало:
+  - уменьшены ключевые размеры типографики и карточек для compact mobile-ритма;
+  - вкладки `Расписание`, `Эфиры`, `Профиль` обернуты в `ScrollView` с нижним отступом контента;
+  - выровнены визуальные пропорции (hero/profile/archive/schedule cards) для лучшей читабельности.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<ScrollView contentContainerStyle={styles.tabScrollContent} showsVerticalScrollIndicator={false}>
+  <View style={styles.tabPaneWrap}>...</View>
+</ScrollView>
+```
+
+```ts
+headerTitle: { fontSize: 30 }
+heroTitle: { fontSize: 30, lineHeight: 34 }
+profileName: { fontSize: 34 }
+```
+
+### Validation
+- `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Sadhu Sanga hotfix: scroll lock + blue background + missing bottom menu)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - из-за структуры контента (крупный верхний блок + локальные скроллы) экран мог не листаться вниз;
+  - фоновый градиент давал темно-синий фон «сзади»;
+  - отсутствовал фиксированный нижний сервисный бар на экране.
+- Стало:
+  - введен единый верхнеуровневый `ScrollView` (`mainScroll`) для всей контентной зоны;
+  - конфликтные вложенные скроллы убраны, список проповедников в home переведен на map-render внутри общего скролла;
+  - фон экрана переведен на ровный `colors.background` (без темно-синего оттенка);
+  - добавлен фиксированный нижний бар `Главная/Расписание/Эфиры/Профиль`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<LinearGradient colors={screenGradient} style={styles.gradient}>
+```
+
+```tsx
+<ScrollView style={styles.mainScroll} contentContainerStyle={styles.mainScrollContent} ...>
+```
+
+```tsx
+<View style={styles.bottomNavBar}> ... </View>
+```
+
+### Validation
+- `pnpm --dir frontend exec tsc --noEmit` — success.

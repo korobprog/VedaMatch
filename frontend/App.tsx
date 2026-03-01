@@ -149,6 +149,10 @@ import {
   ServiceScheduleScreen,
   ChannelsHubScreen,
   SadhuSangaHubScreen,
+  SadhuSangaScheduleScreen,
+  SadhuSangaLiveScreen,
+  SadhuSangaProfileScreen,
+  SadhuSangaSmartPushScreen,
   ChannelDetailsScreen,
   CreateChannelScreen,
   ChannelPostComposerScreen,
@@ -607,6 +611,10 @@ const AppContent = () => {
                   <Stack.Screen name="ServiceSchedule" component={ServiceScheduleScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelsHub" component={ChannelsHubScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SadhuSangaHub" component={SadhuSangaHubScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SadhuSangaSchedule" component={SadhuSangaScheduleScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SadhuSangaLive" component={SadhuSangaLiveScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SadhuSangaProfile" component={SadhuSangaProfileScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SadhuSangaSmartPush" component={SadhuSangaSmartPushScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelDetails" component={ChannelDetailsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="CreateChannel" component={CreateChannelScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelPostComposer" component={ChannelPostComposerScreen} options={{ headerShown: false }} />

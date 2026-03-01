@@ -15,6 +15,10 @@ export { default as ServiceScheduleScreen } from './ServiceScheduleScreen';
 export {
     ChannelsHubScreen,
     SadhuSangaHubScreen,
+    SadhuSangaScheduleScreen,
+    SadhuSangaLiveScreen,
+    SadhuSangaProfileScreen,
+    SadhuSangaSmartPushScreen,
     ChannelDetailsScreen,
     CreateChannelScreen,
     ChannelPostComposerScreen,

@@ -175,7 +175,11 @@ export type RootStackParamList = {
     IncomingBookings: undefined;
     ServiceSchedule: { serviceId: number };
     ChannelsHub: undefined;
-    SadhuSangaHub: undefined;
+    SadhuSangaHub: { tab?: 'home' | 'schedule' | 'live' | 'profile' } | undefined;
+    SadhuSangaSchedule: undefined;
+    SadhuSangaLive: undefined;
+    SadhuSangaProfile: undefined;
+    SadhuSangaSmartPush: undefined;
     ChannelDetails: { channelId: number; source?: 'sadhu_sanga'; focusSection?: 'seminars' };
     CreateChannel: undefined;
     ChannelPostComposer: { channelId: number; mode?: 'create' | 'edit'; postId?: number; initialPost?: ChannelPost };

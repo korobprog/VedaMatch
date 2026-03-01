@@ -116,7 +116,10 @@
     - карточка содержит формат, дату, место/ссылку и CTA `Записаться` -> `ServiceDetail`;
     - добавлен UI-фильтр `Только с датой` (по умолчанию включен): скрывает элементы без `nextAt`, при этом сортировка остается по ближайшей дате.
     - для `offline` семинаров добавлена кнопка `Маршрут`, открывающая карту по `offlineLat/offlineLng` или `offlineAddress`.
-  - в `SadhuSangaHub` добавлен блок `Умные пуши` с сохранением персональных фильтров (`city/language/topics/time window/timezone`).
+  - настройки `Умных пушей` вынесены в отдельный экран `SadhuSangaSmartPushScreen`:
+    - переход по колокольчику в `SadhuSangaHub`,
+    - отдельный route `SadhuSangaSmartPush`,
+    - сохранение персональных фильтров (`city/language/topics/time window/timezone`) через текущий API без изменения backend-контракта.
   - добавлен отдельный route `SadhuSangaHub` и запуск из `serviceLaunchResolver` для service id `sadhu_sanga`.
   - в `PortalMainScreen.navigateResolvedScreen` добавлен кейс `SadhuSangaHub`; без этого переход по иконке не открывал экран.
 - `ChannelDetails` поддерживает режим `source='sadhu_sanga'`:
@@ -215,6 +218,48 @@
     - добавлен unit/smoke тест на 1000+ участников с дублями: ожидается ровно 1000 уникальных ID.
   - интеграционный runbook Stage B:
     - добавлен `docs/sadhu-sanga-live-smoke-runbook.md` (API happy path, runtime moderation, push dedupe SQL-check, метрики/логи, RN UI smoke, rollout gates 10/50/100).
+  - UI направление (референс-ориентированный refresh):
+    - `SadhuSangaHubScreen` получил hero + карточки возможностей + улучшенные карточки проповедников;
+    - вся текущая продуктовая логика сохранена (live, seminars, Q&A, smart push, follow), редизайн сделан как визуальная надстройка без удаления функционала.
+  - разделение нижнего меню на отдельные экраны:
+    - добавлены отдельные route-экраны `SadhuSangaSchedule`, `SadhuSangaLive`, `SadhuSangaProfile`;
+    - добавлены отдельные файл-экраны:
+      - `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+      - `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+      - `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+    - нижний бар `Главная/Расписание/Эфиры/Профиль` переключает экраны через navigation `replace`, а не через локальный state табов;
+    - верхние внутренние табы из `SadhuSangaHubScreen` убраны, home-блок (поиск/hero/фичи) показывается только на `Главная`.
+  - `SadhuSangaProfileScreen` переведен на самостоятельную загрузку данных:
+    - `Мои подписки` — из `channelService.getChannels(...).channels[].isFollowing`;
+    - `Сохраненные лекции` — из `multimediaService.getFavorites(...).total`;
+    - `Мои вопросы` — из `supportService.listMyTickets(...)` c фильтром `entryPoint='sadhu_sanga_question'`;
+    - `Мой город` — из `channelService.getSadhuSangaPushPreference().city` c fallback на профиль пользователя.
+    - текст CTA в блоке поддержки приведен к модерационно-нейтральному варианту:
+      - было: `Пожертвовать` / `Ваше пожертвование помогает...`
+      - стало: `Поддержать сервис` / `Ваша поддержка помогает...`.
+  - `SadhuSangaScheduleScreen` переведен на самостоятельную загрузку расписания:
+    - выборка event/lecture сервисов через `getServices + getSchedules`;
+    - собственный фильтр `Только с датой`;
+    - собственные CTA `Записаться` и `Маршрут`.
+  - `SadhuSangaLiveScreen` переведен на самостоятельную загрузку live/архива:
+    - собственная выборка каналов через `channelService.getChannels`;
+    - собственный live join flow (`joinChannelLive` -> `RoomChat`);
+    - архив лекций формируется на экране без зависимости от Hub-tab state.
+  - `SadhuSangaHubScreen` очищен от мертвой tab-логики:
+    - удалены ветки рендера `schedule/live/profile` и вычисления `activeTab`;
+    - экран стал чистым home-only (hero + live teaser + семинары + каталог проповедников);
+    - нижний бар в Hub оставлен только как переход на отдельные экраны.
+  - вынесен общий layout для Sadhu Sanga:
+    - новый компонент `frontend/screens/portal/services/channels/components/SadhuSangaLayout.tsx` содержит единый shell (gradient + safe area), header и нижний сервисный бар;
+    - `SadhuSangaHubScreen`, `SadhuSangaScheduleScreen`, `SadhuSangaLiveScreen`, `SadhuSangaProfileScreen` переведены на этот общий layout;
+    - дублирование header/bottom-nav стилей и разметки между экранами сокращено.
+  - mobile-полировка после редизайна:
+    - вкладки `schedule/live/profile` переведены в `ScrollView`, чтобы избежать обрезки контента на низких экранах;
+    - крупные заголовки и карточки приведены к compact-диапазону размеров (лучше читаемость и меньше визуальной перегрузки).
+  - hotfix UX-регрессии хаба:
+    - устранен lock скролла вниз в `SadhuSangaHubScreen` за счет единого `mainScroll` и удаления конфликтных локальных скроллов/FlatList-вложенности;
+    - убран темно-синий фон (экран использует нейтральный `colors.background`);
+    - добавлен фиксированный нижний сервисный бар `Главная/Расписание/Эфиры/Профиль`.
   - rollout Stage B:
     - добавлен user-level rollout для live:
       - `SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST`
