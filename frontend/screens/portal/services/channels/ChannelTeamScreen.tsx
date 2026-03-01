@@ -112,12 +112,19 @@ export default function ChannelTeamScreen() {
 
   const mountedRef = useRef(true);
   const latestLoadRef = useRef(0);
+  const latestContactsRequestRef = useRef(0);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       latestLoadRef.current += 1;
+      latestContactsRequestRef.current += 1;
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
     };
   }, []);
 
@@ -157,36 +164,38 @@ export default function ChannelTeamScreen() {
   }, [canManageTeam, contacts, existingMemberIds, memberSearchQuery]);
 
   const loadContactsForSearch = useCallback(async (query: string) => {
-    if (!canManageTeam || loadingContacts) {
+    if (!canManageTeam) {
       return;
     }
     const normalized = query.trim();
     if (normalized.length < 2) {
       if (mountedRef.current) {
         setContacts([]);
+        setLoadingContacts(false);
       }
       return;
     }
 
+    const requestId = ++latestContactsRequestRef.current;
     setLoadingContacts(true);
     try {
       const response = await contactService.getContactsPage({
         q: normalized,
         limit: 20,
       });
-      if (mountedRef.current) {
+      if (mountedRef.current && requestId === latestContactsRequestRef.current) {
         setContacts(response.items || []);
       }
     } catch {
-      if (mountedRef.current) {
+      if (mountedRef.current && requestId === latestContactsRequestRef.current) {
         setContacts([]);
       }
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && requestId === latestContactsRequestRef.current) {
         setLoadingContacts(false);
       }
     }
-  }, [canManageTeam, loadingContacts]);
+  }, [canManageTeam]);
 
   const loadData = useCallback(async (isRefresh: boolean) => {
     if (!channelId) {
@@ -239,7 +248,29 @@ export default function ChannelTeamScreen() {
   );
 
   useEffect(() => {
-    void loadContactsForSearch(memberSearchQuery);
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+
+    const normalized = memberSearchQuery.trim();
+    if (normalized.length < 2) {
+      latestContactsRequestRef.current += 1;
+      setLoadingContacts(false);
+      setContacts([]);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      void loadContactsForSearch(normalized);
+    }, 220);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
   }, [loadContactsForSearch, memberSearchQuery]);
 
   const addMember = useCallback(async () => {

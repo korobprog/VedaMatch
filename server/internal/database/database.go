@@ -66,6 +66,7 @@ func Connect() {
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelSmartPushPreference{},
+		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
 		&models.ChannelPromotedAdImpression{},
 		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
@@ -175,6 +176,13 @@ func Connect() {
 	// Channel post reactions/comments query paths.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_post_comments_post_created_desc
 		ON channel_post_comments (post_id, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_roadmap_channel_status_position
+		ON channel_roadmap_points (channel_id, status, position)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_roadmap_channel_event
+		ON channel_roadmap_points (channel_id, event_at)`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_roadmap_one_current_per_channel
+		ON channel_roadmap_points (channel_id)
+		WHERE status = 'current' AND deleted_at IS NULL`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_live_sessions_status_started
 		ON channel_live_sessions (status, started_at DESC)`)
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_live_sessions_one_live_per_channel

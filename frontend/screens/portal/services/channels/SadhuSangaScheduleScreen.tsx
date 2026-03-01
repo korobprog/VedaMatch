@@ -305,7 +305,7 @@ export default function SadhuSangaScheduleScreen() {
                     onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
                   >
                     <View style={styles.scheduleTimeCol}>
-                      <Text style={styles.scheduleTimeMain}>
+                      <Text style={styles.scheduleTimeMain} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
                         {item.nextAt ? item.nextAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                       </Text>
                       <Text style={styles.scheduleTimeSub}>MSK</Text>
@@ -450,17 +450,20 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     gap: 12,
   },
   scheduleTimeCol: {
-    width: 78,
+    width: 98,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
     borderRightColor: colors.border,
-    paddingRight: 10,
+    paddingRight: 12,
   },
   scheduleTimeMain: {
     color: colors.textPrimary,
-    fontSize: 24,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: '900',
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   scheduleTimeSub: {
     color: colors.textSecondary,

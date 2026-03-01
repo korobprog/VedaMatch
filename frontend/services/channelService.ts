@@ -4,6 +4,7 @@ import {
   ChannelBrandingUpdateRequest,
   ChannelCreateRequest,
   ChannelFeedResponse,
+  ChannelFacetsResponse,
   ChannelListResponse,
   ChannelMember,
   ChannelMemberAddRequest,
@@ -15,6 +16,10 @@ import {
   ChannelPost,
   ChannelPostComment,
   ChannelPostCreateRequest,
+  ChannelRoadmapCreateRequest,
+  ChannelRoadmapPoint,
+  ChannelRoadmapResponse,
+  ChannelRoadmapUpdateRequest,
   ChannelPostMediaUploadResponse,
   ChannelRecommendationsResponse,
   ChannelPostUpdateRequest,
@@ -89,6 +94,11 @@ class ChannelService {
     return response.data;
   }
 
+  async getSadhuSangaFacets(): Promise<ChannelFacetsResponse> {
+    const response = await apiClient.get('/channels/sadhu-sanga/facets');
+    return response.data;
+  }
+
   async getMyChannels(params: { page?: number; limit?: number; search?: string } = {}): Promise<ChannelListResponse> {
     const response = await apiClient.get('/channels/my', { params });
     return response.data;
@@ -156,6 +166,36 @@ class ChannelService {
 
   async joinChannelLive(channelId: number, liveId: number, payload: { participantName?: string; metadata?: Record<string, unknown> } = {}): Promise<ChannelLiveJoinResponse> {
     const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/join`, payload);
+    return response.data;
+  }
+
+  async getRoadmap(channelId: number): Promise<ChannelRoadmapResponse> {
+    const response = await apiClient.get(`/channels/${channelId}/roadmap`);
+    return response.data;
+  }
+
+  async createRoadmapPoint(channelId: number, payload: ChannelRoadmapCreateRequest): Promise<ChannelRoadmapPoint> {
+    const response = await apiClient.post(`/channels/${channelId}/roadmap`, payload);
+    return response.data;
+  }
+
+  async updateRoadmapPoint(channelId: number, pointId: number, payload: ChannelRoadmapUpdateRequest): Promise<ChannelRoadmapPoint> {
+    const response = await apiClient.patch(`/channels/${channelId}/roadmap/${pointId}`, payload);
+    return response.data;
+  }
+
+  async deleteRoadmapPoint(channelId: number, pointId: number): Promise<{ ok: boolean; channelId: number; pointId: number }> {
+    const response = await apiClient.delete(`/channels/${channelId}/roadmap/${pointId}`);
+    return response.data;
+  }
+
+  async setCurrentRoadmapPoint(channelId: number, pointId: number): Promise<ChannelRoadmapPoint> {
+    const response = await apiClient.post(`/channels/${channelId}/roadmap/${pointId}/set-current`, {});
+    return response.data;
+  }
+
+  async reorderRoadmapPoints(channelId: number, orderedIds: number[]): Promise<{ ok: boolean; channelId: number }> {
+    const response = await apiClient.put(`/channels/${channelId}/roadmap/reorder`, { orderedIds });
     return response.data;
   }
 

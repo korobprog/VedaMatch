@@ -133,6 +133,25 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         };
     }, []);
 
+    const getRequestErrorMessage = React.useCallback((error: any, fallback: string): string => {
+        const payload = error?.response?.data;
+        if (typeof payload?.error === 'string' && payload.error.trim()) {
+            return payload.error.trim();
+        }
+        if (typeof payload?.message === 'string' && payload.message.trim()) {
+            return payload.message.trim();
+        }
+        if (typeof error?.message === 'string' && error.message.trim()) {
+            return error.message.trim();
+        }
+        return fallback;
+    }, []);
+
+    const getRequestStatusTag = React.useCallback((error: any): string => {
+        const status = error?.response?.status;
+        return typeof status === 'number' ? String(status) : 'n/a';
+    }, []);
+
     const loadProfile = React.useCallback(async () => {
         if (!user?.ID) return;
         const requestId = ++latestLoadRequestRef.current;
@@ -217,6 +236,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             setSaving(true);
         }
         try {
+            console.log(`[EditProfile] Saving profile user=${user.ID} endpoint=/update-profile`);
             const profileData = {
                 country,
                 city,
@@ -253,21 +273,30 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 return;
             }
             const updatedUser = response.data.user || {};
+            let nicknameWarning: string | null = null;
 
             const normalizedNickname = nickname.trim().replace(/^@+/, '').toLowerCase();
             const normalizedInitialNickname = initialNickname.trim().replace(/^@+/, '').toLowerCase();
             if (normalizedNickname && normalizedNickname !== normalizedInitialNickname) {
-                const nickResponse = await accountService.updateNickname(normalizedNickname);
-                if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
-                    return;
+                try {
+                    const nickResponse = await accountService.updateNickname(normalizedNickname);
+                    if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                        return;
+                    }
+                    if (nickResponse?.user) {
+                        Object.assign(updatedUser, nickResponse.user);
+                    } else {
+                        updatedUser.nickname = normalizedNickname;
+                        updatedUser.nicknameDisplay = `@${normalizedNickname}`;
+                    }
+                    setInitialNickname(`@${updatedUser.nickname || normalizedNickname}`);
+                } catch (nicknameError: any) {
+                    const nicknameMessage = getRequestErrorMessage(nicknameError, 'Failed to update nickname');
+                    const statusTag = getRequestStatusTag(nicknameError);
+                    const urlTag = typeof nicknameError?.config?.url === 'string' ? nicknameError.config.url : '/profile/nickname';
+                    nicknameWarning = nicknameMessage;
+                    console.warn(`[EditProfile] Nickname update failed status=${statusTag} url=${urlTag} user=${user.ID}: ${nicknameMessage}`);
                 }
-                if (nickResponse?.user) {
-                    Object.assign(updatedUser, nickResponse.user);
-                } else {
-                    updatedUser.nickname = normalizedNickname;
-                    updatedUser.nicknameDisplay = `@${normalizedNickname}`;
-                }
-                setInitialNickname(`@${updatedUser.nickname || normalizedNickname}`);
             }
 
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
@@ -278,15 +307,20 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
             Alert.alert(
                 t('common.success'),
-                t('profile.updateSuccess') || 'Profile updated successfully!',
+                nicknameWarning
+                    ? `${t('profile.updateSuccess') || 'Profile updated successfully!'}\n${nicknameWarning}`
+                    : (t('profile.updateSuccess') || 'Profile updated successfully!'),
                 [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
             );
         } catch (error: any) {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
-                console.warn('[EditProfile] Error saving:', error);
+                const message = getRequestErrorMessage(error, 'Failed to update profile');
+                const statusTag = getRequestStatusTag(error);
+                const urlTag = typeof error?.config?.url === 'string' ? error.config.url : '/update-profile';
+                console.warn(`[EditProfile] Error saving profile status=${statusTag} url=${urlTag} user=${user?.ID}: ${message}`);
                 Alert.alert(
                     t('common.error'),
-                    error.response?.data?.error || 'Failed to update profile'
+                    message
                 );
             }
         } finally {

@@ -14,6 +14,7 @@ import (
 	"log"
 	"math"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
@@ -63,11 +64,17 @@ type ChannelListFilters struct {
 	ViewerID uint
 }
 
+type channelFacetRow struct {
+	Value string
+	Count int64
+}
+
 var (
 	ErrChannelsDisabled    = errors.New("channels feature is disabled")
 	ErrChannelNotFound     = errors.New("channel not found")
 	ErrChannelForbidden    = errors.New("forbidden")
 	ErrChannelPostNotFound = errors.New("channel post not found")
+	ErrChannelRoadmapPoint = errors.New("channel roadmap point not found")
 	ErrInvalidPostStatus   = errors.New("invalid post status")
 	ErrInvalidPayload      = errors.New("invalid payload")
 	ErrPostEditWindow      = errors.New("post edit window expired")
@@ -417,6 +424,513 @@ func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters Cha
 		Items: items,
 		Total: len(items),
 	}, nil
+}
+
+func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error) {
+	cityRows := make([]channelFacetRow, 0)
+	if err := s.db.
+		Table("channels").
+		Select("LOWER(TRIM(users.city)) AS value, COUNT(DISTINCT channels.id) AS count").
+		Joins("JOIN users ON users.id = channels.owner_id").
+		Where("channels.deleted_at IS NULL").
+		Where("users.deleted_at IS NULL").
+		Where("TRIM(users.city) <> ''").
+		Group("LOWER(TRIM(users.city))").
+		Order("count DESC, value ASC").
+		Limit(50).
+		Scan(&cityRows).Error; err != nil {
+		return nil, err
+	}
+
+	languageRows := make([]channelFacetRow, 0)
+	if err := s.db.
+		Table("channels").
+		Select("LOWER(TRIM(users.language)) AS value, COUNT(DISTINCT channels.id) AS count").
+		Joins("JOIN users ON users.id = channels.owner_id").
+		Where("channels.deleted_at IS NULL").
+		Where("users.deleted_at IS NULL").
+		Where("TRIM(users.language) <> ''").
+		Group("LOWER(TRIM(users.language))").
+		Order("count DESC, value ASC").
+		Limit(20).
+		Scan(&languageRows).Error; err != nil {
+		return nil, err
+	}
+
+	topicRows := make([]channelFacetRow, 0)
+	if err := s.db.
+		Table("channels").
+		Select("LOWER(TRIM(tags.name)) AS value, COUNT(DISTINCT channels.id) AS count").
+		Joins("JOIN user_tags ON user_tags.user_id = channels.owner_id").
+		Joins("JOIN tags ON tags.id = user_tags.tag_id").
+		Where("channels.deleted_at IS NULL").
+		Where("tags.deleted_at IS NULL").
+		Where("TRIM(tags.name) <> ''").
+		Group("LOWER(TRIM(tags.name))").
+		Order("count DESC, value ASC").
+		Limit(60).
+		Scan(&topicRows).Error; err != nil {
+		return nil, err
+	}
+
+	return &models.ChannelFacetsResponse{
+		Cities:    toChannelFacetOptions(cityRows),
+		Languages: toChannelFacetOptions(languageRows),
+		Topics:    toChannelFacetOptions(topicRows),
+	}, nil
+}
+
+func toChannelFacetOptions(rows []channelFacetRow) []models.ChannelFacetOption {
+	if len(rows) == 0 {
+		return []models.ChannelFacetOption{}
+	}
+	options := make([]models.ChannelFacetOption, 0, len(rows))
+	for _, row := range rows {
+		value := strings.TrimSpace(strings.ToLower(row.Value))
+		if value == "" {
+			continue
+		}
+		options = append(options, models.ChannelFacetOption{
+			Value: value,
+			Count: row.Count,
+		})
+	}
+	return options
+}
+
+func (s *ChannelService) GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error) {
+	channel, err := s.GetChannelByID(channelID, viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	var current models.ChannelRoadmapPoint
+	var currentPtr *models.ChannelRoadmapPoint
+	if err := s.db.
+		Where("channel_id = ? AND status = ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusCurrent).
+		Order("position ASC, event_at ASC NULLS LAST, id DESC").
+		First(&current).Error; err == nil {
+		current.MapURL = buildChannelRoadmapMapURL(&current)
+		currentPtr = &current
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	future := make([]models.ChannelRoadmapPoint, 0)
+	if err := s.db.
+		Where("channel_id = ? AND status = ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusFuture).
+		Order("position ASC, event_at ASC NULLS LAST, id ASC").
+		Find(&future).Error; err != nil {
+		return nil, err
+	}
+	for i := range future {
+		future[i].MapURL = buildChannelRoadmapMapURL(&future[i])
+	}
+
+	past := make([]models.ChannelRoadmapPoint, 0)
+	if err := s.db.
+		Where("channel_id = ? AND status = ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusPast).
+		Order("event_at DESC NULLS LAST, position ASC, id DESC").
+		Find(&past).Error; err != nil {
+		return nil, err
+	}
+	for i := range past {
+		past[i].MapURL = buildChannelRoadmapMapURL(&past[i])
+	}
+
+	total := len(future) + len(past)
+	if currentPtr != nil {
+		total++
+	}
+
+	return &models.ChannelRoadmapResponse{
+		ChannelID: channel.ID,
+		Current:   currentPtr,
+		Past:      past,
+		Future:    future,
+		Total:     total,
+	}, nil
+}
+
+func (s *ChannelService) CreateRoadmapPoint(channelID, actorID uint, req models.ChannelRoadmapCreateRequest) (*models.ChannelRoadmapPoint, error) {
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if len(title) < 2 || len(title) > 180 {
+		return nil, errors.New("title must be 2..180 characters")
+	}
+
+	status := req.Status
+	if status == "" {
+		status = models.ChannelRoadmapStatusFuture
+	}
+	if !models.IsValidChannelRoadmapStatus(status) {
+		return nil, errors.New("invalid roadmap status")
+	}
+
+	city := strings.TrimSpace(req.City)
+	address := strings.TrimSpace(req.Address)
+	note := strings.TrimSpace(req.Note)
+	if len(city) > 120 {
+		return nil, errors.New("city is too long")
+	}
+	if len(address) > 500 {
+		return nil, errors.New("address is too long")
+	}
+
+	lat, lng, err := normalizeRoadmapCoordinates(req.Latitude, req.Longitude)
+	if err != nil {
+		return nil, err
+	}
+
+	position := 0
+	if req.Position != nil {
+		if *req.Position < 0 {
+			return nil, errors.New("position must be >= 0")
+		}
+		position = *req.Position
+	} else {
+		next, nextErr := s.nextRoadmapPosition(channel.ID, status)
+		if nextErr != nil {
+			return nil, nextErr
+		}
+		position = next
+	}
+
+	point := models.ChannelRoadmapPoint{
+		ChannelID: channel.ID,
+		CreatedBy: actorID,
+		UpdatedBy: actorID,
+		Title:     title,
+		City:      city,
+		Address:   address,
+		Latitude:  lat,
+		Longitude: lng,
+		Status:    status,
+		EventAt:   req.EventAt,
+		Position:  position,
+		Note:      note,
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if status == models.ChannelRoadmapStatusCurrent {
+			if updateErr := tx.Model(&models.ChannelRoadmapPoint{}).
+				Where("channel_id = ? AND status = ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusCurrent).
+				Updates(map[string]interface{}{
+					"status":     models.ChannelRoadmapStatusPast,
+					"updated_by": actorID,
+				}).Error; updateErr != nil {
+				return updateErr
+			}
+		}
+		return tx.Create(&point).Error
+	}); err != nil {
+		return nil, err
+	}
+
+	point.MapURL = buildChannelRoadmapMapURL(&point)
+	s.incrementMetricSafe("sadhu_roadmap_point_created_total", 1)
+	log.Printf("[SadhuRoadmap] point_created channel_id=%d point_id=%d actor_id=%d role=%s status=%s", channel.ID, point.ID, actorID, role, point.Status)
+	return &point, nil
+}
+
+func (s *ChannelService) UpdateRoadmapPoint(channelID, pointID, actorID uint, req models.ChannelRoadmapUpdateRequest) (*models.ChannelRoadmapPoint, error) {
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	var point models.ChannelRoadmapPoint
+	if err := s.db.
+		Where("id = ? AND channel_id = ? AND deleted_at IS NULL", pointID, channel.ID).
+		First(&point).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelRoadmapPoint
+		}
+		return nil, err
+	}
+
+	nextTitle := point.Title
+	if req.Title != nil {
+		nextTitle = strings.TrimSpace(*req.Title)
+		if len(nextTitle) < 2 || len(nextTitle) > 180 {
+			return nil, errors.New("title must be 2..180 characters")
+		}
+	}
+
+	nextCity := point.City
+	if req.City != nil {
+		nextCity = strings.TrimSpace(*req.City)
+		if len(nextCity) > 120 {
+			return nil, errors.New("city is too long")
+		}
+	}
+
+	nextAddress := point.Address
+	if req.Address != nil {
+		nextAddress = strings.TrimSpace(*req.Address)
+		if len(nextAddress) > 500 {
+			return nil, errors.New("address is too long")
+		}
+	}
+
+	nextStatus := point.Status
+	if req.Status != nil {
+		if !models.IsValidChannelRoadmapStatus(*req.Status) {
+			return nil, errors.New("invalid roadmap status")
+		}
+		nextStatus = *req.Status
+	}
+
+	nextPosition := point.Position
+	if req.Position != nil {
+		if *req.Position < 0 {
+			return nil, errors.New("position must be >= 0")
+		}
+		nextPosition = *req.Position
+	}
+
+	nextNote := point.Note
+	if req.Note != nil {
+		nextNote = strings.TrimSpace(*req.Note)
+	}
+
+	nextEventAt := point.EventAt
+	if req.EventAt != nil {
+		nextEventAt = req.EventAt
+	}
+
+	nextLat := point.Latitude
+	nextLng := point.Longitude
+	if req.Latitude != nil {
+		latValue := *req.Latitude
+		nextLat = &latValue
+	}
+	if req.Longitude != nil {
+		lngValue := *req.Longitude
+		nextLng = &lngValue
+	}
+	normalizedLat, normalizedLng, err := normalizeRoadmapCoordinates(nextLat, nextLng)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if nextStatus == models.ChannelRoadmapStatusCurrent && point.Status != models.ChannelRoadmapStatusCurrent {
+			if updateErr := tx.Model(&models.ChannelRoadmapPoint{}).
+				Where("channel_id = ? AND status = ? AND id <> ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusCurrent, point.ID).
+				Updates(map[string]interface{}{
+					"status":     models.ChannelRoadmapStatusPast,
+					"updated_by": actorID,
+				}).Error; updateErr != nil {
+				return updateErr
+			}
+		}
+
+		updates := map[string]interface{}{
+			"title":      nextTitle,
+			"city":       nextCity,
+			"address":    nextAddress,
+			"latitude":   normalizedLat,
+			"longitude":  normalizedLng,
+			"status":     nextStatus,
+			"event_at":   nextEventAt,
+			"position":   nextPosition,
+			"note":       nextNote,
+			"updated_by": actorID,
+		}
+		return tx.Model(&models.ChannelRoadmapPoint{}).
+			Where("id = ? AND channel_id = ? AND deleted_at IS NULL", point.ID, channel.ID).
+			Updates(updates).Error
+	}); err != nil {
+		return nil, err
+	}
+
+	point.Title = nextTitle
+	point.City = nextCity
+	point.Address = nextAddress
+	point.Latitude = normalizedLat
+	point.Longitude = normalizedLng
+	point.Status = nextStatus
+	point.EventAt = nextEventAt
+	point.Position = nextPosition
+	point.Note = nextNote
+	point.UpdatedBy = actorID
+	point.MapURL = buildChannelRoadmapMapURL(&point)
+
+	s.incrementMetricSafe("sadhu_roadmap_point_updated_total", 1)
+	log.Printf("[SadhuRoadmap] point_updated channel_id=%d point_id=%d actor_id=%d role=%s status=%s", channel.ID, point.ID, actorID, role, point.Status)
+	return &point, nil
+}
+
+func (s *ChannelService) DeleteRoadmapPoint(channelID, pointID, actorID uint) error {
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return err
+	}
+
+	var point models.ChannelRoadmapPoint
+	if err := s.db.
+		Where("id = ? AND channel_id = ? AND deleted_at IS NULL", pointID, channel.ID).
+		First(&point).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChannelRoadmapPoint
+		}
+		return err
+	}
+
+	if err := s.db.Delete(&point).Error; err != nil {
+		return err
+	}
+
+	s.incrementMetricSafe("sadhu_roadmap_point_deleted_total", 1)
+	log.Printf("[SadhuRoadmap] point_deleted channel_id=%d point_id=%d actor_id=%d role=%s", channel.ID, point.ID, actorID, role)
+	return nil
+}
+
+func (s *ChannelService) SetCurrentRoadmapPoint(channelID, pointID, actorID uint) (*models.ChannelRoadmapPoint, error) {
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	var point models.ChannelRoadmapPoint
+	if err := s.db.
+		Where("id = ? AND channel_id = ? AND deleted_at IS NULL", pointID, channel.ID).
+		First(&point).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelRoadmapPoint
+		}
+		return nil, err
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if updateErr := tx.Model(&models.ChannelRoadmapPoint{}).
+			Where("channel_id = ? AND status = ? AND id <> ? AND deleted_at IS NULL", channel.ID, models.ChannelRoadmapStatusCurrent, point.ID).
+			Updates(map[string]interface{}{
+				"status":     models.ChannelRoadmapStatusPast,
+				"updated_by": actorID,
+			}).Error; updateErr != nil {
+			return updateErr
+		}
+
+		return tx.Model(&models.ChannelRoadmapPoint{}).
+			Where("id = ? AND channel_id = ? AND deleted_at IS NULL", point.ID, channel.ID).
+			Updates(map[string]interface{}{
+				"status":     models.ChannelRoadmapStatusCurrent,
+				"updated_by": actorID,
+			}).Error
+	}); err != nil {
+		return nil, err
+	}
+
+	point.Status = models.ChannelRoadmapStatusCurrent
+	point.UpdatedBy = actorID
+	point.MapURL = buildChannelRoadmapMapURL(&point)
+
+	s.incrementMetricSafe("sadhu_roadmap_set_current_total", 1)
+	log.Printf("[SadhuRoadmap] set_current channel_id=%d point_id=%d actor_id=%d role=%s", channel.ID, point.ID, actorID, role)
+	return &point, nil
+}
+
+func (s *ChannelService) ReorderRoadmapPoints(channelID, actorID uint, orderedIDs []uint) error {
+	channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return err
+	}
+
+	if len(orderedIDs) == 0 {
+		return errors.New("orderedIds is required")
+	}
+
+	seen := make(map[uint]struct{}, len(orderedIDs))
+	uniqueIDs := make([]uint, 0, len(orderedIDs))
+	for _, id := range orderedIDs {
+		if id == 0 {
+			return errors.New("orderedIds contains invalid id")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	var count int64
+	if err := s.db.Model(&models.ChannelRoadmapPoint{}).
+		Where("channel_id = ? AND id IN ? AND deleted_at IS NULL", channel.ID, uniqueIDs).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if int(count) != len(uniqueIDs) {
+		return ErrChannelRoadmapPoint
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		for index, pointID := range uniqueIDs {
+			if err := tx.Model(&models.ChannelRoadmapPoint{}).
+				Where("id = ? AND channel_id = ? AND deleted_at IS NULL", pointID, channel.ID).
+				Updates(map[string]interface{}{
+					"position":   index,
+					"updated_by": actorID,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *ChannelService) nextRoadmapPosition(channelID uint, status models.ChannelRoadmapStatus) (int, error) {
+	type maxRow struct {
+		MaxPosition *int `gorm:"column:max_position"`
+	}
+	row := maxRow{}
+	if err := s.db.Model(&models.ChannelRoadmapPoint{}).
+		Select("MAX(position) AS max_position").
+		Where("channel_id = ? AND status = ? AND deleted_at IS NULL", channelID, status).
+		Scan(&row).Error; err != nil {
+		return 0, err
+	}
+	if row.MaxPosition == nil {
+		return 0, nil
+	}
+	return *row.MaxPosition + 1, nil
+}
+
+func normalizeRoadmapCoordinates(lat *float64, lng *float64) (*float64, *float64, error) {
+	if lat == nil && lng == nil {
+		return nil, nil, nil
+	}
+	if lat == nil || lng == nil {
+		return nil, nil, errors.New("latitude and longitude must be provided together")
+	}
+	if *lat < -90 || *lat > 90 {
+		return nil, nil, errors.New("invalid latitude")
+	}
+	if *lng < -180 || *lng > 180 {
+		return nil, nil, errors.New("invalid longitude")
+	}
+	latValue := *lat
+	lngValue := *lng
+	return &latValue, &lngValue, nil
+}
+
+func buildChannelRoadmapMapURL(point *models.ChannelRoadmapPoint) string {
+	if point == nil {
+		return ""
+	}
+	if point.Latitude != nil && point.Longitude != nil {
+		return fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", *point.Latitude, *point.Longitude)
+	}
+	address := strings.TrimSpace(strings.Join([]string{strings.TrimSpace(point.City), strings.TrimSpace(point.Address)}, " "))
+	if address == "" {
+		return ""
+	}
+	return "https://www.google.com/maps/search/?api=1&query=" + url.QueryEscape(address)
 }
 
 func (s *ChannelService) FollowChannel(channelID, followerID uint) (*models.ChannelMember, error) {

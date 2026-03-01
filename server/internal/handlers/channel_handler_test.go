@@ -45,6 +45,52 @@ func (m *mockChannelService) GetSadhuSangaRecommendations(viewerID uint, filters
 		Total: 0,
 	}, nil
 }
+func (m *mockChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error) {
+	return &models.ChannelFacetsResponse{
+		Cities:    []models.ChannelFacetOption{},
+		Languages: []models.ChannelFacetOption{},
+		Topics:    []models.ChannelFacetOption{},
+	}, nil
+}
+func (m *mockChannelService) GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error) {
+	return &models.ChannelRoadmapResponse{
+		ChannelID: channelID,
+		Current:   nil,
+		Past:      []models.ChannelRoadmapPoint{},
+		Future:    []models.ChannelRoadmapPoint{},
+		Total:     0,
+	}, nil
+}
+func (m *mockChannelService) CreateRoadmapPoint(channelID, actorID uint, req models.ChannelRoadmapCreateRequest) (*models.ChannelRoadmapPoint, error) {
+	return &models.ChannelRoadmapPoint{
+		ChannelID: channelID,
+		CreatedBy: actorID,
+		UpdatedBy: actorID,
+		Title:     req.Title,
+		Status:    req.Status,
+	}, nil
+}
+func (m *mockChannelService) UpdateRoadmapPoint(channelID, pointID, actorID uint, req models.ChannelRoadmapUpdateRequest) (*models.ChannelRoadmapPoint, error) {
+	return &models.ChannelRoadmapPoint{
+		ChannelID: channelID,
+		CreatedBy: actorID,
+		UpdatedBy: actorID,
+	}, nil
+}
+func (m *mockChannelService) DeleteRoadmapPoint(channelID, pointID, actorID uint) error {
+	return nil
+}
+func (m *mockChannelService) SetCurrentRoadmapPoint(channelID, pointID, actorID uint) (*models.ChannelRoadmapPoint, error) {
+	return &models.ChannelRoadmapPoint{
+		ChannelID: channelID,
+		CreatedBy: actorID,
+		UpdatedBy: actorID,
+		Status:    models.ChannelRoadmapStatusCurrent,
+	}, nil
+}
+func (m *mockChannelService) ReorderRoadmapPoints(channelID, actorID uint, orderedIDs []uint) error {
+	return nil
+}
 func (m *mockChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error) {
 	return &models.Channel{OwnerID: viewerID}, nil
 }

@@ -86,6 +86,22 @@
   - `city` (owner city),
   - `language` (owner language),
   - `topic` (через owner tags).
+- UX фильтров Sadhu Sanga переведен на справочники вместо ручного ввода:
+  - backend endpoint `GET /api/channels/sadhu-sanga/facets` отдает агрегированные значения `cities/languages/topics` с `count`;
+  - в `SadhuSangaHubScreen` фильтры `Город/Язык/Тема` теперь открывают picker-modal с вариантами из facets и опцией `Все`;
+  - для города добавлен быстрый вариант `Мой город` (из профиля пользователя), если он задан.
+- Этап C2 «Дорожная карта проповедника»:
+  - добавлена новая сущность `channel_roadmap_points` (`past/current/future`, city/address/coords, position, note, created_by/updated_by);
+  - backend API:
+    - `GET /api/channels/:id/roadmap`
+    - `POST /api/channels/:id/roadmap`
+    - `PATCH /api/channels/:id/roadmap/:pointId`
+    - `DELETE /api/channels/:id/roadmap/:pointId`
+    - `POST /api/channels/:id/roadmap/:pointId/set-current`
+    - `PUT /api/channels/:id/roadmap/reorder`
+  - RBAC для управления roadmap: `owner/admin/editor`; чтение — по текущей видимости канала;
+  - в `ChannelDetailsScreen` (`source='sadhu_sanga'`) добавлен публичный блок таймлайна (`был/сейчас/будет`) с deeplink `Открыть на карте`;
+  - добавлен отдельный экран управления `ChannelRoadmapManageScreen` с CRUD, `set-current`, up/down reorder и подсказками адреса через `map/autocomplete`.
 - Семинары/календарь:
   - добавлен экспорт `ICS`: `GET /api/bookings/:id/calendar.ics`;
   - доступ только участнику бронирования или владельцу сервиса.
@@ -493,6 +509,14 @@
 - Для загрузки собственного профиля в `EditProfile` используется безопасный парсинг:
   - `Array.isArray(response.data) ? response.data : response.data?.items ?? []`.
 - В обработанных `catch` ветках экрана `EditProfile` используется `console.warn` (вместо `console.error`), чтобы dev RedBox не блокировал экран при recoverable ошибках.
+- Для сохранения профиля (`PUT /update-profile`) добавлен детализированный разбор ошибки на клиенте:
+  - в лог пишутся `status/url/user/message` без передачи сырого `AxiosError` объекта;
+  - в alert показывается реальное сообщение backend/axios (а не только generic `Failed to update profile`).
+- Ошибка шага `PATCH /profile/nickname` больше не должна «маскироваться» как падение сохранения профиля:
+  - профиль сохраняется отдельно;
+  - ошибка никнейма показывается как warning в success-ответе.
+- В backend `AuthHandler.UpdateProfile` добавлены trace-логи с `X-Request-ID`:
+  - `begin`, `parse_error`, `unauthorized`, `user_lookup_failed`, `save_failed`, `success`.
 
 ## Seller Orders Runtime Notes
 - В `frontend/screens/portal/shops/SellerOrdersScreen.tsx` загрузка CRM-заказов больше не должна поднимать RedBox при обработанном backend-сбое:
@@ -807,3 +831,19 @@
   - `ChannelTeamScreen` поддерживает добавление участника по `@nickname`;
   - `EditProfileScreen` позволяет менять `@nickname` через `accountService.updateNickname`;
   - `RegistrationScreen` в фазе профиля показывает чип `Ваш ID: @nickname`.
+
+## Channel Team Search Stability
+- В `ChannelTeamScreen` поиск участников стабилизирован:
+  - добавлен debounce `220ms` для `memberSearchQuery`;
+  - введен `latestContactsRequestRef` для игнорирования устаревших ответов API;
+  - убран триггерный цикл, связанный с зависимостью `loadingContacts` в search callback;
+  - при коротком запросе (`<2`) результаты и loading очищаются без лишних запросов.
+- Симптом до фикса: при вводе в поиске экран «дергался», а подбор участников (в т.ч. `@nickname`) срабатывал нестабильно.
+
+## Sadhu Sanga Schedule Time Layout
+- В `SadhuSangaScheduleScreen` исправлен перенос времени в карточках расписания.
+- Причина: узкая time-колонка + большой жирный шрифт времени.
+- Фикс:
+  - `scheduleTimeCol.width` увеличен до `98`;
+  - `scheduleTimeMain` получил `numberOfLines=1`, `adjustsFontSizeToFit`, `fontVariant: ['tabular-nums']`, выровненный `lineHeight`.
+- Результат: `09:00` держится в одну строку и не ломает карточку.

@@ -17,7 +17,7 @@ import {
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Users, Video } from 'lucide-react-native';
+import { ArrowDown, ArrowLeft, Eye, MapPin, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Users, Video } from 'lucide-react-native';
 import { channelService, PreacherAnalytics } from '../../../../services/channelService';
 import {
   Channel,
@@ -29,6 +29,8 @@ import {
   ChannelPostComment,
   ChannelPostMediaCircle,
   ChannelPostMediaImage,
+  ChannelRoadmapPoint,
+  ChannelRoadmapResponse,
   ChannelShowcase,
 } from '../../../../types/channel';
 import { marketService } from '../../../../services/marketService';
@@ -87,6 +89,32 @@ const buildSeminarRouteUrl = (service: Service): string => {
     return `https://www.google.com/maps/search/?api=1&query=${service.offlineLat},${service.offlineLng}`;
   }
   const address = String(service.offlineAddress || '').trim();
+  if (!address) {
+    return '';
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+};
+
+const roadmapStatusLabel = (status: ChannelRoadmapPoint['status']): string => {
+  if (status === 'current') {
+    return 'Сейчас';
+  }
+  if (status === 'past') {
+    return 'Был';
+  }
+  return 'Будет';
+};
+
+const getRoadmapPointMapUrl = (point: ChannelRoadmapPoint): string => {
+  const fromAPI = String(point.mapUrl || '').trim();
+  if (fromAPI) {
+    return fromAPI;
+  }
+  const hasCoords = Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+  if (hasCoords) {
+    return `https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`;
+  }
+  const address = String(`${point.city || ''} ${point.address || ''}` || '').trim();
   if (!address) {
     return '';
   }
@@ -290,6 +318,8 @@ export default function ChannelDetailsScreen() {
   const [questionVoteLoadingId, setQuestionVoteLoadingId] = useState<number | null>(null);
   const [preacherAnalytics, setPreacherAnalytics] = useState<PreacherAnalytics | null>(null);
   const [preacherAnalyticsLoading, setPreacherAnalyticsLoading] = useState(false);
+  const [roadmap, setRoadmap] = useState<ChannelRoadmapResponse | null>(null);
+  const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [liveSession, setLiveSession] = useState<ChannelLiveSession | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveParticipants, setLiveParticipants] = useState<ChannelLiveParticipant[]>([]);
@@ -417,6 +447,32 @@ export default function ChannelDetailsScreen() {
     }
   }, [channelId]);
 
+  const loadRoadmap = useCallback(async (targetChannelID: number, reqId: number) => {
+    if (!targetChannelID || targetChannelID <= 0) {
+      setRoadmap(null);
+      return;
+    }
+    setRoadmapLoading(true);
+    try {
+      const response = await channelService.getRoadmap(targetChannelID);
+      if (!mountedRef.current || reqId !== latestLoadRef.current) {
+        return;
+      }
+      setRoadmap(response);
+    } catch (error: any) {
+      if (!mountedRef.current || reqId !== latestLoadRef.current) {
+        return;
+      }
+      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить дорожную карту';
+      console.warn(`[ChannelDetails] Failed to load roadmap: ${message}`);
+      setRoadmap(null);
+    } finally {
+      if (mountedRef.current && reqId === latestLoadRef.current) {
+        setRoadmapLoading(false);
+      }
+    }
+  }, []);
+
   const loadData = useCallback(async (isRefresh: boolean) => {
     if (!channelId) {
       return;
@@ -450,6 +506,7 @@ export default function ChannelDetailsScreen() {
             setLiveSession(channelResponse.channel.currentLiveSession || null);
           }
         }
+        void loadRoadmap(channelId, reqId);
         void loadPreacherSeminars(channelResponse.channel.ownerId);
         void loadPreacherQuestions(channelResponse.channel.ownerId);
         const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
@@ -463,6 +520,7 @@ export default function ChannelDetailsScreen() {
         setPreacherQuestions([]);
         setPreacherAnalytics(null);
         setLiveSession(null);
+        setRoadmap(null);
       }
 
       const [postsResponse, showcasesResponse, storiesResponse, promptStatus] = await Promise.all([
@@ -515,7 +573,7 @@ export default function ChannelDetailsScreen() {
         setStoriesLoading(false);
       }
     }
-  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherAnalytics, loadPreacherQuestions, loadPreacherSeminars, user?.ID]);
+  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherAnalytics, loadPreacherQuestions, loadPreacherSeminars, loadRoadmap, user?.ID]);
 
   useEffect(() => {
     if (focusSection !== 'seminars') {
@@ -698,7 +756,15 @@ export default function ChannelDetailsScreen() {
   const isEditor = canEditPosts(viewerRole);
   const isModerator = canModeratePosts(viewerRole);
   const canManageLive = isSadhuSangaMode && isEditor;
+  const canManageRoadmap = isSadhuSangaMode && isEditor;
   const canJoinLive = isSadhuSangaMode && (viewerRole === 'subscriber' || viewerRole === 'editor' || viewerRole === 'admin' || viewerRole === 'owner');
+  const roadmapTimeline = useMemo<ChannelRoadmapPoint[]>(() => {
+    if (!roadmap) {
+      return [];
+    }
+    const current = roadmap.current ? [roadmap.current] : [];
+    return [...current, ...(roadmap.future || []), ...(roadmap.past || [])];
+  }, [roadmap]);
   const liveLanguageLabel = resolveLiveLanguageLabel(liveSession?.broadcastLanguage);
   const liveStatusLabel = liveSession?.status === 'live'
     ? 'В эфире'
@@ -709,6 +775,24 @@ export default function ChannelDetailsScreen() {
         : liveSession?.status === 'cancelled'
           ? 'Отменено'
           : 'Эфир не активен';
+
+  const openRoadmapPointOnMap = useCallback(async (point: ChannelRoadmapPoint) => {
+    const mapUrl = getRoadmapPointMapUrl(point);
+    if (!mapUrl) {
+      Alert.alert('Локация', 'Для этой точки не указаны координаты или адрес.');
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(mapUrl);
+      if (!supported) {
+        Alert.alert('Локация', 'Не удалось открыть карту на устройстве.');
+        return;
+      }
+      await Linking.openURL(mapUrl);
+    } catch {
+      Alert.alert('Локация', 'Не удалось открыть маршрут.');
+    }
+  }, []);
 
   const handleCreateLive = useCallback(async () => {
     if (!channelId || !canManageLive || liveBusy) {
@@ -1422,6 +1506,14 @@ export default function ChannelDetailsScreen() {
                   <Settings2 size={16} color={colors.textPrimary} />
                 </TouchableOpacity>
               ) : null}
+              {canManageRoadmap ? (
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.manageButton]}
+                  onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: isSadhuSangaMode ? 'sadhu_sanga' : undefined })}
+                >
+                  <MapPin size={16} color={colors.textPrimary} />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={[styles.headerButton, styles.createPostButton]}
                 onPress={() => navigation.navigate('ChannelPostComposer', { channelId })}
@@ -1633,6 +1725,112 @@ export default function ChannelDetailsScreen() {
                 )}
               </View>
             )}
+          </View>
+        ) : null}
+
+        {isSadhuSangaMode ? (
+          <View style={styles.roadmapSection}>
+            <View style={styles.roadmapHeader}>
+              <View style={styles.roadmapHeaderTextWrap}>
+                <Text style={styles.roadmapTitle}>Дорожная карта проповедника</Text>
+                <Text style={styles.roadmapSubtitle}>Где был, где сейчас, куда направляется дальше</Text>
+              </View>
+              {roadmapLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+            </View>
+
+            {roadmapTimeline.length === 0 ? (
+              <View style={styles.roadmapEmptyWrap}>
+                <Text style={styles.roadmapEmptyText}>Маршрут пока не заполнен</Text>
+                {canManageRoadmap ? (
+                  <TouchableOpacity
+                    style={styles.roadmapManageButton}
+                    onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
+                  >
+                    <Text style={styles.roadmapManageButtonText}>Добавить первую точку</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.roadmapTimeline}>
+                {roadmapTimeline.map((point, index) => (
+                  <View key={`roadmap-point-${point.id}`} style={styles.roadmapItemRow}>
+                    <View style={styles.roadmapTrack}>
+                      <View style={[
+                        styles.roadmapDot,
+                        point.status === 'current' && styles.roadmapDotCurrent,
+                      ]} />
+                      {index !== roadmapTimeline.length - 1 ? (
+                        <>
+                          <View style={styles.roadmapLine} />
+                          <ArrowDown size={12} color={colors.textSecondary} style={styles.roadmapArrow} />
+                        </>
+                      ) : null}
+                    </View>
+                    <View style={styles.roadmapCard}>
+                      <View style={styles.roadmapCardTop}>
+                        <Text style={styles.roadmapCardTitle} numberOfLines={1}>{point.title}</Text>
+                        <View style={[
+                          styles.roadmapStatusBadge,
+                          point.status === 'current'
+                            ? styles.roadmapStatusBadgeCurrent
+                            : point.status === 'future'
+                              ? styles.roadmapStatusBadgeFuture
+                              : styles.roadmapStatusBadgePast,
+                        ]}>
+                          <Text style={[
+                            styles.roadmapStatusBadgeText,
+                            point.status === 'current' && styles.roadmapStatusBadgeTextCurrent,
+                          ]}>
+                            {roadmapStatusLabel(point.status)}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.roadmapLocationText} numberOfLines={2}>
+                        {[point.city, point.address].filter(Boolean).join(', ') || 'Локация уточняется'}
+                      </Text>
+                      {point.eventAt ? (
+                        <Text style={styles.roadmapEventText}>
+                          {new Date(point.eventAt).toLocaleString('ru-RU', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      ) : null}
+                      {point.note ? (
+                        <Text style={styles.roadmapNoteText} numberOfLines={2}>{point.note}</Text>
+                      ) : null}
+                      <View style={styles.roadmapCardActions}>
+                        <TouchableOpacity
+                          style={styles.roadmapOpenMapButton}
+                          onPress={() => void openRoadmapPointOnMap(point)}
+                        >
+                          <Text style={styles.roadmapOpenMapButtonText}>Открыть на карте</Text>
+                        </TouchableOpacity>
+                        {canManageRoadmap ? (
+                          <TouchableOpacity
+                            style={styles.roadmapEditInlineButton}
+                            onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga', pointId: point.id })}
+                          >
+                            <Text style={styles.roadmapEditInlineButtonText}>Редактировать</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {canManageRoadmap && roadmapTimeline.length > 0 ? (
+              <TouchableOpacity
+                style={styles.roadmapManageButton}
+                onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
+              >
+                <Text style={styles.roadmapManageButtonText}>Редактировать маршрут</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 
@@ -2346,6 +2544,193 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     liveParticipantMeta: {
       color: colors.textSecondary,
       fontSize: 11,
+    },
+    roadmapSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 10,
+    },
+    roadmapHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    roadmapHeaderTextWrap: {
+      flex: 1,
+      gap: 2,
+    },
+    roadmapTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    roadmapSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    roadmapEmptyWrap: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+      gap: 8,
+    },
+    roadmapEmptyText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    roadmapTimeline: {
+      gap: 8,
+    },
+    roadmapItemRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: 8,
+    },
+    roadmapTrack: {
+      width: 20,
+      alignItems: 'center',
+      paddingTop: 12,
+    },
+    roadmapDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    roadmapDotCurrent: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
+    },
+    roadmapLine: {
+      width: 1,
+      flex: 1,
+      backgroundColor: colors.border,
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    roadmapArrow: {
+      marginBottom: -2,
+    },
+    roadmapCard: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 4,
+    },
+    roadmapCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    roadmapCardTitle: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    roadmapStatusBadge: {
+      borderRadius: 999,
+      borderWidth: 1,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    roadmapStatusBadgeCurrent: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    roadmapStatusBadgeFuture: {
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    roadmapStatusBadgePast: {
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    roadmapStatusBadgeText: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    roadmapStatusBadgeTextCurrent: {
+      color: colors.accent,
+    },
+    roadmapLocationText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    roadmapEventText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    roadmapNoteText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      lineHeight: 16,
+    },
+    roadmapCardActions: {
+      marginTop: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    roadmapOpenMapButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    roadmapOpenMapButtonText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    roadmapEditInlineButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    roadmapEditInlineButtonText: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    roadmapManageButton: {
+      alignSelf: 'flex-start',
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+    },
+    roadmapManageButtonText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '800',
     },
     preacherAnalyticsSection: {
       marginHorizontal: 16,

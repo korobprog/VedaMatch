@@ -19,6 +19,13 @@ type channelService interface {
 	ListPublicChannels(filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	GetSadhuSangaRecommendations(viewerID uint, filters services.ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error)
+	GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error)
+	GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error)
+	CreateRoadmapPoint(channelID, actorID uint, req models.ChannelRoadmapCreateRequest) (*models.ChannelRoadmapPoint, error)
+	UpdateRoadmapPoint(channelID, pointID, actorID uint, req models.ChannelRoadmapUpdateRequest) (*models.ChannelRoadmapPoint, error)
+	DeleteRoadmapPoint(channelID, pointID, actorID uint) error
+	SetCurrentRoadmapPoint(channelID, pointID, actorID uint) (*models.ChannelRoadmapPoint, error)
+	ReorderRoadmapPoints(channelID, actorID uint, orderedIDs []uint) error
 	GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error)
 	FollowChannel(channelID, followerID uint) (*models.ChannelMember, error)
 	UnfollowChannel(channelID, followerID uint) error
@@ -198,6 +205,186 @@ func (h *ChannelHandler) GetSadhuSangaRecommendations(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(result)
+}
+
+func (h *ChannelHandler) GetSadhuSangaFacets(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	result, err := h.service.GetSadhuSangaFacets()
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(result)
+}
+
+func (h *ChannelHandler) GetRoadmap(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	result, err := h.service.GetRoadmap(channelID, viewerID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(result)
+}
+
+func (h *ChannelHandler) CreateRoadmapPoint(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	var req models.ChannelRoadmapCreateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	point, err := h.service.CreateRoadmapPoint(channelID, actorID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(point)
+}
+
+func (h *ChannelHandler) UpdateRoadmapPoint(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	pointID, err := parseUintParam(c, "pointId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid point ID"})
+	}
+
+	var req models.ChannelRoadmapUpdateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	point, err := h.service.UpdateRoadmapPoint(channelID, pointID, actorID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(point)
+}
+
+func (h *ChannelHandler) DeleteRoadmapPoint(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	pointID, err := parseUintParam(c, "pointId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid point ID"})
+	}
+
+	if err := h.service.DeleteRoadmapPoint(channelID, pointID, actorID); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":        true,
+		"channelId": channelID,
+		"pointId":   pointID,
+	})
+}
+
+func (h *ChannelHandler) SetCurrentRoadmapPoint(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	pointID, err := parseUintParam(c, "pointId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid point ID"})
+	}
+
+	point, err := h.service.SetCurrentRoadmapPoint(channelID, pointID, actorID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(point)
+}
+
+func (h *ChannelHandler) ReorderRoadmapPoints(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	var req models.ChannelRoadmapReorderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := h.service.ReorderRoadmapPoints(channelID, actorID, req.OrderedIDs); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":        true,
+		"channelId": channelID,
+	})
 }
 
 func (h *ChannelHandler) GetChannel(c *fiber.Ctx) error {
@@ -1516,6 +1703,8 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrChannelsDisabled):
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrChannelNotFound), errors.Is(err, services.ErrChannelPostNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	case errors.Is(err, services.ErrChannelRoadmapPoint):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrChannelLiveNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})

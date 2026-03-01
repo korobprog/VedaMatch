@@ -284,6 +284,17 @@ type ChannelRecommendationsResponse struct {
 	Total int                         `json:"total"`
 }
 
+type ChannelFacetOption struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+type ChannelFacetsResponse struct {
+	Cities    []ChannelFacetOption `json:"cities"`
+	Languages []ChannelFacetOption `json:"languages"`
+	Topics    []ChannelFacetOption `json:"topics"`
+}
+
 type ChannelPromotedAd struct {
 	ID          uint      `json:"id"`
 	Title       string    `json:"title"`

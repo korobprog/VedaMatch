@@ -1017,6 +1017,13 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
+	requestID := strings.TrimSpace(c.Get("X-Request-ID"))
+	if requestID == "" {
+		requestID = "n/a"
+	}
+	userId := middleware.GetUserID(c)
+	log.Printf("[UpdateProfile] begin rid=%s user=%d", requestID, userId)
+
 	var updateData struct {
 		models.User
 		// Additional fields for coordinates from frontend
@@ -1024,13 +1031,14 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		Longitude *float64 `json:"longitude"`
 	}
 	if err := c.BodyParser(&updateData); err != nil {
+		log.Printf("[UpdateProfile] parse_error rid=%s user=%d err=%v", requestID, userId, err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
 	}
 
-	userId := middleware.GetUserID(c)
 	if userId == 0 {
+		log.Printf("[UpdateProfile] unauthorized rid=%s", requestID)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -1038,6 +1046,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 	var user models.User
 	if err := database.DB.First(&user, userId).Error; err != nil {
+		log.Printf("[UpdateProfile] user_lookup_failed rid=%s user=%d err=%v", requestID, userId, err)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "User not found",
 		})
@@ -1102,11 +1111,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Save(&user).Error; err != nil {
+		log.Printf("[UpdateProfile] save_failed rid=%s user=%d requested_role=%q err=%v", requestID, userId, updateData.Role, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update profile",
 		})
 	}
 
+	log.Printf("[UpdateProfile] success rid=%s user=%d role=%s city=%q", requestID, userId, user.Role, user.City)
 	sanitizeUser(&user)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Profile updated successfully",

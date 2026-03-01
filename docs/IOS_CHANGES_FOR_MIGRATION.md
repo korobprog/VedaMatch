@@ -4727,3 +4727,265 @@ await channelService.addMember(channelId, {
 ```tsx
 const nickResponse = await accountService.updateNickname(normalizedNickname);
 ```
+
+## 2026-03-01 (Channel Team: фикс дергающегося поиска участников)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelTeamScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - поиск участников в блоке `Добавить участника` запускался слишком часто;
+  - из-за зависимости `loadingContacts` в `useCallback` и `useEffect` происходили повторные триггеры/перерисовки;
+  - UI визуально «дергался», а поиск по `@nickname` работал нестабильно.
+- Стало:
+  - добавлен debounce ввода (220ms);
+  - добавлена защита от гонок запросов через `latestContactsRequestRef`;
+  - устаревшие ответы больше не перезаписывают актуальные результаты;
+  - очистка таймера и отмена устаревших запросов при unmount/смене строки.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelTeamScreen.tsx`:
+```tsx
+const latestContactsRequestRef = useRef(0);
+const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+```
+
+```tsx
+searchDebounceRef.current = setTimeout(() => {
+  void loadContactsForSearch(normalized);
+}, 220);
+```
+
+```tsx
+if (mountedRef.current && requestId === latestContactsRequestRef.current) {
+  setContacts(response.items || []);
+}
+```
+
+## 2026-03-01 (Sadhu Sanga Schedule: фикс переноса времени в карточке)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - время в карточке расписания (`09:00`) могло переноситься на две строки из-за узкой колонки времени и крупного жирного шрифта.
+- Стало:
+  - колонка времени расширена (`78 -> 98`),
+  - время рендерится строго в одну строку (`numberOfLines=1` + `adjustsFontSizeToFit`),
+  - включены табличные цифры (`fontVariant: ['tabular-nums']`) и выровнен lineHeight.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`:
+```tsx
+<Text style={styles.scheduleTimeMain} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
+  {item.nextAt ? item.nextAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+</Text>
+```
+
+```ts
+scheduleTimeCol: {
+  width: 98,
+  paddingRight: 12,
+},
+scheduleTimeMain: {
+  fontSize: 22,
+  lineHeight: 26,
+  fontVariant: ['tabular-nums'],
+}
+```
+
+## 2026-03-01 (EditProfile: диагностируемое сохранение + серверные trace-логи)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `server/internal/handlers/auth_handler.go`
+
+### Суть правки (от старого к новому)
+- Сохранение профиля в RN (`EditProfile`):
+  - Было: любая ошибка в цепочке `PUT /update-profile` + `PATCH /profile/nickname` попадала в общий `catch` с generic alert `Failed to update profile`.
+  - Стало: добавлен разбор `status/message/url` для ошибок запроса, подробный `console.warn`, и точный текст ошибки в alert.
+- Обновление никнейма после успешного обновления профиля:
+  - Было: ошибка никнейма ломала весь save flow и показывалась как ошибка профиля.
+  - Стало: ошибка никнейма обрабатывается отдельно как warning (профиль сохраняется, пользователю показывается успех + предупреждение по никнейму).
+- Серверный endpoint `PUT /api/update-profile`:
+  - Было: почти без trace-логов, сложно понять, дошел ли запрос до backend и на каком шаге упал.
+  - Стало: добавлены логи `begin/parse_error/unauthorized/user_lookup_failed/save_failed/success` с `X-Request-ID` и `userID`.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+console.log(`[EditProfile] Saving profile user=${user.ID} endpoint=/update-profile`);
+```
+
+```tsx
+const message = getRequestErrorMessage(error, 'Failed to update profile');
+const statusTag = getRequestStatusTag(error);
+const urlTag = typeof error?.config?.url === 'string' ? error.config.url : '/update-profile';
+console.warn(`[EditProfile] Error saving profile status=${statusTag} url=${urlTag} user=${user?.ID}: ${message}`);
+```
+
+```tsx
+catch (nicknameError: any) {
+  const nicknameMessage = getRequestErrorMessage(nicknameError, 'Failed to update nickname');
+  nicknameWarning = nicknameMessage;
+}
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+requestID := strings.TrimSpace(c.Get("X-Request-ID"))
+log.Printf("[UpdateProfile] begin rid=%s user=%d", requestID, userId)
+```
+
+```go
+log.Printf("[UpdateProfile] save_failed rid=%s user=%d requested_role=%q err=%v", requestID, userId, updateData.Role, err)
+```
+
+```go
+log.Printf("[UpdateProfile] success rid=%s user=%d role=%s city=%q", requestID, userId, user.Role, user.City)
+```
+
+## 2026-03-01 (Sadhu Sanga: фильтры без ручного ввода через facets picker)
+
+### Измененные файлы
+- `server/internal/models/channel.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в Sadhu Sanga фильтры `Город/Язык/Тема` были text-input полями;
+  - пользователь должен был вводить значения вручную, что создавало ошибки ввода и плохой UX.
+- Стало:
+  - добавлен backend endpoint `GET /api/channels/sadhu-sanga/facets`, который отдает агрегированные справочники `cities/languages/topics` с `count`;
+  - `SadhuSangaHubScreen` заменил ручной ввод на кнопки-селекторы + modal picker с вариантами из facets;
+  - поддержаны быстрые сценарии `Все` (сброс фильтра) и `Мой город` (из профиля пользователя).
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/sadhu-sanga/facets", channelHandler.GetSadhuSangaFacets)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error) {
+  // cities from users.city, languages from users.language, topics from tags via channel owners
+}
+```
+
+`frontend/services/channelService.ts`:
+```ts
+async getSadhuSangaFacets(): Promise<ChannelFacetsResponse> {
+  const response = await apiClient.get('/channels/sadhu-sanga/facets');
+  return response.data;
+}
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={[styles.inlineFilterButton, city && styles.inlineFilterButtonActive]}
+  onPress={() => setActiveFacetPicker('city')}
+>
+  <Text style={[styles.inlineFilterButtonText, city && styles.inlineFilterButtonTextActive]}>
+    {city ? formatFacetLabel(city, 'city') : 'Город'}
+  </Text>
+</TouchableOpacity>
+```
+
+```tsx
+<Modal visible={activeFacetPicker !== null} transparent animationType="fade">
+  <View style={styles.filterModalBackdrop}>
+    <View style={styles.filterModalCard}>
+      {/* options from facets with count */}
+    </View>
+  </View>
+</Modal>
+```
+
+## 2026-03-01 (Sadhu Sanga: Этап C2 — «Дорожная карта проповедника»)
+
+### Измененные файлы
+- `server/internal/models/channel_roadmap.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelRoadmapManageScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - у канала проповедника не было отдельной «дорожной карты» с точками `был/сейчас/будет`;
+  - не было канального API для ручного управления маршрутом.
+- Стало:
+  - добавлена новая модель `channel_roadmap_points` с координатами/адресом, статусом точки и ручным `position`;
+  - добавлен roadmap API (CRUD + `set-current` + `reorder`);
+  - добавлено DB-ограничение «ровно одна current точка на канал» через partial unique index;
+  - в `ChannelDetailsScreen` (Sadhu Sanga) добавлен публичный блок таймлайна с кнопкой `Открыть на карте`;
+  - добавлен отдельный экран `ChannelRoadmapManageScreen` для `owner/admin/editor` с:
+    - созданием/редактированием/удалением точек,
+    - установкой текущей точки,
+    - up/down reorder,
+    - подсказками локации через `map/autocomplete`.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/:id/roadmap", channelHandler.GetRoadmap)
+protected.Post("/channels/:id/roadmap", channelHandler.CreateRoadmapPoint)
+protected.Patch("/channels/:id/roadmap/:pointId", channelHandler.UpdateRoadmapPoint)
+protected.Delete("/channels/:id/roadmap/:pointId", channelHandler.DeleteRoadmapPoint)
+protected.Post("/channels/:id/roadmap/:pointId/set-current", channelHandler.SetCurrentRoadmapPoint)
+protected.Put("/channels/:id/roadmap/reorder", channelHandler.ReorderRoadmapPoints)
+```
+
+`server/internal/database/database.go`:
+```go
+DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_roadmap_one_current_per_channel
+  ON channel_roadmap_points (channel_id)
+  WHERE status = 'current' AND deleted_at IS NULL`)
+```
+
+`frontend/services/channelService.ts`:
+```ts
+async getRoadmap(channelId: number): Promise<ChannelRoadmapResponse> {
+  const response = await apiClient.get(`/channels/${channelId}/roadmap`);
+  return response.data;
+}
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+{isSadhuSangaMode ? (
+  <View style={styles.roadmapSection}>
+    <Text style={styles.roadmapTitle}>Дорожная карта проповедника</Text>
+  </View>
+) : null}
+```
+
+`frontend/screens/portal/services/channels/ChannelRoadmapManageScreen.tsx`:
+```tsx
+const response = await mapService.autocomplete(normalized, undefined, undefined, 6);
+setLocationSuggestions(parseAutocompleteSuggestions(response));
+```

@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,7 +16,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Search, Sparkles, MessageCircle, CalendarDays, Radio, PlayCircle, MapPin, Clock3, Heart } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
-import { Channel } from '../../../../types/channel';
+import { Channel, ChannelFacetsResponse } from '../../../../types/channel';
 import { Service, ServiceSchedule, getSchedules, getServices } from '../../../../services/serviceService';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -39,6 +40,7 @@ type RecommendedPreacher = {
   score: number;
   reason: string;
 };
+type FacetType = 'city' | 'language' | 'topic';
 
 const parseServiceFormats = (raw: string): string[] => {
   if (!raw) {
@@ -125,6 +127,30 @@ const buildSeminarRouteUrl = (service: Service): string => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 };
 
+const languageLabels: Record<string, string> = {
+  ru: 'Русский',
+  en: 'English',
+  hi: 'Hindi',
+};
+
+const formatFacetLabel = (value: string, type: FacetType): string => {
+  const clean = String(value || '').trim();
+  if (!clean) {
+    return '';
+  }
+  const normalized = clean.toLowerCase();
+  if (type === 'language') {
+    return languageLabels[normalized] || normalized.toUpperCase();
+  }
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
+const facetTitleByType: Record<FacetType, string> = {
+  city: 'Выберите город',
+  language: 'Выберите язык',
+  topic: 'Выберите тему',
+};
+
 export default function SadhuSangaHubScreen() {
   const navigation = useNavigation<any>();
   const { user } = useUser();
@@ -139,6 +165,13 @@ export default function SadhuSangaHubScreen() {
   const [city, setCity] = useState('');
   const [language, setLanguage] = useState('');
   const [topic, setTopic] = useState('');
+  const [facets, setFacets] = useState<ChannelFacetsResponse>({
+    cities: [],
+    languages: [],
+    topics: [],
+  });
+  const [facetsLoading, setFacetsLoading] = useState(false);
+  const [activeFacetPicker, setActiveFacetPicker] = useState<FacetType | null>(null);
   const [followStateByChannel, setFollowStateByChannel] = useState<Record<number, FollowState>>({});
   const [recommendedPreachers, setRecommendedPreachers] = useState<RecommendedPreacher[]>([]);
   const [upcomingSeminars, setUpcomingSeminars] = useState<SeminarPreview[]>([]);
@@ -148,6 +181,7 @@ export default function SadhuSangaHubScreen() {
 
   const mountedRef = useRef(true);
   const latestReqRef = useRef(0);
+  const latestFacetsReqRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -229,6 +263,38 @@ export default function SadhuSangaHubScreen() {
       }
     }
   }, [city, language, search, topic]);
+
+  const loadFacets = useCallback(async () => {
+    const reqId = ++latestFacetsReqRef.current;
+    setFacetsLoading(true);
+    try {
+      const response = await channelService.getSadhuSangaFacets();
+      if (!mountedRef.current || reqId !== latestFacetsReqRef.current) {
+        return;
+      }
+      setFacets({
+        cities: Array.isArray(response?.cities) ? response.cities : [],
+        languages: Array.isArray(response?.languages) ? response.languages : [],
+        topics: Array.isArray(response?.topics) ? response.topics : [],
+      });
+    } catch (error: any) {
+      if (!mountedRef.current || reqId !== latestFacetsReqRef.current) {
+        return;
+      }
+      const status = error?.response?.status ?? 'n/a';
+      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить фильтры';
+      console.warn(`[SadhuSangaHub] Facets failed (status=${status}): ${message}`);
+      setFacets({
+        cities: [],
+        languages: [],
+        topics: [],
+      });
+    } finally {
+      if (mountedRef.current && reqId === latestFacetsReqRef.current) {
+        setFacetsLoading(false);
+      }
+    }
+  }, []);
 
   const loadUpcomingSeminars = useCallback(async () => {
     setSeminarsLoading(true);
@@ -327,11 +393,15 @@ export default function SadhuSangaHubScreen() {
     void loadUpcomingSeminars();
   }, [loadUpcomingSeminars]);
 
+  useEffect(() => {
+    void loadFacets();
+  }, [loadFacets]);
+
   const onRefresh = () => {
     if (loading || refreshing) {
       return;
     }
-    void loadChannels(true);
+    void Promise.all([loadChannels(true), loadFacets()]);
   };
 
   const toggleFollow = useCallback(async (channel: Channel) => {
@@ -394,6 +464,70 @@ export default function SadhuSangaHubScreen() {
     } catch {
       Alert.alert('Маршрут', 'Не удалось открыть маршрут.');
     }
+  }, []);
+
+  const facetOptions = useMemo(() => {
+    const sanitize = (items: { value: string; count: number }[]) => {
+      const seen = new Set<string>();
+      return items
+        .map(item => ({ value: String(item.value || '').trim().toLowerCase(), count: Math.max(0, Number(item.count) || 0) }))
+        .filter(item => item.value.length > 0)
+        .filter(item => {
+          if (seen.has(item.value)) {
+            return false;
+          }
+          seen.add(item.value);
+          return true;
+        });
+    };
+
+    const cities = sanitize(facets.cities || []);
+    const languages = sanitize(facets.languages || []);
+    const topics = sanitize(facets.topics || []);
+
+    const myCity = String(user?.city || '').trim().toLowerCase();
+    if (myCity && !cities.some(option => option.value === myCity)) {
+      cities.unshift({ value: myCity, count: 0 });
+    }
+
+    return { cities, languages, topics };
+  }, [facets.cities, facets.languages, facets.topics, user?.city]);
+
+  const activeFacetOptions = useMemo(() => {
+    if (activeFacetPicker === 'city') {
+      return facetOptions.cities;
+    }
+    if (activeFacetPicker === 'language') {
+      return facetOptions.languages;
+    }
+    if (activeFacetPicker === 'topic') {
+      return facetOptions.topics;
+    }
+    return [];
+  }, [activeFacetPicker, facetOptions.cities, facetOptions.languages, facetOptions.topics]);
+
+  const activeFacetValue = useMemo(() => {
+    if (activeFacetPicker === 'city') {
+      return city.trim().toLowerCase();
+    }
+    if (activeFacetPicker === 'language') {
+      return language.trim().toLowerCase();
+    }
+    if (activeFacetPicker === 'topic') {
+      return topic.trim().toLowerCase();
+    }
+    return '';
+  }, [activeFacetPicker, city, language, topic]);
+
+  const setFacetValue = useCallback((facet: FacetType, value: string) => {
+    if (facet === 'city') {
+      setCity(value);
+    } else if (facet === 'language') {
+      setLanguage(value);
+    } else {
+      setTopic(value);
+    }
+    setActiveFacetPicker(null);
   }, []);
 
   const renderChannelCard = ({ item }: { item: Channel }) => {
@@ -665,28 +799,32 @@ export default function SadhuSangaHubScreen() {
             </View>
 
             <View style={styles.inlineFilters}>
-              <TextInput
-                value={city}
-                onChangeText={setCity}
-                placeholder="Город"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.inlineFilterInput}
-              />
-              <TextInput
-                value={language}
-                onChangeText={setLanguage}
-                placeholder="Язык"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.inlineFilterInput}
-              />
-              <TextInput
-                value={topic}
-                onChangeText={setTopic}
-                placeholder="Тема"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.inlineFilterInput}
-              />
+              <TouchableOpacity
+                style={[styles.inlineFilterButton, city && styles.inlineFilterButtonActive]}
+                onPress={() => setActiveFacetPicker('city')}
+              >
+                <Text style={[styles.inlineFilterButtonText, city && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
+                  {city ? formatFacetLabel(city, 'city') : 'Город'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.inlineFilterButton, language && styles.inlineFilterButtonActive]}
+                onPress={() => setActiveFacetPicker('language')}
+              >
+                <Text style={[styles.inlineFilterButtonText, language && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
+                  {language ? formatFacetLabel(language, 'language') : 'Язык'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.inlineFilterButton, topic && styles.inlineFilterButtonActive]}
+                onPress={() => setActiveFacetPicker('topic')}
+              >
+                <Text style={[styles.inlineFilterButtonText, topic && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
+                  {topic ? formatFacetLabel(topic, 'topic') : 'Тема'}
+                </Text>
+              </TouchableOpacity>
             </View>
+            {facetsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
           </View>
 
           <>
@@ -904,6 +1042,87 @@ export default function SadhuSangaHubScreen() {
             )}
           </>
         </ScrollView>
+        <Modal
+          visible={activeFacetPicker !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActiveFacetPicker(null)}
+        >
+          <View style={styles.filterModalBackdrop}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setActiveFacetPicker(null)} />
+            <View style={styles.filterModalCard}>
+              <Text style={styles.filterModalTitle}>
+                {activeFacetPicker ? facetTitleByType[activeFacetPicker] : ''}
+              </Text>
+              <ScrollView style={styles.filterOptionsList} contentContainerStyle={styles.filterOptionsListContent}>
+                {activeFacetPicker ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.filterOptionButton,
+                      !activeFacetValue && styles.filterOptionButtonActive,
+                    ]}
+                    onPress={() => setFacetValue(activeFacetPicker, '')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        !activeFacetValue && styles.filterOptionTextActive,
+                      ]}
+                    >
+                      Все
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {activeFacetPicker === 'city' && user?.city ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.filterOptionButton,
+                      activeFacetValue === String(user.city || '').trim().toLowerCase() && styles.filterOptionButtonActive,
+                    ]}
+                    onPress={() => setFacetValue('city', String(user.city || '').trim().toLowerCase())}
+                  >
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        activeFacetValue === String(user.city || '').trim().toLowerCase() && styles.filterOptionTextActive,
+                      ]}
+                    >
+                      Мой город: {formatFacetLabel(String(user.city || ''), 'city')}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {activeFacetOptions.map(option => (
+                  <TouchableOpacity
+                    key={`${activeFacetPicker || 'facet'}-${option.value}`}
+                    style={[
+                      styles.filterOptionButton,
+                      option.value === activeFacetValue && styles.filterOptionButtonActive,
+                    ]}
+                    onPress={() => {
+                      if (!activeFacetPicker) {
+                        return;
+                      }
+                      setFacetValue(activeFacetPicker, option.value);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        option.value === activeFacetValue && styles.filterOptionTextActive,
+                      ]}
+                    >
+                      {formatFacetLabel(option.value, activeFacetPicker || 'city')}
+                    </Text>
+                    <Text style={styles.filterOptionCount}>{option.count}</Text>
+                  </TouchableOpacity>
+                ))}
+                {activeFacetOptions.length === 0 ? (
+                  <Text style={styles.filterOptionEmpty}>Пока нет доступных значений</Text>
+                ) : null}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
     </SadhuSangaLayout>
   );
 }
@@ -1278,16 +1497,95 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     flexDirection: 'row',
     gap: 8,
   },
-  inlineFilterInput: {
+  inlineFilterButton: {
     flex: 1,
     height: 40,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineFilterButtonActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  inlineFilterButtonText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  inlineFilterButtonTextActive: {
+    color: colors.accent,
+  },
+  filterModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  filterModalCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    maxHeight: '70%',
+    paddingTop: 14,
+    paddingBottom: 16,
+  },
+  filterModalTitle: {
     color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: '900',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  filterOptionsList: {
+    width: '100%',
+  },
+  filterOptionsListContent: {
+    paddingHorizontal: 12,
+    gap: 8,
+    paddingBottom: 16,
+  },
+  filterOptionButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  filterOptionButtonActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  filterOptionText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  filterOptionTextActive: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  filterOptionCount: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterOptionEmpty: {
+    color: colors.textSecondary,
     fontSize: 13,
-    paddingHorizontal: 10,
+    textAlign: 'center',
+    marginTop: 4,
   },
   preachersHeader: {
     marginHorizontal: 16,

@@ -7,6 +7,7 @@ export type ChannelPostStatus = 'draft' | 'scheduled' | 'published' | 'archived'
 export type ChannelPostCTAType = 'none' | 'order_products' | 'book_service';
 export type ChannelLiveStatus = 'scheduled' | 'live' | 'ended' | 'cancelled';
 export type ChannelLiveModerationAction = 'mute' | 'unmute' | 'block' | 'unblock' | 'kick';
+export type ChannelRoadmapStatus = 'past' | 'current' | 'future';
 
 export interface ChannelOwnerInfo {
   ID: number;
@@ -66,6 +67,33 @@ export interface ChannelLiveParticipantsResponse {
   liveId: number;
   sessionState: ChannelLiveSession;
   participants: ChannelLiveParticipant[];
+}
+
+export interface ChannelRoadmapPoint {
+  id: number;
+  channelId: number;
+  createdBy: number;
+  updatedBy: number;
+  title: string;
+  city: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  status: ChannelRoadmapStatus;
+  eventAt?: string;
+  position: number;
+  note?: string;
+  mapUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChannelRoadmapResponse {
+  channelId: number;
+  current: ChannelRoadmapPoint | null;
+  past: ChannelRoadmapPoint[];
+  future: ChannelRoadmapPoint[];
+  total: number;
 }
 
 export interface ChannelMember {
@@ -234,6 +262,30 @@ export interface ChannelSchedulePostRequest {
   scheduledAt: string;
 }
 
+export interface ChannelRoadmapCreateRequest {
+  title: string;
+  city?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  status?: ChannelRoadmapStatus;
+  eventAt?: string;
+  position?: number;
+  note?: string;
+}
+
+export interface ChannelRoadmapUpdateRequest {
+  title?: string;
+  city?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  status?: ChannelRoadmapStatus;
+  eventAt?: string;
+  position?: number;
+  note?: string;
+}
+
 export interface ChannelPromotedAd {
   id: number;
   title: string;
@@ -274,4 +326,15 @@ export interface ChannelRecommendationItem {
 export interface ChannelRecommendationsResponse {
   items: ChannelRecommendationItem[];
   total: number;
+}
+
+export interface ChannelFacetOption {
+  value: string;
+  count: number;
+}
+
+export interface ChannelFacetsResponse {
+  cities: ChannelFacetOption[];
+  languages: ChannelFacetOption[];
+  topics: ChannelFacetOption[];
 }
