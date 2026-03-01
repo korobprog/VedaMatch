@@ -40,6 +40,8 @@ type ChannelLiveSession struct {
 
 	Title       string `json:"title" gorm:"type:varchar(200);not null"`
 	Description string `json:"description" gorm:"type:text"`
+	// BroadcastLanguage stores IETF BCP-47 language tag for the live session.
+	BroadcastLanguage string `json:"broadcastLanguage" gorm:"type:varchar(16);not null;default:'ru'"`
 
 	ScheduledAt *time.Time `json:"scheduledAt" gorm:"index"`
 	StartedAt   *time.Time `json:"startedAt" gorm:"index"`
@@ -84,25 +86,27 @@ type ChannelLiveModeration struct {
 }
 
 type ChannelLiveSessionSummary struct {
-	ID              uint              `json:"id"`
-	ChannelID       uint              `json:"channelId"`
-	RoomID          uint              `json:"roomId"`
-	Title           string            `json:"title"`
-	Description     string            `json:"description"`
-	Status          ChannelLiveStatus `json:"status"`
-	AccessPolicy    string            `json:"accessPolicy"`
-	ScheduledAt     *time.Time        `json:"scheduledAt,omitempty"`
-	StartedAt       *time.Time        `json:"startedAt,omitempty"`
-	EndedAt         *time.Time        `json:"endedAt,omitempty"`
-	MaxParticipants *int              `json:"maxParticipants,omitempty"`
+	ID                uint              `json:"id"`
+	ChannelID         uint              `json:"channelId"`
+	RoomID            uint              `json:"roomId"`
+	Title             string            `json:"title"`
+	Description       string            `json:"description"`
+	BroadcastLanguage string            `json:"broadcastLanguage"`
+	Status            ChannelLiveStatus `json:"status"`
+	AccessPolicy      string            `json:"accessPolicy"`
+	ScheduledAt       *time.Time        `json:"scheduledAt,omitempty"`
+	StartedAt         *time.Time        `json:"startedAt,omitempty"`
+	EndedAt           *time.Time        `json:"endedAt,omitempty"`
+	MaxParticipants   *int              `json:"maxParticipants,omitempty"`
 }
 
 type ChannelLiveSessionUpsertRequest struct {
-	Title           string                  `json:"title"`
-	Description     string                  `json:"description"`
-	ScheduledAt     *time.Time              `json:"scheduledAt,omitempty"`
-	AccessPolicy    ChannelLiveAccessPolicy `json:"accessPolicy,omitempty"`
-	MaxParticipants *int                    `json:"maxParticipants,omitempty"`
+	Title             string                  `json:"title"`
+	Description       string                  `json:"description"`
+	BroadcastLanguage string                  `json:"broadcastLanguage,omitempty"`
+	ScheduledAt       *time.Time              `json:"scheduledAt,omitempty"`
+	AccessPolicy      ChannelLiveAccessPolicy `json:"accessPolicy,omitempty"`
+	MaxParticipants   *int                    `json:"maxParticipants,omitempty"`
 }
 
 type ChannelLiveJoinRequest struct {

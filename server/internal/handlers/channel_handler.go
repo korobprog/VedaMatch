@@ -774,10 +774,12 @@ func (h *ChannelHandler) ListMembers(c *fiber.Ctx) error {
 		var userInfo *models.ChannelMemberUserInfo
 		if member.User != nil {
 			userInfo = &models.ChannelMemberUserInfo{
-				ID:            member.User.ID,
-				SpiritualName: member.User.SpiritualName,
-				KarmicName:    member.User.KarmicName,
-				AvatarURL:     member.User.AvatarURL,
+				ID:              member.User.ID,
+				SpiritualName:   member.User.SpiritualName,
+				KarmicName:      member.User.KarmicName,
+				AvatarURL:       member.User.AvatarURL,
+				Nickname:        member.User.Nickname,
+				NicknameDisplay: services.NicknameDisplay(member.User.Nickname),
 			}
 		}
 

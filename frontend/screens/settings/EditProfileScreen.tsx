@@ -38,6 +38,7 @@ import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 import apiClient from '../../lib/apiClient';
+import { accountService } from '../../services/accountService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -70,6 +71,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [city, setCity] = useState('');
     const [karmicName, setKarmicName] = useState('');
     const [spiritualName, setSpiritualName] = useState('');
+    const [nickname, setNickname] = useState('');
+    const [initialNickname, setInitialNickname] = useState('');
     const [dob, setDob] = useState(new Date());
     const [madh, setMadh] = useState('');
     const [mentor, setMentor] = useState('');
@@ -152,6 +155,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setCity(userData.city || '');
                 setKarmicName(userData.karmicName || '');
                 setSpiritualName(userData.spiritualName || '');
+                setNickname(userData.nickname ? `@${userData.nickname}` : '');
+                setInitialNickname(userData.nickname ? `@${userData.nickname}` : '');
                 setMadh(userData.madh || '');
                 setMentor(userData.mentor || '');
                 setGender(userData.gender || GENDER_OPTIONS[0]);
@@ -247,7 +252,23 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            const updatedUser = response.data.user;
+            const updatedUser = response.data.user || {};
+
+            const normalizedNickname = nickname.trim().replace(/^@+/, '').toLowerCase();
+            const normalizedInitialNickname = initialNickname.trim().replace(/^@+/, '').toLowerCase();
+            if (normalizedNickname && normalizedNickname !== normalizedInitialNickname) {
+                const nickResponse = await accountService.updateNickname(normalizedNickname);
+                if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
+                if (nickResponse?.user) {
+                    Object.assign(updatedUser, nickResponse.user);
+                } else {
+                    updatedUser.nickname = normalizedNickname;
+                    updatedUser.nicknameDisplay = `@${normalizedNickname}`;
+                }
+                setInitialNickname(`@${updatedUser.nickname || normalizedNickname}`);
+            }
 
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
             await login(updatedUser);
@@ -477,6 +498,24 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                         </View>
                                     )}
                                 </View>
+
+                                <Text style={styles.label}>Nickname (уникальный ID)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={nickname}
+                                    onChangeText={(value) => {
+                                        const trimmed = value.trim();
+                                        if (!trimmed) {
+                                            setNickname('');
+                                            return;
+                                        }
+                                        setNickname(trimmed.startsWith('@') ? trimmed : `@${trimmed}`);
+                                    }}
+                                    placeholder="@your_nickname"
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                />
 
                                 <Text style={styles.label}>{t('dating.yatra')}</Text>
                                 <TextInput

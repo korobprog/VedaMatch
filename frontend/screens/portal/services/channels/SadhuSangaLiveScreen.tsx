@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { channelService } from '../../../../services/channelService';
 import { Channel } from '../../../../types/channel';
+import { MediaTrack, multimediaService } from '../../../../services/multimediaService';
 import SadhuSangaLayout from './components/SadhuSangaLayout';
 
 export default function SadhuSangaLiveScreen() {
@@ -26,6 +28,7 @@ export default function SadhuSangaLiveScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [archiveTracks, setArchiveTracks] = useState<MediaTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveJoinLoadingChannelId, setLiveJoinLoadingChannelId] = useState<number | null>(null);
 
@@ -46,11 +49,16 @@ export default function SadhuSangaLiveScreen() {
   const loadChannels = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await channelService.getChannels({ page: 1, limit: 60 });
-      setChannels(response.channels || []);
+      const [channelsResponse, archiveResponse] = await Promise.all([
+        channelService.getChannels({ page: 1, limit: 60 }),
+        multimediaService.getTracks({ type: 'video', sourceContext: 'sadhu_live_archive', page: 1, limit: 12 }),
+      ]);
+      setChannels(channelsResponse.channels || []);
+      setArchiveTracks(archiveResponse.tracks || []);
     } catch (error: any) {
       Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось загрузить эфиры');
       setChannels([]);
+      setArchiveTracks([]);
     } finally {
       setLoading(false);
     }
@@ -80,16 +88,39 @@ export default function SadhuSangaLiveScreen() {
   }, [channels]);
 
   const archiveItems = useMemo(() => {
+    if (archiveTracks.length > 0) {
+      return archiveTracks.map((track) => {
+        const durationSeconds = Number(track.duration) || 0;
+        const hours = Math.floor(durationSeconds / 3600);
+        const minutes = Math.floor((durationSeconds % 3600) / 60);
+        const seconds = durationSeconds % 60;
+        const duration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        return {
+          id: track.ID,
+          channelId: 0,
+          title: track.title || `Лекция #${track.ID}`,
+          subtitle: track.description || 'Лекция из архива',
+          image: track.thumbnailUrl || '',
+          duration,
+          tag: track.language ? `Язык: ${String(track.language).toUpperCase()}` : 'Архив',
+          followers: track.viewCount || 0,
+          youtubeUrl: track.youtubeUrl || '',
+        };
+      });
+    }
+
     return channels.slice(0, 8).map((item, index) => ({
       id: item.ID,
+      channelId: item.ID,
       title: item.title || `Лекция ${index + 1}`,
       subtitle: item.description || 'Лекция из архива',
       image: item.coverUrl || item.avatarUrl || '',
       duration: index % 2 === 0 ? '1:24:00' : '48:30',
       tag: 'Духовная практика',
       followers: item.followersCount || 0,
+      youtubeUrl: '',
     }));
-  }, [channels]);
+  }, [archiveTracks, channels]);
 
   const handleJoinLive = useCallback(async (item: Channel) => {
     const session = item.currentLiveSession;
@@ -157,6 +188,7 @@ export default function SadhuSangaLiveScreen() {
                 {liveChannels.map((item) => {
                   const session = item.currentLiveSession!;
                   const isLive = session.status === 'live';
+                  const languageCode = String(session.broadcastLanguage || 'ru').trim().toUpperCase();
                   const actionLoading = liveJoinLoadingChannelId === item.ID;
                   return (
                     <View key={`live-${item.ID}-${session.id}`} style={styles.liveCard}>
@@ -164,7 +196,7 @@ export default function SadhuSangaLiveScreen() {
                         <View style={styles.liveTitleWrap}>
                           <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
                           <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
-                            {isLive ? 'В эфире' : 'Запланировано'}
+                            {isLive ? `В эфире • ${languageCode}` : `Запланировано • ${languageCode}`}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -214,7 +246,11 @@ export default function SadhuSangaLiveScreen() {
                   <TouchableOpacity
                     key={`archive-${item.id}-${index}`}
                     style={styles.archiveCard}
-                    onPress={() => navigation.navigate('ChannelDetails', { channelId: item.id, source: 'sadhu_sanga' })}
+                    onPress={() => {
+                      if (item.channelId > 0) {
+                        navigation.navigate('ChannelDetails', { channelId: item.channelId, source: 'sadhu_sanga' });
+                      }
+                    }}
                   >
                     <View style={styles.archiveImageWrap}>
                       {item.image ? (
@@ -234,6 +270,25 @@ export default function SadhuSangaLiveScreen() {
                         <Text style={styles.archiveTag}>{item.tag}</Text>
                         <Text style={styles.archiveLikes}>♡ {item.followers}</Text>
                       </View>
+                      {item.youtubeUrl ? (
+                        <TouchableOpacity
+                          style={styles.archiveYoutubeButton}
+                          onPress={async () => {
+                            try {
+                              const supported = await Linking.canOpenURL(item.youtubeUrl);
+                              if (!supported) {
+                                Alert.alert('YouTube', 'Не удалось открыть ссылку.');
+                                return;
+                              }
+                              await Linking.openURL(item.youtubeUrl);
+                            } catch {
+                              Alert.alert('YouTube', 'Не удалось открыть ссылку на YouTube.');
+                            }
+                          }}
+                        >
+                          <Text style={styles.archiveYoutubeButtonText}>Открыть в YouTube</Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -417,6 +472,21 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  archiveYoutubeButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  archiveYoutubeButtonText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
   },
   archiveTag: {
     borderRadius: 10,

@@ -5,6 +5,8 @@ export interface UserContact {
     ID: number;
     karmicName: string;
     spiritualName: string;
+    nickname?: string;
+    nicknameDisplay?: string;
     email: string;
     avatarUrl: string;
     lastSeen: string;

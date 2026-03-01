@@ -14,6 +14,20 @@ const (
 	MediaTypeVideo MediaType = "video"
 )
 
+type MediaTrackSourceContext string
+type MediaTrackYouTubeStatus string
+
+const (
+	MediaTrackSourceContextSadhuLiveArchive MediaTrackSourceContext = "sadhu_live_archive"
+)
+
+const (
+	MediaTrackYouTubeStatusQueued    MediaTrackYouTubeStatus = "queued"
+	MediaTrackYouTubeStatusUploading MediaTrackYouTubeStatus = "uploading"
+	MediaTrackYouTubeStatusUploaded  MediaTrackYouTubeStatus = "uploaded"
+	MediaTrackYouTubeStatusFailed    MediaTrackYouTubeStatus = "failed"
+)
+
 // MediaCategory represents categories for organizing media content
 type MediaCategory struct {
 	gorm.Model
@@ -30,28 +44,31 @@ type MediaCategory struct {
 // MediaTrack represents an audio or video file in the multimedia hub
 type MediaTrack struct {
 	gorm.Model
-	Title        string         `json:"title" gorm:"not null"`
-	Artist       string         `json:"artist"`
-	Album        string         `json:"album"`
-	Description  string         `json:"description"`
-	Duration     int            `json:"duration"`                                         // Duration in seconds
-	MediaType    MediaType      `json:"mediaType" gorm:"type:varchar(10);index;not null"` // audio or video
-	URL          string         `json:"url" gorm:"not null"`                              // S3 URL or external URL
-	ThumbnailURL string         `json:"thumbnailUrl"`
-	CategoryID   *uint          `json:"categoryId" gorm:"index"`
-	Category     *MediaCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
-	Madh         string         `json:"madh" gorm:"index"` // Filter by spiritual tradition
-	YogaStyle    string         `json:"yogaStyle"`
-	Language     string         `json:"language" gorm:"default:'ru'"`
-	Year         int            `json:"year"`
-	ViewCount    int            `json:"viewCount" gorm:"default:0"`
-	LikeCount    int            `json:"likeCount" gorm:"default:0"`
-	IsExternal   bool           `json:"isExternal" gorm:"default:false"` // External URL vs S3
-	IsFeatured   bool           `json:"isFeatured" gorm:"default:false"`
-	IsActive     bool           `json:"isActive" gorm:"default:true"`
-	PublishedAt  *time.Time     `json:"publishedAt"`
-	CreatedByID  uint           `json:"createdById"`
-	CreatedBy    *User          `json:"createdBy,omitempty" gorm:"foreignKey:CreatedByID"`
+	Title         string         `json:"title" gorm:"not null"`
+	Artist        string         `json:"artist"`
+	Album         string         `json:"album"`
+	Description   string         `json:"description"`
+	Duration      int            `json:"duration"`                                         // Duration in seconds
+	MediaType     MediaType      `json:"mediaType" gorm:"type:varchar(10);index;not null"` // audio or video
+	URL           string         `json:"url" gorm:"not null"`                              // S3 URL or external URL
+	ThumbnailURL  string         `json:"thumbnailUrl"`
+	CategoryID    *uint          `json:"categoryId" gorm:"index"`
+	Category      *MediaCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
+	Madh          string         `json:"madh" gorm:"index"` // Filter by spiritual tradition
+	YogaStyle     string         `json:"yogaStyle"`
+	Language      string         `json:"language" gorm:"default:'ru'"`
+	SourceContext string         `json:"sourceContext" gorm:"type:varchar(40);index"`
+	Year          int            `json:"year"`
+	ViewCount     int            `json:"viewCount" gorm:"default:0"`
+	LikeCount     int            `json:"likeCount" gorm:"default:0"`
+	IsExternal    bool           `json:"isExternal" gorm:"default:false"` // External URL vs S3
+	IsFeatured    bool           `json:"isFeatured" gorm:"default:false"`
+	IsActive      bool           `json:"isActive" gorm:"default:true"`
+	PublishedAt   *time.Time     `json:"publishedAt"`
+	CreatedByID   uint           `json:"createdById"`
+	CreatedBy     *User          `json:"createdBy,omitempty" gorm:"foreignKey:CreatedByID"`
+	RoomID        *uint          `json:"roomId,omitempty" gorm:"index"`
+	LiveSessionID *uint          `json:"liveSessionId,omitempty" gorm:"index"`
 
 	// Video-specific fields (for HLS streaming)
 	OriginalURL         string  `json:"originalUrl"`                             // Original uploaded file in S3
@@ -65,6 +82,15 @@ type MediaTrack struct {
 	Framerate           float64 `json:"framerate"`                               // Original framerate
 	HasSubtitles        bool    `json:"hasSubtitles" gorm:"default:false"`
 	SubtitleCount       int     `json:"subtitleCount" gorm:"default:0"`
+
+	RetentionExpiresAt *time.Time              `json:"retentionExpiresAt" gorm:"index"`
+	YouTubeStatus      MediaTrackYouTubeStatus `json:"youtubeStatus" gorm:"type:varchar(20);index"`
+	YouTubeVideoID     string                  `json:"youtubeVideoId" gorm:"index"`
+	YouTubeURL         string                  `json:"youtubeUrl"`
+	YouTubeUploadedAt  *time.Time              `json:"youtubeUploadedAt"`
+	YouTubeLastError   string                  `json:"youtubeLastError" gorm:"type:text"`
+	YouTubeAttempts    int                     `json:"youtubeAttempts" gorm:"default:0"`
+	YouTubeNextRetryAt *time.Time              `json:"youtubeNextRetryAt" gorm:"index"`
 }
 
 // RadioStation represents an online radio stream

@@ -366,6 +366,7 @@ export const ContactsScreen: React.FC = () => {
             const searchLower = debouncedSearch.toLowerCase();
             return c.karmicName?.toLowerCase().includes(searchLower) ||
                 c.spiritualName?.toLowerCase().includes(searchLower) ||
+                c.nickname?.toLowerCase().includes(searchLower) ||
                 c.city?.toLowerCase().includes(searchLower) ||
                 c.country?.toLowerCase().includes(searchLower) ||
                 c.yatra?.toLowerCase().includes(searchLower);
@@ -483,11 +484,10 @@ export const ContactsScreen: React.FC = () => {
                         )}
                     </View>
                     <Text style={[styles.contactDesc, { color: descColor }]} numberOfLines={1}>
-                        {online ? (
-                            `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
-                        ) : (
-                            lastSeenText || `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
-                        )}
+                        {item.nickname ? `@${item.nickname} · ` : ''}
+                        {online
+                            ? `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
+                            : (lastSeenText || `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`)}
                     </Text>
                 </View>
                 {isBlocked ? (

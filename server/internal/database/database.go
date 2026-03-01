@@ -180,6 +180,12 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_live_sessions_one_live_per_channel
 		ON channel_live_sessions (channel_id)
 		WHERE status = 'live' AND deleted_at IS NULL`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_media_tracks_sadhu_live_expiry
+		ON media_tracks (source_context, retention_expires_at)
+		WHERE source_context = 'sadhu_live_archive' AND deleted_at IS NULL`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_media_tracks_youtube_queue
+		ON media_tracks (youtube_status, youtube_next_retry_at, updated_at DESC)
+		WHERE source_context = 'sadhu_live_archive' AND deleted_at IS NULL`)
 
 	// Message history pagination indexes
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_id_id_desc
@@ -213,14 +219,19 @@ func Connect() {
 		ON users USING GIN (LOWER(
 			coalesce(karmic_name, '') || ' ' ||
 			coalesce(spiritual_name, '') || ' ' ||
+			coalesce(nickname, '') || ' ' ||
 			coalesce(city, '') || ' ' ||
 			coalesce(country, '') || ' ' ||
 			coalesce(yatra, '')
 		) gin_trgm_ops)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_users_city_lower
 		ON users (LOWER(city))`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname_unique_lower
+		ON users (LOWER(nickname))
+		WHERE nickname IS NOT NULL AND nickname <> ''`)
 
 	backfillRoomOwnerMemberships()
+	backfillUserNicknames()
 
 	// Backfill support conversation channel for legacy rows created before channel field existed.
 	DB.Exec(`UPDATE support_conversations
@@ -252,6 +263,7 @@ func Connect() {
 	SeedCharity() // Initialize platform wallet and charity settings
 	SeedLKMAccounts()
 	SeedLKMTopup()
+	backfillUserNicknames()
 }
 
 func InitializeSuperAdmin() {
@@ -328,6 +340,42 @@ func backfillRoomOwnerMemberships() {
 		  AND rm.role <> 'owner'
 	`).Error; err != nil {
 		log.Printf("[Migration] Failed to normalize owner room role: %v", err)
+	}
+}
+
+func backfillUserNicknames() {
+	if DB == nil {
+		return
+	}
+
+	err := DB.Exec(`
+		UPDATE users
+		SET nickname = LOWER(
+			LEFT(
+				COALESCE(
+					NULLIF(
+						BTRIM(
+							REGEXP_REPLACE(
+								REGEXP_REPLACE(SPLIT_PART(email, '@', 1), '[^a-zA-Z0-9._]+', '_', 'g'),
+								'[._]{2,}',
+								'_',
+								'g'
+							),
+							'._'
+						),
+						''
+					),
+					'u'
+				),
+				12
+			) || '_' || id::text
+		),
+		nickname_set_manually = false
+		WHERE nickname IS NULL OR nickname = ''
+	`).Error
+	if err != nil {
+		log.Printf("[Migration] Failed to backfill user nicknames: %v", err)
+		return
 	}
 }
 

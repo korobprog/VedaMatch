@@ -40,6 +40,7 @@ export interface ChannelLiveSession {
   roomId: number;
   title: string;
   description: string;
+  broadcastLanguage: string;
   status: ChannelLiveStatus;
   accessPolicy: 'followers';
   scheduledAt?: string;
@@ -81,6 +82,8 @@ export interface ChannelMemberUserInfo {
   spiritualName: string;
   karmicName: string;
   avatarUrl: string;
+  nickname?: string;
+  nicknameDisplay?: string;
 }
 
 export interface ChannelMemberResponse {
@@ -204,7 +207,8 @@ export interface ChannelBrandingUpdateRequest {
 }
 
 export interface ChannelMemberAddRequest {
-  userId: number;
+  userId?: number;
+  nickname?: string;
   role?: ChannelMemberRole;
 }
 

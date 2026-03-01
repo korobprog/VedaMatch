@@ -73,6 +73,7 @@ func main() {
 	}
 	services.StartVideoCircleExpiryScheduler()
 	services.StartChannelPostScheduler()
+	services.StartSadhuLiveArchiveScheduler()
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
@@ -718,6 +719,7 @@ func main() {
 	protected.Delete("/education/tutor/memory", educationTutorHandler.ClearMemory)
 
 	protected.Put("/update-profile", authHandler.UpdateProfile)
+	protected.Patch("/profile/nickname", authHandler.UpdateNickname)
 	protected.Post("/account/deletion-request", authHandler.RequestAccountDeletion)
 	protected.Delete("/account", authHandler.DeleteAccount)
 	protected.Put("/update-push-token", authHandler.UpdatePushToken)
@@ -758,6 +760,7 @@ func main() {
 	protected.Post("/path-tracker/unlock-opened", pathTrackerHandler.MarkUnlockOpened)
 
 	// User Profile Route (public profile by ID)
+	protected.Get("/users/by-nickname/:nickname", userHandler.GetUserByNickname)
 	protected.Get("/users/:id", userHandler.GetUserById)
 
 	// Tag Routes

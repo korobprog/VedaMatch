@@ -7,6 +7,7 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -16,6 +17,48 @@ type UserHandler struct{}
 
 func NewUserHandler() *UserHandler {
 	return &UserHandler{}
+}
+
+// GetUserByNickname retrieves a user's public profile by nickname.
+func (h *UserHandler) GetUserByNickname(c *fiber.Ctx) error {
+	rawNickname := strings.TrimSpace(c.Params("nickname"))
+	nickname := strings.TrimPrefix(strings.ToLower(rawNickname), "@")
+	if nickname == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Nickname is required",
+		})
+	}
+
+	var user models.User
+	result := database.DB.Where("nickname = ? AND is_blocked = ?", nickname, false).First(&user)
+	if result.Error != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"ID":            user.ID,
+		"karmicName":    user.KarmicName,
+		"spiritualName": user.SpiritualName,
+		"nickname":      user.Nickname,
+		"nicknameDisplay": func() string {
+			if user.Nickname == "" {
+				return ""
+			}
+			return "@" + user.Nickname
+		}(),
+		"email":     user.Email,
+		"avatarUrl": user.AvatarURL,
+		"identity":  user.Identity,
+		"city":      user.City,
+		"country":   user.Country,
+		"latitude":  user.Latitude,
+		"longitude": user.Longitude,
+		"yatra":     user.Yatra,
+		"timezone":  user.Timezone,
+		"lastSeen":  user.LastSeen,
+	})
 }
 
 // GetPortalLayout retrieves the user's portal layout from the server
@@ -151,15 +194,22 @@ func (h *UserHandler) GetUserById(c *fiber.Ctx) error {
 		"ID":            user.ID,
 		"karmicName":    user.KarmicName,
 		"spiritualName": user.SpiritualName,
-		"email":         user.Email,
-		"avatarUrl":     user.AvatarURL,
-		"identity":      user.Identity,
-		"city":          user.City,
-		"country":       user.Country,
-		"latitude":      user.Latitude,
-		"longitude":     user.Longitude,
-		"yatra":         user.Yatra,
-		"timezone":      user.Timezone,
-		"lastSeen":      user.LastSeen,
+		"nickname":      user.Nickname,
+		"nicknameDisplay": func() string {
+			if user.Nickname == "" {
+				return ""
+			}
+			return "@" + user.Nickname
+		}(),
+		"email":     user.Email,
+		"avatarUrl": user.AvatarURL,
+		"identity":  user.Identity,
+		"city":      user.City,
+		"country":   user.Country,
+		"latitude":  user.Latitude,
+		"longitude": user.Longitude,
+		"yatra":     user.Yatra,
+		"timezone":  user.Timezone,
+		"lastSeen":  user.LastSeen,
 	})
 }

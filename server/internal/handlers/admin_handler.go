@@ -66,7 +66,15 @@ func isSensitiveSystemSettingKey(key string) bool {
 	if normalized == "TELEGRAM_AUTH_BOT_TOKEN" {
 		return true
 	}
+	if strings.HasSuffix(normalized, "_SECRET") || strings.HasSuffix(normalized, "_TOKEN") {
+		return true
+	}
 	return false
+}
+
+func isYouTubeSystemSettingKey(key string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(key))
+	return strings.HasPrefix(normalized, "YOUTUBE_")
 }
 
 func validateAdminCredentials(email, password string) error {
@@ -467,6 +475,7 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
 	}
+	isSuperadmin := strings.EqualFold(strings.TrimSpace(middleware.GetUserRole(c)), models.RoleSuperadmin)
 
 	var settings []models.SystemSetting
 	if err := database.DB.Find(&settings).Error; err != nil {
@@ -475,6 +484,9 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 
 	settingsMap := make(map[string]string)
 	for _, s := range settings {
+		if isYouTubeSystemSettingKey(s.Key) && !isSuperadmin {
+			continue
+		}
 		if isSensitiveSystemSettingKey(s.Key) && s.Value != "" {
 			settingsMap[s.Key] = strings.Repeat("*", len(s.Value))
 			continue
@@ -518,6 +530,7 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
 	}
+	isSuperadmin := strings.EqualFold(strings.TrimSpace(middleware.GetUserRole(c)), models.RoleSuperadmin)
 
 	var updates map[string]string
 	if err := c.BodyParser(&updates); err != nil {
@@ -525,6 +538,9 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 	}
 
 	for k, v := range updates {
+		if isYouTubeSystemSettingKey(k) && !isSuperadmin {
+			continue
+		}
 		var setting models.SystemSetting
 		if err := database.DB.Where("key = ?", k).FirstOrCreate(&setting, models.SystemSetting{Key: k}).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to upsert setting: " + k})

@@ -671,22 +671,43 @@ func normalizeLiveAccessPolicy(raw models.ChannelLiveAccessPolicy) models.Channe
 	}
 }
 
+func normalizeLiveBroadcastLanguage(raw string) string {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return "ru"
+	}
+	if len(value) > 16 {
+		return "ru"
+	}
+	for _, ch := range value {
+		switch {
+		case ch >= 'a' && ch <= 'z':
+		case ch >= '0' && ch <= '9':
+		case ch == '-':
+		default:
+			return "ru"
+		}
+	}
+	return value
+}
+
 func toLiveSessionSummary(session *models.ChannelLiveSession) *models.ChannelLiveSessionSummary {
 	if session == nil || session.ID == 0 {
 		return nil
 	}
 	return &models.ChannelLiveSessionSummary{
-		ID:              session.ID,
-		ChannelID:       session.ChannelID,
-		RoomID:          session.RoomID,
-		Title:           session.Title,
-		Description:     session.Description,
-		Status:          session.Status,
-		AccessPolicy:    string(session.AccessPolicy),
-		ScheduledAt:     session.ScheduledAt,
-		StartedAt:       session.StartedAt,
-		EndedAt:         session.EndedAt,
-		MaxParticipants: session.MaxParticipants,
+		ID:                session.ID,
+		ChannelID:         session.ChannelID,
+		RoomID:            session.RoomID,
+		Title:             session.Title,
+		Description:       session.Description,
+		BroadcastLanguage: normalizeLiveBroadcastLanguage(session.BroadcastLanguage),
+		Status:            session.Status,
+		AccessPolicy:      string(session.AccessPolicy),
+		ScheduledAt:       session.ScheduledAt,
+		StartedAt:         session.StartedAt,
+		EndedAt:           session.EndedAt,
+		MaxParticipants:   session.MaxParticipants,
 	}
 }
 
@@ -794,6 +815,7 @@ func (s *ChannelService) CreateLiveSession(channelID, actorID uint, req models.C
 		return nil, ErrInvalidPayload
 	}
 	accessPolicy := normalizeLiveAccessPolicy(req.AccessPolicy)
+	broadcastLanguage := normalizeLiveBroadcastLanguage(req.BroadcastLanguage)
 	if req.MaxParticipants != nil && *req.MaxParticipants <= 0 {
 		return nil, ErrInvalidPayload
 	}
@@ -818,7 +840,7 @@ func (s *ChannelService) CreateLiveSession(channelID, actorID uint, req models.C
 		OwnerID:     channel.OwnerID,
 		IsPublic:    false,
 		AiEnabled:   false,
-		Language:    "ru",
+		Language:    broadcastLanguage,
 	}
 	if err := s.db.Create(&room).Error; err != nil {
 		return nil, err
@@ -828,20 +850,22 @@ func (s *ChannelService) CreateLiveSession(channelID, actorID uint, req models.C
 	}
 
 	session := models.ChannelLiveSession{
-		ChannelID:       channelID,
-		RoomID:          room.ID,
-		CreatedBy:       actorID,
-		Title:           title,
-		Description:     description,
-		ScheduledAt:     req.ScheduledAt,
-		Status:          models.ChannelLiveStatusScheduled,
-		AccessPolicy:    accessPolicy,
-		MaxParticipants: req.MaxParticipants,
+		ChannelID:         channelID,
+		RoomID:            room.ID,
+		CreatedBy:         actorID,
+		Title:             title,
+		Description:       description,
+		BroadcastLanguage: broadcastLanguage,
+		ScheduledAt:       req.ScheduledAt,
+		Status:            models.ChannelLiveStatusScheduled,
+		AccessPolicy:      accessPolicy,
+		MaxParticipants:   req.MaxParticipants,
 	}
 	if err := s.db.Create(&session).Error; err != nil {
 		return nil, err
 	}
 	s.incrementMetricSafe(MetricSadhuLiveCreatedTotal, 1)
+	s.incrementMetricSafe(MetricSadhuLiveLanguageSetTotal, 1)
 	log.Printf("[SadhuLive] created channel_id=%d live_id=%d actor_id=%d", channel.ID, session.ID, actorID)
 	if pushErr := s.sendLivePushToSubscribers(channel, &session, false); pushErr != nil {
 		log.Printf("[Channels] live create push failed channel=%d live=%d: %v", channel.ID, session.ID, pushErr)
@@ -886,6 +910,15 @@ func (s *ChannelService) UpdateLiveSession(channelID, liveID, actorID uint, req 
 	if req.AccessPolicy != "" {
 		updates["access_policy"] = normalizeLiveAccessPolicy(req.AccessPolicy)
 	}
+	if req.BroadcastLanguage != "" {
+		normalizedLanguage := normalizeLiveBroadcastLanguage(req.BroadcastLanguage)
+		updates["broadcast_language"] = normalizedLanguage
+		updates["updated_at"] = time.Now().UTC()
+		if normalizedLanguage != normalizeLiveBroadcastLanguage(session.BroadcastLanguage) {
+			s.incrementMetricSafe(MetricSadhuLiveLanguageSetTotal, 1)
+		}
+		_ = s.db.Model(&models.Room{}).Where("id = ?", session.RoomID).Update("language", normalizedLanguage).Error
+	}
 	if req.MaxParticipants != nil {
 		if *req.MaxParticipants <= 0 {
 			return nil, ErrInvalidPayload
@@ -901,8 +934,7 @@ func (s *ChannelService) UpdateLiveSession(channelID, liveID, actorID uint, req 
 	if err := s.db.First(&session, session.ID).Error; err != nil {
 		return nil, err
 	}
-	s.incrementMetricSafe(MetricSadhuLiveEndedTotal, 1)
-	log.Printf("[SadhuLive] ended channel_id=%d live_id=%d actor_id=%d", channelID, session.ID, actorID)
+	log.Printf("[SadhuLive] updated channel_id=%d live_id=%d actor_id=%d", channelID, session.ID, actorID)
 	return toLiveSessionSummary(&session), nil
 }
 
@@ -1094,6 +1126,16 @@ func (s *ChannelService) EndLiveSession(channelID, liveID, actorID uint) (*model
 	if err := s.db.First(&session, session.ID).Error; err != nil {
 		return nil, err
 	}
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id", "title").First(&channel, channelID).Error; err == nil {
+		archiveService := NewSadhuLiveArchiveService()
+		if marked, markErr := archiveService.MarkSessionArchiveTracks(&session, &channel, actorID); markErr != nil {
+			log.Printf("[SadhuLiveArchive] mark_after_end_failed channel_id=%d live_id=%d err=%v", channelID, session.ID, markErr)
+		} else if marked > 0 {
+			log.Printf("[SadhuLiveArchive] marked_after_end channel_id=%d live_id=%d tracks=%d", channelID, session.ID, marked)
+		}
+	}
+	s.incrementMetricSafe(MetricSadhuLiveEndedTotal, 1)
 	return toLiveSessionSummary(&session), nil
 }
 
@@ -1808,8 +1850,25 @@ func (s *ChannelService) AddMember(channelID, actorID uint, req models.ChannelMe
 	if role != models.ChannelMemberRoleOwner {
 		return nil, ErrChannelForbidden
 	}
-	if req.UserID == 0 {
-		return nil, errors.New("userId is required")
+
+	memberUserID := req.UserID
+	if memberUserID == 0 {
+		nickname := strings.TrimSpace(req.Nickname)
+		if nickname == "" {
+			return nil, errors.New("userId or nickname is required")
+		}
+		nicknameService := NewNicknameService(s.db)
+		targetUser, findErr := nicknameService.FindUserByNickname(nickname)
+		if findErr != nil {
+			if errors.Is(findErr, ErrNicknameInvalid) {
+				return nil, errors.New("invalid nickname")
+			}
+			if errors.Is(findErr, gorm.ErrRecordNotFound) {
+				return nil, errors.New("user not found")
+			}
+			return nil, findErr
+		}
+		memberUserID = targetUser.ID
 	}
 
 	targetRole := req.Role
@@ -1821,20 +1880,28 @@ func (s *ChannelService) AddMember(channelID, actorID uint, req models.ChannelMe
 	}
 
 	var existing models.ChannelMember
-	if err := s.db.Where("channel_id = ? AND user_id = ?", channelID, req.UserID).First(&existing).Error; err == nil {
+	if err := s.db.Where("channel_id = ? AND user_id = ?", channelID, memberUserID).First(&existing).Error; err == nil {
 		return &existing, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
+	var user models.User
+	if err := s.db.Select("id").Where("id = ?", memberUserID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+
 	member := models.ChannelMember{
 		ChannelID: channelID,
-		UserID:    req.UserID,
+		UserID:    memberUserID,
 		Role:      targetRole,
 	}
 	if err := s.db.Create(&member).Error; err != nil {
 		if isDuplicateKeyError(err) {
-			if getErr := s.db.Where("channel_id = ? AND user_id = ?", channelID, req.UserID).First(&existing).Error; getErr != nil {
+			if getErr := s.db.Where("channel_id = ? AND user_id = ?", channelID, memberUserID).First(&existing).Error; getErr != nil {
 				return nil, getErr
 			}
 			return &existing, nil
@@ -1853,7 +1920,7 @@ func (s *ChannelService) ListMembers(channelID, actorID uint) ([]models.ChannelM
 	var members []models.ChannelMember
 	if err := s.db.Where("channel_id = ?", channelID).
 		Preload("User", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id", "spiritual_name", "karmic_name", "avatar_url")
+			return db.Select("id", "spiritual_name", "karmic_name", "avatar_url", "nickname")
 		}).
 		Order("created_at ASC").
 		Find(&members).Error; err != nil {

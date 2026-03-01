@@ -23,6 +23,7 @@ export {
     CreateChannelScreen,
     ChannelPostComposerScreen,
     ChannelManageScreen,
+    ChannelTeamScreen,
 } from './channels';
 
 // Components

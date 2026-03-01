@@ -8,6 +8,11 @@ export interface AccountDeletionResponse {
   effectiveAt?: string;
 }
 
+export interface AccountNicknameUpdateResponse {
+  message: string;
+  user: any;
+}
+
 const getApiError = (error: any, fallback: string): Error => {
   const payload = error?.response?.data;
   const message = typeof payload?.error === 'string' && payload.error.trim() ? payload.error.trim() : fallback;
@@ -32,6 +37,15 @@ export const accountService = {
       return response.data;
     } catch (error) {
       throw getApiError(error, 'Failed to delete account');
+    }
+  },
+
+  async updateNickname(nickname: string): Promise<AccountNicknameUpdateResponse> {
+    try {
+      const response = await apiClient.patch('/profile/nickname', { nickname });
+      return response.data;
+    } catch (error) {
+      throw getApiError(error, 'Failed to update nickname');
     }
   },
 };

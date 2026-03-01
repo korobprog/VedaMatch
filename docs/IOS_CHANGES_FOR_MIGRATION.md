@@ -1,5 +1,132 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Channels: отдельный экран «Команда канала»)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelTeamScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Раньше:
+  - управление командой было спрятано внутри общего `ChannelManage` (перегруженный экран).
+- Сейчас:
+  - добавлен отдельный легкий экран `ChannelTeam` с фокусом только на участниках канала;
+  - вход на экран добавлен из `ChannelDetails` отдельной кнопкой в шапке (для `owner/admin`);
+  - экран поддерживает:
+    - просмотр списка участников (`owner/admin/editor`);
+    - добавление участника, смену ролей `admin/editor`, удаление участника (только `owner`, в соответствии с backend RBAC).
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="ChannelTeam" component={ChannelTeamScreen} options={{ headerShown: false }} />
+```
+
+`frontend/types/navigation.ts`:
+```ts
+ChannelTeam: { channelId: number; source?: 'sadhu_sanga' };
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={[styles.headerButton, styles.manageButton]}
+  onPress={() => navigation.navigate('ChannelTeam', { channelId, source: isSadhuSangaMode ? 'sadhu_sanga' : undefined })}
+>
+  <Users size={16} color={colors.textPrimary} />
+</TouchableOpacity>
+```
+
+## 2026-03-01 (Sadhu Sanga: язык эфира + TTL 7 дней + автопубликация YouTube)
+
+### Измененные файлы
+- `server/internal/models/channel_live.go`
+- `server/internal/models/multimedia.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/services/sadhu_live_archive_service.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/services/multimedia_service.go`
+- `server/internal/handlers/multimedia_handler.go`
+- `server/internal/handlers/admin_handler.go`
+- `server/internal/database/database.go`
+- `server/internal/database/seed.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/services/multimediaService.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `admin/src/app/settings/page.tsx`
+
+### Суть правки (от старого к новому)
+- Язык трансляции:
+  - Было: live-сессия не имела явного поля языка (UI показывал только статус live/scheduled).
+  - Стало: в `ChannelLiveSession` добавлено `broadcastLanguage` (default `ru`), поддержаны create/update/get и отображение в мобильных экранах (`LIVE • RU`).
+- TTL live-архива:
+  - Было: записи live не имели отдельной policy истечения по Sadhu Sanga.
+  - Стало: для `source_context='sadhu_live_archive'` проставляется `retention_expires_at`, cleanup worker удаляет запись и файлы после 7 дней.
+- Автопубликация в YouTube:
+  - Было: после завершения эфира не было встроенной автоматической выгрузки.
+  - Стало: при `end live` запись ставится в очередь YouTube (`queued`), worker выполняет OAuth refresh-token flow и upload в общий канал.
+- Админ-настройки/безопасность:
+  - Было: не было системного набора YouTube ключей для Sadhu Sanga pipeline.
+  - Стало: добавлены настройки `YOUTUBE_*` и `SADHU_SANGA_LIVE_RETENTION_*`; `YOUTUBE_*` видит/изменяет только `superadmin`; `*_SECRET`/`*_TOKEN` маскируются в API.
+
+### Сниппеты кода
+
+`server/internal/models/channel_live.go`:
+```go
+BroadcastLanguage string `json:"broadcastLanguage" gorm:"type:varchar(16);not null;default:'ru'"`
+```
+
+`server/internal/services/channel_service.go`:
+```go
+if req.BroadcastLanguage != "" {
+  normalizedLanguage := normalizeLiveBroadcastLanguage(req.BroadcastLanguage)
+  updates["broadcast_language"] = normalizedLanguage
+  _ = s.db.Model(&models.Room{}).Where("id = ?", session.RoomID).Update("language", normalizedLanguage).Error
+}
+```
+
+`server/internal/services/sadhu_live_archive_service.go`:
+```go
+GlobalScheduler.RegisterTask("sadhu_live_archive_cleanup", 30, func() {
+  _, _ = service.ExpireSadhuLiveArchiveBatch(defaultSadhuRetentionBatchLimit)
+})
+GlobalScheduler.RegisterTask("sadhu_live_youtube_upload", 5, func() {
+  _, _ = service.ProcessYouTubeUploadQueueBatch(defaultSadhuYouTubeUploadLimit)
+})
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const languageCode = String(item.currentLiveSession?.broadcastLanguage || 'ru').trim().toUpperCase();
+{isLive ? `В эфире • ${languageCode}` : `Запланировано • ${languageCode}`}
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`:
+```tsx
+const [channelsResponse, archiveResponse] = await Promise.all([
+  channelService.getChannels({ page: 1, limit: 60 }),
+  multimediaService.getTracks({ type: 'video', sourceContext: 'sadhu_live_archive', page: 1, limit: 12 }),
+]);
+```
+
+`admin/src/app/settings/page.tsx`:
+```tsx
+YOUTUBE_OAUTH_CLIENT_ID: '',
+YOUTUBE_OAUTH_CLIENT_SECRET: '',
+YOUTUBE_OAUTH_REFRESH_TOKEN: '',
+YOUTUBE_UPLOAD_CHANNEL_ID: '',
+YOUTUBE_DEFAULT_PRIVACY: 'public',
+```
+
 ## 2026-03-01 (Sadhu Sanga: C1 рекомендации перенесены на backend API)
 
 ### Измененные файлы
@@ -4533,3 +4660,70 @@ profileName: { fontSize: 34 }
 
 ### Validation
 - `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Global @nickname: единый публичный ID пользователя)
+
+### Измененные файлы
+- `server/internal/models/user.go`
+- `server/internal/services/nickname_service.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/user_handler.go`
+- `server/internal/models/channel.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/database/database.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/context/UserContext.tsx`
+- `frontend/services/contactService.ts`
+- `frontend/services/accountService.ts`
+- `frontend/screens/portal/services/channels/ChannelTeamScreen.tsx`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/screens/RegistrationScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Раньше:
+  - у пользователя не было единого глобального `@nickname`;
+  - добавление участника канала выполнялось только по `userId`;
+  - поиск контактов не учитывал username-style идентификатор.
+- Сейчас:
+  - добавлены поля пользователя `nickname`, `nicknameSetManually`, `nicknameChangedAt`, `nicknameChangeCooldownUntil`;
+  - при регистрации nickname назначается автоматически (или валидируется, если передан вручную);
+  - добавлен endpoint `PATCH /api/profile/nickname` с cooldown (30 дней) и ошибками `NICKNAME_INVALID/NICKNAME_TAKEN/NICKNAME_COOLDOWN_ACTIVE`;
+  - добавлен endpoint `GET /api/users/by-nickname/:nickname`;
+  - `GET /api/contacts` ищет также по `nickname`;
+  - `POST /api/channels/:id/members` поддерживает альтернативный вход `nickname` (с сохранением `userId` для backward compatibility);
+  - RN-компоненты показывают и используют `@nickname` (контакты, профиль, команда канала, регистрационный chip).
+
+### Сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+func (h *AuthHandler) UpdateNickname(c *fiber.Ctx) error {
+  // PATCH /api/profile/nickname
+}
+```
+
+`server/internal/services/channel_service.go`:
+```go
+if memberUserID == 0 {
+  targetUser, findErr := nicknameService.FindUserByNickname(req.Nickname)
+  memberUserID = targetUser.ID
+}
+```
+
+`frontend/screens/portal/services/channels/ChannelTeamScreen.tsx`:
+```tsx
+await channelService.addMember(channelId, {
+  userId: userId > 0 ? userId : undefined,
+  nickname: userId > 0 ? undefined : nicknameCandidate,
+  role: memberRoleInput,
+});
+```
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const nickResponse = await accountService.updateNickname(normalizedNickname);
+```

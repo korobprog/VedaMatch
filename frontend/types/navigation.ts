@@ -184,6 +184,7 @@ export type RootStackParamList = {
     CreateChannel: undefined;
     ChannelPostComposer: { channelId: number; mode?: 'create' | 'edit'; postId?: number; initialPost?: ChannelPost };
     ChannelManage: { channelId: number };
+    ChannelTeam: { channelId: number; source?: 'sadhu_sanga' };
 
     // Wallet Routes
     Wallet: undefined;

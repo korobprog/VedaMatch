@@ -168,6 +168,17 @@
 - `ChannelDetailsScreen` загрузка постов сделана устойчивой:
   - падение `listPosts` (например backend SQL 42P01) больше не роняет весь экран;
   - используется fallback на пустой список постов и non-blocking `console.warn`.
+- Команда канала (UX улучшение):
+  - добавлен отдельный экран `ChannelTeamScreen` для управления участниками без перегруженного `ChannelManage`;
+  - вход на экран вынесен в `ChannelDetails` отдельной кнопкой в header (`owner/admin`);
+  - текущий RBAC сохранен без изменений backend:
+    - просмотр состава команды: `owner/admin/editor`;
+    - добавление/смена роли/удаление: только `owner` (server-side enforce);
+  - поддержаны действия:
+    - поиск контактов и подстановка `userId`,
+    - добавление роли `editor/admin`,
+    - переключение `admin <-> editor`,
+    - удаление участника (кроме owner).
 - Этап B (live + модерация) для Sadhu Sanga:
   - добавлены модели:
     - `ChannelLiveSession` (scheduled/live/ended/cancelled, room binding, accessPolicy=followers, live aggregates),
@@ -275,6 +286,30 @@
       - `SADHU_SANGA_LIVE_ROLLOUT_DENYLIST`
       - `SADHU_SANGA_LIVE_ROLLOUT_PERCENT`
     - live endpoints/service теперь проходят через `IsSadhuSangaLiveEnabledForUser(userID)`.
+  - Stage B+ (language + retention + YouTube autopublish):
+    - live-сессии получили явный `broadcastLanguage` (default `ru`, BCP-47-подобная валидация в `normalizeLiveBroadcastLanguage`);
+    - язык эфира пробрасывается в API/DTO и UI (`SadhuSangaHubScreen`, `SadhuSangaLiveScreen`, `ChannelDetailsScreen`) как бейдж `LIVE • XX`;
+    - на завершении live (`EndLiveSession`) запускается пост-обработка архива:
+      - пометка `media_tracks.source_context='sadhu_live_archive'`,
+      - проставление `retention_expires_at = ended_at + retentionDays`,
+      - постановка в YouTube очередь (`youtube_status='queued'`) при включенной автопубликации;
+    - retention применяется только к `sadhu_live_archive`:
+      - scheduler task `sadhu_live_archive_cleanup` (каждые 30 мин),
+      - удаляются S3-объекты (включая HLS-префикс) и DB-запись трека,
+      - метрика: `sadhu_live_archive_expired_total`;
+    - YouTube upload worker:
+      - scheduler task `sadhu_live_youtube_upload` (каждые 5 мин),
+      - OAuth refresh-token flow (`oauth2.googleapis.com/token`) + `youtube/v3/videos` upload,
+      - retry с exponential backoff, max attempts = 10,
+      - метрики: `sadhu_youtube_upload_success_total`, `sadhu_youtube_upload_failed_total`, `sadhu_youtube_upload_retry_total`;
+    - `media_tracks` расширен полями для архива и YouTube статуса:
+      - `source_context`, `retention_expires_at`,
+      - `youtube_status`, `youtube_video_id`, `youtube_url`, `youtube_uploaded_at`, `youtube_last_error`, `youtube_attempts`, `youtube_next_retry_at`,
+      - link-поля `room_id`, `live_session_id`;
+    - API мультимедиа поддерживает фильтр `sourceContext` (`GET /api/multimedia/tracks`) и фронт использует его для вкладки архива эфиров;
+    - системные настройки YouTube/retention добавлены в seed и админку;
+      - YouTube ключи скрыты для не-`superadmin`,
+      - чувствительные `*_SECRET`/`*_TOKEN` всегда маскируются.
 
 ## Trademark / MKTU Coverage
 - Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.
@@ -744,3 +779,31 @@
 - Локальный `.env` синхронизирован с продовыми `S3_*` значениями.
 - Важно: текущий прод-контур использует `s3.firstvds.ru` (не Yandex Object Storage).
 - `CDN_` переменные в контейнере не были заданы (явный CDN endpoint не найден).
+
+## Global Nickname System (`@nickname`)
+- Введен единый публичный ID пользователя: `nickname` (lowercase, без `@` в хранении).
+- Новые поля пользователя:
+  - `nickname`
+  - `nicknameSetManually`
+  - `nicknameChangedAt`
+  - `nicknameChangeCooldownUntil`
+  - `nicknameDisplay` (computed, `gorm:"-"`).
+- Логин не менялся: вход остается по email/password или Telegram MiniApp.
+- Регистрация:
+  - `POST /api/register` принимает optional `nickname`;
+  - если `nickname` не передан, назначается авто-уникальный.
+- Смена ника:
+  - `PATCH /api/profile/nickname`;
+  - cooldown на смену: 30 дней;
+  - коды ошибок: `NICKNAME_INVALID`, `NICKNAME_TAKEN`, `NICKNAME_COOLDOWN_ACTIVE`.
+- Поиск и резолв:
+  - `GET /api/contacts?q=...` ищет в том числе по `nickname`;
+  - `GET /api/users/by-nickname/:nickname` возвращает публичный профиль.
+- Каналы:
+  - `POST /api/channels/:id/members` поддерживает либо `userId`, либо `nickname`;
+  - в `listMembers` добавлены `userInfo.nickname` и `userInfo.nicknameDisplay`.
+- Frontend:
+  - `UserContext`, `UserContact`, `ChannelMemberUserInfo` расширены `nickname`;
+  - `ChannelTeamScreen` поддерживает добавление участника по `@nickname`;
+  - `EditProfileScreen` позволяет менять `@nickname` через `accountService.updateNickname`;
+  - `RegistrationScreen` в фазе профиля показывает чип `Ваш ID: @nickname`.

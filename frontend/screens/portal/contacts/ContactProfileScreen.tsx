@@ -11,7 +11,7 @@ import { useSettings } from '../../../context/SettingsContext'; // Added useSett
 import { BlurView } from '@react-native-community/blur'; // Added BlurView
 import LinearGradient from 'react-native-linear-gradient'; // Added LinearGradient
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
-import { ChevronLeft, Mail, MapPin, User, Shield, MessageCircle, UserPlus, UserMinus } from 'lucide-react-native'; // Icons
+import { AtSign, ChevronLeft, Mail, MapPin, User, Shield, MessageCircle, UserPlus, UserMinus } from 'lucide-react-native'; // Icons
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -233,6 +233,18 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         icon={<MapPin size={20} color={vTheme.colors.primary} />}
                         label={t('contacts.location') || "Location"}
                         value={`${contact.city || ''}, ${contact.country || ''}`}
+                        theme={vTheme}
+                        textColor={textColor}
+                        subTextColor={subTextColor}
+                        bg={cardBg}
+                        border={cardBorder}
+                        isDark={isDarkMode || isPhotoBg}
+                        allowBlur={allowBlurEffects}
+                    />
+                    <InfoItem
+                        icon={<AtSign size={20} color={vTheme.colors.primary} />}
+                        label="Nickname"
+                        value={contact.nickname ? `@${contact.nickname}` : '—'}
                         theme={vTheme}
                         textColor={textColor}
                         subTextColor={subTextColor}

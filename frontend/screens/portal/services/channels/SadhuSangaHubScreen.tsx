@@ -702,6 +702,7 @@ export default function SadhuSangaHubScreen() {
                     {liveChannels.map((item) => {
                       const session = item.currentLiveSession!;
                       const isLive = session.status === 'live';
+                      const languageCode = String(session.broadcastLanguage || 'ru').trim().toUpperCase();
                       const actionLoading = liveJoinLoadingChannelId === item.ID;
                       return (
                         <View key={`live-${item.ID}-${session.id}`} style={styles.liveCard}>
@@ -709,7 +710,7 @@ export default function SadhuSangaHubScreen() {
                             <View style={styles.liveTitleWrap}>
                               <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
                               <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
-                                {isLive ? 'В эфире' : 'Запланировано'}
+                                {isLive ? `В эфире • ${languageCode}` : `Запланировано • ${languageCode}`}
                               </Text>
                             </View>
                             <TouchableOpacity

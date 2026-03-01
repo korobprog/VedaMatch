@@ -89,8 +89,16 @@ func resolveGodModeForUpdate(currentValue bool, requestedValue bool, currentRole
 
 func sanitizeUsers(users []models.User) {
 	for i := range users {
-		users[i].Password = ""
+		sanitizeUser(&users[i])
 	}
+}
+
+func sanitizeUser(user *models.User) {
+	if user == nil {
+		return
+	}
+	user.Password = ""
+	user.NicknameDisplay = services.NicknameDisplay(user.Nickname)
 }
 
 func sanitizeAvatarExtension(filename string) string {
@@ -311,6 +319,25 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// God mode cannot be set from public registration payload.
 	applyPortalRoleAndGodMode(&user, registerData.Role, false)
 
+	nicknameService := services.NewNicknameService(database.DB)
+	nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration(user.Nickname, user.Email, user.KarmicName)
+	if nicknameErr != nil {
+		status := fiber.StatusUnprocessableEntity
+		message := "Invalid nickname"
+		errorCode := "NICKNAME_INVALID"
+		if errors.Is(nicknameErr, services.ErrNicknameTaken) {
+			status = fiber.StatusConflict
+			message = "Nickname already exists"
+			errorCode = "NICKNAME_TAKEN"
+		}
+		return c.Status(status).JSON(fiber.Map{
+			"error":     message,
+			"errorCode": errorCode,
+		})
+	}
+	user.Nickname = nickname
+	user.NicknameSetManually = nicknameSetManually
+
 	if err := validateRegistrationCredentials(user.Email, user.Password); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -339,6 +366,13 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if result.Error != nil {
 		log.Printf("[AUTH] Registration failed: %v", result.Error)
 		if errors.Is(result.Error, gorm.ErrDuplicatedKey) || strings.Contains(strings.ToLower(result.Error.Error()), "duplicate") {
+			lowerErr := strings.ToLower(result.Error.Error())
+			if strings.Contains(lowerErr, "nickname") {
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					"error":     "Nickname already exists",
+					"errorCode": "NICKNAME_TAKEN",
+				})
+			}
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "Email already exists",
 			})
@@ -348,7 +382,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	user.Password = ""
+	sanitizeUser(&user)
 
 	// Create wallet for the new user (initial 0 Active / 50 Pending LKM)
 	_, err = h.walletService.GetOrCreateWallet(user.ID)
@@ -424,7 +458,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	updateUserDeviceID(&user, loginData.DeviceID)
 
-	user.Password = ""
+	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
 }
 
@@ -493,7 +527,7 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 	user.TelegramLinkedAt = &now
 
 	updateUserDeviceID(&user, req.DeviceID)
-	user.Password = ""
+	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Telegram login successful", user, req.DeviceID)
 }
 
@@ -598,7 +632,7 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 	user.TelegramFirstName = telegramUser.FirstName
 	user.TelegramLastName = telegramUser.LastName
 	user.TelegramLinkedAt = &now
-	user.Password = ""
+	sanitizeUser(&user)
 
 	return issueAuthResponse(c, fiber.StatusOK, "Telegram linked and login successful", user, req.DeviceID)
 }
@@ -735,7 +769,7 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		})
 	}
 
-	user.Password = ""
+	sanitizeUser(&user)
 	_ = services.GetMetricsService().Increment(services.MetricAuthRefreshSuccess, 1)
 
 	return c.Status(fiber.StatusOK).JSON(buildTokenPairResponse(
@@ -1073,9 +1107,73 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	user.Password = ""
+	sanitizeUser(&user)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Profile updated successfully",
+		"user":    user,
+	})
+}
+
+func (h *AuthHandler) UpdateNickname(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var payload struct {
+		Nickname string `json:"nickname"`
+	}
+	if err := c.BodyParser(&payload); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":     "Cannot parse JSON",
+			"errorCode": "INVALID_PAYLOAD",
+		})
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":     "User not found",
+				"errorCode": "USER_NOT_FOUND",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":     "Could not load user",
+			"errorCode": "USER_LOAD_FAILED",
+		})
+	}
+
+	nicknameService := services.NewNicknameService(database.DB)
+	if err := nicknameService.UpdateNickname(&user, payload.Nickname); err != nil {
+		switch {
+		case errors.Is(err, services.ErrNicknameInvalid):
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"error":     "Invalid nickname",
+				"errorCode": "NICKNAME_INVALID",
+			})
+		case errors.Is(err, services.ErrNicknameTaken):
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error":     "Nickname already taken",
+				"errorCode": "NICKNAME_TAKEN",
+			})
+		case errors.Is(err, services.ErrNicknameCooldown):
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":        "Nickname change cooldown active",
+				"errorCode":    "NICKNAME_COOLDOWN_ACTIVE",
+				"retryAfterAt": user.NicknameCooldownUntil,
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":     "Could not update nickname",
+				"errorCode": "NICKNAME_UPDATE_FAILED",
+			})
+		}
+	}
+
+	sanitizeUser(&user)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Nickname updated",
 		"user":    user,
 	})
 }
@@ -1618,8 +1716,8 @@ func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 		if q != "" {
 			like := "%" + q + "%"
 			query = query.Where(
-				"LOWER(karmic_name) LIKE ? OR LOWER(spiritual_name) LIKE ? OR LOWER(city) LIKE ? OR LOWER(country) LIKE ? OR LOWER(yatra) LIKE ?",
-				like, like, like, like, like,
+				"LOWER(karmic_name) LIKE ? OR LOWER(spiritual_name) LIKE ? OR LOWER(nickname) LIKE ? OR LOWER(city) LIKE ? OR LOWER(country) LIKE ? OR LOWER(yatra) LIKE ?",
+				like, like, like, like, like, like,
 			)
 		}
 		if len(cities) > 0 {

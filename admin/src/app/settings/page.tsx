@@ -85,6 +85,22 @@ interface SettingsState {
     LEGAL_RETENTION_MEDIA_DAYS: string;
     LEGAL_RETENTION_LOG_DAYS: string;
     LEGAL_RETENTION_LEGAL_TAX_DAYS: string;
+    SADHU_SANGA_LANGUAGE_LABELS_ENABLED: string;
+    SADHU_SANGA_LIVE_RETENTION_ENABLED: string;
+    SADHU_SANGA_LIVE_RETENTION_DAYS: string;
+    SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED: string;
+    YOUTUBE_ENABLED: string;
+    YOUTUBE_AUTO_PUBLISH_ENABLED: string;
+    YOUTUBE_OAUTH_CLIENT_ID: string;
+    YOUTUBE_OAUTH_CLIENT_SECRET: string;
+    YOUTUBE_OAUTH_REFRESH_TOKEN: string;
+    YOUTUBE_UPLOAD_CHANNEL_ID: string;
+    YOUTUBE_DEFAULT_PRIVACY: string;
+    YOUTUBE_DEFAULT_CATEGORY_ID: string;
+    YOUTUBE_TITLE_TEMPLATE: string;
+    YOUTUBE_DESCRIPTION_TEMPLATE: string;
+    YOUTUBE_DEFAULT_TAGS: string;
+    YOUTUBE_PUBLISH_DELAY_MINUTES: string;
     GEMINI_CORPUS_ID?: string;
     [key: string]: string | undefined;
 }
@@ -152,6 +168,22 @@ const DEFAULT_SETTINGS: SettingsState = {
     LEGAL_RETENTION_MEDIA_DAYS: '30',
     LEGAL_RETENTION_LOG_DAYS: '365',
     LEGAL_RETENTION_LEGAL_TAX_DAYS: '1825',
+    SADHU_SANGA_LANGUAGE_LABELS_ENABLED: 'true',
+    SADHU_SANGA_LIVE_RETENTION_ENABLED: 'true',
+    SADHU_SANGA_LIVE_RETENTION_DAYS: '7',
+    SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED: 'false',
+    YOUTUBE_ENABLED: 'false',
+    YOUTUBE_AUTO_PUBLISH_ENABLED: 'false',
+    YOUTUBE_OAUTH_CLIENT_ID: '',
+    YOUTUBE_OAUTH_CLIENT_SECRET: '',
+    YOUTUBE_OAUTH_REFRESH_TOKEN: '',
+    YOUTUBE_UPLOAD_CHANNEL_ID: '',
+    YOUTUBE_DEFAULT_PRIVACY: 'public',
+    YOUTUBE_DEFAULT_CATEGORY_ID: '22',
+    YOUTUBE_TITLE_TEMPLATE: '{{title}} | Садху Санга',
+    YOUTUBE_DESCRIPTION_TEMPLATE: '{{title}}\n\nЯзык трансляции: {{language}}\n#sadhu #sanga',
+    YOUTUBE_DEFAULT_TAGS: 'sadhu,sanga,lecture',
+    YOUTUBE_PUBLISH_DELAY_MINUTES: '0',
     GEMINI_CORPUS_ID: '',
 };
 
@@ -1042,6 +1074,189 @@ export default function SettingsPage() {
                                             <option>English</option>
                                         </select>
                                     </div>
+
+                                    {activeTab === 'System' && (
+                                        <div className="p-4 bg-[var(--secondary)] rounded-2xl space-y-4">
+                                            <div>
+                                                <p className="text-sm font-semibold">Sadhu Sanga Live • Retention + YouTube</p>
+                                                <p className="text-xs text-[var(--muted-foreground)]">TTL архива (7 дней) и автопубликация записей эфиров на YouTube.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LANGUAGE_LABELS_ENABLED</label>
+                                                    <select
+                                                        value={settings.SADHU_SANGA_LANGUAGE_LABELS_ENABLED || 'true'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_LANGUAGE_LABELS_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LIVE_RETENTION_ENABLED</label>
+                                                    <select
+                                                        value={settings.SADHU_SANGA_LIVE_RETENTION_ENABLED || 'true'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_LIVE_RETENTION_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LIVE_RETENTION_DAYS</label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={settings.SADHU_SANGA_LIVE_RETENTION_DAYS || '7'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_LIVE_RETENTION_DAYS: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED</label>
+                                                    <select
+                                                        value={settings.SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED || 'false'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_ENABLED</label>
+                                                    <select
+                                                        value={settings.YOUTUBE_ENABLED || 'false'}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_AUTO_PUBLISH_ENABLED</label>
+                                                    <select
+                                                        value={settings.YOUTUBE_AUTO_PUBLISH_ENABLED || 'false'}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_AUTO_PUBLISH_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_OAUTH_CLIENT_ID</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.YOUTUBE_OAUTH_CLIENT_ID || ''}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_OAUTH_CLIENT_ID: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_UPLOAD_CHANNEL_ID</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.YOUTUBE_UPLOAD_CHANNEL_ID || ''}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_UPLOAD_CHANNEL_ID: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_OAUTH_CLIENT_SECRET</label>
+                                                    <input
+                                                        type="password"
+                                                        value={settings.YOUTUBE_OAUTH_CLIENT_SECRET || ''}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_OAUTH_CLIENT_SECRET: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_OAUTH_REFRESH_TOKEN</label>
+                                                    <input
+                                                        type="password"
+                                                        value={settings.YOUTUBE_OAUTH_REFRESH_TOKEN || ''}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_OAUTH_REFRESH_TOKEN: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_DEFAULT_PRIVACY</label>
+                                                    <select
+                                                        value={settings.YOUTUBE_DEFAULT_PRIVACY || 'public'}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_DEFAULT_PRIVACY: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="public">public</option>
+                                                        <option value="unlisted">unlisted</option>
+                                                        <option value="private">private</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_DEFAULT_CATEGORY_ID</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.YOUTUBE_DEFAULT_CATEGORY_ID || '22'}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_DEFAULT_CATEGORY_ID: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_PUBLISH_DELAY_MINUTES</label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={settings.YOUTUBE_PUBLISH_DELAY_MINUTES || '0'}
+                                                        onChange={(e) => setSettings({ ...settings, YOUTUBE_PUBLISH_DELAY_MINUTES: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_DEFAULT_TAGS</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.YOUTUBE_DEFAULT_TAGS || ''}
+                                                    onChange={(e) => setSettings({ ...settings, YOUTUBE_DEFAULT_TAGS: e.target.value })}
+                                                    placeholder="sadhu,sanga,lecture"
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_TITLE_TEMPLATE</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.YOUTUBE_TITLE_TEMPLATE || ''}
+                                                    onChange={(e) => setSettings({ ...settings, YOUTUBE_TITLE_TEMPLATE: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">YOUTUBE_DESCRIPTION_TEMPLATE</label>
+                                                <textarea
+                                                    value={settings.YOUTUBE_DESCRIPTION_TEMPLATE || ''}
+                                                    onChange={(e) => setSettings({ ...settings, YOUTUBE_DESCRIPTION_TEMPLATE: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20 min-h-[96px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
                         )}

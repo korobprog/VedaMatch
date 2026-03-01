@@ -120,6 +120,70 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "SADHU_SANGA_LANGUAGE_LABELS_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SADHU_SANGA_LIVE_RETENTION_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SADHU_SANGA_LIVE_RETENTION_DAYS",
+			Value: "7",
+		},
+		{
+			Key:   "SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "YOUTUBE_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "YOUTUBE_AUTO_PUBLISH_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "YOUTUBE_OAUTH_CLIENT_ID",
+			Value: "",
+		},
+		{
+			Key:   "YOUTUBE_OAUTH_CLIENT_SECRET",
+			Value: "",
+		},
+		{
+			Key:   "YOUTUBE_OAUTH_REFRESH_TOKEN",
+			Value: "",
+		},
+		{
+			Key:   "YOUTUBE_UPLOAD_CHANNEL_ID",
+			Value: "",
+		},
+		{
+			Key:   "YOUTUBE_DEFAULT_PRIVACY",
+			Value: "public",
+		},
+		{
+			Key:   "YOUTUBE_DEFAULT_CATEGORY_ID",
+			Value: "22",
+		},
+		{
+			Key:   "YOUTUBE_TITLE_TEMPLATE",
+			Value: "{{title}} | Садху Санга",
+		},
+		{
+			Key:   "YOUTUBE_DESCRIPTION_TEMPLATE",
+			Value: "{{title}}\n\nЯзык трансляции: {{language}}\n#sadhu #sanga",
+		},
+		{
+			Key:   "YOUTUBE_DEFAULT_TAGS",
+			Value: "sadhu,sanga,lecture",
+		},
+		{
+			Key:   "YOUTUBE_PUBLISH_DELAY_MINUTES",
+			Value: "0",
+		},
+		{
 			Key:   "FEED_V2_ENABLED",
 			Value: "false",
 		},

@@ -157,6 +157,7 @@ import {
   CreateChannelScreen,
   ChannelPostComposerScreen,
   ChannelManageScreen,
+  ChannelTeamScreen,
 } from './screens/portal/services';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
@@ -619,6 +620,7 @@ const AppContent = () => {
                   <Stack.Screen name="CreateChannel" component={CreateChannelScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelPostComposer" component={ChannelPostComposerScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelManage" component={ChannelManageScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelTeam" component={ChannelTeamScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />

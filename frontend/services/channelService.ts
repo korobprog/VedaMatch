@@ -53,8 +53,9 @@ export interface PreacherAnalytics {
 }
 
 export interface ChannelLiveSessionUpsertPayload {
-  title: string;
+  title?: string;
   description?: string;
+  broadcastLanguage?: string;
   scheduledAt?: string;
   accessPolicy?: 'followers';
   maxParticipants?: number;

@@ -116,6 +116,7 @@ func (h *MultimediaHandler) GetCategories(c *fiber.Ctx) error {
 // @Summary Get media tracks with filters
 // @Tags Multimedia
 // @Param type query string false "audio or video"
+// @Param sourceContext query string false "Track source context"
 // @Param categoryId query int false "Category ID"
 // @Param madh query string false "Filter by spiritual tradition"
 // @Param yogaStyle query string false "Filter by yoga style"
@@ -133,15 +134,16 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 	}
 
 	filter := services.TrackFilter{
-		MediaType:  c.Query("type"),
-		CategoryID: uint(categoryID),
-		Madh:       c.Query("madh"),
-		YogaStyle:  c.Query("yogaStyle"),
-		Language:   c.Query("language"),
-		Search:     c.Query("search"),
-		Featured:   c.QueryBool("featured"),
-		Page:       boundedQueryInt(c, "page", 1, 1, 100000),
-		Limit:      boundedQueryInt(c, "limit", 20, 1, 100),
+		MediaType:     c.Query("type"),
+		SourceContext: c.Query("sourceContext"),
+		CategoryID:    uint(categoryID),
+		Madh:          c.Query("madh"),
+		YogaStyle:     c.Query("yogaStyle"),
+		Language:      c.Query("language"),
+		Search:        c.Query("search"),
+		Featured:      c.QueryBool("featured"),
+		Page:          boundedQueryInt(c, "page", 1, 1, 100000),
+		Limit:         boundedQueryInt(c, "limit", 20, 1, 100),
 	}
 
 	result, err := h.service.GetTracks(filter)

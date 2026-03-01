@@ -15,6 +15,10 @@ export interface MediaTrack {
     madh?: string;
     yogaStyle?: string;
     language?: string;
+    sourceContext?: string;
+    retentionExpiresAt?: string;
+    youtubeStatus?: 'queued' | 'uploading' | 'uploaded' | 'failed';
+    youtubeUrl?: string;
     viewCount: number;
     likeCount: number;
     isFeatured: boolean;
@@ -58,6 +62,7 @@ export interface MediaCategory {
 
 export interface TrackFilter {
     type?: 'audio' | 'video';
+    sourceContext?: string;
     categoryId?: number;
     madh?: string;
     yogaStyle?: string;
@@ -114,6 +119,7 @@ class MultimediaService {
     async getTracks(filter: TrackFilter = {}): Promise<TrackListResponse> {
         const params: Record<string, string | number | boolean> = {};
         if (filter.type) params.type = filter.type;
+        if (filter.sourceContext) params.sourceContext = filter.sourceContext;
         if (filter.categoryId) params.categoryId = filter.categoryId;
         if (filter.madh) params.madh = filter.madh;
         if (filter.yogaStyle) params.yogaStyle = filter.yogaStyle;

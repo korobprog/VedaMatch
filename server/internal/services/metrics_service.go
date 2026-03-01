@@ -64,6 +64,11 @@ const (
 	MetricSadhuLiveJoinDeniedTotal           = "sadhu_live_join_denied_total"
 	MetricSadhuLiveJoinSuccessTotal          = "sadhu_live_join_success_total"
 	MetricSadhuLiveEndedTotal                = "sadhu_live_ended_total"
+	MetricSadhuLiveLanguageSetTotal          = "sadhu_live_language_set_total"
+	MetricSadhuLiveArchiveExpiredTotal       = "sadhu_live_archive_expired_total"
+	MetricSadhuYouTubeUploadSuccessTotal     = "sadhu_youtube_upload_success_total"
+	MetricSadhuYouTubeUploadFailedTotal      = "sadhu_youtube_upload_failed_total"
+	MetricSadhuYouTubeUploadRetryTotal       = "sadhu_youtube_upload_retry_total"
 )
 
 type MetricsService struct {

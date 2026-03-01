@@ -197,15 +197,18 @@ type ChannelBrandingUpdateRequest struct {
 }
 
 type ChannelMemberAddRequest struct {
-	UserID uint              `json:"userId" binding:"required"`
-	Role   ChannelMemberRole `json:"role"`
+	UserID   uint              `json:"userId"`
+	Nickname string            `json:"nickname"`
+	Role     ChannelMemberRole `json:"role"`
 }
 
 type ChannelMemberUserInfo struct {
-	ID            uint   `json:"id"`
-	SpiritualName string `json:"spiritualName"`
-	KarmicName    string `json:"karmicName"`
-	AvatarURL     string `json:"avatarUrl"`
+	ID              uint   `json:"id"`
+	SpiritualName   string `json:"spiritualName"`
+	KarmicName      string `json:"karmicName"`
+	AvatarURL       string `json:"avatarUrl"`
+	Nickname        string `json:"nickname,omitempty"`
+	NicknameDisplay string `json:"nicknameDisplay,omitempty"`
 }
 
 type ChannelMemberResponse struct {

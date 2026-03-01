@@ -197,15 +197,16 @@ func (s *MultimediaService) DeleteCategory(id uint) error {
 // --- Tracks ---
 
 type TrackFilter struct {
-	MediaType  string
-	CategoryID uint
-	Madh       string
-	YogaStyle  string
-	Language   string
-	Search     string
-	Featured   bool
-	Page       int
-	Limit      int
+	MediaType     string
+	SourceContext string
+	CategoryID    uint
+	Madh          string
+	YogaStyle     string
+	Language      string
+	Search        string
+	Featured      bool
+	Page          int
+	Limit         int
 }
 
 type TrackListResponse struct {
@@ -224,6 +225,9 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 
 	if filter.MediaType != "" {
 		query = query.Where("media_type = ?", filter.MediaType)
+	}
+	if filter.SourceContext != "" {
+		query = query.Where("source_context = ?", filter.SourceContext)
 	}
 	if filter.CategoryID > 0 {
 		query = query.Where("category_id = ?", filter.CategoryID)

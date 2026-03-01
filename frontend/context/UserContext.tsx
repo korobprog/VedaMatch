@@ -11,6 +11,8 @@ import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvSto
 interface UserProfile {
     karmicName: string;
     spiritualName?: string;
+    nickname?: string;
+    nicknameDisplay?: string;
     avatar?: string;
     email?: string;
     isProfileComplete?: boolean;

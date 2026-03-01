@@ -8,3 +8,4 @@ export { default as ChannelDetailsScreen } from './ChannelDetailsScreen';
 export { default as CreateChannelScreen } from './CreateChannelScreen';
 export { default as ChannelPostComposerScreen } from './ChannelPostComposerScreen';
 export { default as ChannelManageScreen } from './ChannelManageScreen';
+export { default as ChannelTeamScreen } from './ChannelTeamScreen';

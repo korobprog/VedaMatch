@@ -87,6 +87,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [yogaStyle, setYogaStyle] = useState('');
     const [guna, setGuna] = useState('');
     const [diet, setDiet] = useState(DIET_OPTIONS[2]);
+    const [registeredNickname, setRegisteredNickname] = useState('');
     const [agreement, setAgreement] = useState(false);
     const [legalLanguage, setLegalLanguage] = useState<LegalLanguage>('en');
     const [hasOpenedTerms, setHasOpenedTerms] = useState(false);
@@ -300,6 +301,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     ...({ __skipAuthSession: true } as any),
                 });
                 const user = response.data.user;
+                setRegisteredNickname(user?.nickname ? `@${user.nickname}` : '');
 
                 await AsyncStorage.setItem('user', JSON.stringify(user));
                 await saveAuthTokens(response.data);
@@ -492,6 +494,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         resizeMode="contain"
                                     />
                                 </View>
+                                {phase === 'profile' && !!registeredNickname ? (
+                                    <Text style={[styles.nicknameChip, { color: roleColors.accent }]}>
+                                        Ваш ID: {registeredNickname}
+                                    </Text>
+                                ) : null}
                             </View>
 
                             {phase === 'initial' ? (
@@ -1006,6 +1013,12 @@ const styles = StyleSheet.create({
     logoImage: {
         width: 50,
         height: 50,
+    },
+    nicknameChip: {
+        marginTop: 10,
+        fontSize: 14,
+        fontWeight: '700',
+        textAlign: 'center',
     },
     label: {
         fontSize: 14,

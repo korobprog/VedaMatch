@@ -17,7 +17,7 @@ import {
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Video } from 'lucide-react-native';
+import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Users, Video } from 'lucide-react-native';
 import { channelService, PreacherAnalytics } from '../../../../services/channelService';
 import {
   Channel,
@@ -54,6 +54,12 @@ const canModeratePosts = (role?: ChannelMemberRole) => role === 'owner' || role 
 const MAX_SHOWCASE_PREVIEW_ITEMS = 4;
 const CHANNEL_PROMPT_KEY = 'channels_channel_details_tip_v1';
 const POST_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LIVE_BROADCAST_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'ru', label: 'Русский' },
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'es', label: 'Español' },
+];
 
 type ParsedPostMedia = {
   images: ChannelPostMediaImage[];
@@ -187,6 +193,15 @@ const resolvePreviewLimit = (filter: ShowcaseFilterPayload): number => {
     return value;
   }
   return MAX_SHOWCASE_PREVIEW_ITEMS;
+};
+
+const resolveLiveLanguageLabel = (code?: string): string => {
+  const normalized = String(code || 'ru').trim().toLowerCase() || 'ru';
+  const found = LIVE_BROADCAST_LANGUAGES.find(item => item.code === normalized);
+  if (found) {
+    return found.label;
+  }
+  return normalized.toUpperCase();
 };
 
 const parsePostMedia = (raw: string): ParsedPostMedia => {
@@ -684,6 +699,7 @@ export default function ChannelDetailsScreen() {
   const isModerator = canModeratePosts(viewerRole);
   const canManageLive = isSadhuSangaMode && isEditor;
   const canJoinLive = isSadhuSangaMode && (viewerRole === 'subscriber' || viewerRole === 'editor' || viewerRole === 'admin' || viewerRole === 'owner');
+  const liveLanguageLabel = resolveLiveLanguageLabel(liveSession?.broadcastLanguage);
   const liveStatusLabel = liveSession?.status === 'live'
     ? 'В эфире'
     : liveSession?.status === 'scheduled'
@@ -704,6 +720,7 @@ export default function ChannelDetailsScreen() {
       const created = await channelService.createChannelLive(channelId, {
         title: `${channel?.title || 'Канал'} — прямой эфир`,
         description: 'Анонс эфира',
+        broadcastLanguage: String(user?.language || 'ru').trim().toLowerCase() || 'ru',
         scheduledAt: scheduled,
         accessPolicy: 'followers',
       });
@@ -716,7 +733,45 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channel?.title, channelId, liveBusy]);
+  }, [canManageLive, channel?.title, channelId, liveBusy, user?.language]);
+
+  const handleSetLiveLanguage = useCallback(async (languageCode: string) => {
+    if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
+      return;
+    }
+    const normalized = String(languageCode || '').trim().toLowerCase();
+    if (!normalized || normalized === String(liveSession.broadcastLanguage || 'ru').trim().toLowerCase()) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const updated = await channelService.updateChannelLive(channelId, liveSession.id, {
+        broadcastLanguage: normalized,
+      });
+      setLiveSession(updated);
+      Alert.alert('Язык эфира', `Установлен язык: ${resolveLiveLanguageLabel(normalized)}.`);
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить язык эфира');
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [canManageLive, channelId, liveBusy, liveSession?.broadcastLanguage, liveSession?.id]);
+
+  const openLiveLanguagePicker = useCallback(() => {
+    if (!canManageLive || !liveSession?.id || liveBusy) {
+      return;
+    }
+    const buttons: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }> = LIVE_BROADCAST_LANGUAGES.map(item => ({
+      text: item.label + (item.code === String(liveSession.broadcastLanguage || 'ru').trim().toLowerCase() ? ' ✓' : ''),
+      onPress: () => {
+        void handleSetLiveLanguage(item.code);
+      },
+    }));
+    buttons.push({ text: 'Отмена', style: 'cancel' as const });
+    Alert.alert('Язык трансляции', 'Выберите язык текущего эфира', buttons);
+  }, [canManageLive, handleSetLiveLanguage, liveBusy, liveSession?.broadcastLanguage, liveSession?.id]);
 
   const handleStartLive = useCallback(async () => {
     if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
@@ -1354,6 +1409,14 @@ export default function ChannelDetailsScreen() {
               {isModerator ? (
                 <TouchableOpacity
                   style={[styles.headerButton, styles.manageButton]}
+                  onPress={() => navigation.navigate('ChannelTeam', { channelId, source: isSadhuSangaMode ? 'sadhu_sanga' : undefined })}
+                >
+                  <Users size={16} color={colors.textPrimary} />
+                </TouchableOpacity>
+              ) : null}
+              {isModerator ? (
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.manageButton]}
                   onPress={() => navigation.navigate('ChannelManage', { channelId })}
                 >
                   <Settings2 size={16} color={colors.textPrimary} />
@@ -1450,8 +1513,22 @@ export default function ChannelDetailsScreen() {
               {liveStatusLabel}
             </Text>
             {liveSession ? (
+              <Text style={styles.liveLanguageCaption}>Язык трансляции: {liveLanguageLabel}</Text>
+            ) : null}
+            {liveSession ? (
               <View style={styles.liveCard}>
                 <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || 'Эфир канала'}</Text>
+                <View style={styles.liveLanguageRow}>
+                  <View style={styles.liveLanguageChip}>
+                    <Text style={styles.liveLanguageChipText}>{(liveSession.broadcastLanguage || 'ru').toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.liveCardMeta}>{liveLanguageLabel}</Text>
+                  {canManageLive ? (
+                    <TouchableOpacity style={styles.liveLanguageAction} onPress={openLiveLanguagePicker} disabled={liveBusy}>
+                      <Text style={styles.liveLanguageActionText}>Изменить язык</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
                 {liveSession.scheduledAt ? (
                   <Text style={styles.liveCardMeta}>
                     План: {new Date(liveSession.scheduledAt).toLocaleString('ru-RU', {
@@ -2101,6 +2178,11 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       fontSize: 12,
       fontWeight: '700',
     },
+    liveLanguageCaption: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: -2,
+    },
     liveStatusLive: {
       color: colors.accent,
     },
@@ -2120,6 +2202,39 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     liveCardMeta: {
       color: colors.textSecondary,
       fontSize: 12,
+    },
+    liveLanguageRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    liveLanguageChip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    liveLanguageChipText: {
+      color: colors.accent,
+      fontSize: 10,
+      fontWeight: '900',
+    },
+    liveLanguageAction: {
+      marginLeft: 'auto',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    liveLanguageActionText: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      fontWeight: '700',
     },
     liveActionsRow: {
       marginTop: 2,
