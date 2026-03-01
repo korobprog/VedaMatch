@@ -59,6 +59,11 @@ const (
 	MetricChannelPostCommentCreateTotal      = "channel_post_comment_create_total"
 	MetricChannelPostShareTotal              = "channel_post_share_total"
 	MetricChannelPostViewTotal               = "channel_post_view_total"
+	MetricSadhuLiveCreatedTotal              = "sadhu_live_created_total"
+	MetricSadhuLiveStartedTotal              = "sadhu_live_started_total"
+	MetricSadhuLiveJoinDeniedTotal           = "sadhu_live_join_denied_total"
+	MetricSadhuLiveJoinSuccessTotal          = "sadhu_live_join_success_total"
+	MetricSadhuLiveEndedTotal                = "sadhu_live_ended_total"
 )
 
 type MetricsService struct {

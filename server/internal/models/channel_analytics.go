@@ -6,8 +6,11 @@ type ChannelPreacherAnalyticsCity struct {
 }
 
 type ChannelPreacherAnalyticsResponse struct {
-	ChannelID            uint                           `json:"channelId"`
-	TotalLectureViews    int64                          `json:"totalLectureViews"`
-	SeminarRegistrations int64                          `json:"seminarRegistrations"`
-	ActiveCities         []ChannelPreacherAnalyticsCity `json:"activeCities"`
+	ChannelID              uint                           `json:"channelId"`
+	TotalLectureViews      int64                          `json:"totalLectureViews"`
+	SeminarRegistrations   int64                          `json:"seminarRegistrations"`
+	ActiveCities           []ChannelPreacherAnalyticsCity `json:"activeCities"`
+	LiveSessionsTotal      int64                          `json:"liveSessionsTotal"`
+	LiveUniqueViewersTotal int64                          `json:"liveUniqueViewersTotal"`
+	LiveWatchMinutesTotal  int64                          `json:"liveWatchMinutesTotal"`
 }

@@ -23,6 +23,16 @@ type channelService interface {
 	UnfollowChannel(channelID, followerID uint) error
 	GetFollowStatus(channelID, viewerID uint) (bool, int64, error)
 	GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error)
+	GetLiveSession(channelID, viewerID uint) (*models.ChannelLiveSessionSummary, error)
+	CreateLiveSession(channelID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error)
+	UpdateLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error)
+	StartLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error)
+	EndLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error)
+	CancelLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error)
+	JoinLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveJoinRequest) (*models.ChannelLiveJoinResponse, error)
+	LeaveLiveSession(channelID, liveID, actorID uint) error
+	ListLiveParticipants(channelID, liveID, actorID uint) (*models.ChannelLiveParticipantsResponse, error)
+	ModerateLiveParticipant(channelID, liveID, actorID uint, req models.ChannelLiveModerationRequest) (*models.ChannelLiveParticipantsResponse, error)
 	GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error)
 	UpsertSadhuSangaPushPreference(userID uint, req models.ChannelSmartPushPreferenceUpsertRequest) (*models.ChannelSmartPushPreferenceResponse, error)
 	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
@@ -288,6 +298,247 @@ func (h *ChannelHandler) GetPreacherAnalytics(c *fiber.Ctx) error {
 		return respondChannelError(c, err)
 	}
 	return c.JSON(analytics)
+}
+
+func (h *ChannelHandler) GetLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	session, err := h.service.GetLiveSession(channelID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	if session == nil {
+		return c.JSON(fiber.Map{"session": nil, "liveStatus": "none"})
+	}
+	return c.JSON(fiber.Map{"session": session, "liveStatus": session.Status})
+}
+
+func (h *ChannelHandler) CreateLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	var req models.ChannelLiveSessionUpsertRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	session, err := h.service.CreateLiveSession(channelID, userID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(session)
+}
+
+func (h *ChannelHandler) UpdateLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	var req models.ChannelLiveSessionUpsertRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	session, err := h.service.UpdateLiveSession(channelID, liveID, userID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(session)
+}
+
+func (h *ChannelHandler) StartLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	session, err := h.service.StartLiveSession(channelID, liveID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(session)
+}
+
+func (h *ChannelHandler) EndLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	session, err := h.service.EndLiveSession(channelID, liveID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(session)
+}
+
+func (h *ChannelHandler) CancelLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	session, err := h.service.CancelLiveSession(channelID, liveID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(session)
+}
+
+func (h *ChannelHandler) JoinLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	var req models.ChannelLiveJoinRequest
+	if err := c.BodyParser(&req); err != nil && !strings.Contains(strings.ToLower(err.Error()), "empty") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	response, err := h.service.JoinLiveSession(channelID, liveID, userID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(response)
+}
+
+func (h *ChannelHandler) LeaveLiveSession(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	if err := h.service.LeaveLiveSession(channelID, liveID, userID); err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (h *ChannelHandler) ListLiveParticipants(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+	response, err := h.service.ListLiveParticipants(channelID, liveID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(response)
+}
+
+func (h *ChannelHandler) ModerateLiveParticipant(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	liveID, err := parseUintParam(c, "liveId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid live ID"})
+	}
+
+	var req models.ChannelLiveModerationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	response, err := h.service.ModerateLiveParticipant(channelID, liveID, userID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(response)
 }
 
 func (h *ChannelHandler) GetSadhuSangaPushPreference(c *fiber.Ctx) error {
@@ -1230,6 +1481,8 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrChannelNotFound), errors.Is(err, services.ErrChannelPostNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	case errors.Is(err, services.ErrChannelLiveNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrChannelForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrPostEditWindow):
@@ -1244,6 +1497,14 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 	case strings.Contains(msg, "forbidden"), strings.Contains(msg, "not authorized"), strings.Contains(msg, "unauthorized"):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	default:
+		if strings.Contains(msg, "already exists") ||
+			strings.Contains(msg, "conflict") ||
+			strings.Contains(msg, "cannot cancel active") ||
+			strings.Contains(msg, "status transition") ||
+			strings.Contains(msg, "only active live session can be ended") ||
+			strings.Contains(msg, "is not active") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+		}
 		if strings.Contains(msg, "invalid") ||
 			strings.Contains(msg, "required") ||
 			strings.Contains(msg, "too large") ||

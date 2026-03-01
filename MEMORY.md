@@ -165,6 +165,62 @@
 - `ChannelDetailsScreen` загрузка постов сделана устойчивой:
   - падение `listPosts` (например backend SQL 42P01) больше не роняет весь экран;
   - используется fallback на пустой список постов и non-blocking `console.warn`.
+- Этап B (live + модерация) для Sadhu Sanga:
+  - добавлены модели:
+    - `ChannelLiveSession` (scheduled/live/ended/cancelled, room binding, accessPolicy=followers, live aggregates),
+    - `ChannelLiveViewer` (join/leave activity + accumulated watch seconds);
+  - добавлен live API на `channels`:
+    - `GET /api/channels/:id/live`
+    - `POST /api/channels/:id/live`
+    - `PATCH /api/channels/:id/live/:liveId`
+    - `POST /api/channels/:id/live/:liveId/start`
+    - `POST /api/channels/:id/live/:liveId/end`
+    - `POST /api/channels/:id/live/:liveId/cancel`
+    - `POST /api/channels/:id/live/:liveId/join`
+    - `POST /api/channels/:id/live/:liveId/leave`
+  - RBAC live:
+    - `editor+` управляет lifecycle;
+    - `subscriber+` может join;
+    - не подписчик получает `403`.
+  - push:
+    - на create/start live отправляется push подписчикам канала с применением текущих smart-push фильтров.
+  - channel DTO расширен live-метаданными:
+    - `liveStatus`,
+    - `currentLiveSession`.
+  - `preacher analytics` расширена live-метриками:
+    - `liveSessionsTotal`,
+    - `liveUniqueViewersTotal`,
+    - `liveWatchMinutesTotal`.
+  - frontend:
+    - `SadhuSangaHubScreen`: добавлен блок `Прямой эфир` с CTA `Смотреть эфир`.
+    - `ChannelDetailsScreen` (`source='sadhu_sanga'`): добавлен live-блок с `Анонсировать`, `Старт`, `Завершить`, `Отменить`, `Войти в эфир`.
+    - `RoomChatScreen`: поддержка `autoStartCall` и отправка `leave` по закрытию live.
+  - runtime moderation live:
+    - добавлена модель `ChannelLiveModeration` (`session_id + user_id`, `is_muted`, `is_blocked`, `reason`, `updated_by`);
+    - новый API:
+      - `GET /api/channels/:id/live/:liveId/participants`
+      - `POST /api/channels/:id/live/:liveId/moderation` (`mute|unmute|block|unblock|kick`);
+    - join-flow учитывает `is_blocked` и запрещает вход в live (`403`);
+    - в `ChannelDetailsScreen` для `editor+` добавлен список участников эфира с быстрыми moderation-действиями.
+  - observability Stage B:
+    - добавлены счетчики:
+      - `sadhu_live_created_total`
+      - `sadhu_live_started_total`
+      - `sadhu_live_join_denied_total`
+      - `sadhu_live_join_success_total`
+      - `sadhu_live_ended_total`
+    - в live service добавлены audit-логи с контекстом `channel_id/live_id/actor_id/role` для create/start/end, join success/denied и moderation action.
+  - нагрузочный smoke-guard push без дублей:
+    - в live fanout добавлена явная дедупликация получателей `uniqueChannelMemberUserIDs(...)` (по `user_id`, `0` пропускается);
+    - добавлен unit/smoke тест на 1000+ участников с дублями: ожидается ровно 1000 уникальных ID.
+  - интеграционный runbook Stage B:
+    - добавлен `docs/sadhu-sanga-live-smoke-runbook.md` (API happy path, runtime moderation, push dedupe SQL-check, метрики/логи, RN UI smoke, rollout gates 10/50/100).
+  - rollout Stage B:
+    - добавлен user-level rollout для live:
+      - `SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST`
+      - `SADHU_SANGA_LIVE_ROLLOUT_DENYLIST`
+      - `SADHU_SANGA_LIVE_ROLLOUT_PERCENT`
+    - live endpoints/service теперь проходят через `IsSadhuSangaLiveEnabledForUser(userID)`.
 
 ## Trademark / MKTU Coverage
 - Проверка классов МКТУ (запрос 2026-02-26) должна опираться на фактические сервисы `server/cmd/api/main.go` и модели `server/internal/models/*`.

@@ -39,6 +39,7 @@ import { BalancePill } from '../../../components/wallet/BalancePill';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import { messageService } from '../../../services/messageService';
 import { roomCallService } from '../../../services/roomCallService';
+import { channelService } from '../../../services/channelService';
 import { roomSupportService, RoomSupportConfig } from '../../../services/roomSupportService';
 import { appendLiveMessage, prependHistoryPage } from './roomChatMessageUtils';
 import { createRoomChatStyles } from './roomChatStyles';
@@ -64,7 +65,16 @@ interface ChatMessage {
 
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
-    const { roomId, roomName, isYatraChat, listenerMode = false, showSupportPrompt = true } = route.params;
+    const {
+        roomId,
+        roomName,
+        isYatraChat,
+        listenerMode = false,
+        showSupportPrompt = true,
+        autoStartCall = false,
+        liveChannelId,
+        liveId,
+    } = route.params;
     const { t, i18n } = useTranslation();
     const { isDarkMode, assistantType } = useSettings();
     const { user } = useUser();
@@ -113,6 +123,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const inputFade = useRef(new Animated.Value(0)).current;
     const inputTranslateY = useRef(new Animated.Value(12)).current;
     const supportPulse = useRef(new Animated.Value(1)).current;
+    const autoStartTriggeredRef = useRef(false);
 
     useEffect(() => {
         if (roomDetails?.bookCode) {
@@ -295,6 +306,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         triggerTapFeedback();
         setIsCallActive(true);
     }, [listenerMode, roomSfuEnabled, t]);
+
+    useEffect(() => {
+        if (!autoStartCall || autoStartTriggeredRef.current || listenerMode) {
+            return;
+        }
+        if (!roomSfuEnabled) {
+            return;
+        }
+        autoStartTriggeredRef.current = true;
+        setIsCallActive(true);
+    }, [autoStartCall, listenerMode, roomSfuEnabled]);
 
     const fetchFontSettings = useCallback(async () => {
         const requestId = ++latestFontSettingsRequestRef.current;
@@ -795,7 +817,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 {isCallActive && (
                     <RoomVideoBar
                         roomId={roomId}
-                        onClose={() => setIsCallActive(false)}
+                        onClose={() => {
+                            setIsCallActive(false);
+                            if (liveChannelId && liveId) {
+                                void channelService.leaveChannelLive(liveChannelId, liveId).catch(() => {});
+                            }
+                        }}
                         blockedByListener={listenerMode}
                     />
                 )}

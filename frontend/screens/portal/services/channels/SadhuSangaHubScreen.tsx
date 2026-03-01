@@ -14,7 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import { ArrowLeft, Search, Sparkles, MessageCircle, CalendarDays } from 'lucide-react-native';
+import { ArrowLeft, Search, Sparkles, MessageCircle, CalendarDays, Radio } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel } from '../../../../types/channel';
 import { Service, ServiceSchedule, getSchedules, getServices } from '../../../../services/serviceService';
@@ -146,6 +146,7 @@ export default function SadhuSangaHubScreen() {
   const [upcomingSeminars, setUpcomingSeminars] = useState<SeminarPreview[]>([]);
   const [seminarsLoading, setSeminarsLoading] = useState(false);
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
+  const [liveJoinLoadingChannelId, setLiveJoinLoadingChannelId] = useState<number | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [pushReminder1h, setPushReminder1h] = useState(true);
   const [pushReminder10m, setPushReminder10m] = useState(true);
@@ -531,6 +532,66 @@ export default function SadhuSangaHubScreen() {
     );
   };
 
+  const liveChannels = useMemo(() => {
+    return channels
+      .filter((channel) => channel.currentLiveSession && (channel.liveStatus === 'live' || channel.liveStatus === 'scheduled'))
+      .sort((a, b) => {
+        const aPriority = a.liveStatus === 'live' ? 0 : 1;
+        const bPriority = b.liveStatus === 'live' ? 0 : 1;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        const aTs = Date.parse(a.currentLiveSession?.startedAt || a.currentLiveSession?.scheduledAt || '');
+        const bTs = Date.parse(b.currentLiveSession?.startedAt || b.currentLiveSession?.scheduledAt || '');
+        if (Number.isFinite(aTs) && Number.isFinite(bTs) && aTs !== bTs) {
+          return bTs - aTs;
+        }
+        return b.ID - a.ID;
+      })
+      .slice(0, 3);
+  }, [channels]);
+
+  const handleJoinLive = useCallback(async (item: Channel) => {
+    const session = item.currentLiveSession;
+    if (!session || session.status !== 'live') {
+      Alert.alert('Эфир', 'Сейчас эфир не активен.');
+      return;
+    }
+    const followState = followStateByChannel[item.ID] || {
+      isFollowing: Boolean(item.isFollowing),
+      followersCount: Math.max(0, Number(item.followersCount) || 0),
+    };
+    const canJoin = Boolean(user?.ID) && (item.ownerId === user?.ID || followState.isFollowing);
+    if (!canJoin) {
+      Alert.alert('Требуется подписка', 'Подпишитесь на проповедника, чтобы смотреть эфир.');
+      return;
+    }
+    if (liveJoinLoadingChannelId === item.ID) {
+      return;
+    }
+    setLiveJoinLoadingChannelId(item.ID);
+    try {
+      const join = await channelService.joinChannelLive(item.ID, session.id, {
+        participantName: user?.spiritualName || user?.karmicName || '',
+        metadata: { platform: 'mobile' },
+      });
+      navigation.navigate('RoomChat', {
+        roomId: join.roomId,
+        roomName: `${item.title} · Live`,
+        autoStartCall: true,
+        liveChannelId: item.ID,
+        liveId: session.id,
+      });
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось подключиться к эфиру');
+      void loadChannels(true);
+    } finally {
+      if (mountedRef.current) {
+        setLiveJoinLoadingChannelId(null);
+      }
+    }
+  }, [followStateByChannel, liveJoinLoadingChannelId, loadChannels, navigation, user?.ID, user?.karmicName, user?.spiritualName]);
+
   return (
     <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -679,6 +740,64 @@ export default function SadhuSangaHubScreen() {
         </View>
 
         <View style={styles.seminarsSection}>
+          <View style={styles.liveSection}>
+            <View style={styles.liveHeaderRow}>
+              <Text style={styles.liveTitle}>Прямой эфир</Text>
+            </View>
+            {liveChannels.length === 0 ? (
+              <Text style={styles.liveEmpty}>Скоро здесь появятся эфиры проповедников</Text>
+            ) : (
+              <View style={styles.liveList}>
+                {liveChannels.map((item) => {
+                  const session = item.currentLiveSession!;
+                  const isLive = session.status === 'live';
+                  const actionLoading = liveJoinLoadingChannelId === item.ID;
+                  return (
+                    <View key={`live-${item.ID}-${session.id}`} style={styles.liveCard}>
+                      <View style={styles.liveCardRow}>
+                        <View style={styles.liveTitleWrap}>
+                          <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
+                          <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
+                            {isLive ? 'В эфире' : 'Запланировано'}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.liveActionButton,
+                            !isLive && styles.liveActionButtonDisabled,
+                            actionLoading && styles.liveActionButtonDisabled,
+                          ]}
+                          disabled={!isLive || actionLoading}
+                          onPress={() => void handleJoinLive(item)}
+                        >
+                          {actionLoading ? (
+                            <ActivityIndicator size="small" color={colors.textPrimary} />
+                          ) : (
+                            <>
+                              <Radio size={14} color={colors.textPrimary} />
+                              <Text style={styles.liveActionButtonText}>Смотреть эфир</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || 'Эфир'}</Text>
+                      {(session.startedAt || session.scheduledAt) ? (
+                        <Text style={styles.liveCardDate}>
+                          {new Date(session.startedAt || session.scheduledAt || '').toLocaleString('ru-RU', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           <View style={styles.seminarsHeaderRow}>
             <Text style={styles.seminarsTitle}>Ближайшие семинары</Text>
             <View style={styles.seminarsHeaderActions}>
@@ -830,6 +949,102 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     backgroundColor: colors.surface,
     padding: 10,
     gap: 8,
+  },
+  liveSection: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    padding: 10,
+    gap: 8,
+  },
+  liveHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  liveTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  liveEmpty: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  liveList: {
+    gap: 8,
+  },
+  liveCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 9,
+    gap: 6,
+  },
+  liveCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  liveTitleWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  liveCardTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  liveBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    fontSize: 10,
+    fontWeight: '800',
+    overflow: 'hidden',
+  },
+  liveBadgeActive: {
+    color: colors.accent,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  liveBadgeScheduled: {
+    color: colors.textSecondary,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+  },
+  liveActionButton: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveActionButtonDisabled: {
+    opacity: 0.55,
+  },
+  liveActionButtonText: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  liveCardMeta: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  liveCardDate: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
   },
   seminarsHeaderRow: {
     flexDirection: 'row',

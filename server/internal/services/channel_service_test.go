@@ -9,6 +9,40 @@ import (
 	"rag-agent-server/internal/models"
 )
 
+func TestUniqueChannelMemberUserIDs_DeduplicatesAndSkipsZero(t *testing.T) {
+	t.Parallel()
+
+	members := make([]models.ChannelMember, 0, 1205)
+	members = append(members, models.ChannelMember{UserID: 0}) // should be skipped
+	for i := uint(1); i <= 1000; i++ {
+		members = append(members, models.ChannelMember{UserID: i})
+	}
+	// duplicates for load-smoke style check
+	for i := uint(1); i <= 200; i++ {
+		members = append(members, models.ChannelMember{UserID: i})
+	}
+	members = append(members, models.ChannelMember{UserID: 777}) // extra duplicate
+
+	got := uniqueChannelMemberUserIDs(members)
+	if len(got) != 1000 {
+		t.Fatalf("expected 1000 unique ids, got %d", len(got))
+	}
+
+	seen := make(map[uint]struct{}, len(got))
+	for _, id := range got {
+		if id == 0 {
+			t.Fatalf("zero user id must be skipped")
+		}
+		if _, ok := seen[id]; ok {
+			t.Fatalf("duplicate id detected: %d", id)
+		}
+		seen[id] = struct{}{}
+	}
+	if _, ok := seen[1000]; !ok {
+		t.Fatalf("expected id 1000 in result")
+	}
+}
+
 func TestValidateChannelCTAPayload(t *testing.T) {
 	t.Parallel()
 

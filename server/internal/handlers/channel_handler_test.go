@@ -59,6 +59,55 @@ func (m *mockChannelService) GetPreacherAnalytics(channelID, actorID uint) (*mod
 		ActiveCities:         []models.ChannelPreacherAnalyticsCity{},
 	}, nil
 }
+func (m *mockChannelService) GetLiveSession(channelID, viewerID uint) (*models.ChannelLiveSessionSummary, error) {
+	return nil, nil
+}
+func (m *mockChannelService) CreateLiveSession(channelID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error) {
+	return &models.ChannelLiveSessionSummary{ID: 1, ChannelID: channelID, RoomID: 1, Title: req.Title, Status: models.ChannelLiveStatusScheduled}, nil
+}
+func (m *mockChannelService) UpdateLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error) {
+	return &models.ChannelLiveSessionSummary{ID: liveID, ChannelID: channelID, RoomID: 1, Title: req.Title, Status: models.ChannelLiveStatusScheduled}, nil
+}
+func (m *mockChannelService) StartLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	return &models.ChannelLiveSessionSummary{ID: liveID, ChannelID: channelID, RoomID: 1, Status: models.ChannelLiveStatusLive}, nil
+}
+func (m *mockChannelService) EndLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	return &models.ChannelLiveSessionSummary{ID: liveID, ChannelID: channelID, RoomID: 1, Status: models.ChannelLiveStatusEnded}, nil
+}
+func (m *mockChannelService) CancelLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	return &models.ChannelLiveSessionSummary{ID: liveID, ChannelID: channelID, RoomID: 1, Status: models.ChannelLiveStatusCancelled}, nil
+}
+func (m *mockChannelService) JoinLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveJoinRequest) (*models.ChannelLiveJoinResponse, error) {
+	return &models.ChannelLiveJoinResponse{
+		LiveID:      liveID,
+		RoomID:      1,
+		RoomName:    "room-1",
+		Participant: "user-1",
+		Token:       "token",
+		WsURL:       "wss://example.com",
+		SessionState: models.ChannelLiveSessionSummary{
+			ID: liveID, ChannelID: channelID, RoomID: 1, Status: models.ChannelLiveStatusLive,
+		},
+	}, nil
+}
+func (m *mockChannelService) LeaveLiveSession(channelID, liveID, actorID uint) error {
+	return nil
+}
+func (m *mockChannelService) ListLiveParticipants(channelID, liveID, actorID uint) (*models.ChannelLiveParticipantsResponse, error) {
+	return &models.ChannelLiveParticipantsResponse{
+		LiveID: liveID,
+		SessionState: models.ChannelLiveSessionSummary{
+			ID:        liveID,
+			ChannelID: channelID,
+			RoomID:    1,
+			Status:    models.ChannelLiveStatusLive,
+		},
+		Participants: []models.ChannelLiveParticipant{},
+	}, nil
+}
+func (m *mockChannelService) ModerateLiveParticipant(channelID, liveID, actorID uint, req models.ChannelLiveModerationRequest) (*models.ChannelLiveParticipantsResponse, error) {
+	return m.ListLiveParticipants(channelID, liveID, actorID)
+}
 func (m *mockChannelService) GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error) {
 	return &models.ChannelSmartPushPreferenceResponse{
 		UserID:        userID,

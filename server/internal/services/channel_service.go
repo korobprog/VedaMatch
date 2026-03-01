@@ -15,8 +15,10 @@ import (
 	"math"
 	"mime/multipart"
 	"os"
+	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	sfuService "rag-agent-server/internal/services/sfu"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +70,7 @@ var (
 	ErrInvalidPostStatus   = errors.New("invalid post status")
 	ErrInvalidPayload      = errors.New("invalid payload")
 	ErrPostEditWindow      = errors.New("post edit window expired")
+	ErrChannelLiveNotFound = errors.New("channel live session not found")
 )
 
 const (
@@ -190,6 +193,9 @@ func (s *ChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.
 		if err := s.enrichChannelsFollowMeta([]*models.Channel{&channel}, viewerID); err != nil {
 			return nil, err
 		}
+		if err := s.enrichChannelsLiveMeta([]*models.Channel{&channel}); err != nil {
+			return nil, err
+		}
 		return &channel, nil
 	}
 
@@ -202,6 +208,9 @@ func (s *ChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.
 	}
 
 	if err := s.enrichChannelsFollowMeta([]*models.Channel{&channel}, viewerID); err != nil {
+		return nil, err
+	}
+	if err := s.enrichChannelsLiveMeta([]*models.Channel{&channel}); err != nil {
 		return nil, err
 	}
 
@@ -436,6 +445,877 @@ func (s *ChannelService) UpsertSadhuSangaPushPreference(userID uint, req models.
 	}, nil
 }
 
+func (s *ChannelService) IsSadhuSangaLiveEnabled() bool {
+	if !s.IsFeatureEnabled() {
+		return false
+	}
+	if parseBoolWithDefault(s.getSystemSettingValue("SADHU_SANGA_LIVE_ENABLED", "true"), true) {
+		return true
+	}
+	envValue := strings.TrimSpace(os.Getenv("SADHU_SANGA_LIVE_ENABLED"))
+	if envValue == "" {
+		return false
+	}
+	return parseBoolWithDefault(envValue, false)
+}
+
+func (s *ChannelService) IsSadhuSangaLiveEnabledForUser(userID uint) bool {
+	if userID == 0 {
+		return false
+	}
+	if !s.IsSadhuSangaLiveEnabled() {
+		return false
+	}
+
+	denylist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_DENYLIST", ""))
+	allowlist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST", ""))
+	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_PERCENT", "100"), 100)
+
+	return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
+}
+
+func normalizeLiveAccessPolicy(raw models.ChannelLiveAccessPolicy) models.ChannelLiveAccessPolicy {
+	value := strings.TrimSpace(strings.ToLower(string(raw)))
+	switch value {
+	case "", string(models.ChannelLiveAccessFollowers):
+		return models.ChannelLiveAccessFollowers
+	default:
+		return models.ChannelLiveAccessFollowers
+	}
+}
+
+func toLiveSessionSummary(session *models.ChannelLiveSession) *models.ChannelLiveSessionSummary {
+	if session == nil || session.ID == 0 {
+		return nil
+	}
+	return &models.ChannelLiveSessionSummary{
+		ID:              session.ID,
+		ChannelID:       session.ChannelID,
+		RoomID:          session.RoomID,
+		Title:           session.Title,
+		Description:     session.Description,
+		Status:          session.Status,
+		AccessPolicy:    string(session.AccessPolicy),
+		ScheduledAt:     session.ScheduledAt,
+		StartedAt:       session.StartedAt,
+		EndedAt:         session.EndedAt,
+		MaxParticipants: session.MaxParticipants,
+	}
+}
+
+func (s *ChannelService) GetLiveSession(channelID, viewerID uint) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(viewerID) {
+		return nil, ErrChannelsDisabled
+	}
+	if viewerID == 0 {
+		return nil, ErrChannelForbidden
+	}
+	if _, err := s.GetChannelByID(channelID, viewerID); err != nil {
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.
+		Where("channel_id = ? AND status IN ?", channelID, []models.ChannelLiveStatus{
+			models.ChannelLiveStatusLive,
+			models.ChannelLiveStatusScheduled,
+		}).
+		Order("CASE WHEN status = 'live' THEN 0 ELSE 1 END").
+		Order("COALESCE(started_at, scheduled_at, created_at) DESC").
+		First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) ensureRoomMember(roomID, userID uint, role string) error {
+	if roomID == 0 || userID == 0 {
+		return ErrInvalidPayload
+	}
+	normalizedRole := models.NormalizeRoomRole(role)
+	if !models.IsValidRoomRole(normalizedRole) {
+		normalizedRole = models.RoomRoleMember
+	}
+
+	var existing models.RoomMember
+	if err := s.db.Unscoped().
+		Where("room_id = ? AND user_id = ?", roomID, userID).
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			member := models.RoomMember{
+				RoomID: roomID,
+				UserID: userID,
+				Role:   normalizedRole,
+			}
+			return s.db.Create(&member).Error
+		}
+		return err
+	}
+
+	updates := map[string]interface{}{
+		"role":       normalizedRole,
+		"deleted_at": nil,
+	}
+	return s.db.Unscoped().
+		Model(&models.RoomMember{}).
+		Where("id = ?", existing.ID).
+		Updates(updates).Error
+}
+
+func toRoomRoleFromChannelRole(role models.ChannelMemberRole) string {
+	switch role {
+	case models.ChannelMemberRoleOwner:
+		return models.RoomRoleOwner
+	case models.ChannelMemberRoleAdmin, models.ChannelMemberRoleEditor:
+		return models.RoomRoleAdmin
+	default:
+		return models.RoomRoleMember
+	}
+}
+
+func (s *ChannelService) ensureLiveJoinAccess(channel *models.Channel, viewerID uint) (models.ChannelMemberRole, error) {
+	if channel == nil || channel.ID == 0 || viewerID == 0 {
+		return "", ErrChannelForbidden
+	}
+	role, err := s.getActorRole(channel, viewerID)
+	if err != nil {
+		return "", err
+	}
+	if role == "" {
+		return "", ErrChannelForbidden
+	}
+	if !models.IsValidChannelRole(role) {
+		return "", ErrChannelForbidden
+	}
+	return role, nil
+}
+
+func (s *ChannelService) CreateLiveSession(channelID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		return nil, ErrInvalidPayload
+	}
+	accessPolicy := normalizeLiveAccessPolicy(req.AccessPolicy)
+	if req.MaxParticipants != nil && *req.MaxParticipants <= 0 {
+		return nil, ErrInvalidPayload
+	}
+	description := strings.TrimSpace(req.Description)
+
+	var existing models.ChannelLiveSession
+	if err := s.db.
+		Where("channel_id = ? AND status IN ?", channelID, []models.ChannelLiveStatus{
+			models.ChannelLiveStatusScheduled,
+			models.ChannelLiveStatusLive,
+		}).
+		Order("created_at DESC").
+		First(&existing).Error; err == nil {
+		return nil, errors.New("live session already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	room := models.Room{
+		Name:        fmt.Sprintf("Live: %s", channel.Title),
+		Description: fmt.Sprintf("Live session for channel %s", channel.Title),
+		OwnerID:     channel.OwnerID,
+		IsPublic:    false,
+		AiEnabled:   false,
+		Language:    "ru",
+	}
+	if err := s.db.Create(&room).Error; err != nil {
+		return nil, err
+	}
+	if err := s.ensureRoomMember(room.ID, channel.OwnerID, models.RoomRoleOwner); err != nil {
+		return nil, err
+	}
+
+	session := models.ChannelLiveSession{
+		ChannelID:       channelID,
+		RoomID:          room.ID,
+		CreatedBy:       actorID,
+		Title:           title,
+		Description:     description,
+		ScheduledAt:     req.ScheduledAt,
+		Status:          models.ChannelLiveStatusScheduled,
+		AccessPolicy:    accessPolicy,
+		MaxParticipants: req.MaxParticipants,
+	}
+	if err := s.db.Create(&session).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricSadhuLiveCreatedTotal, 1)
+	log.Printf("[SadhuLive] created channel_id=%d live_id=%d actor_id=%d", channel.ID, session.ID, actorID)
+	if pushErr := s.sendLivePushToSubscribers(channel, &session, false); pushErr != nil {
+		log.Printf("[Channels] live create push failed channel=%d live=%d: %v", channel.ID, session.ID, pushErr)
+	}
+
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) UpdateLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveSessionUpsertRequest) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	if _, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor); err != nil {
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	if session.Status == models.ChannelLiveStatusEnded || session.Status == models.ChannelLiveStatusCancelled {
+		return nil, errors.New("cannot update completed live session")
+	}
+
+	updates := map[string]interface{}{}
+	if req.Title != "" {
+		title := strings.TrimSpace(req.Title)
+		if title == "" {
+			return nil, ErrInvalidPayload
+		}
+		updates["title"] = title
+	}
+	if req.Description != "" {
+		updates["description"] = strings.TrimSpace(req.Description)
+	}
+	if req.ScheduledAt != nil {
+		updates["scheduled_at"] = req.ScheduledAt
+	}
+	if req.AccessPolicy != "" {
+		updates["access_policy"] = normalizeLiveAccessPolicy(req.AccessPolicy)
+	}
+	if req.MaxParticipants != nil {
+		if *req.MaxParticipants <= 0 {
+			return nil, ErrInvalidPayload
+		}
+		updates["max_participants"] = req.MaxParticipants
+	}
+	if len(updates) == 0 {
+		return toLiveSessionSummary(&session), nil
+	}
+	if err := s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&session, session.ID).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricSadhuLiveEndedTotal, 1)
+	log.Printf("[SadhuLive] ended channel_id=%d live_id=%d actor_id=%d", channelID, session.ID, actorID)
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) StartLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	if _, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor); err != nil {
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	if session.Status == models.ChannelLiveStatusLive {
+		return toLiveSessionSummary(&session), nil
+	}
+	if session.Status != models.ChannelLiveStatusScheduled {
+		return nil, errors.New("invalid live session status transition")
+	}
+
+	now := time.Now().UTC()
+	if err := s.db.Model(&models.ChannelLiveSession{}).
+		Where("id = ? AND status = ?", session.ID, models.ChannelLiveStatusScheduled).
+		Updates(map[string]interface{}{
+			"status":       models.ChannelLiveStatusLive,
+			"started_at":   now,
+			"updated_at":   now,
+			"scheduled_at": session.ScheduledAt,
+		}).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&session, session.ID).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricSadhuLiveStartedTotal, 1)
+	log.Printf("[SadhuLive] started channel_id=%d live_id=%d actor_id=%d", channelID, session.ID, actorID)
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id", "title", "is_public").First(&channel, channelID).Error; err == nil {
+		if pushErr := s.sendLivePushToSubscribers(&channel, &session, true); pushErr != nil {
+			log.Printf("[Channels] live start push failed channel=%d live=%d: %v", channel.ID, session.ID, pushErr)
+		}
+	}
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) sendLivePushToSubscribers(channel *models.Channel, session *models.ChannelLiveSession, isStart bool) error {
+	if channel == nil || session == nil || channel.ID == 0 || session.ID == 0 {
+		return nil
+	}
+
+	var subscribers []models.ChannelMember
+	if err := s.db.Select("user_id").
+		Where("channel_id = ? AND role NOT IN ?", channel.ID, []models.ChannelMemberRole{
+			models.ChannelMemberRoleOwner,
+			models.ChannelMemberRoleAdmin,
+			models.ChannelMemberRoleEditor,
+		}).
+		Find(&subscribers).Error; err != nil {
+		return err
+	}
+	if len(subscribers) == 0 {
+		return nil
+	}
+	userIDs := uniqueChannelMemberUserIDs(subscribers)
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	var owner models.User
+	if err := s.db.Select("id", "city", "language", "interests", "bio", "skills", "timezone").First(&owner, channel.OwnerID).Error; err != nil {
+		return err
+	}
+
+	pseudoPost := &models.ChannelPost{
+		ChannelID: channel.ID,
+		Content:   strings.TrimSpace(session.Title + " " + session.Description),
+	}
+
+	title := fmt.Sprintf("Эфир канала %s", strings.TrimSpace(channel.Title))
+	body := "Новый эфир запланирован"
+	if isStart {
+		body = "Эфир уже начался. Подключайтесь сейчас."
+	}
+	for _, userID := range userIDs {
+		shouldSend, filterErr := s.shouldSendSubscriberPushBySmartPreference(pseudoPost, channel, &owner, userID)
+		if filterErr != nil {
+			log.Printf("[Channels] live push filter failed channel=%d live=%d user=%d: %v", channel.ID, session.ID, userID, filterErr)
+			continue
+		}
+		if !shouldSend {
+			continue
+		}
+		pushMessage := PushMessage{
+			Title:    title,
+			Body:     body,
+			Priority: "high",
+			Data: map[string]string{
+				"type":      "channel_live",
+				"channelId": strconv.FormatUint(uint64(channel.ID), 10),
+				"liveId":    strconv.FormatUint(uint64(session.ID), 10),
+				"roomId":    strconv.FormatUint(uint64(session.RoomID), 10),
+				"status":    string(session.Status),
+			},
+		}
+		if err := GetPushService().SendToUser(userID, pushMessage); err != nil {
+			log.Printf("[Channels] live push send failed channel=%d live=%d user=%d: %v", channel.ID, session.ID, userID, err)
+		}
+	}
+	return nil
+}
+
+func uniqueChannelMemberUserIDs(members []models.ChannelMember) []uint {
+	if len(members) == 0 {
+		return []uint{}
+	}
+	result := make([]uint, 0, len(members))
+	seen := make(map[uint]struct{}, len(members))
+	for _, member := range members {
+		if member.UserID == 0 {
+			continue
+		}
+		if _, ok := seen[member.UserID]; ok {
+			continue
+		}
+		seen[member.UserID] = struct{}{}
+		result = append(result, member.UserID)
+	}
+	return result
+}
+
+func (s *ChannelService) EndLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	if _, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor); err != nil {
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	if session.Status != models.ChannelLiveStatusLive {
+		return nil, errors.New("only active live session can be ended")
+	}
+
+	now := time.Now().UTC()
+	var activeViewers []models.ChannelLiveViewer
+	if err := s.db.Where("session_id = ? AND is_active = ?", session.ID, true).Find(&activeViewers).Error; err != nil {
+		return nil, err
+	}
+
+	var additionalWatchSeconds int64
+	for _, viewer := range activeViewers {
+		if viewer.JoinedAt == nil {
+			continue
+		}
+		delta := int64(now.Sub(*viewer.JoinedAt).Seconds())
+		if delta < 0 {
+			delta = 0
+		}
+		additionalWatchSeconds += delta
+		if err := s.db.Model(&models.ChannelLiveViewer{}).Where("id = ?", viewer.ID).Updates(map[string]interface{}{
+			"is_active":              false,
+			"joined_at":              nil,
+			"accumulated_watch_secs": gorm.Expr("accumulated_watch_secs + ?", delta),
+		}).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.db.Model(&models.ChannelLiveSession{}).
+		Where("id = ? AND status = ?", session.ID, models.ChannelLiveStatusLive).
+		Updates(map[string]interface{}{
+			"status":              models.ChannelLiveStatusEnded,
+			"ended_at":            now,
+			"watch_seconds_total": gorm.Expr("watch_seconds_total + ?", additionalWatchSeconds),
+		}).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&session, session.ID).Error; err != nil {
+		return nil, err
+	}
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) CancelLiveSession(channelID, liveID, actorID uint) (*models.ChannelLiveSessionSummary, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channel.ID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	if session.Status == models.ChannelLiveStatusLive {
+		return nil, errors.New("cannot cancel active live session")
+	}
+	if role == models.ChannelMemberRoleEditor && session.Status != models.ChannelLiveStatusScheduled {
+		return nil, ErrChannelForbidden
+	}
+	if session.Status == models.ChannelLiveStatusEnded || session.Status == models.ChannelLiveStatusCancelled {
+		return toLiveSessionSummary(&session), nil
+	}
+
+	now := time.Now().UTC()
+	if err := s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).Updates(map[string]interface{}{
+		"status":   models.ChannelLiveStatusCancelled,
+		"ended_at": now,
+	}).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&session, session.ID).Error; err != nil {
+		return nil, err
+	}
+	return toLiveSessionSummary(&session), nil
+}
+
+func (s *ChannelService) JoinLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveJoinRequest) (*models.ChannelLiveJoinResponse, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	if actorID == 0 {
+		s.incrementMetricSafe(MetricSadhuLiveJoinDeniedTotal, 1)
+		log.Printf("[SadhuLive] join_denied channel_id=%d live_id=%d actor_id=0 reason=unauthorized", channelID, liveID)
+		return nil, ErrChannelForbidden
+	}
+
+	var channel models.Channel
+	if err := s.db.Select("id", "owner_id", "is_public", "title").First(&channel, channelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelNotFound
+		}
+		return nil, err
+	}
+	role, err := s.ensureLiveJoinAccess(&channel, actorID)
+	if err != nil {
+		s.incrementMetricSafe(MetricSadhuLiveJoinDeniedTotal, 1)
+		log.Printf("[SadhuLive] join_denied channel_id=%d live_id=%d actor_id=%d reason=role_access err=%v", channelID, liveID, actorID, err)
+		return nil, err
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	if session.Status != models.ChannelLiveStatusLive {
+		s.incrementMetricSafe(MetricSadhuLiveJoinDeniedTotal, 1)
+		log.Printf("[SadhuLive] join_denied channel_id=%d live_id=%d actor_id=%d reason=status_not_live status=%s", channelID, liveID, actorID, session.Status)
+		return nil, errors.New("live session is not active")
+	}
+	var moderation models.ChannelLiveModeration
+	if err := s.db.Where("session_id = ? AND user_id = ?", session.ID, actorID).First(&moderation).Error; err == nil {
+		if moderation.IsBlocked {
+			s.incrementMetricSafe(MetricSadhuLiveJoinDeniedTotal, 1)
+			log.Printf("[SadhuLive] join_denied channel_id=%d live_id=%d actor_id=%d reason=blocked", channelID, liveID, actorID)
+			return nil, ErrChannelForbidden
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if err := s.ensureRoomMember(session.RoomID, actorID, toRoomRoleFromChannelRole(role)); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	var viewer models.ChannelLiveViewer
+	viewerErr := s.db.Where("session_id = ? AND user_id = ?", session.ID, actorID).First(&viewer).Error
+	switch {
+	case errors.Is(viewerErr, gorm.ErrRecordNotFound):
+		viewer = models.ChannelLiveViewer{
+			SessionID: session.ID,
+			UserID:    actorID,
+			IsActive:  true,
+			JoinedAt:  &now,
+			JoinCount: 1,
+		}
+		if err := s.db.Create(&viewer).Error; err != nil {
+			return nil, err
+		}
+		if err := s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).Updates(map[string]interface{}{
+			"join_count":          gorm.Expr("join_count + 1"),
+			"unique_viewer_count": gorm.Expr("unique_viewer_count + 1"),
+		}).Error; err != nil {
+			return nil, err
+		}
+	case viewerErr != nil:
+		return nil, viewerErr
+	default:
+		updates := map[string]interface{}{}
+		if !viewer.IsActive {
+			updates["is_active"] = true
+			updates["joined_at"] = now
+			if err := s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).Update("join_count", gorm.Expr("join_count + 1")).Error; err != nil {
+				return nil, err
+			}
+		}
+		updates["join_count"] = gorm.Expr("join_count + 1")
+		if err := s.db.Model(&models.ChannelLiveViewer{}).Where("id = ?", viewer.ID).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	sfuCfg := config.LoadSFUConfig()
+	if err := sfuCfg.ValidateForTokenIssue(); err != nil {
+		return nil, err
+	}
+	liveKit := sfuService.NewLiveKitService(sfuCfg)
+	tokenResult, err := liveKit.IssueRoomToken(sfuService.IssueTokenInput{
+		UserID:          actorID,
+		RoomID:          session.RoomID,
+		Role:            string(role),
+		ParticipantName: strings.TrimSpace(req.ParticipantName),
+		Metadata:        req.Metadata,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricSadhuLiveJoinSuccessTotal, 1)
+	log.Printf("[SadhuLive] join_success channel_id=%d live_id=%d actor_id=%d room_id=%d role=%s", channelID, session.ID, actorID, session.RoomID, role)
+
+	return &models.ChannelLiveJoinResponse{
+		LiveID:       session.ID,
+		RoomID:       session.RoomID,
+		RoomName:     tokenResult.RoomName,
+		Participant:  tokenResult.ParticipantIdentity,
+		Token:        tokenResult.Token,
+		WsURL:        tokenResult.WSURL,
+		SessionState: *toLiveSessionSummary(&session),
+	}, nil
+}
+
+func (s *ChannelService) LeaveLiveSession(channelID, liveID, actorID uint) error {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return ErrChannelsDisabled
+	}
+	if actorID == 0 {
+		return ErrChannelForbidden
+	}
+
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChannelLiveNotFound
+		}
+		return err
+	}
+
+	var viewer models.ChannelLiveViewer
+	if err := s.db.Where("session_id = ? AND user_id = ?", session.ID, actorID).First(&viewer).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if !viewer.IsActive || viewer.JoinedAt == nil {
+		return nil
+	}
+	now := time.Now().UTC()
+	delta := int64(now.Sub(*viewer.JoinedAt).Seconds())
+	if delta < 0 {
+		delta = 0
+	}
+	if err := s.db.Model(&models.ChannelLiveViewer{}).Where("id = ?", viewer.ID).Updates(map[string]interface{}{
+		"is_active":              false,
+		"joined_at":              nil,
+		"accumulated_watch_secs": gorm.Expr("accumulated_watch_secs + ?", delta),
+	}).Error; err != nil {
+		return err
+	}
+	return s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).
+		Update("watch_seconds_total", gorm.Expr("watch_seconds_total + ?", delta)).Error
+}
+
+func isValidLiveModerationAction(action models.ChannelLiveModerationAction) bool {
+	switch action {
+	case models.ChannelLiveModerationActionMute,
+		models.ChannelLiveModerationActionUnmute,
+		models.ChannelLiveModerationActionBlock,
+		models.ChannelLiveModerationActionUnblock,
+		models.ChannelLiveModerationActionKick:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *ChannelService) loadLiveSession(channelID, liveID uint) (*models.ChannelLiveSession, error) {
+	var session models.ChannelLiveSession
+	if err := s.db.Where("id = ? AND channel_id = ?", liveID, channelID).First(&session).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChannelLiveNotFound
+		}
+		return nil, err
+	}
+	return &session, nil
+}
+
+func (s *ChannelService) ListLiveParticipants(channelID, liveID, actorID uint) (*models.ChannelLiveParticipantsResponse, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	if _, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor); err != nil {
+		return nil, err
+	}
+	session, err := s.loadLiveSession(channelID, liveID)
+	if err != nil {
+		return nil, err
+	}
+
+	var viewers []models.ChannelLiveViewer
+	if err := s.db.Where("session_id = ?", session.ID).Find(&viewers).Error; err != nil {
+		return nil, err
+	}
+	if len(viewers) == 0 {
+		return &models.ChannelLiveParticipantsResponse{
+			LiveID:       session.ID,
+			SessionState: *toLiveSessionSummary(session),
+			Participants: []models.ChannelLiveParticipant{},
+		}, nil
+	}
+
+	userIDs := make([]uint, 0, len(viewers))
+	viewerByUser := make(map[uint]models.ChannelLiveViewer, len(viewers))
+	for _, viewer := range viewers {
+		if viewer.UserID == 0 {
+			continue
+		}
+		userIDs = append(userIDs, viewer.UserID)
+		viewerByUser[viewer.UserID] = viewer
+	}
+
+	var users []models.User
+	if err := s.db.Select("id", "spiritual_name", "karmic_name", "avatar_url").Where("id IN ?", userIDs).Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	var moderations []models.ChannelLiveModeration
+	if err := s.db.Where("session_id = ? AND user_id IN ?", session.ID, userIDs).Find(&moderations).Error; err != nil {
+		return nil, err
+	}
+	moderationByUser := make(map[uint]models.ChannelLiveModeration, len(moderations))
+	for _, m := range moderations {
+		moderationByUser[m.UserID] = m
+	}
+
+	participants := make([]models.ChannelLiveParticipant, 0, len(users))
+	for _, usr := range users {
+		v := viewerByUser[usr.ID]
+		m := moderationByUser[usr.ID]
+		participants = append(participants, models.ChannelLiveParticipant{
+			UserID:               usr.ID,
+			SpiritualName:        usr.SpiritualName,
+			KarmicName:           usr.KarmicName,
+			AvatarURL:            usr.AvatarURL,
+			IsActive:             v.IsActive,
+			IsMuted:              m.IsMuted,
+			IsBlocked:            m.IsBlocked,
+			JoinCount:            v.JoinCount,
+			AccumulatedWatchSecs: v.AccumulatedWatchSecs,
+			JoinedAt:             v.JoinedAt,
+		})
+	}
+
+	return &models.ChannelLiveParticipantsResponse{
+		LiveID:       session.ID,
+		SessionState: *toLiveSessionSummary(session),
+		Participants: participants,
+	}, nil
+}
+
+func (s *ChannelService) ModerateLiveParticipant(channelID, liveID, actorID uint, req models.ChannelLiveModerationRequest) (*models.ChannelLiveParticipantsResponse, error) {
+	if !s.IsSadhuSangaLiveEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+	channel, role, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+	if req.TargetUserID == 0 || !isValidLiveModerationAction(req.Action) {
+		return nil, ErrInvalidPayload
+	}
+	if req.TargetUserID == channel.OwnerID {
+		return nil, ErrChannelForbidden
+	}
+	targetRole, err := s.getActorRole(channel, req.TargetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if targetRole != "" && rankRole(targetRole) >= rankRole(role) {
+		return nil, ErrChannelForbidden
+	}
+
+	session, err := s.loadLiveSession(channelID, liveID)
+	if err != nil {
+		return nil, err
+	}
+
+	var moderation models.ChannelLiveModeration
+	findErr := s.db.Where("session_id = ? AND user_id = ?", session.ID, req.TargetUserID).First(&moderation).Error
+	if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return nil, findErr
+	}
+	if errors.Is(findErr, gorm.ErrRecordNotFound) {
+		moderation = models.ChannelLiveModeration{
+			SessionID: session.ID,
+			UserID:    req.TargetUserID,
+		}
+	}
+
+	reason := strings.TrimSpace(req.Reason)
+	switch req.Action {
+	case models.ChannelLiveModerationActionMute:
+		moderation.IsMuted = true
+		moderation.Reason = reason
+	case models.ChannelLiveModerationActionUnmute:
+		moderation.IsMuted = false
+	case models.ChannelLiveModerationActionBlock:
+		moderation.IsBlocked = true
+		moderation.Reason = reason
+	case models.ChannelLiveModerationActionUnblock:
+		moderation.IsBlocked = false
+	case models.ChannelLiveModerationActionKick:
+		now := time.Now().UTC()
+		var viewer models.ChannelLiveViewer
+		if err := s.db.Where("session_id = ? AND user_id = ?", session.ID, req.TargetUserID).First(&viewer).Error; err == nil {
+			if viewer.IsActive && viewer.JoinedAt != nil {
+				delta := int64(now.Sub(*viewer.JoinedAt).Seconds())
+				if delta < 0 {
+					delta = 0
+				}
+				if err := s.db.Model(&models.ChannelLiveViewer{}).Where("id = ?", viewer.ID).Updates(map[string]interface{}{
+					"is_active":              false,
+					"joined_at":              nil,
+					"accumulated_watch_secs": gorm.Expr("accumulated_watch_secs + ?", delta),
+				}).Error; err != nil {
+					return nil, err
+				}
+				if err := s.db.Model(&models.ChannelLiveSession{}).Where("id = ?", session.ID).
+					Update("watch_seconds_total", gorm.Expr("watch_seconds_total + ?", delta)).Error; err != nil {
+					return nil, err
+				}
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		if err := s.db.Where("room_id = ? AND user_id = ?", session.RoomID, req.TargetUserID).
+			Delete(&models.RoomMember{}).Error; err != nil {
+			return nil, err
+		}
+	}
+	moderation.UpdatedBy = actorID
+	if findErr == nil {
+		if err := s.db.Model(&models.ChannelLiveModeration{}).Where("id = ?", moderation.ID).Updates(map[string]interface{}{
+			"is_muted":   moderation.IsMuted,
+			"is_blocked": moderation.IsBlocked,
+			"reason":     moderation.Reason,
+			"updated_by": moderation.UpdatedBy,
+		}).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.db.Create(&moderation).Error; err != nil {
+			return nil, err
+		}
+	}
+	log.Printf(
+		"[SadhuLive] moderation channel_id=%d live_id=%d actor_id=%d actor_role=%s target_user_id=%d action=%s muted=%t blocked=%t",
+		channelID,
+		session.ID,
+		actorID,
+		role,
+		req.TargetUserID,
+		req.Action,
+		moderation.IsMuted,
+		moderation.IsBlocked,
+	)
+
+	return s.ListLiveParticipants(channelID, liveID, actorID)
+}
+
 func (s *ChannelService) GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error) {
 	channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleAdmin)
 	if err != nil {
@@ -499,11 +1379,33 @@ func (s *ChannelService) GetPreacherAnalytics(channelID, actorID uint) (*models.
 		})
 	}
 
+	type liveTotalsRow struct {
+		LiveSessionsTotal     int64
+		LiveUniqueViewers     int64
+		LiveWatchSecondsTotal int64
+	}
+	var liveTotals liveTotalsRow
+	if err := s.db.Table("channel_live_sessions").
+		Select(
+			"COUNT(channel_live_sessions.id) AS live_sessions_total, "+
+				"COALESCE(SUM(channel_live_sessions.unique_viewer_count), 0) AS live_unique_viewers, "+
+				"COALESCE(SUM(channel_live_sessions.watch_seconds_total), 0) AS live_watch_seconds_total",
+		).
+		Joins("JOIN channels ON channels.id = channel_live_sessions.channel_id AND channels.deleted_at IS NULL").
+		Where("channels.owner_id = ?", channel.OwnerID).
+		Where("channel_live_sessions.deleted_at IS NULL").
+		Scan(&liveTotals).Error; err != nil {
+		return nil, err
+	}
+
 	return &models.ChannelPreacherAnalyticsResponse{
-		ChannelID:            channelID,
-		TotalLectureViews:    totalLectureViews,
-		SeminarRegistrations: seminarRegistrations,
-		ActiveCities:         cities,
+		ChannelID:              channelID,
+		TotalLectureViews:      totalLectureViews,
+		SeminarRegistrations:   seminarRegistrations,
+		ActiveCities:           cities,
+		LiveSessionsTotal:      liveTotals.LiveSessionsTotal,
+		LiveUniqueViewersTotal: liveTotals.LiveUniqueViewers,
+		LiveWatchMinutesTotal:  liveTotals.LiveWatchSecondsTotal / 60,
 	}, nil
 }
 
@@ -1536,6 +2438,11 @@ func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 		MetricChannelPostCommentCreateTotal,
 		MetricChannelPostShareTotal,
 		MetricChannelPostViewTotal,
+		MetricSadhuLiveCreatedTotal,
+		MetricSadhuLiveStartedTotal,
+		MetricSadhuLiveJoinDeniedTotal,
+		MetricSadhuLiveJoinSuccessTotal,
+		MetricSadhuLiveEndedTotal,
 	})
 }
 
@@ -2780,6 +3687,9 @@ func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFil
 	if err := s.enrichChannelsFollowMeta(channelPointers, filters.ViewerID); err != nil {
 		return nil, err
 	}
+	if err := s.enrichChannelsLiveMeta(channelPointers); err != nil {
+		return nil, err
+	}
 
 	totalPages := calculateChannelTotalPages(total, limit)
 
@@ -2961,6 +3871,56 @@ func (s *ChannelService) enrichChannelsFollowMeta(channels []*models.Channel, vi
 		}
 	}
 
+	return nil
+}
+
+func (s *ChannelService) enrichChannelsLiveMeta(channels []*models.Channel) error {
+	if len(channels) == 0 {
+		return nil
+	}
+	channelIDs := make([]uint, 0, len(channels))
+	for _, channel := range channels {
+		if channel == nil || channel.ID == 0 {
+			continue
+		}
+		channel.LiveStatus = "none"
+		channel.CurrentLive = nil
+		channelIDs = append(channelIDs, channel.ID)
+	}
+	if len(channelIDs) == 0 {
+		return nil
+	}
+
+	var sessions []models.ChannelLiveSession
+	if err := s.db.
+		Where("channel_id IN ? AND status IN ?", channelIDs, []models.ChannelLiveStatus{
+			models.ChannelLiveStatusLive,
+			models.ChannelLiveStatusScheduled,
+		}).
+		Order("CASE WHEN status = 'live' THEN 0 ELSE 1 END").
+		Order("COALESCE(started_at, scheduled_at, created_at) DESC").
+		Find(&sessions).Error; err != nil {
+		return err
+	}
+
+	sessionByChannel := make(map[uint]*models.ChannelLiveSession, len(sessions))
+	for i := range sessions {
+		session := &sessions[i]
+		if _, exists := sessionByChannel[session.ChannelID]; exists {
+			continue
+		}
+		sessionByChannel[session.ChannelID] = session
+	}
+
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		if session, ok := sessionByChannel[channel.ID]; ok {
+			channel.LiveStatus = string(session.Status)
+			channel.CurrentLive = toLiveSessionSummary(session)
+		}
+	}
 	return nil
 }
 

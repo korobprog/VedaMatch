@@ -5,6 +5,8 @@ export type ChannelPostType = 'text' | 'media' | 'showcase';
 export type ChannelPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
 export type ChannelPostCTAType = 'none' | 'order_products' | 'book_service';
+export type ChannelLiveStatus = 'scheduled' | 'live' | 'ended' | 'cancelled';
+export type ChannelLiveModerationAction = 'mute' | 'unmute' | 'block' | 'unblock' | 'kick';
 
 export interface ChannelOwnerInfo {
   ID: number;
@@ -25,9 +27,44 @@ export interface Channel {
   isPublic: boolean;
   followersCount?: number;
   isFollowing?: boolean;
+  liveStatus?: 'none' | ChannelLiveStatus;
+  currentLiveSession?: ChannelLiveSession;
   CreatedAt: string;
   UpdatedAt: string;
   owner?: ChannelOwnerInfo;
+}
+
+export interface ChannelLiveSession {
+  id: number;
+  channelId: number;
+  roomId: number;
+  title: string;
+  description: string;
+  status: ChannelLiveStatus;
+  accessPolicy: 'followers';
+  scheduledAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+  maxParticipants?: number;
+}
+
+export interface ChannelLiveParticipant {
+  userId: number;
+  spiritualName?: string;
+  karmicName?: string;
+  avatarUrl?: string;
+  isActive: boolean;
+  isMuted: boolean;
+  isBlocked: boolean;
+  joinCount: number;
+  accumulatedWatchSecs: number;
+  joinedAt?: string;
+}
+
+export interface ChannelLiveParticipantsResponse {
+  liveId: number;
+  sessionState: ChannelLiveSession;
+  participants: ChannelLiveParticipant[];
 }
 
 export interface ChannelMember {

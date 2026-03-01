@@ -1,5 +1,83 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Sadhu Sanga Stage B: live sessions + join flow + live analytics)
+
+### Измененные файлы
+- `server/internal/models/channel_live.go`
+- `server/internal/models/channel.go`
+- `server/internal/models/channel_analytics.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/chat/RoomChatScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Live-сессии канала (этап B):
+  - Было: в Sadhu Sanga не было доменной сущности live-сессии канала; SFU использовался только в существующем room-chat контексте.
+  - Стало: добавлены `channel_live_sessions` + `channel_live_viewers` с lifecycle `scheduled/live/ended/cancelled`, room binding и агрегатами просмотров.
+- Новый Channel Live API:
+  - Было: только follow/preacher analytics/push prefs.
+  - Стало: добавлены endpoint’ы:
+    - `GET /api/channels/:id/live`
+    - `POST /api/channels/:id/live`
+    - `PATCH /api/channels/:id/live/:liveId`
+    - `POST /api/channels/:id/live/:liveId/start`
+    - `POST /api/channels/:id/live/:liveId/end`
+    - `POST /api/channels/:id/live/:liveId/cancel`
+    - `POST /api/channels/:id/live/:liveId/join`
+    - `POST /api/channels/:id/live/:liveId/leave`
+- RBAC и доступ:
+  - Было: нет отдельной live-RBAC модели.
+  - Стало: create/update/start/end/cancel для `editor+`; join только для `subscriber+` (включая owner/admin/editor), не подписчик получает `403`.
+- Интеграция с текущим LiveKit:
+  - Было: не было channel-level join обертки.
+  - Стало: `join` выдает SFU token/wsUrl через текущий LiveKit-сервис и автоматически обеспечивает `room_members` для участника.
+- Live аналитика:
+  - Было: `preacher analytics` содержала только лекции/семинары/города.
+  - Стало: добавлены `liveSessionsTotal`, `liveUniqueViewersTotal`, `liveWatchMinutesTotal`.
+- UI мобильного клиента:
+  - `SadhuSangaHub`: новый блок `Прямой эфир` с карточками `live/scheduled` и CTA `Смотреть эфир`.
+  - `ChannelDetails (sadhu_sanga)`: блок live с кнопками:
+    - `Анонсировать эфир`, `Старт`, `Завершить`, `Отменить`, `Войти в эфир`.
+  - `RoomChat`: поддержка `autoStartCall` + отправка `leave` при закрытии live-видеобара для учета watch-time.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/:id/live", channelHandler.GetLiveSession)
+protected.Post("/channels/:id/live/:liveId/join", channelHandler.JoinLiveSession)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) JoinLiveSession(channelID, liveID, actorID uint, req models.ChannelLiveJoinRequest) (*models.ChannelLiveJoinResponse, error) {
+    // RBAC subscriber+, room member upsert, LiveKit token issue
+}
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<TouchableOpacity style={styles.liveJoinButton} onPress={() => void handleJoinLive()}>
+  <Text style={styles.liveJoinButtonText}>Войти в эфир</Text>
+</TouchableOpacity>
+```
+
+`frontend/screens/portal/chat/RoomChatScreen.tsx`:
+```tsx
+onClose={() => {
+  setIsCallActive(false);
+  if (liveChannelId && liveId) void channelService.leaveChannelLive(liveChannelId, liveId);
+}}
+```
+
 ## 2026-03-01 (Sadhu Sanga: аналитика проповедника в ChannelDetails)
 
 ### Измененные файлы
@@ -3793,3 +3871,184 @@ const (
 ```ts
 getMyVideoCircles(page, limit, { channelId, status })
 ```
+
+## 2026-03-01 (Sadhu Sanga Stage B: live runtime moderation)
+
+### Измененные файлы
+- `server/internal/models/channel_live.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Stage B поддерживал lifecycle live-сессии и join/leave, но без runtime-модерации участников в канале.
+  - В API не было endpoint’ов списка live-участников и moderation action.
+  - В RN-экране канала не было UI управления участниками эфира для owner/admin/editor.
+- Стало:
+  - Добавлена модель `ChannelLiveModeration` (mute/block flags + reason + updatedBy) и DTO для участников live.
+  - В backend добавлены API:
+    - `GET /api/channels/:id/live/:liveId/participants`
+    - `POST /api/channels/:id/live/:liveId/moderation`
+  - `JoinLiveSession` учитывает live-block (`IsBlocked`) и возвращает `403` для заблокированного участника.
+  - В RN `ChannelDetailsScreen` (режим `sadhu_sanga`) добавлен блок `Участники эфира` с действиями `mute/unmute/block/unblock/kick` для `editor+`.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/:id/live/:liveId/participants", channelHandler.ListLiveParticipants)
+protected.Post("/channels/:id/live/:liveId/moderation", channelHandler.ModerateLiveParticipant)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+var moderation models.ChannelLiveModeration
+if err := s.db.Where("session_id = ? AND user_id = ?", session.ID, actorID).First(&moderation).Error; err == nil {
+    if moderation.IsBlocked {
+        return nil, ErrChannelForbidden
+    }
+}
+```
+
+`frontend/services/channelService.ts`:
+```ts
+async listChannelLiveParticipants(channelId: number, liveId: number): Promise<ChannelLiveParticipantsResponse>
+async moderateChannelLiveParticipant(channelId: number, liveId: number, payload: { targetUserId: number; action: ChannelLiveModerationAction; reason?: string }): Promise<ChannelLiveParticipantsResponse>
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<TouchableOpacity
+  key={`live-participant-${participant.userId}`}
+  style={styles.liveParticipantRow}
+  onPress={() => openParticipantModerationMenu(participant)}
+>
+```
+
+### Validation
+- `go test ./internal/handlers -run Channel -count=1` — success.
+- `go test ./internal/services -run Channel -count=1` — success.
+- `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Sadhu Sanga Stage B: live metrics + audit logging)
+
+### Измененные файлы
+- `server/internal/services/metrics_service.go`
+- `server/internal/services/channel_service.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в live-сценариях Sadhu Sanga не было отдельных продуктовых счетчиков `sadhu_live_*`;
+  - отсутствовал единый audit-log на действия lifecycle/join/moderation.
+- Стало:
+  - добавлены метрики:
+    - `sadhu_live_created_total`
+    - `sadhu_live_started_total`
+    - `sadhu_live_join_denied_total`
+    - `sadhu_live_join_success_total`
+    - `sadhu_live_ended_total`
+  - live-поток теперь пишет структурированные логи:
+    - create/start/end,
+    - join_success/join_denied (с reason),
+    - moderation action (`mute/unmute/block/unblock/kick`).
+  - новые ключи включены в `GetMetricsSnapshot()` канального сервиса.
+
+### Сниппеты кода
+
+`server/internal/services/metrics_service.go`:
+```go
+MetricSadhuLiveCreatedTotal     = "sadhu_live_created_total"
+MetricSadhuLiveStartedTotal     = "sadhu_live_started_total"
+MetricSadhuLiveJoinDeniedTotal  = "sadhu_live_join_denied_total"
+MetricSadhuLiveJoinSuccessTotal = "sadhu_live_join_success_total"
+MetricSadhuLiveEndedTotal       = "sadhu_live_ended_total"
+```
+
+`server/internal/services/channel_service.go`:
+```go
+s.incrementMetricSafe(MetricSadhuLiveJoinDeniedTotal, 1)
+log.Printf("[SadhuLive] join_denied channel_id=%d live_id=%d actor_id=%d reason=blocked", channelID, liveID, actorID)
+```
+
+```go
+log.Printf("[SadhuLive] moderation channel_id=%d live_id=%d actor_id=%d actor_role=%s target_user_id=%d action=%s muted=%t blocked=%t", ...)
+```
+
+### Validation
+- `go test ./internal/services -run Channel -count=1` — success.
+- `go test ./internal/handlers -run Channel -count=1` — success.
+- `pnpm --dir frontend exec tsc --noEmit` — success.
+
+## 2026-03-01 (Sadhu Sanga Stage B: live rollout gating)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - включение live Stage B определялось только общим флагом `SADHU_SANGA_LIVE_ENABLED`.
+- Стало:
+  - добавлен user-level rollout для live через системные настройки:
+    - `SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_LIVE_ROLLOUT_DENYLIST`
+    - `SADHU_SANGA_LIVE_ROLLOUT_PERCENT`
+  - все live-методы используют `IsSadhuSangaLiveEnabledForUser(userID)`.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) IsSadhuSangaLiveEnabledForUser(userID uint) bool {
+    denylist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_DENYLIST", ""))
+    allowlist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST", ""))
+    rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_PERCENT", "100"), 100)
+    return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
+}
+```
+
+### Validation
+- `go test ./internal/services -run Channel -count=1` — success.
+- `go test ./internal/handlers -run Channel -count=1` — success.
+
+## 2026-03-01 (Sadhu Sanga Stage B: push dedupe smoke-guard)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+- `server/internal/services/channel_service_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - live push-рассылка итерировалась по списку membership напрямую;
+  - при потенциально неконсистентных данных списка подписчиков теоретически возможны дубли отправки по `user_id`.
+- Стало:
+  - добавлена функция `uniqueChannelMemberUserIDs(...)` с дедупликацией и пропуском `user_id=0`;
+  - `sendLivePushToSubscribers(...)` отправляет push только по уникальному массиву `userIDs`;
+  - добавлен тест `TestUniqueChannelMemberUserIDs_DeduplicatesAndSkipsZero` (1k пользователей + дубли) как smoke-check для сценария массовой рассылки без дублей.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+userIDs := uniqueChannelMemberUserIDs(subscribers)
+for _, userID := range userIDs {
+    if err := GetPushService().SendToUser(userID, pushMessage); err != nil {
+        ...
+    }
+}
+```
+
+`server/internal/services/channel_service_test.go`:
+```go
+func TestUniqueChannelMemberUserIDs_DeduplicatesAndSkipsZero(t *testing.T) {
+    // 1000 unique + duplicates -> expect exactly 1000 ids
+}
+```
+
+### Validation
+- `go test ./internal/services -run "Channel|UniqueChannelMemberUserIDs" -count=1` — success.

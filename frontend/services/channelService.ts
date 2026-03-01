@@ -9,6 +9,9 @@ import {
   ChannelMemberAddRequest,
   ChannelMemberRole,
   ChannelMemberResponse,
+  ChannelLiveSession,
+  ChannelLiveParticipantsResponse,
+  ChannelLiveModerationAction,
   ChannelPost,
   ChannelPostComment,
   ChannelPostCreateRequest,
@@ -43,6 +46,27 @@ export interface PreacherAnalytics {
   totalLectureViews: number;
   seminarRegistrations: number;
   activeCities: PreacherAnalyticsCity[];
+  liveSessionsTotal: number;
+  liveUniqueViewersTotal: number;
+  liveWatchMinutesTotal: number;
+}
+
+export interface ChannelLiveSessionUpsertPayload {
+  title: string;
+  description?: string;
+  scheduledAt?: string;
+  accessPolicy?: 'followers';
+  maxParticipants?: number;
+}
+
+export interface ChannelLiveJoinResponse {
+  liveId: number;
+  roomId: number;
+  roomName: string;
+  participant: string;
+  token: string;
+  wsUrl: string;
+  sessionState: ChannelLiveSession;
 }
 
 class ChannelService {
@@ -88,6 +112,59 @@ class ChannelService {
 
   async getPreacherAnalytics(channelId: number): Promise<PreacherAnalytics> {
     const response = await apiClient.get(`/channels/${channelId}/preacher-analytics`);
+    return response.data;
+  }
+
+  async getChannelLive(channelId: number): Promise<{ session: ChannelLiveSession | null; liveStatus: 'none' | 'scheduled' | 'live' }> {
+    const response = await apiClient.get(`/channels/${channelId}/live`);
+    return response.data;
+  }
+
+  async createChannelLive(channelId: number, payload: ChannelLiveSessionUpsertPayload): Promise<ChannelLiveSession> {
+    const response = await apiClient.post(`/channels/${channelId}/live`, payload);
+    return response.data;
+  }
+
+  async updateChannelLive(channelId: number, liveId: number, payload: ChannelLiveSessionUpsertPayload): Promise<ChannelLiveSession> {
+    const response = await apiClient.patch(`/channels/${channelId}/live/${liveId}`, payload);
+    return response.data;
+  }
+
+  async startChannelLive(channelId: number, liveId: number): Promise<ChannelLiveSession> {
+    const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/start`, {});
+    return response.data;
+  }
+
+  async endChannelLive(channelId: number, liveId: number): Promise<ChannelLiveSession> {
+    const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/end`, {});
+    return response.data;
+  }
+
+  async cancelChannelLive(channelId: number, liveId: number): Promise<ChannelLiveSession> {
+    const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/cancel`, {});
+    return response.data;
+  }
+
+  async joinChannelLive(channelId: number, liveId: number, payload: { participantName?: string; metadata?: Record<string, unknown> } = {}): Promise<ChannelLiveJoinResponse> {
+    const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/join`, payload);
+    return response.data;
+  }
+
+  async leaveChannelLive(channelId: number, liveId: number): Promise<void> {
+    await apiClient.post(`/channels/${channelId}/live/${liveId}/leave`, {});
+  }
+
+  async listChannelLiveParticipants(channelId: number, liveId: number): Promise<ChannelLiveParticipantsResponse> {
+    const response = await apiClient.get(`/channels/${channelId}/live/${liveId}/participants`);
+    return response.data;
+  }
+
+  async moderateChannelLiveParticipant(
+    channelId: number,
+    liveId: number,
+    payload: { targetUserId: number; action: ChannelLiveModerationAction; reason?: string }
+  ): Promise<ChannelLiveParticipantsResponse> {
+    const response = await apiClient.post(`/channels/${channelId}/live/${liveId}/moderation`, payload);
     return response.data;
   }
 

@@ -46,15 +46,17 @@ type Channel struct {
 	OwnerID uint  `json:"ownerId" gorm:"not null;index"`
 	Owner   *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID"`
 
-	Title          string `json:"title" gorm:"type:varchar(200);not null"`
-	Slug           string `json:"slug" gorm:"type:varchar(220);uniqueIndex;not null"`
-	Description    string `json:"description" gorm:"type:text"`
-	AvatarURL      string `json:"avatarUrl" gorm:"type:varchar(500)"`
-	CoverURL       string `json:"coverUrl" gorm:"type:varchar(500)"`
-	Timezone       string `json:"timezone" gorm:"type:varchar(64);default:'UTC'"`
-	IsPublic       bool   `json:"isPublic" gorm:"default:true;index"`
-	FollowersCount int64  `json:"followersCount" gorm:"-"`
-	IsFollowing    bool   `json:"isFollowing" gorm:"-"`
+	Title          string                     `json:"title" gorm:"type:varchar(200);not null"`
+	Slug           string                     `json:"slug" gorm:"type:varchar(220);uniqueIndex;not null"`
+	Description    string                     `json:"description" gorm:"type:text"`
+	AvatarURL      string                     `json:"avatarUrl" gorm:"type:varchar(500)"`
+	CoverURL       string                     `json:"coverUrl" gorm:"type:varchar(500)"`
+	Timezone       string                     `json:"timezone" gorm:"type:varchar(64);default:'UTC'"`
+	IsPublic       bool                       `json:"isPublic" gorm:"default:true;index"`
+	FollowersCount int64                      `json:"followersCount" gorm:"-"`
+	IsFollowing    bool                       `json:"isFollowing" gorm:"-"`
+	LiveStatus     string                     `json:"liveStatus,omitempty" gorm:"-"`
+	CurrentLive    *ChannelLiveSessionSummary `json:"currentLiveSession,omitempty" gorm:"-"`
 
 	Members   []ChannelMember   `json:"members,omitempty" gorm:"foreignKey:ChannelID"`
 	Posts     []ChannelPost     `json:"posts,omitempty" gorm:"foreignKey:ChannelID"`

@@ -66,6 +66,7 @@ func Connect() {
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelSmartPushPreference{},
+		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
 		&models.ChannelPromotedAdImpression{},
 		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
 		&models.FeedPost{}, &models.FeedMediaAsset{}, &models.FeedItem{}, &models.FeedCursorState{},
@@ -174,6 +175,11 @@ func Connect() {
 	// Channel post reactions/comments query paths.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_post_comments_post_created_desc
 		ON channel_post_comments (post_id, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_live_sessions_status_started
+		ON channel_live_sessions (status, started_at DESC)`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_live_sessions_one_live_per_channel
+		ON channel_live_sessions (channel_id)
+		WHERE status = 'live' AND deleted_at IS NULL`)
 
 	// Message history pagination indexes
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_id_id_desc

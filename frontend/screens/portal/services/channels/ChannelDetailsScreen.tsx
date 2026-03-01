@@ -21,6 +21,9 @@ import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Setting
 import { channelService, PreacherAnalytics } from '../../../../services/channelService';
 import {
   Channel,
+  ChannelLiveModerationAction,
+  ChannelLiveParticipant,
+  ChannelLiveSession,
   ChannelMemberRole,
   ChannelPost,
   ChannelPostComment,
@@ -272,6 +275,11 @@ export default function ChannelDetailsScreen() {
   const [questionVoteLoadingId, setQuestionVoteLoadingId] = useState<number | null>(null);
   const [preacherAnalytics, setPreacherAnalytics] = useState<PreacherAnalytics | null>(null);
   const [preacherAnalyticsLoading, setPreacherAnalyticsLoading] = useState(false);
+  const [liveSession, setLiveSession] = useState<ChannelLiveSession | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveParticipants, setLiveParticipants] = useState<ChannelLiveParticipant[]>([]);
+  const [liveParticipantsLoading, setLiveParticipantsLoading] = useState(false);
+  const [liveModerationBusyUserId, setLiveModerationBusyUserId] = useState<number | null>(null);
   const seminarsSectionYRef = useRef(0);
   const contentListRef = useRef<FlatList<ChannelPost> | null>(null);
 
@@ -417,6 +425,16 @@ export default function ChannelDetailsScreen() {
         setViewerRole(channelResponse.viewerRole);
       }
       if (isSadhuSangaMode) {
+        try {
+          const live = await channelService.getChannelLive(channelId);
+          if (mountedRef.current && reqId === latestLoadRef.current) {
+            setLiveSession(live.session);
+          }
+        } catch {
+          if (mountedRef.current && reqId === latestLoadRef.current) {
+            setLiveSession(channelResponse.channel.currentLiveSession || null);
+          }
+        }
         void loadPreacherSeminars(channelResponse.channel.ownerId);
         void loadPreacherQuestions(channelResponse.channel.ownerId);
         const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
@@ -429,6 +447,7 @@ export default function ChannelDetailsScreen() {
         setPreacherSeminars([]);
         setPreacherQuestions([]);
         setPreacherAnalytics(null);
+        setLiveSession(null);
       }
 
       const [postsResponse, showcasesResponse, storiesResponse, promptStatus] = await Promise.all([
@@ -663,6 +682,215 @@ export default function ChannelDetailsScreen() {
 
   const isEditor = canEditPosts(viewerRole);
   const isModerator = canModeratePosts(viewerRole);
+  const canManageLive = isSadhuSangaMode && isEditor;
+  const canJoinLive = isSadhuSangaMode && (viewerRole === 'subscriber' || viewerRole === 'editor' || viewerRole === 'admin' || viewerRole === 'owner');
+  const liveStatusLabel = liveSession?.status === 'live'
+    ? 'В эфире'
+    : liveSession?.status === 'scheduled'
+      ? 'Запланировано'
+      : liveSession?.status === 'ended'
+        ? 'Завершено'
+        : liveSession?.status === 'cancelled'
+          ? 'Отменено'
+          : 'Эфир не активен';
+
+  const handleCreateLive = useCallback(async () => {
+    if (!channelId || !canManageLive || liveBusy) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const scheduled = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const created = await channelService.createChannelLive(channelId, {
+        title: `${channel?.title || 'Канал'} — прямой эфир`,
+        description: 'Анонс эфира',
+        scheduledAt: scheduled,
+        accessPolicy: 'followers',
+      });
+      setLiveSession(created);
+      Alert.alert('Готово', 'Эфир запланирован.');
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось создать эфир');
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [canManageLive, channel?.title, channelId, liveBusy]);
+
+  const handleStartLive = useCallback(async () => {
+    if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const started = await channelService.startChannelLive(channelId, liveSession.id);
+      setLiveSession(started);
+      Alert.alert('Эфир запущен', 'Подписчики получили уведомление о старте.');
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось запустить эфир');
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+
+  const handleEndLive = useCallback(async () => {
+    if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const ended = await channelService.endChannelLive(channelId, liveSession.id);
+      setLiveSession(ended);
+      Alert.alert('Эфир завершен', 'Сессия остановлена.');
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось завершить эфир');
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+
+  const handleCancelLive = useCallback(async () => {
+    if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const cancelled = await channelService.cancelChannelLive(channelId, liveSession.id);
+      setLiveSession(cancelled);
+      Alert.alert('Анонс отменен', 'Эфир отменен.');
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось отменить эфир');
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+
+  const handleJoinLive = useCallback(async () => {
+    if (!channelId || !liveSession?.id || liveBusy) {
+      return;
+    }
+    setLiveBusy(true);
+    try {
+      const join = await channelService.joinChannelLive(channelId, liveSession.id, {
+        participantName: user?.spiritualName || user?.karmicName || '',
+        metadata: { platform: 'mobile' },
+      });
+      navigation.navigate('RoomChat', {
+        roomId: join.roomId,
+        roomName: `${channel?.title || 'Эфир'} · Live`,
+        autoStartCall: true,
+        liveChannelId: channelId,
+        liveId: liveSession.id,
+      });
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось подключиться к эфиру');
+      void loadData(true);
+    } finally {
+      if (mountedRef.current) {
+        setLiveBusy(false);
+      }
+    }
+  }, [channel?.title, channelId, liveBusy, liveSession?.id, loadData, navigation, user?.karmicName, user?.spiritualName]);
+
+  const loadLiveParticipants = useCallback(async () => {
+    if (!channelId || !liveSession?.id || !canManageLive) {
+      setLiveParticipants([]);
+      return;
+    }
+    setLiveParticipantsLoading(true);
+    try {
+      const response = await channelService.listChannelLiveParticipants(channelId, liveSession.id);
+      if (!mountedRef.current) {
+        return;
+      }
+      setLiveParticipants(response.participants || []);
+    } catch (error: any) {
+      if (mountedRef.current) {
+        setLiveParticipants([]);
+      }
+      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить участников эфира';
+      console.warn(`[ChannelDetails] Failed to load live participants: ${message}`);
+    } finally {
+      if (mountedRef.current) {
+        setLiveParticipantsLoading(false);
+      }
+    }
+  }, [canManageLive, channelId, liveSession?.id]);
+
+  useEffect(() => {
+    if (!isSadhuSangaMode || !canManageLive || !liveSession?.id || liveSession.status !== 'live') {
+      setLiveParticipants([]);
+      return;
+    }
+    void loadLiveParticipants();
+  }, [canManageLive, isSadhuSangaMode, liveSession?.id, liveSession?.status, loadLiveParticipants]);
+
+  const applyLiveModeration = useCallback(async (targetUserId: number, action: ChannelLiveModerationAction, reason = '') => {
+    if (!channelId || !liveSession?.id || !canManageLive || liveModerationBusyUserId !== null) {
+      return;
+    }
+    setLiveModerationBusyUserId(targetUserId);
+    try {
+      const response = await channelService.moderateChannelLiveParticipant(channelId, liveSession.id, {
+        targetUserId,
+        action,
+        reason: reason.trim(),
+      });
+      if (mountedRef.current) {
+        setLiveParticipants(response.participants || []);
+      }
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось выполнить действие модерации');
+    } finally {
+      if (mountedRef.current) {
+        setLiveModerationBusyUserId(null);
+      }
+    }
+  }, [canManageLive, channelId, liveModerationBusyUserId, liveSession?.id]);
+
+  const openParticipantModerationMenu = useCallback((participant: ChannelLiveParticipant) => {
+    if (!canManageLive) {
+      return;
+    }
+    const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
+    Alert.alert(
+      'Модерация эфира',
+      displayName,
+      [
+        {
+          text: participant.isMuted ? 'Снять mute' : 'Mute',
+          onPress: () => void applyLiveModeration(
+            participant.userId,
+            participant.isMuted ? 'unmute' : 'mute',
+          ),
+        },
+        {
+          text: participant.isBlocked ? 'Разблокировать' : 'Заблокировать',
+          onPress: () => void applyLiveModeration(
+            participant.userId,
+            participant.isBlocked ? 'unblock' : 'block',
+          ),
+        },
+        {
+          text: 'Кик из эфира',
+          onPress: () => void applyLiveModeration(participant.userId, 'kick'),
+          style: 'destructive',
+        },
+        {
+          text: 'Отмена',
+          style: 'cancel',
+        },
+      ],
+    );
+  }, [applyLiveModeration, canManageLive]);
+
   const canViewPreacherAnalytics = isSadhuSangaMode && (viewerRole === 'owner' || viewerRole === 'admin');
 
   const togglePin = async (post: ChannelPost) => {
@@ -1209,6 +1437,128 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
+        {isSadhuSangaMode ? (
+          <View style={styles.liveSection}>
+            <View style={styles.liveHeaderRow}>
+              <Text style={styles.liveTitle}>Прямой эфир</Text>
+              {liveBusy ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+            </View>
+            <Text style={[
+              styles.liveStatus,
+              liveSession?.status === 'live' && styles.liveStatusLive,
+            ]}>
+              {liveStatusLabel}
+            </Text>
+            {liveSession ? (
+              <View style={styles.liveCard}>
+                <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || 'Эфир канала'}</Text>
+                {liveSession.scheduledAt ? (
+                  <Text style={styles.liveCardMeta}>
+                    План: {new Date(liveSession.scheduledAt).toLocaleString('ru-RU', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                ) : null}
+                {liveSession.startedAt ? (
+                  <Text style={styles.liveCardMeta}>
+                    Старт: {new Date(liveSession.startedAt).toLocaleString('ru-RU', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                ) : null}
+                <View style={styles.liveActionsRow}>
+                  {liveSession.status === 'live' && canJoinLive ? (
+                    <TouchableOpacity style={styles.liveJoinButton} onPress={() => void handleJoinLive()} disabled={liveBusy}>
+                      <Text style={styles.liveJoinButtonText}>Войти в эфир</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {liveSession.status === 'live' && canManageLive ? (
+                    <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleEndLive()} disabled={liveBusy}>
+                      <Text style={styles.liveSecondaryButtonText}>Завершить</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {liveSession.status === 'scheduled' && canManageLive ? (
+                    <>
+                      <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleStartLive()} disabled={liveBusy}>
+                        <Text style={styles.livePrimaryButtonText}>Старт</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleCancelLive()} disabled={liveBusy}>
+                        <Text style={styles.liveSecondaryButtonText}>Отменить</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : null}
+                </View>
+                {!canJoinLive ? (
+                  <Text style={styles.liveHint}>Подпишитесь на канал, чтобы смотреть эфир.</Text>
+                ) : null}
+                {canManageLive && liveSession.status === 'live' ? (
+                  <View style={styles.liveParticipantsSection}>
+                    <View style={styles.liveParticipantsHeader}>
+                      <Text style={styles.liveParticipantsTitle}>Участники эфира</Text>
+                      {liveParticipantsLoading ? (
+                        <ActivityIndicator size="small" color={colors.accent} />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.liveParticipantsRefreshButton}
+                          onPress={() => void loadLiveParticipants()}
+                          disabled={liveParticipantsLoading}
+                        >
+                          <Text style={styles.liveParticipantsRefreshText}>Обновить</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    {(liveParticipants || []).length === 0 ? (
+                      <Text style={styles.liveHintSecondary}>Пока нет подключенных участников.</Text>
+                    ) : (
+                      (liveParticipants || []).slice(0, 20).map((participant) => {
+                        const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
+                        const metaParts = [
+                          participant.isActive ? 'онлайн' : 'офлайн',
+                          participant.isMuted ? 'mute' : null,
+                          participant.isBlocked ? 'blocked' : null,
+                          `входов: ${Math.max(0, Number(participant.joinCount) || 0)}`,
+                        ].filter(Boolean);
+                        const busy = liveModerationBusyUserId === participant.userId;
+                        return (
+                          <TouchableOpacity
+                            key={`live-participant-${participant.userId}`}
+                            style={styles.liveParticipantRow}
+                            onPress={() => openParticipantModerationMenu(participant)}
+                            disabled={busy}
+                          >
+                            <View style={styles.liveParticipantBody}>
+                              <Text style={styles.liveParticipantName}>{displayName}</Text>
+                              <Text style={styles.liveParticipantMeta}>{metaParts.join(' · ')}</Text>
+                            </View>
+                            {busy ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.liveCard}>
+                <Text style={styles.liveHint}>Сейчас нет активного эфира</Text>
+                {canManageLive ? (
+                  <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleCreateLive()} disabled={liveBusy}>
+                    <Text style={styles.livePrimaryButtonText}>Анонсировать эфир</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.liveHintSecondary}>Скоро здесь появятся анонсы эфиров</Text>
+                )}
+              </View>
+            )}
+          </View>
+        ) : null}
+
         {canViewPreacherAnalytics ? (
           <View style={styles.preacherAnalyticsSection}>
             <View style={styles.preacherAnalyticsHeader}>
@@ -1227,6 +1577,26 @@ export default function ChannelDetailsScreen() {
                   {Math.max(0, Number(preacherAnalytics?.seminarRegistrations) || 0).toLocaleString('ru-RU')}
                 </Text>
                 <Text style={styles.preacherAnalyticsStatLabel}>Регистрации на семинары</Text>
+              </View>
+            </View>
+            <View style={styles.preacherAnalyticsStatsGrid}>
+              <View style={styles.preacherAnalyticsStatCard}>
+                <Text style={styles.preacherAnalyticsStatValue}>
+                  {Math.max(0, Number(preacherAnalytics?.liveSessionsTotal) || 0).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Live-сессии</Text>
+              </View>
+              <View style={styles.preacherAnalyticsStatCard}>
+                <Text style={styles.preacherAnalyticsStatValue}>
+                  {Math.max(0, Number(preacherAnalytics?.liveUniqueViewersTotal) || 0).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Уникальные зрители</Text>
+              </View>
+              <View style={styles.preacherAnalyticsStatCard}>
+                <Text style={styles.preacherAnalyticsStatValue}>
+                  {Math.max(0, Number(preacherAnalytics?.liveWatchMinutesTotal) || 0).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Минуты просмотра</Text>
               </View>
             </View>
             <View style={styles.preacherAnalyticsCitiesWrap}>
@@ -1705,6 +2075,162 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.accent,
       fontSize: 12,
       fontWeight: '700',
+    },
+    liveSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 8,
+    },
+    liveHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    liveTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    liveStatus: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    liveStatusLive: {
+      color: colors.accent,
+    },
+    liveCard: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 10,
+      gap: 6,
+    },
+    liveCardTitle: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    liveCardMeta: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    liveActionsRow: {
+      marginTop: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    livePrimaryButton: {
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+    },
+    livePrimaryButtonText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    liveSecondaryButton: {
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+    },
+    liveSecondaryButtonText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    liveJoinButton: {
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    liveJoinButtonText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    liveHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    liveHintSecondary: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontStyle: 'italic',
+    },
+    liveParticipantsSection: {
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: 8,
+    },
+    liveParticipantsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    liveParticipantsTitle: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    liveParticipantsRefreshButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    liveParticipantsRefreshText: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    liveParticipantRow: {
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    liveParticipantBody: {
+      flex: 1,
+      gap: 2,
+    },
+    liveParticipantName: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    liveParticipantMeta: {
+      color: colors.textSecondary,
+      fontSize: 11,
     },
     preacherAnalyticsSection: {
       marginHorizontal: 16,

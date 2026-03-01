@@ -67,6 +67,9 @@ export type RootStackParamList = {
         isYatraChat?: boolean;
         listenerMode?: boolean;
         showSupportPrompt?: boolean;
+        autoStartCall?: boolean;
+        liveChannelId?: number;
+        liveId?: number;
     };
     RoomInviteEntry: { token: string };
     MediaLibrary: { userId: number; readOnly?: boolean };
