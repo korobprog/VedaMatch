@@ -260,3 +260,14 @@ export interface ChannelListResponse {
   limit: number;
   totalPages: number;
 }
+
+export interface ChannelRecommendationItem {
+  channel: Channel;
+  score: number;
+  reason: string;
+}
+
+export interface ChannelRecommendationsResponse {
+  items: ChannelRecommendationItem[];
+  total: number;
+}

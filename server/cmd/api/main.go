@@ -825,6 +825,7 @@ func main() {
 	protected.Post("/channels/:id/live/:liveId/leave", channelHandler.LeaveLiveSession)
 	protected.Get("/channels/:id/live/:liveId/participants", channelHandler.ListLiveParticipants)
 	protected.Post("/channels/:id/live/:liveId/moderation", channelHandler.ModerateLiveParticipant)
+	protected.Get("/channels/sadhu-sanga/recommendations", channelHandler.GetSadhuSangaRecommendations)
 	protected.Get("/channels/sadhu-sanga/push-preferences", channelHandler.GetSadhuSangaPushPreference)
 	protected.Put("/channels/sadhu-sanga/push-preferences", channelHandler.UpdateSadhuSangaPushPreference)
 	protected.Post("/channels/:id/showcases", channelHandler.CreateShowcase)

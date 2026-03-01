@@ -18,6 +18,7 @@ type channelService interface {
 	CreateChannel(ownerID uint, req models.ChannelCreateRequest) (*models.Channel, error)
 	ListPublicChannels(filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error)
+	GetSadhuSangaRecommendations(viewerID uint, filters services.ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error)
 	GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error)
 	FollowChannel(channelID, followerID uint) (*models.ChannelMember, error)
 	UnfollowChannel(channelID, followerID uint) error
@@ -163,6 +164,39 @@ func (h *ChannelHandler) ListMyChannels(c *fiber.Ctx) error {
 	if err != nil {
 		return respondChannelError(c, err)
 	}
+	return c.JSON(result)
+}
+
+func (h *ChannelHandler) GetSadhuSangaRecommendations(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	limit := parseQueryIntWithDefault(c, "limit", 3)
+	if limit > 20 {
+		limit = 20
+	}
+	search := strings.TrimSpace(c.Query("search"))
+	city := strings.TrimSpace(c.Query("city"))
+	language := strings.TrimSpace(c.Query("language"))
+	topic := strings.TrimSpace(c.Query("topic"))
+
+	result, err := h.service.GetSadhuSangaRecommendations(userID, services.ChannelListFilters{
+		Search:   search,
+		City:     city,
+		Language: language,
+		Topic:    topic,
+		ViewerID: userID,
+	}, limit)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
 	return c.JSON(result)
 }
 

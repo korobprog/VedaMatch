@@ -270,6 +270,17 @@ type ChannelListResponse struct {
 	TotalPages int       `json:"totalPages"`
 }
 
+type ChannelRecommendationItem struct {
+	Channel Channel `json:"channel"`
+	Score   int     `json:"score"`
+	Reason  string  `json:"reason"`
+}
+
+type ChannelRecommendationsResponse struct {
+	Items []ChannelRecommendationItem `json:"items"`
+	Total int                         `json:"total"`
+}
+
 type ChannelPromotedAd struct {
 	ID          uint      `json:"id"`
 	Title       string    `json:"title"`

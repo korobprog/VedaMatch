@@ -16,6 +16,7 @@ import {
   ChannelPostComment,
   ChannelPostCreateRequest,
   ChannelPostMediaUploadResponse,
+  ChannelRecommendationsResponse,
   ChannelPostUpdateRequest,
   ChannelSchedulePostRequest,
   ChannelShowcase,
@@ -77,6 +78,13 @@ class ChannelService {
 
   async getChannels(params: { page?: number; limit?: number; search?: string; city?: string; language?: string; topic?: string } = {}): Promise<ChannelListResponse> {
     const response = await apiClient.get('/channels', { params });
+    return response.data;
+  }
+
+  async getSadhuSangaRecommendations(
+    params: { limit?: number; search?: string; city?: string; language?: string; topic?: string } = {}
+  ): Promise<ChannelRecommendationsResponse> {
+    const response = await apiClient.get('/channels/sadhu-sanga/recommendations', { params });
     return response.data;
   }
 

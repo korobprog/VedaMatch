@@ -253,6 +253,15 @@
     - новый компонент `frontend/screens/portal/services/channels/components/SadhuSangaLayout.tsx` содержит единый shell (gradient + safe area), header и нижний сервисный бар;
     - `SadhuSangaHubScreen`, `SadhuSangaScheduleScreen`, `SadhuSangaLiveScreen`, `SadhuSangaProfileScreen` переведены на этот общий layout;
     - дублирование header/bottom-nav стилей и разметки между экранами сокращено.
+  - Этап C (C1 MVP) переведен на backend-рекомендации:
+    - добавлен API `GET /api/channels/sadhu-sanga/recommendations` (protected);
+    - ранжирование выполняется в `channel_service` по тем же правилам продукта:
+      - приоритет live/scheduled каналов,
+      - бонус для новых (неподписанных) каналов,
+      - дополнительный вес по `followersCount`,
+      - релевантность фильтрам (`city/language/topic`);
+    - `SadhuSangaHubScreen` получает до 3 рекомендаций с сервера и не считает скоринг локально;
+    - в карточке рекомендации сохранены быстрые действия `Открыть` и `Подписаться`.
   - mobile-полировка после редизайна:
     - вкладки `schedule/live/profile` переведены в `ScrollView`, чтобы избежать обрезки контента на низких экранах;
     - крупные заголовки и карточки приведены к compact-диапазону размеров (лучше читаемость и меньше визуальной перегрузки).

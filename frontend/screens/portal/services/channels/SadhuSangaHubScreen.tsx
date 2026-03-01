@@ -34,6 +34,11 @@ type SeminarPreview = {
   venueLabel: string;
 };
 type ServiceTab = 'home' | 'schedule' | 'live' | 'profile';
+type RecommendedPreacher = {
+  channel: Channel;
+  score: number;
+  reason: string;
+};
 
 const parseServiceFormats = (raw: string): string[] => {
   if (!raw) {
@@ -135,6 +140,7 @@ export default function SadhuSangaHubScreen() {
   const [language, setLanguage] = useState('');
   const [topic, setTopic] = useState('');
   const [followStateByChannel, setFollowStateByChannel] = useState<Record<number, FollowState>>({});
+  const [recommendedPreachers, setRecommendedPreachers] = useState<RecommendedPreacher[]>([]);
   const [upcomingSeminars, setUpcomingSeminars] = useState<SeminarPreview[]>([]);
   const [seminarsLoading, setSeminarsLoading] = useState(false);
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
@@ -164,35 +170,56 @@ export default function SadhuSangaHubScreen() {
     }
 
     try {
-      const response = await channelService.getChannels({
+      const listParams = {
         page: 1,
         limit: 60,
         search: search.trim() || undefined,
         city: city.trim() || undefined,
         language: language.trim() || undefined,
         topic: topic.trim() || undefined,
-      });
+      };
+
+      const [response, recommendations] = await Promise.all([
+        channelService.getChannels(listParams),
+        channelService.getSadhuSangaRecommendations({
+          limit: 3,
+          search: listParams.search,
+          city: listParams.city,
+          language: listParams.language,
+          topic: listParams.topic,
+        }),
+      ]);
 
       if (!mountedRef.current || reqId !== latestReqRef.current) {
         return;
       }
 
       const nextChannels = response.channels || [];
+      const nextRecommendations: RecommendedPreacher[] = (recommendations.items || []).map((item) => ({
+        channel: item.channel,
+        score: item.score,
+        reason: item.reason,
+      }));
       setChannels(nextChannels);
+      setRecommendedPreachers(nextRecommendations);
 
       const nextFollowState: Record<number, FollowState> = {};
-      nextChannels.forEach((channel) => {
+      const captureFollowState = (channel: Channel) => {
         nextFollowState[channel.ID] = {
           isFollowing: Boolean(channel.isFollowing),
           followersCount: Math.max(0, Number(channel.followersCount) || 0),
         };
-      });
+      };
+
+      nextChannels.forEach(captureFollowState);
+      nextRecommendations.forEach((item) => captureFollowState(item.channel));
       setFollowStateByChannel(nextFollowState);
     } catch (error: any) {
       if (mountedRef.current && reqId === latestReqRef.current) {
         const status = error?.response?.status ?? 'n/a';
         const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить список';
         console.warn(`[SadhuSangaHub] Load failed (status=${status}): ${message}`);
+        setRecommendedPreachers([]);
         Alert.alert('Ошибка', message);
       }
     } finally {
@@ -798,6 +825,61 @@ export default function SadhuSangaHubScreen() {
               </View>
             ) : (
               <>
+                {recommendedPreachers.length > 0 ? (
+                  <View style={styles.recommendedSection}>
+                    <View style={styles.recommendedHeader}>
+                      <Text style={styles.recommendedTitleMain}>Рекомендуем вам</Text>
+                      <Text style={styles.recommendedHeaderMeta}>Персональная подборка</Text>
+                    </View>
+                    <View style={styles.recommendedList}>
+                      {recommendedPreachers.map((item) => {
+                        const channel = item.channel;
+                        const followState = followStateByChannel[channel.ID] || {
+                          isFollowing: Boolean(channel.isFollowing),
+                          followersCount: Math.max(0, Number(channel.followersCount) || 0),
+                        };
+                        const canFollow = Boolean(user?.ID) && channel.ownerId !== user?.ID;
+
+                        return (
+                          <View key={`recommend-${channel.ID}`} style={styles.recommendedCard}>
+                            <View style={styles.recommendedCardTop}>
+                              <View style={styles.recommendedCardHead}>
+                                <Text style={styles.recommendedCardTitle} numberOfLines={1}>{channel.title}</Text>
+                                <Text style={styles.recommendedCardReason} numberOfLines={1}>{item.reason}</Text>
+                              </View>
+                              <Text style={styles.recommendedCardFollowers}>Подписчики: {followState.followersCount}</Text>
+                            </View>
+                            <Text style={styles.recommendedCardDesc} numberOfLines={2}>
+                              {channel.description || 'Подключитесь к каналу, чтобы смотреть эфиры и семинары.'}
+                            </Text>
+                            <View style={styles.recommendedActionsRow}>
+                              <TouchableOpacity
+                                style={styles.recommendedOpenButton}
+                                onPress={() => navigation.navigate('ChannelDetails', { channelId: channel.ID, source: 'sadhu_sanga' })}
+                              >
+                                <Text style={styles.recommendedOpenButtonText}>Открыть</Text>
+                              </TouchableOpacity>
+                              {canFollow ? (
+                                <TouchableOpacity
+                                  style={[
+                                    styles.recommendedFollowButton,
+                                    followState.isFollowing && styles.recommendedFollowButtonActive,
+                                  ]}
+                                  onPress={() => void toggleFollow(channel)}
+                                >
+                                  <Text style={styles.recommendedFollowButtonText}>
+                                    {followState.isFollowing ? 'Вы подписаны' : 'Подписаться'}
+                                  </Text>
+                                </TouchableOpacity>
+                              ) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+
                 <View style={styles.preachersHeader}>
                   <Text style={styles.preachersTitle}>Проповедники</Text>
                   <Text style={styles.preachersCount}>Все · {channels.length}</Text>
@@ -1222,6 +1304,108 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     color: colors.accent,
     fontSize: 14,
     fontWeight: '800',
+  },
+  recommendedSection: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 10,
+    gap: 8,
+  },
+  recommendedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  recommendedTitleMain: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  recommendedHeaderMeta: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  recommendedList: {
+    gap: 8,
+  },
+  recommendedCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    padding: 10,
+    gap: 6,
+  },
+  recommendedCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  recommendedCardHead: {
+    flex: 1,
+    gap: 2,
+  },
+  recommendedCardTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  recommendedCardReason: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  recommendedCardFollowers: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  recommendedCardDesc: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  recommendedActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recommendedOpenButton: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  recommendedOpenButtonText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  recommendedFollowButton: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  recommendedFollowButtonActive: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  recommendedFollowButtonText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
   },
   loaderWrap: {
     flex: 1,

@@ -39,6 +39,12 @@ func (m *mockChannelService) ListPublicChannels(filters services.ChannelListFilt
 func (m *mockChannelService) ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error) {
 	return &models.ChannelListResponse{}, nil
 }
+func (m *mockChannelService) GetSadhuSangaRecommendations(viewerID uint, filters services.ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error) {
+	return &models.ChannelRecommendationsResponse{
+		Items: []models.ChannelRecommendationItem{},
+		Total: 0,
+	}, nil
+}
 func (m *mockChannelService) GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error) {
 	return &models.Channel{OwnerID: viewerID}, nil
 }

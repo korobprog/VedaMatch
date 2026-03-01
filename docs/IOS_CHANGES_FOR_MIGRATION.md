@@ -1,5 +1,94 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Sadhu Sanga: C1 рекомендации перенесены на backend API)
+
+### Измененные файлы
+- `server/internal/models/channel.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/cmd/api/main.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Источник рекомендаций:
+  - Было: `SadhuSangaHubScreen` считал рекомендации локально (`useMemo`) из уже загруженного списка каналов.
+  - Стало: рекомендации считаются на backend и отдаются отдельным endpoint.
+- Backend контракт:
+  - Добавлен `GET /api/channels/sadhu-sanga/recommendations` (protected).
+  - Добавлены DTO `ChannelRecommendationItem/ChannelRecommendationsResponse`.
+  - В `ChannelService` добавлен серверный скоринг (live/scheduled, newness, followers, relevance city/language/topic).
+- Frontend контракт:
+  - `channelService.getSadhuSangaRecommendations(...)` запрашивает рекомендации.
+  - `SadhuSangaHubScreen` использует ответ API и больше не содержит локальный блок `useMemo` со скорингом.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/sadhu-sanga/recommendations", channelHandler.GetSadhuSangaRecommendations)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error) {
+  // server-side scoring by live status, follow state, followers, and filters relevance
+}
+```
+
+`frontend/services/channelService.ts`:
+```ts
+async getSadhuSangaRecommendations(params = {}): Promise<ChannelRecommendationsResponse> {
+  const response = await apiClient.get('/channels/sadhu-sanga/recommendations', { params });
+  return response.data;
+}
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const [response, recommendations] = await Promise.all([
+  channelService.getChannels(listParams),
+  channelService.getSadhuSangaRecommendations({ limit: 3, ...listParams }),
+]);
+```
+
+## 2026-03-01 (Sadhu Sanga: Stage C1 MVP — блок персональных рекомендаций)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Главная Sadhu Sanga:
+  - Было: после блока семинаров отображался только общий список `Проповедники`.
+  - Стало: добавлена секция `Рекомендуем вам` (до 3 каналов) перед основным каталогом.
+- Алгоритм C1 (MVP, без нового API):
+  - учитывает `live/scheduled` статус,
+  - учитывает релевантность фильтрам `city/language/topic` по `title/description/slug`,
+  - повышает приоритет неподписанных каналов (discovery),
+  - учитывает `followersCount` как сигнал вовлеченности.
+- UX:
+  - каждая карточка рекомендации показывает причину рекомендации;
+  - быстрые действия: `Открыть` и `Подписаться`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const recommendedPreachers = useMemo<RecommendedPreacher[]>(() => {
+  // scoring by live status + filter relevance + newness + followers
+}, [channels, city, followStateByChannel, language, topic, user?.ID]);
+```
+
+```tsx
+{recommendedPreachers.length > 0 ? (
+  <View style={styles.recommendedSection}>
+    <Text style={styles.recommendedTitleMain}>Рекомендуем вам</Text>
+  </View>
+) : null}
+```
+
 ## 2026-03-01 (Sadhu Sanga: общий layout-компонент для экранов сервиса)
 
 ### Измененные файлы

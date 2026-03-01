@@ -19,6 +19,7 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	sfuService "rag-agent-server/internal/services/sfu"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -230,6 +231,192 @@ func (s *ChannelService) ListMyChannels(ownerID uint, filters ChannelListFilters
 		Or("id IN (?)", memberChannelIDs)
 
 	return s.listChannels(baseQuery, filters)
+}
+
+func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error) {
+	if viewerID == 0 {
+		return nil, ErrChannelForbidden
+	}
+	if limit <= 0 {
+		limit = 3
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	fetchLimit := limit * 10
+	if fetchLimit < 24 {
+		fetchLimit = 24
+	}
+	if fetchLimit > 120 {
+		fetchLimit = 120
+	}
+
+	query := s.db.Model(&models.Channel{}).
+		Where("channels.is_public = ?", true).
+		Where("channels.owner_id <> ?", viewerID)
+
+	joinedOwner := false
+	if search := strings.TrimSpace(filters.Search); search != "" {
+		pattern := "%" + search + "%"
+		query = query.Where("channels.title ILIKE ? OR channels.description ILIKE ? OR channels.slug ILIKE ?", pattern, pattern, pattern)
+	}
+	if city := strings.TrimSpace(filters.City); city != "" {
+		if !joinedOwner {
+			query = query.Joins("JOIN users ON users.id = channels.owner_id")
+			joinedOwner = true
+		}
+		query = query.Where("LOWER(users.city) = LOWER(?)", city)
+	}
+	if language := strings.TrimSpace(filters.Language); language != "" {
+		if !joinedOwner {
+			query = query.Joins("JOIN users ON users.id = channels.owner_id")
+			joinedOwner = true
+		}
+		query = query.Where("LOWER(users.language) = LOWER(?)", language)
+	}
+	if topic := strings.TrimSpace(filters.Topic); topic != "" {
+		ownerByTopic := s.db.
+			Table("user_tags").
+			Select("DISTINCT user_tags.user_id").
+			Joins("JOIN tags ON tags.id = user_tags.tag_id").
+			Where("LOWER(tags.name) LIKE ?", "%"+strings.ToLower(topic)+"%")
+		query = query.Where("channels.owner_id IN (?)", ownerByTopic)
+	}
+
+	var channels []models.Channel
+	if err := query.
+		Preload("Owner").
+		Distinct("channels.*").
+		Order("channels.created_at DESC").
+		Limit(fetchLimit).
+		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	if len(channels) == 0 {
+		return &models.ChannelRecommendationsResponse{
+			Items: []models.ChannelRecommendationItem{},
+			Total: 0,
+		}, nil
+	}
+
+	channelPointers := make([]*models.Channel, 0, len(channels))
+	for i := range channels {
+		channelPointers = append(channelPointers, &channels[i])
+	}
+	if err := s.enrichChannelsFollowMeta(channelPointers, viewerID); err != nil {
+		return nil, err
+	}
+	if err := s.enrichChannelsLiveMeta(channelPointers); err != nil {
+		return nil, err
+	}
+
+	cityFilter := strings.ToLower(strings.TrimSpace(filters.City))
+	languageFilter := strings.ToLower(strings.TrimSpace(filters.Language))
+	topicFilter := strings.ToLower(strings.TrimSpace(filters.Topic))
+
+	type scoredRecommendation struct {
+		channel *models.Channel
+		score   int
+		reason  string
+	}
+	scored := make([]scoredRecommendation, 0, len(channels))
+
+	for i := range channels {
+		channel := &channels[i]
+		ownerCity := ""
+		ownerLanguage := ""
+		if channel.Owner != nil {
+			ownerCity = channel.Owner.City
+			ownerLanguage = channel.Owner.Language
+		}
+		searchableText := strings.ToLower(strings.TrimSpace(strings.Join([]string{
+			channel.Title,
+			channel.Description,
+			channel.Slug,
+			ownerCity,
+			ownerLanguage,
+		}, " ")))
+
+		score := 0
+		reasons := make([]string, 0, 4)
+
+		if channel.LiveStatus == string(models.ChannelLiveStatusLive) {
+			score += 60
+			reasons = append(reasons, "Сейчас в эфире")
+		} else if channel.LiveStatus == string(models.ChannelLiveStatusScheduled) {
+			score += 35
+			reasons = append(reasons, "Есть запланированный эфир")
+		}
+
+		if !channel.IsFollowing {
+			score += 24
+			reasons = append(reasons, "Новый для вас")
+		} else {
+			score += 8
+		}
+
+		if channel.FollowersCount > 0 {
+			score += int(math.Min(24, float64(channel.FollowersCount/100)))
+		}
+
+		if topicFilter != "" && strings.Contains(searchableText, topicFilter) {
+			score += 28
+			reasons = append(reasons, "Соответствует теме")
+		}
+		if cityFilter != "" && strings.Contains(searchableText, cityFilter) {
+			score += 20
+			reasons = append(reasons, "Подходит по городу")
+		}
+		if languageFilter != "" && strings.Contains(searchableText, languageFilter) {
+			score += 16
+			reasons = append(reasons, "Подходит по языку")
+		}
+
+		reason := "Рекомендуем к просмотру"
+		if len(reasons) > 0 {
+			reason = reasons[0]
+		} else if channel.FollowersCount > 0 {
+			reason = "Популярно у последователей"
+		}
+
+		scored = append(scored, scoredRecommendation{
+			channel: channel,
+			score:   score,
+			reason:  reason,
+		})
+	}
+
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].score != scored[j].score {
+			return scored[i].score > scored[j].score
+		}
+		if scored[i].channel.FollowersCount != scored[j].channel.FollowersCount {
+			return scored[i].channel.FollowersCount > scored[j].channel.FollowersCount
+		}
+		return scored[i].channel.ID > scored[j].channel.ID
+	})
+
+	if len(scored) > limit {
+		scored = scored[:limit]
+	}
+
+	items := make([]models.ChannelRecommendationItem, 0, len(scored))
+	for _, item := range scored {
+		if item.channel == nil {
+			continue
+		}
+		items = append(items, models.ChannelRecommendationItem{
+			Channel: *item.channel,
+			Score:   item.score,
+			Reason:  item.reason,
+		})
+	}
+
+	return &models.ChannelRecommendationsResponse{
+		Items: items,
+		Total: len(items),
+	}, nil
 }
 
 func (s *ChannelService) FollowChannel(channelID, followerID uint) (*models.ChannelMember, error) {
