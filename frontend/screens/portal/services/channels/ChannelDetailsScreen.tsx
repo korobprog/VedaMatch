@@ -18,7 +18,7 @@ import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navig
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowLeft, Eye, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Video } from 'lucide-react-native';
-import { channelService } from '../../../../services/channelService';
+import { channelService, PreacherAnalytics } from '../../../../services/channelService';
 import {
   Channel,
   ChannelMemberRole,
@@ -270,6 +270,8 @@ export default function ChannelDetailsScreen() {
   const [preacherQuestions, setPreacherQuestions] = useState<SupportPreacherQuestion[]>([]);
   const [preacherQuestionsLoading, setPreacherQuestionsLoading] = useState(false);
   const [questionVoteLoadingId, setQuestionVoteLoadingId] = useState<number | null>(null);
+  const [preacherAnalytics, setPreacherAnalytics] = useState<PreacherAnalytics | null>(null);
+  const [preacherAnalyticsLoading, setPreacherAnalyticsLoading] = useState(false);
   const seminarsSectionYRef = useRef(0);
   const contentListRef = useRef<FlatList<ChannelPost> | null>(null);
 
@@ -368,6 +370,30 @@ export default function ChannelDetailsScreen() {
     }
   }, []);
 
+  const loadPreacherAnalytics = useCallback(async () => {
+    if (!channelId || channelId <= 0) {
+      setPreacherAnalytics(null);
+      return;
+    }
+    setPreacherAnalyticsLoading(true);
+    try {
+      const response = await channelService.getPreacherAnalytics(channelId);
+      if (mountedRef.current) {
+        setPreacherAnalytics(response);
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить аналитику';
+      console.warn(`[ChannelDetails] Failed to load preacher analytics: ${message}`);
+      if (mountedRef.current) {
+        setPreacherAnalytics(null);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setPreacherAnalyticsLoading(false);
+      }
+    }
+  }, [channelId]);
+
   const loadData = useCallback(async (isRefresh: boolean) => {
     if (!channelId) {
       return;
@@ -393,9 +419,16 @@ export default function ChannelDetailsScreen() {
       if (isSadhuSangaMode) {
         void loadPreacherSeminars(channelResponse.channel.ownerId);
         void loadPreacherQuestions(channelResponse.channel.ownerId);
+        const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
+        if (resolvedRole === 'owner' || resolvedRole === 'admin') {
+          void loadPreacherAnalytics();
+        } else {
+          setPreacherAnalytics(null);
+        }
       } else {
         setPreacherSeminars([]);
         setPreacherQuestions([]);
+        setPreacherAnalytics(null);
       }
 
       const [postsResponse, showcasesResponse, storiesResponse, promptStatus] = await Promise.all([
@@ -448,7 +481,7 @@ export default function ChannelDetailsScreen() {
         setStoriesLoading(false);
       }
     }
-  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherQuestions, loadPreacherSeminars]);
+  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherAnalytics, loadPreacherQuestions, loadPreacherSeminars, user?.ID]);
 
   useEffect(() => {
     if (focusSection !== 'seminars') {
@@ -630,6 +663,7 @@ export default function ChannelDetailsScreen() {
 
   const isEditor = canEditPosts(viewerRole);
   const isModerator = canModeratePosts(viewerRole);
+  const canViewPreacherAnalytics = isSadhuSangaMode && (viewerRole === 'owner' || viewerRole === 'admin');
 
   const togglePin = async (post: ChannelPost) => {
     if (!channelId || !isModerator || busyPostId !== null) {
@@ -1175,6 +1209,44 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
+        {canViewPreacherAnalytics ? (
+          <View style={styles.preacherAnalyticsSection}>
+            <View style={styles.preacherAnalyticsHeader}>
+              <Text style={styles.preacherAnalyticsTitle}>Аналитика проповедника</Text>
+              {preacherAnalyticsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+            </View>
+            <View style={styles.preacherAnalyticsStatsGrid}>
+              <View style={styles.preacherAnalyticsStatCard}>
+                <Text style={styles.preacherAnalyticsStatValue}>
+                  {Math.max(0, Number(preacherAnalytics?.totalLectureViews) || 0).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Просмотры лекций</Text>
+              </View>
+              <View style={styles.preacherAnalyticsStatCard}>
+                <Text style={styles.preacherAnalyticsStatValue}>
+                  {Math.max(0, Number(preacherAnalytics?.seminarRegistrations) || 0).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Регистрации на семинары</Text>
+              </View>
+            </View>
+            <View style={styles.preacherAnalyticsCitiesWrap}>
+              <Text style={styles.preacherAnalyticsCitiesTitle}>Активные города</Text>
+              {(preacherAnalytics?.activeCities || []).length === 0 ? (
+                <Text style={styles.preacherAnalyticsCitiesEmpty}>Пока недостаточно данных по городам</Text>
+              ) : (
+                <View style={styles.preacherAnalyticsCitiesList}>
+                  {(preacherAnalytics?.activeCities || []).map((city) => (
+                    <View key={`city-${city.city}`} style={styles.preacherAnalyticsCityRow}>
+                      <Text style={styles.preacherAnalyticsCityName} numberOfLines={1}>{city.city}</Text>
+                      <Text style={styles.preacherAnalyticsCityValue}>{Math.max(0, Number(city.registrations) || 0)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : null}
+
         {isSadhuSangaMode ? (
           <View style={styles.preacherQuestionsSection}>
             <View style={styles.preacherQuestionsHeader}>
@@ -1633,6 +1705,89 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.accent,
       fontSize: 12,
       fontWeight: '700',
+    },
+    preacherAnalyticsSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 10,
+    },
+    preacherAnalyticsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    preacherAnalyticsTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    preacherAnalyticsStatsGrid: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: 8,
+    },
+    preacherAnalyticsStatCard: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 3,
+    },
+    preacherAnalyticsStatValue: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    preacherAnalyticsStatLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    preacherAnalyticsCitiesWrap: {
+      gap: 6,
+    },
+    preacherAnalyticsCitiesTitle: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    preacherAnalyticsCitiesEmpty: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    preacherAnalyticsCitiesList: {
+      gap: 6,
+    },
+    preacherAnalyticsCityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 9,
+      paddingVertical: 7,
+      gap: 10,
+    },
+    preacherAnalyticsCityName: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    preacherAnalyticsCityValue: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '800',
     },
     preacherQuestionsSection: {
       marginHorizontal: 16,

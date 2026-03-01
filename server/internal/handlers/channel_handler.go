@@ -22,6 +22,7 @@ type channelService interface {
 	FollowChannel(channelID, followerID uint) (*models.ChannelMember, error)
 	UnfollowChannel(channelID, followerID uint) error
 	GetFollowStatus(channelID, viewerID uint) (bool, int64, error)
+	GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error)
 	GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error)
 	UpsertSadhuSangaPushPreference(userID uint, req models.ChannelSmartPushPreferenceUpsertRequest) (*models.ChannelSmartPushPreferenceResponse, error)
 	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
@@ -265,6 +266,28 @@ func (h *ChannelHandler) GetFollowStatus(c *fiber.Ctx) error {
 		"isFollowing":    isFollowing,
 		"followersCount": followersCount,
 	})
+}
+
+func (h *ChannelHandler) GetPreacherAnalytics(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	analytics, err := h.service.GetPreacherAnalytics(channelID, userID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+	return c.JSON(analytics)
 }
 
 func (h *ChannelHandler) GetSadhuSangaPushPreference(c *fiber.Ctx) error {

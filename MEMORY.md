@@ -142,6 +142,13 @@
     - `PUT /api/channels/sadhu-sanga/push-preferences`
   - при fanout push в `channel_service.deliverPostToSubscribers` применяется фильтрация по настройкам пользователя (enabled, city, language, topics, local hour window).
   - режим «Не пропустить»: в preference добавлены флаги `reminder1h/reminder10m`; booking reminder worker проверяет их перед отправкой push для `reminder_1h` и `reminder_10m`.
+- Аналитика проповедника (`MVP+`) в `ChannelDetails` (`source='sadhu_sanga'`):
+  - новый API: `GET /api/channels/:id/preacher-analytics` (роль доступа: owner/admin канала);
+  - backend считает:
+    - `totalLectureViews` как сумму `view_count` опубликованных постов канала;
+    - `seminarRegistrations` как регистрации по `service_bookings` для услуг владельца канала;
+    - `activeCities` как топ-5 городов клиентов (`users.city`) по числу регистраций;
+  - frontend `ChannelDetailsScreen` показывает блок `Аналитика проповедника` (карточки метрик + активные города) только для owner/admin в режиме Sadhu Sanga.
 - `frontend/screens/portal/services/MyBookingsScreen.tsx` + `frontend/screens/portal/services/components/BookingCard.tsx`:
   - добавлена кнопка `Календарь` для upcoming booking;
   - действие вызывает `exportBookingCalendarIcs(bookingId)` и открывает системный share sheet с ICS payload.

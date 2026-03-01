@@ -436,6 +436,77 @@ func (s *ChannelService) UpsertSadhuSangaPushPreference(userID uint, req models.
 	}, nil
 }
 
+func (s *ChannelService) GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error) {
+	channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleAdmin)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalLectureViews int64
+	if err := s.db.Model(&models.ChannelPost{}).
+		Where("channel_id = ? AND status = ?", channelID, models.ChannelPostStatusPublished).
+		Select("COALESCE(SUM(view_count), 0)").
+		Scan(&totalLectureViews).Error; err != nil {
+		return nil, err
+	}
+
+	allowedStatuses := []models.BookingStatus{
+		models.BookingStatusPending,
+		models.BookingStatusConfirmed,
+		models.BookingStatusCompleted,
+		models.BookingStatusNoShow,
+	}
+
+	var seminarRegistrations int64
+	if err := s.db.Table("service_bookings").
+		Joins("JOIN services ON services.id = service_bookings.service_id AND services.deleted_at IS NULL").
+		Where("services.owner_id = ?", channel.OwnerID).
+		Where("service_bookings.deleted_at IS NULL").
+		Where("service_bookings.status IN ?", allowedStatuses).
+		Count(&seminarRegistrations).Error; err != nil {
+		return nil, err
+	}
+
+	type activeCityRow struct {
+		City          string
+		Registrations int64
+	}
+	var cityRows []activeCityRow
+	if err := s.db.Table("service_bookings").
+		Select("MIN(TRIM(users.city)) AS city, COUNT(service_bookings.id) AS registrations").
+		Joins("JOIN services ON services.id = service_bookings.service_id AND services.deleted_at IS NULL").
+		Joins("JOIN users ON users.id = service_bookings.client_id AND users.deleted_at IS NULL").
+		Where("services.owner_id = ?", channel.OwnerID).
+		Where("service_bookings.deleted_at IS NULL").
+		Where("service_bookings.status IN ?", allowedStatuses).
+		Where("TRIM(users.city) <> ''").
+		Group("LOWER(TRIM(users.city))").
+		Order("registrations DESC, city ASC").
+		Limit(5).
+		Scan(&cityRows).Error; err != nil {
+		return nil, err
+	}
+
+	cities := make([]models.ChannelPreacherAnalyticsCity, 0, len(cityRows))
+	for _, row := range cityRows {
+		city := strings.TrimSpace(row.City)
+		if city == "" {
+			continue
+		}
+		cities = append(cities, models.ChannelPreacherAnalyticsCity{
+			City:          city,
+			Registrations: row.Registrations,
+		})
+	}
+
+	return &models.ChannelPreacherAnalyticsResponse{
+		ChannelID:            channelID,
+		TotalLectureViews:    totalLectureViews,
+		SeminarRegistrations: seminarRegistrations,
+		ActiveCities:         cities,
+	}, nil
+}
+
 func (s *ChannelService) GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error) {
 	if viewerID == 0 {
 		return "", nil

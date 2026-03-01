@@ -51,6 +51,14 @@ func (m *mockChannelService) UnfollowChannel(channelID, followerID uint) error {
 func (m *mockChannelService) GetFollowStatus(channelID, viewerID uint) (bool, int64, error) {
 	return true, 1, nil
 }
+func (m *mockChannelService) GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error) {
+	return &models.ChannelPreacherAnalyticsResponse{
+		ChannelID:            channelID,
+		TotalLectureViews:    0,
+		SeminarRegistrations: 0,
+		ActiveCities:         []models.ChannelPreacherAnalyticsCity{},
+	}, nil
+}
 func (m *mockChannelService) GetSadhuSangaPushPreference(userID uint) (*models.ChannelSmartPushPreferenceResponse, error) {
 	return &models.ChannelSmartPushPreferenceResponse{
 		UserID:        userID,

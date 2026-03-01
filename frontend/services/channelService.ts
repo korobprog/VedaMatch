@@ -33,6 +33,18 @@ export interface SadhuSangaPushPreference {
   timezone: string;
 }
 
+export interface PreacherAnalyticsCity {
+  city: string;
+  registrations: number;
+}
+
+export interface PreacherAnalytics {
+  channelId: number;
+  totalLectureViews: number;
+  seminarRegistrations: number;
+  activeCities: PreacherAnalyticsCity[];
+}
+
 class ChannelService {
   async getFeed(params: { page?: number; limit?: number; search?: string; channelId?: number } = {}): Promise<ChannelFeedResponse> {
     const response = await apiClient.get('/feed', { params });
@@ -71,6 +83,11 @@ class ChannelService {
 
   async getFollowStatus(channelId: number): Promise<{ channelId: number; isFollowing: boolean; followersCount: number }> {
     const response = await apiClient.get(`/channels/${channelId}/follow-status`);
+    return response.data;
+  }
+
+  async getPreacherAnalytics(channelId: number): Promise<PreacherAnalytics> {
+    const response = await apiClient.get(`/channels/${channelId}/preacher-analytics`);
     return response.data;
   }
 

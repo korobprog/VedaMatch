@@ -814,6 +814,7 @@ func main() {
 	protected.Post("/channels/:id/follow", channelHandler.FollowChannel)
 	protected.Delete("/channels/:id/follow", channelHandler.UnfollowChannel)
 	protected.Get("/channels/:id/follow-status", channelHandler.GetFollowStatus)
+	protected.Get("/channels/:id/preacher-analytics", channelHandler.GetPreacherAnalytics)
 	protected.Get("/channels/sadhu-sanga/push-preferences", channelHandler.GetSadhuSangaPushPreference)
 	protected.Put("/channels/sadhu-sanga/push-preferences", channelHandler.UpdateSadhuSangaPushPreference)
 	protected.Post("/channels/:id/showcases", channelHandler.CreateShowcase)

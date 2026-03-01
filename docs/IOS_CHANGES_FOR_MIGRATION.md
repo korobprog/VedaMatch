@@ -1,5 +1,50 @@
 # IOS Changes For Migration
 
+## 2026-03-01 (Sadhu Sanga: аналитика проповедника в ChannelDetails)
+
+### Измененные файлы
+- `server/internal/models/channel_analytics.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/cmd/api/main.go`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Аналитика для проповедника:
+  - Было: в `sadhu_sanga` режиме `ChannelDetails` не было блока аналитики по лекциям/регистрациям/городам.
+  - Стало: добавлен новый endpoint `GET /api/channels/:id/preacher-analytics` (доступ owner/admin канала), который возвращает:
+    - `totalLectureViews` (сумма просмотров опубликованных постов канала),
+    - `seminarRegistrations` (число регистраций на семинары владельца канала),
+    - `activeCities` (топ городов клиентов по регистрациям).
+- Мобильный экран:
+  - Было: в блоках Sadhu Sanga были вопросы и семинары, без метрик.
+  - Стало: добавлен блок `Аналитика проповедника` в `ChannelDetails` (только owner/admin) с карточками метрик и списком активных городов.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/channels/:id/preacher-analytics", channelHandler.GetPreacherAnalytics)
+```
+
+`server/internal/services/channel_service.go`:
+```go
+func (s *ChannelService) GetPreacherAnalytics(channelID, actorID uint) (*models.ChannelPreacherAnalyticsResponse, error) {
+    channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleAdmin)
+    // ...
+}
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+{canViewPreacherAnalytics ? (
+  <View style={styles.preacherAnalyticsSection}>
+    <Text style={styles.preacherAnalyticsTitle}>Аналитика проповедника</Text>
+  </View>
+) : null}
+```
+
 ## 2026-03-01 (Sadhu Sanga: "Не пропустить" reminder toggles 1h/10m)
 
 ### Измененные файлы
