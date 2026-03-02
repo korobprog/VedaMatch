@@ -45,11 +45,24 @@ func (m *mockChannelService) GetSadhuSangaRecommendations(viewerID uint, filters
 		Total: 0,
 	}, nil
 }
-func (m *mockChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error) {
+func (m *mockChannelService) GetSadhuSangaFacets(viewerID uint) (*models.ChannelFacetsResponse, error) {
 	return &models.ChannelFacetsResponse{
 		Cities:    []models.ChannelFacetOption{},
 		Languages: []models.ChannelFacetOption{},
 		Topics:    []models.ChannelFacetOption{},
+		Mathas:    []models.ChannelFacetOption{},
+	}, nil
+}
+func (m *mockChannelService) GetPreacherProfile(channelID, viewerID uint) (*models.PreacherProfileDTO, error) {
+	return &models.PreacherProfileDTO{
+		UserID: viewerID,
+		Events: []models.PreacherProfileEventDTO{},
+	}, nil
+}
+func (m *mockChannelService) UpsertPreacherProfile(channelID, actorID uint, req models.PreacherProfileUpsertRequest) (*models.PreacherProfileDTO, error) {
+	return &models.PreacherProfileDTO{
+		UserID: actorID,
+		Events: []models.PreacherProfileEventDTO{},
 	}, nil
 }
 func (m *mockChannelService) GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error) {

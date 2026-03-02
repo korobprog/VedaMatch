@@ -110,7 +110,9 @@ export default {
         outgoing: 'Outgoing',
         missed: 'Missed',
         call: 'Call',
-        callback: 'Call back'
+        callback: 'Call back',
+        empty: 'No calls yet',
+        onlineNow: 'online'
     },
     market: {
         title: 'Sattva Market',

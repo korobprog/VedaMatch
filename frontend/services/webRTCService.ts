@@ -26,6 +26,7 @@ class WebRTCService {
     peerConnection: RTCPeerConnection | null = null;
     localStream: MediaStream | null = null;
     private localStreamPromise: Promise<MediaStream> | null = null;
+    private isFrontCamera: boolean = true;
     wsService: WebSocketService | null = null;
     onRemoteStream: ((stream: MediaStream) => void) | null = null;
     targetId: number | null = null;
@@ -106,26 +107,23 @@ class WebRTCService {
         return devices.find(source => source.kind === 'videoinput')?.deviceId;
     }
 
-    async startLocalStream(isVideo: boolean = true) {
-        if (this.localStream) {
-            const hasLiveTrack = this.localStream.getTracks().some(track => track.readyState === 'live');
-            if (hasLiveTrack) {
-                return this.localStream;
-            }
-            this.localStream.getTracks().forEach(track => track.stop());
-            this.localStream = null;
-        }
-
-        if (this.localStreamPromise) {
-            return this.localStreamPromise;
-        }
-
-        this.localStreamPromise = (async () => {
+    private async createLocalStreamWithPreferredCamera(isVideo: boolean, isFront: boolean): Promise<MediaStream> {
         await this.ensureAndroidMediaPermissions();
 
-        const isFront = true;
-        const devices = await mediaDevices.enumerateDevices() as Array<{ kind?: string; facing?: string; deviceId?: string }>;
-        const videoSourceId = this.getPreferredVideoSource(devices, isFront);
+        let videoSourceId: string | undefined;
+
+        // iOS crash workaround:
+        // react-native-webrtc@124 can throw a native NSException inside enumerateDevices
+        // when one of AV device fields is nil. Avoid enumerateDevices on iOS.
+        if (Platform.OS !== 'ios') {
+            try {
+                const devices = await mediaDevices.enumerateDevices() as Array<{ kind?: string; facing?: string; deviceId?: string }>;
+                videoSourceId = this.getPreferredVideoSource(devices, isFront);
+            } catch (error) {
+                console.warn('[WebRTC] enumerateDevices failed, falling back to facingMode-only constraints', error);
+                videoSourceId = undefined;
+            }
+        }
 
         const videoConstraintsCandidates = isVideo
             ? [
@@ -169,14 +167,145 @@ class WebRTCService {
             throw new Error('Camera track is unavailable');
         }
 
-        console.log('Local stream obtained. Audio tracks:', stream.getAudioTracks().length, 'Video tracks:', stream.getVideoTracks().length);
-        this.localStream = stream;
         return stream;
+    }
+
+    async startLocalStream(isVideo: boolean = true) {
+        if (this.localStream) {
+            const hasLiveTrack = this.localStream.getTracks().some(track => track.readyState === 'live');
+            if (hasLiveTrack) {
+                return this.localStream;
+            }
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+
+        if (this.localStreamPromise) {
+            return this.localStreamPromise;
+        }
+
+        this.localStreamPromise = (async () => {
+            const stream = await this.createLocalStreamWithPreferredCamera(isVideo, this.isFrontCamera);
+            console.log('Local stream obtained. Audio tracks:', stream.getAudioTracks().length, 'Video tracks:', stream.getVideoTracks().length);
+            this.localStream = stream;
+            return stream;
         })().finally(() => {
             this.localStreamPromise = null;
         });
 
         return this.localStreamPromise;
+    }
+
+    private async replaceLocalTracksForPeerConnection(nextStream: MediaStream) {
+        if (!this.peerConnection) {
+            return;
+        }
+
+        const senders = (this.peerConnection as any).getSenders?.() as Array<any> | undefined;
+        const nextVideoTrack = nextStream.getVideoTracks()[0];
+        const nextAudioTrack = nextStream.getAudioTracks()[0];
+
+        let replacedVideo = false;
+        let replacedAudio = false;
+
+        if (Array.isArray(senders)) {
+            for (const sender of senders) {
+                const senderTrack = sender?.track;
+                if (!senderTrack || typeof sender.replaceTrack !== 'function') {
+                    continue;
+                }
+
+                if (senderTrack.kind === 'video' && nextVideoTrack) {
+                    await sender.replaceTrack(nextVideoTrack);
+                    replacedVideo = true;
+                }
+
+                if (senderTrack.kind === 'audio' && nextAudioTrack) {
+                    await sender.replaceTrack(nextAudioTrack);
+                    replacedAudio = true;
+                }
+            }
+        }
+
+        if (nextVideoTrack && !replacedVideo) {
+            this.peerConnection.addTrack(nextVideoTrack, nextStream);
+        }
+
+        if (nextAudioTrack && !replacedAudio) {
+            this.peerConnection.addTrack(nextAudioTrack, nextStream);
+        }
+    }
+
+    private async restartLocalStreamWithFacing(isFront: boolean): Promise<MediaStream> {
+        const previousStream = this.localStream;
+        const nextStream = await this.createLocalStreamWithPreferredCamera(true, isFront);
+
+        await this.replaceLocalTracksForPeerConnection(nextStream);
+
+        this.localStream = nextStream;
+        this.isFrontCamera = isFront;
+
+        if (previousStream && previousStream !== nextStream) {
+            previousStream.getTracks().forEach(track => track.stop());
+        }
+
+        return nextStream;
+    }
+
+    async switchCamera(): Promise<{ success: boolean; stream?: MediaStream; reason?: string }> {
+        if (this.localStreamPromise) {
+            try {
+                await this.localStreamPromise;
+            } catch {
+                // Continue with the best effort below.
+            }
+        }
+
+        const stream = this.localStream;
+        if (!stream) {
+            return { success: false, reason: 'no_local_stream' };
+        }
+
+        const videoTrack = stream.getVideoTracks()[0] as any;
+        if (!videoTrack) {
+            return { success: false, reason: 'no_video_track' };
+        }
+
+        // On iOS devices track-level _switchCamera can report success but keep the old camera feed.
+        // Stream restart is slower but deterministic and updates sender tracks as well.
+        if (Platform.OS === 'ios') {
+            try {
+                const nextStream = await this.restartLocalStreamWithFacing(!this.isFrontCamera);
+                return { success: true, stream: nextStream };
+            } catch (error) {
+                console.warn('[WebRTC] iOS stream-level camera switch failed', error);
+                return { success: false, reason: 'switch_failed' };
+            }
+        }
+
+        const legacySwitchFn = typeof videoTrack._switchCamera === 'function'
+            ? videoTrack._switchCamera.bind(videoTrack)
+            : typeof videoTrack.switchCamera === 'function'
+                ? videoTrack.switchCamera.bind(videoTrack)
+                : null;
+
+        if (legacySwitchFn) {
+            try {
+                legacySwitchFn();
+                this.isFrontCamera = !this.isFrontCamera;
+                return { success: true, stream };
+            } catch (error) {
+                console.warn('[WebRTC] track-level camera switch failed, falling back to stream restart', error);
+            }
+        }
+
+        try {
+            const nextStream = await this.restartLocalStreamWithFacing(!this.isFrontCamera);
+            return { success: true, stream: nextStream };
+        } catch (error) {
+            console.warn('[WebRTC] stream-level camera switch failed', error);
+            return { success: false, reason: 'switch_failed' };
+        }
     }
 
     async fetchTurnCredentials() {
@@ -496,6 +625,7 @@ class WebRTCService {
             this.localStream = null;
         }
         this.localStreamPromise = null;
+        this.isFrontCamera = true;
         InCallManager.stop();
         this.remoteStream = null;
         this.targetId = null;

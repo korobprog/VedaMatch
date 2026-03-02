@@ -69,6 +69,16 @@ const (
 	MetricSadhuYouTubeUploadSuccessTotal     = "sadhu_youtube_upload_success_total"
 	MetricSadhuYouTubeUploadFailedTotal      = "sadhu_youtube_upload_failed_total"
 	MetricSadhuYouTubeUploadRetryTotal       = "sadhu_youtube_upload_retry_total"
+	MetricSadhuPreacherProfileReadTotal      = "sadhu_preacher_profile_read_total"
+	MetricSadhuPreacherProfileUpsertTotal    = "sadhu_preacher_profile_upsert_total"
+	MetricSadhuMathFilterAppliedTotal        = "sadhu_math_filter_applied_total"
+	MetricSadhuMathFilterBypassTotal         = "sadhu_math_filter_bypass_total"
+	MetricSadhuMathFilterEmptyProfileTotal   = "sadhu_math_filter_empty_profile_total"
+	MetricProPurchaseAttemptTotal            = "pro_purchase_attempt_total"
+	MetricProPurchaseSuccessTotal            = "pro_purchase_success_total"
+	MetricProPurchaseInsufficientLKMTotal    = "pro_purchase_insufficient_lkm_total"
+	MetricProEntitlementSyncTotal            = "pro_entitlement_sync_total"
+	MetricProExpiredTotal                    = "pro_expired_total"
 )
 
 type MetricsService struct {

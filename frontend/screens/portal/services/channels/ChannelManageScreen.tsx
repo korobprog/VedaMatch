@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
@@ -91,7 +90,7 @@ export default function ChannelManageScreen() {
 
   const { user } = useUser();
   const { isDarkMode } = useSettings();
-  const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+  const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [loading, setLoading] = useState(true);
@@ -110,8 +109,8 @@ export default function ChannelManageScreen() {
   const [showcases, setShowcases] = useState<ChannelShowcase[]>([]);
   const [productCategoryOptions, setProductCategoryOptions] = useState<ProductCategoryConfig[]>([]);
   const [description, setDescription] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [coverPreviewError, setCoverPreviewError] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
   const [timezone, setTimezone] = useState('UTC');
 
@@ -158,6 +157,16 @@ export default function ChannelManageScreen() {
     }));
   }, [isServiceShowcaseKind, serviceCategoryOptions, productCategoryOptions]);
   const isEditShowcaseMode = editingShowcaseId !== null;
+  const coverPreviewUri = useMemo(() => {
+    const raw = (coverUrl || '').trim();
+    if (!raw) {
+      return '';
+    }
+    const updatedAtRaw = channel?.UpdatedAt ? String(channel.UpdatedAt) : '';
+    const cacheToken = updatedAtRaw ? new Date(updatedAtRaw).getTime() : Date.now();
+    const separator = raw.includes('?') ? '&' : '?';
+    return `${raw}${separator}t=${cacheToken}`;
+  }, [coverUrl, channel?.UpdatedAt]);
   const builtShowcaseFilterJson = useMemo(() => {
     const payload: Record<string, any> = {};
     const category = showcaseFilterCategory.trim();
@@ -320,7 +329,6 @@ export default function ChannelManageScreen() {
       setViewerRole(fetchedRole);
       setShowcases(showcasesResponse.showcases || []);
       setDescription(fetchedChannel.description || '');
-      setAvatarUrl(fetchedChannel.avatarUrl || '');
       setCoverUrl(fetchedChannel.coverUrl || '');
       setIsPublic(fetchedChannel.isPublic);
       setTimezone(fetchedChannel.timezone || 'UTC');
@@ -361,6 +369,10 @@ export default function ChannelManageScreen() {
     }
   }, [canManageShowcases, loadProductCategories]);
 
+  useEffect(() => {
+    setCoverPreviewError(false);
+  }, [coverUrl]);
+
   const saveBranding = async () => {
     if (!channelId) {
       return;
@@ -369,10 +381,9 @@ export default function ChannelManageScreen() {
     try {
       const updated = await channelService.updateBranding(channelId, {
         description: description.trim(),
-        avatarUrl: avatarUrl.trim(),
-        coverUrl: coverUrl.trim(),
       });
       setChannel(updated);
+      setCoverUrl(updated.coverUrl || '');
       Alert.alert('Готово', 'Брендинг канала обновлен');
     } catch (error: any) {
       Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить брендирование');
@@ -689,16 +700,16 @@ export default function ChannelManageScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
+      <View style={styles.screenBackground}>
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
+    <View style={styles.screenBackground}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
@@ -719,23 +730,21 @@ export default function ChannelManageScreen() {
             style={[styles.input, styles.textArea]}
             multiline
           />
-          <TextInput
-            value={avatarUrl}
-            onChangeText={setAvatarUrl}
-            placeholder="URL аватарки"
-            placeholderTextColor={colors.textSecondary}
-            style={styles.input}
-            autoCapitalize="none"
-          />
-          <TextInput
-            value={coverUrl}
-            onChangeText={setCoverUrl}
-            placeholder="URL обложки"
-            placeholderTextColor={colors.textSecondary}
-            style={styles.input}
-            autoCapitalize="none"
-          />
-          {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.coverPreview} resizeMode="cover" /> : null}
+          {coverPreviewUri && !coverPreviewError ? (
+            <Image
+              source={{ uri: coverPreviewUri }}
+              style={styles.coverPreview}
+              resizeMode="cover"
+              onError={() => setCoverPreviewError(true)}
+              onLoad={() => setCoverPreviewError(false)}
+            />
+          ) : (
+            <View style={[styles.coverPreview, styles.coverPreviewPlaceholder]}>
+              <Text style={styles.coverPreviewPlaceholderText}>
+                {coverUrl ? 'Не удалось загрузить обложку. Попробуйте загрузить снова.' : 'Обложка пока не загружена'}
+              </Text>
+            </View>
+          )}
           <TouchableOpacity style={styles.secondaryBtn} onPress={pickAndUploadCover} disabled={uploadingCover}>
             {uploadingCover ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.secondaryBtnText}>Загрузить обложку (16:9)</Text>}
           </TouchableOpacity>
@@ -1068,14 +1077,15 @@ export default function ChannelManageScreen() {
         </ScrollView>
         </KeyboardAwareContainer>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
   StyleSheet.create({
-    gradient: {
+    screenBackground: {
       flex: 1,
+      backgroundColor: '#F5F2E8',
     },
     container: {
       flex: 1,
@@ -1182,6 +1192,16 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceElevated,
+    },
+    coverPreviewPlaceholder: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+    },
+    coverPreviewPlaceholderText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: 'center',
     },
     primaryBtn: {
       borderRadius: 12,

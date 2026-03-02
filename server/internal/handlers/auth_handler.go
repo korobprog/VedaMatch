@@ -30,6 +30,7 @@ type AuthHandler struct {
 	walletService       *services.WalletService
 	referralService     *services.ReferralService
 	telegramAuthService *services.TelegramAuthService
+	proService          *services.ProService
 }
 
 func NewAuthHandler(walletService *services.WalletService, referralService *services.ReferralService) *AuthHandler {
@@ -39,6 +40,7 @@ func NewAuthHandler(walletService *services.WalletService, referralService *serv
 		walletService:       walletService,
 		referralService:     referralService,
 		telegramAuthService: services.NewTelegramAuthService(database.DB),
+		proService:          services.NewProService(walletService),
 	}
 }
 
@@ -79,10 +81,10 @@ func applyPortalRoleAndGodMode(user *models.User, role string, godModeEnabled bo
 	user.GodModeEnabled = godModeEnabled
 }
 
-func resolveGodModeForUpdate(currentValue bool, requestedValue bool, currentRole string) bool {
+func resolveGodModeForUpdate(currentValue bool, _ bool, currentRole string) bool {
 	currentRole = strings.TrimSpace(strings.ToLower(currentRole))
 	if models.IsAdminRole(currentRole) {
-		return requestedValue
+		return true
 	}
 	return currentValue
 }
@@ -457,6 +459,13 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	updateUserDeviceID(&user, loginData.DeviceID)
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[AUTH] Failed to sync PRO entitlement user=%d err=%v", user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
+	}
 
 	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
@@ -527,6 +536,13 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 	user.TelegramLinkedAt = &now
 
 	updateUserDeviceID(&user, req.DeviceID)
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[AUTH] Failed to sync PRO entitlement for telegram login user=%d err=%v", user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
+	}
 	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Telegram login successful", user, req.DeviceID)
 }
@@ -1115,6 +1131,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update profile",
 		})
+	}
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[UpdateProfile] pro_sync_failed rid=%s user=%d err=%v", requestID, user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
 	}
 
 	log.Printf("[UpdateProfile] success rid=%s user=%d role=%s city=%q", requestID, userId, user.Role, user.City)

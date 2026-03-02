@@ -96,6 +96,42 @@ export interface ChannelRoadmapResponse {
   total: number;
 }
 
+export interface PreacherProfileEvent {
+  id: number;
+  title: string;
+  eventDate?: string;
+  description?: string;
+  position: number;
+}
+
+export interface PreacherProfile {
+  userId: number;
+  bio?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  departureDate?: string;
+  organizationName?: string;
+  mathKey?: string;
+  events: PreacherProfileEvent[];
+}
+
+export interface PreacherProfileEventUpsertRequest {
+  title: string;
+  eventDate?: string;
+  description?: string;
+  position?: number;
+}
+
+export interface PreacherProfileUpsertRequest {
+  bio?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  departureDate?: string;
+  organizationName?: string;
+  mathKey?: string;
+  events?: PreacherProfileEventUpsertRequest[];
+}
+
 export interface ChannelMember {
   ID: number;
   channelId: number;
@@ -337,4 +373,5 @@ export interface ChannelFacetsResponse {
   cities: ChannelFacetOption[];
   languages: ChannelFacetOption[];
   topics: ChannelFacetOption[];
+  mathas: ChannelFacetOption[];
 }

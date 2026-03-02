@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar, AppState } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone, User } from 'lucide-react-native';
+import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone, User, Minimize2 } from 'lucide-react-native';
 import InCallManager from 'react-native-incall-manager';
 import { useSettings } from '../../context/SettingsContext';
 import { BlurView } from '@react-native-community/blur';
+import { callHistoryService, CallHistoryType } from '../../services/callHistoryService';
+import { callPiPService } from '../../services/callPiPService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,8 +20,14 @@ export const CallScreen = () => {
     // @ts-ignore
     const { targetId, isIncoming, callerName, autoAccept } = route.params || {};
     const autoAcceptTriggeredRef = useRef(false);
+    const incomingRingtoneActiveRef = useRef(false);
+    const outgoingRingbackActiveRef = useRef(false);
+    const pipTransitionRef = useRef(false);
 
     const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
+    const callStartedAtRef = useRef<number | null>(null);
+    const callLoggedRef = useRef(false);
+    const hasAcceptedRef = useRef(hasAccepted);
     const [streamVersion, setStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -29,7 +37,80 @@ export const CallScreen = () => {
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [localVideoAvailable, setLocalVideoAvailable] = useState(false);
     const [remoteVideoAvailable, setRemoteVideoAvailable] = useState(false);
+    const [isPiPSupported, setIsPiPSupported] = useState(false);
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
+    const startIncomingRingtone = () => {
+        if (incomingRingtoneActiveRef.current) {
+            return;
+        }
+        try {
+            InCallManager.startRingtone('_DEFAULT_', [0, 1000, 800], 'default', 0);
+            incomingRingtoneActiveRef.current = true;
+        } catch (error) {
+            console.warn('[CallScreen] Failed to start incoming ringtone', error);
+        }
+    };
+    const stopIncomingRingtone = () => {
+        if (!incomingRingtoneActiveRef.current) {
+            return;
+        }
+        try {
+            InCallManager.stopRingtone();
+        } catch (error) {
+            console.warn('[CallScreen] Failed to stop incoming ringtone', error);
+        } finally {
+            incomingRingtoneActiveRef.current = false;
+        }
+    };
+    const startOutgoingRingback = () => {
+        if (outgoingRingbackActiveRef.current) {
+            return;
+        }
+        try {
+            InCallManager.startRingback('_DEFAULT_');
+            outgoingRingbackActiveRef.current = true;
+        } catch (error) {
+            console.warn('[CallScreen] Failed to start outgoing ringback', error);
+        }
+    };
+    const stopOutgoingRingback = () => {
+        if (!outgoingRingbackActiveRef.current) {
+            return;
+        }
+        try {
+            InCallManager.stopRingback();
+        } catch (error) {
+            console.warn('[CallScreen] Failed to stop outgoing ringback', error);
+        } finally {
+            outgoingRingbackActiveRef.current = false;
+        }
+    };
+
+    useEffect(() => {
+        if (!isIncoming || hasAccepted) {
+            stopIncomingRingtone();
+            return;
+        }
+
+        startIncomingRingtone();
+
+        return () => {
+            stopIncomingRingtone();
+        };
+    }, [hasAccepted, isIncoming]);
+
+    useEffect(() => {
+        if (isIncoming || !hasAccepted || remoteStream) {
+            stopOutgoingRingback();
+            return;
+        }
+
+        startOutgoingRingback();
+
+        return () => {
+            stopOutgoingRingback();
+        };
+    }, [hasAccepted, isIncoming, remoteStream]);
 
     // Initial setup - only start camera preview, don't connect yet if incoming
     useEffect(() => {
@@ -73,6 +154,9 @@ export const CallScreen = () => {
         if (!hasAccepted) return;
 
         let mounted = true;
+        if (!callStartedAtRef.current) {
+            callStartedAtRef.current = Date.now();
+        }
 
         const connect = async () => {
             try {
@@ -94,6 +178,7 @@ export const CallScreen = () => {
                     const tracks = rStream.getTracks();
                     const streamHasVideo = hasVideoTrack(rStream);
                     console.warn(`[UI] Received remote stream: ${rStream.id}, url: ${rStream.toURL().substring(0, 30)}... Tracks: ${tracks.length}`);
+                    stopOutgoingRingback();
                     if (mounted) {
                         setRemoteStream(rStream);
                         setRemoteVideoAvailable(streamHasVideo);
@@ -114,11 +199,13 @@ export const CallScreen = () => {
                     // OUTGOING: Start call
                     setStatus('Calling...');
                     await webRTCService.startCall(targetId);
+                    startOutgoingRingback();
                 }
                 // Note: Incoming call logic is now handled in handleAnswer via acceptCall()
 
             } catch (err) {
                 console.error("Failed to start/setup call", err);
+                stopOutgoingRingback();
                 if (mounted) setStatus('Failed');
             }
         };
@@ -129,6 +216,62 @@ export const CallScreen = () => {
             mounted = false;
         };
     }, [hasAccepted, targetId, isIncoming]);
+
+    useEffect(() => {
+        hasAcceptedRef.current = hasAccepted;
+    }, [hasAccepted]);
+
+    useEffect(() => {
+        let mounted = true;
+        void (async () => {
+            const supported = await callPiPService.isSupported();
+            if (mounted) {
+                setIsPiPSupported(supported);
+            }
+        })();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android') {
+            return;
+        }
+
+        const activeCallForPiP = Boolean(hasAccepted);
+        callPiPService.setCallActive(activeCallForPiP);
+
+        return () => {
+            callPiPService.setCallActive(false);
+        };
+    }, [hasAccepted]);
+
+    useEffect(() => {
+        if (!isPiPSupported || !hasAccepted) {
+            return;
+        }
+
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+                pipTransitionRef.current = false;
+                return;
+            }
+
+            if (pipTransitionRef.current) {
+                return;
+            }
+            pipTransitionRef.current = true;
+            if (state === 'inactive' || state === 'background') {
+                void callPiPService.enterPiP();
+            }
+        });
+
+        return () => {
+            pipTransitionRef.current = false;
+            subscription.remove();
+        };
+    }, [hasAccepted, isPiPSupported]);
 
     useEffect(() => {
         if (!remoteStream || remoteVideoAvailable) {
@@ -159,17 +302,47 @@ export const CallScreen = () => {
 
 
     // Cleanup on unmount (end call)
+    const persistCallHistory = React.useCallback(async () => {
+        if (callLoggedRef.current) {
+            return;
+        }
+        callLoggedRef.current = true;
+
+        const resolvedType: CallHistoryType = isIncoming
+            ? (hasAcceptedRef.current ? 'incoming' : 'missed')
+            : 'outgoing';
+
+        const resolvedName = String(callerName || '').trim() || (targetId ? `User ${targetId}` : 'Unknown');
+        const durationSec = callStartedAtRef.current
+            ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
+            : 0;
+
+        await callHistoryService.addEntry({
+            userId: typeof targetId === 'number' && Number.isFinite(targetId) ? targetId : undefined,
+            name: resolvedName,
+            type: resolvedType,
+            durationSec,
+        });
+    }, [callerName, isIncoming, targetId]);
+
     useEffect(() => {
         return () => {
+            stopIncomingRingtone();
+            stopOutgoingRingback();
+            void callPiPService.stopPiP();
+            void persistCallHistory().catch((error) => {
+                console.warn('[CallScreen] Failed to persist call history', error);
+            });
             // Only end call logic if we leave screen
             // But we might want to keep call in background? For now, kill it.
             webRTCService.endCall();
         };
-    }, []);
+    }, [persistCallHistory]);
 
 
     const handleAnswer = async () => {
         try {
+            stopIncomingRingtone();
             // Ensure local stream is ready before accepting
             let stream = webRTCService.localStream;
             if (!stream) {
@@ -218,8 +391,22 @@ export const CallScreen = () => {
     }, [autoAccept, hasAccepted, isIncoming]);
 
     const handleHangup = () => {
+        stopIncomingRingtone();
+        stopOutgoingRingback();
+        callPiPService.setCallActive(false);
+        void callPiPService.stopPiP();
+        void persistCallHistory().catch((error) => {
+            console.warn('[CallScreen] Failed to persist call history on hangup', error);
+        });
         webRTCService.sendHangup();
         navigation.goBack();
+    };
+
+    const handleEnterPiP = async () => {
+        const entered = await callPiPService.enterPiP(9, 16);
+        if (!entered) {
+            setStatus('PiP недоступен');
+        }
     };
 
     const toggleMute = () => {
@@ -251,19 +438,26 @@ export const CallScreen = () => {
         }
     };
 
-    const switchCamera = () => {
-        const stream = webRTCService.localStream;
-        if (stream) {
-            const videoTracks = stream.getVideoTracks();
-            if (!videoTracks.length) {
+    const switchCamera = async () => {
+        const result = await webRTCService.switchCamera();
+        if (!result.success) {
+            if (result.reason === 'no_video_track' || result.reason === 'no_local_stream') {
                 setStatus('Камера недоступна');
-                return;
+            } else {
+                setStatus('Не удалось переключить камеру');
             }
-            videoTracks.forEach(track => {
-                // @ts-ignore
-                if (track._switchCamera) track._switchCamera();
-            });
+            return;
         }
+
+        const nextStream = result.stream || webRTCService.localStream;
+        if (nextStream) {
+            const streamHasVideo = hasVideoTrack(nextStream);
+            setLocalStream(nextStream);
+            setLocalVideoAvailable(streamHasVideo);
+            setIsVideoEnabled(streamHasVideo);
+        }
+        // Force local preview refresh for devices where track-level switch does not repaint immediately.
+        setStreamVersion(v => v + 1);
     };
 
     const Background = () => {
@@ -343,7 +537,7 @@ export const CallScreen = () => {
             {localStream && localVideoAvailable && (
                 <View style={styles.localVideoContainer}>
                     <RTCView
-                        key={localStream.toURL()}
+                        key={`${localStream.toURL()}-${streamVersion}`}
                         streamURL={localStream.toURL()}
                         style={styles.localVideo}
                         objectFit="cover"
@@ -370,9 +564,15 @@ export const CallScreen = () => {
                             {!isVideoEnabled ? <VideoOff color={"white"} size={22} /> : <Video color="#fff" size={22} />}
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={switchCamera} style={styles.controlBtn}>
+                        <TouchableOpacity onPress={() => { void switchCamera(); }} style={styles.controlBtn}>
                             <Camera color="#fff" size={22} />
                         </TouchableOpacity>
+
+                        {isPiPSupported && hasAccepted && (
+                            <TouchableOpacity onPress={() => { void handleEnterPiP(); }} style={styles.controlBtn}>
+                                <Minimize2 color="#fff" size={22} />
+                            </TouchableOpacity>
+                        )}
 
                         <TouchableOpacity onPress={handleHangup} style={[styles.controlBtn, styles.hangupBtn]}>
                             <PhoneOff color="white" size={28} />

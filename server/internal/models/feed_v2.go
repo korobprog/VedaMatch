@@ -51,7 +51,7 @@ type UserProSubscription struct {
 	Status    string    `json:"status" gorm:"type:varchar(20);not null;index:idx_user_pro_lookup,priority:2"`
 	StartsAt  time.Time `json:"startsAt" gorm:"not null"`
 	EndsAt    time.Time `json:"endsAt" gorm:"not null;index:idx_user_pro_lookup,priority:3"`
-	AutoRenew bool      `json:"autoRenew" gorm:"default:true"`
+	AutoRenew bool      `json:"autoRenew" gorm:"default:false"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

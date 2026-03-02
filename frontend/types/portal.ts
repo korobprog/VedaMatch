@@ -58,7 +58,7 @@ export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['calls', 'services', 'rooms'] a
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'path_tracker', label: 'Путь дня', icon: 'Sun', color: '#0F766E' },
-    { id: 'contacts', label: 'Контакты', icon: 'Contact', color: '#3B82F6' },
+    { id: 'contacts', label: 'Контакты', icon: 'MessageSquare', color: '#3B82F6' },
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
     { id: 'rooms', label: 'Комнаты', icon: 'Users', color: '#6366F1' },
     { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },

@@ -124,6 +124,58 @@ func SeedSystemSettings() {
 			Value: "true",
 		},
 		{
+			Key:   "SADHU_SANGA_PREACHER_BIO_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT",
+			Value: "100",
+		},
+		{
+			Key:   "SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST",
+			Value: "",
+		},
+		{
+			Key:   "SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST",
+			Value: "",
+		},
+		{
+			Key:   "SADHU_SANGA_MATH_FILTER_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT",
+			Value: "100",
+		},
+		{
+			Key:   "SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST",
+			Value: "",
+		},
+		{
+			Key:   "SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST",
+			Value: "",
+		},
+		{
+			Key:   "PRO_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "PRO_PLAN_7D_LKM",
+			Value: "99",
+		},
+		{
+			Key:   "PRO_PLAN_30D_LKM",
+			Value: "299",
+		},
+		{
+			Key:   "PRO_PLAN_90D_LKM",
+			Value: "799",
+		},
+		{
+			Key:   "PRO_LKM_SUBSCRIPTIONS_ENABLED",
+			Value: "true",
+		},
+		{
 			Key:   "SADHU_SANGA_LIVE_RETENTION_ENABLED",
 			Value: "true",
 		},

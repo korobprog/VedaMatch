@@ -74,6 +74,7 @@ func main() {
 	services.StartVideoCircleExpiryScheduler()
 	services.StartChannelPostScheduler()
 	services.StartSadhuLiveArchiveScheduler()
+	services.StartProSubscriptionScheduler(nil)
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
@@ -195,6 +196,44 @@ func main() {
 	bookingService := services.NewBookingService(walletService, serviceService, referralService)
 	charityService := services.NewCharityService(walletService)
 	hub := websocket.NewHub()
+	hub.SetSignalFallbackHandler(func(msg websocket.SignalingMessage) {
+		if msg.Type != "offer" || msg.TargetID == 0 || msg.SenderID == 0 {
+			return
+		}
+
+		pushService := services.GetPushService()
+		if pushService == nil {
+			return
+		}
+
+		var callerRow struct {
+			SpiritualName string
+			KarmicName    string
+			Nickname      string
+		}
+		if err := database.DB.Table("users").
+			Select("spiritual_name, karmic_name, nickname").
+			Where("id = ?", msg.SenderID).
+			Take(&callerRow).Error; err != nil {
+			log.Printf("[CallPush] failed to resolve caller name sender=%d: %v", msg.SenderID, err)
+		}
+
+		callerName := strings.TrimSpace(callerRow.SpiritualName)
+		if callerName == "" {
+			callerName = strings.TrimSpace(callerRow.KarmicName)
+		}
+		if callerName == "" {
+			callerName = strings.TrimSpace(callerRow.Nickname)
+		}
+		if callerName == "" {
+			callerName = fmt.Sprintf("User %d", msg.SenderID)
+		}
+
+		callUUID := fmt.Sprintf("call-%d-%d-%d", msg.SenderID, msg.TargetID, time.Now().UnixNano())
+		if err := pushService.SendCallNotification(msg.TargetID, callerName, callUUID, true); err != nil {
+			log.Printf("[CallPush] send failed target=%d sender=%d: %v", msg.TargetID, msg.SenderID, err)
+		}
+	})
 	go hub.Run()
 
 	// Ensure all existing users have invite codes
@@ -248,6 +287,7 @@ func main() {
 	feedV2Handler := handlers.NewFeedV2Handler()
 	supportHandler := handlers.NewSupportHandler()
 	lkmTopupHandler := handlers.NewLKMTopupHandler(lkmTopupService)
+	proHandler := handlers.NewProHandler(walletService)
 	adminFeedHandler := handlers.NewAdminFeedHandler()
 	// bookHandler removed, using library functions directly
 
@@ -818,6 +858,8 @@ func main() {
 	protected.Delete("/channels/:id/follow", channelHandler.UnfollowChannel)
 	protected.Get("/channels/:id/follow-status", channelHandler.GetFollowStatus)
 	protected.Get("/channels/:id/preacher-analytics", channelHandler.GetPreacherAnalytics)
+	protected.Get("/channels/:id/preacher-profile", channelHandler.GetPreacherProfile)
+	protected.Put("/channels/:id/preacher-profile", channelHandler.UpdatePreacherProfile)
 	protected.Get("/channels/:id/live", channelHandler.GetLiveSession)
 	protected.Post("/channels/:id/live", channelHandler.CreateLiveSession)
 	protected.Patch("/channels/:id/live/:liveId", channelHandler.UpdateLiveSession)
@@ -1060,6 +1102,9 @@ func main() {
 	protected.Get("/wallet/transactions", walletHandler.GetTransactions)
 	protected.Get("/wallet/stats", walletHandler.GetStats)
 	protected.Post("/wallet/transfer", walletHandler.Transfer)
+	protected.Get("/pro/plans", proHandler.GetPlans)
+	protected.Get("/pro/status", proHandler.GetStatus)
+	protected.Post("/pro/purchase", proHandler.Purchase)
 
 	// Referral System (Самбандха)
 	protected.Get("/referral/overview", referralHandler.GetOverview)

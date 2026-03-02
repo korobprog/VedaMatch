@@ -22,6 +22,7 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
+import { ProPlansScreen } from './screens/settings/ProPlansScreen';
 import {
   SupportHomeScreen,
   SupportTicketFormScreen,
@@ -159,6 +160,7 @@ import {
   ChannelManageScreen,
   ChannelTeamScreen,
   ChannelRoadmapManageScreen,
+  ChannelPreacherBioManageScreen,
 } from './screens/portal/services';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
@@ -174,6 +176,7 @@ import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationProvider } from './context/NotificationContext';
 import { crashReportingService } from './services/crashReportingService';
+import { setIncomingCallPushHandler } from './services/notificationService';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -200,7 +203,7 @@ const AppContent = () => {
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
   const pendingRoomInviteTokenRef = React.useRef('');
   const voipSetupRef = React.useRef(false);
-  const incomingCallRef = React.useRef<{ callUUID: string; targetId: number; callerName: string } | null>(null);
+  const incomingCallRef = React.useRef<{ callUUID: string; targetId?: number; callerName: string } | null>(null);
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -250,7 +253,8 @@ const AppContent = () => {
           return;
         }
 
-        if (AppState.currentState !== 'active') {
+        // iOS must be ready for incoming call UI even when app is in background.
+        if (Platform.OS !== 'ios' && AppState.currentState !== 'active') {
           return;
         }
 
@@ -277,6 +281,66 @@ const AppContent = () => {
         voipSetupRef.current = true;
       } catch (err) {
         console.error('CallKeep setup failed', err);
+      }
+    };
+
+    const parseIncomingTargetId = (payload: any): number | undefined => {
+      const candidates = [
+        payload?.senderId,
+        payload?.targetId,
+        payload?.userId,
+        payload?.callerId,
+      ];
+
+      for (const candidate of candidates) {
+        const parsed = Number.parseInt(String(candidate ?? ''), 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+
+      const params = payload?.params;
+      if (params && typeof params === 'object') {
+        for (const key of ['senderId', 'targetId', 'userId', 'callerId']) {
+          const parsed = Number.parseInt(String((params as any)[key] ?? ''), 10);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+          }
+        }
+      }
+
+      return undefined;
+    };
+
+    const isUuidLike = (value: string): boolean => (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    );
+
+    const showIncomingCall = async (rawPayload: any) => {
+      const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
+      const targetId = parseIncomingTargetId(payload);
+      const fallbackName = targetId ? `User ${targetId}` : 'Incoming Call';
+      const callerName = String(payload?.callerName || payload?.name || payload?.title || '').trim() || fallbackName;
+      const incomingUUID = String(payload?.callUUID || payload?.uuid || '').trim();
+      const callUUID = isUuidLike(incomingUUID) ? incomingUUID : getUUID();
+
+      incomingCallRef.current = { callUUID, targetId, callerName };
+
+      if (useCallKeepNativeUi) {
+        await setupVoIP();
+        if (voipSetupRef.current) {
+          RNCallKeep.displayIncomingCall(callUUID, String(targetId ?? callerName), callerName, 'generic', true);
+          return;
+        }
+      }
+
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('CallScreen', {
+          isIncoming: true,
+          targetId,
+          callerName,
+          callUUID,
+        });
       }
     };
 
@@ -317,43 +381,67 @@ const AppContent = () => {
       });
     }
 
+    setIncomingCallPushHandler((payload) => {
+      void showIncomingCall(payload);
+    });
+
+    const onVoipNotification = (notification: any) => {
+      const payload = notification?.data || notification;
+      void showIncomingCall(payload);
+      const completionId = String(notification?.uuid || notification?.callUUID || payload?.uuid || '');
+      if (completionId && typeof VoipPushNotification?.onVoipNotificationCompleted === 'function') {
+        VoipPushNotification.onVoipNotificationCompleted(completionId);
+      }
+    };
+    const onVoipDidLoad = (events: any[]) => {
+      if (!Array.isArray(events) || events.length === 0) {
+        return;
+      }
+      events.forEach((event) => {
+        if (event?.name === 'RNVoipPushRemoteNotificationReceivedEvent') {
+          onVoipNotification(event?.data);
+        }
+      });
+    };
+
+    if (useCallKeepNativeUi && VoipPushNotification) {
+      try {
+        VoipPushNotification.registerVoipToken();
+        VoipPushNotification.addEventListener('notification', onVoipNotification);
+        VoipPushNotification.addEventListener('didLoadWithEvents', onVoipDidLoad);
+      } catch (error) {
+        console.warn('VoipPushNotification listener setup failed', error);
+      }
+    }
+
     // 2. LISTEN FOR WEBRTC OFFERS
     const removeLisener = addListener((msg: any) => {
       if (msg.type === 'offer') {
-        const callerId = msg.senderId;
-        const callerName = `User ${callerId}`;
+        const callerId = Number.parseInt(String(msg.senderId || ''), 10);
+        const callerName = String(msg.callerName || '').trim() || (Number.isFinite(callerId) ? `User ${callerId}` : 'Incoming Call');
         console.log('Incoming WebRTC Call from:', callerId);
-
-        // Use CallKeep to show native incoming call UI
-        const uuid = getUUID();
-        incomingCallRef.current = {
-          callUUID: uuid,
-          targetId: callerId,
+        void showIncomingCall({
+          senderId: Number.isFinite(callerId) ? callerId : undefined,
           callerName,
-        };
-        if (useCallKeepNativeUi) {
-          RNCallKeep.displayIncomingCall(uuid, String(callerId), callerName, 'generic', true);
-        }
-
-        // Also navigate to CallScreen directly if the app is in foreground? 
-        // Better to wait for user to accept via CallKeep UI or in-app UI.
-        // But for better UX in foreground, we often navigate calling screen immediately.
-        if (navigationRef.isReady()) {
-          navigationRef.navigate('CallScreen', {
-            isIncoming: true,
-            targetId: callerId,
-            callerName: callerName,
-            callUUID: uuid // Pass UUID so we can end call in CallKeep later
-          });
-        }
+          uuid: msg?.payload?.roomId || msg?.roomId,
+        });
       }
     });
 
     return () => {
       appStateSub?.remove();
+      setIncomingCallPushHandler(null);
       if (useCallKeepNativeUi) {
         RNCallKeep.removeEventListener('answerCall');
         RNCallKeep.removeEventListener('endCall');
+        if (VoipPushNotification) {
+          try {
+            VoipPushNotification.removeEventListener('notification', onVoipNotification);
+            VoipPushNotification.removeEventListener('didLoadWithEvents', onVoipDidLoad);
+          } catch (error) {
+            console.warn('VoipPushNotification listener cleanup failed', error);
+          }
+        }
       }
       removeLisener();
     };
@@ -509,6 +597,7 @@ const AppContent = () => {
                   <Stack.Screen name="SupportInbox" component={SupportInboxScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportConversation" component={SupportConversationScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                  <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
                   <Stack.Screen
                     name="RoomChat"
@@ -623,6 +712,7 @@ const AppContent = () => {
                   <Stack.Screen name="ChannelManage" component={ChannelManageScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelTeam" component={ChannelTeamScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelRoadmapManage" component={ChannelRoadmapManageScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelPreacherBioManage" component={ChannelPreacherBioManageScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />

@@ -19,7 +19,9 @@ type channelService interface {
 	ListPublicChannels(filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error)
 	GetSadhuSangaRecommendations(viewerID uint, filters services.ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error)
-	GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error)
+	GetSadhuSangaFacets(viewerID uint) (*models.ChannelFacetsResponse, error)
+	GetPreacherProfile(channelID, viewerID uint) (*models.PreacherProfileDTO, error)
+	UpsertPreacherProfile(channelID, actorID uint, req models.PreacherProfileUpsertRequest) (*models.PreacherProfileDTO, error)
 	GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error)
 	CreateRoadmapPoint(channelID, actorID uint, req models.ChannelRoadmapCreateRequest) (*models.ChannelRoadmapPoint, error)
 	UpdateRoadmapPoint(channelID, pointID, actorID uint, req models.ChannelRoadmapUpdateRequest) (*models.ChannelRoadmapPoint, error)
@@ -132,15 +134,17 @@ func (h *ChannelHandler) ListPublicChannels(c *fiber.Ctx) error {
 	language := strings.TrimSpace(c.Query("language"))
 	topic := strings.TrimSpace(c.Query("topic"))
 	viewerID := middleware.GetUserID(c)
+	sadhuSanga := parseQueryBoolWithDefault(c, "sadhuSanga", false)
 
 	result, err := h.service.ListPublicChannels(services.ChannelListFilters{
-		Search:   search,
-		City:     city,
-		Language: language,
-		Topic:    topic,
-		Page:     page,
-		Limit:    limit,
-		ViewerID: viewerID,
+		Search:     search,
+		City:       city,
+		Language:   language,
+		Topic:      topic,
+		Page:       page,
+		Limit:      limit,
+		ViewerID:   viewerID,
+		SadhuSanga: sadhuSanga,
 	})
 	if err != nil {
 		return respondChannelError(c, err)
@@ -217,12 +221,59 @@ func (h *ChannelHandler) GetSadhuSangaFacets(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	result, err := h.service.GetSadhuSangaFacets()
+	result, err := h.service.GetSadhuSangaFacets(userID)
 	if err != nil {
 		return respondChannelError(c, err)
 	}
 
 	return c.JSON(result)
+}
+
+func (h *ChannelHandler) GetPreacherProfile(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	profile, err := h.service.GetPreacherProfile(channelID, viewerID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(profile)
+}
+
+func (h *ChannelHandler) UpdatePreacherProfile(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+
+	var req models.PreacherProfileUpsertRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	profile, err := h.service.UpsertPreacherProfile(channelID, actorID, req)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(profile)
 }
 
 func (h *ChannelHandler) GetRoadmap(c *fiber.Ctx) error {
@@ -1695,6 +1746,21 @@ func parseQueryIntWithDefault(c *fiber.Ctx, key string, def int) int {
 		return def
 	}
 	return value
+}
+
+func parseQueryBoolWithDefault(c *fiber.Ctx, key string, def bool) bool {
+	raw := strings.ToLower(strings.TrimSpace(c.Query(key)))
+	if raw == "" {
+		return def
+	}
+	switch raw {
+	case "1", "true", "yes", "on", "enabled":
+		return true
+	case "0", "false", "no", "off", "disabled":
+		return false
+	default:
+		return def
+	}
 }
 
 func respondChannelError(c *fiber.Ctx, err error) error {

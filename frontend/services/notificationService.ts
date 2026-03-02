@@ -23,6 +23,12 @@ type AddNotificationFn = (notif: { type: string; title: string; body: string; da
 let _addNotification: AddNotificationFn | null = null;
 export const setNotificationAdder = (fn: AddNotificationFn) => { _addNotification = fn; };
 
+type IncomingCallPushHandler = (payload: Record<string, any>) => void;
+let _incomingCallPushHandler: IncomingCallPushHandler | null = null;
+export const setIncomingCallPushHandler = (fn: IncomingCallPushHandler | null) => {
+    _incomingCallPushHandler = fn;
+};
+
 // Lazy-loaded messaging instance to prevent initialization race conditions.
 let messagingInstance: any = null;
 const getMessagingInstance = () => {
@@ -94,6 +100,16 @@ const safeParseParams = (raw: any): Record<string, any> => {
     } catch {
         return {};
     }
+};
+
+const parseNumericId = (...values: any[]): number | undefined => {
+    for (const value of values) {
+        const parsed = Number.parseInt(String(value ?? ''), 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    return undefined;
 };
 
 const getVideoCirclePublishCopy = (data: any) => {
@@ -209,6 +225,9 @@ export const notificationService = {
         console.log('[NotificationService] Foreground message:', message);
 
         const data = message?.data || {};
+        if (data?.type === 'voip_call' && _incomingCallPushHandler) {
+            _incomingCallPushHandler(data);
+        }
         const isCirclePublishResult = data?.type === 'video_circle_publish_result';
         const fallback = isCirclePublishResult ? getVideoCirclePublishCopy(data) : null;
 
@@ -234,11 +253,28 @@ export const notificationService = {
             screen: data?.screen,
         });
 
-        if (!navigationRef.isReady()) {
+        const params = safeParseParams(data.params);
+
+        if (data.type === 'voip_call') {
+            const payload = { ...params, ...data };
+            if (_incomingCallPushHandler) {
+                _incomingCallPushHandler(payload);
+                return;
+            }
+
+            if (!navigationRef.isReady()) {
+                return;
+            }
+            const callerName = String(payload?.callerName || '').trim() || 'Incoming Call';
+            const callerId = parseNumericId(payload?.senderId, payload?.targetId, payload?.userId, params?.senderId, params?.targetId, params?.userId);
+            // @ts-ignore
+            navigationRef.navigate('CallScreen', { isIncoming: true, callerName, targetId: callerId });
             return;
         }
 
-        const params = safeParseParams(data.params);
+        if (!navigationRef.isReady()) {
+            return;
+        }
 
         if (data.screen) {
             // @ts-ignore

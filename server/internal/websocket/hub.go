@@ -41,13 +41,14 @@ func (t TypingWrapper) GetTargetUserIDs() []uint {
 }
 
 type Hub struct {
-	clients    map[uint]*Client
-	broadcast  chan WSMessage
-	Signal     chan SignalingMessage // Dedicated channel for direct signaling
-	RoomSignal chan RoomSignalingMessage
-	Register   chan *Client
-	Unregister chan *Client
-	mu         sync.RWMutex
+	clients               map[uint]*Client
+	broadcast             chan WSMessage
+	Signal                chan SignalingMessage // Dedicated channel for direct signaling
+	RoomSignal            chan RoomSignalingMessage
+	Register              chan *Client
+	Unregister            chan *Client
+	mu                    sync.RWMutex
+	signalFallbackHandler func(SignalingMessage)
 }
 
 func NewHub() *Hub {
@@ -114,19 +115,31 @@ func (h *Hub) Run() {
 		case msg := <-h.Signal:
 			log.Printf("[Hub] Signaling: %s from %d to %d", msg.Type, msg.SenderID, msg.TargetID)
 			h.mu.RLock()
-			if target, ok := h.clients[msg.TargetID]; ok {
+			target, ok := h.clients[msg.TargetID]
+			h.mu.RUnlock()
+			if ok {
 				select {
 				case target.Send <- msg:
 					log.Printf("[Hub] Forwarded %s to User %d", msg.Type, msg.TargetID)
 				default:
 					log.Printf("[Hub] User %d channel full, closing", msg.TargetID)
-					close(target.Send)
-					delete(h.clients, msg.TargetID)
+					h.mu.Lock()
+					currentTarget, stillExists := h.clients[msg.TargetID]
+					if stillExists && currentTarget == target {
+						delete(h.clients, msg.TargetID)
+						close(currentTarget.Send)
+					}
+					h.mu.Unlock()
+					if msg.Type == "offer" {
+						h.triggerSignalFallback(msg)
+					}
 				}
 			} else {
 				log.Printf("[Hub] Target User %d not connected", msg.TargetID)
+				if msg.Type == "offer" {
+					h.triggerSignalFallback(msg)
+				}
 			}
-			h.mu.RUnlock()
 		case msg := <-h.RoomSignal:
 			h.handleRoomSignaling(msg)
 		}
@@ -224,6 +237,22 @@ func (h *Hub) Broadcast(msg models.Message, targetUserIDs ...uint) {
 
 func (h *Hub) BroadcastTyping(event models.TypingEvent) {
 	h.broadcast <- TypingWrapper{TypingEvent: event}
+}
+
+func (h *Hub) SetSignalFallbackHandler(handler func(SignalingMessage)) {
+	h.mu.Lock()
+	h.signalFallbackHandler = handler
+	h.mu.Unlock()
+}
+
+func (h *Hub) triggerSignalFallback(msg SignalingMessage) {
+	h.mu.RLock()
+	handler := h.signalFallbackHandler
+	h.mu.RUnlock()
+	if handler == nil {
+		return
+	}
+	go handler(msg)
 }
 
 func uniqueTargetUsers(input []uint) []uint {

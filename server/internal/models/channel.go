@@ -293,6 +293,7 @@ type ChannelFacetsResponse struct {
 	Cities    []ChannelFacetOption `json:"cities"`
 	Languages []ChannelFacetOption `json:"languages"`
 	Topics    []ChannelFacetOption `json:"topics"`
+	Mathas    []ChannelFacetOption `json:"mathas"`
 }
 
 type ChannelPromotedAd struct {

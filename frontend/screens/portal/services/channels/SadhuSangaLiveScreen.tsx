@@ -26,6 +26,8 @@ export default function SadhuSangaLiveScreen() {
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const isBypassMode = Boolean(user?.godModeEnabled) || String(user?.role || '').toLowerCase() === 'superadmin';
+  const isMathProfileMissing = !isBypassMode && String(user?.madh || '').trim().length === 0;
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [archiveTracks, setArchiveTracks] = useState<MediaTrack[]>([]);
@@ -50,7 +52,7 @@ export default function SadhuSangaLiveScreen() {
     setLoading(true);
     try {
       const [channelsResponse, archiveResponse] = await Promise.all([
-        channelService.getChannels({ page: 1, limit: 60 }),
+        channelService.getChannels({ page: 1, limit: 60, sadhuSanga: true }),
         multimediaService.getTracks({ type: 'video', sourceContext: 'sadhu_live_archive', page: 1, limit: 12 }),
       ]);
       setChannels(channelsResponse.channels || []);
@@ -182,7 +184,11 @@ export default function SadhuSangaLiveScreen() {
                 <ActivityIndicator size="large" color={colors.accent} />
               </View>
             ) : liveChannels.length === 0 ? (
-              <Text style={styles.liveEmpty}>Скоро здесь появятся эфиры проповедников</Text>
+              <Text style={styles.liveEmpty}>
+                {isMathProfileMissing
+                  ? 'Укажите матх в профиле, чтобы видеть эфиры вашего направления.'
+                  : 'Скоро здесь появятся эфиры проповедников'}
+              </Text>
             ) : (
               <View style={styles.liveList}>
                 {liveChannels.map((item) => {

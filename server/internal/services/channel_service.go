@@ -55,18 +55,47 @@ type ChannelFeedFilters struct {
 }
 
 type ChannelListFilters struct {
-	Search   string
-	City     string
-	Language string
-	Topic    string
-	Page     int
-	Limit    int
-	ViewerID uint
+	Search     string
+	City       string
+	Language   string
+	Topic      string
+	Page       int
+	Limit      int
+	ViewerID   uint
+	SadhuSanga bool
 }
 
 type channelFacetRow struct {
 	Value string
 	Count int64
+}
+
+func normalizeMathKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func formatDateYYYYMMDD(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	normalized := value.UTC().Format("2006-01-02")
+	return &normalized
+}
+
+func parseDateYYYYMMDD(value *string) (*time.Time, error) {
+	if value == nil {
+		return nil, nil
+	}
+	raw := strings.TrimSpace(*value)
+	if raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		return nil, ErrInvalidPayload
+	}
+	utc := parsed.UTC()
+	return &utc, nil
 }
 
 var (
@@ -240,6 +269,61 @@ func (s *ChannelService) ListMyChannels(ownerID uint, filters ChannelListFilters
 	return s.listChannels(baseQuery, filters)
 }
 
+func (s *ChannelService) resolveEffectiveSadhuMathFilter(viewer models.User, role string) (mathKey string, bypass bool, showNone bool) {
+	effectiveRole := strings.TrimSpace(role)
+	if effectiveRole == "" {
+		effectiveRole = viewer.Role
+	}
+	if viewer.GodModeEnabled || strings.EqualFold(effectiveRole, models.RoleSuperadmin) {
+		return "", true, false
+	}
+	normalized := normalizeMathKey(viewer.Madh)
+	if normalized == "" {
+		return "", false, true
+	}
+	return normalized, false, false
+}
+
+func (s *ChannelService) loadSadhuViewer(userID uint) (models.User, error) {
+	var viewer models.User
+	if userID == 0 {
+		return viewer, ErrChannelForbidden
+	}
+	if err := s.db.
+		Select("id", "madh", "role", "god_mode_enabled").
+		First(&viewer, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return viewer, ErrChannelForbidden
+		}
+		return viewer, err
+	}
+	return viewer, nil
+}
+
+func (s *ChannelService) applySadhuMathFilterToChannelQuery(query *gorm.DB, viewerID uint) (*gorm.DB, bool, error) {
+	if !s.IsSadhuSangaMathFilterEnabledForUser(viewerID) {
+		return query, false, nil
+	}
+	viewer, err := s.loadSadhuViewer(viewerID)
+	if err != nil {
+		return query, false, err
+	}
+	mathKey, bypass, showNone := s.resolveEffectiveSadhuMathFilter(viewer, viewer.Role)
+	if bypass {
+		s.incrementMetricSafe(MetricSadhuMathFilterBypassTotal, 1)
+		return query, false, nil
+	}
+	if showNone {
+		s.incrementMetricSafe(MetricSadhuMathFilterEmptyProfileTotal, 1)
+		return query, true, nil
+	}
+	s.incrementMetricSafe(MetricSadhuMathFilterAppliedTotal, 1)
+	filtered := query.
+		Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id AND preacher_profiles.deleted_at IS NULL").
+		Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey)
+	return filtered, false, nil
+}
+
 func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters ChannelListFilters, limit int) (*models.ChannelRecommendationsResponse, error) {
 	if viewerID == 0 {
 		return nil, ErrChannelForbidden
@@ -262,6 +346,17 @@ func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters Cha
 	query := s.db.Model(&models.Channel{}).
 		Where("channels.is_public = ?", true).
 		Where("channels.owner_id <> ?", viewerID)
+
+	query, showNone, err := s.applySadhuMathFilterToChannelQuery(query, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	if showNone {
+		return &models.ChannelRecommendationsResponse{
+			Items: []models.ChannelRecommendationItem{},
+			Total: 0,
+		}, nil
+	}
 
 	joinedOwner := false
 	if search := strings.TrimSpace(filters.Search); search != "" {
@@ -426,15 +521,46 @@ func (s *ChannelService) GetSadhuSangaRecommendations(viewerID uint, filters Cha
 	}, nil
 }
 
-func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, error) {
+func (s *ChannelService) GetSadhuSangaFacets(viewerID uint) (*models.ChannelFacetsResponse, error) {
+	viewer, err := s.loadSadhuViewer(viewerID)
+	if err != nil {
+		return nil, err
+	}
+	mathKey, bypass, showNone := s.resolveEffectiveSadhuMathFilter(viewer, viewer.Role)
+	if !s.IsSadhuSangaMathFilterEnabledForUser(viewerID) {
+		mathKey = ""
+		bypass = true
+		showNone = false
+	}
+	if showNone {
+		s.incrementMetricSafe(MetricSadhuMathFilterEmptyProfileTotal, 1)
+		return &models.ChannelFacetsResponse{
+			Cities:    []models.ChannelFacetOption{},
+			Languages: []models.ChannelFacetOption{},
+			Topics:    []models.ChannelFacetOption{},
+			Mathas:    []models.ChannelFacetOption{},
+		}, nil
+	}
+	if bypass {
+		s.incrementMetricSafe(MetricSadhuMathFilterBypassTotal, 1)
+	} else {
+		s.incrementMetricSafe(MetricSadhuMathFilterAppliedTotal, 1)
+	}
+
 	cityRows := make([]channelFacetRow, 0)
-	if err := s.db.
+	cityQuery := s.db.
 		Table("channels").
 		Select("LOWER(TRIM(users.city)) AS value, COUNT(DISTINCT channels.id) AS count").
 		Joins("JOIN users ON users.id = channels.owner_id").
 		Where("channels.deleted_at IS NULL").
 		Where("users.deleted_at IS NULL").
-		Where("TRIM(users.city) <> ''").
+		Where("TRIM(users.city) <> ''")
+	if !bypass {
+		cityQuery = cityQuery.
+			Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id AND preacher_profiles.deleted_at IS NULL").
+			Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey)
+	}
+	if err := cityQuery.
 		Group("LOWER(TRIM(users.city))").
 		Order("count DESC, value ASC").
 		Limit(50).
@@ -443,13 +569,19 @@ func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, e
 	}
 
 	languageRows := make([]channelFacetRow, 0)
-	if err := s.db.
+	languageQuery := s.db.
 		Table("channels").
 		Select("LOWER(TRIM(users.language)) AS value, COUNT(DISTINCT channels.id) AS count").
 		Joins("JOIN users ON users.id = channels.owner_id").
 		Where("channels.deleted_at IS NULL").
 		Where("users.deleted_at IS NULL").
-		Where("TRIM(users.language) <> ''").
+		Where("TRIM(users.language) <> ''")
+	if !bypass {
+		languageQuery = languageQuery.
+			Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id AND preacher_profiles.deleted_at IS NULL").
+			Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey)
+	}
+	if err := languageQuery.
 		Group("LOWER(TRIM(users.language))").
 		Order("count DESC, value ASC").
 		Limit(20).
@@ -458,14 +590,20 @@ func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, e
 	}
 
 	topicRows := make([]channelFacetRow, 0)
-	if err := s.db.
+	topicQuery := s.db.
 		Table("channels").
 		Select("LOWER(TRIM(tags.name)) AS value, COUNT(DISTINCT channels.id) AS count").
 		Joins("JOIN user_tags ON user_tags.user_id = channels.owner_id").
 		Joins("JOIN tags ON tags.id = user_tags.tag_id").
 		Where("channels.deleted_at IS NULL").
 		Where("tags.deleted_at IS NULL").
-		Where("TRIM(tags.name) <> ''").
+		Where("TRIM(tags.name) <> ''")
+	if !bypass {
+		topicQuery = topicQuery.
+			Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id AND preacher_profiles.deleted_at IS NULL").
+			Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey)
+	}
+	if err := topicQuery.
 		Group("LOWER(TRIM(tags.name))").
 		Order("count DESC, value ASC").
 		Limit(60).
@@ -473,10 +611,30 @@ func (s *ChannelService) GetSadhuSangaFacets() (*models.ChannelFacetsResponse, e
 		return nil, err
 	}
 
+	mathaRows := make([]channelFacetRow, 0)
+	mathaQuery := s.db.
+		Table("channels").
+		Select("LOWER(TRIM(preacher_profiles.math_key)) AS value, COUNT(DISTINCT channels.id) AS count").
+		Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id").
+		Where("channels.deleted_at IS NULL").
+		Where("preacher_profiles.deleted_at IS NULL").
+		Where("TRIM(preacher_profiles.math_key) <> ''")
+	if !bypass {
+		mathaQuery = mathaQuery.Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey)
+	}
+	if err := mathaQuery.
+		Group("LOWER(TRIM(preacher_profiles.math_key))").
+		Order("count DESC, value ASC").
+		Limit(50).
+		Scan(&mathaRows).Error; err != nil {
+		return nil, err
+	}
+
 	return &models.ChannelFacetsResponse{
 		Cities:    toChannelFacetOptions(cityRows),
 		Languages: toChannelFacetOptions(languageRows),
 		Topics:    toChannelFacetOptions(topicRows),
+		Mathas:    toChannelFacetOptions(mathaRows),
 	}, nil
 }
 
@@ -496,6 +654,198 @@ func toChannelFacetOptions(rows []channelFacetRow) []models.ChannelFacetOption {
 		})
 	}
 	return options
+}
+
+func (s *ChannelService) GetPreacherProfile(channelID, viewerID uint) (*models.PreacherProfileDTO, error) {
+	if !s.IsSadhuSangaPreacherBioEnabledForUser(viewerID) {
+		return nil, ErrChannelsDisabled
+	}
+
+	channel, err := s.GetChannelByID(channelID, viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	var profile models.PreacherProfile
+	if err := s.db.
+		Where("user_id = ? AND deleted_at IS NULL", channel.OwnerID).
+		Preload("Events", func(db *gorm.DB) *gorm.DB {
+			return db.Where("deleted_at IS NULL").Order("position ASC, event_date ASC NULLS LAST, id ASC")
+		}).
+		First(&profile).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			s.incrementMetricSafe(MetricSadhuPreacherProfileReadTotal, 1)
+			return &models.PreacherProfileDTO{
+				UserID: channel.OwnerID,
+				Events: []models.PreacherProfileEventDTO{},
+			}, nil
+		}
+		return nil, err
+	}
+
+	dto := mapPreacherProfileDTO(&profile)
+	s.incrementMetricSafe(MetricSadhuPreacherProfileReadTotal, 1)
+	return &dto, nil
+}
+
+func (s *ChannelService) UpsertPreacherProfile(channelID, actorID uint, req models.PreacherProfileUpsertRequest) (*models.PreacherProfileDTO, error) {
+	if !s.IsSadhuSangaPreacherBioEnabledForUser(actorID) {
+		return nil, ErrChannelsDisabled
+	}
+
+	channel, _, err := s.requireRole(channelID, actorID, models.ChannelMemberRoleEditor)
+	if err != nil {
+		return nil, err
+	}
+
+	birthDate, err := parseDateYYYYMMDD(req.BirthDate)
+	if err != nil {
+		return nil, err
+	}
+	departureDate, err := parseDateYYYYMMDD(req.DepartureDate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.Events) > 200 {
+		return nil, ErrInvalidPayload
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var profile models.PreacherProfile
+		if err := tx.
+			Where("user_id = ? AND deleted_at IS NULL", channel.OwnerID).
+			First(&profile).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			profile = models.PreacherProfile{UserID: channel.OwnerID}
+		}
+
+		if req.Bio != nil {
+			profile.Bio = strings.TrimSpace(*req.Bio)
+		}
+		if req.BirthPlace != nil {
+			profile.BirthPlace = strings.TrimSpace(*req.BirthPlace)
+		}
+		if req.OrganizationName != nil {
+			profile.OrganizationName = strings.TrimSpace(*req.OrganizationName)
+		}
+		if req.MathKey != nil {
+			profile.MathKey = normalizeMathKey(*req.MathKey)
+		}
+		profile.BirthDate = birthDate
+		profile.DepartureDate = departureDate
+
+		if len(profile.Bio) > 5000 || len(profile.BirthPlace) > 220 || len(profile.OrganizationName) > 180 || len(profile.MathKey) > 120 {
+			return ErrInvalidPayload
+		}
+
+		if profile.ID == 0 {
+			if err := tx.Create(&profile).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := tx.Save(&profile).Error; err != nil {
+				return err
+			}
+		}
+
+		if req.Events != nil {
+			if err := tx.Where("profile_id = ?", profile.ID).Delete(&models.PreacherProfileEvent{}).Error; err != nil {
+				return err
+			}
+			for index, eventReq := range req.Events {
+				title := strings.TrimSpace(eventReq.Title)
+				if len(title) < 2 || len(title) > 180 {
+					return ErrInvalidPayload
+				}
+				eventDate, parseErr := parseDateYYYYMMDD(eventReq.EventDate)
+				if parseErr != nil {
+					return parseErr
+				}
+				position := index
+				if eventReq.Position != nil {
+					if *eventReq.Position < 0 {
+						return ErrInvalidPayload
+					}
+					position = *eventReq.Position
+				}
+				description := ""
+				if eventReq.Description != nil {
+					description = strings.TrimSpace(*eventReq.Description)
+				}
+				if len(description) > 5000 {
+					return ErrInvalidPayload
+				}
+				event := models.PreacherProfileEvent{
+					ProfileID:   profile.ID,
+					Title:       title,
+					EventDate:   eventDate,
+					Description: description,
+					Position:    position,
+				}
+				if err := tx.Create(&event).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricSadhuPreacherProfileUpsertTotal, 1)
+
+	return s.GetPreacherProfile(channelID, actorID)
+}
+
+func mapPreacherProfileDTO(profile *models.PreacherProfile) models.PreacherProfileDTO {
+	dto := models.PreacherProfileDTO{
+		UserID:           profile.UserID,
+		Bio:              strings.TrimSpace(profile.Bio),
+		BirthDate:        formatDateYYYYMMDD(profile.BirthDate),
+		BirthPlace:       strings.TrimSpace(profile.BirthPlace),
+		DepartureDate:    formatDateYYYYMMDD(profile.DepartureDate),
+		OrganizationName: strings.TrimSpace(profile.OrganizationName),
+		MathKey:          normalizeMathKey(profile.MathKey),
+		Events:           make([]models.PreacherProfileEventDTO, 0, len(profile.Events)),
+	}
+
+	if len(profile.Events) > 0 {
+		sort.SliceStable(profile.Events, func(i, j int) bool {
+			if profile.Events[i].Position != profile.Events[j].Position {
+				return profile.Events[i].Position < profile.Events[j].Position
+			}
+			leftDate := profile.Events[i].EventDate
+			rightDate := profile.Events[j].EventDate
+			switch {
+			case leftDate == nil && rightDate == nil:
+				return profile.Events[i].ID < profile.Events[j].ID
+			case leftDate == nil:
+				return false
+			case rightDate == nil:
+				return true
+			default:
+				if !leftDate.Equal(*rightDate) {
+					return leftDate.Before(*rightDate)
+				}
+				return profile.Events[i].ID < profile.Events[j].ID
+			}
+		})
+	}
+
+	for _, event := range profile.Events {
+		dto.Events = append(dto.Events, models.PreacherProfileEventDTO{
+			ID:          event.ID,
+			Title:       strings.TrimSpace(event.Title),
+			EventDate:   formatDateYYYYMMDD(event.EventDate),
+			Description: strings.TrimSpace(event.Description),
+			Position:    event.Position,
+		})
+	}
+
+	return dto
 }
 
 func (s *ChannelService) GetRoadmap(channelID, viewerID uint) (*models.ChannelRoadmapResponse, error) {
@@ -1172,6 +1522,60 @@ func (s *ChannelService) IsSadhuSangaLiveEnabledForUser(userID uint) bool {
 	allowlist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_ALLOWLIST", ""))
 	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("SADHU_SANGA_LIVE_ROLLOUT_PERCENT", "100"), 100)
 
+	return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
+}
+
+func (s *ChannelService) IsSadhuSangaPreacherBioEnabled() bool {
+	if !s.IsFeatureEnabled() {
+		return false
+	}
+	if parseBoolWithDefault(s.getSystemSettingValue("SADHU_SANGA_PREACHER_BIO_ENABLED", "true"), true) {
+		return true
+	}
+	envValue := strings.TrimSpace(os.Getenv("SADHU_SANGA_PREACHER_BIO_ENABLED"))
+	if envValue == "" {
+		return false
+	}
+	return parseBoolWithDefault(envValue, false)
+}
+
+func (s *ChannelService) IsSadhuSangaPreacherBioEnabledForUser(userID uint) bool {
+	if userID == 0 {
+		return false
+	}
+	if !s.IsSadhuSangaPreacherBioEnabled() {
+		return false
+	}
+	denylist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST", ""))
+	allowlist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST", ""))
+	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT", "100"), 100)
+	return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
+}
+
+func (s *ChannelService) IsSadhuSangaMathFilterEnabled() bool {
+	if !s.IsFeatureEnabled() {
+		return false
+	}
+	if parseBoolWithDefault(s.getSystemSettingValue("SADHU_SANGA_MATH_FILTER_ENABLED", "true"), true) {
+		return true
+	}
+	envValue := strings.TrimSpace(os.Getenv("SADHU_SANGA_MATH_FILTER_ENABLED"))
+	if envValue == "" {
+		return false
+	}
+	return parseBoolWithDefault(envValue, false)
+}
+
+func (s *ChannelService) IsSadhuSangaMathFilterEnabledForUser(userID uint) bool {
+	if userID == 0 {
+		return false
+	}
+	if !s.IsSadhuSangaMathFilterEnabled() {
+		return false
+	}
+	denylist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST", ""))
+	allowlist := parseUintAllowlist(s.getSystemSettingValue("SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST", ""))
+	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT", "100"), 100)
 	return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
 }
 
@@ -3211,6 +3615,11 @@ func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 		MetricSadhuLiveJoinDeniedTotal,
 		MetricSadhuLiveJoinSuccessTotal,
 		MetricSadhuLiveEndedTotal,
+		MetricSadhuPreacherProfileReadTotal,
+		MetricSadhuPreacherProfileUpsertTotal,
+		MetricSadhuMathFilterAppliedTotal,
+		MetricSadhuMathFilterBypassTotal,
+		MetricSadhuMathFilterEmptyProfileTotal,
 	})
 }
 
@@ -4405,6 +4814,22 @@ func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFil
 	offset := (page - 1) * limit
 
 	query := baseQuery.Model(&models.Channel{})
+	if filters.SadhuSanga {
+		filteredQuery, showNone, err := s.applySadhuMathFilterToChannelQuery(query, filters.ViewerID)
+		if err != nil {
+			return nil, err
+		}
+		if showNone {
+			return &models.ChannelListResponse{
+				Channels:   []models.Channel{},
+				Total:      0,
+				Page:       page,
+				Limit:      limit,
+				TotalPages: calculateChannelTotalPages(0, limit),
+			}, nil
+		}
+		query = filteredQuery
+	}
 	joinedOwner := false
 	if search := strings.TrimSpace(filters.Search); search != "" {
 		query = query.Where("title ILIKE ? OR description ILIKE ?", "%"+search+"%", "%"+search+"%")

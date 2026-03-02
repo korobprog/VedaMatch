@@ -61,6 +61,7 @@ export type RootStackParamList = {
     SupportInbox: undefined;
     SupportConversation: { conversationId: number };
     EditProfile: undefined;
+    ProPlans: undefined;
     RoomChat: {
         roomId: number;
         roomName: string;
@@ -186,6 +187,7 @@ export type RootStackParamList = {
     ChannelManage: { channelId: number };
     ChannelTeam: { channelId: number; source?: 'sadhu_sanga' };
     ChannelRoadmapManage: { channelId: number; source?: 'sadhu_sanga'; pointId?: number };
+    ChannelPreacherBioManage: { channelId: number; source?: 'sadhu_sanga' };
 
     // Wallet Routes
     Wallet: undefined;

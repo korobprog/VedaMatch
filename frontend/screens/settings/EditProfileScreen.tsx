@@ -39,6 +39,7 @@ import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 import apiClient from '../../lib/apiClient';
 import { accountService } from '../../services/accountService';
+import { proService, ProStatus } from '../../services/proService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -97,6 +98,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [longitude, setLongitude] = useState<number | undefined>(undefined);
     const [role, setRole] = useState<PortalRole>('user');
     const [godModeEnabled, setGodModeEnabled] = useState(false);
+    const [proStatus, setProStatus] = useState<ProStatus | null>(null);
+    const [proStatusLoading, setProStatusLoading] = useState(false);
 
     // City autocomplete
     const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
@@ -114,10 +117,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const citySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { colors: roleColors } = useRoleTheme(role, true);
+    const canManageProMode = user?.role === 'admin' || user?.role === 'superadmin';
+    const effectiveProEnabled = proStatus?.isProEffective ?? godModeEnabled;
 
     useEffect(() => {
         loadProfile();
         fetchCountries();
+        void loadProStatus();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fetchCountries]);
 
@@ -228,6 +234,24 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [user?.ID, fetchCities]);
 
+    const loadProStatus = React.useCallback(async () => {
+        if (!user?.ID) return;
+        try {
+            setProStatusLoading(true);
+            const status = await proService.getStatus();
+            if (!isMountedRef.current) return;
+            setProStatus(status);
+            setGodModeEnabled(!!status?.isProEffective);
+        } catch (error) {
+            if (!isMountedRef.current) return;
+            console.warn('[EditProfile] Failed to load PRO status:', error);
+        } finally {
+            if (isMountedRef.current) {
+                setProStatusLoading(false);
+            }
+        }
+    }, [user?.ID]);
+
     const handleSave = async () => {
         if (!user?.ID || saving) return;
 
@@ -263,7 +287,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 timezone,
                 datingEnabled,
                 role,
-                godModeEnabled,
+                godModeEnabled: canManageProMode ? true : !!user?.godModeEnabled,
                 latitude,
                 longitude
             };
@@ -455,20 +479,27 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 autoOpenHint={!user?.isProfileComplete}
                             />
 
-
-                            <View style={styles.switchRow}>
+                            <View style={styles.proCard}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.label}>{t('settings.proMode')}</Text>
                                     <Text style={styles.helperText}>
-                                        {t('settings.proModeDesc')}
+                                        {proStatusLoading
+                                            ? 'Проверяем статус PRO...'
+                                            : (canManageProMode
+                                                ? 'Доступ включен по роли (бесплатно)'
+                                                : (effectiveProEnabled
+                                                    ? `Активен${proStatus?.currentSubscription?.endsAt ? ` до ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString('ru-RU')}` : ''}`
+                                                    : 'Откройте весь контент и фильтры организаций'))}
                                     </Text>
                                 </View>
-                                <Switch
-                                    value={godModeEnabled}
-                                    onValueChange={setGodModeEnabled}
-                                    trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
-                                    thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
-                                />
+                                {!canManageProMode && (
+                                    <TouchableOpacity
+                                        style={styles.proManageBtn}
+                                        onPress={() => navigation.navigate('ProPlans')}
+                                    >
+                                        <Text style={styles.proManageBtnText}>Управлять PRO</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
 
                             {/* Enable Toggle */}
@@ -820,6 +851,29 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
+    },
+    proCard: {
+        marginBottom: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    proManageBtn: {
+        marginTop: 12,
+        alignSelf: 'flex-start',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,183,77,0.45)',
+        backgroundColor: 'rgba(255,183,77,0.15)',
+    },
+    proManageBtnText: {
+        color: '#FFCC80',
+        fontSize: 13,
+        fontWeight: '700',
     },
     helperText: {
         fontSize: 12,

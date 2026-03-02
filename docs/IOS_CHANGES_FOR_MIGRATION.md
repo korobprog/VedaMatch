@@ -1,5 +1,495 @@
 # IOS Changes For Migration
 
+## 2026-03-02 (Hotfix: iOS EXC_BAD_ACCESS в CallPiPModule setCallActive)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/services/callPiPService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на iOS вызывался нативный `setCallActive(...)` для PiP, что в ряде запусков приводило к `EXC_BAD_ACCESS` в `CallPiPModule setCallActive:`.
+- Стало:
+  - вызов `setCallActive` ограничен только Android;
+  - на iOS `setCallActive` в JS-сервисе переведен в no-op (двойная защита), чтобы исключить падение.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+useEffect(() => {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  callPiPService.setCallActive(Boolean(hasAccepted));
+  return () => callPiPService.setCallActive(false);
+}, [hasAccepted]);
+```
+
+`frontend/services/callPiPService.ts`:
+```ts
+setCallActive(active: boolean) {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  nativeModule?.setCallActive(active);
+}
+```
+
+## 2026-03-02 (Xcode Run=Release + CallPiP crash-guard)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme`
+- `frontend/ios/vedamatch/AppDelegate.mm`
+
+### Суть правки (от старого к новому)
+- Было:
+  - запуск через кнопку `Run` в Xcode использовал `Debug`, из-за чего ставилась dev-сборка;
+  - при вызове `setCallActive(false)` в `CallPiPModule` возможен нативный crash по исключению.
+- Стало:
+  - `LaunchAction` схемы `vedamatch` переведен на `Release`, теперь `Run` в Xcode устанавливает production-конфигурацию;
+  - в `CallPiPModule` добавлены `@try/@catch` в `setCallActive` и `stopPiPIfNeeded` с безопасным логированием через `NSLog`.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme`:
+```xml
+<LaunchAction
+   buildConfiguration = "Release"
+   ...>
+```
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+RCT_EXPORT_METHOD(setCallActive:(BOOL)active) {
+  @try {
+    self.callActive = active;
+    if (!active) {
+      [self stopPiPIfNeeded];
+    }
+  } @catch (NSException *exception) {
+    NSLog(@"[CallPiPModule] setCallActive exception: %@", exception.reason);
+  }
+}
+```
+
+## 2026-03-02 (Native iOS Video PiP для звонка)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/services/callPiPService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS не имел нативного модуля PiP для video call;
+  - JS-сервис PiP работал только с Android;
+  - в `CallScreen` кнопка/автовход PiP были ориентированы на Android-only сценарий.
+- Стало:
+  - в `AppDelegate.mm` добавлен нативный RN bridge `CallPiPModule` на базе `AVPictureInPictureController` + `AVPictureInPictureVideoCallViewController` (iOS 15+);
+  - `callPiPService` расширен для iOS и поддерживает `stopPiP()`;
+  - `CallScreen` использует общий `isPiPSupported`, показывает кнопку PiP на iOS/Android, авто-входит в PiP при переходе app state в `inactive/background` во время активного звонка, и останавливает PiP при hangup/unmount.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+@interface CallPiPModule : NSObject <RCTBridgeModule, AVPictureInPictureControllerDelegate>
+@property(nonatomic, strong) AVPictureInPictureController *pipController;
+@property(nonatomic, strong) AVPictureInPictureVideoCallViewController *pipContentController;
+@end
+```
+
+```objc
+AVPictureInPictureControllerContentSource *contentSource =
+    [[AVPictureInPictureControllerContentSource alloc]
+        initWithActiveVideoCallSourceView:activeSourceView
+                     contentViewController:self.pipContentController];
+self.pipController = [[AVPictureInPictureController alloc] initWithContentSource:contentSource];
+self.pipController.canStartPictureInPictureAutomaticallyFromInline = YES;
+```
+
+`frontend/services/callPiPService.ts`:
+```ts
+const nativeModule: NativeCallPiPModule | null =
+  (Platform.OS === 'android' || Platform.OS === 'ios')
+    ? (NativeModules.CallPiPModule as NativeCallPiPModule | undefined) || null
+    : null;
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+if (state === 'inactive' || state === 'background') {
+  void callPiPService.enterPiP();
+}
+```
+
+```tsx
+{isPiPSupported && hasAccepted && (
+  <TouchableOpacity onPress={() => { void handleEnterPiP(); }} style={styles.controlBtn}>
+    <Minimize2 color="#fff" size={22} />
+  </TouchableOpacity>
+)}
+```
+
+## 2026-03-02 (Call PiP + background continuity при сворачивании)
+
+### Измененные файлы
+- `frontend/android/app/src/main/AndroidManifest.xml`
+- `frontend/android/app/src/main/java/com/ragagent/MainActivity.kt`
+- `frontend/android/app/src/main/java/com/ragagent/MainApplication.kt`
+- `frontend/android/app/src/main/java/com/ragagent/CallPiPModule.kt`
+- `frontend/android/app/src/main/java/com/ragagent/CallPiPPackage.kt`
+- `frontend/services/callPiPService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/ios/vedamatch/Info.plist`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при сворачивании звонка не было mini-window/виджета;
+  - Android `MainActivity` не поддерживал PiP;
+  - `CallScreen` не умел переводить активный звонок в PiP;
+  - iOS background modes не включали `audio`/`voip`, что ухудшало устойчивость звонка в фоне.
+- Стало:
+  - Android включает `supportsPictureInPicture` и автопереход в PiP при `Home`, если звонок активен;
+  - добавлен native bridge `CallPiPModule` + JS-сервис `callPiPService`;
+  - `CallScreen` помечает состояние активного звонка для нативного слоя, автоматически пытается войти в PiP при фоне и дает ручную кнопку PiP;
+  - в iOS `UIBackgroundModes` добавлены `audio` и `voip` для непрерывности звонка в фоне.
+
+### Сниппеты кода
+
+`frontend/android/app/src/main/AndroidManifest.xml`:
+```xml
+<activity
+  android:name=".MainActivity"
+  android:resizeableActivity="true"
+  android:supportsPictureInPicture="true"
+  ... />
+```
+
+`frontend/android/app/src/main/java/com/ragagent/MainActivity.kt`:
+```kotlin
+override fun onUserLeaveHint() {
+  super.onUserLeaveHint()
+  if (!CallPiPState.isCallActive || isInPictureInPictureMode) return
+  enterPictureInPictureMode(
+    PictureInPictureParams.Builder().setAspectRatio(Rational(9, 16)).build()
+  )
+}
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+useEffect(() => {
+  callPiPService.setCallActive(Boolean(hasAccepted));
+  return () => callPiPService.setCallActive(false);
+}, [hasAccepted]);
+```
+
+```tsx
+{Platform.OS === 'android' && hasAccepted && (
+  <TouchableOpacity onPress={() => { void handleEnterPiP(); }} style={styles.controlBtn}>
+    <Minimize2 color="#fff" size={22} />
+  </TouchableOpacity>
+)}
+```
+
+`frontend/ios/vedamatch/Info.plist`:
+```xml
+<key>UIBackgroundModes</key>
+<array>
+  <string>audio</string>
+  <string>remote-notification</string>
+  <string>voip</string>
+</array>
+```
+
+## 2026-03-02 (Calls: входящий popup/push, рингтон/ringback, надежный camera switch на iOS)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/services/notificationService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/services/webRTCService.ts`
+- `server/internal/websocket/hub.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `voip_call` пуши не запускали call-flow (обрабатывались как обычные уведомления);
+  - `CallKeep.setup` в iOS блокировался условием `AppState === active`, из-за чего входящий popup мог не появляться в фоне;
+  - на экране звонка не было рингтона для входящего и ringback для исходящего;
+  - переключение камеры на реальном iOS-устройстве опиралось на `_switchCamera`, что давало ложный success без фактической смены.
+- Стало:
+  - `notificationService` прокидывает `voip_call` в выделенный incoming-call handler;
+  - `voip_call` обрабатывается до `navigationRef.isReady()`, чтобы событие не терялось на cold start;
+  - `App.tsx` объединяет входящий вызов из WebSocket/FCM/VoIP в единый `showIncomingCall`, вызывает `RNCallKeep.displayIncomingCall`, и выполняет setup для iOS без привязки к `active`;
+  - `CallScreen` запускает/останавливает `InCallManager.startRingtone` и `startRingback` по состояниям звонка;
+  - `webRTCService.switchCamera` на iOS переключает камеру через перезапуск локального стрима (deterministic path).
+  - backend websocket hub при недоставленном `offer` (target offline/full channel) вызывает fallback handler, который отправляет `voip_call` push получателю.
+
+### Сниппеты кода
+
+`frontend/services/notificationService.ts`:
+```ts
+if (data.type === 'voip_call') {
+  const payload = { ...params, ...data };
+  if (_incomingCallPushHandler) {
+    _incomingCallPushHandler(payload);
+    return;
+  }
+}
+```
+
+`frontend/App.tsx`:
+```tsx
+if (useCallKeepNativeUi) {
+  await setupVoIP();
+  if (voipSetupRef.current) {
+    RNCallKeep.displayIncomingCall(callUUID, String(targetId ?? callerName), callerName, 'generic', true);
+    return;
+  }
+}
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+InCallManager.startRingtone('_DEFAULT_', [0, 1000, 800], 'default', 0);
+InCallManager.startRingback('_DEFAULT_');
+```
+
+`frontend/services/webRTCService.ts`:
+```ts
+if (Platform.OS === 'ios') {
+  const nextStream = await this.restartLocalStreamWithFacing(!this.isFrontCamera);
+  return { success: true, stream: nextStream };
+}
+```
+
+`server/internal/websocket/hub.go`:
+```go
+if msg.Type == "offer" {
+  h.triggerSignalFallback(msg)
+}
+```
+
+## 2026-03-02 (Hotfix: fallback при 404 preacher-profile в RN)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при нажатии `Редактировать био` экран падал с alert и возвратом назад, если backend еще без route `GET /api/channels/:id/preacher-profile` (404 `Cannot GET`).
+- Стало:
+  - экран редактирования открывается даже при 404: поля инициализируются пустыми (graceful fallback);
+  - при сохранении и 404/`Cannot PUT` показывается понятное сообщение `Бэкенд не обновлен`, без redbox/краша навигации.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`:
+```tsx
+const isNotImplementedYet = status === 404 || message.includes('Cannot GET');
+if (isNotImplementedYet) {
+  setBio('');
+  setEvents([]);
+  return;
+}
+```
+
+## 2026-03-02 (Admin UX: быстрые пресеты rollout 10/50/100 для Sadhu Bio/Math)
+
+### Измененные файлы
+- `admin/src/app/settings/page.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - rollout-проценты для `SADHU_SANGA_PREACHER_BIO` и `SADHU_SANGA_MATH_FILTER` вводились вручную.
+- Стало:
+  - в `Settings -> System` добавлен блок быстрых пресетов `0% / 10% / 50% / 100%`;
+  - клик по пресету синхронно выставляет оба поля:
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`.
+
+### Сниппеты кода
+
+`admin/src/app/settings/page.tsx`:
+```tsx
+const applySadhuRolloutPreset = (percent: '10' | '50' | '100') => {
+  setSettings(prev => ({
+    ...prev,
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT: percent,
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT: percent,
+  }));
+};
+```
+
+## 2026-03-02 (Admin: управление rollout флагами Sadhu Bio/Math Filter)
+
+### Измененные файлы
+- `admin/src/app/settings/page.tsx`
+- `server/internal/database/seed.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в админке System tab не было controls для новых флагов `SADHU_SANGA_PREACHER_BIO_*` и `SADHU_SANGA_MATH_FILTER_*`;
+  - seed не создавал эти ключи по умолчанию.
+- Стало:
+  - в `Settings -> System` добавлены поля:
+    - `SADHU_SANGA_PREACHER_BIO_ENABLED`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST`
+    - `SADHU_SANGA_MATH_FILTER_ENABLED`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST`
+  - в backend seed добавлены дефолты для этих ключей (`enabled=true`, `percent=100`, allow/deny empty).
+
+### Сниппеты кода
+
+`admin/src/app/settings/page.tsx`:
+```tsx
+<label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_PREACHER_BIO_ENABLED</label>
+<select
+  value={settings.SADHU_SANGA_PREACHER_BIO_ENABLED || 'true'}
+  onChange={(e) => setSettings({ ...settings, SADHU_SANGA_PREACHER_BIO_ENABLED: e.target.value })}
+>
+```
+
+`server/internal/database/seed.go`:
+```go
+{
+  Key:   "SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT",
+  Value: "100",
+},
+```
+
+## 2026-03-02 (Sadhu Sanga: feature flags + observability для bio/madh-filter)
+
+### Измененные файлы
+- `server/internal/services/channel_service.go`
+- `server/internal/services/metrics_service.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - bio проповедника и матх-фильтр работали без отдельного флагового управления;
+  - не было отдельных метрик чтения/сохранения био и применения/bypass матх-фильтра.
+- Стало:
+  - добавлены feature flags с rollout per-user:
+    - `SADHU_SANGA_PREACHER_BIO_ENABLED`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_*`
+    - `SADHU_SANGA_MATH_FILTER_ENABLED`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_*`
+  - bio endpoints (`GetPreacherProfile/UpsertPreacherProfile`) теперь уважают bio-flag;
+  - math-filter на Sadhu выдачах (`list/recommendations/facets`) уважают math-filter flag;
+  - добавлены метрики:
+    - `sadhu_preacher_profile_read_total`
+    - `sadhu_preacher_profile_upsert_total`
+    - `sadhu_math_filter_applied_total`
+    - `sadhu_math_filter_bypass_total`
+    - `sadhu_math_filter_empty_profile_total`
+  - метрики включены в `GetMetricsSnapshot()`.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+if !s.IsSadhuSangaMathFilterEnabledForUser(viewerID) {
+  return query, false, nil
+}
+```
+
+```go
+if !s.IsSadhuSangaPreacherBioEnabledForUser(actorID) {
+  return nil, ErrChannelsDisabled
+}
+```
+
+`server/internal/services/metrics_service.go`:
+```go
+MetricSadhuPreacherProfileReadTotal    = "sadhu_preacher_profile_read_total"
+MetricSadhuPreacherProfileUpsertTotal  = "sadhu_preacher_profile_upsert_total"
+MetricSadhuMathFilterAppliedTotal      = "sadhu_math_filter_applied_total"
+MetricSadhuMathFilterBypassTotal       = "sadhu_math_filter_bypass_total"
+MetricSadhuMathFilterEmptyProfileTotal = "sadhu_math_filter_empty_profile_total"
+```
+
+## 2026-03-02 (Sadhu Sanga: биография проповедника + фильтр по матху читателя)
+
+### Измененные файлы
+- `server/internal/models/preacher_profile.go`
+- `server/internal/models/channel.go`
+- `server/internal/database/database.go`
+- `server/internal/services/channel_service.go`
+- `server/internal/handlers/channel_handler.go`
+- `server/internal/handlers/channel_handler_test.go`
+- `server/cmd/api/main.go`
+- `frontend/types/channel.ts`
+- `frontend/services/channelService.ts`
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`
+- `frontend/screens/portal/services/channels/index.ts`
+- `frontend/screens/portal/services/index.ts`
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Биография проповедника:
+  - Было: в Sadhu Sanga не было отдельной структурированной сущности био/событий жизни.
+  - Стало: добавлены `preacher_profiles` + `preacher_profile_events` с API:
+    - `GET /api/channels/:id/preacher-profile`
+    - `PUT /api/channels/:id/preacher-profile` (`editor+`).
+- Матх-фильтрация Sadhu Sanga:
+  - Было: списки проповедников не ограничивались матхом пользователя на backend.
+  - Стало: для Sadhu-выдач включен server-side фильтр по `viewer.madh` с bypass (`godModeEnabled || superadmin`) и пустой выдачей при пустом `madh`.
+- iOS/RN UX:
+  - В `ChannelDetails` добавлен публичный блок `О {имя}` (bio, даты, организация, матх, события).
+  - Добавлен новый manage-экран `ChannelPreacherBioManage` для `owner/admin/editor`.
+  - В Sadhu Hub/Live/Schedule/Profile добавлены подсказки о незаполненном матхе и передача `sadhuSanga=true` для канального листинга.
+  - Заголовки в Sadhu деталке приведены к короткому виду: `Аналитика`, `Вопросы`, `Семинары`, `Дорожная карта`.
+
+### Сниппеты кода
+
+`server/internal/services/channel_service.go`:
+```go
+if filters.SadhuSanga {
+  filteredQuery, showNone, err := s.applySadhuMathFilterToChannelQuery(query, filters.ViewerID)
+  if err != nil {
+    return nil, err
+  }
+  if showNone {
+    return &models.ChannelListResponse{Channels: []models.Channel{}, Total: 0, Page: page, Limit: limit, TotalPages: calculateChannelTotalPages(0, limit)}, nil
+  }
+  query = filteredQuery
+}
+```
+
+`server/internal/handlers/channel_handler.go`:
+```go
+func (h *ChannelHandler) GetPreacherProfile(c *fiber.Ctx) error { ... }
+func (h *ChannelHandler) UpdatePreacherProfile(c *fiber.Ctx) error { ... }
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={styles.preacherBioManageButton}
+  onPress={() => navigation.navigate('ChannelPreacherBioManage', { channelId, source: 'sadhu_sanga' })}
+>
+  <Text style={styles.preacherBioManageButtonText}>Редактировать био</Text>
+</TouchableOpacity>
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="ChannelPreacherBioManage" component={ChannelPreacherBioManageScreen} options={{ headerShown: false }} />
+```
+
 ## 2026-03-01 (Channels: отдельный экран «Команда канала»)
 
 ### Измененные файлы
@@ -4988,4 +5478,907 @@ async getRoadmap(channelId: number): Promise<ChannelRoadmapResponse> {
 ```tsx
 const response = await mapService.autocomplete(normalized, undefined, undefined, 6);
 setLocationSuggestions(parseAutocompleteSuggestions(response));
+```
+
+## 2026-03-02 (Sadhu Sanga: фикc скролла ChannelDetails)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `ChannelDetails` рендерил большие Sadhu Sanga блоки (`live`, `roadmap`, `analytics`, `questions`, `seminars`) как обычные `View` вне основного скролл-контейнера;
+  - внизу был отдельный `FlatList` только для постов, из-за чего верхняя часть экрана могла не прокручиваться целиком.
+- Стало:
+  - контент под header переведен в единый `ScrollView` с `RefreshControl`;
+  - список постов рендерится внутри общего scroll-контента;
+  - программная прокрутка к секции семинаров переведена с `scrollToOffset(...)` на `scrollTo(...)` для нового контейнера.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const contentListRef = useRef<ScrollView | null>(null);
+```
+
+```tsx
+<ScrollView
+  ref={(instance) => {
+    contentListRef.current = instance;
+  }}
+  style={styles.contentScroll}
+  contentContainerStyle={styles.contentScrollContainer}
+  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
+>
+```
+
+```tsx
+contentListRef.current?.scrollTo({
+  y: Math.max(0, seminarsSectionYRef.current - 110),
+  animated: true,
+});
+```
+
+## 2026-03-02 (Sadhu Sanga: правка заголовков секций)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - заголовки секций отображались как фиксированные: `Вопросы последователей` и `Семинары проповедника`.
+- Стало:
+  - заголовки стали персонализированными по имени канала:
+    - `Вопросы {Название канала}`
+    - `Семинары {Название канала}`
+  - слово `проповедника` убрано, как требовалось.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const channelNameLabel = useMemo(() => {
+  const title = String(channel?.title || '').trim();
+  return title.length > 0 ? title : 'канала';
+}, [channel?.title]);
+```
+
+```tsx
+<Text style={styles.preacherQuestionsTitle}>{`Вопросы ${channelNameLabel}`}</Text>
+<Text style={styles.preacherSeminarsTitle}>{`Семинары ${channelNameLabel}`}</Text>
+```
+
+## 2026-03-02 (Sadhu Sanga: правка заголовка аналитики)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - заголовок аналитики отображался как `Аналитика проповедника`.
+- Стало:
+  - заголовок аналитики персонализирован: `Аналитика {Название канала}`.
+  - слово `проповедника` убрано.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<Text style={styles.preacherAnalyticsTitle}>{`Аналитика ${channelNameLabel}`}</Text>
+```
+
+## 2026-03-02 (Sadhu Sanga: правка заголовка дорожной карты)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - заголовок roadmap отображался как `Дорожная карта проповедника`.
+- Стало:
+  - заголовок roadmap персонализирован: `Дорожная карта {Название канала}`.
+  - слово `проповедника` убрано.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<Text style={styles.roadmapTitle}>{`Дорожная карта ${channelNameLabel}`}</Text>
+```
+
+## 2026-03-02 (Sadhu Sanga: Smart Push — выбор city/language/topics из facets)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в экране `Умные пуши` фильтры аудитории вводились вручную через `TextInput`:
+    - `Город`
+    - `Язык`
+    - `Темы (через запятую)`
+- Стало:
+  - фильтры переведены на выбор из справочников (`/channels/sadhu-sanga/facets`);
+  - для `Город` и `Язык` — single-select modal (`Все`/конкретное значение), для города добавлен быстрый вариант `Мой город`;
+  - для `Темы` — multi-select modal (`Все темы` + множественный выбор);
+  - выбранные темы отображаются чипами, в payload уходят как массив `topics[]` (без ручного CSV).
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`:
+```tsx
+const [facets, setFacets] = useState<ChannelFacetsResponse>({ cities: [], languages: [], topics: [] });
+const [activeFacetPicker, setActiveFacetPicker] = useState<FacetType | null>(null);
+```
+
+```tsx
+const [preference, facetPayload] = await Promise.all([
+  channelService.getSadhuSangaPushPreference(),
+  channelService.getSadhuSangaFacets().catch(() => ({ cities: [], languages: [], topics: [] })),
+]);
+```
+
+```tsx
+<TouchableOpacity style={styles.inputRow} onPress={() => setActiveFacetPicker('topic')}>
+  <Sparkles size={16} color={colors.textSecondary} />
+  <Text style={[styles.inputValue, topics.length === 0 && styles.inputPlaceholder]}>
+    {topics.length > 0 ? `Темы выбраны: ${topics.length}` : 'Темы'}
+  </Text>
+</TouchableOpacity>
+```
+
+## 2026-03-02 (Sadhu Sanga: Smart Push — поиск в picker-модалках)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - модалки выбора `город/язык/темы` показывали полный список без поиска.
+- Стало:
+  - в модалках добавлена строка `Поиск`;
+  - фильтрация работает по raw-значению и по форматированному отображению;
+  - при открытии/закрытии модалки строка поиска сбрасывается.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`:
+```tsx
+const [facetSearch, setFacetSearch] = useState('');
+```
+
+```tsx
+const filteredFacetOptions = useMemo(() => {
+  const needle = facetSearch.trim().toLowerCase();
+  if (!needle) return activeFacetOptions;
+  return activeFacetOptions.filter((option) => {
+    const raw = String(option.value || '').toLowerCase();
+    const pretty = formatFacetLabel(option.value, activeFacetPicker || 'city').toLowerCase();
+    return raw.includes(needle) || pretty.includes(needle);
+  });
+}, [activeFacetOptions, activeFacetPicker, facetSearch]);
+```
+
+## 2026-03-02 (Sadhu Sanga: Smart Push — выбранные темы вверху списка)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в модалке выбора `Темы` выбранные и невыбранные элементы шли в общем порядке.
+- Стало:
+  - при открытой модалке `Темы` выбранные значения сортируются в начало списка;
+  - внутри групп сохраняется алфавитная сортировка.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx`:
+```tsx
+if (activeFacetPicker !== 'topic') {
+  return base;
+}
+return [...base].sort((a, b) => {
+  const aSelected = selectedTopicsSet.has(a.value) ? 1 : 0;
+  const bSelected = selectedTopicsSet.has(b.value) ? 1 : 0;
+  if (aSelected !== bSelected) return bSelected - aSelected;
+  return a.value.localeCompare(b.value, 'ru');
+});
+```
+
+## 2026-03-02 (Sadhu Sanga: ChannelDetails — сегменты для читателя)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - для читателя все секции (`эфир/дорожная карта/вопросы/семинары/посты`) отображались одной длинной лентой на одном экране.
+- Стало:
+  - добавлены сегменты переключения: `Обзор`, `Эфиры`, `Семинары`, `Вопросы`, `Маршрут`, `Посты`;
+  - `Обзор` показывает сокращенные блоки (вопросы/семинары/маршрут/посты), с CTA `Показать все...`;
+  - в профильных сегментах показываются полные списки;
+  - блок аналитики для Sadhu Sanga оставлен в `Обзоре` (owner/admin).
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+type SadhuSection = 'overview' | 'live' | 'seminars' | 'questions' | 'roadmap' | 'posts';
+const SADHU_SECTIONS = [
+  { key: 'overview', label: 'Обзор' },
+  { key: 'live', label: 'Эфиры' },
+  { key: 'seminars', label: 'Семинары' },
+  { key: 'questions', label: 'Вопросы' },
+  { key: 'roadmap', label: 'Маршрут' },
+  { key: 'posts', label: 'Посты' },
+] as const;
+```
+
+```tsx
+<ScrollView horizontal contentContainerStyle={styles.sadhuSectionsRow}>
+  {SADHU_SECTIONS.map((section) => (
+    <TouchableOpacity onPress={() => setActiveSadhuSection(section.key)}>
+      <Text>{section.label}</Text>
+    </TouchableOpacity>
+  ))}
+</ScrollView>
+```
+
+## 2026-03-02 (Sadhu Sanga: ChannelDetails — sticky CTA для читателя)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на экране канала у читателя не было закрепленного главного действия внизу.
+- Стало:
+  - добавлена sticky-кнопка для читателя (`canFollow`) в Sadhu Sanga:
+    - если не подписан: `Подписаться`;
+    - если уже подписан: `Открыть расписание` (`SadhuSangaSchedule`).
+  - добавлен увеличенный нижний отступ скролла, чтобы кнопка не перекрывала контент.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const showStickySadhuCta = isSadhuSangaMode && canFollow;
+const stickySadhuCtaLabel = channel?.isFollowing ? 'Открыть расписание' : 'Подписаться';
+```
+
+```tsx
+{showStickySadhuCta ? (
+  <View style={styles.stickySadhuCtaWrap}>
+    <TouchableOpacity style={styles.stickySadhuCtaButton} onPress={handleStickySadhuCta}>
+      <Text style={styles.stickySadhuCtaText}>{stickySadhuCtaLabel}</Text>
+    </TouchableOpacity>
+  </View>
+) : null}
+```
+
+## 2026-03-02 (Sadhu Sanga: ChannelDetails — hero-блок и быстрые действия)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в верхней карточке канала не было компактного блока статуса с приоритетными действиями;
+  - действие `Задать вопрос` дублировалось отдельной кнопкой ниже.
+- Стало:
+  - добавлен `hero`-блок в intro карточке с динамичным статусом:
+    - `LIVE` / `Запланированный эфир` / `Ближайший семинар` / fallback;
+  - добавлены быстрые CTA в одном ряду: `Эфир`, `Семинары`, `Вопрос`;
+  - удалена дублирующая отдельная кнопка `Задать вопрос проповеднику` для более чистого UI.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const sadhuHeroStatus = useMemo(() => {
+  if (liveSession?.status === 'live') return `LIVE сейчас • ${resolveLiveLanguageLabel(liveSession.broadcastLanguage)}`;
+  if (liveSession?.status === 'scheduled' && liveSession.scheduledAt) return `Эфир запланирован: ...`;
+  if (nextSeminarPreview?.nextAt) return `Ближайший семинар: ...`;
+  return 'Подпишитесь, чтобы получать анонсы эфиров и семинаров';
+}, [...]);
+```
+
+```tsx
+<View style={styles.sadhuHeroActionsRow}>
+  <TouchableOpacity onPress={handleSadhuQuickLive}><Text>Эфиры</Text></TouchableOpacity>
+  <TouchableOpacity onPress={handleSadhuQuickSeminars}><Text>Семинары</Text></TouchableOpacity>
+  <TouchableOpacity onPress={openSadhuQuestionForm}><Text>Вопрос</Text></TouchableOpacity>
+</View>
+```
+
+## 2026-03-02 (Sadhu Sanga: ChannelDetails — обзор 2x2 вместо длинной простыни)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в сегменте `Обзор` одновременно показывались большие секции (`Эфир/Маршрут/Вопросы/Семинары`) и экран оставался визуально длинным.
+- Стало:
+  - в `Обзоре` добавлена компактная сетка 2x2 `Быстрый доступ`:
+    - `Эфир`
+    - `Семинары`
+    - `Вопросы`
+    - `Маршрут`
+  - большие секции теперь рендерятся только в профильных сегментах (`Эфиры/Семинары/Вопросы/Маршрут`);
+  - `Обзор` стал легче и быстрее для первого касания.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+{isSadhuSangaMode && activeSadhuSection === 'overview' ? (
+  <View style={styles.overviewGridSection}>
+    <View style={styles.overviewGrid}>
+      <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickLive}>...</TouchableOpacity>
+      <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickSeminars}>...</TouchableOpacity>
+      <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('questions')}>...</TouchableOpacity>
+      <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('roadmap')}>...</TouchableOpacity>
+    </View>
+  </View>
+) : null}
+```
+
+## 2026-03-02 (Sadhu Sanga: Bio Manage UX — modern dates + единый Матх/Организация)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в экране редактирования био даты вводились вручную строкой `YYYY-MM-DD`;
+  - `Организация` и `Матх` были двумя отдельными полями, что дублировало данные;
+  - дата ухода всегда была в форме как обычный текстовый input.
+- Стало:
+  - `Дата рождения`, `Дата ухода`, даты событий переведены на нативный `DatePicker` (модальный выбор даты);
+  - добавлен переключатель `Указать / Не указывать` для `Даты ухода`, при `Не указывать` поле скрывается и не отправляется в payload;
+  - `Организация / Матх` объединено в одно поле с выбором из существующего списка (fallback: `DATING_TRADITIONS`) + поиск в модальном списке;
+  - в `ChannelDetails` объединено отображение в одну строку `Организация / Матх`, чтобы не было дублей.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`:
+```tsx
+<DatePicker
+  modal
+  open={openBirthDatePicker}
+  date={parseIsoDate(birthDate) || new Date()}
+  mode="date"
+  maximumDate={new Date()}
+  onConfirm={(value) => setBirthDate(toIsoDate(value))}
+/>
+```
+
+```tsx
+<View style={styles.rowBetween}>
+  <Text style={styles.label}>Дата ухода</Text>
+  <View style={styles.toggleGroup}>
+    <TouchableOpacity onPress={() => setHasDepartureDate(true)}><Text>Указать</Text></TouchableOpacity>
+    <TouchableOpacity onPress={() => { setHasDepartureDate(false); setDepartureDate(''); }}><Text>Не указывать</Text></TouchableOpacity>
+  </View>
+</View>
+```
+
+```tsx
+await channelService.updatePreacherProfile(channelId, {
+  organizationName: normalizedOrganizationMath || undefined,
+  mathKey: normalizedOrganizationMath || undefined,
+  departureDate: hasDepartureDate ? normalizedDepartureDate : undefined,
+  ...
+});
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+{String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim() ? (
+  <Text style={styles.preacherBioMetaRow}>
+    {`Организация / Матх: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
+  </Text>
+) : null}
+```
+
+## 2026-03-02 (Sadhu Sanga Bio: явный ISKCON в селекторе организации/матха)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в модальном списке `Организация / Матх` пункт `ISKCON` мог отсутствовать визуально (зависел от facets/fallback).
+- Стало:
+  - добавлены обязательные варианты `ISKCON`, `ИСККОН`, `ИССКОН`;
+  - добавлена приоритетная сортировка, чтобы эти варианты всегда были в верхней части списка.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`:
+```tsx
+const REQUIRED_MATH_OPTIONS = ['ISKCON', 'ИСККОН', 'ИССКОН'];
+const PRIORITY_MATH_ORDER = ['ISKCON', 'ИСККОН', 'ИССКОН'];
+```
+
+```tsx
+const normalizedMathOptions = Array.from(
+  new Set([...REQUIRED_MATH_OPTIONS, ...DEFAULT_MATH_OPTIONS, ...facetMathOptions, profileOrganizationMath].filter(Boolean)),
+).sort((a, b) => {
+  const rankA = PRIORITY_MATH_ORDER.indexOf(a);
+  const rankB = PRIORITY_MATH_ORDER.indexOf(b);
+  if (rankA >= 0 && rankB >= 0) return rankA - rankB;
+  if (rankA >= 0) return -1;
+  if (rankB >= 0) return 1;
+  return a.localeCompare(b, 'ru');
+});
+```
+
+## 2026-03-02 (Profile Madh picker: добавлен ISKCON)
+
+### Измененные файлы
+- `frontend/constants/DatingConstants.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в глобальном списке `DATING_TRADITIONS` отсутствовал явный пункт `ISKCON`, из-за чего в модальном выборе матха на экране профиля не было нужного варианта.
+- Стало:
+  - в `DATING_TRADITIONS` добавлены варианты `ISKCON`, `ИСККОН`, `ИССКОН`.
+
+### Сниппеты кода
+
+`frontend/constants/DatingConstants.ts`:
+```ts
+export const DATING_TRADITIONS = [
+  'ISKCON',
+  'ИСККОН',
+  'ИССКОН',
+  'Brahma-Madhva-Gaudiya',
+  ...
+];
+```
+
+## 2026-03-02 (Madh options cleanup: оставить только ISKCON)
+
+### Измененные файлы
+- `frontend/constants/DatingConstants.ts`
+- `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в списках выбора матха одновременно показывались `ISKCON`, `ИСККОН`, `ИССКОН`.
+- Стало:
+  - оставлен только один вариант: `ISKCON`.
+
+### Сниппеты кода
+
+`frontend/constants/DatingConstants.ts`:
+```ts
+export const DATING_TRADITIONS = [
+  'ISKCON',
+  'Brahma-Madhva-Gaudiya',
+  ...
+];
+```
+
+`frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx`:
+```ts
+const REQUIRED_MATH_OPTIONS = ['ISKCON'];
+const PRIORITY_MATH_ORDER = ['ISKCON'];
+```
+
+## 2026-03-02 (Profile save UX + PRO math filters sync)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `server/internal/handlers/portal_blueprints.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - переключатель `Режим PRO` в `EditProfile` был интерактивным для всех ролей, но backend разрешает изменение только `admin/superadmin`; это выглядело как "профиль не сохраняется".
+  - список фильтров в `PRO` (`/system/god-mode-math-filters`) не полностью совпадал со списком организаций/матхов из пользовательского picker.
+- Стало:
+  - `Режим PRO` в профиле сделан read-only для не-админов (`disabled`), с подписью `Доступно только администратору`;
+  - в payload `update-profile` для не-админов отправляется текущее значение `godModeEnabled`, без ложного локального изменения;
+  - backend `defaultMathFilters` синхронизирован: добавлены все элементы из списка mat(h)-picker, включая `ISKCON`, и сохранены существующие org-фильтры.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const canManageProMode = user?.role === 'admin' || user?.role === 'superadmin';
+...
+godModeEnabled: canManageProMode ? godModeEnabled : !!user?.godModeEnabled,
+...
+<Switch
+  value={godModeEnabled}
+  onValueChange={setGodModeEnabled}
+  disabled={!canManageProMode}
+/>
+```
+
+`server/internal/handlers/portal_blueprints.go`:
+```go
+var defaultMathFilters = []MathFilter{
+  {MathID: "iskcon", MathName: "ISKCON", ...},
+  {MathID: "brahma-madhva-gaudiya", MathName: "Brahma-Madhva-Gaudiya", ...},
+  {MathID: "sri-sampradaya-ramanuja", MathName: "Sri Sampradaya (Ramanuja)", ...},
+  ...
+}
+```
+
+## 2026-03-02 (PRO за LKM: тарифы, покупка, экран управления)
+
+### Измененные файлы
+- `server/internal/services/pro_service.go`
+- `server/internal/handlers/pro_handler.go`
+- `server/cmd/api/main.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/database/seed.go`
+- `server/internal/models/feed_v2.go`
+- `frontend/services/proService.ts`
+- `frontend/screens/settings/ProPlansScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - у обычных пользователей не было платежного потока PRO по LKM;
+  - в профиле был toggle PRO, который не решал сценарий покупки пакетов;
+  - не было публичного API `/api/pro/*` для планов/статуса/покупки.
+- Стало:
+  - добавлен backend `ProService` с пакетами `pro_7d/pro_30d/pro_90d` и оплатой только regular LKM (`AllowBonus=false`);
+  - добавлены endpoint'ы:
+    - `GET /api/pro/plans`
+    - `GET /api/pro/status`
+    - `POST /api/pro/purchase`
+  - для `admin/superadmin` PRO бесплатный по роли (покупка блокируется `409 PRO_ALREADY_FREE_BY_ROLE`);
+  - добавлен scheduler истечения подписок (`pro_subscription_expiry`, каждые 10 минут) + sync entitlement в `users.god_mode_enabled`;
+  - в мобильном приложении добавлен экран `ProPlansScreen` и переход из `EditProfile` (`Управлять PRO`), после покупки entitlement обновляется без relogin.
+
+### Сниппеты кода
+
+`server/internal/handlers/pro_handler.go`:
+```go
+func (h *ProHandler) GetPlans(c *fiber.Ctx) error { ... }
+func (h *ProHandler) GetStatus(c *fiber.Ctx) error { ... }
+func (h *ProHandler) Purchase(c *fiber.Ctx) error { ... }
+```
+
+`server/cmd/api/main.go`:
+```go
+services.StartProSubscriptionScheduler(nil)
+...
+proHandler := handlers.NewProHandler(walletService)
+...
+protected.Get("/pro/plans", proHandler.GetPlans)
+protected.Get("/pro/status", proHandler.GetStatus)
+protected.Post("/pro/purchase", proHandler.Purchase)
+```
+
+`server/internal/services/pro_service.go`:
+```go
+spendErr := s.wallet.SpendWithOptions(userID, plan.PriceLKM, dedupKey, description, SpendOptions{AllowBonus: false})
+...
+if models.IsAdminRole(strings.TrimSpace(strings.ToLower(user.Role))) {
+    return nil, ErrProAlreadyFreeByRole
+}
+```
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+<View style={styles.proCard}>
+  <Text style={styles.label}>{t('settings.proMode')}</Text>
+  {!canManageProMode && (
+    <TouchableOpacity onPress={() => navigation.navigate('ProPlans')}>
+      <Text>Управлять PRO</Text>
+    </TouchableOpacity>
+  )}
+</View>
+```
+
+`frontend/screens/settings/ProPlansScreen.tsx`:
+```tsx
+const [plans, setPlans] = useState<ProPlan[]>([]);
+const [status, setStatus] = useState<ProStatus | null>(null);
+...
+const result = await proService.purchase(plan.code);
+setStatus(result.status);
+await login({ ...user, godModeEnabled: !!result.status.isProEffective });
+```
+
+## 2026-03-02 (ChannelManage readability: removed dark photo/gradient background)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelManageScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `Управление каналом` рендерился на темном градиенте (`roleTheme.gradient`), из-за чего заголовки и текст секций визуально терялись.
+- Стало:
+  - обертка экрана переведена с `LinearGradient` на обычный `View` со светлым фоном `#F5F2E8`, контент стал читаемым;
+  - убран неиспользуемый `roleTheme` из хука темы.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelManageScreen.tsx`:
+```tsx
+// было
+<LinearGradient colors={roleTheme.gradient} style={styles.gradient}>...</LinearGradient>
+
+// стало
+<View style={styles.screenBackground}>...</View>
+```
+
+```tsx
+screenBackground: {
+  flex: 1,
+  backgroundColor: '#F5F2E8',
+}
+```
+
+## 2026-03-02 (ChannelManage UX: removed URL fields + fixed cover preview fallback)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelManageScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в блоке брендирования отображались технические поля `URL аватарки` и `URL обложки` (не нужны конечному пользователю);
+  - при ошибке загрузки cover по URL пользователь видел пустой/белый прямоугольник.
+- Стало:
+  - поля URL полностью убраны из UI;
+  - `saveBranding` сохраняет только описание, обложка меняется только через кнопку загрузки;
+  - превью обложки стало устойчивым: добавлен cache-busting параметр к URI, обработка `onError/onLoad`, и fallback-плашка с текстом при сбое загрузки.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelManageScreen.tsx`:
+```tsx
+// Убрано из payload:
+await channelService.updateBranding(channelId, {
+  description: description.trim(),
+});
+```
+
+```tsx
+{coverPreviewUri && !coverPreviewError ? (
+  <Image source={{ uri: coverPreviewUri }} onError={() => setCoverPreviewError(true)} ... />
+) : (
+  <View style={[styles.coverPreview, styles.coverPreviewPlaceholder]}>
+    <Text style={styles.coverPreviewPlaceholderText}>...</Text>
+  </View>
+)}
+```
+
+## 2026-03-02 (Calls: заменен mock history на реальные записи звонков)
+
+### Измененные файлы
+- `frontend/services/callHistoryService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `CallHistoryScreen` рендерил статический массив `calls` (mock), не связанный с реальными звонками;
+  - `CallScreen` не сохранял историю вызовов.
+- Стало:
+  - добавлен `callHistoryService` (AsyncStorage key `call_history_v1`) с типизированными записями (`incoming/outgoing/missed`);
+  - при завершении звонка `CallScreen` сохраняет запись в историю (тип, имя, `userId`, `durationSec`, время);
+  - `CallHistoryScreen` загружает реальные записи из хранилища на фокусе экрана и при pull-to-refresh;
+  - для callback-кнопки добавлен guard: кнопка неактивна, если нет валидного `userId`;
+  - добавлены i18n-ключи пустого состояния: `calls.empty` (`ru`/`en`).
+
+### Сниппеты кода
+
+`frontend/services/callHistoryService.ts`:
+```ts
+export const callHistoryService = {
+  async getHistory(): Promise<CallHistoryEntry[]> { ... },
+  async addEntry(entry: NewCallHistoryEntry): Promise<CallHistoryEntry[]> { ... },
+};
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+const resolvedType: CallHistoryType = isIncoming
+  ? (hasAcceptedRef.current ? 'incoming' : 'missed')
+  : 'outgoing';
+
+await callHistoryService.addEntry({
+  userId: typeof targetId === 'number' ? targetId : undefined,
+  name: resolvedName,
+  type: resolvedType,
+  durationSec,
+});
+```
+
+`frontend/screens/calls/CallHistoryScreen.tsx`:
+```tsx
+useFocusEffect(
+  React.useCallback(() => {
+    void loadCalls();
+  }, [loadCalls]),
+);
+
+<FlatList
+  data={calls}
+  onRefresh={() => void loadCalls(true)}
+  refreshing={isRefreshing}
+/>
+```
+
+## 2026-03-02 (Calls: обогащение истории данными из контактов)
+
+### Измененные файлы
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - карточка истории звонков показывала только локальные поля (`name`, `time/type`) и иконку-заглушку вместо реального аватара;
+  - отсутствовал переход из карточки истории в профиль контакта;
+  - не использовались `nickname/lastSeen/city/country` из сервиса контактов.
+- Стало:
+  - реализован lazy-enrichment по `userId`: `CallHistoryScreen` догружает контакты через `contactService.getUserById` с кешем (`contactsById`) и ограничением параллельности;
+  - карточка рендерит реальный аватар (`getMediaUrl(contact.avatarUrl)`), online-dot (порог 5 минут), и подзаголовок `@nickname · online/lastSeen` с fallback на `city/country`;
+  - добавлен `onPress` по карточке: переход в `ContactProfile` при наличии валидного `userId`;
+  - добавлен i18n ключ `calls.onlineNow` для `ru/en`.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallHistoryScreen.tsx`:
+```tsx
+const missingIds = userIds.filter((id) => !(id in contactsByIdRef.current));
+...
+const chunkResults = await Promise.all(
+  chunk.map(async (userId) => {
+    const contact = await contactService.getUserById(userId);
+    return [userId, contact] as const;
+  }),
+);
+```
+
+```tsx
+const enrichedItem: EnrichedCallHistoryItem = {
+  ...item,
+  displayName: (contact?.spiritualName || contact?.karmicName || item.name || '').trim() || 'User',
+  avatarUrl: getMediaUrl(contact?.avatarUrl),
+  isOnline: online,
+  subtitle: buildSubtitle(contact, online),
+};
+```
+
+```tsx
+<TouchableOpacity
+  onPress={() => navigation.navigate('ContactProfile', { userId: item.userId })}
+  disabled={!canOpenProfile}
+>
+```
+
+## 2026-03-02 (Portal header shortcut: Contacts <-> Call History switch)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/types/portal.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в режиме сервиса `Контакты` header-кнопка справа открывала меню/историю чатов (`setIsMenuOpen(true)`), что не соответствовало ожидаемой связке `Контакты <-> Звонки`;
+  - в режиме сервиса `История звонков` эта же кнопка не возвращала в `Контакты`.
+- Стало:
+  - добавлен контекстный shortcut в `PortalMainScreen`:
+    - если активен `contacts` → иконка `Phone`, переход в `calls`;
+    - если активен `calls` → иконка `Contact`, переход в `contacts`;
+    - для остальных сервисов сохранен fallback: иконка `MessageSquare` + `setIsMenuOpen(true)`;
+  - в grid-header (когда открыт основной портал) иконка меню оставлена `MessageSquare`.
+  - сервис `Контакты` в `DEFAULT_SERVICES` продолжает использовать иконку `MessageSquare` (из предыдущего swap).
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const handleLinkedCallContactPress = useCallback(() => {
+  if (activeTab === 'contacts') return setActiveTab('calls');
+  if (activeTab === 'calls') return setActiveTab('contacts');
+  setIsMenuOpen(true);
+}, [activeTab, setIsMenuOpen]);
+
+const LinkedCallContactIcon = activeTab === 'contacts'
+  ? Phone
+  : activeTab === 'calls'
+    ? Contact
+    : MessageSquare;
+```
+
+`frontend/types/portal.ts`:
+```ts
+{ id: 'contacts', label: 'Контакты', icon: 'MessageSquare', color: '#3B82F6' },
+```
+
+## 2026-03-02 (iOS WebRTC crash fix: avoid enumerateDevices in call flow)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `startLocalStream()` всегда вызывал `mediaDevices.enumerateDevices()`;
+  - на iOS это могло привести к native crash в `WebRTCModule enumerateDevices` (`NSPlaceholderDictionary ... attempt to insert nil object`).
+- Стало:
+  - для iOS вызов `enumerateDevices()` полностью отключен;
+  - `getUserMedia` запускается по `facingMode` без `deviceId`;
+  - для non-iOS добавлен `try/catch` вокруг `enumerateDevices` с fallback на constraints без `deviceId`.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+if (Platform.OS !== 'ios') {
+  try {
+    const devices = await mediaDevices.enumerateDevices();
+    videoSourceId = this.getPreferredVideoSource(devices, isFront);
+  } catch (error) {
+    console.warn('[WebRTC] enumerateDevices failed, falling back...', error);
+    videoSourceId = undefined;
+  }
+}
+```
+
+## 2026-03-02 (Call camera switch fix on real iOS devices)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `CallScreen` переключал камеру только через legacy `track._switchCamera()`;
+  - на части реальных iOS устройств/сборок этот метод отсутствовал или не приводил к реальному переключению, UI оставался на прежней/черной камере;
+  - при переключении не было fallback-механизма с переинициализацией видеотрека.
+- Стало:
+  - в `webRTCService` добавлен метод `switchCamera()`:
+    - сначала пробует `track._switchCamera()` или `track.switchCamera()`;
+    - если не сработало — делает stream-level fallback: перезапрашивает локальный stream с противоположным `facingMode`, заменяет audio/video tracks в `RTCPeerConnection` через `sender.replaceTrack`, обновляет `localStream`;
+  - `startLocalStream()` теперь учитывает `isFrontCamera` (а не фиксированно front);
+  - `endCall()` сбрасывает состояние камеры на front для следующего звонка;
+  - `CallScreen` переключен на `await webRTCService.switchCamera()` и форсирует refresh локального `RTCView` (`key` с `streamVersion`).
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+async switchCamera(): Promise<{ success: boolean; stream?: MediaStream; reason?: string }> {
+  const legacySwitchFn = typeof videoTrack._switchCamera === 'function'
+    ? videoTrack._switchCamera.bind(videoTrack)
+    : typeof videoTrack.switchCamera === 'function'
+      ? videoTrack.switchCamera.bind(videoTrack)
+      : null;
+
+  if (legacySwitchFn) {
+    legacySwitchFn();
+    this.isFrontCamera = !this.isFrontCamera;
+    return { success: true, stream };
+  }
+
+  const nextStream = await this.restartLocalStreamWithFacing(!this.isFrontCamera);
+  return { success: true, stream: nextStream };
+}
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+const result = await webRTCService.switchCamera();
+...
+setStreamVersion(v => v + 1);
+...
+key={`${localStream.toURL()}-${streamVersion}`}
 ```

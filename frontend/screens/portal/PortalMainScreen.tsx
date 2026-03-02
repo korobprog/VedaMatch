@@ -20,6 +20,8 @@ import {
     List,
     Settings,
     MessageSquare,
+    Contact,
+    Phone,
     Gift,
     LayoutGrid,
     Compass,
@@ -414,6 +416,24 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             setActiveTab(launch.tab);
         }
     }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen]);
+
+    const handleLinkedCallContactPress = useCallback(() => {
+        if (activeTab === 'contacts') {
+            setActiveTab('calls');
+            return;
+        }
+        if (activeTab === 'calls') {
+            setActiveTab('contacts');
+            return;
+        }
+        setIsMenuOpen(true);
+    }, [activeTab, setIsMenuOpen]);
+
+    const LinkedCallContactIcon = activeTab === 'contacts'
+        ? Phone
+        : activeTab === 'calls'
+            ? Contact
+            : MessageSquare;
 
     const renderContent = () => {
         const backToGrid = backFromActiveService;
@@ -832,13 +852,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     </View>
 
                     <View style={styles.headerRight}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setIsMenuOpen(true);
-                            }}
-                            style={styles.iconButton}
-                        >
-                            <MessageSquare size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                        <TouchableOpacity onPress={handleLinkedCallContactPress} style={styles.iconButton}>
+                            <LinkedCallContactIcon size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}

@@ -14,6 +14,7 @@ import { Clock3 } from 'lucide-react-native';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import { channelService } from '../../../../services/channelService';
 import { Service, ServiceSchedule, getSchedules, getServices } from '../../../../services/serviceService';
 import SadhuSangaLayout from './components/SadhuSangaLayout';
 
@@ -115,6 +116,8 @@ export default function SadhuSangaScheduleScreen() {
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const isBypassMode = Boolean(user?.godModeEnabled) || String(user?.role || '').toLowerCase() === 'superadmin';
+  const isMathProfileMissing = !isBypassMode && String(user?.madh || '').trim().length === 0;
 
   const [loading, setLoading] = useState(true);
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
@@ -137,14 +140,21 @@ export default function SadhuSangaScheduleScreen() {
   const loadUpcomingSeminars = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getServices({
-        page: 1,
-        limit: 50,
-      });
+      const [response, channelsResponse] = await Promise.all([
+        getServices({
+          page: 1,
+          limit: 50,
+        }),
+        channelService.getChannels({ page: 1, limit: 200, sadhuSanga: true }),
+      ]);
+      const allowedOwnerIDs = new Set((channelsResponse.channels || []).map((item) => item.ownerId));
 
       const now = new Date();
       const baseCandidates = (response.services || [])
         .filter((service) => {
+          if (allowedOwnerIDs.size > 0 && !allowedOwnerIDs.has(service.ownerId)) {
+            return false;
+          }
           const formats = parseServiceFormats(service.formats);
           return (
             formats.includes('event')
@@ -293,7 +303,11 @@ export default function SadhuSangaScheduleScreen() {
                 <ActivityIndicator size="large" color={colors.accent} />
               </View>
             ) : upcomingSeminars.length === 0 ? (
-              <Text style={styles.emptyText}>Пока нет ближайших семинаров</Text>
+              <Text style={styles.emptyText}>
+                {isMathProfileMissing
+                  ? 'Укажите матх в профиле, чтобы видеть семинары вашего направления.'
+                  : 'Пока нет ближайших семинаров'}
+              </Text>
             ) : (
               upcomingSeminars.map((item) => (
                 <View

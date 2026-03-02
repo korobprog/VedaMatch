@@ -25,6 +25,7 @@ export {
     ChannelManageScreen,
     ChannelTeamScreen,
     ChannelRoadmapManageScreen,
+    ChannelPreacherBioManageScreen,
 } from './channels';
 
 // Components

@@ -157,6 +157,8 @@ export default function SadhuSangaHubScreen() {
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const isBypassMode = Boolean(user?.godModeEnabled) || String(user?.role || '').toLowerCase() === 'superadmin';
+  const isMathProfileMissing = !isBypassMode && String(user?.madh || '').trim().length === 0;
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,6 +171,7 @@ export default function SadhuSangaHubScreen() {
     cities: [],
     languages: [],
     topics: [],
+    mathas: [],
   });
   const [facetsLoading, setFacetsLoading] = useState(false);
   const [activeFacetPicker, setActiveFacetPicker] = useState<FacetType | null>(null);
@@ -211,6 +214,7 @@ export default function SadhuSangaHubScreen() {
         city: city.trim() || undefined,
         language: language.trim() || undefined,
         topic: topic.trim() || undefined,
+        sadhuSanga: true,
       };
 
       const [response, recommendations] = await Promise.all([
@@ -276,6 +280,7 @@ export default function SadhuSangaHubScreen() {
         cities: Array.isArray(response?.cities) ? response.cities : [],
         languages: Array.isArray(response?.languages) ? response.languages : [],
         topics: Array.isArray(response?.topics) ? response.topics : [],
+        mathas: Array.isArray(response?.mathas) ? response.mathas : [],
       });
     } catch (error: any) {
       if (!mountedRef.current || reqId !== latestFacetsReqRef.current) {
@@ -288,6 +293,7 @@ export default function SadhuSangaHubScreen() {
         cities: [],
         languages: [],
         topics: [],
+        mathas: [],
       });
     } finally {
       if (mountedRef.current && reqId === latestFacetsReqRef.current) {
@@ -1023,11 +1029,23 @@ export default function SadhuSangaHubScreen() {
                   <Text style={styles.preachersTitle}>Проповедники</Text>
                   <Text style={styles.preachersCount}>Все · {channels.length}</Text>
                 </View>
+                {isMathProfileMissing ? (
+                  <View style={styles.mathHintCard}>
+                    <Text style={styles.mathHintTitle}>Укажите матх в профиле</Text>
+                    <Text style={styles.mathHintSubtitle}>
+                      Чтобы видеть рекомендованных проповедников вашего направления, заполните поле «Мой матх» в профиле.
+                    </Text>
+                  </View>
+                ) : null}
                 {channels.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Sparkles size={26} color={colors.textSecondary} />
-                    <Text style={styles.emptyTitle}>Проповедники не найдены</Text>
-                    <Text style={styles.emptySubtitle}>Попробуйте изменить фильтры поиска</Text>
+                    <Text style={styles.emptyTitle}>{isMathProfileMissing ? 'Список пока пуст' : 'Проповедники не найдены'}</Text>
+                    <Text style={styles.emptySubtitle}>
+                      {isMathProfileMissing
+                        ? 'Заполните поле «Мой матх» в профиле или включите расширенный режим.'
+                        : 'Попробуйте изменить фильтры поиска'}
+                    </Text>
                   </View>
                 ) : (
                   <View style={styles.listContent}>
@@ -1820,5 +1838,25 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) => Styl
     color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
+  },
+  mathHintCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  mathHintTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  mathHintSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
 });

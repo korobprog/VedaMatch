@@ -25,6 +25,10 @@
 - Ошибка Xcode `Could not compute dependency graph` / `unable to initiate PIF transfer session` обычно лечится reset build-сервисов:
   `killall Xcode Simulator xcodebuild XCBBuildService SWBBuildService SourceKitService com.apple.dt.SKAgent CoreDeviceService`
   + очистка кэша `~/Library/Developer/Xcode/DerivedData/*`, `~/Library/Developer/Xcode/ModuleCache.noindex/*`, затем повторный запуск `xcodebuild -workspace ... -list`.
+- `xcodebuild ... install` в текущем процессе сборки формирует и подписывает `.app`, но не всегда дает ожидаемую "Run-поведение" как в Xcode UI; для гарантированной установки release-бандла на физический iPhone использовать:
+  - `xcrun devicectl device install app --device <UDID> <path-to-vedamatch.app>`
+  - затем верификацию: `xcrun devicectl device info apps --device <UDID> --bundle-id com.VedaMatch.vedamatch --columns '*'`.
+- Если при `xcodebuild` появляется `database is locked`, значит параллельно запущены конкурирующие сборки в одном `DerivedData`; перед повтором оставить только один активный процесс сборки.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
@@ -161,6 +165,14 @@
     - `PUT /api/channels/sadhu-sanga/push-preferences`
   - при fanout push в `channel_service.deliverPostToSubscribers` применяется фильтрация по настройкам пользователя (enabled, city, language, topics, local hour window).
   - режим «Не пропустить»: в preference добавлены флаги `reminder1h/reminder10m`; booking reminder worker проверяет их перед отправкой push для `reminder_1h` и `reminder_10m`.
+  - UI экрана `SadhuSangaSmartPushScreen` переведен с ручного ввода на picker-модель:
+    - `Город` и `Язык` выбираются из `facets` (single-select modal, `Все`);
+    - `Темы` выбираются из `facets` в режиме multi-select (`Все темы`);
+    - выбранные темы отображаются чипами; в API сохраняются массивом `topics[]`, без CSV-ввода.
+  - в picker-модалках `Город/Язык/Темы` добавлен встроенный поиск:
+    - фильтрация по исходному значению и человекочитаемому label;
+    - при открытии/закрытии модалки поисковая строка очищается.
+  - в picker `Темы` выбранные темы поднимаются вверх списка (с алфавитной сортировкой внутри групп), чтобы удобнее управлять текущим выбором.
 - Аналитика проповедника (`MVP+`) в `ChannelDetails` (`source='sadhu_sanga'`):
   - новый API: `GET /api/channels/:id/preacher-analytics` (роль доступа: owner/admin канала);
   - backend считает:
@@ -184,6 +196,99 @@
 - `ChannelDetailsScreen` загрузка постов сделана устойчивой:
   - падение `listPosts` (например backend SQL 42P01) больше не роняет весь экран;
   - используется fallback на пустой список постов и non-blocking `console.warn`.
+- `ChannelDetailsScreen` в режиме Sadhu Sanga снова прокручивается целиком:
+  - основной контент переведен в единый `ScrollView` (вместо набора `View` + отдельного нижнего `FlatList`);
+  - pull-to-refresh перенесен на общий контейнер;
+  - автопрокрутка к секции семинаров использует `scrollTo({ y })` через `ScrollView` ref.
+- `ChannelDetailsScreen` для Sadhu Sanga получил сегментацию по читательским задачам:
+  - добавлены чипы-переключатели `Обзор / Эфиры / Семинары / Вопросы / Маршрут / Посты`;
+  - `Обзор` показывает сокращенный контент (например, первые элементы списков) и CTA для перехода в полный сегмент;
+  - полные списки рендерятся в соответствующих сегментах, что снижает перегруз экрана.
+- Для читателя в `ChannelDetailsScreen` (Sadhu Sanga) добавлен sticky CTA снизу:
+  - `Подписаться` для не-подписанного пользователя;
+  - `Открыть расписание` для подписанного;
+  - контентный скролл получил дополнительный нижний отступ, чтобы CTA не перекрывал блоки.
+- В верхней карточке `ChannelDetailsScreen` (Sadhu Sanga) добавлен компактный hero-блок:
+  - динамический статус (live/scheduled/next seminar/fallback);
+  - быстрые CTA `Эфир / Семинары / Вопрос`;
+  - удалена дублирующая отдельная кнопка `Задать вопрос проповеднику` ниже hero.
+- В сегменте `Обзор` `ChannelDetailsScreen` для Sadhu Sanga добавлена компактная сетка 2x2 (`Эфир/Семинары/Вопросы/Маршрут`);
+  - тяжелые контентные секции теперь показываются в профильных сегментах (`Эфиры/Семинары/Вопросы/Маршрут`), а не в `Обзоре`.
+- Заголовки Sadhu Sanga-секций в `ChannelDetailsScreen` упрощены до нейтральных:
+  - `Вопросы`, `Семинары`, `Аналитика`, `Дорожная карта` (без имени канала и без слова `проповедник`).
+- Этап C: биография проповедника:
+  - backend добавлены сущности `preacher_profiles` и `preacher_profile_events`;
+  - API:
+    - `GET /api/channels/:id/preacher-profile`
+    - `PUT /api/channels/:id/preacher-profile` (`owner/admin/editor`);
+  - в `ChannelDetailsScreen` (`source='sadhu_sanga'`) добавлен блок `О {channel.title}`:
+    - bio,
+    - дата/место рождения,
+    - дата ухода,
+    - организация,
+    - матх,
+    - знаковые события.
+  - добавлен отдельный экран `ChannelPreacherBioManageScreen` с редактированием био и событий (up/down reorder).
+- Матх-фильтр Sadhu Sanga (server-side):
+  - `ChannelListFilters` получил флаг `SadhuSanga`;
+  - при `SadhuSanga=true` в list/recommendations/facets применяется фильтр по `viewer.madh`;
+  - bypass: `viewer.godModeEnabled` или `viewer.role == superadmin`;
+  - если `viewer.madh` пустой и bypass нет — Sadhu-выдача пустая;
+  - фронтовые экраны `SadhuSangaHub/Live/Schedule/Profile` используют `sadhuSanga=true` и показывают подсказку заполнить `Мой матх`.
+- Rollout/feature flags для Sadhu bio и math-filter:
+  - bio:
+    - `SADHU_SANGA_PREACHER_BIO_ENABLED`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT`
+  - math-filter:
+    - `SADHU_SANGA_MATH_FILTER_ENABLED`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`
+  - фильтры и bio уважают rollout per-user; при отключении math-filter Sadhu-выдачи возвращаются без матх-ограничения.
+- Admin controls для rollout Sadhu bio/math:
+  - в `admin/src/app/settings/page.tsx` (System tab) есть UI-поля для всех ключей:
+    - `SADHU_SANGA_PREACHER_BIO_ENABLED`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST`
+    - `SADHU_SANGA_MATH_FILTER_ENABLED`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST`
+  - ключи также seeded в `server/internal/database/seed.go` с дефолтами (`enabled=true`, `percent=100`, allow/deny empty).
+  - в `admin/src/app/settings/page.tsx` добавлен быстрый пресет rollout `0% / 10% / 50% / 100%`, который одновременно обновляет:
+    - `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT`
+    - `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`.
+
+## PRO / LKM Subscriptions
+- Источник прав PRO: роль (`admin/superadmin`) или активная запись в `user_pro_subscriptions`; `users.god_mode_enabled` используется как совместимый кэш-флаг entitlement.
+- Добавлен backend сервис `ProService` (`server/internal/services/pro_service.go`) с контрактами:
+  - `GET /api/pro/plans`
+  - `GET /api/pro/status`
+  - `POST /api/pro/purchase`
+- Зафиксированные тарифы (из `system_settings`, с дефолтами):
+  - `PRO_PLAN_7D_LKM=99`
+  - `PRO_PLAN_30D_LKM=299`
+  - `PRO_PLAN_90D_LKM=799`
+- Оплата PRO: только regular LKM (`AllowBonus=false`) через `walletService.SpendWithOptions`.
+- Продление ручное: при повторной покупке срок добавляется к `max(now, ends_at)`.
+- Legacy sync включен:
+  - `admin/superadmin` всегда получают `god_mode_enabled=true`;
+  - non-admin entitlement только от активной подписки, устаревший `god_mode_enabled=true` без подписки снимается.
+- Добавлен scheduler `pro_subscription_expiry` (каждые 10 минут): переводит просроченные подписки в `expired` и синхронизирует entitlement.
+- В `EditProfileScreen` old switch PRO заменен на карточку статуса + переход на `ProPlansScreen`.
+- Добавлен экран `ProPlansScreen` с покупкой пакетов и моментальным обновлением `UserContext.godModeEnabled` после успешной оплаты.
+- Hotfix RN для экрана `ChannelPreacherBioManageScreen`:
+  - если `GET /api/channels/:id/preacher-profile` возвращает 404 (`Cannot GET`), экран редактирования не закрывается и открывается с пустыми полями;
+  - если `PUT /api/channels/:id/preacher-profile` недоступен (404/`Cannot PUT`), показывается явный alert `Бэкенд не обновлен`.
+- Метрики Sadhu bio/math:
+  - `sadhu_preacher_profile_read_total`
+  - `sadhu_preacher_profile_upsert_total`
+  - `sadhu_math_filter_applied_total`
+  - `sadhu_math_filter_bypass_total`
+  - `sadhu_math_filter_empty_profile_total`
 - Команда канала (UX улучшение):
   - добавлен отдельный экран `ChannelTeamScreen` для управления участниками без перегруженного `ChannelManage`;
   - вход на экран вынесен в `ChannelDetails` отдельной кнопкой в header (`owner/admin`);
@@ -578,17 +683,58 @@
 
 ## P2P Calls: Applied Fixes
 - В `frontend/App.tsx` добавлен `incomingCallRef`; `answerCall` теперь передает `targetId/callerName` и `autoAccept=true`, `endCall` отправляет `webRTCService.sendHangup()`.
+- Входящий call-flow расширен на push:
+  - `frontend/services/notificationService.ts` добавлен `setIncomingCallPushHandler(...)` и маршрут `voip_call` в этот handler;
+  - `voip_call` обрабатывается до проверки `navigationRef.isReady()`, чтобы не теряться на cold start;
+  - `frontend/App.tsx` использует единый `showIncomingCall(...)` для источников `offer` (WS), `voip_call` (FCM open/foreground) и `react-native-voip-push-notification`;
+  - `RNCallKeep.setup` на iOS больше не блокируется только `AppState === active`, чтобы popup входящего звонка поднимался и в фоне.
+  - backend fallback: `server/internal/websocket/hub.go` получил `signalFallbackHandler`, а `server/cmd/api/main.go` регистрирует отправку `SendCallNotification(...)` при недоставленном `offer` (offline/full channel target), чтобы входящий вызов не терялся без WebSocket.
 - В `frontend/screens/calls/CallScreen.tsx` добавлен авто-accept сценарий для входящего звонка при `autoAccept=true`.
+- На `frontend/screens/calls/CallScreen.tsx` добавлены сигналы вызова:
+  - входящий экран запускает `InCallManager.startRingtone(...)` до принятия и останавливает при accept/hangup/unmount;
+  - исходящий звонок запускает `InCallManager.startRingback(...)` до получения remote stream и останавливает при connect/fail/hangup.
+- История звонков переведена с mock на реальные данные:
+  - добавлен `frontend/services/callHistoryService.ts` (AsyncStorage `call_history_v1`, типы `incoming/outgoing/missed`, лимит 100 записей);
+  - `frontend/screens/calls/CallScreen.tsx` теперь сохраняет запись при завершении/сбросе звонка (включая `missed` для неотвеченного входящего);
+  - `frontend/screens/calls/CallHistoryScreen.tsx` загружает историю из сервиса на фокусе экрана и при pull-to-refresh.
+- История звонков обогащена данными контактов (lazy по `userId`):
+  - `frontend/screens/calls/CallHistoryScreen.tsx` догружает контакт через `contactService.getUserById` с кешем `contactsById` и ограничением параллельности (`4`);
+  - карточка звонка показывает real avatar (`getMediaUrl`), online-dot (активность < 5 минут), `@nickname · online/lastSeen` и fallback на `country/city`;
+  - tap по карточке ведет в `ContactProfile` при наличии валидного `userId`.
+- iOS crash fix (WebRTC enumerateDevices):
+  - в `frontend/services/webRTCService.ts` `startLocalStream()` больше не вызывает `mediaDevices.enumerateDevices()` на iOS;
+  - для non-iOS `enumerateDevices()` обернут в `try/catch` с fallback на constraints без `deviceId`.
+- Переключение камеры на реальных iOS-устройствах:
+  - в `frontend/services/webRTCService.ts` `switchCamera()` на iOS принудительно переключает через `restartLocalStreamWithFacing(...)` + `replaceTrack` в `RTCPeerConnection` (без reliance на `_switchCamera`);
+  - на Android сохраняется fast-path через `track._switchCamera()`/`track.switchCamera()` с fallback на перезапуск stream.
+  - `startLocalStream()` теперь использует `isFrontCamera` (а не hardcoded front), `endCall()` сбрасывает камеру в front.
+  - в `frontend/screens/calls/CallScreen.tsx` кнопка камеры вызывает `await webRTCService.switchCamera()` и форсирует repaint локального `RTCView` через версионный key.
 - В `frontend/types/navigation.ts` расширен `CallScreen` params новым optional флагом `autoAccept`.
+- Mini-window/PiP для звонка при сворачивании:
+  - Android:
+    - в `frontend/android/app/src/main/AndroidManifest.xml` для `MainActivity` включены `android:supportsPictureInPicture="true"` и `android:resizeableActivity="true"`;
+    - добавлен native bridge `CallPiPModule`/`CallPiPPackage` + JS-обертка `frontend/services/callPiPService.ts`;
+    - `MainActivity.onUserLeaveHint()` переводит приложение в PiP при активном звонке (`CallPiPState.isCallActive`);
+    - `CallScreen` синхронизирует `setCallActive(...)`, пробует auto-enter PiP при `AppState=background` и показывает ручную кнопку PiP (`Minimize2`) в панели звонка.
+  - iOS:
+    - в `frontend/ios/vedamatch/Info.plist` для `UIBackgroundModes` добавлены `audio` и `voip` (вместе с `remote-notification`) для устойчивости звонка в фоне;
+    - в `frontend/ios/vedamatch/AppDelegate.mm` добавлен нативный bridge `CallPiPModule` на `AVPictureInPictureController` + `AVPictureInPictureVideoCallViewController` (iOS 15+);
+    - `CallPiPModule.setCallActive` и `stopPiPIfNeeded` обернуты в `@try/@catch`, чтобы исключить падение приложения при нативном исключении внутри PiP lifecycle;
+    - hotfix стабильности: `setCallActive` больше не вызывается на iOS (в `CallScreen` и `callPiPService` вызов ограничен Android), что убирает observed `EXC_BAD_ACCESS` в `CallPiPModule setCallActive:`.
+    - `frontend/services/callPiPService.ts` расширен на iOS (`isSupported/enterPiP/stopPiP`);
+    - `CallScreen` использует общий флаг `isPiPSupported` (не Android-only) и авто-входит в PiP при `AppState=inactive/background` для активного вызова.
+  - Xcode схема:
+    - `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme` переведена на `LaunchAction buildConfiguration=Release`, чтобы запуск через кнопку `Run` ставил production, а не debug.
 - В `server/internal/handlers/turn_handler.go` выдача ICE сделана совместимой с двумя схемами TURN auth: static credentials (`TURN_USER/TURN_PASSWORD`) и HMAC credentials (`TURN_SECRET`).
 
 ## CRM Admin Panel (Next.js)
 - Основной UI админки расположен в `admin/` (Next.js App Router, `next@16.1.1-canary`, React 19 RC), backend admin API — в `server/cmd/api/main.go` и `server/internal/handlers/admin_handler.go`.
 - Backend admin-маршруты корректно защищены `middleware.Protected()` + `middleware.AdminProtected()` для `/api/admin/*`.
 - На фронте контроль доступа реализован клиентски через `localStorage` в `admin/src/components/AdminLayout.tsx`; отдельного `middleware.ts` в `admin/src/` нет.
-- Добавлена admin-only страница `admin/src/app/feed-posts/page.tsx` с read-only списком постов из публичного `GET /api/feed` (карточки постов + loading/error/empty + пагинация `Prev/Next`).
+- Страница `admin/src/app/feed-posts/page.tsx` работает как публичная веб-лента (read-only список постов из `GET /api/feed`), без визуальной обертки админки.
 - В `admin/src/components/AdminLayout.tsx` добавлен пункт меню `Feed Posts` (`/feed-posts`) и маршрут внесен в `exclusiveAdminRoutes`.
-- `/feed-posts` сделан доступным для гостей: при отсутствии `admin_data` нет редиректа на `/login` для этого маршрута, и в layout показывается гостевое меню с пунктом `Feed Posts`.
+- `/feed-posts` вынесен в публичный layout-path: в `AdminLayout` этот маршрут входит в `isPublicRoute`, поэтому не рендерятся admin sidebar/header.
+- UI `feed-posts` приведен к стилю главной страницы (`LandingPage`): светлый фон `#faf9f6`, брендовый top-nav, округлые карточки постов, акцентные кнопки пагинации.
 - В публичном лендинге `admin/src/components/landing/LandingPage.tsx` добавлена ссылка `Лента` (`/feed-posts`) в top-nav (guest state) и в footer, чтобы доступ к ленте был виден без авторизации.
 - Legacy media edge-case: если в админку приходит bare filename вида `7_1767761761.jpg` (без `/uploads/...`), нужно нормализовать его в `/uploads/avatars/<filename>`, иначе браузер запрашивает файл из корня домена и получает `404`.
 - Для `admin/src/app/dating/page.tsx` добавлен runtime-fallback для битых avatar URL: после первого `img onError` URL попадает в `brokenMediaUrls` и больше не рендерится как `<img>`, что убирает повторные 404-спайки в `Union Management`.
@@ -847,3 +993,43 @@
   - `scheduleTimeCol.width` увеличен до `98`;
   - `scheduleTimeMain` получил `numberOfLines=1`, `adjustsFontSizeToFit`, `fontVariant: ['tabular-nums']`, выровненный `lineHeight`.
 - Результат: `09:00` держится в одну строку и не ломает карточку.
+
+## Sadhu Sanga Bio UX (Date + Organization/Math)
+- Экран `ChannelPreacherBioManageScreen` переведен с ручного ввода дат на нативный `react-native-date-picker`:
+  - `Дата рождения`, `Дата ухода`, `Дата события` выбираются модально.
+- Для `Дата ухода` добавлен UX-переключатель:
+  - `Указать` / `Не указывать`;
+  - при `Не указывать` поле скрывается и в payload уходит `departureDate: undefined`.
+- `Организация` и `Матх` объединены в один выбор `Организация / Матх`:
+  - источник опций: `channels/sadhu-sanga/facets.mathas` + fallback `DATING_TRADITIONS`;
+  - выбор через modal с поиском.
+- На отображении био в `ChannelDetailsScreen` дубли убраны:
+  - вместо отдельных строк `Организация` и `Матх` используется одна строка `Организация / Матх`.
+- В селектор `Организация / Матх` добавлены обязательные варианты для совместимости поиска:
+  - `ISKCON`, `ИСККОН`, `ИССКОН`;
+  - эти варианты закреплены приоритетно вверху списка через сортировку по `PRIORITY_MATH_ORDER`.
+
+## Shared Madh Options
+- Глобальный справочник `DATING_TRADITIONS` (используется в `EditProfileScreen` и других формах) обновлен:
+  - оставлен один canonical-вариант `ISKCON` (без дублей `ИСККОН/ИССКОН`);
+  - это убирает визуальные дубли в picker-модалках выбора матха.
+- PRO-фильтры (`/system/god-mode-math-filters`) синхронизированы с пользовательским списком mat(h)-picker:
+  - добавлены `ISKCON`, `Brahma-Madhva-Gaudiya`, `Sri Sampradaya (Ramanuja)`, `Brahma Sampradaya (Madhvacharya)`, `Rudra Sampradaya (Vishnuswami)`, `Kumara Sampradaya (Nimbarka)`, `Шри Чайтанья Сарасват Матх`, `Международное Общество Чистой Бхакти-йоги`, `Шри Гопинатх Гаудия`, `Шри Чайтанья Матх`;
+  - legacy org-фильтры `Gauranga/Vrindavan/Mayapur` сохранены.
+
+## Edit Profile PRO Toggle Behavior
+- Причина жалобы \"профиль не сохраняется\": не-админы могли переключать `Режим PRO` в UI, но backend законно игнорировал изменение.
+- Фикс в `EditProfileScreen`:
+  - `PRO` toggle заблокирован для ролей, отличных от `admin/superadmin`;
+  - показывается пояснение `Доступно только администратору`;
+  - в payload отправляется текущее серверное значение `godModeEnabled` для не-админов.
+- `ChannelManageScreen` переведен на светлый однотонный фон (`#F5F2E8`) вместо role-gradient, чтобы заголовки/поля были читаемы на iOS/Android.
+- `ChannelManageScreen`: убраны пользовательские поля ручного ввода `URL аватарки` и `URL обложки`; брендирование сохраняет только `description`, а обложка обновляется через upload-flow.
+- Превью обложки усилено: добавлен cache-busting query-param и fallback-состояние с понятным текстом при ошибке загрузки вместо пустого/белого блока.
+
+## Portal Icons
+- 2026-03-02: для связки `Контакты <-> История звонков` добавлен контекстный header-shortcut в `frontend/screens/portal/PortalMainScreen.tsx`:
+  - на `contacts` показывается иконка `Phone`, по нажатию переключает на `calls`;
+  - на `calls` показывается иконка `Contact`, по нажатию переключает на `contacts`;
+  - на остальных сервисах остается `MessageSquare` и открытие меню (`setIsMenuOpen(true)`).
+- `frontend/types/portal.ts`: сервис `contacts` использует иконку `MessageSquare` (из предыдущего UI-swap).

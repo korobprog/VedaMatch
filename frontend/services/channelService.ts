@@ -26,6 +26,8 @@ import {
   ChannelSchedulePostRequest,
   ChannelShowcase,
   ChannelUpdateRequest,
+  PreacherProfile,
+  PreacherProfileUpsertRequest,
 } from '../types/channel';
 
 export interface SadhuSangaPushPreference {
@@ -82,7 +84,15 @@ class ChannelService {
     return response.data;
   }
 
-  async getChannels(params: { page?: number; limit?: number; search?: string; city?: string; language?: string; topic?: string } = {}): Promise<ChannelListResponse> {
+  async getChannels(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    city?: string;
+    language?: string;
+    topic?: string;
+    sadhuSanga?: boolean;
+  } = {}): Promise<ChannelListResponse> {
     const response = await apiClient.get('/channels', { params });
     return response.data;
   }
@@ -131,6 +141,16 @@ class ChannelService {
 
   async getPreacherAnalytics(channelId: number): Promise<PreacherAnalytics> {
     const response = await apiClient.get(`/channels/${channelId}/preacher-analytics`);
+    return response.data;
+  }
+
+  async getPreacherProfile(channelId: number): Promise<PreacherProfile> {
+    const response = await apiClient.get(`/channels/${channelId}/preacher-profile`);
+    return response.data;
+  }
+
+  async updatePreacherProfile(channelId: number, payload: PreacherProfileUpsertRequest): Promise<PreacherProfile> {
+    const response = await apiClient.put(`/channels/${channelId}/preacher-profile`, payload);
     return response.data;
   }
 

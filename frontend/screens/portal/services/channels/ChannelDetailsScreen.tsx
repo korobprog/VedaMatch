@@ -7,6 +7,7 @@ import {
   Linking,
   Modal,
   RefreshControl,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -32,6 +33,7 @@ import {
   ChannelRoadmapPoint,
   ChannelRoadmapResponse,
   ChannelShowcase,
+  PreacherProfile,
 } from '../../../../types/channel';
 import { marketService } from '../../../../services/marketService';
 import { Service, getSchedules, getServiceById, getServices } from '../../../../services/serviceService';
@@ -51,6 +53,8 @@ type RouteParams = {
   };
 };
 
+type SadhuSection = 'overview' | 'live' | 'seminars' | 'questions' | 'roadmap' | 'posts';
+
 const canEditPosts = (role?: ChannelMemberRole) => role === 'owner' || role === 'admin' || role === 'editor';
 const canModeratePosts = (role?: ChannelMemberRole) => role === 'owner' || role === 'admin';
 const MAX_SHOWCASE_PREVIEW_ITEMS = 4;
@@ -61,6 +65,14 @@ const LIVE_BROADCAST_LANGUAGES: Array<{ code: string; label: string }> = [
   { code: 'en', label: 'English' },
   { code: 'hi', label: 'Hindi' },
   { code: 'es', label: 'Español' },
+];
+const SADHU_SECTIONS: Array<{ key: SadhuSection; label: string }> = [
+  { key: 'overview', label: 'Обзор' },
+  { key: 'live', label: 'Эфиры' },
+  { key: 'seminars', label: 'Семинары' },
+  { key: 'questions', label: 'Вопросы' },
+  { key: 'roadmap', label: 'Маршрут' },
+  { key: 'posts', label: 'Посты' },
 ];
 
 type ParsedPostMedia = {
@@ -318,6 +330,8 @@ export default function ChannelDetailsScreen() {
   const [questionVoteLoadingId, setQuestionVoteLoadingId] = useState<number | null>(null);
   const [preacherAnalytics, setPreacherAnalytics] = useState<PreacherAnalytics | null>(null);
   const [preacherAnalyticsLoading, setPreacherAnalyticsLoading] = useState(false);
+  const [preacherProfile, setPreacherProfile] = useState<PreacherProfile | null>(null);
+  const [preacherProfileLoading, setPreacherProfileLoading] = useState(false);
   const [roadmap, setRoadmap] = useState<ChannelRoadmapResponse | null>(null);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [liveSession, setLiveSession] = useState<ChannelLiveSession | null>(null);
@@ -325,8 +339,9 @@ export default function ChannelDetailsScreen() {
   const [liveParticipants, setLiveParticipants] = useState<ChannelLiveParticipant[]>([]);
   const [liveParticipantsLoading, setLiveParticipantsLoading] = useState(false);
   const [liveModerationBusyUserId, setLiveModerationBusyUserId] = useState<number | null>(null);
+  const [activeSadhuSection, setActiveSadhuSection] = useState<SadhuSection>('overview');
   const seminarsSectionYRef = useRef(0);
-  const contentListRef = useRef<FlatList<ChannelPost> | null>(null);
+  const contentListRef = useRef<ScrollView | null>(null);
 
   const mountedRef = useRef(true);
   const latestLoadRef = useRef(0);
@@ -473,6 +488,32 @@ export default function ChannelDetailsScreen() {
     }
   }, []);
 
+  const loadPreacherProfile = useCallback(async (targetChannelID: number, reqId: number) => {
+    if (!targetChannelID || targetChannelID <= 0) {
+      setPreacherProfile(null);
+      return;
+    }
+    setPreacherProfileLoading(true);
+    try {
+      const response = await channelService.getPreacherProfile(targetChannelID);
+      if (!mountedRef.current || reqId !== latestLoadRef.current) {
+        return;
+      }
+      setPreacherProfile(response);
+    } catch (error: any) {
+      if (!mountedRef.current || reqId !== latestLoadRef.current) {
+        return;
+      }
+      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить профиль';
+      console.warn(`[ChannelDetails] Failed to load preacher profile: ${message}`);
+      setPreacherProfile(null);
+    } finally {
+      if (mountedRef.current && reqId === latestLoadRef.current) {
+        setPreacherProfileLoading(false);
+      }
+    }
+  }, []);
+
   const loadData = useCallback(async (isRefresh: boolean) => {
     if (!channelId) {
       return;
@@ -507,6 +548,7 @@ export default function ChannelDetailsScreen() {
           }
         }
         void loadRoadmap(channelId, reqId);
+        void loadPreacherProfile(channelId, reqId);
         void loadPreacherSeminars(channelResponse.channel.ownerId);
         void loadPreacherQuestions(channelResponse.channel.ownerId);
         const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
@@ -521,6 +563,7 @@ export default function ChannelDetailsScreen() {
         setPreacherAnalytics(null);
         setLiveSession(null);
         setRoadmap(null);
+        setPreacherProfile(null);
       }
 
       const [postsResponse, showcasesResponse, storiesResponse, promptStatus] = await Promise.all([
@@ -573,20 +616,21 @@ export default function ChannelDetailsScreen() {
         setStoriesLoading(false);
       }
     }
-  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherAnalytics, loadPreacherQuestions, loadPreacherSeminars, loadRoadmap, user?.ID]);
+  }, [channelId, includeDraft, isSadhuSangaMode, loadPreacherAnalytics, loadPreacherProfile, loadPreacherQuestions, loadPreacherSeminars, loadRoadmap, user?.ID]);
 
   useEffect(() => {
-    if (focusSection !== 'seminars') {
+    if (!isSadhuSangaMode || focusSection !== 'seminars') {
       return;
     }
+    setActiveSadhuSection('seminars');
     const timer = setTimeout(() => {
-      contentListRef.current?.scrollToOffset({
-        offset: Math.max(0, seminarsSectionYRef.current - 110),
+      contentListRef.current?.scrollTo({
+        y: Math.max(0, seminarsSectionYRef.current - 110),
         animated: true,
       });
     }, 250);
     return () => clearTimeout(timer);
-  }, [focusSection, preacherSeminars.length]);
+  }, [focusSection, isSadhuSangaMode, preacherSeminars.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1321,6 +1365,126 @@ export default function ChannelDetailsScreen() {
     }
     return 'Подписчик';
   }, [viewerRole]);
+  const channelNameLabel = useMemo(() => {
+    const title = String(channel?.title || '').trim();
+    return title.length > 0 ? title : 'канала';
+  }, [channel?.title]);
+  const preacherBioHeading = useMemo(() => `О ${channelNameLabel}`, [channelNameLabel]);
+  const canManagePreacherBio = canEditPosts(viewerRole);
+  const showSadhuLive = !isSadhuSangaMode || activeSadhuSection === 'live';
+  const showSadhuRoadmap = !isSadhuSangaMode || activeSadhuSection === 'roadmap';
+  const showSadhuQuestions = !isSadhuSangaMode || activeSadhuSection === 'questions';
+  const showSadhuSeminars = !isSadhuSangaMode || activeSadhuSection === 'seminars';
+  const showSadhuPosts = !isSadhuSangaMode || activeSadhuSection === 'overview' || activeSadhuSection === 'posts';
+
+  const visibleRoadmapTimeline = useMemo(() => {
+    if (activeSadhuSection === 'overview') {
+      return roadmapTimeline.slice(0, 3);
+    }
+    return roadmapTimeline;
+  }, [activeSadhuSection, roadmapTimeline]);
+  const visibleQuestions = useMemo(() => {
+    if (activeSadhuSection === 'overview') {
+      return preacherQuestions.slice(0, 1);
+    }
+    return preacherQuestions;
+  }, [activeSadhuSection, preacherQuestions]);
+  const visibleSeminars = useMemo(() => {
+    return preacherSeminars;
+  }, [preacherSeminars]);
+  const visiblePosts = useMemo(() => {
+    if (!isSadhuSangaMode) {
+      return posts;
+    }
+    if (activeSadhuSection === 'overview') {
+      return posts.slice(0, 3);
+    }
+    if (activeSadhuSection === 'posts') {
+      return posts;
+    }
+    return [];
+  }, [activeSadhuSection, isSadhuSangaMode, posts]);
+  const overviewQuestionTop = useMemo(() => {
+    if (!preacherQuestions.length) {
+      return null;
+    }
+    return preacherQuestions[0];
+  }, [preacherQuestions]);
+  const overviewRoadmapPoint = useMemo(() => {
+    if (roadmap?.current) {
+      return roadmap.current;
+    }
+    if ((roadmap?.future || []).length > 0) {
+      return roadmap?.future?.[0] || null;
+    }
+    if ((roadmap?.past || []).length > 0) {
+      return roadmap?.past?.[0] || null;
+    }
+    return null;
+  }, [roadmap?.current, roadmap?.future, roadmap?.past]);
+  const visiblePreacherEvents = useMemo(() => {
+    if (!preacherProfile?.events?.length) {
+      return [];
+    }
+    const sorted = [...preacherProfile.events].sort((a, b) => {
+      const posDiff = (Number(a.position) || 0) - (Number(b.position) || 0);
+      if (posDiff !== 0) {
+        return posDiff;
+      }
+      const leftTs = Date.parse(a.eventDate || '');
+      const rightTs = Date.parse(b.eventDate || '');
+      if (Number.isFinite(leftTs) && Number.isFinite(rightTs) && leftTs !== rightTs) {
+        return leftTs - rightTs;
+      }
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
+    });
+    return activeSadhuSection === 'overview' ? sorted.slice(0, 3) : sorted;
+  }, [activeSadhuSection, preacherProfile?.events]);
+  const hasPreacherBioContent = useMemo(() => {
+    if (!preacherProfile) {
+      return false;
+    }
+    return Boolean(
+      String(preacherProfile.bio || '').trim()
+      || String(preacherProfile.birthDate || '').trim()
+      || String(preacherProfile.birthPlace || '').trim()
+      || String(preacherProfile.departureDate || '').trim()
+      || String(preacherProfile.organizationName || '').trim()
+      || String(preacherProfile.mathKey || '').trim()
+      || (preacherProfile.events || []).length > 0,
+    );
+  }, [preacherProfile]);
+  const nextSeminarPreview = useMemo(() => {
+    if (!preacherSeminars.length) {
+      return null;
+    }
+    return preacherSeminars.find((item) => Boolean(item.nextAt)) || preacherSeminars[0];
+  }, [preacherSeminars]);
+  const sadhuHeroStatus = useMemo(() => {
+    if (!isSadhuSangaMode) {
+      return '';
+    }
+    if (liveSession?.status === 'live') {
+      return `LIVE сейчас • ${resolveLiveLanguageLabel(liveSession.broadcastLanguage)}`;
+    }
+    if (liveSession?.status === 'scheduled' && liveSession.scheduledAt) {
+      return `Эфир запланирован: ${new Date(liveSession.scheduledAt).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    }
+    if (nextSeminarPreview?.nextAt) {
+      return `Ближайший семинар: ${nextSeminarPreview.nextAt.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    }
+    return 'Подпишитесь, чтобы получать анонсы эфиров и семинаров';
+  }, [isSadhuSangaMode, liveSession?.broadcastLanguage, liveSession?.scheduledAt, liveSession?.status, nextSeminarPreview]);
 
   const canFollow = useMemo(() => {
     if (!channel || !user?.ID) {
@@ -1334,6 +1498,8 @@ export default function ChannelDetailsScreen() {
     }
     return true;
   }, [channel, user?.ID, viewerRole]);
+  const showStickySadhuCta = isSadhuSangaMode && canFollow;
+  const stickySadhuCtaLabel = channel?.isFollowing ? 'Открыть расписание' : 'Подписаться';
 
   const handleFollowToggle = useCallback(async () => {
     if (!channelId || !channel || !canFollow || followLoading) {
@@ -1387,6 +1553,42 @@ export default function ChannelDetailsScreen() {
       }
     }
   }, [canFollow, channel, channelId, followLoading]);
+
+  const handleStickySadhuCta = useCallback(() => {
+    if (!showStickySadhuCta) {
+      return;
+    }
+    if (channel?.isFollowing) {
+      navigation.navigate('SadhuSangaSchedule');
+      return;
+    }
+    void handleFollowToggle();
+  }, [channel?.isFollowing, handleFollowToggle, navigation, showStickySadhuCta]);
+
+  const openSadhuQuestionForm = useCallback(() => {
+    if (!channel?.ownerId || channel.ownerId <= 0) {
+      return;
+    }
+    navigation.navigate('SupportTicketForm', {
+      entryPoint: 'sadhu_sanga_question',
+      targetPreacherId: channel.ownerId,
+      targetPreacherName: channel?.title,
+    });
+  }, [channel?.ownerId, channel?.title, navigation]);
+
+  const handleSadhuQuickLive = useCallback(() => {
+    if (liveSession?.status === 'live' && canJoinLive) {
+      void handleJoinLive();
+      return;
+    }
+    setActiveSadhuSection('live');
+    contentListRef.current?.scrollTo({ y: 0, animated: true });
+  }, [canJoinLive, handleJoinLive, liveSession?.status]);
+
+  const handleSadhuQuickSeminars = useCallback(() => {
+    setActiveSadhuSection('seminars');
+    contentListRef.current?.scrollTo({ y: Math.max(0, seminarsSectionYRef.current - 110), animated: true });
+  }, []);
 
   const renderPost = ({ item }: { item: ChannelPost }) => {
     const ctaLabel = getChannelPostCtaLabel(item);
@@ -1540,6 +1742,25 @@ export default function ChannelDetailsScreen() {
           )}
         </View>
 
+        <ScrollView
+          ref={(instance) => {
+            contentListRef.current = instance;
+          }}
+          style={styles.contentScroll}
+          contentContainerStyle={[
+            styles.contentScrollContainer,
+            showStickySadhuCta && styles.contentScrollContainerWithStickyCta,
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.channelIntro}>
           <Text style={styles.channelDescription}>{channel?.description || 'Описание канала не заполнено'}</Text>
           <View style={styles.channelStatsRow}>
@@ -1549,22 +1770,29 @@ export default function ChannelDetailsScreen() {
             </Text>
           </View>
           {isSadhuSangaMode ? (
-            <TouchableOpacity
-              style={[styles.askQuestionButton, !(channel?.ownerId && channel.ownerId > 0) && styles.askQuestionButtonDisabled]}
-              onPress={() => {
-                if (!channel?.ownerId || channel.ownerId <= 0) {
-                  return;
-                }
-                navigation.navigate('SupportTicketForm', {
-                  entryPoint: 'sadhu_sanga_question',
-                  targetPreacherId: channel.ownerId,
-                  targetPreacherName: channel?.title,
-                });
-              }}
-              disabled={!(channel?.ownerId && channel.ownerId > 0)}
-            >
-              <Text style={styles.askQuestionButtonText}>Задать вопрос проповеднику</Text>
-            </TouchableOpacity>
+            <View style={styles.sadhuHeroCard}>
+              <Text style={styles.sadhuHeroStatus}>{sadhuHeroStatus}</Text>
+              <View style={styles.sadhuHeroActionsRow}>
+                <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickLive}>
+                  <Text style={styles.sadhuHeroActionText}>
+                    {liveSession?.status === 'live' ? 'Смотреть эфир' : 'Эфиры'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickSeminars}>
+                  <Text style={styles.sadhuHeroActionText}>Семинары</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.sadhuHeroActionButton,
+                    !(channel?.ownerId && channel.ownerId > 0) && styles.sadhuHeroActionButtonDisabled,
+                  ]}
+                  onPress={openSadhuQuestionForm}
+                  disabled={!(channel?.ownerId && channel.ownerId > 0)}
+                >
+                  <Text style={styles.sadhuHeroActionText}>Вопрос</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : null}
           {isModerator && !isSadhuSangaMode ? (
             <TouchableOpacity
@@ -1593,6 +1821,165 @@ export default function ChannelDetailsScreen() {
         ) : null}
 
         {isSadhuSangaMode ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sadhuSectionsRow}
+            style={styles.sadhuSectionsWrap}
+          >
+            {SADHU_SECTIONS.map((section) => (
+              <TouchableOpacity
+                key={section.key}
+                style={[
+                  styles.sadhuSectionChip,
+                  activeSadhuSection === section.key && styles.sadhuSectionChipActive,
+                ]}
+                onPress={() => setActiveSadhuSection(section.key)}
+              >
+                <Text
+                  style={[
+                    styles.sadhuSectionChipText,
+                    activeSadhuSection === section.key && styles.sadhuSectionChipTextActive,
+                  ]}
+                >
+                  {section.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {isSadhuSangaMode && activeSadhuSection === 'overview' ? (
+          <View style={styles.overviewGridSection}>
+            <Text style={styles.overviewGridTitle}>Быстрый доступ</Text>
+            <View style={styles.overviewGrid}>
+              <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickLive}>
+                <Text style={styles.overviewCardTitle}>Эфир</Text>
+                <Text style={styles.overviewCardValue} numberOfLines={2}>
+                  {liveSession?.status === 'live'
+                    ? 'Сейчас в эфире'
+                    : liveSession?.status === 'scheduled'
+                      ? 'Запланирован'
+                      : 'Пока не активен'}
+                </Text>
+                <Text style={styles.overviewCardHint}>
+                  {liveSession?.status === 'live' ? 'Открыть трансляцию' : 'Открыть раздел'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickSeminars}>
+                <Text style={styles.overviewCardTitle}>Семинары</Text>
+                <Text style={styles.overviewCardValue} numberOfLines={2}>
+                  {nextSeminarPreview?.nextAt
+                    ? nextSeminarPreview.nextAt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
+                    : 'Пока нет дат'}
+                </Text>
+                <Text style={styles.overviewCardHint}>Открыть список</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('questions')}>
+                <Text style={styles.overviewCardTitle}>Вопросы</Text>
+                <Text style={styles.overviewCardValue} numberOfLines={2}>
+                  {preacherQuestions.length > 0
+                    ? `Голосов: ${Math.max(0, Number(overviewQuestionTop?.voteCount) || 0)}`
+                    : 'Пока нет вопросов'}
+                </Text>
+                <Text style={styles.overviewCardHint}>
+                  {preacherQuestions.length > 0 ? 'Открыть раздел' : 'Задать вопрос'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('roadmap')}>
+                <Text style={styles.overviewCardTitle}>Маршрут</Text>
+                <Text style={styles.overviewCardValue} numberOfLines={2}>
+                  {overviewRoadmapPoint
+                    ? [overviewRoadmapPoint.city, overviewRoadmapPoint.address].filter(Boolean).join(', ') || 'Локация есть'
+                    : 'Пока не заполнен'}
+                </Text>
+                <Text style={styles.overviewCardHint}>Открыть карту</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
+        {isSadhuSangaMode && (activeSadhuSection === 'overview' || activeSadhuSection === 'posts') ? (
+          <View style={styles.preacherBioSection}>
+            <View style={styles.preacherBioHeader}>
+              <Text style={styles.preacherBioTitle}>{preacherBioHeading}</Text>
+              {preacherProfileLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+            </View>
+
+            {hasPreacherBioContent ? (
+              <>
+                {String(preacherProfile?.bio || '').trim() ? (
+                  activeSadhuSection === 'overview' ? (
+                    <Text style={styles.preacherBioText} numberOfLines={4}>
+                      {String(preacherProfile?.bio || '').trim()}
+                    </Text>
+                  ) : (
+                    <Text style={styles.preacherBioText}>
+                      {String(preacherProfile?.bio || '').trim()}
+                    </Text>
+                  )
+                ) : null}
+
+                <View style={styles.preacherBioMetaList}>
+                  {preacherProfile?.birthDate || preacherProfile?.birthPlace ? (
+                    <Text style={styles.preacherBioMetaRow}>
+                      {`Рождение: ${
+                        preacherProfile.birthDate
+                          ? new Date(preacherProfile.birthDate).toLocaleDateString('ru-RU')
+                          : 'дата не указана'
+                      }${preacherProfile.birthPlace ? ` • ${preacherProfile.birthPlace}` : ''}`}
+                    </Text>
+                  ) : null}
+                  {preacherProfile?.departureDate ? (
+                    <Text style={styles.preacherBioMetaRow}>
+                      {`Дата ухода: ${new Date(preacherProfile.departureDate).toLocaleDateString('ru-RU')}`}
+                    </Text>
+                  ) : null}
+                  {String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim() ? (
+                    <Text style={styles.preacherBioMetaRow}>
+                      {`Организация / Матх: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {visiblePreacherEvents.length > 0 ? (
+                  <View style={styles.preacherBioEventsWrap}>
+                    <Text style={styles.preacherBioEventsTitle}>Знаковые события</Text>
+                    {visiblePreacherEvents.map((event) => (
+                      <View key={`preacher-event-${event.id}`} style={styles.preacherBioEventRow}>
+                        <Text style={styles.preacherBioEventTitle} numberOfLines={2}>{event.title}</Text>
+                        {event.eventDate ? (
+                          <Text style={styles.preacherBioEventDate}>
+                            {new Date(event.eventDate).toLocaleDateString('ru-RU')}
+                          </Text>
+                        ) : null}
+                        {event.description ? (
+                          <Text style={styles.preacherBioEventDescription} numberOfLines={2}>{event.description}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <Text style={styles.preacherBioEmpty}>Биография пока не заполнена</Text>
+            )}
+
+            {canManagePreacherBio ? (
+              <TouchableOpacity
+                style={styles.preacherBioManageButton}
+                onPress={() => navigation.navigate('ChannelPreacherBioManage', { channelId, source: 'sadhu_sanga' })}
+              >
+                <Text style={styles.preacherBioManageButtonText}>Редактировать био</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
+        {isSadhuSangaMode && showSadhuLive ? (
           <View style={styles.liveSection}>
             <View style={styles.liveHeaderRow}>
               <Text style={styles.liveTitle}>Прямой эфир</Text>
@@ -1728,17 +2115,17 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
-        {isSadhuSangaMode ? (
+        {isSadhuSangaMode && showSadhuRoadmap ? (
           <View style={styles.roadmapSection}>
             <View style={styles.roadmapHeader}>
               <View style={styles.roadmapHeaderTextWrap}>
-                <Text style={styles.roadmapTitle}>Дорожная карта проповедника</Text>
+                <Text style={styles.roadmapTitle}>Дорожная карта</Text>
                 <Text style={styles.roadmapSubtitle}>Где был, где сейчас, куда направляется дальше</Text>
               </View>
               {roadmapLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
 
-            {roadmapTimeline.length === 0 ? (
+            {visibleRoadmapTimeline.length === 0 ? (
               <View style={styles.roadmapEmptyWrap}>
                 <Text style={styles.roadmapEmptyText}>Маршрут пока не заполнен</Text>
                 {canManageRoadmap ? (
@@ -1752,14 +2139,14 @@ export default function ChannelDetailsScreen() {
               </View>
             ) : (
               <View style={styles.roadmapTimeline}>
-                {roadmapTimeline.map((point, index) => (
+                {visibleRoadmapTimeline.map((point, index) => (
                   <View key={`roadmap-point-${point.id}`} style={styles.roadmapItemRow}>
                     <View style={styles.roadmapTrack}>
                       <View style={[
                         styles.roadmapDot,
                         point.status === 'current' && styles.roadmapDotCurrent,
                       ]} />
-                      {index !== roadmapTimeline.length - 1 ? (
+                      {index !== visibleRoadmapTimeline.length - 1 ? (
                         <>
                           <View style={styles.roadmapLine} />
                           <ArrowDown size={12} color={colors.textSecondary} style={styles.roadmapArrow} />
@@ -1823,7 +2210,7 @@ export default function ChannelDetailsScreen() {
               </View>
             )}
 
-            {canManageRoadmap && roadmapTimeline.length > 0 ? (
+            {canManageRoadmap && visibleRoadmapTimeline.length > 0 ? (
               <TouchableOpacity
                 style={styles.roadmapManageButton}
                 onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
@@ -1834,10 +2221,10 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
-        {canViewPreacherAnalytics ? (
+        {canViewPreacherAnalytics && (!isSadhuSangaMode || activeSadhuSection === 'overview') ? (
           <View style={styles.preacherAnalyticsSection}>
             <View style={styles.preacherAnalyticsHeader}>
-              <Text style={styles.preacherAnalyticsTitle}>Аналитика проповедника</Text>
+              <Text style={styles.preacherAnalyticsTitle}>Аналитика</Text>
               {preacherAnalyticsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             <View style={styles.preacherAnalyticsStatsGrid}>
@@ -1892,17 +2279,17 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
-        {isSadhuSangaMode ? (
+        {isSadhuSangaMode && showSadhuQuestions ? (
           <View style={styles.preacherQuestionsSection}>
             <View style={styles.preacherQuestionsHeader}>
-              <Text style={styles.preacherQuestionsTitle}>Вопросы последователей</Text>
+              <Text style={styles.preacherQuestionsTitle}>Вопросы</Text>
               {preacherQuestionsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
-            {preacherQuestions.length === 0 ? (
+            {visibleQuestions.length === 0 ? (
               <Text style={styles.preacherQuestionsEmpty}>Пока нет вопросов для голосования</Text>
             ) : (
               <View style={styles.preacherQuestionsList}>
-                {preacherQuestions.map((question) => (
+                {visibleQuestions.map((question) => (
                   <View key={`preacher-question-${question.id}`} style={styles.preacherQuestionCard}>
                     <Text style={styles.preacherQuestionSubject} numberOfLines={1}>{question.subject || 'Вопрос к проповеднику'}</Text>
                     <Text style={styles.preacherQuestionExcerpt} numberOfLines={2}>{question.excerpt || 'Описание вопроса недоступно'}</Text>
@@ -1935,7 +2322,7 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
-        {isSadhuSangaMode ? (
+        {isSadhuSangaMode && showSadhuSeminars ? (
           <View
             style={styles.preacherSeminarsSection}
             onLayout={(event) => {
@@ -1943,14 +2330,14 @@ export default function ChannelDetailsScreen() {
             }}
           >
             <View style={styles.preacherSeminarsHeader}>
-              <Text style={styles.preacherSeminarsTitle}>Семинары проповедника</Text>
+              <Text style={styles.preacherSeminarsTitle}>Семинары</Text>
               {preacherSeminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
-            {preacherSeminars.length === 0 ? (
+            {visibleSeminars.length === 0 ? (
               <Text style={styles.preacherSeminarsEmpty}>Пока нет анонсированных семинаров</Text>
             ) : (
               <View style={styles.preacherSeminarsList}>
-                {preacherSeminars.map((item) => (
+                {visibleSeminars.map((item) => (
                   <View key={`preacher-seminar-${item.service.id}`} style={styles.preacherSeminarCard}>
                     <View style={styles.preacherSeminarTopRow}>
                       <Text style={styles.preacherSeminarTitle} numberOfLines={1}>{item.service.title}</Text>
@@ -2127,28 +2514,46 @@ export default function ChannelDetailsScreen() {
           </View>
         ) : null}
 
-        <FlatList
-          ref={(instance) => {
-            contentListRef.current = instance;
-          }}
-          data={posts}
-          keyExtractor={item => item.ID.toString()}
-          contentContainerStyle={styles.listContent}
-          renderItem={renderPost}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.accent}
-            />
-          }
-          ListEmptyComponent={
+        {showSadhuPosts ? (
+        <View style={styles.listContent}>
+          {visiblePosts.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Постов пока нет</Text>
               <Text style={styles.emptySubtitle}>Создайте первую публикацию в канале</Text>
             </View>
-          }
-        />
+          ) : (
+            visiblePosts.map((item) => (
+              <View key={item.ID.toString()}>
+                {renderPost({ item })}
+              </View>
+            ))
+          )}
+          {isSadhuSangaMode && activeSadhuSection === 'overview' && posts.length > visiblePosts.length ? (
+            <TouchableOpacity
+              style={styles.preacherSeminarMoreButton}
+              onPress={() => setActiveSadhuSection('posts')}
+            >
+              <Text style={styles.preacherSeminarMoreText}>Показать все посты</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        ) : null}
+        </ScrollView>
+
+        {showStickySadhuCta ? (
+          <View style={styles.stickySadhuCtaWrap}>
+            <TouchableOpacity
+              style={[
+                styles.stickySadhuCtaButton,
+                followLoading && styles.stickySadhuCtaButtonDisabled,
+              ]}
+              onPress={handleStickySadhuCta}
+              disabled={followLoading}
+            >
+              <Text style={styles.stickySadhuCtaText}>{stickySadhuCtaLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <Modal visible={commentsSheetVisible} transparent animationType="slide" onRequestClose={closeComments}>
           <View style={styles.commentsOverlay}>
@@ -2225,6 +2630,15 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     },
     container: {
       flex: 1,
+    },
+    contentScroll: {
+      flex: 1,
+    },
+    contentScrollContainer: {
+      paddingBottom: 24,
+    },
+    contentScrollContainerWithStickyCta: {
+      paddingBottom: 96,
     },
     loaderContainer: {
       flex: 1,
@@ -2333,21 +2747,42 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       fontSize: 12,
       fontWeight: '700',
     },
-    askQuestionButton: {
-      marginTop: 6,
-      alignSelf: 'flex-start',
-      borderRadius: 10,
+    sadhuHeroCard: {
+      marginTop: 2,
+      borderRadius: 12,
       borderWidth: 1,
-      borderColor: colors.accent,
-      backgroundColor: colors.accentSoft,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 10,
+      gap: 8,
     },
-    askQuestionButtonDisabled: {
+    sadhuHeroStatus: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 18,
+    },
+    sadhuHeroActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    sadhuHeroActionButton: {
+      flex: 1,
+      minHeight: 34,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+    },
+    sadhuHeroActionButtonDisabled: {
       opacity: 0.6,
     },
-    askQuestionButtonText: {
-      color: colors.accent,
+    sadhuHeroActionText: {
+      color: colors.textPrimary,
       fontSize: 12,
       fontWeight: '700',
     },
@@ -2897,6 +3332,20 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     preacherQuestionVoteTextActive: {
       color: colors.accent,
     },
+    preacherQuestionMoreButton: {
+      alignSelf: 'flex-start',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    preacherQuestionMoreText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
     crmButton: {
       marginTop: 6,
       alignSelf: 'flex-start',
@@ -2940,6 +3389,200 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.accent,
       fontSize: 12,
       fontWeight: '700',
+    },
+    stickySadhuCtaWrap: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: 12,
+    },
+    stickySadhuCtaButton: {
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+    },
+    stickySadhuCtaButtonDisabled: {
+      opacity: 0.7,
+    },
+    stickySadhuCtaText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '900',
+    },
+    overviewGridSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 8,
+    },
+    overviewGridTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    overviewGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    overviewCard: {
+      width: '48.5%',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      gap: 5,
+      minHeight: 92,
+    },
+    overviewCardTitle: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+    },
+    overviewCardValue: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 17,
+    },
+    overviewCardHint: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    preacherBioSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 12,
+      gap: 10,
+    },
+    preacherBioHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    preacherBioTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: '900',
+    },
+    preacherBioText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: '500',
+    },
+    preacherBioMetaList: {
+      gap: 4,
+    },
+    preacherBioMetaRow: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '600',
+    },
+    preacherBioEventsWrap: {
+      gap: 8,
+    },
+    preacherBioEventsTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    preacherBioEventRow: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 3,
+    },
+    preacherBioEventTitle: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    preacherBioEventDate: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    preacherBioEventDescription: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    preacherBioEmpty: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    preacherBioManageButton: {
+      marginTop: 2,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.surfaceElevated,
+      minHeight: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    preacherBioManageButtonText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    sadhuSectionsWrap: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+    },
+    sadhuSectionsRow: {
+      gap: 8,
+      paddingRight: 16,
+    },
+    sadhuSectionChip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    sadhuSectionChipActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    sadhuSectionChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    sadhuSectionChipTextActive: {
+      color: colors.accent,
     },
     storiesSection: {
       marginHorizontal: 16,
@@ -3042,6 +3685,20 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     },
     preacherSeminarRouteButtonText: {
       color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    preacherSeminarMoreButton: {
+      alignSelf: 'flex-start',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    preacherSeminarMoreText: {
+      color: colors.accent,
       fontSize: 12,
       fontWeight: '700',
     },

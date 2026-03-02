@@ -1,23 +1,145 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, ActivityIndicator, Image } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
-import { ArrowDownLeft, ArrowUpRight, PhoneMissed, Phone, User as UserIcon } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ArrowDownLeft, ArrowUpRight, PhoneMissed, Phone } from 'lucide-react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../context/SettingsContext';
+import { callHistoryService, CallHistoryEntry, formatCallHistoryTime } from '../../services/callHistoryService';
+import { contactService, UserContact } from '../../services/contactService';
+import { getMediaUrl } from '../../utils/url';
+
+type ContactsById = Record<number, UserContact | null>;
+
+interface EnrichedCallHistoryItem extends CallHistoryEntry {
+    contact: UserContact | null;
+    displayName: string;
+    avatarUrl: string | null;
+    isOnline: boolean;
+    subtitle: string;
+}
+
+const CONTACT_FETCH_CONCURRENCY = 4;
+const CONTACT_ENRICH_MAX_ITEMS = 50;
 
 export const CallHistoryScreen = () => {
     const navigation = useNavigation<any>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
+    const [calls, setCalls] = React.useState<CallHistoryEntry[]>([]);
+    const [contactsById, setContactsById] = React.useState<ContactsById>({});
+    const [isLoading, setIsLoading] = React.useState(true);
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const contactsByIdRef = React.useRef<ContactsById>({});
 
-    // Mock data with User IDs for call back
-    const calls = [
-        { id: '1', userId: 101, name: 'Krishna Das', time: 'Today, 10:00 AM', type: 'incoming' },
-        { id: '2', userId: 102, name: 'Radha', time: 'Yesterday, 8:30 PM', type: 'missed' },
-        { id: '3', userId: 103, name: 'Arjuna', time: 'Yesterday, 6:15 PM', type: 'outgoing' },
-    ];
+    React.useEffect(() => {
+        contactsByIdRef.current = contactsById;
+    }, [contactsById]);
+
+    const isOnline = React.useCallback((lastSeen: string | undefined) => {
+        if (!lastSeen) return false;
+        const lastSeenDate = new Date(lastSeen);
+        if (Number.isNaN(lastSeenDate.getTime())) return false;
+        const diffMinutes = (Date.now() - lastSeenDate.getTime()) / 60000;
+        return diffMinutes < 5;
+    }, []);
+
+    const formatLastSeen = React.useCallback((lastSeen: string | undefined) => {
+        if (!lastSeen) return '';
+        const date = new Date(lastSeen);
+        if (Number.isNaN(date.getTime())) return '';
+
+        const now = new Date();
+        const isToday = now.toDateString() === date.toDateString();
+        if (isToday) {
+            return t('contacts.lastSeenToday', {
+                time: date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+            });
+        }
+
+        return t('contacts.lastSeenDate', {
+            date: date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        });
+    }, [i18n.language, t]);
+
+    const formatLocation = React.useCallback((contact: UserContact | null) => {
+        if (!contact) return '';
+        if (contact.country && contact.city) return `${contact.country}, ${contact.city}`;
+        return contact.country || contact.city || '';
+    }, []);
+
+    const buildSubtitle = React.useCallback((contact: UserContact | null, online: boolean) => {
+        if (!contact) return '';
+        const nicknamePart = contact.nickname ? `@${contact.nickname}` : '';
+        const presencePart = online ? t('calls.onlineNow') : formatLastSeen(contact.lastSeen);
+        const locationPart = formatLocation(contact);
+
+        if (nicknamePart && presencePart) return `${nicknamePart} · ${presencePart}`;
+        if (nicknamePart && locationPart) return `${nicknamePart} · ${locationPart}`;
+        return presencePart || locationPart || nicknamePart || '';
+    }, [formatLastSeen, formatLocation, t]);
+
+    const enrichContacts = React.useCallback(async (history: CallHistoryEntry[]) => {
+        const userIds = Array.from(
+            new Set(
+                history
+                    .map((item) => item.userId)
+                    .filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
+            ),
+        ).slice(0, CONTACT_ENRICH_MAX_ITEMS);
+
+        const missingIds = userIds.filter((id) => !(id in contactsByIdRef.current));
+        if (missingIds.length === 0) {
+            return;
+        }
+
+        const updates: ContactsById = {};
+        for (let i = 0; i < missingIds.length; i += CONTACT_FETCH_CONCURRENCY) {
+            const chunk = missingIds.slice(i, i + CONTACT_FETCH_CONCURRENCY);
+            const chunkResults = await Promise.all(
+                chunk.map(async (userId) => {
+                    try {
+                        const contact = await contactService.getUserById(userId);
+                        return [userId, contact] as const;
+                    } catch (error) {
+                        console.warn('[CallHistoryScreen] Failed to enrich contact', { userId, error });
+                        return [userId, null] as const;
+                    }
+                }),
+            );
+
+            chunkResults.forEach(([userId, contact]) => {
+                updates[userId] = contact;
+            });
+        }
+
+        setContactsById((prev) => ({ ...prev, ...updates }));
+    }, []);
+
+    const loadCalls = React.useCallback(async (refresh = false) => {
+        try {
+            if (refresh) {
+                setIsRefreshing(true);
+            } else {
+                setIsLoading(true);
+            }
+            const history = await callHistoryService.getHistory();
+            setCalls(history);
+            void enrichContacts(history);
+        } catch (error) {
+            console.warn('[CallHistoryScreen] Failed to load call history', error);
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, [enrichContacts]);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            void loadCalls();
+        }, [loadCalls]),
+    );
 
     const getStatusConfig = (type: string) => {
         switch (type) {
@@ -52,7 +174,10 @@ export const CallHistoryScreen = () => {
         }
     };
 
-    const handleCall = (contact: any) => {
+    const handleCall = (contact: CallHistoryEntry) => {
+        if (typeof contact.userId !== 'number' || !Number.isFinite(contact.userId)) {
+            return;
+        }
         navigation.navigate('CallScreen', {
             targetId: contact.userId,
             isIncoming: false,
@@ -60,10 +185,23 @@ export const CallHistoryScreen = () => {
         });
     };
 
-    const renderItem = ({ item }: { item: any }) => {
-        const status = getStatusConfig(item.type);
+    const renderItem = ({ item }: { item: CallHistoryEntry }) => {
+        const contact = typeof item.userId === 'number' ? contactsById[item.userId] ?? null : null;
+        const online = isOnline(contact?.lastSeen);
+        const enrichedItem: EnrichedCallHistoryItem = {
+            ...item,
+            contact,
+            displayName: (contact?.spiritualName || contact?.karmicName || item.name || '').trim() || 'User',
+            avatarUrl: getMediaUrl(contact?.avatarUrl),
+            isOnline: online,
+            subtitle: buildSubtitle(contact, online),
+        };
+        const status = getStatusConfig(enrichedItem.type);
         const nameColor = isPhotoBg ? '#ffffff' : vTheme.colors.text;
         const subColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
+        const canCallBack = typeof item.userId === 'number' && Number.isFinite(item.userId);
+        const canOpenProfile = typeof item.userId === 'number' && Number.isFinite(item.userId);
+        const titleInitial = (enrichedItem.displayName[0] || '?').toUpperCase();
 
         return (
             <View style={[
@@ -78,7 +216,14 @@ export const CallHistoryScreen = () => {
                     // However, we can also use the inner view's layout for shadow by not clipping overflow on the wrapper.
                 }
             ]}>
-                <View style={[
+                <TouchableOpacity
+                    activeOpacity={canOpenProfile ? 0.85 : 1}
+                    onPress={() => {
+                        if (!canOpenProfile) return;
+                        navigation.navigate('ContactProfile', { userId: item.userId });
+                    }}
+                    disabled={!canOpenProfile}
+                    style={[
                     styles.callItem,
                     {
                         backgroundColor: isPhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
@@ -95,11 +240,27 @@ export const CallHistoryScreen = () => {
                     )}
 
                     <View style={[styles.avatarContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                        <UserIcon size={24} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
+                        {enrichedItem.avatarUrl ? (
+                            <Image source={{ uri: enrichedItem.avatarUrl }} style={styles.avatarImage} />
+                        ) : (
+                            <View style={[styles.avatarPlaceholder, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : vTheme.colors.primary }]}>
+                                <Text style={styles.avatarPlaceholderText}>{titleInitial}</Text>
+                            </View>
+                        )}
+                        {enrichedItem.isOnline && <View style={styles.onlineStatus} />}
                     </View>
 
                     <View style={styles.infoContainer}>
-                        <Text style={[styles.name, { color: nameColor }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+                        <Text style={[styles.name, { color: nameColor }]} numberOfLines={1} ellipsizeMode="tail">{enrichedItem.displayName}</Text>
+                        {!!enrichedItem.subtitle && (
+                            <Text
+                                style={[styles.subtitleText, { color: subColor }]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                {enrichedItem.subtitle}
+                            </Text>
+                        )}
                         <View style={styles.typeContainer}>
                             <View style={[
                                 styles.statusTag,
@@ -116,7 +277,7 @@ export const CallHistoryScreen = () => {
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                {item.time} • {t(`calls.${item.type}`)}
+                                {formatCallHistoryTime(enrichedItem.timestamp, i18n.language)} • {t(`calls.${enrichedItem.type}`)}
                             </Text>
                         </View>
                     </View>
@@ -127,15 +288,17 @@ export const CallHistoryScreen = () => {
                             {
                                 backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.primary,
                                 borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
-                                borderWidth: isPhotoBg ? 1 : 0
+                                borderWidth: isPhotoBg ? 1 : 0,
+                                opacity: canCallBack ? 1 : 0.5,
                             }
                         ]}
                         onPress={() => handleCall(item)}
+                        disabled={!canCallBack}
                         activeOpacity={0.7}
                     >
                         <Phone size={20} color="#ffffff" />
                     </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
             </View>
         );
     };
@@ -157,6 +320,21 @@ export const CallHistoryScreen = () => {
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
+                onRefresh={() => {
+                    void loadCalls(true);
+                }}
+                refreshing={isRefreshing}
+                ListEmptyComponent={(
+                    <View style={styles.emptyWrap}>
+                        {isLoading ? (
+                            <ActivityIndicator color={vTheme.colors.primary} />
+                        ) : (
+                            <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
+                                {t('calls.empty')}
+                            </Text>
+                        )}
+                    </View>
+                )}
             />
         </View>
     );
@@ -180,6 +358,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 40,
         gap: 16,
+    },
+    emptyWrap: {
+        paddingTop: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyText: {
+        fontSize: 14,
+        fontWeight: '500',
     },
     callItemContainer: {
         borderRadius: 22,
@@ -210,6 +397,34 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 14,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    avatarPlaceholder: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarPlaceholderText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    onlineStatus: {
+        position: 'absolute',
+        right: 2,
+        bottom: 2,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#22C55E',
+        borderWidth: 1.5,
+        borderColor: '#ffffff',
     },
     infoContainer: {
         flex: 1,
@@ -218,6 +433,11 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 17,
         fontWeight: '700',
+        marginBottom: 4,
+    },
+    subtitleText: {
+        fontSize: 12,
+        fontWeight: '500',
         marginBottom: 4,
     },
     typeContainer: {

@@ -10,3 +10,4 @@ export { default as ChannelPostComposerScreen } from './ChannelPostComposerScree
 export { default as ChannelManageScreen } from './ChannelManageScreen';
 export { default as ChannelTeamScreen } from './ChannelTeamScreen';
 export { default as ChannelRoadmapManageScreen } from './ChannelRoadmapManageScreen';
+export { default as ChannelPreacherBioManageScreen } from './ChannelPreacherBioManageScreen';

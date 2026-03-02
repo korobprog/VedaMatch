@@ -86,6 +86,14 @@ interface SettingsState {
     LEGAL_RETENTION_LOG_DAYS: string;
     LEGAL_RETENTION_LEGAL_TAX_DAYS: string;
     SADHU_SANGA_LANGUAGE_LABELS_ENABLED: string;
+    SADHU_SANGA_PREACHER_BIO_ENABLED: string;
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT: string;
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST: string;
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST: string;
+    SADHU_SANGA_MATH_FILTER_ENABLED: string;
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT: string;
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST: string;
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST: string;
     SADHU_SANGA_LIVE_RETENTION_ENABLED: string;
     SADHU_SANGA_LIVE_RETENTION_DAYS: string;
     SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED: string;
@@ -169,6 +177,14 @@ const DEFAULT_SETTINGS: SettingsState = {
     LEGAL_RETENTION_LOG_DAYS: '365',
     LEGAL_RETENTION_LEGAL_TAX_DAYS: '1825',
     SADHU_SANGA_LANGUAGE_LABELS_ENABLED: 'true',
+    SADHU_SANGA_PREACHER_BIO_ENABLED: 'true',
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT: '100',
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST: '',
+    SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST: '',
+    SADHU_SANGA_MATH_FILTER_ENABLED: 'true',
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT: '100',
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST: '',
+    SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST: '',
     SADHU_SANGA_LIVE_RETENTION_ENABLED: 'true',
     SADHU_SANGA_LIVE_RETENTION_DAYS: '7',
     SADHU_SANGA_YOUTUBE_AUTOPUBLISH_ENABLED: 'false',
@@ -292,6 +308,14 @@ export default function SettingsPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const applySadhuRolloutPreset = (percent: '0' | '10' | '50' | '100') => {
+        setSettings(prev => ({
+            ...prev,
+            SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT: percent,
+            SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT: percent,
+        }));
     };
 
     const tabs = [
@@ -1082,6 +1106,43 @@ export default function SettingsPage() {
                                                 <p className="text-xs text-[var(--muted-foreground)]">TTL архива (7 дней) и автопубликация записей эфиров на YouTube.</p>
                                             </div>
 
+                                            <div className="p-3 bg-[var(--background)] rounded-xl border border-[var(--border)]/50 space-y-2">
+                                                <p className="text-xs font-semibold">Быстрый rollout (Bio + Math Filter)</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applySadhuRolloutPreset('0')}
+                                                        className="px-3 py-1.5 text-xs rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                                                    >
+                                                        0% (выкл)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applySadhuRolloutPreset('10')}
+                                                        className="px-3 py-1.5 text-xs rounded-lg bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 transition-colors"
+                                                    >
+                                                        10%
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applySadhuRolloutPreset('50')}
+                                                        className="px-3 py-1.5 text-xs rounded-lg bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 transition-colors"
+                                                    >
+                                                        50%
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applySadhuRolloutPreset('100')}
+                                                        className="px-3 py-1.5 text-xs rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"
+                                                    >
+                                                        100%
+                                                    </button>
+                                                </div>
+                                                <p className="text-[11px] text-[var(--muted-foreground)]">
+                                                    Устанавливает оба поля: `SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT` и `SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT`.
+                                                </p>
+                                            </div>
+
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LANGUAGE_LABELS_ENABLED</label>
@@ -1095,6 +1156,53 @@ export default function SettingsPage() {
                                                     </select>
                                                 </div>
                                                 <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_PREACHER_BIO_ENABLED</label>
+                                                    <select
+                                                        value={settings.SADHU_SANGA_PREACHER_BIO_ENABLED || 'true'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_PREACHER_BIO_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_MATH_FILTER_ENABLED</label>
+                                                    <select
+                                                        value={settings.SADHU_SANGA_MATH_FILTER_ENABLED || 'true'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_MATH_FILTER_ENABLED: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    >
+                                                        <option value="true">true</option>
+                                                        <option value="false">false</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT</label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={settings.SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT || '100'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_PREACHER_BIO_ROLLOUT_PERCENT: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT</label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={settings.SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT || '100'}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_MATH_FILTER_ROLLOUT_PERCENT: e.target.value })}
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
                                                     <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LIVE_RETENTION_ENABLED</label>
                                                     <select
                                                         value={settings.SADHU_SANGA_LIVE_RETENTION_ENABLED || 'true'}
@@ -1105,6 +1213,51 @@ export default function SettingsPage() {
                                                         <option value="false">false</option>
                                                     </select>
                                                 </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST</label>
+                                                    <input
+                                                        value={settings.SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST || ''}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_PREACHER_BIO_ROLLOUT_ALLOWLIST: e.target.value })}
+                                                        placeholder="1,2,3"
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST</label>
+                                                    <input
+                                                        value={settings.SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST || ''}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_PREACHER_BIO_ROLLOUT_DENYLIST: e.target.value })}
+                                                        placeholder="10,11"
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST</label>
+                                                    <input
+                                                        value={settings.SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST || ''}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_MATH_FILTER_ROLLOUT_ALLOWLIST: e.target.value })}
+                                                        placeholder="1,2,3"
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST</label>
+                                                    <input
+                                                        value={settings.SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST || ''}
+                                                        onChange={(e) => setSettings({ ...settings, SADHU_SANGA_MATH_FILTER_ROLLOUT_DENYLIST: e.target.value })}
+                                                        placeholder="10,11"
+                                                        className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">SADHU_SANGA_LIVE_RETENTION_DAYS</label>
                                                     <input

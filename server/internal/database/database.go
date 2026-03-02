@@ -66,6 +66,7 @@ func Connect() {
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelSmartPushPreference{},
+		&models.PreacherProfile{}, &models.PreacherProfileEvent{},
 		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
 		&models.ChannelPromotedAdImpression{},
@@ -188,6 +189,15 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_live_sessions_one_live_per_channel
 		ON channel_live_sessions (channel_id)
 		WHERE status = 'live' AND deleted_at IS NULL`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_preacher_profiles_user_unique
+		ON preacher_profiles (user_id)
+		WHERE deleted_at IS NULL`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_preacher_profiles_math_key
+		ON preacher_profiles (math_key)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_preacher_profile_events_profile_position
+		ON preacher_profile_events (profile_id, position)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_preacher_profile_events_profile_event
+		ON preacher_profile_events (profile_id, event_date)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_media_tracks_sadhu_live_expiry
 		ON media_tracks (source_context, retention_expires_at)
 		WHERE source_context = 'sadhu_live_archive' AND deleted_at IS NULL`)

@@ -112,7 +112,9 @@ export default {
         outgoing: 'Исходящий',
         missed: 'Пропущенный',
         call: 'Позвонить',
-        callback: 'Перезвонить'
+        callback: 'Перезвонить',
+        empty: 'Пока нет звонков',
+        onlineNow: 'онлайн'
     },
     market: {
         title: 'Sattva Market',

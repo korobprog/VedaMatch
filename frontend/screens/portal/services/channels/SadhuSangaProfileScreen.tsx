@@ -29,6 +29,7 @@ export default function SadhuSangaProfileScreen() {
   const [savedLecturesCount, setSavedLecturesCount] = useState(0);
   const [questionsCount, setQuestionsCount] = useState(0);
   const [profileCity, setProfileCity] = useState('');
+  const profileMath = String(user?.madh || '').trim();
 
   const openTab = useCallback((tab: 'home' | 'schedule' | 'live' | 'profile') => {
     const tabRouteMap: Record<typeof tab, 'SadhuSangaHub' | 'SadhuSangaSchedule' | 'SadhuSangaLive' | 'SadhuSangaProfile'> = {
@@ -48,7 +49,7 @@ export default function SadhuSangaProfileScreen() {
     setLoading(true);
     try {
       const [channelsResult, favoritesResult, ticketsResult, pushResult] = await Promise.allSettled([
-        channelService.getChannels({ page: 1, limit: 100 }),
+        channelService.getChannels({ page: 1, limit: 100, sadhuSanga: true }),
         multimediaService.getFavorites(1, 1),
         supportService.listMyTickets(1, 200),
         channelService.getSadhuSangaPushPreference(),
@@ -143,6 +144,10 @@ export default function SadhuSangaProfileScreen() {
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('SadhuSangaSmartPush')}>
                   <Text style={styles.profileCardTitle}>Мой город</Text>
                   <Text style={styles.profileCardText}>{profileCity || 'Не указан'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('EditProfile')}>
+                  <Text style={styles.profileCardTitle}>Мой матх</Text>
+                  <Text style={styles.profileCardText}>{profileMath || 'Не указан'}</Text>
                 </TouchableOpacity>
               </View>
 

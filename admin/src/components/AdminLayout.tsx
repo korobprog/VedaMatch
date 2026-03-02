@@ -115,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.push('/login');
     };
 
-    const isPublicRoute = pathname === '/login' || pathname === '/' || pathname === '/register' || pathname === '/admin-login';
+    const isPublicRoute = pathname === '/login' || pathname === '/' || pathname === '/register' || pathname === '/admin-login' || pathname === '/feed-posts';
     const isUserDashboard = pathname === '/user/dashboard';
 
     // Shared routes that both admins and users can access, but with different layouts
