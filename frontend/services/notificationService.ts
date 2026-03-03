@@ -11,7 +11,7 @@ import {
     onTokenRefresh,
     AuthorizationStatus
 } from '@react-native-firebase/messaging';
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
 import { navigationRef } from '../navigation/navigationRef';
@@ -147,9 +147,44 @@ const registerTokenOnServer = async (token: string) => {
     });
 };
 
+const ensureAndroidPostNotificationPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+        return true;
+    }
+
+    const sdkVersion = typeof Platform.Version === 'number'
+        ? Platform.Version
+        : Number.parseInt(String(Platform.Version || '0'), 10);
+
+    if (!Number.isFinite(sdkVersion) || sdkVersion < 33) {
+        return true;
+    }
+
+    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+    const alreadyGranted = await PermissionsAndroid.check(permission);
+    if (alreadyGranted) {
+        return true;
+    }
+
+    const result = await PermissionsAndroid.request(permission);
+    const granted = result === PermissionsAndroid.RESULTS.GRANTED;
+    logPushTelemetry('android_post_notifications_permission', { granted, result });
+
+    return granted;
+};
+
 export const notificationService = {
     requestUserPermission: async () => {
         return serializeAndroidPermissionRequest(async () => {
+            const hasAndroidPermission = await ensureAndroidPostNotificationPermission();
+            if (!hasAndroidPermission) {
+                logPushTelemetry('permission_status', {
+                    enabled: false,
+                    authStatus: 'android_post_notifications_denied',
+                });
+                return false;
+            }
+
             const messaging = getMessagingInstance();
             const authStatus = await requestPermission(messaging);
             const enabled =

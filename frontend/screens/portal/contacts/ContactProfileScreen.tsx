@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, useColorScheme, ActivityIndicator, Dimensions, Platform, StatusBar, ImageBackground } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -39,6 +39,22 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     useEffect(() => {
         fetchContactData();
     }, [userId]);
+
+    const handleBackNavigation = useCallback(() => {
+        const state = navigation.getState();
+        const routes = state?.routes || [];
+        const prevRoute = routes.length > 1 ? routes[routes.length - 2] : null;
+
+        if (navigation.canGoBack() && prevRoute?.name) {
+            navigation.goBack();
+            return;
+        }
+
+        navigation.reset({
+            index: 0,
+            routes: [{ name: 'Portal', params: { initialTab: 'contacts' } as any }],
+        });
+    }, [navigation]);
 
     const fetchContactData = async () => {
         try {
@@ -162,7 +178,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
             <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
                 <TouchableOpacity
                     style={[styles.backButton, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary }]}
-                    onPress={() => navigation.goBack()}
+                    onPress={handleBackNavigation}
                 >
                     <ChevronLeft size={24} color={isPhotoBg ? '#FFF' : vTheme.colors.text} />
                 </TouchableOpacity>

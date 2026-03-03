@@ -75,6 +75,7 @@ func Connect() {
 		&models.FeedPostReaction{}, &models.FeedPostComment{},
 		&models.UserDeviceToken{}, &models.PushDeliveryEvent{},
 		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
+		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
 		// Ads models

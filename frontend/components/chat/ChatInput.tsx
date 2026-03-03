@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -11,7 +11,6 @@ import {
     Vibration,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from '@react-native-community/blur';
 import { MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
@@ -24,6 +23,7 @@ import { getMediaUrl } from '../../utils/url';
 import { mediaService } from '../../services/mediaService';
 import { AudioRecorder } from './AudioRecorder';
 import { Mic, Send, Camera, Paperclip, User, Search, VolumeX, Pin, Share2, Trash2, Ban, Flag, Image as LucideImage } from 'lucide-react-native';
+import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
 
 interface ChatInputProps {
     onMenuOption: (option: string) => void;
@@ -33,7 +33,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onMenuOption,
 }) => {
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
     const {
         handleSendMessage,
         handleStopRequest,
@@ -46,11 +45,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     } = useChat();
     const { sendTypingIndicator } = useWebSocket();
     const { user: currentUser } = useUser();
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { isDarkMode, chatBackgroundType, chatBackground } = useSettings();
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const longPressTriggeredRef = useRef(false);
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isImageBg = chatBackgroundType === 'image';
+    const isLightChatBackground = useMemo(
+        () => (
+            (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+            (chatBackgroundType === 'gradient' && isGradientLight(chatBackground))
+        ),
+        [chatBackground, chatBackgroundType],
+    );
+    const useDarkForeground = !isImageBg && isLightChatBackground;
 
     const {
         isRecording,
@@ -62,17 +69,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // Local states for new logic
     const [draftText, setDraftText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
-
-    const handlePickImage = async () => {
-        try {
-            const media = await mediaService.pickImage();
-            await handleSendMedia(media);
-        } catch (e: any) {
-            if (e.message !== 'Cancelled') {
-                Alert.alert('Ошибка', 'Не удалось выбрать фото');
-            }
-        }
-    };
 
     const handleTakePhoto = async () => {
         try {
@@ -167,13 +163,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, []);
 
     const showSendButton = (draftText.length > 0 || isFocused) && !isRecording;
-    const panelBg = isPhotoBg ? 'rgba(15,23,42,0.58)' : colors.surfaceElevated;
-    const panelBorder = isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border;
-    const inputBg = isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface;
-    const inputBorder = isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border;
-    const inputColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
-    const placeholderColor = isPhotoBg ? 'rgba(248,250,252,0.72)' : colors.textSecondary;
-    const iconColor = isPhotoBg ? 'rgba(248,250,252,0.88)' : colors.textSecondary;
+    const panelBg = isImageBg
+        ? 'rgba(15,23,42,0.58)'
+        : useDarkForeground ? 'rgba(255,255,255,0.88)' : colors.surfaceElevated;
+    const panelBorder = isImageBg
+        ? 'rgba(255,255,255,0.24)'
+        : useDarkForeground ? 'rgba(15,23,42,0.14)' : colors.border;
+    const inputBg = isImageBg
+        ? 'rgba(255,255,255,0.14)'
+        : useDarkForeground ? 'rgba(255,255,255,0.96)' : colors.surface;
+    const inputBorder = isImageBg
+        ? 'rgba(255,255,255,0.24)'
+        : useDarkForeground ? 'rgba(15,23,42,0.16)' : colors.border;
+    const inputColor = isImageBg ? '#F8FAFC' : useDarkForeground ? '#0F172A' : colors.textPrimary;
+    const placeholderColor = isImageBg ? 'rgba(248,250,252,0.72)' : useDarkForeground ? '#64748B' : colors.textSecondary;
+    const iconColor = isImageBg ? 'rgba(248,250,252,0.88)' : useDarkForeground ? '#334155' : colors.textSecondary;
 
     const getMenuIcon = (option: string, color: string) => {
         switch (option) {
@@ -198,12 +202,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         >
             {/* Menu Pop-up */}
             {showMenu && (
-                <View style={[styles.menuPopup, { backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated, borderColor: panelBorder }]}>
+                <View style={[styles.menuPopup, { backgroundColor: isImageBg ? 'rgba(15,23,42,0.95)' : panelBg, borderColor: panelBorder }]}>
                     <BlurView
                         style={StyleSheet.absoluteFill}
                         blurType={isDarkMode ? 'dark' : 'light'}
                         blurAmount={20}
-                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
+                        reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.95)' : panelBg}
                     />
                     <View
                         style={[
@@ -226,7 +230,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         const isDestructive = option.includes('block') || option.includes('report') || option.includes('clearHistory');
                         const itemColor = isDestructive
                             ? '#F87171'
-                            : (isPhotoBg ? '#F8FAFC' : colors.textPrimary);
+                            : (isImageBg ? '#F8FAFC' : inputColor);
 
                         return (
                             <TouchableOpacity
@@ -235,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     styles.menuItem,
                                     index < array.length - 1 && {
                                         borderBottomWidth: 0.5,
-                                        borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : panelBorder,
+                                        borderBottomColor: isImageBg ? 'rgba(255,255,255,0.16)' : panelBorder,
                                     },
                                     !isImplemented && { opacity: 0.5 }
                                 ]}
@@ -281,7 +285,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     style={StyleSheet.absoluteFill}
                     blurType={isDarkMode ? 'dark' : 'light'}
                     blurAmount={15}
-                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                    reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : panelBg}
                 />
                 {isRecording ? (
                     // Spacer to maintain height, but content hidden
@@ -339,7 +343,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onPress={onSendPress}
                         onLongPress={onSendLongPress}
                         delayLongPress={350}
-                        style={[styles.sendButton, styles.primaryButton, { backgroundColor: colors.accent, borderColor: isPhotoBg ? 'rgba(255,255,255,0.36)' : 'transparent' }]}
+                        style={[styles.sendButton, styles.primaryButton, { backgroundColor: colors.accent, borderColor: isImageBg ? 'rgba(255,255,255,0.36)' : 'transparent' }]}
                         disabled={false} // Unblocked isUploading
                         activeOpacity={0.86}
                     >
@@ -354,10 +358,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ) : (
                     <TouchableOpacity
                         onPress={onMicPress}
-                        style={[styles.sendButton, styles.secondaryButton, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface, borderColor: panelBorder }]}
+                        style={[styles.sendButton, styles.secondaryButton, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.16)' : inputBg, borderColor: panelBorder }]}
                         activeOpacity={0.8}
                     >
-                        <Mic size={20} color={isRecording ? '#F87171' : (isPhotoBg ? '#F8FAFC' : colors.textPrimary)} />
+                        <Mic size={20} color={isRecording ? '#F87171' : (isImageBg ? '#F8FAFC' : inputColor)} />
                     </TouchableOpacity>
                 )}
             </View>

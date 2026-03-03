@@ -604,7 +604,11 @@ const AppContent = () => {
                   <Stack.Screen name="SupportConversation" component={SupportConversationScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="EditProfile" component={EditProfileScreen} />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
+                  <Stack.Screen
+                    name="ContactProfile"
+                    component={ContactProfileScreen}
+                    options={{ freezeOnBlur: false }}
+                  />
                   <Stack.Screen
                     name="RoomChat"
                     component={RoomChatScreen}

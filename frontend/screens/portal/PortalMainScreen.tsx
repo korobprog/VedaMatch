@@ -873,6 +873,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             <View style={styles.content}>
                 {renderContent()}
             </View>
+            <NotificationPanel />
             </ScreenScaffold>
         </PortalBackgroundLayer>
     );

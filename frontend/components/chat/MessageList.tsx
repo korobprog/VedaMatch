@@ -29,6 +29,7 @@ import { WebView } from 'react-native-webview';
 import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
 import { ragService } from '../../services/ragService';
+import { getMediaUrl } from '../../utils/url';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -327,8 +328,12 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         const item = rawItem as Message;
         const isUser = item.sender === 'user';
+        const isOtherUser = item.sender === 'other';
         const text = item.text || '';
         const time = formatMessageTime(item.createdAt);
+        const recipientAvatarUrl = getMediaUrl(recipientUser?.avatarUrl);
+        const recipientName = recipientUser?.spiritualName || recipientUser?.karmicName || '';
+        const recipientInitial = recipientName.trim().charAt(0).toUpperCase() || '?';
 
         const bubbleStyle = [
             styles.bubble,
@@ -531,10 +536,18 @@ export const MessageList: React.FC<MessageListProps> = ({
             >
                 {!isUser && (
                     <View style={styles.avatar}>
-                        <Image
-                            source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
-                            style={styles.avatarImage}
-                        />
+                        {isOtherUser && recipientAvatarUrl ? (
+                            <Image source={{ uri: recipientAvatarUrl }} style={styles.avatarImage} />
+                        ) : isOtherUser ? (
+                            <View style={styles.avatarFallback}>
+                                <Text style={styles.avatarFallbackText}>{recipientInitial}</Text>
+                            </View>
+                        ) : (
+                            <Image
+                                source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
+                                style={styles.avatarImage}
+                            />
+                        )}
                     </View>
                 )}
                 <Content />
@@ -653,6 +666,18 @@ const styles = StyleSheet.create({
     timeOverlay: { position: 'absolute', bottom: 6, right: 12 },
     avatar: { width: 34, height: 34, borderRadius: 10, marginRight: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)' },
     avatarImage: { width: '100%', height: '100%' },
+    avatarFallback: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,153,51,0.9)',
+    },
+    avatarFallbackText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
     messageText: { fontSize: 16, lineHeight: 22 },
     dateHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: 8, paddingHorizontal: 20 },
     dateLine: { flex: 1, height: 1, borderRadius: 0.5 },

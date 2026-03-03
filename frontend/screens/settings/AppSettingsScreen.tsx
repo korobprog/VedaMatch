@@ -123,6 +123,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         portalBackground,
         portalBackgroundType,
         setPortalBackground,
+        chatBackground,
+        chatBackgroundType,
+        setChatBackground,
         assistantType,
         setAssistantType,
         isDarkMode,
@@ -133,6 +136,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         setSlideshowInterval,
         addWallpaperSlide,
         removeWallpaperSlide,
+        chatWallpaperSlides,
+        chatSlideshowEnabled,
+        chatSlideshowInterval,
+        setChatSlideshowEnabled,
+        setChatSlideshowInterval,
+        addChatWallpaperSlide,
+        removeChatWallpaperSlide,
         portalIconStyle,
         setPortalIconStyle,
         performanceMode,
@@ -185,6 +195,24 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             }
         }
     }, [portalBackgroundBusy, setPortalBackground, t]);
+
+    const applyChatBackground = useCallback(async (value: string, type: 'image' | 'color' | 'gradient') => {
+        if (portalBackgroundBusy) {
+            return;
+        }
+
+        setPortalBackgroundBusy(true);
+        try {
+            await setChatBackground(value, type);
+        } catch (error) {
+            console.warn('Failed to apply chat background:', error);
+            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+        } finally {
+            if (isMountedRef.current) {
+                setPortalBackgroundBusy(false);
+            }
+        }
+    }, [portalBackgroundBusy, setChatBackground, t]);
 
     const pickImageUri = useCallback(async (): Promise<string | null> => {
         const result = await launchImageLibrary({
@@ -240,6 +268,44 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         }
     }, [addWallpaperSlide, mediaActionInProgress, pickImageUri]);
 
+    const handlePickChatImage = useCallback(async () => {
+        if (mediaActionInProgress) {
+            return;
+        }
+        setMediaActionInProgress(true);
+        try {
+            const uri = await pickImageUri();
+            if (!uri) return;
+            await applyChatBackground(uri, 'image');
+        } catch (error) {
+            console.warn('Failed to pick chat image:', error);
+            Alert.alert('Ошибка', 'Не удалось выбрать изображение');
+        } finally {
+            if (isMountedRef.current) {
+                setMediaActionInProgress(false);
+            }
+        }
+    }, [applyChatBackground, mediaActionInProgress, pickImageUri]);
+
+    const handleAddChatSlideFromGallery = useCallback(async () => {
+        if (mediaActionInProgress) {
+            return;
+        }
+        setMediaActionInProgress(true);
+        try {
+            const uri = await pickImageUri();
+            if (!uri) return;
+            await addChatWallpaperSlide(uri);
+        } catch (error) {
+            console.warn('Failed to add chat wallpaper slide:', error);
+            Alert.alert('Ошибка', 'Не удалось добавить фон');
+        } finally {
+            if (isMountedRef.current) {
+                setMediaActionInProgress(false);
+            }
+        }
+    }, [addChatWallpaperSlide, mediaActionInProgress, pickImageUri]);
+
     const handleRemoveSlide = useCallback((uri: string) => {
         if (wallpaperSlides.length <= 1) {
             Alert.alert('Нельзя удалить', 'Должен остаться хотя бы один фон');
@@ -264,10 +330,38 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         );
     }, [removeWallpaperSlide, wallpaperSlides.length]);
 
+    const handleRemoveChatSlide = useCallback((uri: string) => {
+        if (chatWallpaperSlides.length <= 1) {
+            Alert.alert('Нельзя удалить', 'Должен остаться хотя бы один фон');
+            return;
+        }
+        Alert.alert(
+            'Удалить фон?',
+            'Этот фон будет убран из слайд-шоу чата',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Удалить',
+                    style: 'destructive',
+                    onPress: () => {
+                        void removeChatWallpaperSlide(uri).catch((error) => {
+                            console.warn('Failed to remove chat wallpaper slide:', error);
+                            Alert.alert('Ошибка', 'Не удалось удалить фон');
+                        });
+                    },
+                },
+            ]
+        );
+    }, [chatWallpaperSlides.length, removeChatWallpaperSlide]);
+
     const slideshowIntervalLabel = useMemo(() => {
         const matched = SLIDESHOW_INTERVALS.find((item) => item.value === slideshowInterval);
         return matched?.label ?? `${slideshowInterval} сек`;
     }, [slideshowInterval]);
+    const chatSlideshowIntervalLabel = useMemo(() => {
+        const matched = SLIDESHOW_INTERVALS.find((item) => item.value === chatSlideshowInterval);
+        return matched?.label ?? `${chatSlideshowInterval} сек`;
+    }, [chatSlideshowInterval]);
     const themedStyles = useMemo(
         () =>
             StyleSheet.create({
@@ -313,6 +407,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         models: false,
     });
     const hasWallpaperSlides = wallpaperSlides.length > 0;
+    const hasChatWallpaperSlides = chatWallpaperSlides.length > 0;
 
     const togglePanel = useCallback((panel: SettingsPanelKey) => {
         triggerTapFeedback();
@@ -1046,6 +1141,206 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     onPress={() => {
                                         triggerTapFeedback();
                                         handleAddSlideFromGallery();
+                                    }}
+                                >
+                                    <Plus size={24} color={colors.accent} />
+                                    <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>Добавить</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider, marginTop: 20 }]} />
+
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 12 }]}>Фон чата</Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary, marginTop: 4, marginBottom: 10 }]}>
+                                Настройки фона только для экрана переписки
+                            </Text>
+
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Свой фон</Text>
+                            <View style={styles.imageRow}>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.imagePickerBtn,
+                                        mediaActionInProgress && styles.disabledControl,
+                                        { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
+                                    ]}
+                                    disabled={mediaActionInProgress}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        void handlePickChatImage();
+                                        setChatSlideshowEnabled(false);
+                                    }}
+                                >
+                                    <ImageIcon size={24} color={vTheme.colors.primary} />
+                                    <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать для чата</Text>
+                                </TouchableOpacity>
+
+                                {chatBackgroundType === 'image' && !chatSlideshowEnabled && (
+                                    <View style={styles.previewContainer}>
+                                        <RNImage source={{ uri: chatBackground }} style={styles.imagePreview} />
+                                        <View style={styles.checkOverlay}>
+                                            <Text style={themedStyles.checkOverlayText}>✓</Text>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Цвета</Text>
+                            <View style={styles.presetsGrid}>
+                                {PRESET_COLORS.map((color) => (
+                                    <TouchableOpacity
+                                        key={`chat-color-${color}`}
+                                        activeOpacity={0.88}
+                                        style={[
+                                            styles.presetItem,
+                                            { backgroundColor: color, borderColor: vTheme.colors.divider },
+                                            chatBackground === color && styles.selectedPreset
+                                        ]}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            void applyChatBackground(color, 'color');
+                                            setChatSlideshowEnabled(false);
+                                        }}
+                                    />
+                                ))}
+                            </View>
+
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Градиенты</Text>
+                            <View style={styles.presetsGrid}>
+                                {PRESET_GRADIENTS.map((grad) => (
+                                    <TouchableOpacity
+                                        key={`chat-grad-${grad}`}
+                                        activeOpacity={0.88}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            void applyChatBackground(grad, 'gradient');
+                                            setChatSlideshowEnabled(false);
+                                        }}
+                                        style={[
+                                            styles.presetItem,
+                                            chatBackground === grad && styles.selectedPreset
+                                        ]}
+                                    >
+                                        <LinearGradient
+                                            colors={grad.split('|')}
+                                            style={styles.gradientPreset}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                        />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider }]} />
+
+                            <View style={styles.slideshowToggle}>
+                                <View style={themedStyles.slideshowInfo}>
+                                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Автосмена обоев (чат)</Text>
+                                    <Text style={[styles.slideshowSub, { color: vTheme.colors.textSecondary }]}>
+                                        {chatSlideshowEnabled
+                                            ? `Меняются каждые ${chatSlideshowIntervalLabel}`
+                                            : 'Выключена'}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    value={chatSlideshowEnabled}
+                                    onValueChange={(val) => {
+                                        triggerTapFeedback();
+                                        if (val && !hasChatWallpaperSlides) {
+                                            Alert.alert('Слайд-шоу недоступно', 'Сначала добавьте хотя бы один фон');
+                                            return;
+                                        }
+                                        setChatSlideshowEnabled(val);
+                                    }}
+                                    trackColor={{ false: vTheme.colors.backgroundSecondary, true: colors.accent }}
+                                    thumbColor={chatSlideshowEnabled ? '#fff' : '#f4f3f4'}
+                                />
+                            </View>
+
+                            {chatSlideshowEnabled && (
+                                <View style={styles.intervalSection}>
+                                    <View style={themedStyles.intervalHeader}>
+                                        <Clock size={14} color={vTheme.colors.textSecondary} />
+                                        <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>Интервал смены (чат)</Text>
+                                    </View>
+                                    <View style={styles.sizeOptions}>
+                                        {SLIDESHOW_INTERVALS.map(item => (
+                                            <TouchableOpacity
+                                                key={`chat-interval-${item.value}`}
+                                                activeOpacity={0.88}
+                                                style={[
+                                                    styles.sizeBtn,
+                                                    {
+                                                        backgroundColor: chatSlideshowInterval === item.value ? colors.accent : vTheme.colors.backgroundSecondary,
+                                                        borderColor: chatSlideshowInterval === item.value ? colors.accent : vTheme.colors.divider
+                                                    }
+                                                ]}
+                                                onPress={() => {
+                                                    triggerTapFeedback();
+                                                    setChatSlideshowInterval(item.value);
+                                                }}
+                                            >
+                                                <Text style={chatSlideshowInterval === item.value ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                                    {item.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                Обои чата ({chatWallpaperSlides.length})
+                            </Text>
+                            <View style={styles.wallpapersGrid}>
+                                {chatWallpaperSlides.map((uri, idx) => (
+                                    <View key={`chat-slide-${idx}`} style={styles.wallpaperSlideContainer}>
+                                        <TouchableOpacity
+                                            activeOpacity={0.88}
+                                            style={[
+                                                styles.wallpaperSlide,
+                                                chatBackground === uri ? themedStyles.wallpaperBorderActive : themedStyles.wallpaperBorderInactive,
+                                            ]}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                void applyChatBackground(uri, 'image');
+                                            }}
+                                        >
+                                            <RNImage source={{ uri }} style={styles.wallpaperImage} />
+                                            {chatBackground === uri && (
+                                                <View style={styles.wallpaperActiveOverlay}>
+                                                    <Text style={themedStyles.wallpaperCheckText}>✓</Text>
+                                                </View>
+                                            )}
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            activeOpacity={0.7}
+                                            style={[styles.wallpaperDeleteBtn, themedStyles.wallpaperDeleteBg]}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                handleRemoveChatSlide(uri);
+                                            }}
+                                        >
+                                            <Trash2 size={12} color="#fff" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.wallpaperSlide,
+                                        styles.wallpaperAddBtn,
+                                        mediaActionInProgress && styles.disabledControl,
+                                        {
+                                            borderColor: vTheme.colors.divider,
+                                            backgroundColor: vTheme.colors.backgroundSecondary,
+                                        }
+                                    ]}
+                                    disabled={mediaActionInProgress}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        handleAddChatSlideFromGallery();
                                     }}
                                 >
                                     <Plus size={24} color={colors.accent} />

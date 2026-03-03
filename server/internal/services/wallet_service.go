@@ -415,6 +415,105 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 	})
 }
 
+// TransferRegularOnlyWithDedup transfers only regular balance and protects from duplicates by dedup key.
+// Returns processed=false when the transfer was already applied earlier with the same dedup key.
+func (s *WalletService) TransferRegularOnlyWithDedup(fromUserID, toUserID uint, amount int, dedupKey string, description string) (bool, error) {
+	if amount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	if fromUserID == toUserID {
+		return false, errors.New("cannot transfer to yourself")
+	}
+
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Call support transfer"
+	}
+
+	processed := false
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		fromWallet, err := s.getOrCreateLockedWalletTx(tx, fromUserID)
+		if err != nil {
+			return err
+		}
+
+		if dedupKey != "" {
+			var existing models.WalletTransaction
+			if err := tx.Where("wallet_id = ? AND dedup_key = ? AND type = ?",
+				fromWallet.ID, dedupKey, models.TransactionTypeDebit).
+				First(&existing).Error; err == nil {
+				if existing.Amount != amount {
+					return errors.New("dedup key already used with different amount")
+				}
+				processed = false
+				return nil
+			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+
+		if fromWallet.Balance < amount {
+			return errors.New("insufficient regular balance")
+		}
+
+		toWallet, err := s.getOrCreateLockedWalletTx(tx, toUserID)
+		if err != nil {
+			return err
+		}
+
+		newFromBalance := fromWallet.Balance - amount
+		if err := tx.Model(fromWallet).Updates(map[string]interface{}{
+			"balance":     newFromBalance,
+			"total_spent": fromWallet.TotalSpent + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		newToBalance := toWallet.Balance + amount
+		if err := tx.Model(toWallet).Updates(map[string]interface{}{
+			"balance":      newToBalance,
+			"total_earned": toWallet.TotalEarned + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		debitTx := models.WalletTransaction{
+			WalletID:        fromWallet.ID,
+			Type:            models.TransactionTypeDebit,
+			Amount:          amount,
+			BonusAmount:     0,
+			Description:     description,
+			RelatedWalletID: &toWallet.ID,
+			BalanceAfter:    newFromBalance,
+			DedupKey:        dedupKey,
+		}
+		if err := tx.Create(&debitTx).Error; err != nil {
+			return err
+		}
+
+		creditTx := models.WalletTransaction{
+			WalletID:        toWallet.ID,
+			Type:            models.TransactionTypeCredit,
+			Amount:          amount,
+			BonusAmount:     0,
+			Description:     description,
+			RelatedWalletID: &fromWallet.ID,
+			BalanceAfter:    newToBalance,
+			DedupKey:        dedupKey,
+		}
+		if err := tx.Create(&creditTx).Error; err != nil {
+			return err
+		}
+
+		processed = true
+		log.Printf("[Wallet] RegularOnly transfer: %d LKM from user %d to user %d (dedup=%s)", amount, fromUserID, toUserID, dedupKey)
+		return nil
+	})
+
+	return processed, err
+}
+
 // AddBonus adds bonus Лакшми to user's wallet
 func (s *WalletService) AddBonus(userID uint, amount int, description string) error {
 	if amount <= 0 {

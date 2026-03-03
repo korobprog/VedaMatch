@@ -17,25 +17,37 @@ import { ProtectedScreen } from '../components/ProtectedScreen';
 import { shareImage, downloadImage } from '../services/fileService';
 import { contactService } from '../services/contactService';
 import LinearGradient from 'react-native-linear-gradient';
+import { isColorLight, isGradientLight } from '../utils/chatBackgroundContrast';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
 export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
-    const { setIsMenuOpen, isDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
+    const { setIsMenuOpen, isDarkMode, chatBackground, chatBackgroundType } = usePortalSettings();
     const { handleMenuOption, recipientUser, setShowMenu, showMenu, setChatRecipient } = useChat();
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const insets = useSafeAreaInsets();
     const overlayOpacity = useRef(new Animated.Value(0)).current;
-    const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const isImageBackground = chatBackgroundType === 'image' && Boolean(chatBackground);
+    const isGradientBackground = chatBackgroundType === 'gradient' && typeof chatBackground === 'string' && chatBackground.includes('|');
     const backgroundSource = useMemo(() => {
-        if (!isImageBackground || !portalBackground) return undefined;
-        const isRemoteUri = /^https?:\/\//i.test(portalBackground);
+        if (!isImageBackground || !chatBackground) return undefined;
+        const isRemoteUri = /^https?:\/\//i.test(chatBackground);
         return isRemoteUri
-            ? { uri: portalBackground, cache: 'force-cache' as const }
-            : { uri: portalBackground };
-    }, [isImageBackground, portalBackground]);
+            ? { uri: chatBackground, cache: 'force-cache' as const }
+            : { uri: chatBackground };
+    }, [chatBackground, isImageBackground]);
+    const gradientBackgroundColors = useMemo(() => {
+        if (!isGradientBackground || !chatBackground) {
+            return ['#F2EFE6', '#E9E5DA'];
+        }
+        const parts = chatBackground.split('|').map((part) => part.trim()).filter(Boolean);
+        return parts.length >= 2 ? parts : ['#F2EFE6', '#E9E5DA'];
+    }, [chatBackground, isGradientBackground]);
+    const useDarkStatusBar =
+        (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+        (chatBackgroundType === 'gradient' && isGradientLight(chatBackground));
 
     useEffect(() => {
         if (showMenu) {
@@ -54,10 +66,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [showMenu]);
 
     const handleBackNavigation = React.useCallback(() => {
-        if (navigation.canGoBack()) {
+        const state = navigation.getState();
+        const routes = state?.routes || [];
+        const prevRoute = routes.length > 1 ? routes[routes.length - 2] : null;
+
+        if (navigation.canGoBack() && prevRoute?.name) {
             navigation.goBack();
         } else {
-            navigation.navigate('Portal', { initialTab: 'contacts' });
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Portal', params: { initialTab: 'contacts' } }],
+            });
         }
     }, [navigation]);
 
@@ -74,9 +93,9 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     );
 
     useEffect(() => {
-        if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
-        Image.prefetch(portalBackground).catch(() => { });
-    }, [isImageBackground, portalBackground]);
+        if (!isImageBackground || !chatBackground || !chatBackground.startsWith('http')) return;
+        Image.prefetch(chatBackground).catch(() => { });
+    }, [chatBackground, isImageBackground]);
 
     useEffect(() => {
         const targetUserId = route.params?.userId;
@@ -160,7 +179,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
-            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+            <StatusBar barStyle={useDarkStatusBar ? 'dark-content' : 'light-content'} backgroundColor="transparent" translucent />
 
             {showMenu && (
                 <Animated.View
@@ -189,6 +208,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "VedaMatch"}
                 onSettingsPress={() => setIsMenuOpen(true)}
                 onCallPress={handleCallPress}
+                topInset={insets.top}
                 onBackPress={() => {
                     handleBackNavigation();
                 }}
@@ -248,8 +268,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                         {content}
                     </View>
                 </ImageBackground>
+            ) : isGradientBackground ? (
+                <LinearGradient
+                    colors={gradientBackgroundColors}
+                    style={styles.container}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    {content}
+                </LinearGradient>
             ) : (
-                <View style={[styles.container, { backgroundColor: colors.background }]}>
+                <View style={[styles.container, { backgroundColor: chatBackgroundType === 'color' ? chatBackground : colors.background }]}>
                     {content}
                 </View>
             )}

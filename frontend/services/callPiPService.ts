@@ -7,18 +7,21 @@ type NativeCallPiPModule = {
   stopPiP?: () => Promise<boolean>;
 };
 
-const nativeModule: NativeCallPiPModule | null =
-  (Platform.OS === 'android' || Platform.OS === 'ios')
+const androidNativeModule: NativeCallPiPModule | null =
+  Platform.OS === 'android'
     ? (NativeModules.CallPiPModule as NativeCallPiPModule | undefined) || null
     : null;
 
 export const callPiPService = {
   async isSupported(): Promise<boolean> {
-    if (!nativeModule) {
+    if (Platform.OS === 'ios') {
+      return true;
+    }
+    if (!androidNativeModule) {
       return false;
     }
     try {
-      return await nativeModule.isSupported();
+      return await androidNativeModule.isSupported();
     } catch {
       return false;
     }
@@ -28,33 +31,33 @@ export const callPiPService = {
     if (Platform.OS !== 'android') {
       return;
     }
-    if (!nativeModule) {
+    if (!androidNativeModule) {
       return;
     }
     try {
-      nativeModule.setCallActive(active);
+      androidNativeModule.setCallActive(active);
     } catch {
       // no-op
     }
   },
 
   async enterPiP(width = 9, height = 16): Promise<boolean> {
-    if (!nativeModule) {
+    if (Platform.OS !== 'android' || !androidNativeModule) {
       return false;
     }
     try {
-      return await nativeModule.enterPiP(width, height);
+      return await androidNativeModule.enterPiP(width, height);
     } catch {
       return false;
     }
   },
 
   async stopPiP(): Promise<boolean> {
-    if (!nativeModule || typeof nativeModule.stopPiP !== 'function') {
+    if (Platform.OS !== 'android' || !androidNativeModule || typeof androidNativeModule.stopPiP !== 'function') {
       return false;
     }
     try {
-      return await nativeModule.stopPiP();
+      return await androidNativeModule.stopPiP();
     } catch {
       return false;
     }

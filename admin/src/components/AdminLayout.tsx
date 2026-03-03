@@ -32,6 +32,7 @@ import {
     PieChart,
     CreditCard,
     Waves,
+    PhoneCall,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
@@ -40,6 +41,7 @@ const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Gift, label: 'Referrals & Wallet', path: '/referrals' },
+    { icon: PhoneCall, label: 'Calls Feedback', path: '/calls' },
     { icon: CreditCard, label: 'LKM Payments', path: '/payments' },
     { icon: Waves, label: 'Feed Control', path: '/feed-control' },
     { icon: Waves, label: 'Feed Posts', path: '/feed-posts' },
@@ -93,6 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/dashboard',
                 '/users',
                 '/referrals',
+                '/calls',
                 '/payments',
                 '/feed-control',
                 '/feed-posts',

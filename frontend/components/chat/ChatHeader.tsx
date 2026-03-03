@@ -16,12 +16,14 @@ import { useNavigation } from '@react-navigation/native';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
 
 interface ChatHeaderProps {
     title: string;
     onSettingsPress: () => void;
     onCallPress?: () => void;
     onBackPress?: () => void;
+    topInset?: number;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -29,20 +31,39 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     onSettingsPress,
     onCallPress,
     onBackPress,
+    topInset = 0,
 }) => {
     const navigation = useNavigation<any>();
     const { recipientUser } = useChat();
     const { user } = useUser();
-    const { isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
+    const { isDarkMode, portalIconStyle, chatBackgroundType, chatBackground } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
-    const isPhotoBg = portalBackgroundType === 'image';
+    const isImageBg = chatBackgroundType === 'image';
     const isVedaMatch = portalIconStyle === 'vedamatch';
-    const titleColor = isVedaMatch ? '#FFDF00' : isPhotoBg ? '#F8FAFC' : colors.textPrimary;
-    const subTitleColor = isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(248,250,252,0.82)' : colors.textSecondary;
-    const headerBg = isVedaMatch ? '#121212' : isPhotoBg ? 'rgba(15,23,42,0.64)' : colors.surfaceElevated;
-    const headerBorder = isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.22)' : colors.border;
-    const iconColor = isVedaMatch ? '#D4AF37' : isPhotoBg ? '#F8FAFC' : colors.textPrimary;
-    const iconButtonBg = isVedaMatch ? '#121212' : isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface;
+    const isLightChatBackground =
+        (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+        (chatBackgroundType === 'gradient' && isGradientLight(chatBackground));
+    const useLightVedaContrast = isVedaMatch && !isImageBg && isLightChatBackground;
+    const titleColor = isVedaMatch
+        ? (useLightVedaContrast ? '#3F2F00' : '#FFDF00')
+        : isImageBg ? '#F8FAFC' : colors.textPrimary;
+    const subTitleColor = isVedaMatch
+        ? (useLightVedaContrast ? '#6B5500' : '#D4AF37')
+        : isImageBg ? 'rgba(248,250,252,0.82)' : colors.textSecondary;
+    const headerBg = isVedaMatch
+        ? (useLightVedaContrast ? 'rgba(255,248,220,0.92)' : '#121212')
+        : isImageBg ? 'rgba(15,23,42,0.64)' : colors.surfaceElevated;
+    const headerBorder = isVedaMatch
+        ? (useLightVedaContrast ? '#C59D22' : '#D4AF37')
+        : isImageBg ? 'rgba(255,255,255,0.22)' : colors.border;
+    const iconColor = isVedaMatch
+        ? (useLightVedaContrast ? '#5B4700' : '#D4AF37')
+        : isImageBg ? '#F8FAFC' : colors.textPrimary;
+    const iconButtonBg = isVedaMatch
+        ? (useLightVedaContrast ? 'rgba(255,248,220,0.94)' : '#121212')
+        : isImageBg ? 'rgba(255,255,255,0.16)' : colors.surface;
+    const headerTopInset = Platform.OS === 'ios' ? Math.max(topInset - 6, 0) : 0;
+    const headerHeight = Platform.OS === 'ios' ? 58 : 52;
 
     const displayTitle = recipientUser
         ? (recipientUser.spiritualName || recipientUser.karmicName)
@@ -56,8 +77,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         : 'AI-ассистент VedaMatch';
 
     return (
-        <View style={styles.shell}>
+        <View style={[styles.shell, { paddingTop: headerTopInset }]}>
             <View style={[styles.header, {
+                height: headerHeight,
+                paddingTop: 0,
                 borderColor: headerBorder,
                 borderWidth: isVedaMatch ? 1 : 1.2,
                 ...(isVedaMatch ? {
@@ -79,13 +102,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                         style={StyleSheet.absoluteFill}
                         blurType={isDarkMode ? 'dark' : 'light'}
                         blurAmount={18}
-                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
+                        reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
                     />
                 )}
                 <View style={[
                     StyleSheet.absoluteFill,
                     {
-                        backgroundColor: isVedaMatch ? 'transparent' : headerBg,
+                        backgroundColor: isVedaMatch
+                            ? (useLightVedaContrast ? headerBg : 'transparent')
+                            : headerBg,
                     }
                 ]} />
 
@@ -96,7 +121,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                 <ChevronLeft color={iconColor} size={21} />
                             </TouchableOpacity>
 
-                            <View style={[styles.avatarContainer, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft }]}>
+                            <View style={[styles.avatarContainer, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft }]}>
                                 {recipientUser.avatarUrl && getMediaUrl(recipientUser.avatarUrl) ? (
                                     <Image
                                         source={{ uri: getMediaUrl(recipientUser.avatarUrl)! }}
@@ -132,12 +157,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                 style={[
                                     styles.aiTitleWrap,
                                     {
-                                        backgroundColor: isVedaMatch ? 'transparent' : isPhotoBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
-                                        borderColor: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
+                                        backgroundColor: isVedaMatch ? 'transparent' : isImageBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
+                                        borderColor: isVedaMatch ? '#D4AF37' : isImageBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
                                     },
                                 ]}
                             >
-                                <Sparkles size={12} color={isVedaMatch ? '#FFDF00' : isPhotoBg ? '#FFB74D' : colors.accent} />
+                                <Sparkles size={12} color={isVedaMatch ? '#FFDF00' : isImageBg ? '#FFB74D' : colors.accent} />
                                 <Text style={[styles.aiTitle, { color: titleColor }]}>AI-чат</Text>
                             </TouchableOpacity>
                         )}
@@ -145,7 +170,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
                     <View style={styles.rightActions}>
                         <View style={{ marginRight: recipientUser ? 10 : 0 }}>
-                            <BalancePill size="small" lightMode={isPhotoBg || isDarkMode || isVedaMatch} />
+                            <BalancePill size="small" lightMode={isImageBg || isDarkMode || (isVedaMatch && !useLightVedaContrast)} />
                         </View>
                         {recipientUser && onCallPress && (
                             <TouchableOpacity onPress={onCallPress} style={[styles.actionButton, { backgroundColor: iconButtonBg, borderColor: headerBorder }]} activeOpacity={0.86}>
@@ -166,8 +191,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     header: {
-        height: Platform.OS === 'ios' ? 64 : 50,
-        paddingTop: Platform.OS === 'ios' ? 8 : 5,
+        height: Platform.OS === 'ios' ? 58 : 52,
+        paddingTop: 0,
         borderRadius: 14,
         overflow: 'hidden',
         borderWidth: 1.2,
@@ -188,12 +213,14 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     title: {
-        fontSize: 14,
+        fontSize: 15,
+        lineHeight: 18,
         fontWeight: '700',
     },
     subTitle: {
-        fontSize: 9,
-        marginTop: 1,
+        fontSize: 10,
+        lineHeight: 13,
+        marginTop: 2,
     },
     aiTitleWrap: {
         flexDirection: 'row',

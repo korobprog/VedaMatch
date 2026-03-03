@@ -59,6 +59,9 @@ interface SettingsContextType {
     portalBackground: string;
     portalBackgroundType: 'color' | 'gradient' | 'image';
     setPortalBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
+    chatBackground: string;
+    chatBackgroundType: 'color' | 'gradient' | 'image';
+    setChatBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
     isSettingsLoaded: boolean;
     // Wallpaper slideshow
     wallpaperSlides: string[];
@@ -70,6 +73,14 @@ interface SettingsContextType {
     addWallpaperSlide: (uri: string) => Promise<void>;
     removeWallpaperSlide: (uri: string) => Promise<void>;
     activeWallpaper: string;
+    chatWallpaperSlides: string[];
+    chatSlideshowEnabled: boolean;
+    chatSlideshowInterval: number;
+    setChatSlideshowEnabled: (enabled: boolean) => Promise<void>;
+    setChatSlideshowInterval: (seconds: number) => Promise<void>;
+    addChatWallpaperSlide: (uri: string) => Promise<void>;
+    removeChatWallpaperSlide: (uri: string) => Promise<void>;
+    activeChatWallpaper: string;
     portalIconStyle: PortalIconStyle;
     setPortalIconStyle: (style: PortalIconStyle) => Promise<void>;
     performanceMode: PerformanceMode;
@@ -99,8 +110,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     // Default background
     const defaultBgImage = Image.resolveAssetSource(require('../assets/vedamatch_bg.png')).uri;
+    const defaultChatBackground = '#F2EFE6';
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
+    const [chatBackground, setChatBackgroundState] = useState<string>(defaultChatBackground);
+    const [chatBackgroundType, setChatBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
     const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('vedamatch');
     const [performanceMode, setPerformanceModeState] = useState<PerformanceMode>(
@@ -115,7 +129,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [isSlideshowEnabled, setIsSlideshowEnabledState] = useState<boolean>(true);
     const [slideshowInterval, setSlideshowIntervalState] = useState<number>(DEFAULT_SLIDESHOW_INTERVAL);
     const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+    const [chatWallpaperSlides, setChatWallpaperSlides] = useState<string[]>(getPresetUris());
+    const [chatSlideshowEnabled, setChatSlideshowEnabledState] = useState<boolean>(false);
+    const [chatSlideshowInterval, setChatSlideshowIntervalState] = useState<number>(DEFAULT_SLIDESHOW_INTERVAL);
+    const [chatSlideIndex, setChatSlideIndex] = useState<number>(0);
     const slideshowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const chatSlideshowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const runtimePerformanceRef = useRef(runtimePerformanceState);
 
     const colorScheme = useColorScheme();
@@ -204,6 +223,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
                 const savedBg = await AsyncStorage.getItem('portal_background');
                 const savedBgType = await AsyncStorage.getItem('portal_background_type');
+                const savedChatBg = await AsyncStorage.getItem('chat_background');
+                const savedChatBgType = await AsyncStorage.getItem('chat_background_type');
                 const savedVisualStyle = await AsyncStorage.getItem(SCREEN_VISUAL_STYLE_KEY);
 
                 if (savedVisualStyle === 'classic' || savedVisualStyle === 'saffron') {
@@ -222,6 +243,20 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                     setPortalBackgroundType(savedBgType as any);
                 } else if (!savedBgType) {
                     setPortalBackgroundType('image');
+                }
+
+                if (savedChatBg && savedChatBg !== 'undefined' && savedChatBg !== 'null') {
+                    setChatBackgroundState(savedChatBg);
+                } else {
+                    setChatBackgroundState(defaultChatBackground);
+                    await AsyncStorage.setItem('chat_background', defaultChatBackground);
+                }
+
+                if (savedChatBgType === 'color' || savedChatBgType === 'gradient' || savedChatBgType === 'image') {
+                    setChatBackgroundType(savedChatBgType as any);
+                } else {
+                    setChatBackgroundType('color');
+                    await AsyncStorage.setItem('chat_background_type', 'color');
                 }
 
                 const savedAssistant = await AsyncStorage.getItem('assistant_type');
@@ -283,6 +318,33 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                         }
                     } catch { /* keep default */ }
                 }
+
+                const savedChatSlides = await AsyncStorage.getItem('chat_wallpaper_slides');
+                if (savedChatSlides) {
+                    try {
+                        const parsed = JSON.parse(savedChatSlides);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setChatWallpaperSlides(parsed);
+                        }
+                    } catch { /* keep defaults */ }
+                }
+
+                const savedChatSlideshowEnabled = await AsyncStorage.getItem('chat_slideshow_enabled');
+                if (savedChatSlideshowEnabled !== null) {
+                    try {
+                        setChatSlideshowEnabledState(JSON.parse(savedChatSlideshowEnabled));
+                    } catch { /* keep default */ }
+                }
+
+                const savedChatInterval = await AsyncStorage.getItem('chat_slideshow_interval');
+                if (savedChatInterval !== null) {
+                    try {
+                        const val = JSON.parse(savedChatInterval);
+                        if (typeof val === 'number' && val > 0) {
+                            setChatSlideshowIntervalState(val);
+                        }
+                    } catch { /* keep default */ }
+                }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
             } finally {
@@ -329,6 +391,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             await AsyncStorage.setItem('portal_background_type', type);
         } catch (e) {
             console.error('Failed to save portal background', e);
+        }
+    }, []);
+
+    const setChatBackground = useCallback(async (bg: string, type: 'color' | 'gradient' | 'image') => {
+        setChatBackgroundState(bg);
+        setChatBackgroundType(type);
+        try {
+            await AsyncStorage.setItem('chat_background', bg);
+            await AsyncStorage.setItem('chat_background_type', type);
+        } catch (e) {
+            console.error('Failed to save chat background', e);
         }
     }, []);
 
@@ -425,6 +498,58 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         });
     }, [isSlideshowEnabled, portalBackground]);
 
+    const setChatSlideshowEnabled = useCallback(async (enabled: boolean) => {
+        setChatSlideshowEnabledState(enabled);
+        if (enabled && chatWallpaperSlides.length > 0) {
+            setChatBackgroundState(chatWallpaperSlides[0]);
+            setChatBackgroundType('image');
+            setChatSlideIndex(0);
+        }
+        try {
+            await AsyncStorage.setItem('chat_slideshow_enabled', JSON.stringify(enabled));
+        } catch (e) {
+            console.error('Failed to save chat slideshow setting', e);
+        }
+    }, [chatWallpaperSlides]);
+
+    const setChatSlideshowInterval = useCallback(async (seconds: number) => {
+        setChatSlideshowIntervalState(seconds);
+        try {
+            await AsyncStorage.setItem('chat_slideshow_interval', JSON.stringify(seconds));
+        } catch (e) {
+            console.error('Failed to save chat slideshow interval', e);
+        }
+    }, []);
+
+    const addChatWallpaperSlide = useCallback(async (uri: string) => {
+        setChatWallpaperSlides(prev => {
+            if (prev.includes(uri)) return prev;
+            const updated = [...prev, uri];
+            AsyncStorage.setItem('chat_wallpaper_slides', JSON.stringify(updated)).catch(console.error);
+            return updated;
+        });
+    }, []);
+
+    const removeChatWallpaperSlide = useCallback(async (uri: string) => {
+        setChatWallpaperSlides(prev => {
+            const filtered = prev.filter(s => s !== uri);
+            const fallbackSlides = getPresetUris();
+            const updated = filtered.length > 0 ? filtered : fallbackSlides;
+
+            AsyncStorage.setItem('chat_wallpaper_slides', JSON.stringify(updated)).catch(console.error);
+            setChatSlideIndex(prevIdx => (updated.length > 0 ? prevIdx % updated.length : 0));
+
+            if (!chatSlideshowEnabled && chatBackground === uri && updated[0]) {
+                setChatBackgroundState(updated[0]);
+                setChatBackgroundType('image');
+                AsyncStorage.setItem('chat_background', updated[0]).catch(console.error);
+                AsyncStorage.setItem('chat_background_type', 'image').catch(console.error);
+            }
+
+            return updated;
+        });
+    }, [chatBackground, chatSlideshowEnabled]);
+
     // Slideshow timer effect
     useEffect(() => {
         if (slideshowTimerRef.current) {
@@ -445,12 +570,35 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [isSlideshowEnabled, wallpaperSlides, slideshowInterval]);
 
+    useEffect(() => {
+        if (chatSlideshowTimerRef.current) {
+            clearInterval(chatSlideshowTimerRef.current);
+            chatSlideshowTimerRef.current = null;
+        }
+
+        if (!chatSlideshowEnabled || chatWallpaperSlides.length < 2) return;
+
+        chatSlideshowTimerRef.current = setInterval(() => {
+            setChatSlideIndex(prev => (prev + 1) % chatWallpaperSlides.length);
+        }, chatSlideshowInterval * 1000);
+
+        return () => {
+            if (chatSlideshowTimerRef.current) {
+                clearInterval(chatSlideshowTimerRef.current);
+            }
+        };
+    }, [chatSlideshowEnabled, chatWallpaperSlides, chatSlideshowInterval]);
+
     // Pause slideshow when app is in background
     useEffect(() => {
         const sub = AppState.addEventListener('change', (state) => {
             if (state !== 'active' && slideshowTimerRef.current) {
                 clearInterval(slideshowTimerRef.current);
                 slideshowTimerRef.current = null;
+            }
+            if (state !== 'active' && chatSlideshowTimerRef.current) {
+                clearInterval(chatSlideshowTimerRef.current);
+                chatSlideshowTimerRef.current = null;
             }
             // Timer restarts via the dependency effect above on next render
         });
@@ -514,8 +662,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const activeWallpaper = isSlideshowEnabled && wallpaperSlides.length > 0
         ? wallpaperSlides[currentSlideIndex % wallpaperSlides.length]
         : portalBackground;
+    const activeChatWallpaper = chatSlideshowEnabled && chatWallpaperSlides.length > 0
+        ? chatWallpaperSlides[chatSlideIndex % chatWallpaperSlides.length]
+        : chatBackground;
     const effectivePortalBackgroundType: 'color' | 'gradient' | 'image' =
         isSlideshowEnabled ? 'image' : portalBackgroundType;
+    const effectiveChatBackgroundType: 'color' | 'gradient' | 'image' =
+        chatSlideshowEnabled ? 'image' : chatBackgroundType;
 
     const contextValue = useMemo(
         () => ({
@@ -543,6 +696,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             portalBackground,
             portalBackgroundType: effectivePortalBackgroundType,
             setPortalBackground,
+            chatBackground: activeChatWallpaper,
+            chatBackgroundType: effectiveChatBackgroundType,
+            setChatBackground,
             assistantType,
             setAssistantType,
             isSettingsLoaded,
@@ -555,6 +711,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             addWallpaperSlide,
             removeWallpaperSlide,
             activeWallpaper,
+            chatWallpaperSlides,
+            chatSlideshowEnabled,
+            chatSlideshowInterval,
+            setChatSlideshowEnabled,
+            setChatSlideshowInterval,
+            addChatWallpaperSlide,
+            removeChatWallpaperSlide,
+            activeChatWallpaper,
             portalIconStyle,
             setPortalIconStyle,
             performanceMode,
@@ -584,6 +748,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             portalBackground,
             effectivePortalBackgroundType,
             setPortalBackground,
+            activeChatWallpaper,
+            effectiveChatBackgroundType,
+            setChatBackground,
             assistantType,
             setAssistantType,
             isSettingsLoaded,
@@ -596,6 +763,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             addWallpaperSlide,
             removeWallpaperSlide,
             activeWallpaper,
+            chatWallpaperSlides,
+            chatSlideshowEnabled,
+            chatSlideshowInterval,
+            setChatSlideshowEnabled,
+            setChatSlideshowInterval,
+            addChatWallpaperSlide,
+            removeChatWallpaperSlide,
+            activeChatWallpaper,
             portalIconStyle,
             setPortalIconStyle,
             performanceMode,

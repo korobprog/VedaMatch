@@ -1,5 +1,240 @@
 # IOS Changes For Migration
 
+## 2026-03-03 (Chat contrast hotfix for light backgrounds)
+
+### Измененные файлы
+- `frontend/components/chat/ChatHeader.tsx`
+- `frontend/components/chat/ChatInput.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/utils/chatBackgroundContrast.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - контраст в чате рассчитывался в основном по `portalBackgroundType`, хотя у чата теперь отдельный фон (`chatBackground/chatBackgroundType`);
+  - при светлом фоне чата текст/подписи в header и placeholder в input могли оставаться светлыми;
+  - `StatusBar` в `ChatScreen` был зафиксирован как `light-content`, из-за чего время/системные символы на iOS были плохо видны на светлом фоне.
+- Стало:
+  - добавлен util `chatBackgroundContrast` для определения светлого/темного фона по цвету/градиенту;
+  - `ChatHeader` и `ChatInput` переключают палитру на контрастную для светлого chat background;
+  - `ChatScreen` динамически выбирает `StatusBar` (`dark-content` для светлого фона).
+
+### Сниппеты кода
+
+`frontend/components/chat/ChatInput.tsx`:
+```tsx
+const isLightChatBackground =
+  (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+  (chatBackgroundType === 'gradient' && isGradientLight(chatBackground));
+const useDarkForeground = !isImageBg && isLightChatBackground;
+```
+
+`frontend/components/chat/ChatHeader.tsx`:
+```tsx
+const useLightVedaContrast = isVedaMatch && !isImageBg && isLightChatBackground;
+const titleColor = isVedaMatch
+  ? (useLightVedaContrast ? '#3F2F00' : '#FFDF00')
+  : isImageBg ? '#F8FAFC' : colors.textPrimary;
+```
+
+`frontend/screens/ChatScreen.tsx`:
+```tsx
+<StatusBar
+  barStyle={useDarkStatusBar ? 'dark-content' : 'light-content'}
+  backgroundColor="transparent"
+  translucent
+/>
+```
+
+## 2026-03-03 (RTCPIPView migration + post-call feedback/donation + chat/profile stability)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/services/callPiPService.ts`
+- `frontend/services/callFeedbackService.ts`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/components/chat/ChatHeader.tsx`
+- `frontend/context/SettingsContext.tsx`
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+- `frontend/App.tsx`
+- `server/internal/models/call_feedback.go`
+- `server/internal/handlers/call_feedback_handler.go`
+- `server/internal/services/wallet_service.go`
+- `server/internal/database/database.go`
+- `server/internal/database/seed.go`
+- `server/cmd/api/main.go`
+- `admin/src/app/calls/page.tsx`
+- `admin/src/components/AdminLayout.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS PiP для звонка опирался на кастомный native `CallPiPModule` в `AppDelegate.mm`; наблюдался нестабильный старт и падения в `setCallActive`.
+  - после завершения звонка не было flow оценки качества связи и быстрого перевода regular LKM в поддержку.
+  - для `ContactProfile` при back в некоторых сценариях возникал white screen.
+  - чат использовал общие portal background-настройки, не было отдельного нейтрального default и отдельного блока управления фоном чата.
+  - в админке не было страницы агрегированных оценок звонков.
+- Стало:
+  - iOS PiP переведен на `react-native-webrtc` (`RTCPIPView` + `startIOSPIP/stopIOSPIP`), кастомный iOS `CallPiPModule` удален из runtime-кода.
+  - в iOS launch добавен `enableMultitaskingCameraAccess=YES` через `WebRTCModuleOptions`.
+  - добавлен post-call flow: оценка 1..5 + причины/комментарий + optional support transfer (только regular LKM).
+  - добавлены backend endpoint’ы:
+    - `POST /api/calls/feedback`
+    - `POST /api/calls/support-transfer`
+    - `GET /api/admin/calls/feedback`
+    - `GET /api/admin/calls/feedback/:id`
+  - добавлен admin экран `/calls` с фильтрами и деталями оценки.
+  - в `ContactProfileScreen` реализован guarded back (`goBack` или `reset` в `Portal`), для `ContactProfile` выставлен `freezeOnBlur: false`.
+  - фон чата отделен от portal-фона: отдельные chat storage keys, нейтральный default color и отдельный UI-блок “Фон чата”.
+  - отступы/выравнивание шапки чата скорректированы через `topInset` и обновленные размеры header/subtitle.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+<RTCPIPView
+  ref={pipViewRef}
+  streamURL={remoteVideoAvailable ? remoteStream.toURL() : undefined}
+  iosPIP={{
+    enabled: true,
+    preferredSize: { width: 9, height: 16 },
+    startAutomatically: true,
+    stopAutomatically: true,
+    fallbackView: (<View style={styles.remotePlaceholder}>...</View>) as any,
+  }}
+/>
+```
+
+`frontend/services/callPiPService.ts`:
+```ts
+setCallActive(active: boolean) {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  androidNativeModule?.setCallActive(active);
+}
+```
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+Class optionsClass = NSClassFromString(@"WebRTCModuleOptions");
+...
+[options setValue:@(YES) forKey:@"enableMultitaskingCameraAccess"];
+```
+
+`server/internal/handlers/call_feedback_handler.go`:
+```go
+protected.Post("/calls/feedback", callFeedbackHandler.CreateFeedback)
+protected.Post("/calls/support-transfer", callFeedbackHandler.SupportTransfer)
+admin.Get("/calls/feedback", callFeedbackHandler.AdminListFeedback)
+admin.Get("/calls/feedback/:id", callFeedbackHandler.AdminGetFeedback)
+```
+
+`frontend/screens/portal/contacts/ContactProfileScreen.tsx`:
+```tsx
+if (navigation.canGoBack() && prevRoute?.name) {
+  navigation.goBack();
+  return;
+}
+navigation.reset({
+  index: 0,
+  routes: [{ name: 'Portal', params: { initialTab: 'contacts' } as any }],
+});
+```
+
+`frontend/context/SettingsContext.tsx`:
+```ts
+const [chatBackground, setChatBackgroundState] = useState<string>('#F2EFE6');
+const [chatBackgroundType, setChatBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
+const [chatWallpaperSlides, setChatWallpaperSlides] = useState<string[]>(getPresetUris());
+```
+
+## 2026-03-03 (Call/Chat/Push hotfix: iOS PiP entry + chat/avatar + bell + Android 13 push permission)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/services/notificationService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS PiP вход блокировался флагом `callActive`; при текущем JS hotfix (`setCallActive` no-op на iOS) кнопка сворачивания звонка могла не переводить экран в PiP.
+  - в личном чате для входящих сообщений (`sender='other'`) отображалась ассистент-аватарка вместо аватара собеседника.
+  - back из `ChatScreen` в отдельных сценариях мог приводить к белому экрану.
+  - колокольчик в header активных сервисов (`contacts/calls`) не открывал панель истории пушей, потому что `NotificationPanel` не рендерился в этой ветке.
+  - на Android 13+ не запрашивался runtime `POST_NOTIFICATIONS`, из-за чего системные push в шторке могли не показываться.
+- Стало:
+  - в iOS нативном модуле PiP снят hard-check `callActive` в `enterPiP`, PiP-кнопка работает независимо от JS-флага активности.
+  - в `MessageList` для `sender='other'` добавлен реальный `recipientUser.avatarUrl` (через `getMediaUrl`) и fallback-инициал.
+  - в `ChatScreen` fallback back-навигации переведен на `navigation.reset(...)` в `Portal`, что убирает blank state.
+  - `NotificationPanel` добавлен в ветку активного сервиса, колокольчик стал функциональным на `contacts/calls`.
+  - в `notificationService` добавлен runtime-запрос `POST_NOTIFICATIONS` для Android API 33+.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+RCT_REMAP_METHOD(enterPiP,
+                 enterPiPWithWidth:(nonnull NSNumber *)width
+                 height:(nonnull NSNumber *)height
+                 resolve:(RCTPromiseResolveBlock)resolve
+                 rejecter:(RCTPromiseRejectBlock)reject) {
+  (void)reject;
+  if (@available(iOS 15.0, *)) {
+    ...
+  }
+}
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const isOtherUser = item.sender === 'other';
+const recipientAvatarUrl = getMediaUrl(recipientUser?.avatarUrl);
+
+{isOtherUser && recipientAvatarUrl ? (
+  <Image source={{ uri: recipientAvatarUrl }} style={styles.avatarImage} />
+) : isOtherUser ? (
+  <View style={styles.avatarFallback}>
+    <Text style={styles.avatarFallbackText}>{recipientInitial}</Text>
+  </View>
+) : (
+  <Image source={assistantAvatar} style={styles.avatarImage} />
+)}
+```
+
+`frontend/screens/ChatScreen.tsx`:
+```tsx
+if (navigation.canGoBack() && prevRoute?.name) {
+  navigation.goBack();
+} else {
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'Portal', params: { initialTab: 'contacts' } }],
+  });
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<View style={styles.content}>
+  {renderContent()}
+</View>
+<NotificationPanel />
+```
+
+`frontend/services/notificationService.ts`:
+```ts
+const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+const alreadyGranted = await PermissionsAndroid.check(permission);
+if (!alreadyGranted) {
+  const result = await PermissionsAndroid.request(permission);
+  const granted = result === PermissionsAndroid.RESULTS.GRANTED;
+  ...
+}
+```
+
 ## 2026-03-02 (Chat back-flow stabilization: Android white screen mitigation + cross-platform back handler fix)
 
 ### Измененные файлы

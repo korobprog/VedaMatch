@@ -4,6 +4,10 @@ apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
 // react-native-config - uses direct path for reliability
+project.ext.envConfigFiles = [
+    debug: ".env",
+    release: ".env.production",
+]
 apply from: file("../../node_modules/react-native-config/android/dotenv.gradle")
 
 def enableProguardInReleaseBuilds = true

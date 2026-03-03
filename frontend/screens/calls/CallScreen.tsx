@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar, AppState } from 'react-native';
-import { RTCView, MediaStream } from 'react-native-webrtc';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, Platform, StatusBar, AppState, Modal, TextInput } from 'react-native';
+import { RTCView, MediaStream, RTCPIPView, startIOSPIP, stopIOSPIP } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -10,19 +10,38 @@ import { useSettings } from '../../context/SettingsContext';
 import { BlurView } from '@react-native-community/blur';
 import { callHistoryService, CallHistoryType } from '../../services/callHistoryService';
 import { callPiPService } from '../../services/callPiPService';
+import { callFeedbackService, CallFeedbackReason } from '../../services/callFeedbackService';
 
 const { width, height } = Dimensions.get('window');
+const FEEDBACK_MIN_DURATION_SEC = 10;
+const QUICK_DONATION_AMOUNTS = [20, 50, 100];
+const FEEDBACK_REASONS: { id: CallFeedbackReason; label: string }[] = [
+    { id: 'audio_quality', label: 'Проблемы со звуком' },
+    { id: 'video_quality', label: 'Проблемы с видео' },
+    { id: 'connection_stability', label: 'Обрывы соединения' },
+    { id: 'latency', label: 'Задержка' },
+    { id: 'echo', label: 'Эхо/шум' },
+];
 
 export const CallScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
     const { vTheme } = useSettings();
     // @ts-ignore
-    const { targetId, isIncoming, callerName, autoAccept } = route.params || {};
+    const { targetId, isIncoming, callerName, autoAccept, callUUID } = route.params || {};
     const autoAcceptTriggeredRef = useRef(false);
     const incomingRingtoneActiveRef = useRef(false);
     const outgoingRingbackActiveRef = useRef(false);
     const pipTransitionRef = useRef(false);
+    const pipViewRef = useRef<any>(null);
+    const callConnectedAtRef = useRef<number | null>(null);
+    const endingRef = useRef(false);
+    const feedbackShownRef = useRef(false);
+    const callSessionIdRef = useRef<string>(
+        typeof callUUID === 'string' && callUUID.trim()
+            ? callUUID.trim()
+            : `call-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    );
 
     const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
     const callStartedAtRef = useRef<number | null>(null);
@@ -38,6 +57,17 @@ export const CallScreen = () => {
     const [localVideoAvailable, setLocalVideoAvailable] = useState(false);
     const [remoteVideoAvailable, setRemoteVideoAvailable] = useState(false);
     const [isPiPSupported, setIsPiPSupported] = useState(false);
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [feedbackStep, setFeedbackStep] = useState<'rating' | 'donation'>('rating');
+    const [feedbackRating, setFeedbackRating] = useState(0);
+    const [feedbackReasons, setFeedbackReasons] = useState<CallFeedbackReason[]>([]);
+    const [feedbackComment, setFeedbackComment] = useState('');
+    const [feedbackBusy, setFeedbackBusy] = useState(false);
+    const [donationBusy, setDonationBusy] = useState(false);
+    const [selectedDonationAmount, setSelectedDonationAmount] = useState<number | null>(null);
+    const [customDonationAmount, setCustomDonationAmount] = useState('');
+    const [feedbackError, setFeedbackError] = useState('');
+
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
     const startIncomingRingtone = () => {
         if (incomingRingtoneActiveRef.current) {
@@ -85,6 +115,20 @@ export const CallScreen = () => {
             outgoingRingbackActiveRef.current = false;
         }
     };
+
+    const getConnectedDurationSec = React.useCallback(() => {
+        if (!callConnectedAtRef.current) {
+            return 0;
+        }
+        return Math.max(0, Math.round((Date.now() - callConnectedAtRef.current) / 1000));
+    }, []);
+
+    const shouldPromptFeedback = React.useCallback(() => {
+        if (!hasAcceptedRef.current) {
+            return false;
+        }
+        return getConnectedDurationSec() >= FEEDBACK_MIN_DURATION_SEC;
+    }, [getConnectedDurationSec]);
 
     useEffect(() => {
         if (!isIncoming || hasAccepted) {
@@ -178,6 +222,9 @@ export const CallScreen = () => {
                     const tracks = rStream.getTracks();
                     const streamHasVideo = hasVideoTrack(rStream);
                     console.warn(`[UI] Received remote stream: ${rStream.id}, url: ${rStream.toURL().substring(0, 30)}... Tracks: ${tracks.length}`);
+                    if (!callConnectedAtRef.current) {
+                        callConnectedAtRef.current = Date.now();
+                    }
                     stopOutgoingRingback();
                     if (mounted) {
                         setRemoteStream(rStream);
@@ -248,7 +295,7 @@ export const CallScreen = () => {
     }, [hasAccepted]);
 
     useEffect(() => {
-        if (!isPiPSupported || !hasAccepted) {
+        if (Platform.OS !== 'android' || !isPiPSupported || !hasAccepted) {
             return;
         }
 
@@ -313,8 +360,9 @@ export const CallScreen = () => {
             : 'outgoing';
 
         const resolvedName = String(callerName || '').trim() || (targetId ? `User ${targetId}` : 'Unknown');
-        const durationSec = callStartedAtRef.current
-            ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
+        const durationStart = callConnectedAtRef.current || callStartedAtRef.current;
+        const durationSec = durationStart
+            ? Math.max(0, Math.round((Date.now() - durationStart) / 1000))
             : 0;
 
         await callHistoryService.addEntry({
@@ -325,11 +373,141 @@ export const CallScreen = () => {
         });
     }, [callerName, isIncoming, targetId]);
 
+    const resetFeedbackState = React.useCallback(() => {
+        setFeedbackStep('rating');
+        setFeedbackRating(0);
+        setFeedbackReasons([]);
+        setFeedbackComment('');
+        setSelectedDonationAmount(null);
+        setCustomDonationAmount('');
+        setFeedbackError('');
+    }, []);
+
+    const finalizeClose = React.useCallback((navigateBack: boolean) => {
+        if (endingRef.current) {
+            if (navigateBack) {
+                navigation.goBack();
+            }
+            return;
+        }
+        endingRef.current = true;
+
+        stopIncomingRingtone();
+        stopOutgoingRingback();
+        callPiPService.setCallActive(false);
+        void callPiPService.stopPiP();
+        if (Platform.OS === 'ios') {
+            try {
+                stopIOSPIP(pipViewRef);
+            } catch {
+                // no-op
+            }
+        }
+        void persistCallHistory().catch((error) => {
+            console.warn('[CallScreen] Failed to persist call history', error);
+        });
+        webRTCService.sendHangup();
+        webRTCService.endCall();
+
+        if (navigateBack) {
+            navigation.goBack();
+        }
+    }, [navigation, persistCallHistory]);
+
+    const openFeedbackFlow = React.useCallback(() => {
+        if (feedbackShownRef.current) {
+            finalizeClose(true);
+            return;
+        }
+        feedbackShownRef.current = true;
+        resetFeedbackState();
+        setFeedbackVisible(true);
+    }, [finalizeClose, resetFeedbackState]);
+
+    const submitFeedback = React.useCallback(async () => {
+        if (feedbackRating < 1 || feedbackRating > 5 || feedbackBusy) {
+            return;
+        }
+
+        setFeedbackBusy(true);
+        setFeedbackError('');
+        const startedAt = callConnectedAtRef.current ? new Date(callConnectedAtRef.current) : null;
+        const endedAt = new Date();
+
+        try {
+            await callFeedbackService.submitFeedback({
+                callSessionId: callSessionIdRef.current,
+                peerUserId: typeof targetId === 'number' && Number.isFinite(targetId) ? targetId : undefined,
+                direction: isIncoming ? 'incoming' : 'outgoing',
+                startedAt: startedAt ? startedAt.toISOString() : undefined,
+                endedAt: endedAt.toISOString(),
+                durationSec: getConnectedDurationSec(),
+                rating: feedbackRating,
+                reasons: feedbackReasons,
+                comment: feedbackComment.trim() || undefined,
+                platform: Platform.OS,
+            });
+        } catch (error) {
+            console.warn('[CallScreen] submitFeedback failed', error);
+            setFeedbackError('Не удалось отправить оценку. Можно продолжить.');
+        } finally {
+            setFeedbackBusy(false);
+            setFeedbackStep('donation');
+        }
+    }, [feedbackBusy, feedbackComment, feedbackRating, feedbackReasons, getConnectedDurationSec, isIncoming, targetId]);
+
+    const completeFeedbackFlow = React.useCallback(() => {
+        setFeedbackVisible(false);
+        resetFeedbackState();
+        finalizeClose(true);
+    }, [finalizeClose, resetFeedbackState]);
+
+    const submitDonation = React.useCallback(async () => {
+        if (donationBusy) {
+            return;
+        }
+        const customParsed = Number.parseInt(customDonationAmount.trim(), 10);
+        const amount = selectedDonationAmount ?? (Number.isFinite(customParsed) ? customParsed : 0);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setFeedbackError('Введите корректную сумму.');
+            return;
+        }
+
+        setDonationBusy(true);
+        setFeedbackError('');
+        try {
+            await callFeedbackService.sendSupportTransfer({
+                callSessionId: callSessionIdRef.current,
+                amount,
+            });
+            completeFeedbackFlow();
+        } catch (error) {
+            console.warn('[CallScreen] submitDonation failed', error);
+            setFeedbackError('Перевод не выполнен. Можно пропустить.');
+        } finally {
+            setDonationBusy(false);
+        }
+    }, [completeFeedbackFlow, customDonationAmount, donationBusy, selectedDonationAmount]);
+
+    const skipDonation = React.useCallback(() => {
+        completeFeedbackFlow();
+    }, [completeFeedbackFlow]);
+
     useEffect(() => {
         return () => {
+            if (endingRef.current) {
+                return;
+            }
             stopIncomingRingtone();
             stopOutgoingRingback();
             void callPiPService.stopPiP();
+            if (Platform.OS === 'ios') {
+                try {
+                    stopIOSPIP(pipViewRef);
+                } catch {
+                    // no-op
+                }
+            }
             void persistCallHistory().catch((error) => {
                 console.warn('[CallScreen] Failed to persist call history', error);
             });
@@ -391,18 +569,28 @@ export const CallScreen = () => {
     }, [autoAccept, hasAccepted, isIncoming]);
 
     const handleHangup = () => {
-        stopIncomingRingtone();
-        stopOutgoingRingback();
-        callPiPService.setCallActive(false);
-        void callPiPService.stopPiP();
-        void persistCallHistory().catch((error) => {
-            console.warn('[CallScreen] Failed to persist call history on hangup', error);
-        });
-        webRTCService.sendHangup();
-        navigation.goBack();
+        const promptFeedback = shouldPromptFeedback();
+        finalizeClose(!promptFeedback);
+        if (promptFeedback) {
+            openFeedbackFlow();
+        }
     };
 
     const handleEnterPiP = async () => {
+        if (Platform.OS === 'ios') {
+            if (!pipViewRef.current) {
+                setStatus('PiP будет доступен после подключения видео');
+                return;
+            }
+            try {
+                startIOSPIP(pipViewRef);
+            } catch (error) {
+                console.warn('[CallScreen] Failed to start iOS PiP', error);
+                setStatus('PiP недоступен');
+            }
+            return;
+        }
+
         const entered = await callPiPService.enterPiP(9, 16);
         if (!entered) {
             setStatus('PiP недоступен');
@@ -460,6 +648,14 @@ export const CallScreen = () => {
         setStreamVersion(v => v + 1);
     };
 
+    const toggleFeedbackReason = (reason: CallFeedbackReason) => {
+        setFeedbackReasons((prev) => (
+            prev.includes(reason)
+                ? prev.filter((item) => item !== reason)
+                : [...prev, reason]
+        ));
+    };
+
     const Background = () => {
         if (hasAccepted && remoteStream) {
             // If remote stream is active, the video is the background.
@@ -513,15 +709,52 @@ export const CallScreen = () => {
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
             <Background />
 
-            {remoteStream && remoteVideoAvailable ? (
-                <RTCView
-                    key={`remote-${remoteStream.id}-${streamVersion}`}
-                    streamURL={remoteStream.toURL()}
-                    style={styles.remoteVideo}
-                    objectFit="cover"
-                    zOrder={0}
-                    mirror={false}
-                />
+            {remoteStream ? (
+                Platform.OS === 'ios' ? (
+                    <RTCPIPView
+                        ref={pipViewRef}
+                        key={`remote-ios-pip-${remoteStream.id}-${streamVersion}`}
+                        streamURL={remoteVideoAvailable ? remoteStream.toURL() : undefined}
+                        style={styles.remoteVideo}
+                        objectFit="cover"
+                        zOrder={0}
+                        mirror={false}
+                        iosPIP={{
+                            enabled: true,
+                            preferredSize: { width: 9, height: 16 },
+                            startAutomatically: true,
+                            stopAutomatically: true,
+                            fallbackView: (
+                                <View style={styles.remotePlaceholder}>
+                                    <View style={styles.avatarLarge}>
+                                        <User size={60} color="#fff" />
+                                    </View>
+                                    <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
+                                    <Text style={styles.statusText}>{status}</Text>
+                                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
+                                </View>
+                            ) as any,
+                        }}
+                    />
+                ) : remoteVideoAvailable ? (
+                    <RTCView
+                        key={`remote-${remoteStream.id}-${streamVersion}`}
+                        streamURL={remoteStream.toURL()}
+                        style={styles.remoteVideo}
+                        objectFit="cover"
+                        zOrder={0}
+                        mirror={false}
+                    />
+                ) : (
+                    <View style={styles.remotePlaceholder}>
+                        <View style={styles.avatarLarge}>
+                            <User size={60} color="#fff" />
+                        </View>
+                        <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
+                        <Text style={styles.statusText}>{status}</Text>
+                        <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
+                    </View>
+                )
             ) : (
                 <View style={styles.remotePlaceholder}>
                     <View style={styles.avatarLarge}>
@@ -529,7 +762,6 @@ export const CallScreen = () => {
                     </View>
                     <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
                     <Text style={styles.statusText}>{status}</Text>
-                    {/* <Text style={styles.debugText}>ICE: {iceState}</Text> */}
                     <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
                 </View>
             )}
@@ -580,6 +812,132 @@ export const CallScreen = () => {
                     </View>
                 </View>
             </View>
+
+            <Modal
+                visible={feedbackVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={skipDonation}
+            >
+                <View style={styles.feedbackBackdrop}>
+                    <View style={styles.feedbackCard}>
+                        <Text style={styles.feedbackTitle}>
+                            {feedbackStep === 'rating' ? 'Оцените качество связи' : 'Поддержать качество связи'}
+                        </Text>
+                        <Text style={styles.feedbackSubtitle}>
+                            {feedbackStep === 'rating'
+                                ? 'Помогите улучшить звонки после завершения разговора.'
+                                : 'Быстрый перевод только из регулярного LKM на счет VedaMatch.'}
+                        </Text>
+
+                        {feedbackStep === 'rating' ? (
+                            <>
+                                <View style={styles.ratingRow}>
+                                    {[1, 2, 3, 4, 5].map((value) => (
+                                        <TouchableOpacity
+                                            key={`rating-${value}`}
+                                            style={[
+                                                styles.ratingDot,
+                                                feedbackRating >= value && styles.ratingDotActive,
+                                            ]}
+                                            onPress={() => setFeedbackRating(value)}
+                                        >
+                                            <Text style={styles.ratingDotText}>★</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <View style={styles.reasonWrap}>
+                                    {FEEDBACK_REASONS.map((reason) => {
+                                        const active = feedbackReasons.includes(reason.id);
+                                        return (
+                                            <TouchableOpacity
+                                                key={reason.id}
+                                                style={[styles.reasonChip, active && styles.reasonChipActive]}
+                                                onPress={() => toggleFeedbackReason(reason.id)}
+                                            >
+                                                <Text style={[styles.reasonChipText, active && styles.reasonChipTextActive]}>
+                                                    {reason.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                <TextInput
+                                    style={styles.feedbackInput}
+                                    placeholder="Комментарий (необязательно)"
+                                    placeholderTextColor="rgba(255,255,255,0.45)"
+                                    value={feedbackComment}
+                                    onChangeText={setFeedbackComment}
+                                    multiline
+                                    maxLength={500}
+                                />
+
+                                <View style={styles.feedbackActions}>
+                                    <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={completeFeedbackFlow} disabled={feedbackBusy}>
+                                        <Text style={styles.feedbackSecondaryBtnText}>Пропустить</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.feedbackPrimaryBtn, (feedbackRating < 1 || feedbackBusy) && styles.feedbackBtnDisabled]}
+                                        onPress={() => { void submitFeedback(); }}
+                                        disabled={feedbackRating < 1 || feedbackBusy}
+                                    >
+                                        <Text style={styles.feedbackPrimaryBtnText}>{feedbackBusy ? 'Отправка...' : 'Далее'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.donationRow}>
+                                    {QUICK_DONATION_AMOUNTS.map((amount) => {
+                                        const active = selectedDonationAmount === amount;
+                                        return (
+                                            <TouchableOpacity
+                                                key={`donation-${amount}`}
+                                                style={[styles.donationBtn, active && styles.donationBtnActive]}
+                                                onPress={() => {
+                                                    setSelectedDonationAmount(amount);
+                                                    setCustomDonationAmount('');
+                                                }}
+                                            >
+                                                <Text style={[styles.donationBtnText, active && styles.donationBtnTextActive]}>{amount}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                <TextInput
+                                    style={styles.feedbackInput}
+                                    placeholder="Своя сумма LKM"
+                                    placeholderTextColor="rgba(255,255,255,0.45)"
+                                    value={customDonationAmount}
+                                    onChangeText={(value) => {
+                                        setCustomDonationAmount(value.replace(/[^\d]/g, ''));
+                                        setSelectedDonationAmount(null);
+                                    }}
+                                    keyboardType="number-pad"
+                                />
+
+                                <View style={styles.feedbackActions}>
+                                    <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={skipDonation} disabled={donationBusy}>
+                                        <Text style={styles.feedbackSecondaryBtnText}>Пропустить</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.feedbackPrimaryBtn, donationBusy && styles.feedbackBtnDisabled]}
+                                        onPress={() => { void submitDonation(); }}
+                                        disabled={donationBusy}
+                                    >
+                                        <Text style={styles.feedbackPrimaryBtnText}>{donationBusy ? 'Перевод...' : 'Поддержать'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
+
+                        {!!feedbackError && <Text style={styles.feedbackErrorText}>{feedbackError}</Text>}
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -777,6 +1135,149 @@ const styles = StyleSheet.create({
         bottom: -24,
         width: 100,
         textAlign: 'center'
+    },
+    feedbackBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.65)',
+        justifyContent: 'center',
+        paddingHorizontal: 20,
+    },
+    feedbackCard: {
+        backgroundColor: '#0F172A',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        padding: 16,
+    },
+    feedbackTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    feedbackSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 13,
+        marginTop: 6,
+        marginBottom: 12,
+    },
+    ratingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    ratingDot: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ratingDotActive: {
+        backgroundColor: '#F59E0B',
+    },
+    ratingDotText: {
+        color: '#fff',
+        fontSize: 20,
+    },
+    reasonWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 12,
+    },
+    reasonChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    reasonChipActive: {
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,0.18)',
+    },
+    reasonChipText: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 12,
+    },
+    reasonChipTextActive: {
+        color: '#FDE68A',
+    },
+    feedbackInput: {
+        minHeight: 44,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        color: '#fff',
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginBottom: 12,
+    },
+    feedbackActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+    feedbackSecondaryBtn: {
+        flex: 1,
+        height: 42,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    feedbackSecondaryBtnText: {
+        color: '#E2E8F0',
+        fontWeight: '600',
+    },
+    feedbackPrimaryBtn: {
+        flex: 1,
+        height: 42,
+        borderRadius: 10,
+        backgroundColor: '#F59E0B',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    feedbackPrimaryBtnText: {
+        color: '#111827',
+        fontWeight: '700',
+    },
+    feedbackBtnDisabled: {
+        opacity: 0.5,
+    },
+    donationRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 12,
+    },
+    donationBtn: {
+        flex: 1,
+        height: 40,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    donationBtnActive: {
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,0.18)',
+    },
+    donationBtnText: {
+        color: '#E2E8F0',
+        fontWeight: '600',
+    },
+    donationBtnTextActive: {
+        color: '#FDE68A',
+    },
+    feedbackErrorText: {
+        marginTop: 10,
+        color: '#FCA5A5',
+        fontSize: 12,
     },
     debugText: {
         color: '#ffeb3b',

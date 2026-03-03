@@ -30,12 +30,16 @@
   - `xcrun devicectl device install app --device <UDID> <path-to-vedamatch.app>`
   - затем верификацию: `xcrun devicectl device info apps --device <UDID> --bundle-id com.VedaMatch.vedamatch --columns '*'`.
 - Если при `xcodebuild` появляется `database is locked`, значит параллельно запущены конкурирующие сборки в одном `DerivedData`; перед повтором оставить только один активный процесс сборки.
+- Для iOS video PiP текущий рабочий путь — `react-native-webrtc` (`RTCPIPView` + `startIOSPIP/stopIOSPIP`) в `frontend/screens/calls/CallScreen.tsx`; custom iOS bridge `CallPiPModule` удален из `frontend/ios/vedamatch/AppDelegate.mm`.
+- В `frontend/services/callPiPService.ts` iOS путь intentionally no-op для native `CallPiPModule`; Android PiP через `CallPiPModule` остается активным.
+- В `frontend/ios/vedamatch/AppDelegate.mm` включен `WebRTCModuleOptions.enableMultitaskingCameraAccess = YES` для стабильной камеры в фоне/мультитаскинге.
 
 ## Android Release
 - Актуальная Android production-версия:
   - `versionCode=18`
   - `versionName=1.1.16`
   - файл: `frontend/android/app/build.gradle`.
+- Для стабильного production-поведения Android в `frontend/android/app/build.gradle` должен быть `project.ext.envConfigFiles` с привязкой `release -> .env.production` (иначе `dotenv.gradle` может взять общий `.env` с `APP_ENV=development`).
 - Проверенный порядок выката на физическое устройство:
   - сборка: `cd frontend/android && ./gradlew clean assembleRelease`
   - установка: `adb install -r frontend/android/app/build/outputs/apk/release/app-release.apk`
@@ -52,6 +56,26 @@
 - Для `frontend/screens/ChatScreen.tsx` аппаратный back переведен на `useFocusEffect` + единый `handleBackNavigation`, чтобы listener был активен только при фокусе экрана.
 - В `frontend/App.tsx` для `Stack.Screen name="Chat"` отключен `freezeOnBlur` на Android (`false`) как mitigation против blank/white экрана при возврате.
 - В `frontend/android/app/src/main/AndroidManifest.xml` включена совместимость back-поведения с RN-роутингом: `android:enableOnBackInvokedCallback="false"`.
+- В `handleBackNavigation` добавлен fallback через `navigation.reset({ routes:[{name:'Portal'}] })`, если безопасного `goBack()` нет; это уменьшает риск белого экрана при нестабильном состоянии стека.
+- Для `ContactProfileScreen` back сделан guarded (`goBack` при валидном prev route, иначе `navigation.reset(...Portal contacts...)`), а в `frontend/App.tsx` для `ContactProfile` принудительно `freezeOnBlur: false` для снижения white-screen регрессий.
+
+## Chat UI Reliability
+- В `frontend/components/chat/MessageList.tsx` входящие P2P-сообщения (`sender === 'other'`) теперь используют реальный `recipientUser.avatarUrl` (через `getMediaUrl`) вместо ассистент-аватара; при отсутствии фото показывается инициал.
+- В `frontend/screens/portal/PortalMainScreen.tsx` `NotificationPanel` рендерится не только в grid-режиме, но и в активных сервисах (`contacts/calls`), чтобы колокольчик открывал историю уведомлений на обоих экранах.
+- В `frontend/components/chat/ChatHeader.tsx` и `frontend/screens/ChatScreen.tsx` выровнены отступы/высота шапки под VedaMatch: header получает `topInset`, исправлены line-height/title-subtitle clipping.
+- Для светлых chat backgrounds добавлен отдельный контрастный режим:
+  - `frontend/utils/chatBackgroundContrast.ts` определяет светлый/темный цвет и градиент;
+  - `frontend/components/chat/ChatHeader.tsx` для светлого фона использует более темные title/subtitle/icon цвета в VedaMatch-теме;
+  - `frontend/components/chat/ChatInput.tsx` адаптирует `inputColor/placeholder/icon` и фон поля ввода под светлый фон чата;
+  - `frontend/screens/ChatScreen.tsx` переключает `StatusBar` на `dark-content` при светлом фоне.
+- Фон чата отделен от portal-фона:
+  - в `frontend/context/SettingsContext.tsx` добавлены отдельные chat keys (`chat_background*`, `chat_wallpaper_slides*`);
+  - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
+  - в `frontend/screens/settings/AppSettingsScreen.tsx` добавлен отдельный блок “Фон чата” (пресеты/галерея/слайдшоу);
+  - `frontend/screens/ChatScreen.tsx` рендерит background только из chat-specific настроек.
+
+## Push Notifications
+- На Android 13+ (`API 33`) в `frontend/services/notificationService.ts` обязателен runtime-запрос `POST_NOTIFICATIONS` через `PermissionsAndroid`; без этого FCM push в системной шторке не появятся даже при валидном токене.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.
@@ -741,14 +765,37 @@
     - `CallScreen` синхронизирует `setCallActive(...)`, пробует auto-enter PiP при `AppState=background` и показывает ручную кнопку PiP (`Minimize2`) в панели звонка.
   - iOS:
     - в `frontend/ios/vedamatch/Info.plist` для `UIBackgroundModes` добавлены `audio` и `voip` (вместе с `remote-notification`) для устойчивости звонка в фоне;
-    - в `frontend/ios/vedamatch/AppDelegate.mm` добавлен нативный bridge `CallPiPModule` на `AVPictureInPictureController` + `AVPictureInPictureVideoCallViewController` (iOS 15+);
-    - `CallPiPModule.setCallActive` и `stopPiPIfNeeded` обернуты в `@try/@catch`, чтобы исключить падение приложения при нативном исключении внутри PiP lifecycle;
-    - hotfix стабильности: `setCallActive` больше не вызывается на iOS (в `CallScreen` и `callPiPService` вызов ограничен Android), что убирает observed `EXC_BAD_ACCESS` в `CallPiPModule setCallActive:`.
-    - `frontend/services/callPiPService.ts` расширен на iOS (`isSupported/enterPiP/stopPiP`);
-    - `CallScreen` использует общий флаг `isPiPSupported` (не Android-only) и авто-входит в PiP при `AppState=inactive/background` для активного вызова.
+    - в `frontend/screens/calls/CallScreen.tsx` iOS remote-video переведен на `RTCPIPView` с `iosPIP` опциями и `fallbackView`, запуск PiP — через `startIOSPIP(pipViewRef)`;
+    - в `frontend/ios/vedamatch/AppDelegate.mm` убран legacy runtime `CallPiPModule`, чтобы исключить повторные `EXC_BAD_ACCESS` в `setCallActive`;
+    - `frontend/services/callPiPService.ts` на iOS работает как no-op для native PiP и используется только Android native path;
+    - авто-enter PiP по `AppState=background` остается только на Android, на iOS работает ручной сценарий через кнопку сворачивания.
   - Xcode схема:
     - `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme` переведена на `LaunchAction buildConfiguration=Release`, чтобы запуск через кнопку `Run` ставил production, а не debug.
 - В `server/internal/handlers/turn_handler.go` выдача ICE сделана совместимой с двумя схемами TURN auth: static credentials (`TURN_USER/TURN_PASSWORD`) и HMAC credentials (`TURN_SECRET`).
+
+## Call Quality Feedback & Support Transfer
+- Добавлена модель `CallQualityFeedback` (`server/internal/models/call_feedback.go`) и миграция в `AutoMigrate` (`server/internal/database/database.go`).
+- Seed настроек (`server/internal/database/seed.go`) включает:
+  - `calls.feedback.enabled`
+  - `calls.support_transfer.enabled`
+  - `calls.support.wallet_user_id`
+- Backend endpoints:
+  - `POST /api/calls/feedback`
+  - `POST /api/calls/support-transfer`
+  - `GET /api/admin/calls/feedback`
+  - `GET /api/admin/calls/feedback/:id`
+  - регистрация маршрутов: `server/cmd/api/main.go`, реализация: `server/internal/handlers/call_feedback_handler.go`.
+- Wallet-path для доната:
+  - `TransferRegularOnlyWithDedup(...)` в `server/internal/services/wallet_service.go`;
+  - списывает только `regular balance`, bonus не используется;
+  - идемпотентность по `dedupKey`, self-transfer запрещен.
+- Frontend post-call UX:
+  - `frontend/screens/calls/CallScreen.tsx` показывает `CallFeedbackModal` только при `accepted` и длительности >= 10 сек;
+  - шаг 1: рейтинг/причины/комментарий -> `POST /calls/feedback`;
+  - шаг 2: optional быстрый перевод 20/50/100 или custom -> `POST /calls/support-transfer`;
+  - ошибки API не блокируют закрытие вызова.
+- Клиентский API вынесен в `frontend/services/callFeedbackService.ts`.
+- В админке добавлен экран `/calls` (`admin/src/app/calls/page.tsx`) и пункт меню `Calls Feedback` (`admin/src/components/AdminLayout.tsx`).
 
 ## CRM Admin Panel (Next.js)
 - Основной UI админки расположен в `admin/` (Next.js App Router, `next@16.1.1-canary`, React 19 RC), backend admin API — в `server/cmd/api/main.go` и `server/internal/handlers/admin_handler.go`.

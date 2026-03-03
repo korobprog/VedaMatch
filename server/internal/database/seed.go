@@ -80,6 +80,18 @@ func SeedSystemSettings() {
 			Value: "https://api.routeway.ai/v1/chat/completions",
 		},
 		{
+			Key:   "calls.feedback.enabled",
+			Value: "true",
+		},
+		{
+			Key:   "calls.support_transfer.enabled",
+			Value: "true",
+		},
+		{
+			Key:   "calls.support.wallet_user_id",
+			Value: "",
+		},
+		{
 			Key:   "PATH_TRACKER_ENABLED",
 			Value: "true",
 		},
