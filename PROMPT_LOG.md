@@ -371,3 +371,5 @@
 2026-03-03 23:46:06 +1000 | Запрос: "в сервисе медиа библиотека: все организации видны только в PRO, по умолчанию контент своей org/для всех"
 2026-03-03 23:46:06 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: Org-видимость в Multimedia через PRO (до decision-complete)"
 2026-03-04 00:14:41 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: Festival-раздел в Ads: гибридный календарь (Ads + Sadhu Sanga)"
+2026-03-04 00:59:17 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: PROD Monitoring & Logging для Vedamatch (Grafana + Loki + Prometheus + Promtail)"
+2026-03-04 09:40:45 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: PROD Monitoring & Logging для Vedamatch (Grafana + Loki + Prometheus + Promtail)"

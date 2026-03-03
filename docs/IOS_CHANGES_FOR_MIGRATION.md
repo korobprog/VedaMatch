@@ -1,5 +1,79 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (PROD Observability rollout: backend `/metrics` + monitoring IaC)
+
+### Измененные файлы
+- `server/go.mod`
+- `server/go.sum`
+- `server/cmd/api/main.go`
+- `server/internal/middleware/observability_prometheus.go`
+- `server/internal/middleware/observability_prometheus_test.go`
+- `infra/monitoring/docker-compose.monitoring.prod.yml`
+- `infra/monitoring/prometheus/prometheus.yml`
+- `infra/monitoring/prometheus/alerts.yml`
+- `infra/monitoring/prometheus/recording_rules.yml`
+- `infra/monitoring/loki/loki.yml`
+- `infra/monitoring/promtail/promtail.yml`
+- `infra/monitoring/blackbox/blackbox.yml`
+- `infra/monitoring/grafana/provisioning/datasources/datasources.yml`
+- `infra/monitoring/grafana/provisioning/dashboards/dashboards.yml`
+- `infra/monitoring/grafana/provisioning/alerting/contact-points.yml`
+- `infra/monitoring/grafana/provisioning/alerting/policies.yml`
+- `infra/monitoring/grafana/dashboards/vedamatch-overview.json`
+- `infra/monitoring/grafana/dashboards/vedamatch-logs.json`
+- `infra/monitoring/grafana/dashboards/vedamatch-probes.json`
+- `infra/monitoring/.env.monitoring.example`
+- `infra/monitoring/README.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - backend не имел endpoint `GET /metrics`, Prometheus не мог собирать RED-метрики API;
+  - в репозитории отсутствовал production IaC-стек Grafana/Loki/Prometheus/Promtail/Blackbox;
+  - не было формализованных alert-rules для инцидентов host/API/log-ingestion/synthetic checks.
+- Стало:
+  - backend экспортирует Prometheus метрики через `GET /metrics` с bearer-защитой (`METRICS_ENABLED`, `METRICS_BEARER_TOKEN`);
+  - добавлен HTTP middleware RED-метрик:
+    - `http_requests_total{method,route,status_class}`
+    - `http_request_duration_seconds{method,route,status_class}`
+    - `http_in_flight_requests`;
+  - добавлен полноценный `infra/monitoring` для прода:
+    - Prometheus scrape/rules/alerts (включая `vedamatch-server`, `node-exporter`, `cadvisor`, `loki`, `promtail`, `blackbox`);
+    - Loki TSDB + S3 + retention `30d`;
+    - Promtail docker/journal ingest с фильтрацией scope (`vedamatch-*`, `dokploy-traefik`);
+    - Grafana provisioning (datasources, dashboards, alerting policies/contact points);
+    - Grafana публикуется только на loopback (`127.0.0.1:13000`) для доступа через SSH tunnel.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+app.Use(middleware.PrometheusHTTPMetrics())
+app.Get("/metrics", middleware.MetricsEndpoint())
+```
+
+`server/internal/middleware/observability_prometheus.go`:
+```go
+if parseMetricsBearerToken(c.Get("Authorization")) != expectedToken {
+    return c.SendStatus(fiber.StatusUnauthorized)
+}
+```
+
+`infra/monitoring/prometheus/prometheus.yml`:
+```yaml
+- job_name: vedamatch-server
+  metrics_path: /metrics
+  authorization:
+    type: Bearer
+    credentials_file: /etc/prometheus/secrets/metrics_bearer_token
+```
+
+`infra/monitoring/docker-compose.monitoring.prod.yml`:
+```yaml
+grafana:
+  ports:
+    - "127.0.0.1:13000:3000"
+```
+
 ## 2026-03-03 (Multimedia org-visibility via PRO scope: backend + admin + RN)
 
 ### Измененные файлы

@@ -1,0 +1,85 @@
+groups:
+  - name: vedamatch-critical-alerts
+    rules:
+      - alert: InstanceDown
+        expr: up{job=~"vedamatch-server|node-exporter|cadvisor|loki|promtail|blackbox-http"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance down: {{ $labels.job }}"
+          description: "Target {{ $labels.instance }} is down for more than 1 minute."
+
+      - alert: High5xxRate
+        expr: job:http_5xx_ratio:rate5m > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx rate on Vedamatch API"
+          description: "HTTP 5xx ratio is above 2% for the last 5 minutes."
+
+      - alert: HighLatencyP95
+        expr: max by (job) (job:http_request_duration_seconds:p95_10m) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency on Vedamatch API"
+          description: "p95 request latency is above 800ms for more than 10 minutes."
+
+      - alert: DiskLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+            /
+            node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+          ) < 0.15
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on production host"
+          description: "Root filesystem free space is below 15%."
+
+      - alert: MemoryPressure
+        expr: |
+          (
+            1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          ) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory pressure on production host"
+          description: "Memory utilization is above 90% for more than 10 minutes."
+
+      - alert: ContainerRestartsSpike
+        expr: |
+          sum by (name) (
+            changes(container_start_time_seconds{name=~".*(vedamatch-.*|dokploy-traefik).*"}[10m])
+          ) > 3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container restarts spike detected"
+          description: "Container {{ $labels.name }} restarted more than 3 times in 10 minutes."
+
+      - alert: LokiIngestionErrors
+        expr: rate(loki_distributor_ingester_append_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki ingestion errors detected"
+          description: "Loki has non-zero ingester append failures over the last 5 minutes."
+
+      - alert: ProbeFailed
+        expr: probe_success{job="blackbox-http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Synthetic probe failed: {{ $labels.instance }}"
+          description: "Blackbox HTTP probe to {{ $labels.instance }} failed for more than 2 minutes."

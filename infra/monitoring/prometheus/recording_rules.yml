@@ -1,0 +1,26 @@
+groups:
+  - name: vedamatch-recording-rules
+    interval: 30s
+    rules:
+      - record: job:http_requests_total:rate5m
+        expr: |
+          sum by (job, method, route, status_class) (
+            rate(http_requests_total{job="vedamatch-server"}[5m])
+          )
+
+      - record: job:http_5xx_ratio:rate5m
+        expr: |
+          (
+            sum(rate(http_requests_total{job="vedamatch-server",status_class="5xx"}[5m]))
+          )
+          /
+          clamp_min(sum(rate(http_requests_total{job="vedamatch-server"}[5m])), 1)
+
+      - record: job:http_request_duration_seconds:p95_10m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, method, route, le) (
+              rate(http_request_duration_seconds_bucket{job="vedamatch-server"}[10m])
+            )
+          )

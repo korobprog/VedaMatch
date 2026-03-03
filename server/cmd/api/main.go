@@ -156,6 +156,14 @@ func main() {
 	app.Use(middleware.RequestID())
 	app.Use(logger.New())
 	app.Use(middleware.ErrorLog())
+	app.Use(middleware.PrometheusHTTPMetrics())
+
+	if middleware.MetricsEnabled() {
+		log.Println("[Observability] Prometheus metrics endpoint enabled at /metrics")
+	} else {
+		log.Println("[Observability] Prometheus metrics endpoint disabled (set METRICS_ENABLED=true to enable)")
+	}
+	app.Get("/metrics", middleware.MetricsEndpoint())
 
 	// Universal Links & App Links support
 	app.Get("/.well-known/apple-app-site-association", func(c *fiber.Ctx) error {

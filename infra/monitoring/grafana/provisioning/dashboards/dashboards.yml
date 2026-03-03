@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: vedamatch-dashboards
+    orgId: 1
+    folder: Vedamatch Production
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

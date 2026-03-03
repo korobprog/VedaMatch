@@ -1212,3 +1212,20 @@
 - Экран `frontend/screens/portal/dating/EditDatingProfileScreen.tsx` не должен использовать `datingService.getUsers()` для загрузки собственного профиля: endpoint `/contacts` может вернуть объект пагинации (`items/hasMore/...`), а не массив.
 - Рабочий путь: загружать профиль через `datingService.getProfile(userId)` (`GET /dating/profile/:id`), чтобы получать один объект пользователя без `find` по массиву.
 - Для поля `intentions` нужен defensive parse: поддерживать и строку CSV, и массив, иначе возможны ошибки при несовпадении формата ответа API.
+
+## Production Observability (Grafana/Loki/Prometheus/Promtail)
+- В репозитории добавлен отдельный IaC-каталог: `infra/monitoring` с compose-стеком и provisioning-конфигами.
+- Состав production-стека:
+  - `prometheus` (retention `30d`, rules + alerts + recording rules);
+  - `loki` (TSDB + S3 backend, compactor retention `30d`);
+  - `promtail` (docker_sd + journal ingestion);
+  - `grafana` (file provisioning datasource/dashboard/alerting, private bind `127.0.0.1:13000`);
+  - `node-exporter`, `cadvisor`, `blackbox-exporter`.
+- Backend наблюдаемость:
+  - добавлен `GET /metrics` с bearer token guard;
+  - новые env: `METRICS_ENABLED`, `METRICS_BEARER_TOKEN`;
+  - RED-метрики: `http_requests_total`, `http_request_duration_seconds`, `http_in_flight_requests`.
+- Скоуп логов в Promtail ограничен для снижения шума/стоимости:
+  - keep: `vedamatch-*`, `dokploy-traefik`;
+  - исключаются прочие `dokploy-*`/чужие контейнеры.
+- Promtail имеет EOL (2026-03-02), поэтому следующая обязательная итерация observability: миграция collector-пайплайнов на Grafana Alloy.
