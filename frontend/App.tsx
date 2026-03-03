@@ -578,7 +578,13 @@ const AppContent = () => {
                       contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
                     }}
                   />
-                  <Stack.Screen name="Chat" component={ChatScreen} />
+                  <Stack.Screen
+                    name="Chat"
+                    component={ChatScreen}
+                    options={{
+                      freezeOnBlur: Platform.OS === 'android' ? false : undefined,
+                    }}
+                  />
                   <Stack.Screen
                     name="CallScreen"
                     component={CallScreen}

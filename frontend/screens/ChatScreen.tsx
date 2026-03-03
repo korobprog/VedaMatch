@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -52,22 +53,25 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     }, [showMenu]);
 
-    useEffect(() => {
-        const backAction = () => {
-            if (!navigation.canGoBack()) {
-                navigation.navigate('Portal', { initialTab: 'contacts' });
-                return true;
-            }
-            return false;
-        };
-
-        const backHandler = BackHandler.addEventListener(
-            'hardwareBackPress',
-            backAction
-        );
-
-        return () => backHandler.remove();
+    const handleBackNavigation = React.useCallback(() => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+        } else {
+            navigation.navigate('Portal', { initialTab: 'contacts' });
+        }
     }, [navigation]);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            const onBackPress = () => {
+                handleBackNavigation();
+                return true;
+            };
+
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
+        }, [handleBackNavigation]),
+    );
 
     useEffect(() => {
         if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
@@ -186,11 +190,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 onSettingsPress={() => setIsMenuOpen(true)}
                 onCallPress={handleCallPress}
                 onBackPress={() => {
-                    if (navigation.canGoBack()) {
-                        navigation.goBack();
-                    } else {
-                        navigation.navigate('Portal');
-                    }
+                    handleBackNavigation();
                 }}
             />
 

@@ -7,6 +7,7 @@
 ## iOS Map Connectivity
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
 - Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.
+- Для production-поведения на iOS при локальной установке в `frontend/.env.ios` должен быть `APP_ENV=production` (не `development`), иначе включается dev-режим клиента.
 - Дополнительная runtime-страховка в `frontend/config/api.config.ts`: на iOS любые `localhost/127.0.0.1` автоматически санитизируются в `https://api.vedamatch.ru`, чтобы убрать `Network Error` в login/map при устаревшем env.
 - `run-ios.js` должен запускать только `com.VedaMatch.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
 - Для пушей iOS default Firebase app инициализируется нативно в `frontend/ios/vedamatch/AppDelegate.mm` (`[FIRApp configure]` с guard), чтобы исключить warning `No Firebase App '[DEFAULT]'`.
@@ -29,6 +30,28 @@
   - `xcrun devicectl device install app --device <UDID> <path-to-vedamatch.app>`
   - затем верификацию: `xcrun devicectl device info apps --device <UDID> --bundle-id com.VedaMatch.vedamatch --columns '*'`.
 - Если при `xcodebuild` появляется `database is locked`, значит параллельно запущены конкурирующие сборки в одном `DerivedData`; перед повтором оставить только один активный процесс сборки.
+
+## Android Release
+- Актуальная Android production-версия:
+  - `versionCode=18`
+  - `versionName=1.1.16`
+  - файл: `frontend/android/app/build.gradle`.
+- Проверенный порядок выката на физическое устройство:
+  - сборка: `cd frontend/android && ./gradlew clean assembleRelease`
+  - установка: `adb install -r frontend/android/app/build/outputs/apk/release/app-release.apk`
+  - проверка версии: `adb shell dumpsys package com.ragagent | rg "versionCode=|versionName="`.
+- Признак release-сборки на устройстве: в `adb shell dumpsys package com.ragagent` отсутствует флаг `DEBUGGABLE`, а `pkgFlags` выглядит как `HAS_CODE ALLOW_CLEAR_USER_DATA`.
+
+## Chat Realtime Reliability
+- В `server/internal/websocket/hub.go` исправлен race при reconnect одного и того же пользователя:
+  - раньше `Unregister` удалял запись только по `userID` и мог снести уже новый активный сокет;
+  - теперь удаление идет только если `current == client`, а при новом `Register` старый сокет того же `userID` закрывается.
+- Добавлен тест `server/internal/websocket/hub_test.go` на сценарий `old unregister after new register`, чтобы не допустить регресс пропусков сообщений.
+
+## Chat Navigation Reliability (Android)
+- Для `frontend/screens/ChatScreen.tsx` аппаратный back переведен на `useFocusEffect` + единый `handleBackNavigation`, чтобы listener был активен только при фокусе экрана.
+- В `frontend/App.tsx` для `Stack.Screen name="Chat"` отключен `freezeOnBlur` на Android (`false`) как mitigation против blank/white экрана при возврате.
+- В `frontend/android/app/src/main/AndroidManifest.xml` включена совместимость back-поведения с RN-роутингом: `android:enableOnBackInvokedCallback="false"`.
 
 ## Documentation Discipline
 - Каждый запрос пользователя фиксировать в `PROMPT_LOG.md` с датой и временем.

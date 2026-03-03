@@ -67,11 +67,15 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.Register:
 			h.mu.Lock()
+			if existing, ok := h.clients[client.UserID]; ok && existing != client {
+				// Replace stale connection for the same user and release writer loop.
+				close(existing.Send)
+			}
 			h.clients[client.UserID] = client
 			h.mu.Unlock()
 		case client := <-h.Unregister:
 			h.mu.Lock()
-			if _, ok := h.clients[client.UserID]; ok {
+			if current, ok := h.clients[client.UserID]; ok && current == client {
 				delete(h.clients, client.UserID)
 				close(client.Send)
 			}

@@ -1,5 +1,145 @@
 # IOS Changes For Migration
 
+## 2026-03-02 (Chat back-flow stabilization: Android white screen mitigation + cross-platform back handler fix)
+
+### Измененные файлы
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/App.tsx`
+- `frontend/android/app/src/main/AndroidManifest.xml`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `ChatScreen` `BackHandler` регистрировался через `useEffect`, а не через `useFocusEffect`, поэтому обработчик мог оставаться активным вне фокуса экрана и давать нестабильный back-flow;
+  - для `Chat` действовал глобальный `freezeOnBlur` на Android, что в связке с native-stack могло приводить к blank/white экрану при возврате;
+  - в Android `AndroidManifest.xml` не был задан флаг совместимости back callback для React Navigation.
+- Стало:
+  - `ChatScreen` использует `useFocusEffect` для `hardwareBackPress` и единый `handleBackNavigation`, который всегда явно выполняет `goBack()` или fallback в `Portal`;
+  - для `Chat` отключен `freezeOnBlur` на Android (`false`);
+  - в Android манифесте добавлен `android:enableOnBackInvokedCallback="false"` для предсказуемого back-поведения.
+
+### Сниппеты кода
+
+`frontend/screens/ChatScreen.tsx`:
+```tsx
+useFocusEffect(
+  React.useCallback(() => {
+    const onBackPress = () => {
+      handleBackNavigation();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [handleBackNavigation]),
+);
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="Chat"
+  component={ChatScreen}
+  options={{
+    freezeOnBlur: Platform.OS === 'android' ? false : undefined,
+  }}
+/>
+```
+
+`frontend/android/app/src/main/AndroidManifest.xml`:
+```xml
+<application
+  ...
+  android:enableOnBackInvokedCallback="false"
+  ...>
+```
+
+## 2026-03-02 (Chat WS hotfix: устранены потери сообщений при reconnect)
+
+### Измененные файлы
+- `server/internal/websocket/hub.go`
+- `server/internal/websocket/hub_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при `Register` нового сокета того же пользователя старое соединение не вытеснялось явно;
+  - при позднем `Unregister` старого сокета `hub` удалял запись по `userID` без проверки инстанса клиента, из-за чего мог удалиться уже новый активный сокет;
+  - в результате возникали плавающие пропуски realtime-сообщений (в т.ч. Android -> iOS) до следующего reconnect.
+- Стало:
+  - при новом `Register` старый клиент того же `userID` корректно закрывается;
+  - `Unregister` удаляет клиента только если это тот же инстанс, который сейчас хранится в `clients[userID]`;
+  - добавлен unit-тест на сценарий `reconnect + stale unregister`.
+
+### Сниппеты кода
+
+`server/internal/websocket/hub.go`:
+```go
+case client := <-h.Register:
+	h.mu.Lock()
+	if existing, ok := h.clients[client.UserID]; ok && existing != client {
+		close(existing.Send)
+	}
+	h.clients[client.UserID] = client
+	h.mu.Unlock()
+case client := <-h.Unregister:
+	h.mu.Lock()
+	if current, ok := h.clients[client.UserID]; ok && current == client {
+		delete(h.clients, client.UserID)
+		close(client.Send)
+	}
+	h.mu.Unlock()
+```
+
+`server/internal/websocket/hub_test.go`:
+```go
+hub.Register <- oldClient
+hub.Register <- newClient
+hub.Unregister <- oldClient
+
+hub.Broadcast(models.Message{SenderID: 7, RecipientID: userID, Content: "hello", Type: "text"})
+```
+
+## 2026-03-02 (iOS APP_ENV switched to production + reinstall on device)
+
+### Измененные файлы
+- `frontend/.env.ios`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `APP_ENV=development` в iOS env-файле, из-за чего клиент работал в dev-режиме при локальной установке.
+- Стало:
+  - `APP_ENV=production`;
+  - выполнена переустановка Release-сборки на устройство (`com.VedaMatch.vedamatch`), чтобы приложение работало с production env.
+
+### Сниппеты кода
+
+`frontend/.env.ios`:
+```dotenv
+API_BASE_URL=https://api.vedamatch.ru
+APP_ENV=production
+```
+
+## 2026-03-02 (Android production release: version bump + install)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `versionCode 17`
+  - `versionName "1.1.15"`
+- Стало:
+  - `versionCode 18`
+  - `versionName "1.1.16"`
+
+### Сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+defaultConfig {
+    versionCode 18
+    versionName "1.1.16"
+}
+```
+
 ## 2026-03-02 (Hotfix: iOS EXC_BAD_ACCESS в CallPiPModule setCallActive)
 
 ### Измененные файлы
