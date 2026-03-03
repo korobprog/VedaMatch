@@ -2,6 +2,7 @@ package services
 
 import (
 	"math"
+	"rag-agent-server/internal/models"
 	"testing"
 )
 
@@ -102,5 +103,71 @@ func TestNormalizeTrackFilter(t *testing.T) {
 	}
 	if got.Search != "mantra" {
 		t.Fatalf("search = %q, want mantra", got.Search)
+	}
+}
+
+func TestNormalizeMadhKey(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeMadhKey("  ISKCON  "); got != "iskcon" {
+		t.Fatalf("normalizeMadhKey = %q, want iskcon", got)
+	}
+	if got := normalizeMadhKey(""); got != "" {
+		t.Fatalf("normalizeMadhKey empty = %q, want empty", got)
+	}
+}
+
+func TestResolveMultimediaScopeFromUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		viewer     models.User
+		wantBypass bool
+		wantOrgKey string
+	}{
+		{
+			name:       "admin bypass",
+			viewer:     models.User{Role: models.RoleAdmin, Madh: "gaudiya"},
+			wantBypass: true,
+			wantOrgKey: "",
+		},
+		{
+			name:       "god mode bypass",
+			viewer:     models.User{Role: models.RoleUser, GodModeEnabled: true, Madh: "gaudiya"},
+			wantBypass: true,
+			wantOrgKey: "",
+		},
+		{
+			name:       "pro current plan bypass",
+			viewer:     models.User{Role: models.RoleUser, CurrentPlan: "pro", Madh: "gaudiya"},
+			wantBypass: true,
+			wantOrgKey: "",
+		},
+		{
+			name:       "non pro uses normalized org",
+			viewer:     models.User{Role: models.RoleUser, CurrentPlan: "trial", Madh: " Gaudiya "},
+			wantBypass: false,
+			wantOrgKey: "gaudiya",
+		},
+		{
+			name:       "non pro without org global only",
+			viewer:     models.User{Role: models.RoleUser, CurrentPlan: "trial", Madh: ""},
+			wantBypass: false,
+			wantOrgKey: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveMultimediaScopeFromUser(tt.viewer)
+			if got.bypass != tt.wantBypass {
+				t.Fatalf("bypass=%v want=%v", got.bypass, tt.wantBypass)
+			}
+			if got.orgKey != tt.wantOrgKey {
+				t.Fatalf("orgKey=%q want=%q", got.orgKey, tt.wantOrgKey)
+			}
+		})
 	}
 }

@@ -10,7 +10,6 @@ import {
     Pressable,
     FlatList,
     Image,
-    ImageBackground,
     Alert,
     Platform,
 } from 'react-native';
@@ -42,7 +41,6 @@ import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
-import { getMediaUrl } from './utils/url';
 import { useRoleTheme } from './hooks/useRoleTheme';
 
 const DRAWER_WIDTH = Dimensions.get('window').width * 0.8;
@@ -70,15 +68,21 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
 }) => {
     const {
         fetchModels,
-        vTheme,
         isDarkMode: isPortalDarkMode,
-        portalBackground,
-        portalBackgroundType,
     } = useSettings();
     const { user, isLoggedIn, roleDescriptor } = useUser();
     const { history, loadChat, deleteChat, deleteChats, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isPortalDarkMode);
+    const historyColors = React.useMemo(() => ({
+        background: '#F2EFE6',
+        card: 'rgba(255,255,255,0.92)',
+        border: 'rgba(15,23,42,0.14)',
+        textPrimary: '#1F2937',
+        textSecondary: '#64748B',
+        iconSurface: 'rgba(15,23,42,0.08)',
+        actionSurface: 'rgba(15,23,42,0.08)',
+    }), []);
 
     const [isEditMode, setIsEditMode] = React.useState(false);
     const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -138,11 +142,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             }
         });
 
-    const backgroundGradient = portalBackgroundType === 'gradient' && portalBackground
-        ? portalBackground.split('|')
-        : null;
-
-
     return (
         <Modal transparent visible={isVisible} onRequestClose={handleClose} animationType="none">
             <GestureHandlerRootView style={styles.container}>
@@ -167,39 +166,13 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             drawerAnimatedStyle,
                         ]}
                     >
-                        {portalBackgroundType === 'image' && portalBackground ? (
-                            <ImageBackground
-                                source={{ uri: portalBackground }}
-                                style={StyleSheet.absoluteFill}
-                                resizeMode="cover"
-                            >
-                                <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]} />
-                            </ImageBackground>
-                        ) : backgroundGradient && backgroundGradient.length === 2 ? (
-                            <LinearGradient
-                                colors={backgroundGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={StyleSheet.absoluteFill}
-                            >
-                                <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]} />
-                            </LinearGradient>
-                        ) : (
-                            <View style={[StyleSheet.absoluteFill, { backgroundColor: vTheme.colors.background }]} />
-                        )}
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: historyColors.background }]} />
 
                         {/* Header / Tab Replacement */}
                         <View style={[styles.tabBar, { borderBottomColor: roleColors.border }]}>
                             <View style={styles.tabHeaderContent}>
                                 <View style={styles.tabTitleWrap}>
-                                    <Text style={[
-                                        styles.tabText,
-                                        {
-                                            color: (portalBackgroundType === 'image' || portalBackgroundType === 'gradient')
-                                                ? '#FFFFFF'
-                                                : roleColors.textPrimary
-                                        }
-                                    ]}>
+                                    <Text style={[styles.tabText, { color: historyColors.textPrimary }]}>
                                         {t('chat.history')}
                                     </Text>
                                     <View style={[styles.tabAccentLine, { backgroundColor: roleColors.accent }]} />
@@ -216,26 +189,20 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                     setIsEditMode(true);
                                                 }
                                             }}
-                                            style={[
-                                                styles.headerActionBtn,
-                                                (portalBackgroundType === 'image' || portalBackgroundType === 'gradient') && { backgroundColor: 'rgba(255, 255, 255, 0.15)' }
-                                            ]}
+                                            style={[styles.headerActionBtn, { backgroundColor: historyColors.actionSurface }]}
                                         >
                                             {isEditMode ? (
-                                                <X size={24} color={(portalBackgroundType === 'image' || portalBackgroundType === 'gradient') ? '#FFFFFF' : roleColors.textPrimary} />
+                                                <X size={24} color={historyColors.textPrimary} />
                                             ) : (
-                                                <Edit3 size={24} color={(portalBackgroundType === 'image' || portalBackgroundType === 'gradient') ? '#FFFFFF' : roleColors.textPrimary} />
+                                                <Edit3 size={24} color={historyColors.textPrimary} />
                                             )}
                                         </TouchableOpacity>
                                     )}
                                     <TouchableOpacity
-                                        style={[
-                                            styles.headerActionBtn,
-                                            (portalBackgroundType === 'image' || portalBackgroundType === 'gradient') && { backgroundColor: 'rgba(255, 255, 255, 0.15)' }
-                                        ]}
+                                        style={[styles.headerActionBtn, { backgroundColor: historyColors.actionSurface }]}
                                         onPress={() => { handleClose(); onNavigateToSettings(); }}
                                     >
-                                        <Settings size={24} color={(portalBackgroundType === 'image' || portalBackgroundType === 'gradient') ? '#FFFFFF' : roleColors.textPrimary} />
+                                        <Settings size={24} color={historyColors.textPrimary} />
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -259,8 +226,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                         end={{ x: 1, y: 1 }}
                                         style={styles.newChatButton}
                                     >
-                                        <Plus size={20} color={roleColors.textPrimary} style={{ marginRight: 10 }} strokeWidth={3} />
-                                        <Text style={[styles.newChatButtonText, { color: roleColors.textPrimary }]}>{t('chat.newChatBtn')}</Text>
+                                        <Plus size={20} color={historyColors.textPrimary} style={{ marginRight: 10 }} strokeWidth={3} />
+                                        <Text style={[styles.newChatButtonText, { color: historyColors.textPrimary }]}>{t('chat.newChatBtn')}</Text>
                                     </LinearGradient>
                                 </TouchableOpacity>
 
@@ -282,18 +249,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                             ) : (
                                                 <Square
                                                     size={20}
-                                                    color={(portalBackgroundType === 'image' || portalBackgroundType === 'gradient')
-                                                        ? 'rgba(255,255,255,0.7)'
-                                                        : roleColors.textSecondary}
+                                                    color={historyColors.textSecondary}
                                                 />
                                             )}
                                             <Text style={[
                                                 styles.bulkActionText,
-                                                {
-                                                    color: (portalBackgroundType === 'image' || portalBackgroundType === 'gradient')
-                                                        ? '#FFFFFF'
-                                                        : roleColors.textPrimary
-                                                }
+                                                { color: historyColors.textPrimary }
                                             ]}>
                                                 {selectedIds.length === history.length ? t('common.deselectAll') || 'Снять все' : t('common.selectAll') || 'Выбрать все'}
                                             </Text>
@@ -339,16 +300,16 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                             style={[
                                                 styles.historyItem,
                                                 {
-                                                    backgroundColor: isPortalDarkMode ? 'rgba(15,23,42,0.22)' : 'rgba(248,250,252,0.18)',
-                                                    borderColor: currentChatId === item.id ? roleColors.accentSoft : 'rgba(255,255,255,0.42)',
+                                                    backgroundColor: historyColors.card,
+                                                    borderColor: currentChatId === item.id ? roleColors.accentSoft : historyColors.border,
                                                 },
                                             ]}
                                         >
                                             <BlurView
                                                 style={styles.historyItemBlur}
-                                                blurType={isPortalDarkMode ? 'dark' : 'light'}
+                                                blurType="light"
                                                 blurAmount={16}
-                                                reducedTransparencyFallbackColor={isPortalDarkMode ? 'rgba(15,23,42,0.35)' : 'rgba(248,250,252,0.35)'}
+                                                reducedTransparencyFallbackColor={historyColors.card}
                                             />
                                             {isEditMode && (
                                                 <TouchableOpacity
@@ -384,18 +345,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                     }
                                                 }}
                                             >
-                                                <View style={[styles.historyIcon, { backgroundColor: isPortalDarkMode ? 'rgba(15,23,42,0.28)' : 'rgba(248,250,252,0.35)' }]}>
+                                                <View style={[styles.historyIcon, { backgroundColor: historyColors.iconSurface }]}>
                                                     <MessageSquare size={20} color={roleColors.accent} />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text
-                                                        style={[styles.historyItemTitle, { color: roleColors.textPrimary, fontWeight: currentChatId === item.id ? '700' : '600' }]}
+                                                        style={[styles.historyItemTitle, { color: historyColors.textPrimary, fontWeight: currentChatId === item.id ? '700' : '600' }]}
                                                         numberOfLines={1}
                                                         ellipsizeMode="tail"
                                                     >
                                                         {item.title}
                                                     </Text>
-                                                    <Text style={[styles.historyItemDate, { color: roleColors.textSecondary }]}>
+                                                    <Text style={[styles.historyItemDate, { color: historyColors.textSecondary }]}>
                                                         {new Date(item.timestamp).toLocaleDateString()}
                                                     </Text>
                                                 </View>
@@ -417,8 +378,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                     )}
                                     ListEmptyComponent={
                                         <View style={styles.emptyContainer}>
-                                            <MessageSquare size={34} color={roleColors.textSecondary} />
-                                            <Text style={{ color: roleColors.textSecondary, opacity: 0.8, marginTop: 10 }}>{t('chat.noHistory')}</Text>
+                                            <MessageSquare size={34} color={historyColors.textSecondary} />
+                                            <Text style={{ color: historyColors.textSecondary, opacity: 0.8, marginTop: 10 }}>{t('chat.noHistory')}</Text>
                                         </View>
                                     }
                                 />
@@ -439,7 +400,7 @@ const styles = StyleSheet.create({
     drawer: {
         flex: 1,
         height: '100%',
-        backgroundColor: '#1A1A1A',
+        backgroundColor: '#F2EFE6',
         shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: -10, height: 0 },
         shadowOpacity: 0.2,

@@ -201,6 +201,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
     const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
     const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image';
+    const isEducationTabActive = activeTab === 'education';
+    const isAdsTabActive = activeTab === 'ads';
+    const isTravelTabActive = activeTab === 'travel';
+    const useSolidServiceLayer = isEducationTabActive || isAdsTabActive || isTravelTabActive;
+    const serviceLayerBackgroundType = useSolidServiceLayer ? 'color' : layerBackgroundType;
+    const serviceLayerBackground = useSolidServiceLayer ? vTheme.colors.background : layerBackground;
+    const serviceLayerActiveWallpaper = useSolidServiceLayer ? '' : layerActiveWallpaper;
+    const serviceLayerSlideshowEnabled = useSolidServiceLayer ? false : layerSlideshowEnabled;
+    const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
+    const useLightServiceHeaderIcons = useSolidServiceLayer ? false : useLightHeaderIcons;
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
 
@@ -484,6 +494,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     variant="portal"
                     enableAura={!useClassicWallpaper}
                     transparentBackground={useClassicWallpaper}
+                    headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
                 >
                 <GestureDetector gesture={portalSwipeGesture}>
                 <View style={styles.gridRoot}>
@@ -752,22 +763,23 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     // Show service content with back button
     return (
         <PortalBackgroundLayer
-            portalBackgroundType={layerBackgroundType}
-            portalBackground={layerBackground}
-            activeWallpaper={layerActiveWallpaper}
-            isSlideshowEnabled={layerSlideshowEnabled}
+            portalBackgroundType={serviceLayerBackgroundType}
+            portalBackground={serviceLayerBackground}
+            activeWallpaper={serviceLayerActiveWallpaper}
+            isSlideshowEnabled={serviceLayerSlideshowEnabled}
             fallbackColor={vTheme.colors.background}
             isAppActive={isAppActive}
             allowCrossfade={androidVisualPolicy.allowCrossfade}
             crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
             pauseTransitions={activeTab !== null}
-            overlayColor={layerOverlayColor}
+            overlayColor={serviceLayerOverlayColor}
             onBackgroundLoadError={useClassicWallpaper ? handleWallpaperLoadError : undefined}
         >
             <ScreenScaffold
                 variant="portal"
                 enableAura={!useClassicWallpaper}
                 transparentBackground={useClassicWallpaper}
+                headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
             >
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
@@ -801,14 +813,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         height: '100%',
                                         borderRadius: 20,
                                         overflow: 'hidden',
-                                        backgroundColor: useLightHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                                        borderColor: useLightHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)',
+                                        backgroundColor: useLightServiceHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                        borderColor: useLightServiceHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)',
                                         borderWidth: 1.2,
                                         justifyContent: 'center',
                                         alignItems: 'center',
                                     }}
                                 >
-                                    {useLightHeaderIcons && androidVisualPolicy.enableBlur && (
+                                    {useLightServiceHeaderIcons && androidVisualPolicy.enableBlur && (
                                         <BlurView
                                             style={StyleSheet.absoluteFill}
                                             blurType={isDarkMode ? "dark" : "light"}
@@ -820,13 +832,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         backgroundColor: 'transparent',
                                         shadowColor: "#000",
                                         shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: (useLightHeaderIcons) ? 0.5 : 0,
+                                        shadowOpacity: (useLightServiceHeaderIcons) ? 0.5 : 0,
                                         shadowRadius: 2,
-                                        elevation: (useLightHeaderIcons) ? 5 : 0,
+                                        elevation: (useLightServiceHeaderIcons) ? 5 : 0,
                                     }}>
                                         <List
                                             size={22}
-                                            color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.text}
+                                            color={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.text}
                                             strokeWidth={2.5}
                                         />
                                     </View>
@@ -836,16 +848,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 onPress={() => navigation.navigate('InviteFriends')}
                                 style={styles.iconButton}
                             >
-                                <Gift size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
+                                <Gift size={22} color={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <PortalLkmCircleButton
                                 onPress={() => navigation.navigate('Wallet')}
                                 size={32}
                                 borderWidth={1.5}
-                                backgroundColor={useLightHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary}
-                                borderColor={useLightHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)'}
-                                textColor={useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
-                                showBlur={useLightHeaderIcons && androidVisualPolicy.enableBlur}
+                                backgroundColor={useLightServiceHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary}
+                                borderColor={useLightServiceHeaderIcons ? 'rgba(255,255,255,0.4)' : 'rgba(255, 153, 51, 0.28)'}
+                                textColor={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.primary}
+                                showBlur={useLightServiceHeaderIcons && androidVisualPolicy.enableBlur}
                                 blurAmount={backButtonBlurAmount}
                             />
                         </View>
@@ -853,17 +865,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
                     <View style={styles.headerRight}>
                         <TouchableOpacity onPress={handleLinkedCallContactPress} style={styles.iconButton}>
-                            <LinkedCallContactIcon size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <LinkedCallContactIcon size={22} color={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={styles.iconButton}
                         >
-                            <Settings size={22} color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={22} color={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <BellButton
                             size={22}
-                            color={useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
+                            color={useLightServiceHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
                         />
                     </View>
                 </View>

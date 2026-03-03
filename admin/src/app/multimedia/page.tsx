@@ -45,6 +45,7 @@ interface TVChannel {
     streamUrl: string;
     streamType: string;
     logoUrl: string;
+    madh: string;
     isLive: boolean;
     isActive: boolean;
 }
@@ -57,13 +58,42 @@ interface MediaCategory {
     isActive: boolean;
 }
 
-const MADH_OPTIONS = [
-    { id: '', label: 'All' },
+const ORG_OPTIONS = [
     { id: 'iskcon', label: 'ISKCON' },
     { id: 'gaudiya', label: 'Gaudiya Math' },
     { id: 'srivaishnava', label: 'Sri Vaishnava' },
     { id: 'vedic', label: 'Vedic' },
 ];
+
+const VISIBILITY_OPTIONS = [
+    { id: '', label: 'Для всех' },
+    ...ORG_OPTIONS,
+];
+
+const getVisibilityLabel = (madh: string | undefined): string => {
+    const normalized = (madh || '').trim().toLowerCase();
+    if (!normalized) {
+        return 'Для всех';
+    }
+    const found = ORG_OPTIONS.find((opt) => opt.id === normalized);
+    return found?.label || madh || 'Для всех';
+};
+
+const getAdminDefaultMadh = (): string => {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+    try {
+        const raw = window.localStorage.getItem('admin_data');
+        if (!raw) {
+            return '';
+        }
+        const parsed = JSON.parse(raw) as { madh?: string };
+        return (parsed?.madh || '').trim().toLowerCase();
+    } catch {
+        return '';
+    }
+};
 
 export default function MultimediaPage() {
     const [tab, setTab] = useState<TabType>('tracks');
@@ -237,7 +267,7 @@ function TracksTable({ tracks, search, onEdit, onDelete }: any) {
                             <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
                             <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Artist</th>
                             <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
-                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Madh</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Организация / Видимость</th>
                             <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Views</th>
                             <th className="px-4 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -272,7 +302,7 @@ function TracksTable({ tracks, search, onEdit, onDelete }: any) {
                                         {t.mediaType}
                                     </span>
                                 </td>
-                                <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{t.madh || '-'}</td>
+                                <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{getVisibilityLabel(t.madh)}</td>
                                 <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{t.viewCount}</td>
                                 <td className="px-4 py-4 text-right flex justify-end gap-3 text-sm">
                                     <button onClick={() => onEdit(t)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
@@ -297,6 +327,7 @@ function RadioTable({ stations, search, onEdit, onDelete }: any) {
                         <tr>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Stream URL</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Организация / Видимость</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Live</th>
                             <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -306,6 +337,7 @@ function RadioTable({ stations, search, onEdit, onDelete }: any) {
                             <tr key={s.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                                 <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{s.name}</td>
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400 truncate max-w-xs">{s.streamUrl}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{getVisibilityLabel(s.madh)}</td>
                                 <td className="px-6 py-4 text-sm font-medium">
                                     {s.isLive ? <span className="text-green-600 dark:text-green-400">● Live</span> : <span className="text-gray-400 dark:text-slate-500">○ Offline</span>}
                                 </td>
@@ -332,6 +364,7 @@ function TVTable({ channels, search, onEdit, onDelete }: any) {
                         <tr>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Организация / Видимость</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Live</th>
                             <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -345,6 +378,7 @@ function TVTable({ channels, search, onEdit, onDelete }: any) {
                                         {c.streamType}
                                     </span>
                                 </td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{getVisibilityLabel(c.madh)}</td>
                                 <td className="px-6 py-4 text-sm font-medium">
                                     {c.isLive ? <span className="text-green-600 dark:text-green-400">● Live</span> : <span className="text-gray-400 dark:text-slate-500">○ Offline</span>}
                                 </td>
@@ -402,6 +436,7 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const adminDefaultMadh = getAdminDefaultMadh();
 
     // Initialize form with default values if it's a new item
     const [form, setForm] = useState(() => {
@@ -412,20 +447,24 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
             defaults.mediaType = 'audio';
             defaults.language = 'ru';
             defaults.isActive = true;
+            defaults.madh = adminDefaultMadh;
             defaults.isExternal = true; // Default to URL mode
         } else if (type === 'videos') {
             defaults.mediaType = 'video';
             defaults.language = 'ru';
             defaults.isActive = true;
+            defaults.madh = adminDefaultMadh;
             defaults.isExternal = false; // Default to Upload mode for videos
         } else if (type === 'radio') {
             defaults.streamType = 'external';
             defaults.isLive = true;
             defaults.isActive = true;
+            defaults.madh = adminDefaultMadh;
         } else if (type === 'tv') {
             defaults.streamType = 'youtube';
             defaults.isLive = true;
             defaults.isActive = true;
+            defaults.madh = adminDefaultMadh;
         } else if (type === 'categories') {
             defaults.type = 'audio';
             defaults.isActive = true;
@@ -674,9 +713,9 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Организация / Видимость</label>
                                 <select value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                                    {MADH_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                    {VISIBILITY_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -702,9 +741,9 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Организация / Видимость</label>
                                 <select value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                                    {MADH_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                    {VISIBILITY_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -735,6 +774,12 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                         <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
                                     </label>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Организация / Видимость</label>
+                                <select value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    {VISIBILITY_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                </select>
                             </div>
                         </div>
                     )}

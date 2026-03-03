@@ -41,6 +41,13 @@ type ChannelService struct {
 	settingsCacheTTL time.Duration
 }
 
+type SadhuOwnerScope struct {
+	OwnerIDs []uint
+	MathKey  string
+	Bypass   bool
+	ShowNone bool
+}
+
 type channelSettingCacheEntry struct {
 	value     string
 	expiresAt time.Time
@@ -274,7 +281,7 @@ func (s *ChannelService) resolveEffectiveSadhuMathFilter(viewer models.User, rol
 	if effectiveRole == "" {
 		effectiveRole = viewer.Role
 	}
-	if viewer.GodModeEnabled || strings.EqualFold(effectiveRole, models.RoleSuperadmin) {
+	if models.IsAdminRole(effectiveRole) || viewer.GodModeEnabled || isProPlanBypass(viewer.CurrentPlan) {
 		return "", true, false
 	}
 	normalized := normalizeMathKey(viewer.Madh)
@@ -284,13 +291,51 @@ func (s *ChannelService) resolveEffectiveSadhuMathFilter(viewer models.User, rol
 	return normalized, false, false
 }
 
+func (s *ChannelService) ResolveSadhuOwnerScope(viewerID uint) (SadhuOwnerScope, error) {
+	scope := SadhuOwnerScope{
+		OwnerIDs: []uint{},
+	}
+	if !s.IsSadhuSangaMathFilterEnabledForUser(viewerID) {
+		scope.Bypass = true
+		return scope, nil
+	}
+
+	viewer, err := s.loadSadhuViewer(viewerID)
+	if err != nil {
+		return scope, err
+	}
+
+	mathKey, bypass, showNone := s.resolveEffectiveSadhuMathFilter(viewer, viewer.Role)
+	scope.MathKey = mathKey
+	scope.Bypass = bypass
+	scope.ShowNone = showNone
+
+	if bypass || showNone {
+		return scope, nil
+	}
+
+	ownerIDs := make([]uint, 0)
+	if err := s.db.
+		Table("channels").
+		Select("DISTINCT channels.owner_id").
+		Joins("JOIN preacher_profiles ON preacher_profiles.user_id = channels.owner_id AND preacher_profiles.deleted_at IS NULL").
+		Where("channels.deleted_at IS NULL").
+		Where("LOWER(TRIM(preacher_profiles.math_key)) = ?", mathKey).
+		Pluck("channels.owner_id", &ownerIDs).Error; err != nil {
+		return scope, err
+	}
+
+	scope.OwnerIDs = ownerIDs
+	return scope, nil
+}
+
 func (s *ChannelService) loadSadhuViewer(userID uint) (models.User, error) {
 	var viewer models.User
 	if userID == 0 {
 		return viewer, ErrChannelForbidden
 	}
 	if err := s.db.
-		Select("id", "madh", "role", "god_mode_enabled").
+		Select("id", "madh", "role", "god_mode_enabled", "current_plan").
 		First(&viewer, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return viewer, ErrChannelForbidden
@@ -298,6 +343,14 @@ func (s *ChannelService) loadSadhuViewer(userID uint) (models.User, error) {
 		return viewer, err
 	}
 	return viewer, nil
+}
+
+func isProPlanBypass(plan string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(plan))
+	if normalized == "" {
+		return false
+	}
+	return normalized == "admin" || strings.Contains(normalized, "pro")
 }
 
 func (s *ChannelService) applySadhuMathFilterToChannelQuery(query *gorm.DB, viewerID uint) (*gorm.DB, bool, error) {

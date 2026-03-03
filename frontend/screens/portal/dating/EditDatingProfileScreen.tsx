@@ -109,12 +109,17 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     const fetchProfile = useCallback(async () => {
         const requestId = ++latestFetchRequestRef.current;
         try {
-            const data = await datingService.getUsers();
+            const me = await datingService.getProfile(userId);
             if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            const me = data.find((u: any) => u.ID === userId);
             if (me) {
+                const normalizedIntentions = Array.isArray(me.intentions)
+                    ? me.intentions.map((intention: unknown) => String(intention).trim()).filter(Boolean)
+                    : typeof me.intentions === 'string'
+                        ? me.intentions.split(',').map((intention: string) => intention.trim()).filter(Boolean)
+                        : [];
+
                 setProfile({
                     bio: me.bio || '',
                     interests: me.interests || '',
@@ -129,7 +134,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     guna: me.guna || '',
                     identity: me.identity || IDENTITY_OPTIONS[0],
                     datingEnabled: me.datingEnabled || false,
-                    intentions: me.intentions ? me.intentions.split(',').map((i: string) => i.trim()) : [],
+                    intentions: normalizedIntentions,
                     skills: me.skills || '',
                     industry: me.industry || '',
                     lookingForBusiness: me.lookingForBusiness || ''

@@ -12,11 +12,9 @@ import {
     TextInput,
     Switch,
     Modal,
-    ImageBackground,
     Keyboard,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useSettings as usePortalSettings } from '../../context/SettingsContext';
 import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,10 +55,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { user, login } = useUser();
     const { fetchCountries, fetchCities } = useLocation();
-    const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
 
     const isDarkMode = true; // Edit Profile always uses dark glass aesthetic
     const theme = COLORS.dark;
+    const screenBackgroundColor = '#0E1525';
     // const isDarkMode = isPortalDarkMode;
     // const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
@@ -418,10 +416,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     if (loading) {
         return (
-            <View style={[styles.container, { backgroundColor: theme.background }]}>
-                {portalBackgroundType === 'image' && portalBackground && (
-                    <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                )}
+            <View style={[styles.container, { backgroundColor: screenBackgroundColor }]}>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay, justifyContent: 'center', alignItems: 'center' }]}>
                     <ActivityIndicator size="large" color={roleColors.accent} />
                 </View>
@@ -430,10 +425,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {portalBackgroundType === 'image' && !!portalBackground && (
-                <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            )}
+        <View style={[styles.container, { backgroundColor: screenBackgroundColor }]}>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 

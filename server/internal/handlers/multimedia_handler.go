@@ -45,6 +45,16 @@ func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	return value
 }
 
+func parseMultimediaMathParam(c *fiber.Ctx) string {
+	if value := strings.TrimSpace(c.Query("matha")); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(c.Query("madh")); value != "" {
+		return value
+	}
+	return strings.TrimSpace(c.Query("math"))
+}
+
 func parsePositiveMultimediaParam(c *fiber.Ctx, key string, invalidMessage string) (uint, error) {
 	raw := strings.TrimSpace(c.Params(key))
 	value, err := strconv.ParseUint(raw, 10, 32)
@@ -128,6 +138,7 @@ func (h *MultimediaHandler) GetCategories(c *fiber.Ctx) error {
 // @Success 200 {object} services.TrackListResponse
 // @Router /api/multimedia/tracks [get]
 func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
+	viewerID := middleware.GetUserID(c)
 	categoryID := c.QueryInt("categoryId", 0)
 	if categoryID < 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
@@ -137,7 +148,7 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 		MediaType:     c.Query("type"),
 		SourceContext: c.Query("sourceContext"),
 		CategoryID:    uint(categoryID),
-		Madh:          c.Query("madh"),
+		Madh:          parseMultimediaMathParam(c),
 		YogaStyle:     c.Query("yogaStyle"),
 		Language:      c.Query("language"),
 		Search:        c.Query("search"),
@@ -146,7 +157,7 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 		Limit:         boundedQueryInt(c, "limit", 20, 1, 100),
 	}
 
-	result, err := h.service.GetTracks(filter)
+	result, err := h.service.GetTracks(viewerID, filter)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -160,12 +171,13 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 // @Success 200 {object} models.MediaTrack
 // @Router /api/multimedia/tracks/{id} [get]
 func (h *MultimediaHandler) GetTrack(c *fiber.Ctx) error {
+	viewerID := middleware.GetUserID(c)
 	id, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
 		return err
 	}
 
-	track, err := h.service.GetTrackByID(id)
+	track, err := h.service.GetTrackByID(viewerID, id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch track"})
@@ -261,8 +273,8 @@ func (h *MultimediaHandler) DeleteTrack(c *fiber.Ctx) error {
 // @Success 200 {array} models.RadioStation
 // @Router /api/multimedia/radio [get]
 func (h *MultimediaHandler) GetRadioStations(c *fiber.Ctx) error {
-	madh := c.Query("madh")
-	stations, err := h.service.GetRadioStations(madh)
+	viewerID := middleware.GetUserID(c)
+	stations, err := h.service.GetRadioStations(viewerID, parseMultimediaMathParam(c))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -276,12 +288,13 @@ func (h *MultimediaHandler) GetRadioStations(c *fiber.Ctx) error {
 // @Success 200 {object} models.RadioStation
 // @Router /api/multimedia/radio/{id} [get]
 func (h *MultimediaHandler) GetRadioStation(c *fiber.Ctx) error {
+	viewerID := middleware.GetUserID(c)
 	id, err := parsePositiveMultimediaParam(c, "id", "Invalid station ID")
 	if err != nil {
 		return err
 	}
 
-	station, err := h.service.GetRadioStationByID(id)
+	station, err := h.service.GetRadioStationByID(viewerID, id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch station"})
@@ -376,8 +389,8 @@ func (h *MultimediaHandler) DeleteRadioStation(c *fiber.Ctx) error {
 // @Success 200 {array} models.TVChannel
 // @Router /api/multimedia/tv [get]
 func (h *MultimediaHandler) GetTVChannels(c *fiber.Ctx) error {
-	madh := c.Query("madh")
-	channels, err := h.service.GetTVChannels(madh)
+	viewerID := middleware.GetUserID(c)
+	channels, err := h.service.GetTVChannels(viewerID, parseMultimediaMathParam(c))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -391,12 +404,13 @@ func (h *MultimediaHandler) GetTVChannels(c *fiber.Ctx) error {
 // @Success 200 {object} models.TVChannel
 // @Router /api/multimedia/tv/{id} [get]
 func (h *MultimediaHandler) GetTVChannel(c *fiber.Ctx) error {
+	viewerID := middleware.GetUserID(c)
 	id, err := parsePositiveMultimediaParam(c, "id", "Invalid channel ID")
 	if err != nil {
 		return err
 	}
 
-	channel, err := h.service.GetTVChannelByID(id)
+	channel, err := h.service.GetTVChannelByID(viewerID, id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch channel"})

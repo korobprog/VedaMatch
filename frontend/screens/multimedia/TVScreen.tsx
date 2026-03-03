@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     Image,
     RefreshControl,
+    ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Tv, Play, Loader2, ArrowLeft } from 'lucide-react-native';
@@ -14,19 +15,24 @@ import { multimediaService, TVChannel } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { MULTIMEDIA_MADH_OPTIONS, resolveMultimediaAccessScope } from './multimediaAccess';
 
 export const TVScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const accessScope = resolveMultimediaAccessScope(user);
+    const isProViewer = accessScope.isProViewer;
+    const userMadh = accessScope.userMadh;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [channels, setChannels] = useState<TVChannel[]>([]);
+    const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
 
     const loadChannels = async () => {
         try {
-            const data = await multimediaService.getTVChannels();
+            const data = await multimediaService.getTVChannels(isProViewer ? selectedMadh : undefined);
             setChannels(data);
         } catch (error) {
             console.error('Failed to load TV channels:', error);
@@ -38,7 +44,13 @@ export const TVScreen: React.FC = () => {
 
     useEffect(() => {
         loadChannels();
-    }, []);
+    }, [selectedMadh, isProViewer]);
+
+    useEffect(() => {
+        if (!isProViewer && selectedMadh) {
+            setSelectedMadh(undefined);
+        }
+    }, [isProViewer, selectedMadh]);
 
     const renderChannel = ({ item }: { item: TVChannel }) => (
         <TouchableOpacity
@@ -89,6 +101,62 @@ export const TVScreen: React.FC = () => {
                 <View style={{ width: 40 }} />
             </View>
 
+            {isProViewer ? (
+                <View style={styles.filterSection}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+                        <TouchableOpacity
+                            style={[
+                                styles.filterChip,
+                                !selectedMadh
+                                    ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                    : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
+                            ]}
+                            onPress={() => setSelectedMadh(undefined)}
+                        >
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
+                        </TouchableOpacity>
+                        {MULTIMEDIA_MADH_OPTIONS.map((m) => (
+                            <TouchableOpacity
+                                key={m.id}
+                                style={[
+                                    styles.filterChip,
+                                    selectedMadh === m.id
+                                        ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                        : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
+                                ]}
+                                onPress={() => setSelectedMadh(m.id)}
+                            >
+                                <Text style={[styles.filterText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
+                                    {m.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            ) : (
+                <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    {userMadh ? (
+                        <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+                            Режим доступа: ваша организация и общий контент.
+                        </Text>
+                    ) : (
+                        <>
+                            <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+                                Сейчас доступен общий ТВ-контент. Добавьте организацию в профиль или включите PRO.
+                            </Text>
+                            <View style={styles.scopeActions}>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
+                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
+                                    <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+                </View>
+            )}
+
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
@@ -136,6 +204,45 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
+    },
+    filterSection: {
+        paddingBottom: 8,
+    },
+    filterList: {
+        paddingHorizontal: 20,
+        gap: 8,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    scopeCard: {
+        marginHorizontal: 20,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+    },
+    scopeText: {
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    scopeActions: {
+        marginTop: 8,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    scopeBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
     },
     list: {
         padding: 20,

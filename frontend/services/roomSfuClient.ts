@@ -35,6 +35,21 @@ type RoomSfuEventType =
 
 type RoomSfuListener = (payload?: unknown) => void;
 
+let liveKitGlobalsReady = false;
+
+function ensureLiveKitGlobalsReady(): void {
+  if (liveKitGlobalsReady) return;
+
+  const livekitReactNative = require('@livekit/react-native');
+  const registerGlobals = livekitReactNative?.registerGlobals;
+  if (typeof registerGlobals !== 'function') {
+    throw new Error('LiveKit registerGlobals is unavailable');
+  }
+
+  registerGlobals();
+  liveKitGlobalsReady = true;
+}
+
 export class RoomSfuClient {
   private room: any = null;
   private listeners = new Map<RoomSfuEventType, Set<RoomSfuListener>>();
@@ -164,7 +179,9 @@ export class RoomSfuClient {
   async connect(input: RoomSfuConnectInput): Promise<void> {
     this.updateState('connecting');
     try {
-      const livekit = require('@livekit/react-native');
+      ensureLiveKitGlobalsReady();
+
+      const livekit = require('livekit-client');
       const Room = livekit?.Room;
       if (!Room) {
         throw new Error('LiveKit Room SDK is unavailable');

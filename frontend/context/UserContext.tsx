@@ -29,6 +29,7 @@ interface UserProfile {
     longitude?: number;
     role?: string;
     godModeEnabled?: boolean;
+    currentPlan?: string;
 }
 
 interface UserContextType {

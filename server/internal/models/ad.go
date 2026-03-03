@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
@@ -86,6 +88,20 @@ type Ad struct {
 	// Expiration
 	ExpiresAt string `json:"expiresAt"`
 
+	// Festival metadata (for category=events)
+	FestivalStartAt    *time.Time `json:"festivalStartAt" gorm:"index"`
+	FestivalEndAt      *time.Time `json:"festivalEndAt"`
+	FestivalTimezone   string     `json:"festivalTimezone" gorm:"type:varchar(64)"`
+	OrganizerName      string     `json:"organizerName" gorm:"type:varchar(200)"`
+	OrganizerContact   string     `json:"organizerContact" gorm:"type:varchar(200)"`
+	VenueName          string     `json:"venueName" gorm:"type:varchar(200)"`
+	VenueAddress       string     `json:"venueAddress" gorm:"type:varchar(500)"`
+	VenueLat           *float64   `json:"venueLat" gorm:"type:decimal(10,8)"`
+	VenueLng           *float64   `json:"venueLng" gorm:"type:decimal(11,8)"`
+	PreacherChannelIDs []uint     `json:"preacherChannelIds,omitempty" gorm:"type:jsonb;serializer:json"`
+	LinkedServiceIDs   []uint     `json:"linkedServiceIds,omitempty" gorm:"type:jsonb;serializer:json"`
+	ResolvedPreachers  []FestivalPreacher `json:"resolvedPreachers,omitempty" gorm:"-"`
+
 	// Relations
 	Photos    []AdPhoto    `json:"photos" gorm:"foreignKey:AdID"`
 	Favorites []AdFavorite `json:"-" gorm:"foreignKey:AdID"`
@@ -149,6 +165,62 @@ type AdCreateRequest struct {
 	Phone        string     `json:"phone"`
 	Email        string     `json:"email"`
 	Photos       []string   `json:"photos"` // URLs
+
+	// Festival/event specific fields
+	FestivalStartAt  string  `json:"festivalStartAt"`
+	FestivalEndAt    string  `json:"festivalEndAt"`
+	FestivalTimezone string  `json:"festivalTimezone"`
+	OrganizerName    string  `json:"organizerName"`
+	OrganizerContact string  `json:"organizerContact"`
+	VenueName        string  `json:"venueName"`
+	VenueAddress     string  `json:"venueAddress"`
+	VenueLat         *float64 `json:"venueLat"`
+	VenueLng         *float64 `json:"venueLng"`
+	PreacherChannelIDs []uint `json:"preacherChannelIds"`
+	LinkedServiceIDs   []uint `json:"linkedServiceIds"`
+}
+
+type FestivalPreacher struct {
+	ChannelID uint   `json:"channelId"`
+	OwnerID   uint   `json:"ownerId"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+}
+
+type FestivalItem struct {
+	ID            string             `json:"id"`
+	Source        string             `json:"source"` // ad | sadhu_service
+	StartAt       string             `json:"startAt"`
+	EndAt         string             `json:"endAt,omitempty"`
+	Timezone      string             `json:"timezone"`
+	Title         string             `json:"title"`
+	Description   string             `json:"description,omitempty"`
+	City          string             `json:"city,omitempty"`
+	VenueName     string             `json:"venueName,omitempty"`
+	VenueAddress  string             `json:"venueAddress,omitempty"`
+	OrganizerName string             `json:"organizerName,omitempty"`
+	AdID          *uint              `json:"adId,omitempty"`
+	ServiceID     *uint              `json:"serviceId,omitempty"`
+	ChannelID     *uint              `json:"channelId,omitempty"`
+	Preachers     []FestivalPreacher `json:"preachers"`
+	PhotoURL      string             `json:"photoUrl,omitempty"`
+}
+
+type FestivalListResponse struct {
+	Items      []FestivalItem `json:"items"`
+	Total      int64          `json:"total"`
+	Page       int            `json:"page"`
+	TotalPages int            `json:"totalPages"`
+}
+
+type FestivalCalendarDay struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+type FestivalCalendarResponse struct {
+	Month string                `json:"month"`
+	Days  []FestivalCalendarDay `json:"days"`
 }
 
 // AdResponse for API responses

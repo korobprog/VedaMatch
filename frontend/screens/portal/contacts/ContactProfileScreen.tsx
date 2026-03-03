@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, useColorScheme, ActivityIndicator, Dimensions, Platform, StatusBar, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, useColorScheme, ActivityIndicator, Dimensions, Platform, StatusBar } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../../../types/navigation';
@@ -23,7 +23,6 @@ const { width } = Dimensions.get('window');
 export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => {
     const { userId } = route.params;
     const { vTheme, isDarkMode, portalBackground, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
-    const isPhotoBg = portalBackgroundType === 'image';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user: currentUser } = useUser();
     const { setChatRecipient } = useChat();
@@ -102,28 +101,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
 
     // Background Wrapper Logic
     const BackgroundWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-        if (portalBackgroundType === 'image' && portalBackground) {
-            return (
-                <ImageBackground
-                    source={{ uri: portalBackground }}
-                    style={styles.container}
-                    resizeMode="cover"
-                >
-                    {allowBlurEffects && (
-                        <BlurView
-                            style={StyleSheet.absoluteFill}
-                            blurType="dark"
-                            blurAmount={10}
-                            reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
-                        />
-                    )}
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                        {children}
-                    </View>
-                </ImageBackground>
-            );
-        }
-
         if (portalBackgroundType === 'gradient' && portalBackground) {
             const colors = portalBackground.split('|');
             return (
@@ -159,28 +136,28 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         return (
             <BackgroundWrapper>
                 <View style={styles.centerContent}>
-                    <Text style={{ color: isPhotoBg ? '#fff' : vTheme.colors.text }}>User not found</Text>
+                    <Text style={{ color: vTheme.colors.text }}>User not found</Text>
                 </View>
             </BackgroundWrapper>
         );
     }
 
     const avatarUrl = getMediaUrl(contact.avatarUrl);
-    const textColor = isPhotoBg ? '#FFFFFF' : vTheme.colors.text;
-    const subTextColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
-    const cardBg = isPhotoBg ? 'rgba(255,255,255,0.1)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.6)');
-    const cardBorder = isPhotoBg ? 'rgba(255,255,255,0.2)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)');
+    const textColor = vTheme.colors.text;
+    const subTextColor = vTheme.colors.textSecondary;
+    const cardBg = isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.6)';
+    const cardBorder = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)';
     return (
         <BackgroundWrapper>
-            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
                 <TouchableOpacity
-                    style={[styles.backButton, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary }]}
+                    style={[styles.backButton, { backgroundColor: vTheme.colors.backgroundSecondary }]}
                     onPress={handleBackNavigation}
                 >
-                    <ChevronLeft size={24} color={isPhotoBg ? '#FFF' : vTheme.colors.text} />
+                    <ChevronLeft size={24} color={vTheme.colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: textColor }]}>{t('contacts.profile')}</Text>
                 <View style={{ width: 40 }} />
@@ -191,7 +168,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                 {/* Profile Card */}
                 <View style={[styles.cardContainer, isAndroidReducedEffects && { elevation: 2 }]}>
                     <View style={[styles.glassCard, isAndroidReducedEffects && styles.glassCardReduced, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                        {(isPhotoBg || isDarkMode) && allowBlurEffects && (
+                        {isDarkMode && allowBlurEffects && (
                             <BlurView
                                 style={StyleSheet.absoluteFill}
                                 blurType={isDarkMode ? "dark" : "light"}
@@ -242,7 +219,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         subTextColor={subTextColor}
                         bg={cardBg}
                         border={cardBorder}
-                        isDark={isDarkMode || isPhotoBg}
+                        isDark={isDarkMode}
                         allowBlur={allowBlurEffects}
                     />
                     <InfoItem
@@ -254,7 +231,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         subTextColor={subTextColor}
                         bg={cardBg}
                         border={cardBorder}
-                        isDark={isDarkMode || isPhotoBg}
+                        isDark={isDarkMode}
                         allowBlur={allowBlurEffects}
                     />
                     <InfoItem
@@ -266,7 +243,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         subTextColor={subTextColor}
                         bg={cardBg}
                         border={cardBorder}
-                        isDark={isDarkMode || isPhotoBg}
+                        isDark={isDarkMode}
                         allowBlur={allowBlurEffects}
                     />
                     <InfoItem
@@ -278,7 +255,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         subTextColor={subTextColor}
                         bg={cardBg}
                         border={cardBorder}
-                        isDark={isDarkMode || isPhotoBg}
+                        isDark={isDarkMode}
                         allowBlur={allowBlurEffects}
                     />
                 </View>

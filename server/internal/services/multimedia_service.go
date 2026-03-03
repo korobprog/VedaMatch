@@ -38,6 +38,11 @@ const (
 	maxPaginationLimit     = 100
 )
 
+type multimediaViewerScope struct {
+	bypass bool
+	orgKey string
+}
+
 func sanitizeUploadFolder(folder string) (string, error) {
 	folder = strings.TrimSpace(folder)
 	if folder == "" {
@@ -105,11 +110,72 @@ func calculateMultimediaTotalPages(total int64, limit int) int {
 
 func normalizeTrackFilter(filter TrackFilter) TrackFilter {
 	filter.MediaType = strings.ToLower(strings.TrimSpace(filter.MediaType))
-	filter.Madh = strings.ToLower(strings.TrimSpace(filter.Madh))
+	filter.Madh = normalizeMadhKey(filter.Madh)
 	filter.YogaStyle = strings.ToLower(strings.TrimSpace(filter.YogaStyle))
 	filter.Language = strings.ToLower(strings.TrimSpace(filter.Language))
 	filter.Search = strings.TrimSpace(filter.Search)
 	return filter
+}
+
+func normalizeMadhKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func multimediaIsProPlanBypass(plan string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(plan))
+	if normalized == "" {
+		return false
+	}
+	return normalized == "admin" || strings.Contains(normalized, "pro")
+}
+
+func applyMultimediaMadhScope(query *gorm.DB, scope multimediaViewerScope) *gorm.DB {
+	if scope.bypass {
+		return query
+	}
+	if scope.orgKey == "" {
+		return query.Where("COALESCE(TRIM(madh), '') = ''")
+	}
+	return query.Where("(COALESCE(TRIM(madh), '') = '' OR LOWER(TRIM(madh)) = ?)", scope.orgKey)
+}
+
+func applyRequestedMultimediaMadhFilter(query *gorm.DB, requestedOrgKey string) *gorm.DB {
+	requestedOrgKey = normalizeMadhKey(requestedOrgKey)
+	if requestedOrgKey == "" {
+		return query
+	}
+	return query.Where("LOWER(TRIM(madh)) = ?", requestedOrgKey)
+}
+
+func resolveMultimediaScopeFromUser(viewer models.User) multimediaViewerScope {
+	scope := multimediaViewerScope{}
+	if models.IsAdminRole(strings.TrimSpace(strings.ToLower(viewer.Role))) ||
+		viewer.GodModeEnabled ||
+		multimediaIsProPlanBypass(viewer.CurrentPlan) {
+		scope.bypass = true
+		return scope
+	}
+	scope.orgKey = normalizeMadhKey(viewer.Madh)
+	return scope
+}
+
+func (s *MultimediaService) resolveMultimediaViewerScope(viewerID uint) (multimediaViewerScope, error) {
+	scope := multimediaViewerScope{}
+	if viewerID == 0 {
+		return scope, nil
+	}
+
+	var viewer models.User
+	if err := s.db.
+		Select("id", "madh", "role", "god_mode_enabled", "current_plan").
+		First(&viewer, viewerID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return scope, nil
+		}
+		return scope, err
+	}
+
+	return resolveMultimediaScopeFromUser(viewer), nil
 }
 
 func NewMultimediaService() *MultimediaService {
@@ -216,12 +282,19 @@ type TrackListResponse struct {
 	TotalPages int                 `json:"totalPages"`
 }
 
-func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, error) {
+func (s *MultimediaService) GetTracks(viewerID uint, filter TrackFilter) (*TrackListResponse, error) {
 	var tracks []models.MediaTrack
 	var total int64
 	filter = normalizeTrackFilter(filter)
 
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
+	}
+
 	query := s.db.Model(&models.MediaTrack{}).Where("is_active = ?", true)
+	query = applyMultimediaMadhScope(query, scope)
+	query = applyRequestedMultimediaMadhFilter(query, filter.Madh)
 
 	if filter.MediaType != "" {
 		query = query.Where("media_type = ?", filter.MediaType)
@@ -231,9 +304,6 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 	}
 	if filter.CategoryID > 0 {
 		query = query.Where("category_id = ?", filter.CategoryID)
-	}
-	if filter.Madh != "" {
-		query = query.Where("madh = ?", filter.Madh)
 	}
 	if filter.YogaStyle != "" {
 		query = query.Where("yoga_style = ?", filter.YogaStyle)
@@ -262,7 +332,7 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 	filter.Limit = normalizeLimit(filter.Limit)
 	offset := (filter.Page - 1) * filter.Limit
 
-	err := query.Preload("Category").
+	err = query.Preload("Category").
 		Order("is_featured DESC, created_at DESC").
 		Offset(offset).
 		Limit(filter.Limit).
@@ -282,9 +352,16 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 	}, nil
 }
 
-func (s *MultimediaService) GetTrackByID(id uint) (*models.MediaTrack, error) {
+func (s *MultimediaService) GetTrackByID(viewerID uint, id uint) (*models.MediaTrack, error) {
 	var track models.MediaTrack
-	err := s.db.Preload("Category").First(&track, id).Error
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := s.db.Preload("Category").Where("id = ?", id)
+	query = applyMultimediaMadhScope(query, scope)
+	err = query.First(&track).Error
 	if err != nil {
 		return nil, err
 	}
@@ -327,22 +404,31 @@ func (s *MultimediaService) DeleteTrack(id uint) error {
 
 // --- Radio Stations ---
 
-func (s *MultimediaService) GetRadioStations(madh string) ([]models.RadioStation, error) {
-	madh = strings.TrimSpace(madh)
-	var stations []models.RadioStation
-	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
-
-	if madh != "" {
-		query = query.Where("madh = ?", madh)
+func (s *MultimediaService) GetRadioStations(viewerID uint, madh string) ([]models.RadioStation, error) {
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
 	}
 
-	err := query.Find(&stations).Error
+	var stations []models.RadioStation
+	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
+	query = applyMultimediaMadhScope(query, scope)
+	query = applyRequestedMultimediaMadhFilter(query, madh)
+
+	err = query.Find(&stations).Error
 	return stations, err
 }
 
-func (s *MultimediaService) GetRadioStationByID(id uint) (*models.RadioStation, error) {
+func (s *MultimediaService) GetRadioStationByID(viewerID uint, id uint) (*models.RadioStation, error) {
 	var station models.RadioStation
-	err := s.db.First(&station, id).Error
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := s.db.Where("id = ?", id)
+	query = applyMultimediaMadhScope(query, scope)
+	err = query.First(&station).Error
 	if err != nil {
 		return nil, err
 	}
@@ -479,22 +565,31 @@ func (s *MultimediaService) CheckTVStatus() {
 
 // --- TV Channels ---
 
-func (s *MultimediaService) GetTVChannels(madh string) ([]models.TVChannel, error) {
-	madh = strings.TrimSpace(madh)
-	var channels []models.TVChannel
-	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
-
-	if madh != "" {
-		query = query.Where("madh = ?", madh)
+func (s *MultimediaService) GetTVChannels(viewerID uint, madh string) ([]models.TVChannel, error) {
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
 	}
 
-	err := query.Find(&channels).Error
+	var channels []models.TVChannel
+	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
+	query = applyMultimediaMadhScope(query, scope)
+	query = applyRequestedMultimediaMadhFilter(query, madh)
+
+	err = query.Find(&channels).Error
 	return channels, err
 }
 
-func (s *MultimediaService) GetTVChannelByID(id uint) (*models.TVChannel, error) {
+func (s *MultimediaService) GetTVChannelByID(viewerID uint, id uint) (*models.TVChannel, error) {
 	var channel models.TVChannel
-	err := s.db.First(&channel, id).Error
+	scope, err := s.resolveMultimediaViewerScope(viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := s.db.Where("id = ?", id)
+	query = applyMultimediaMadhScope(query, scope)
+	err = query.First(&channel).Error
 	if err != nil {
 		return nil, err
 	}

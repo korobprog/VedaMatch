@@ -23,6 +23,23 @@ func NewServiceService() *ServiceService {
 	return &ServiceService{}
 }
 
+type FestivalServiceOccurrenceFilters struct {
+	RangeStart time.Time
+	RangeEnd   time.Time
+	City       string
+	Search     string
+	OwnerID    *uint
+	OwnerIDs   []uint
+}
+
+type FestivalServiceOccurrence struct {
+	Service  models.Service
+	Schedule models.ServiceSchedule
+	StartAt  time.Time
+	EndAt    *time.Time
+	Timezone string
+}
+
 func isValidServiceStatus(status models.ServiceStatus) bool {
 	switch status {
 	case models.ServiceStatusDraft, models.ServiceStatusActive, models.ServiceStatusPaused, models.ServiceStatusArchived:
@@ -114,6 +131,184 @@ func calculateServiceTotalPages(total int64, limit int) int {
 		return int(maxInt)
 	}
 	return int(quotient)
+}
+
+func serviceFormatsContainEvent(formats string) bool {
+	trimmed := strings.TrimSpace(formats)
+	if trimmed == "" {
+		return false
+	}
+	var parsed []string
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
+		return strings.Contains(strings.ToLower(trimmed), string(models.ServiceFormatEvent))
+	}
+	for _, item := range parsed {
+		if strings.EqualFold(strings.TrimSpace(item), string(models.ServiceFormatEvent)) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseHHMMInLocation(value string, loc *time.Location) (hour, minute int, ok bool) {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, false
+	}
+	minute, err = strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return 0, 0, false
+	}
+	return hour, minute, true
+}
+
+func normalizeDayRangeBounds(start, end time.Time) (time.Time, time.Time) {
+	startUTC := start.UTC()
+	endUTC := end.UTC()
+	if endUTC.Before(startUTC) {
+		startUTC, endUTC = endUTC, startUTC
+	}
+	rangeStart := time.Date(startUTC.Year(), startUTC.Month(), startUTC.Day(), 0, 0, 0, 0, time.UTC)
+	rangeEnd := time.Date(endUTC.Year(), endUTC.Month(), endUTC.Day(), 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC)
+	return rangeStart, rangeEnd
+}
+
+func dayMatchesSchedule(day time.Weekday, scheduleDay int) bool {
+	return int(day) == scheduleDay
+}
+
+func (s *ServiceService) ListFestivalOccurrences(filters FestivalServiceOccurrenceFilters) ([]FestivalServiceOccurrence, error) {
+	rangeStart, rangeEnd := normalizeDayRangeBounds(filters.RangeStart, filters.RangeEnd)
+
+	query := database.DB.Model(&models.Service{}).
+		Where("services.status = ?", models.ServiceStatusActive).
+		Preload("Owner").
+		Preload("Schedules", "is_active = ?", true)
+
+	if filters.OwnerID != nil && *filters.OwnerID != 0 {
+		query = query.Where("services.owner_id = ?", *filters.OwnerID)
+	}
+
+	if len(filters.OwnerIDs) > 0 {
+		query = query.Where("services.owner_id IN ?", filters.OwnerIDs)
+	}
+
+	search := strings.TrimSpace(filters.Search)
+	if search != "" {
+		pattern := "%" + search + "%"
+		query = query.Where("services.title ILIKE ? OR services.description ILIKE ?", pattern, pattern)
+	}
+
+	city := strings.TrimSpace(filters.City)
+	if city != "" {
+		query = query.Joins("JOIN users ON users.id = services.owner_id").
+			Where("LOWER(TRIM(users.city)) = LOWER(TRIM(?))", city)
+	}
+
+	var servicesList []models.Service
+	if err := query.Find(&servicesList).Error; err != nil {
+		return nil, err
+	}
+
+	occurrences := make([]FestivalServiceOccurrence, 0)
+
+	for _, service := range servicesList {
+		if !serviceFormatsContainEvent(service.Formats) {
+			continue
+		}
+
+		for _, schedule := range service.Schedules {
+			if !schedule.IsActive {
+				continue
+			}
+
+			timezone := strings.TrimSpace(schedule.Timezone)
+			if timezone == "" {
+				timezone = "Europe/Moscow"
+			}
+			loc, err := time.LoadLocation(timezone)
+			if err != nil {
+				loc = time.UTC
+				timezone = "UTC"
+			}
+
+			startHour, startMinute, ok := parseHHMMInLocation(schedule.TimeStart, loc)
+			if !ok {
+				continue
+			}
+
+			endHour, endMinute, endOK := parseHHMMInLocation(schedule.TimeEnd, loc)
+
+			if schedule.SpecificDate != nil {
+				localDate := schedule.SpecificDate.In(loc)
+				startAtLocal := time.Date(localDate.Year(), localDate.Month(), localDate.Day(), startHour, startMinute, 0, 0, loc)
+				startAtUTC := startAtLocal.UTC()
+				if startAtUTC.Before(rangeStart) || startAtUTC.After(rangeEnd) {
+					continue
+				}
+				var endAtUTC *time.Time
+				if endOK {
+					candidate := time.Date(localDate.Year(), localDate.Month(), localDate.Day(), endHour, endMinute, 0, 0, loc)
+					if candidate.After(startAtLocal) {
+						candidateUTC := candidate.UTC()
+						endAtUTC = &candidateUTC
+					}
+				}
+				occurrences = append(occurrences, FestivalServiceOccurrence{
+					Service:  service,
+					Schedule: schedule,
+					StartAt:  startAtUTC,
+					EndAt:    endAtUTC,
+					Timezone: timezone,
+				})
+				continue
+			}
+
+			if schedule.DayOfWeek == nil || *schedule.DayOfWeek < 0 || *schedule.DayOfWeek > 6 {
+				continue
+			}
+
+			cursorLocal := rangeStart.In(loc)
+			cursorDate := time.Date(cursorLocal.Year(), cursorLocal.Month(), cursorLocal.Day(), 0, 0, 0, 0, loc)
+			endLocal := rangeEnd.In(loc)
+			endDate := time.Date(endLocal.Year(), endLocal.Month(), endLocal.Day(), 23, 59, 59, int(time.Second-time.Nanosecond), loc)
+
+			for !cursorDate.After(endDate) {
+				if dayMatchesSchedule(cursorDate.Weekday(), *schedule.DayOfWeek) {
+					startAtLocal := time.Date(cursorDate.Year(), cursorDate.Month(), cursorDate.Day(), startHour, startMinute, 0, 0, loc)
+					startAtUTC := startAtLocal.UTC()
+					if startAtUTC.After(rangeEnd) || startAtUTC.Before(rangeStart) {
+						cursorDate = cursorDate.AddDate(0, 0, 1)
+						continue
+					}
+
+					var endAtUTC *time.Time
+					if endOK {
+						candidate := time.Date(cursorDate.Year(), cursorDate.Month(), cursorDate.Day(), endHour, endMinute, 0, 0, loc)
+						if candidate.After(startAtLocal) {
+							candidateUTC := candidate.UTC()
+							endAtUTC = &candidateUTC
+						}
+					}
+
+					occurrences = append(occurrences, FestivalServiceOccurrence{
+						Service:  service,
+						Schedule: schedule,
+						StartAt:  startAtUTC,
+						EndAt:    endAtUTC,
+						Timezone: timezone,
+					})
+				}
+				cursorDate = cursorDate.AddDate(0, 0, 1)
+			}
+		}
+	}
+
+	return occurrences, nil
 }
 
 // Create creates a new service

@@ -2,9 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
+  Keyboard,
   Modal,
+  Platform,
   RefreshControl,
   Share,
   StyleSheet,
@@ -135,6 +138,7 @@ export default function ChannelsHubScreen() {
   const [commentsSheetLoading, setCommentsSheetLoading] = useState(false);
   const [commentsSheetSubmitting, setCommentsSheetSubmitting] = useState(false);
   const [commentsSheetText, setCommentsSheetText] = useState('');
+  const [commentsKeyboardHeight, setCommentsKeyboardHeight] = useState(0);
 
   const mountedRef = useRef(true);
   const latestFeedReqRef = useRef(0);
@@ -151,6 +155,35 @@ export default function ChannelsHubScreen() {
       latestMyReqRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return undefined;
+    }
+
+    const updateKeyboardHeight = (event: { endCoordinates?: { screenY?: number; height?: number } }) => {
+      const screenHeight = Dimensions.get('window').height;
+      const screenY = event?.endCoordinates?.screenY;
+      const fallbackHeight = event?.endCoordinates?.height ?? 0;
+      const keyboardHeight = typeof screenY === 'number'
+        ? Math.max(0, screenHeight - screenY)
+        : Math.max(0, fallbackHeight);
+      setCommentsKeyboardHeight(keyboardHeight);
+    };
+
+    const frameSub = Keyboard.addListener('keyboardWillChangeFrame', updateKeyboardHeight);
+    const hideSub = Keyboard.addListener('keyboardWillHide', () => setCommentsKeyboardHeight(0));
+    return () => {
+      frameSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!commentsSheetVisible && commentsKeyboardHeight !== 0) {
+      setCommentsKeyboardHeight(0);
+    }
+  }, [commentsKeyboardHeight, commentsSheetVisible]);
 
   const loadFeed = useCallback(async (page: number, reset: boolean) => {
     const reqId = ++latestFeedReqRef.current;
@@ -885,62 +918,72 @@ export default function ChannelsHubScreen() {
         <Modal visible={commentsSheetVisible} transparent animationType="slide" onRequestClose={closeComments}>
           <View style={styles.commentsOverlay}>
             <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeComments} />
-            <View style={styles.commentsSheet}>
-              <View style={styles.commentsHeader}>
-                <Text style={styles.commentsTitle}>Комментарии</Text>
-                <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
-                  <Text style={styles.commentsCloseText}>Закрыть</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.commentsSubtitle}>
-                {commentsSheetPost?.channel?.title || `Канал #${commentsSheetPost?.channelId || ''}`}
-              </Text>
-
-              {commentsSheetLoading && commentsSheetItems.length === 0 ? (
-                <View style={styles.commentsLoader}>
-                  <ActivityIndicator color={colors.accent} />
+            <View
+              style={[
+                styles.commentsKeyboardAvoid,
+                Platform.OS === 'ios' && commentsKeyboardHeight > 0
+                  ? { marginBottom: Math.max(0, commentsKeyboardHeight - 4) }
+                  : null,
+              ]}
+            >
+              <View style={styles.commentsSheet}>
+                <View style={styles.commentsHeader}>
+                  <Text style={styles.commentsTitle}>Комментарии</Text>
+                  <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
+                    <Text style={styles.commentsCloseText}>Закрыть</Text>
+                  </TouchableOpacity>
                 </View>
-              ) : (
-                <FlatList
-                  data={commentsSheetItems}
-                  keyExtractor={item => item.ID.toString()}
-                  style={styles.commentsList}
-                  contentContainerStyle={styles.commentsListContent}
-                  renderItem={({ item }) => (
-                    <View style={styles.commentItem}>
-                      <Text style={styles.commentAuthor}>
-                        {item.user?.spiritualName || item.user?.karmicName || `User #${item.userId}`}
-                      </Text>
-                      <Text style={styles.commentBody}>{item.body}</Text>
-                    </View>
-                  )}
-                  ListEmptyComponent={<Text style={styles.commentsEmpty}>Комментариев пока нет</Text>}
-                  ListFooterComponent={
-                    commentsSheetCursor ? (
-                      <TouchableOpacity style={styles.moreCommentsBtn} onPress={loadMoreComments}>
-                        <Text style={styles.moreCommentsText}>Загрузить еще</Text>
-                      </TouchableOpacity>
-                    ) : null
-                  }
-                />
-              )}
+                <Text style={styles.commentsSubtitle}>
+                  {commentsSheetPost?.channel?.title || `Канал #${commentsSheetPost?.channelId || ''}`}
+                </Text>
 
-              <View style={styles.commentComposer}>
-                <TextInput
-                  value={commentsSheetText}
-                  onChangeText={setCommentsSheetText}
-                  placeholder="Написать комментарий..."
-                  placeholderTextColor={colors.textSecondary}
-                  style={styles.commentInput}
-                  editable={!commentsSheetSubmitting}
-                />
-                <TouchableOpacity
-                  style={[styles.sendCommentBtn, commentsSheetSubmitting && styles.sendCommentBtnDisabled]}
-                  onPress={() => void submitComment()}
-                  disabled={commentsSheetSubmitting}
-                >
-                  {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
-                </TouchableOpacity>
+                {commentsSheetLoading && commentsSheetItems.length === 0 ? (
+                  <View style={styles.commentsLoader}>
+                    <ActivityIndicator color={colors.accent} />
+                  </View>
+                ) : (
+                  <FlatList
+                    data={commentsSheetItems}
+                    keyExtractor={item => item.ID.toString()}
+                    style={styles.commentsList}
+                    contentContainerStyle={styles.commentsListContent}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => (
+                      <View style={styles.commentItem}>
+                        <Text style={styles.commentAuthor}>
+                          {item.user?.spiritualName || item.user?.karmicName || `User #${item.userId}`}
+                        </Text>
+                        <Text style={styles.commentBody}>{item.body}</Text>
+                      </View>
+                    )}
+                    ListEmptyComponent={<Text style={styles.commentsEmpty}>Комментариев пока нет</Text>}
+                    ListFooterComponent={
+                      commentsSheetCursor ? (
+                        <TouchableOpacity style={styles.moreCommentsBtn} onPress={loadMoreComments}>
+                          <Text style={styles.moreCommentsText}>Загрузить еще</Text>
+                        </TouchableOpacity>
+                      ) : null
+                    }
+                  />
+                )}
+
+                <View style={styles.commentComposer}>
+                  <TextInput
+                    value={commentsSheetText}
+                    onChangeText={setCommentsSheetText}
+                    placeholder="Написать комментарий..."
+                    placeholderTextColor={colors.textSecondary}
+                    style={styles.commentInput}
+                    editable={!commentsSheetSubmitting}
+                  />
+                  <TouchableOpacity
+                    style={[styles.sendCommentBtn, commentsSheetSubmitting && styles.sendCommentBtnDisabled]}
+                    onPress={() => void submitComment()}
+                    disabled={commentsSheetSubmitting}
+                  >
+                    {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -1323,6 +1366,10 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       justifyContent: 'flex-end',
       backgroundColor: 'rgba(5, 7, 12, 0.45)',
     },
+    commentsKeyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
     commentsSheet: {
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
@@ -1369,7 +1416,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       alignItems: 'center',
     },
     commentsList: {
-      maxHeight: 320,
+      flex: 1,
     },
     commentsListContent: {
       gap: 8,

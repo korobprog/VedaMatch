@@ -116,7 +116,13 @@ export default function SadhuSangaScheduleScreen() {
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const isBypassMode = Boolean(user?.godModeEnabled) || String(user?.role || '').toLowerCase() === 'superadmin';
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  const normalizedPlan = String(user?.currentPlan || '').trim().toLowerCase();
+  const isBypassMode = Boolean(user?.godModeEnabled)
+    || normalizedRole === 'superadmin'
+    || normalizedRole === 'admin'
+    || normalizedPlan === 'admin'
+    || normalizedPlan.includes('pro');
   const isMathProfileMissing = !isBypassMode && String(user?.madh || '').trim().length === 0;
 
   const [loading, setLoading] = useState(true);

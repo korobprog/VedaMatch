@@ -26,12 +26,16 @@ import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
+import { MULTIMEDIA_MADH_OPTIONS, resolveMultimediaAccessScope } from './multimediaAccess';
 
 export const AudioScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const accessScope = resolveMultimediaAccessScope(user);
+    const isProViewer = accessScope.isProViewer;
+    const userMadh = accessScope.userMadh;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [tracks, setTracks] = useState<MediaTrack[]>([]);
@@ -44,13 +48,6 @@ export const AudioScreen: React.FC = () => {
     const [supportConfig, setSupportConfig] = useState<MultimediaSupportConfig | null>(null);
     const [showSupportPrompt, setShowSupportPrompt] = useState(false);
     const [supportSubmitting, setSupportSubmitting] = useState(false);
-
-    const MADH_OPTIONS = [
-        { id: 'iskcon', label: 'ISKCON' },
-        { id: 'gaudiya', label: 'Gaudiya' },
-        { id: 'srivaishnava', label: 'Sri Vaishnava' },
-        { id: 'vedic', label: 'Vedic' },
-    ];
 
     // Load user favorites on mount
     const loadFavorites = useCallback(async () => {
@@ -98,7 +95,7 @@ export const AudioScreen: React.FC = () => {
                 multimediaService.getTracks({
                     type: 'audio',
                     categoryId: selectedCategory,
-                    madh: selectedMadh,
+                    madh: isProViewer ? selectedMadh : undefined,
                     search: search.length > 2 ? search : undefined
                 }),
             ]);
@@ -114,7 +111,13 @@ export const AudioScreen: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, [selectedCategory, selectedMadh]);
+    }, [selectedCategory, selectedMadh, isProViewer]);
+
+    useEffect(() => {
+        if (!isProViewer && selectedMadh) {
+            setSelectedMadh(undefined);
+        }
+    }, [isProViewer, selectedMadh]);
 
     useEffect(() => {
         let cancelled = false;
@@ -288,38 +291,61 @@ export const AudioScreen: React.FC = () => {
                 </View>
             )}
 
-            {/* Matth Filter */}
-            <View style={[styles.categoriesSection, { paddingTop: 0 }]}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
-                    <TouchableOpacity
-                        style={[
-                            styles.categoryChip,
-                            !selectedMadh
-                                ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
-                                : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
-                        ]}
-                        onPress={() => setSelectedMadh(undefined)}
-                    >
-                        <Text style={[styles.categoryText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
-                    </TouchableOpacity>
-                    {MADH_OPTIONS.map((m) => (
+            {isProViewer ? (
+                <View style={[styles.categoriesSection, { paddingTop: 0 }]}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
                         <TouchableOpacity
-                            key={m.id}
                             style={[
                                 styles.categoryChip,
-                                selectedMadh === m.id
+                                !selectedMadh
                                     ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
                                     : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                             ]}
-                            onPress={() => setSelectedMadh(m.id)}
+                            onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.categoryText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
-                                {m.label}
-                            </Text>
+                            <Text style={[styles.categoryText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
                         </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
+                        {MULTIMEDIA_MADH_OPTIONS.map((m) => (
+                            <TouchableOpacity
+                                key={m.id}
+                                style={[
+                                    styles.categoryChip,
+                                    selectedMadh === m.id
+                                        ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                        : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
+                                ]}
+                                onPress={() => setSelectedMadh(m.id)}
+                            >
+                                <Text style={[styles.categoryText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
+                                    {m.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            ) : (
+                <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    {userMadh ? (
+                        <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+                            Режим доступа: ваша организация и общий контент.
+                        </Text>
+                    ) : (
+                        <>
+                            <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+                                Доступен общий контент. Добавьте организацию в профиль или включите PRO для полного каталога.
+                            </Text>
+                            <View style={styles.scopeActions}>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
+                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
+                                    <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+                </View>
+            )}
 
             {/* Categories Filter */}
             <View style={styles.categoriesSection}>
@@ -516,6 +542,28 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     supportBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+    },
+    scopeCard: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+    },
+    scopeText: {
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    scopeActions: {
+        marginTop: 8,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    scopeBtn: {
         borderWidth: 1,
         borderRadius: 8,
         paddingHorizontal: 10,

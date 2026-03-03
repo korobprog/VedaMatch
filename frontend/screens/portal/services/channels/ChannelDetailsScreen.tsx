@@ -2,10 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
+  Keyboard,
   Linking,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -322,6 +325,7 @@ export default function ChannelDetailsScreen() {
   const [commentsSheetLoading, setCommentsSheetLoading] = useState(false);
   const [commentsSheetSubmitting, setCommentsSheetSubmitting] = useState(false);
   const [commentsSheetText, setCommentsSheetText] = useState('');
+  const [commentsKeyboardHeight, setCommentsKeyboardHeight] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
   const [preacherSeminars, setPreacherSeminars] = useState<SeminarPreview[]>([]);
   const [preacherSeminarsLoading, setPreacherSeminarsLoading] = useState(false);
@@ -355,6 +359,35 @@ export default function ChannelDetailsScreen() {
       latestLoadRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return undefined;
+    }
+
+    const updateKeyboardHeight = (event: { endCoordinates?: { screenY?: number; height?: number } }) => {
+      const screenHeight = Dimensions.get('window').height;
+      const screenY = event?.endCoordinates?.screenY;
+      const fallbackHeight = event?.endCoordinates?.height ?? 0;
+      const keyboardHeight = typeof screenY === 'number'
+        ? Math.max(0, screenHeight - screenY)
+        : Math.max(0, fallbackHeight);
+      setCommentsKeyboardHeight(keyboardHeight);
+    };
+
+    const frameSub = Keyboard.addListener('keyboardWillChangeFrame', updateKeyboardHeight);
+    const hideSub = Keyboard.addListener('keyboardWillHide', () => setCommentsKeyboardHeight(0));
+    return () => {
+      frameSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!commentsSheetVisible && commentsKeyboardHeight !== 0) {
+      setCommentsKeyboardHeight(0);
+    }
+  }, [commentsKeyboardHeight, commentsSheetVisible]);
 
   const loadPreacherSeminars = useCallback(async (ownerID: number) => {
     if (!ownerID || ownerID <= 0) {
@@ -1498,8 +1531,6 @@ export default function ChannelDetailsScreen() {
     }
     return true;
   }, [channel, user?.ID, viewerRole]);
-  const showStickySadhuCta = isSadhuSangaMode && canFollow;
-  const stickySadhuCtaLabel = channel?.isFollowing ? 'Открыть расписание' : 'Подписаться';
 
   const handleFollowToggle = useCallback(async () => {
     if (!channelId || !channel || !canFollow || followLoading) {
@@ -1553,17 +1584,6 @@ export default function ChannelDetailsScreen() {
       }
     }
   }, [canFollow, channel, channelId, followLoading]);
-
-  const handleStickySadhuCta = useCallback(() => {
-    if (!showStickySadhuCta) {
-      return;
-    }
-    if (channel?.isFollowing) {
-      navigation.navigate('SadhuSangaSchedule');
-      return;
-    }
-    void handleFollowToggle();
-  }, [channel?.isFollowing, handleFollowToggle, navigation, showStickySadhuCta]);
 
   const openSadhuQuestionForm = useCallback(() => {
     if (!channel?.ownerId || channel.ownerId <= 0) {
@@ -1747,10 +1767,7 @@ export default function ChannelDetailsScreen() {
             contentListRef.current = instance;
           }}
           style={styles.contentScroll}
-          contentContainerStyle={[
-            styles.contentScrollContainer,
-            showStickySadhuCta && styles.contentScrollContainerWithStickyCta,
-          ]}
+          contentContainerStyle={styles.contentScrollContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -2540,25 +2557,18 @@ export default function ChannelDetailsScreen() {
         ) : null}
         </ScrollView>
 
-        {showStickySadhuCta ? (
-          <View style={styles.stickySadhuCtaWrap}>
-            <TouchableOpacity
-              style={[
-                styles.stickySadhuCtaButton,
-                followLoading && styles.stickySadhuCtaButtonDisabled,
-              ]}
-              onPress={handleStickySadhuCta}
-              disabled={followLoading}
-            >
-              <Text style={styles.stickySadhuCtaText}>{stickySadhuCtaLabel}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
         <Modal visible={commentsSheetVisible} transparent animationType="slide" onRequestClose={closeComments}>
           <View style={styles.commentsOverlay}>
             <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeComments} />
-            <View style={styles.commentsSheet}>
+            <View
+              style={[
+                styles.commentsKeyboardAvoid,
+                Platform.OS === 'ios' && commentsKeyboardHeight > 0
+                  ? { marginBottom: Math.max(0, commentsKeyboardHeight - 4) }
+                  : null,
+              ]}
+            >
+              <View style={styles.commentsSheet}>
               <View style={styles.commentsHeader}>
                 <Text style={styles.commentsTitle}>Комментарии</Text>
                 <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
@@ -2579,6 +2589,7 @@ export default function ChannelDetailsScreen() {
                   keyExtractor={item => item.ID.toString()}
                   style={styles.commentsList}
                   contentContainerStyle={styles.commentsListContent}
+                  keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
                     <View style={styles.commentItem}>
                       <Text style={styles.commentAuthor}>
@@ -2614,6 +2625,7 @@ export default function ChannelDetailsScreen() {
                 >
                   {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
                 </TouchableOpacity>
+              </View>
               </View>
             </View>
           </View>
@@ -4065,6 +4077,10 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       justifyContent: 'flex-end',
       backgroundColor: 'rgba(5, 7, 12, 0.45)',
     },
+    commentsKeyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
     commentsSheet: {
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
@@ -4111,7 +4127,7 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       alignItems: 'center',
     },
     commentsList: {
-      maxHeight: 320,
+      flex: 1,
     },
     commentsListContent: {
       gap: 8,

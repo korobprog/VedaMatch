@@ -221,6 +221,10 @@ func Connect() {
 		ON services (status, created_at DESC)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_news_items_status_important_published
 		ON news_items (status, is_important DESC, published_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_ads_festival_start
+		ON ads (category, status, festival_start_at)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_ads_city_festival_start
+		ON ads (city, festival_start_at)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_promoted_ad_impressions_user_placement_created
 		ON channel_promoted_ad_impressions (user_id, placement, created_at DESC)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_feed_items_user_time

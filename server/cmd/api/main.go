@@ -388,6 +388,7 @@ func main() {
 
 	// Public Multimedia Hub Routes (Sattva Media)
 	multimedia := api.Group("/multimedia")
+	multimedia.Use(middleware.OptionalAuth())
 	multimedia.Get("/categories", multimediaHandler.GetCategories)
 	multimedia.Get("/tracks", multimediaHandler.GetTracks)
 	multimedia.Get("/tracks/:id", multimediaHandler.GetTrack)

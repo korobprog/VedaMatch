@@ -35,6 +35,7 @@ import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
+import { MULTIMEDIA_MADH_OPTIONS, resolveMultimediaAccessScope } from './multimediaAccess';
 
 interface MultimediaHubScreenProps {
     onBack?: () => void;
@@ -45,6 +46,9 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const accessScope = resolveMultimediaAccessScope(user);
+    const isProViewer = accessScope.isProViewer;
+    const userMadh = accessScope.userMadh;
     const cardBgColor = isDarkMode ? '#1C1C1E' : '#FFFFFF';
     const screenBgColor = isDarkMode ? '#000000' : '#F2F2F7';
     const textColorPrimary = isDarkMode ? '#FFFFFF' : '#000000';
@@ -57,13 +61,14 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
     const [supportConfig, setSupportConfig] = useState<MultimediaSupportConfig | null>(null);
     const [showSupportPrompt, setShowSupportPrompt] = useState(false);
     const [supportSubmitting, setSupportSubmitting] = useState(false);
+    const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
 
     const loadData = async () => {
         try {
             const [radio, tv, tracks] = await Promise.all([
-                multimediaService.getRadioStations(),
-                multimediaService.getTVChannels(),
-                multimediaService.getTracks({ featured: true, limit: 5 }),
+                multimediaService.getRadioStations(isProViewer ? selectedMadh : undefined),
+                multimediaService.getTVChannels(isProViewer ? selectedMadh : undefined),
+                multimediaService.getTracks({ featured: true, limit: 5, madh: isProViewer ? selectedMadh : undefined }),
             ]);
             setRadioStations(radio);
             setTVChannels(tv);
@@ -78,7 +83,13 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedMadh, isProViewer]);
+
+    useEffect(() => {
+        if (!isProViewer && selectedMadh) {
+            setSelectedMadh(undefined);
+        }
+    }, [isProViewer, selectedMadh]);
 
     useEffect(() => {
         let cancelled = false;
@@ -207,6 +218,62 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+            )}
+
+            {isProViewer ? (
+                <View style={styles.filterSection}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+                        <TouchableOpacity
+                            style={[
+                                styles.filterChip,
+                                !selectedMadh
+                                    ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                    : { backgroundColor: cardBgColor, borderColor: roleColors.border }
+                            ]}
+                            onPress={() => setSelectedMadh(undefined)}
+                        >
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: textColorSecondary }]}>Все Традиции</Text>
+                        </TouchableOpacity>
+                        {MULTIMEDIA_MADH_OPTIONS.map((m) => (
+                            <TouchableOpacity
+                                key={m.id}
+                                style={[
+                                    styles.filterChip,
+                                    selectedMadh === m.id
+                                        ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                        : { backgroundColor: cardBgColor, borderColor: roleColors.border }
+                                ]}
+                                onPress={() => setSelectedMadh(m.id)}
+                            >
+                                <Text style={[styles.filterText, selectedMadh === m.id ? { color: roleColors.accent } : { color: textColorSecondary }]}>
+                                    {m.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            ) : (
+                <View style={[styles.scopeCard, { backgroundColor: cardBgColor, borderColor: roleColors.border }]}>
+                    {userMadh ? (
+                        <Text style={[styles.scopeText, { color: textColorSecondary }]}>
+                            Режим доступа: ваша организация и общий контент.
+                        </Text>
+                    ) : (
+                        <>
+                            <Text style={[styles.scopeText, { color: textColorSecondary }]}>
+                                Сейчас доступен только общий контент. Укажите организацию в профиле или активируйте PRO.
+                            </Text>
+                            <View style={styles.scopeActions}>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
+                                    <Text style={{ color: textColorPrimary }}>Профиль</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
+                                    <Text style={{ color: roleColors.accent, fontWeight: '700' }}>PRO</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
                 </View>
             )}
 
@@ -447,6 +514,46 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     supportBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    filterSection: {
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    filterList: {
+        paddingHorizontal: 16,
+        gap: 8,
+    },
+    filterChip: {
+        borderWidth: 1,
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    scopeCard: {
+        marginHorizontal: 16,
+        marginTop: 8,
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 14,
+    },
+    scopeText: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    scopeActions: {
+        marginTop: 10,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    scopeBtn: {
         borderWidth: 1,
         borderRadius: 8,
         paddingHorizontal: 12,

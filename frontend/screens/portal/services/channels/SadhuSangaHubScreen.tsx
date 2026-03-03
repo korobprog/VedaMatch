@@ -157,7 +157,13 @@ export default function SadhuSangaHubScreen() {
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const isBypassMode = Boolean(user?.godModeEnabled) || String(user?.role || '').toLowerCase() === 'superadmin';
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  const normalizedPlan = String(user?.currentPlan || '').trim().toLowerCase();
+  const isBypassMode = Boolean(user?.godModeEnabled)
+    || normalizedRole === 'superadmin'
+    || normalizedRole === 'admin'
+    || normalizedPlan === 'admin'
+    || normalizedPlan.includes('pro');
   const isMathProfileMissing = !isBypassMode && String(user?.madh || '').trim().length === 0;
 
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -181,6 +187,7 @@ export default function SadhuSangaHubScreen() {
   const [seminarsLoading, setSeminarsLoading] = useState(false);
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
   const [liveJoinLoadingChannelId, setLiveJoinLoadingChannelId] = useState<number | null>(null);
+  const isSearchMode = search.trim().length > 0;
 
   const mountedRef = useRef(true);
   const latestReqRef = useRef(0);
@@ -747,62 +754,66 @@ export default function SadhuSangaHubScreen() {
               />
             </View>
 
-            <View style={styles.heroCard}>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>Новый сервис</Text>
-              </View>
-              <View style={styles.heroRow}>
-                <View style={styles.heroTextWrap}>
-                  <Text style={styles.heroTitle}>Пространство общения</Text>
-                  <Text style={styles.heroSubtitle}>
-                    Будьте ближе к проповедникам, лекциям и живому общению каждый день.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.heroActionButton}
-                    onPress={() => Alert.alert('Садху Санга', 'Листайте ниже: эфиры, семинары, вопросы и подписки уже доступны.')}
-                  >
-                    <Text style={styles.heroActionText}>Узнать больше</Text>
-                  </TouchableOpacity>
+            {!isSearchMode ? (
+              <>
+                <View style={styles.heroCard}>
+                  <View style={styles.heroBadge}>
+                    <Text style={styles.heroBadgeText}>Новый сервис</Text>
+                  </View>
+                  <View style={styles.heroRow}>
+                    <View style={styles.heroTextWrap}>
+                      <Text style={styles.heroTitle}>Пространство общения</Text>
+                      <Text style={styles.heroSubtitle}>
+                        Будьте ближе к проповедникам, лекциям и живому общению каждый день.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.heroActionButton}
+                        onPress={() => Alert.alert('Садху Санга', 'Листайте ниже: эфиры, семинары, вопросы и подписки уже доступны.')}
+                      >
+                        <Text style={styles.heroActionText}>Узнать больше</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.heroIconWrap}>
+                      <Heart size={54} color="#F6C766" />
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.heroIconWrap}>
-                  <Heart size={54} color="#F6C766" />
-                </View>
-              </View>
-            </View>
 
-            <View style={styles.featuresSection}>
-              <Text style={styles.featuresTitle}>Возможности Садху Санга</Text>
-              <View style={styles.featuresGrid}>
-                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('live')}>
-                  <View style={[styles.featureIconWrap, styles.featureIconLive]}>
-                    <PlayCircle size={18} color="#2F67F6" />
+                <View style={styles.featuresSection}>
+                  <Text style={styles.featuresTitle}>Возможности Садху Санга</Text>
+                  <View style={styles.featuresGrid}>
+                    <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('live')}>
+                      <View style={[styles.featureIconWrap, styles.featureIconLive]}>
+                        <PlayCircle size={18} color="#2F67F6" />
+                      </View>
+                      <Text style={styles.featureCardTitle}>Прямые эфиры</Text>
+                      <Text style={styles.featureCardSub}>Смотрите вживую и в записи</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('seminars')}>
+                      <View style={[styles.featureIconWrap, styles.featureIconSeminar]}>
+                        <MapPin size={18} color="#0D9B6C" />
+                      </View>
+                      <Text style={styles.featureCardTitle}>Семинары</Text>
+                      <Text style={styles.featureCardSub}>Онлайн и офлайн в вашем городе</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('qa')}>
+                      <View style={[styles.featureIconWrap, styles.featureIconQuestion]}>
+                        <MessageCircle size={18} color="#8A2BE2" />
+                      </View>
+                      <Text style={styles.featureCardTitle}>Вопрос-ответ</Text>
+                      <Text style={styles.featureCardSub}>Задайте вопрос проповеднику</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('schedule')}>
+                      <View style={[styles.featureIconWrap, styles.featureIconSchedule]}>
+                        <Clock3 size={18} color="#E64173" />
+                      </View>
+                      <Text style={styles.featureCardTitle}>Расписание</Text>
+                      <Text style={styles.featureCardSub}>Уведомления по вашим фильтрам</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.featureCardTitle}>Прямые эфиры</Text>
-                  <Text style={styles.featureCardSub}>Смотрите вживую и в записи</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('seminars')}>
-                  <View style={[styles.featureIconWrap, styles.featureIconSeminar]}>
-                    <MapPin size={18} color="#0D9B6C" />
-                  </View>
-                  <Text style={styles.featureCardTitle}>Семинары</Text>
-                  <Text style={styles.featureCardSub}>Онлайн и офлайн в вашем городе</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('qa')}>
-                  <View style={[styles.featureIconWrap, styles.featureIconQuestion]}>
-                    <MessageCircle size={18} color="#8A2BE2" />
-                  </View>
-                  <Text style={styles.featureCardTitle}>Вопрос-ответ</Text>
-                  <Text style={styles.featureCardSub}>Задайте вопрос проповеднику</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('schedule')}>
-                  <View style={[styles.featureIconWrap, styles.featureIconSchedule]}>
-                    <Clock3 size={18} color="#E64173" />
-                  </View>
-                  <Text style={styles.featureCardTitle}>Расписание</Text>
-                  <Text style={styles.featureCardSub}>Уведомления по вашим фильтрам</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+                </View>
+              </>
+            ) : null}
 
             <View style={styles.inlineFilters}>
               <TouchableOpacity
@@ -834,7 +845,8 @@ export default function SadhuSangaHubScreen() {
           </View>
 
           <>
-            <View style={styles.seminarsSection}>
+            {!isSearchMode ? (
+              <View style={styles.seminarsSection}>
               <View style={styles.liveSection}>
                 <View style={styles.liveHeaderRow}>
                   <Text style={styles.liveTitle}>Прямой эфир</Text>
@@ -961,8 +973,9 @@ export default function SadhuSangaHubScreen() {
                     </View>
                   ))}
                 </View>
-              )}
-            </View>
+                )}
+              </View>
+            ) : null}
 
             {loading ? (
               <View style={styles.loaderWrap}>
@@ -970,7 +983,7 @@ export default function SadhuSangaHubScreen() {
               </View>
             ) : (
               <>
-                {recommendedPreachers.length > 0 ? (
+                {!isSearchMode && recommendedPreachers.length > 0 ? (
                   <View style={styles.recommendedSection}>
                     <View style={styles.recommendedHeader}>
                       <Text style={styles.recommendedTitleMain}>Рекомендуем вам</Text>
@@ -1026,8 +1039,8 @@ export default function SadhuSangaHubScreen() {
                 ) : null}
 
                 <View style={styles.preachersHeader}>
-                  <Text style={styles.preachersTitle}>Проповедники</Text>
-                  <Text style={styles.preachersCount}>Все · {channels.length}</Text>
+                  <Text style={styles.preachersTitle}>{isSearchMode ? 'Результаты поиска' : 'Проповедники'}</Text>
+                  <Text style={styles.preachersCount}>{isSearchMode ? `Найдено · ${channels.length}` : `Все · ${channels.length}`}</Text>
                 </View>
                 {isMathProfileMissing ? (
                   <View style={styles.mathHintCard}>

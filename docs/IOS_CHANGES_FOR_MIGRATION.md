@@ -1,5 +1,280 @@
 # IOS Changes For Migration
 
+## 2026-03-03 (Multimedia org-visibility via PRO scope: backend + admin + RN)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+- `server/internal/handlers/multimedia_handler.go`
+- `server/internal/services/multimedia_service.go`
+- `server/internal/services/multimedia_service_test.go`
+- `server/internal/services/multimedia_service_integration_test.go`
+- `server/internal/handlers/multimedia_handler_integration_test.go`
+- `admin/src/app/multimedia/page.tsx`
+- `frontend/screens/multimedia/multimediaAccess.ts`
+- `frontend/screens/multimedia/AudioScreen.tsx`
+- `frontend/screens/multimedia/VideoScreen.tsx`
+- `frontend/screens/multimedia/RadioScreen.tsx`
+- `frontend/screens/multimedia/TVScreen.tsx`
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+- `frontend/__tests__/screens/multimedia/AudioScreenOrgScope.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - публичные multimedia read-endpoints не учитывали optional auth context и не персонализировали org scope для гостя/non-PRO/PRO;
+  - пользователь без PRO видел полный org-фильтр на mobile (чипы всех организаций);
+  - в admin multimedia TV-форма не имела поля org-видимости (`madh`), а для create не было стабильного default из профиля админа.
+- Стало:
+  - backend для `/api/multimedia` применяет `OptionalAuth` и единые правила доступа:
+    - anonymous: только global (`madh` пустой/NULL),
+    - non-PRO: `global + user.madh`,
+    - PRO/Admin/GodMode: полный доступ;
+  - сервер принимает query-алиасы `matha|madh|math` и не дает non-PRO расширить scope через чужой org query;
+  - admin multimedia унифицирован по видимости (`Для всех` / `Для организации`) для Track/Video/Radio/TV с default `madh` из `localStorage.admin_data.madh`;
+  - RN multimedia экраны скрывают полный org-выбор для non-PRO, оставляют org-чипы для PRO и показывают мягкий CTA при пустом `user.madh`.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+multimedia := api.Group("/multimedia")
+multimedia.Use(middleware.OptionalAuth())
+```
+
+`server/internal/handlers/multimedia_handler.go`:
+```go
+func parseMultimediaMathParam(c *fiber.Ctx) string {
+    if value := strings.TrimSpace(c.Query("matha")); value != "" {
+        return value
+    }
+    if value := strings.TrimSpace(c.Query("madh")); value != "" {
+        return value
+    }
+    return strings.TrimSpace(c.Query("math"))
+}
+```
+
+`server/internal/services/multimedia_service.go`:
+```go
+if scope.bypass {
+    return applyRequestedMultimediaMadhFilter(db, requestedMadh), nil
+}
+if scope.orgKey == "" {
+    return db.Where("COALESCE(TRIM(madh), '') = ''"), nil
+}
+return db.Where("(COALESCE(TRIM(madh), '') = '' OR LOWER(TRIM(madh)) = ?)", scope.orgKey), nil
+```
+
+`frontend/screens/multimedia/AudioScreen.tsx`:
+```tsx
+const accessScope = resolveMultimediaAccessScope(user);
+const isProViewer = accessScope.isProViewer;
+
+multimediaService.getTracks({
+  type: 'audio',
+  madh: isProViewer ? selectedMadh : undefined,
+});
+```
+
+`admin/src/app/multimedia/page.tsx`:
+```tsx
+const VISIBILITY_OPTIONS = [
+  { value: '', label: 'Для всех' },
+  ...ORG_OPTIONS,
+];
+const getAdminDefaultMadh = (): string => {
+  const raw = localStorage.getItem('admin_data');
+  const parsed = raw ? JSON.parse(raw) : null;
+  return typeof parsed?.madh === 'string' ? parsed.madh.trim().toLowerCase() : '';
+};
+```
+
+## 2026-03-03 (Travel service header: remove top photo wallpaper background)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в сервисе путешествий (`activeTab === 'travel'`) service-layer мог наследовать фото-обои портала;
+  - верхний `header` рендерился поверх фото-фона.
+- Стало:
+  - `travel` добавлен в набор вкладок с принудительно однотонным service-layer;
+  - `header` в сервисе путешествий больше не показывает фото-фон.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const isEducationTabActive = activeTab === 'education';
+const isAdsTabActive = activeTab === 'ads';
+const isTravelTabActive = activeTab === 'travel';
+const useSolidServiceLayer = isEducationTabActive || isAdsTabActive || isTravelTabActive;
+```
+
+## 2026-03-03 (Ads service header: remove top photo wallpaper background)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при открытии сервиса объявлений (`activeTab === 'ads'`) сервисный слой мог наследовать фото-обои портала (`portalBackgroundType === 'image'`);
+  - верхний `header` рендерился поверх фото-фона (как на скриншоте).
+- Стало:
+  - для вкладки объявлений принудительно включен однотонный service-layer (`color`);
+  - отключены `activeWallpaper`, slideshow и overlay для этой вкладки;
+  - фото-фон в верхней шапке объявлений больше не показывается.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const isEducationTabActive = activeTab === 'education';
+const isAdsTabActive = activeTab === 'ads';
+const useSolidServiceLayer = isEducationTabActive || isAdsTabActive;
+
+const serviceLayerBackgroundType = useSolidServiceLayer ? 'color' : layerBackgroundType;
+const serviceLayerActiveWallpaper = useSolidServiceLayer ? '' : layerActiveWallpaper;
+const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
+```
+
+## 2026-03-03 (Contact Profile: disable photo wallpaper background)
+
+### Измененные файлы
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ContactProfileScreen` рендерил `ImageBackground` при `portalBackgroundType === 'image'`;
+  - профиль контакта мог отображаться на фото-обоях portal-темы.
+- Стало:
+  - ветка `ImageBackground` удалена;
+  - экран профиля контакта использует только `gradient` или однотонный `vTheme.colors.background`, без фото-обоев.
+
+### Сниппеты кода
+
+`frontend/screens/portal/contacts/ContactProfileScreen.tsx`:
+```tsx
+if (portalBackgroundType === 'gradient' && portalBackground) {
+  return <LinearGradient ...>{children}</LinearGradient>;
+}
+
+return (
+  <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+    {children}
+  </View>
+);
+```
+
+## 2026-03-03 (Edit Profile: remove photo wallpaper background)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран редактирования профиля рендерил `ImageBackground` из `portalBackground` при `portalBackgroundType === 'image'`;
+  - на светлых/детальных обоях терялась читаемость и визуальная стабильность формы профиля.
+- Стало:
+  - фото-обои полностью отключены для `EditProfileScreen`;
+  - экран всегда использует сплошной фон `#0E1525` с существующим overlay-слоем роли.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const screenBackgroundColor = '#0E1525';
+
+return (
+  <View style={[styles.container, { backgroundColor: screenBackgroundColor }]}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
+      ...
+    </View>
+  </View>
+);
+```
+
+## 2026-03-03 (Room SFU join fix: correct LiveKit SDK source + globals registration)
+
+### Измененные файлы
+- `frontend/services/roomSfuClient.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `RoomSfuClient` пытался брать `Room` из `@livekit/react-native` через `require('@livekit/react-native').Room`;
+  - в версии SDK `@livekit/react-native@2.9.6` класс `Room` не экспортируется из этого пакета, из-за чего при входе в комнату падало с ошибкой `LiveKit Room SDK is unavailable`.
+- Стало:
+  - `Room` и `RoomEvent` берутся из `livekit-client` (`require('livekit-client')`);
+  - перед подключением выполняется единоразовый `registerGlobals()` из `@livekit/react-native` (через `ensureLiveKitGlobalsReady()`), чтобы корректно инициализировать WebRTC globals на iOS/Android.
+
+### Сниппеты кода
+
+`frontend/services/roomSfuClient.ts`:
+```ts
+const livekitReactNative = require('@livekit/react-native');
+livekitReactNative.registerGlobals();
+
+const livekit = require('livekit-client');
+const Room = livekit?.Room;
+this.bindRoomEvents(this.room, livekit?.RoomEvent);
+```
+
+## 2026-03-03 (Chat history screen: remove photo background, switch to solid color)
+
+### Измененные файлы
+- `frontend/SettingsDrawer.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран истории чатов в `SettingsDrawer` наследовал `portalBackgroundType` и мог рендерить фото/градиентный фон;
+  - на таком фоне ухудшалась читаемость заголовка и элементов истории чатов.
+- Стало:
+  - фото/градиентный фон для этого экрана полностью отключен;
+  - установлен единый спокойный фон `#F2EFE6`;
+  - цвета заголовка, action-кнопок, карточек истории, даты и пустого состояния переведены на контрастную палитру.
+
+### Сниппеты кода
+
+`frontend/SettingsDrawer.tsx`:
+```tsx
+const historyColors = React.useMemo(() => ({
+  background: '#F2EFE6',
+  card: 'rgba(255,255,255,0.92)',
+  textPrimary: '#1F2937',
+  textSecondary: '#64748B',
+}), []);
+
+<View style={[StyleSheet.absoluteFill, { backgroundColor: historyColors.background }]} />
+```
+
+## 2026-03-03 (Chat messages contrast fix on light chat background)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `MessageList` определял контраст по `portalBackgroundType`, а не по `chatBackgroundType`;
+  - при светлом фоне чата входящие bubble могли рендериться с очень светлым текстом (плохая читаемость).
+- Стало:
+  - `MessageList` переключен на `chatBackgroundType/chatBackground`;
+  - добавлено определение светлого фона через `isColorLight/isGradientLight`;
+  - для bubble введены отдельные цвета текста:
+    - исходящие: светлый текст на более темном bubble,
+    - входящие: темный текст на светлом bubble;
+  - скорректированы цвета времени/мета/источников и fallback tint для blur.
+
+### Сниппеты кода
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const { assistantType, isDarkMode, chatBackgroundType, chatBackground } = useSettings();
+const isLightChatBackground =
+  (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+  (chatBackgroundType === 'gradient' && isGradientLight(chatBackground));
+const bubbleTextColor = isUser ? '#F8FAFC' : theme.text;
+```
+
 ## 2026-03-03 (Chat contrast hotfix for light backgrounds)
 
 ### Измененные файлы
@@ -6756,4 +7031,287 @@ const result = await webRTCService.switchCamera();
 setStreamVersion(v => v + 1);
 ...
 key={`${localStream.toURL()}-${streamVersion}`}
+```
+
+## 2026-03-03 (Union profile crash hotfix: `data.find` on non-array)
+
+### Измененные файлы
+- `frontend/screens/portal/dating/EditDatingProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при входе в редактирование профиля «Союза» экран загружал данные через `datingService.getUsers()` (`/contacts`);
+  - код ожидал массив и выполнял `data.find(...)`;
+  - при object-ответе (пагинация) возникал RedBox: `TypeError: data.find is not a function`.
+- Стало:
+  - экран загружает профиль напрямую через `datingService.getProfile(userId)` (`/dating/profile/:id`);
+  - убрана зависимость от формата `/contacts`;
+  - добавлен защитный парсинг `intentions` (поддержка CSV-строки и массива).
+
+### Сниппеты кода
+
+`frontend/screens/portal/dating/EditDatingProfileScreen.tsx`:
+```tsx
+const me = await datingService.getProfile(userId);
+
+const normalizedIntentions = Array.isArray(me.intentions)
+  ? me.intentions.map((intention: unknown) => String(intention).trim()).filter(Boolean)
+  : typeof me.intentions === 'string'
+    ? me.intentions.split(',').map((intention: string) => intention.trim()).filter(Boolean)
+    : [];
+```
+
+## 2026-03-03 (Channels comments: keyboard-safe composer above iOS keyboard)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - comments bottom sheet рендерился в `Modal` без `KeyboardAvoidingView`;
+  - при фокусе в `TextInput` на iOS клавиатура перекрывала composer, поле ввода частично/полностью уходило под клавиатуру;
+  - список комментариев имел фиксированный `maxHeight: 320`, что ухудшало адаптацию по высоте при открытой клавиатуре.
+- Стало:
+  - comments sheet обернут в `KeyboardAvoidingView` c iOS `behavior='padding'` и safe-area offset (`useSafeAreaInsets`);
+  - `FlatList` комментариев переведен на `flex: 1` для адаптивного ресайза вместе с листом;
+  - добавлен `keyboardShouldPersistTaps='handled'` у `FlatList`, чтобы тапы по списку/кнопкам не ломали фокусный сценарий ввода.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```tsx
+<KeyboardAvoidingView
+  style={styles.commentsKeyboardAvoid}
+  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+  keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom : 0}
+>
+  <View style={styles.commentsSheet}>...</View>
+</KeyboardAvoidingView>
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<FlatList
+  data={commentsSheetItems}
+  style={styles.commentsList}
+  keyboardShouldPersistTaps="handled"
+  ...
+/>
+```
+
+## 2026-03-03 (Sadhu Sanga: search-only preacher results + PRO/math bypass consistency)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx`
+- `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx`
+- `frontend/context/UserContext.tsx`
+- `server/internal/services/channel_service.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на `SadhuSangaHub` при вводе в поиск одновременно оставались hero/фичи/эфиры/семинары/рекомендации, из-за чего поиск проповедников визуально терялся;
+  - bypass матх-фильтра Sadhu Sanga в сервисе каналов в основном ориентировался на `god_mode_enabled` и `superadmin`, что могло не совпадать с текущим `current_plan` (`pro`) и ролью `admin`;
+  - фронт Sadhu-экранов (`Hub/Schedule/Live`) в `isBypassMode` учитывал только `godModeEnabled` и `superadmin`.
+- Стало:
+  - `SadhuSangaHub` при активном поиске показывает только блок результатов проповедников (hero/фичи/эфиры/семинары/рекомендации скрываются);
+  - backend `channel_service` расширил bypass-логику: `admin/superadmin`, `god_mode_enabled`, а также `current_plan` с признаком `pro/admin`;
+  - frontend `Hub/Schedule/Live` синхронизирован с этой логикой (`admin` + `currentPlan`), чтобы подсказки и поведение совпадали с серверной фильтрацией;
+  - `UserContext` расширен полем `currentPlan` для типобезопасного доступа в RN.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+const isSearchMode = search.trim().length > 0;
+
+{!isSearchMode ? (
+  <>
+    <View style={styles.heroCard}>...</View>
+    <View style={styles.featuresSection}>...</View>
+  </>
+) : null}
+```
+
+`frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx`:
+```tsx
+<Text style={styles.preachersTitle}>
+  {isSearchMode ? 'Результаты поиска' : 'Проповедники'}
+</Text>
+```
+
+`server/internal/services/channel_service.go`:
+```go
+if models.IsAdminRole(effectiveRole) || viewer.GodModeEnabled || isProPlanBypass(viewer.CurrentPlan) {
+  return "", true, false
+}
+```
+
+`frontend/context/UserContext.tsx`:
+```tsx
+interface UserProfile {
+  ...
+  currentPlan?: string;
+}
+```
+
+## 2026-03-03 (Sadhu Sanga ChannelDetails: removed bottom sticky subscribe CTA)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `Sadhu Sanga` на экране канала дополнительно показывалась нижняя фиксированная кнопка `Подписаться` / `Открыть расписание` поверх контента;
+  - из-за дублирования с верхней кнопкой подписки UX выглядел перегруженным.
+- Стало:
+  - нижняя sticky CTA полностью удалена;
+  - осталась только основная кнопка подписки в header-блоке;
+  - `ScrollView` вернулся к обычному `contentContainerStyle` без доп. отступа под sticky-кнопку.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+<ScrollView
+  ...
+  contentContainerStyle={styles.contentScrollContainer}
+>
+```
+
+```tsx
+// Удален блок:
+// {showStickySadhuCta ? (
+//   <View style={styles.stickySadhuCtaWrap}>...</View>
+// ) : null}
+```
+
+## 2026-03-03 (Channels comments: reduce gap, composer almost flush to keyboard)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после первого keyboard-fix composer оставался слишком высоко над iOS-клавиатурой в comments modal.
+- Стало:
+  - `KeyboardAvoidingView` переключен с `behavior='padding'` на `behavior='height'`, что убирает лишний вертикальный зазор;
+  - контейнер `commentsKeyboardAvoid` получил `flex: 1` + `justifyContent: 'flex-end'`, чтобы sheet прижимался к клавиатуре.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```tsx
+<KeyboardAvoidingView
+  style={styles.commentsKeyboardAvoid}
+  behavior={Platform.OS === 'ios' ? 'height' : undefined}
+  keyboardVerticalOffset={0}
+>
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```ts
+commentsKeyboardAvoid: {
+  flex: 1,
+  justifyContent: 'flex-end',
+},
+```
+
+## 2026-03-03 (Channels comments: dynamic keyboard-offset calculation like AI chat)
+
+### Измененные файлы
+- `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - отступ comments sheet от клавиатуры регулировался только `KeyboardAvoidingView` и оставался нестабильным (иногда клавиатура перекрывала composer).
+- Стало:
+  - добавлен расчет фактической высоты клавиатуры через iOS событие `keyboardWillChangeFrame`;
+  - offset вычисляется как `screenHeight - keyboardScreenY` (с fallback на `endCoordinates.height`);
+  - comments sheet получает динамический `marginBottom` на основе рассчитанного keyboard-height, поэтому composer поднимается ровно над клавиатурой.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/channels/ChannelsHubScreen.tsx`:
+```tsx
+const frameSub = Keyboard.addListener('keyboardWillChangeFrame', updateKeyboardHeight);
+...
+const keyboardHeight = Math.max(0, screenHeight - screenY);
+...
+style={[
+  styles.commentsKeyboardAvoid,
+  commentsKeyboardHeight > 0 ? { marginBottom: Math.max(0, commentsKeyboardHeight - 4) } : null,
+]}
+```
+
+`frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+```tsx
+const [commentsKeyboardHeight, setCommentsKeyboardHeight] = useState(0);
+...
+const hideSub = Keyboard.addListener('keyboardWillHide', () => setCommentsKeyboardHeight(0));
+```
+
+## 2026-03-03 (Portal header menu bar: remove top glass background)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ScreenScaffold` в `PortalMainScreen` рендерил верхний `headerGlass` слой с `vTheme.colors.topBar`.
+  - Визуально у menu bar в шапке оставалась фоновая подложка.
+- Стало:
+  - Для `ScreenScaffold` в обоих режимах `PortalMainScreen` (`grid` и `active service`) передан `headerStyle` с прозрачным фоном и прозрачной нижней границей.
+  - Фон menu bar header убран, шапка стала без верхней подложки.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<ScreenScaffold
+  variant="portal"
+  enableAura={!useClassicWallpaper}
+  transparentBackground={useClassicWallpaper}
+  headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
+>
+```
+
+## 2026-03-03 (Education service: disable photo wallpaper in portal shell)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран сервиса `education` использовал тот же `PortalBackgroundLayer`, что и остальные встроенные сервисы;
+  - при `portalBackgroundType='image'` в шапке сервиса показывалось фото-обои;
+  - цвет иконок хедера выбирался как для фото-фона (`useLightHeaderIcons`), что привязывало UI к обоям.
+- Стало:
+  - для активного таба `education` фон принудительно переключается на однотонный (`color`) с `vTheme.colors.background`;
+  - `slideshow`/`activeWallpaper` для этого таба отключены;
+  - иконки service-header в `education` используют обычную (не photo/light) палитру через `useLightServiceHeaderIcons=false`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const isEducationTabActive = activeTab === 'education';
+const serviceLayerBackgroundType = isEducationTabActive ? 'color' : layerBackgroundType;
+const serviceLayerBackground = isEducationTabActive ? vTheme.colors.background : layerBackground;
+const serviceLayerActiveWallpaper = isEducationTabActive ? '' : layerActiveWallpaper;
+const serviceLayerSlideshowEnabled = isEducationTabActive ? false : layerSlideshowEnabled;
+const useLightServiceHeaderIcons = isEducationTabActive ? false : useLightHeaderIcons;
+```
+
+```tsx
+<PortalBackgroundLayer
+  portalBackgroundType={serviceLayerBackgroundType}
+  portalBackground={serviceLayerBackground}
+  activeWallpaper={serviceLayerActiveWallpaper}
+  isSlideshowEnabled={serviceLayerSlideshowEnabled}
+  ...
+/>
 ```

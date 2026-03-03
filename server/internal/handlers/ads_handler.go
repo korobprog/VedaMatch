@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,13 +23,22 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	defaultFestivalTimezone = "Europe/Moscow"
+	maxFestivalLinkItems    = 20
+)
+
 type AdsHandler struct {
-	mapService *services.MapService
+	mapService     *services.MapService
+	serviceService *services.ServiceService
+	channelService *services.ChannelService
 }
 
 func NewAdsHandler() *AdsHandler {
 	return &AdsHandler{
-		mapService: services.NewMapService(database.DB),
+		mapService:     services.NewMapService(database.DB),
+		serviceService: services.NewServiceService(),
+		channelService: services.NewChannelService(),
 	}
 }
 
@@ -203,6 +214,832 @@ func calculateAdTotalPages(total int64, limit int) int {
 		return int(maxInt)
 	}
 	return int(quotient)
+}
+
+type validatedFestivalFields struct {
+	StartAt          *time.Time
+	EndAt            *time.Time
+	Timezone         string
+	OrganizerName    string
+	OrganizerContact string
+	VenueName        string
+	VenueAddress     string
+	VenueLat         *float64
+	VenueLng         *float64
+	PreacherIDs      []uint
+	LinkedServiceIDs []uint
+}
+
+func normalizeFestivalTimezone(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultFestivalTimezone
+	}
+	if _, err := time.LoadLocation(trimmed); err != nil {
+		return defaultFestivalTimezone
+	}
+	return trimmed
+}
+
+func parseOptionalRFC3339(raw string) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+	utc := parsed.UTC()
+	return &utc, nil
+}
+
+func sanitizeFestivalIDs(ids []uint, limit int) ([]uint, error) {
+	if len(ids) == 0 {
+		return []uint{}, nil
+	}
+	seen := make(map[uint]struct{}, len(ids))
+	out := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+		if len(out) > limit {
+			return nil, fmt.Errorf("too many linked items, max %d", limit)
+		}
+	}
+	return out, nil
+}
+
+func isFestivalCategory(category models.AdCategory) bool {
+	return category == models.AdCategoryEvents
+}
+
+func validateFestivalFields(req models.AdCreateRequest, requireStart bool) (*validatedFestivalFields, error) {
+	startAt, err := parseOptionalRFC3339(req.FestivalStartAt)
+	if err != nil {
+		return nil, fmt.Errorf("festivalStartAt must be RFC3339")
+	}
+	endAt, err := parseOptionalRFC3339(req.FestivalEndAt)
+	if err != nil {
+		return nil, fmt.Errorf("festivalEndAt must be RFC3339")
+	}
+	if requireStart && startAt == nil {
+		return nil, fmt.Errorf("festivalStartAt is required for events")
+	}
+	if startAt != nil && endAt != nil && endAt.Before(*startAt) {
+		return nil, fmt.Errorf("festivalEndAt must be greater or equal to festivalStartAt")
+	}
+
+	preacherIDs, err := sanitizeFestivalIDs(req.PreacherChannelIDs, maxFestivalLinkItems)
+	if err != nil {
+		return nil, fmt.Errorf("preacherChannelIds: %w", err)
+	}
+	linkedServiceIDs, err := sanitizeFestivalIDs(req.LinkedServiceIDs, maxFestivalLinkItems)
+	if err != nil {
+		return nil, fmt.Errorf("linkedServiceIds: %w", err)
+	}
+
+	return &validatedFestivalFields{
+		StartAt:          startAt,
+		EndAt:            endAt,
+		Timezone:         normalizeFestivalTimezone(req.FestivalTimezone),
+		OrganizerName:    strings.TrimSpace(req.OrganizerName),
+		OrganizerContact: strings.TrimSpace(req.OrganizerContact),
+		VenueName:        strings.TrimSpace(req.VenueName),
+		VenueAddress:     strings.TrimSpace(req.VenueAddress),
+		VenueLat:         req.VenueLat,
+		VenueLng:         req.VenueLng,
+		PreacherIDs:      preacherIDs,
+		LinkedServiceIDs: linkedServiceIDs,
+	}, nil
+}
+
+func hasFestivalPayload(req models.AdCreateRequest) bool {
+	return strings.TrimSpace(req.FestivalStartAt) != "" ||
+		strings.TrimSpace(req.FestivalEndAt) != "" ||
+		strings.TrimSpace(req.FestivalTimezone) != "" ||
+		strings.TrimSpace(req.OrganizerName) != "" ||
+		strings.TrimSpace(req.OrganizerContact) != "" ||
+		strings.TrimSpace(req.VenueName) != "" ||
+		strings.TrimSpace(req.VenueAddress) != "" ||
+		req.VenueLat != nil ||
+		req.VenueLng != nil ||
+		len(req.PreacherChannelIDs) > 0 ||
+		len(req.LinkedServiceIDs) > 0
+}
+
+func applyFestivalFieldsToAd(ad *models.Ad, fields *validatedFestivalFields) {
+	if ad == nil {
+		return
+	}
+	if fields == nil {
+		ad.FestivalStartAt = nil
+		ad.FestivalEndAt = nil
+		ad.FestivalTimezone = ""
+		ad.OrganizerName = ""
+		ad.OrganizerContact = ""
+		ad.VenueName = ""
+		ad.VenueAddress = ""
+		ad.VenueLat = nil
+		ad.VenueLng = nil
+		ad.PreacherChannelIDs = []uint{}
+		ad.LinkedServiceIDs = []uint{}
+		return
+	}
+	ad.FestivalStartAt = fields.StartAt
+	ad.FestivalEndAt = fields.EndAt
+	ad.FestivalTimezone = fields.Timezone
+	ad.OrganizerName = fields.OrganizerName
+	ad.OrganizerContact = fields.OrganizerContact
+	ad.VenueName = fields.VenueName
+	ad.VenueAddress = fields.VenueAddress
+	ad.VenueLat = fields.VenueLat
+	ad.VenueLng = fields.VenueLng
+	ad.PreacherChannelIDs = fields.PreacherIDs
+	ad.LinkedServiceIDs = fields.LinkedServiceIDs
+}
+
+func applyFestivalFieldsToUpdateMap(updateMap map[string]interface{}, fields *validatedFestivalFields) {
+	if updateMap == nil {
+		return
+	}
+	if fields == nil {
+		updateMap["festival_start_at"] = nil
+		updateMap["festival_end_at"] = nil
+		updateMap["festival_timezone"] = ""
+		updateMap["organizer_name"] = ""
+		updateMap["organizer_contact"] = ""
+		updateMap["venue_name"] = ""
+		updateMap["venue_address"] = ""
+		updateMap["venue_lat"] = nil
+		updateMap["venue_lng"] = nil
+		updateMap["preacher_channel_ids"] = []uint{}
+		updateMap["linked_service_ids"] = []uint{}
+		return
+	}
+	updateMap["festival_start_at"] = fields.StartAt
+	updateMap["festival_end_at"] = fields.EndAt
+	updateMap["festival_timezone"] = fields.Timezone
+	updateMap["organizer_name"] = fields.OrganizerName
+	updateMap["organizer_contact"] = fields.OrganizerContact
+	updateMap["venue_name"] = fields.VenueName
+	updateMap["venue_address"] = fields.VenueAddress
+	updateMap["venue_lat"] = fields.VenueLat
+	updateMap["venue_lng"] = fields.VenueLng
+	updateMap["preacher_channel_ids"] = fields.PreacherIDs
+	updateMap["linked_service_ids"] = fields.LinkedServiceIDs
+}
+
+func preloadChannelsWithOwners(query *gorm.DB) ([]models.Channel, error) {
+	var channels []models.Channel
+	if err := query.Preload("Owner").Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	return channels, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func buildFestivalPreacherFromChannel(channel models.Channel) models.FestivalPreacher {
+	name := strings.TrimSpace(channel.Title)
+	ownerID := channel.OwnerID
+	avatar := ""
+	if channel.Owner != nil {
+		ownerID = channel.Owner.ID
+		name = firstNonEmpty(channel.Owner.SpiritualName, channel.Owner.KarmicName, channel.Title)
+		avatar = strings.TrimSpace(channel.Owner.AvatarURL)
+	}
+	if name == "" {
+		name = fmt.Sprintf("Channel %d", channel.ID)
+	}
+	return models.FestivalPreacher{
+		ChannelID: channel.ID,
+		OwnerID:   ownerID,
+		Name:      name,
+		AvatarURL: avatar,
+	}
+}
+
+func (h *AdsHandler) loadChannelsByIDs(ids []uint) (map[uint]models.Channel, error) {
+	result := make(map[uint]models.Channel)
+	if len(ids) == 0 {
+		return result, nil
+	}
+	channels, err := preloadChannelsWithOwners(database.DB.Model(&models.Channel{}).Where("id IN ?", ids))
+	if err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		result[channel.ID] = channel
+	}
+	return result, nil
+}
+
+func (h *AdsHandler) loadPrimaryChannelsByOwnerIDs(ownerIDs []uint) (map[uint]models.Channel, error) {
+	result := make(map[uint]models.Channel)
+	if len(ownerIDs) == 0 {
+		return result, nil
+	}
+	channels, err := preloadChannelsWithOwners(
+		database.DB.Model(&models.Channel{}).
+			Where("owner_id IN ?", ownerIDs).
+			Order("created_at DESC"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		if _, exists := result[channel.OwnerID]; exists {
+			continue
+		}
+		result[channel.OwnerID] = channel
+	}
+	return result, nil
+}
+
+func (h *AdsHandler) resolveFestivalPreachersForAd(ad *models.Ad) ([]models.FestivalPreacher, error) {
+	if ad == nil {
+		return []models.FestivalPreacher{}, nil
+	}
+	manualIDs, err := sanitizeFestivalIDs(ad.PreacherChannelIDs, maxFestivalLinkItems)
+	if err != nil {
+		return nil, err
+	}
+	linkedServiceIDs, err := sanitizeFestivalIDs(ad.LinkedServiceIDs, maxFestivalLinkItems)
+	if err != nil {
+		return nil, err
+	}
+
+	manualChannels, err := h.loadChannelsByIDs(manualIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	ownerIDs := make([]uint, 0, len(linkedServiceIDs))
+	if len(linkedServiceIDs) > 0 {
+		var linkedServices []models.Service
+		if err := database.DB.Model(&models.Service{}).
+			Select("id", "owner_id").
+			Where("id IN ?", linkedServiceIDs).
+			Find(&linkedServices).Error; err != nil {
+			return nil, err
+		}
+		ownerSeen := make(map[uint]struct{}, len(linkedServices))
+		for _, service := range linkedServices {
+			if service.OwnerID == 0 {
+				continue
+			}
+			if _, exists := ownerSeen[service.OwnerID]; exists {
+				continue
+			}
+			ownerSeen[service.OwnerID] = struct{}{}
+			ownerIDs = append(ownerIDs, service.OwnerID)
+		}
+	}
+
+	autoChannelsByOwner, err := h.loadPrimaryChannelsByOwnerIDs(ownerIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	preachers := make([]models.FestivalPreacher, 0, len(manualChannels)+len(autoChannelsByOwner))
+	seenChannelIDs := make(map[uint]struct{}, len(manualChannels)+len(autoChannelsByOwner))
+
+	for _, manualID := range manualIDs {
+		channel, exists := manualChannels[manualID]
+		if !exists {
+			continue
+		}
+		if _, seen := seenChannelIDs[channel.ID]; seen {
+			continue
+		}
+		seenChannelIDs[channel.ID] = struct{}{}
+		preachers = append(preachers, buildFestivalPreacherFromChannel(channel))
+	}
+
+	for _, channel := range autoChannelsByOwner {
+		if _, seen := seenChannelIDs[channel.ID]; seen {
+			continue
+		}
+		seenChannelIDs[channel.ID] = struct{}{}
+		preachers = append(preachers, buildFestivalPreacherFromChannel(channel))
+	}
+
+	return preachers, nil
+}
+
+func parseHHMM(value string) (int, int, bool) {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, false
+	}
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return 0, 0, false
+	}
+	return hour, minute, true
+}
+
+func containsServiceFormatEvent(formats string) bool {
+	trimmed := strings.TrimSpace(formats)
+	if trimmed == "" {
+		return false
+	}
+	var items []string
+	if err := json.Unmarshal([]byte(trimmed), &items); err != nil {
+		return strings.Contains(strings.ToLower(trimmed), "event")
+	}
+	for _, item := range items {
+		if strings.EqualFold(strings.TrimSpace(item), string(models.ServiceFormatEvent)) {
+			return true
+		}
+	}
+	return false
+}
+
+type linkedServiceInterval struct {
+	Start time.Time
+	End   time.Time
+}
+
+func parseFestivalMonthRange(raw string) (string, time.Time, time.Time, error) {
+	month := strings.TrimSpace(raw)
+	if month == "" {
+		return "", time.Time{}, time.Time{}, fmt.Errorf("month is required (YYYY-MM)")
+	}
+	parsed, err := time.Parse("2006-01", month)
+	if err != nil {
+		return "", time.Time{}, time.Time{}, fmt.Errorf("month must be in YYYY-MM format")
+	}
+	start := time.Date(parsed.Year(), parsed.Month(), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	return month, start, end, nil
+}
+
+func parseFestivalDateRange(raw string) (string, time.Time, time.Time, error) {
+	dateRaw := strings.TrimSpace(raw)
+	if dateRaw == "" {
+		return "", time.Time{}, time.Time{}, fmt.Errorf("date is required (YYYY-MM-DD)")
+	}
+	parsed, err := time.Parse("2006-01-02", dateRaw)
+	if err != nil {
+		return "", time.Time{}, time.Time{}, fmt.Errorf("date must be in YYYY-MM-DD format")
+	}
+	start := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, time.UTC)
+	end := start.Add(24*time.Hour - time.Nanosecond)
+	return dateRaw, start, end, nil
+}
+
+func parseOptionalUintQuery(raw string) (uint, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return uint(parsed), nil
+}
+
+func festivalPreachersContainChannel(preachers []models.FestivalPreacher, channelID uint) bool {
+	if channelID == 0 {
+		return true
+	}
+	for _, preacher := range preachers {
+		if preacher.ChannelID == channelID {
+			return true
+		}
+	}
+	return false
+}
+
+func addLinkedServiceIntervals(intervals map[uint][]linkedServiceInterval, ad models.Ad) {
+	if ad.FestivalStartAt == nil || len(ad.LinkedServiceIDs) == 0 {
+		return
+	}
+	start := ad.FestivalStartAt.UTC()
+	end := start
+	if ad.FestivalEndAt != nil {
+		candidate := ad.FestivalEndAt.UTC()
+		if !candidate.Before(start) {
+			end = candidate
+		}
+	}
+	serviceIDs, err := sanitizeFestivalIDs(ad.LinkedServiceIDs, maxFestivalLinkItems)
+	if err != nil {
+		return
+	}
+	for _, serviceID := range serviceIDs {
+		if serviceID == 0 {
+			continue
+		}
+		intervals[serviceID] = append(intervals[serviceID], linkedServiceInterval{
+			Start: start,
+			End:   end,
+		})
+	}
+}
+
+func isSadhuOccurrenceSuppressed(intervals map[uint][]linkedServiceInterval, serviceID uint, occurrenceStart time.Time) bool {
+	items := intervals[serviceID]
+	if len(items) == 0 {
+		return false
+	}
+	ts := occurrenceStart.UTC()
+	for _, interval := range items {
+		if (ts.Equal(interval.Start) || ts.After(interval.Start)) && (ts.Equal(interval.End) || ts.Before(interval.End)) {
+			return true
+		}
+	}
+	return false
+}
+
+func buildFestivalDayKey(startAt time.Time, timezone string) string {
+	loc, err := time.LoadLocation(strings.TrimSpace(timezone))
+	if err != nil {
+		loc = time.UTC
+	}
+	return startAt.In(loc).Format("2006-01-02")
+}
+
+func primaryPhotoURL(ad models.Ad) string {
+	if len(ad.Photos) == 0 {
+		return ""
+	}
+	for _, photo := range ad.Photos {
+		trimmed := strings.TrimSpace(photo.PhotoURL)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func (h *AdsHandler) buildFestivalItemFromAd(ad models.Ad, preachers []models.FestivalPreacher) models.FestivalItem {
+	timezone := normalizeFestivalTimezone(ad.FestivalTimezone)
+	startAt := ""
+	if ad.FestivalStartAt != nil {
+		startAt = ad.FestivalStartAt.UTC().Format(time.RFC3339)
+	}
+	endAt := ""
+	if ad.FestivalEndAt != nil {
+		endAt = ad.FestivalEndAt.UTC().Format(time.RFC3339)
+	}
+
+	organizerName := strings.TrimSpace(ad.OrganizerName)
+	if organizerName == "" && ad.User != nil {
+		organizerName = firstNonEmpty(ad.User.SpiritualName, ad.User.KarmicName)
+	}
+
+	adID := ad.ID
+	return models.FestivalItem{
+		ID:            fmt.Sprintf("ad:%d", ad.ID),
+		Source:        "ad",
+		StartAt:       startAt,
+		EndAt:         endAt,
+		Timezone:      timezone,
+		Title:         strings.TrimSpace(ad.Title),
+		Description:   strings.TrimSpace(ad.Description),
+		City:          strings.TrimSpace(ad.City),
+		VenueName:     strings.TrimSpace(ad.VenueName),
+		VenueAddress:  strings.TrimSpace(ad.VenueAddress),
+		OrganizerName: organizerName,
+		AdID:          &adID,
+		Preachers:     preachers,
+		PhotoURL:      primaryPhotoURL(ad),
+	}
+}
+
+func buildOrganizerNameFromOwner(owner *models.User) string {
+	if owner == nil {
+		return ""
+	}
+	return firstNonEmpty(owner.SpiritualName, owner.KarmicName)
+}
+
+func (h *AdsHandler) buildFestivalItemFromServiceOccurrence(
+	occ services.FestivalServiceOccurrence,
+	channel *models.Channel,
+) models.FestivalItem {
+	serviceID := occ.Service.ID
+	var channelID *uint
+	preachers := make([]models.FestivalPreacher, 0, 1)
+	if channel != nil && channel.ID != 0 {
+		channelID = &channel.ID
+		preachers = append(preachers, buildFestivalPreacherFromChannel(*channel))
+	}
+
+	venueAddress := strings.TrimSpace(occ.Service.OfflineAddress)
+	venueName := ""
+	if occ.Service.Channel == models.ServiceChannelOffline {
+		venueName = venueAddress
+	}
+
+	return models.FestivalItem{
+		ID:            fmt.Sprintf("sadhu:%d:%d", occ.Service.ID, occ.StartAt.Unix()),
+		Source:        "sadhu_service",
+		StartAt:       occ.StartAt.UTC().Format(time.RFC3339),
+		EndAt:         func() string { if occ.EndAt != nil { return occ.EndAt.UTC().Format(time.RFC3339) }; return "" }(),
+		Timezone:      normalizeFestivalTimezone(occ.Timezone),
+		Title:         strings.TrimSpace(occ.Service.Title),
+		Description:   strings.TrimSpace(occ.Service.Description),
+		City:          strings.TrimSpace(func() string { if occ.Service.Owner != nil { return occ.Service.Owner.City }; return "" }()),
+		VenueName:     venueName,
+		VenueAddress:  venueAddress,
+		OrganizerName: buildOrganizerNameFromOwner(occ.Service.Owner),
+		ServiceID:     &serviceID,
+		ChannelID:     channelID,
+		Preachers:     preachers,
+		PhotoURL:      strings.TrimSpace(occ.Service.CoverImageURL),
+	}
+}
+
+func sortFestivalItems(items []models.FestivalItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		left, leftErr := time.Parse(time.RFC3339, items[i].StartAt)
+		right, rightErr := time.Parse(time.RFC3339, items[j].StartAt)
+		if leftErr == nil && rightErr == nil && !left.Equal(right) {
+			return left.Before(right)
+		}
+		if items[i].Source != items[j].Source {
+			return items[i].Source == "ad"
+		}
+		return strings.ToLower(items[i].Title) < strings.ToLower(items[j].Title)
+	})
+}
+
+func (h *AdsHandler) buildFestivalItems(
+	c *fiber.Ctx,
+	rangeStart time.Time,
+	rangeEnd time.Time,
+	city string,
+	search string,
+	preacherChannelID uint,
+	includeSadhu bool,
+	myOnly bool,
+) ([]models.FestivalItem, error) {
+	viewerID := middleware.GetUserID(c)
+	city = strings.TrimSpace(city)
+	search = strings.TrimSpace(search)
+
+	items := make([]models.FestivalItem, 0)
+	suppressionByService := make(map[uint][]linkedServiceInterval)
+
+	adQuery := database.DB.Model(&models.Ad{}).
+		Preload("Photos").
+		Preload("User").
+		Where("category = ? AND status = ? AND festival_start_at IS NOT NULL", models.AdCategoryEvents, models.AdStatusActive).
+		Where("festival_start_at <= ? AND (festival_end_at IS NULL OR festival_end_at >= ?)", rangeEnd, rangeStart)
+
+	if city != "" {
+		adQuery = adQuery.Where("LOWER(TRIM(city)) = LOWER(TRIM(?))", city)
+	}
+	if search != "" {
+		pattern := "%" + search + "%"
+		adQuery = adQuery.Where("title ILIKE ? OR description ILIKE ?", pattern, pattern)
+	}
+	if myOnly && viewerID != 0 {
+		adQuery = adQuery.Where("user_id = ?", viewerID)
+	}
+
+	var ads []models.Ad
+	if err := adQuery.Order("festival_start_at ASC").Find(&ads).Error; err != nil {
+		return nil, err
+	}
+
+	for _, ad := range ads {
+		preachers, err := h.resolveFestivalPreachersForAd(&ad)
+		if err != nil {
+			log.Printf("[ADS] failed to resolve festival preachers for ad %d: %v", ad.ID, err)
+			preachers = []models.FestivalPreacher{}
+		}
+		if preacherChannelID != 0 && !festivalPreachersContainChannel(preachers, preacherChannelID) {
+			continue
+		}
+		items = append(items, h.buildFestivalItemFromAd(ad, preachers))
+		addLinkedServiceIntervals(suppressionByService, ad)
+	}
+
+	if includeSadhu && h.serviceService != nil && h.channelService != nil {
+		scope := services.SadhuOwnerScope{OwnerIDs: []uint{}, Bypass: true}
+		if !myOnly {
+			if viewerID == 0 {
+				includeSadhu = false
+			} else {
+				resolvedScope, err := h.channelService.ResolveSadhuOwnerScope(viewerID)
+				if err != nil {
+					return nil, err
+				}
+				scope = resolvedScope
+			}
+		}
+
+		if includeSadhu {
+			if scope.ShowNone && !myOnly {
+				includeSadhu = false
+			}
+			if includeSadhu {
+				filters := services.FestivalServiceOccurrenceFilters{
+					RangeStart: rangeStart,
+					RangeEnd:   rangeEnd,
+					City:       city,
+					Search:     search,
+				}
+				if myOnly && viewerID != 0 {
+					filters.OwnerID = &viewerID
+				} else if !scope.Bypass {
+					if len(scope.OwnerIDs) == 0 {
+						includeSadhu = false
+					} else {
+						filters.OwnerIDs = scope.OwnerIDs
+					}
+				}
+
+				if includeSadhu {
+					occurrences, err := h.serviceService.ListFestivalOccurrences(filters)
+					if err != nil {
+						return nil, err
+					}
+
+					ownerIDs := make([]uint, 0, len(occurrences))
+					ownerSeen := make(map[uint]struct{}, len(occurrences))
+					for _, occ := range occurrences {
+						if occ.Service.OwnerID == 0 {
+							continue
+						}
+						if _, exists := ownerSeen[occ.Service.OwnerID]; exists {
+							continue
+						}
+						ownerSeen[occ.Service.OwnerID] = struct{}{}
+						ownerIDs = append(ownerIDs, occ.Service.OwnerID)
+					}
+
+					channelsByOwner, err := h.loadPrimaryChannelsByOwnerIDs(ownerIDs)
+					if err != nil {
+						return nil, err
+					}
+
+					for _, occ := range occurrences {
+						if isSadhuOccurrenceSuppressed(suppressionByService, occ.Service.ID, occ.StartAt) {
+							continue
+						}
+						channel, hasChannel := channelsByOwner[occ.Service.OwnerID]
+						if preacherChannelID != 0 {
+							if !hasChannel || channel.ID != preacherChannelID {
+								continue
+							}
+						}
+
+						var channelPtr *models.Channel
+						if hasChannel {
+							channelCopy := channel
+							channelPtr = &channelCopy
+						}
+						items = append(items, h.buildFestivalItemFromServiceOccurrence(occ, channelPtr))
+					}
+				}
+			}
+		}
+	}
+
+	sortFestivalItems(items)
+	return items, nil
+}
+
+// GetFestivalCalendar returns hybrid calendar counts for a month.
+func (h *AdsHandler) GetFestivalCalendar(c *fiber.Ctx) error {
+	month, rangeStart, rangeEnd, err := parseFestivalMonthRange(c.Query("month"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	preacherChannelID, err := parseOptionalUintQuery(c.Query("preacherChannelId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
+	}
+
+	myOnly := parseAdBoolWithDefault(c.Query("myOnly"), false)
+	if myOnly && middleware.GetUserID(c) == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	includeSadhu := parseAdBoolWithDefault(c.Query("includeSadhu"), true)
+
+	items, err := h.buildFestivalItems(
+		c,
+		rangeStart,
+		rangeEnd,
+		c.Query("city"),
+		c.Query("search"),
+		preacherChannelID,
+		includeSadhu,
+		myOnly,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch festival calendar"})
+	}
+
+	countByDay := make(map[string]int, len(items))
+	for _, item := range items {
+		startAt, parseErr := time.Parse(time.RFC3339, item.StartAt)
+		if parseErr != nil {
+			continue
+		}
+		dayKey := buildFestivalDayKey(startAt, item.Timezone)
+		countByDay[dayKey]++
+	}
+
+	days := make([]models.FestivalCalendarDay, 0, len(countByDay))
+	for day, count := range countByDay {
+		days = append(days, models.FestivalCalendarDay{
+			Date:  day,
+			Count: count,
+		})
+	}
+	sort.Slice(days, func(i, j int) bool {
+		return days[i].Date < days[j].Date
+	})
+
+	return c.JSON(models.FestivalCalendarResponse{
+		Month: month,
+		Days:  days,
+	})
+}
+
+// GetFestivals returns hybrid agenda items for a selected date.
+func (h *AdsHandler) GetFestivals(c *fiber.Ctx) error {
+	_, rangeStart, rangeEnd, err := parseFestivalDateRange(c.Query("date"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	preacherChannelID, err := parseOptionalUintQuery(c.Query("preacherChannelId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
+	}
+
+	myOnly := parseAdBoolWithDefault(c.Query("myOnly"), false)
+	if myOnly && middleware.GetUserID(c) == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	includeSadhu := parseAdBoolWithDefault(c.Query("includeSadhu"), true)
+
+	items, err := h.buildFestivalItems(
+		c,
+		rangeStart,
+		rangeEnd,
+		c.Query("city"),
+		c.Query("search"),
+		preacherChannelID,
+		includeSadhu,
+		myOnly,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch festivals"})
+	}
+
+	page, limit, offset := parsePagination(c, 100)
+	total := int64(len(items))
+	if offset >= len(items) {
+		return c.JSON(models.FestivalListResponse{
+			Items:      []models.FestivalItem{},
+			Total:      total,
+			Page:       page,
+			TotalPages: calculateAdTotalPages(total, limit),
+		})
+	}
+
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+
+	return c.JSON(models.FestivalListResponse{
+		Items:      items[offset:end],
+		Total:      total,
+		Page:       page,
+		TotalPages: calculateAdTotalPages(total, limit),
+	})
 }
 
 // GetAds returns a paginated list of ads with filters
@@ -399,6 +1236,15 @@ func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
 		author.AdsCount = int(adsCount)
 	}
 
+	if isFestivalCategory(ad.Category) {
+		preachers, err := h.resolveFestivalPreachersForAd(&ad)
+		if err != nil {
+			log.Printf("[ADS] failed to resolve festival preachers for ad %d: %v", ad.ID, err)
+		} else {
+			ad.ResolvedPreachers = preachers
+		}
+	}
+
 	return c.JSON(models.AdResponse{
 		Ad:         ad,
 		IsFavorite: isFavorite,
@@ -451,6 +1297,28 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		})
 	}
 
+	var festivalFields *validatedFestivalFields
+	if isFestivalCategory(req.Category) || hasFestivalPayload(req) {
+		fields, err := validateFestivalFields(req, isFestivalCategory(req.Category))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		festivalFields = fields
+	}
+
+	var festivalFields *validatedFestivalFields
+	if isFestivalCategory(req.Category) || hasFestivalPayload(req) {
+		fields, err := validateFestivalFields(req, isFestivalCategory(req.Category))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		festivalFields = fields
+	}
+
 	// Set defaults
 	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
 	if currency == "" {
@@ -478,6 +1346,10 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		ExpiresAt:    expiresAt,
 		Latitude:     req.Latitude,
 		Longitude:    req.Longitude,
+	}
+
+	if isFestivalCategory(req.Category) {
+		applyFestivalFieldsToAd(&ad, festivalFields)
 	}
 
 	// Geocode city if coordinates are missing
@@ -602,6 +1474,12 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 		"show_profile":  req.ShowProfile,
 		"phone":         req.Phone,
 		"email":         req.Email,
+	}
+
+	if isFestivalCategory(req.Category) {
+		applyFestivalFieldsToUpdateMap(updateMap, festivalFields)
+	} else {
+		applyFestivalFieldsToUpdateMap(updateMap, nil)
 	}
 
 	if req.Currency != "" {
@@ -1321,8 +2199,14 @@ func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
 		})
 	}
 
-	// Order by created_at DESC
-	query = query.Order("created_at DESC")
+	switch strings.ToLower(strings.TrimSpace(c.Query("sort"))) {
+	case "festival_date_asc":
+		query = query.Order("festival_start_at ASC NULLS LAST").Order("created_at DESC")
+	case "festival_date_desc":
+		query = query.Order("festival_start_at DESC NULLS LAST").Order("created_at DESC")
+	default:
+		query = query.Order("created_at DESC")
+	}
 
 	var ads []models.Ad
 	if err := query.Offset(offset).Limit(limit).Find(&ads).Error; err != nil {
@@ -1334,6 +2218,14 @@ func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
 	// Build response with author info
 	responses := make([]models.AdResponse, len(ads))
 	for i, ad := range ads {
+		if isFestivalCategory(ad.Category) {
+			preachers, err := h.resolveFestivalPreachersForAd(&ad)
+			if err != nil {
+				log.Printf("[ADS][ADMIN] failed to resolve festival preachers for ad %d: %v", ad.ID, err)
+			} else {
+				ad.ResolvedPreachers = preachers
+			}
+		}
 		responses[i] = models.AdResponse{
 			Ad:     ad,
 			Author: buildAdAuthor(ad.User),

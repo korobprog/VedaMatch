@@ -40,6 +40,9 @@ jest.mock('../../../context/SettingsContext', () => ({
   useSettings: () => ({
     isDarkMode: false,
     vTheme: {
+      colors: {
+        background: '#fff',
+      },
       typography: { subHeader: { fontFamily: 'System' } },
       shadows: { soft: {} },
     },
@@ -90,4 +93,3 @@ describe('MultimediaHub support prompt', () => {
     });
   });
 });
-

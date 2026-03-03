@@ -30,6 +30,7 @@ import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
 import { ragService } from '../../services/ragService';
 import { getMediaUrl } from '../../utils/url';
+import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -62,17 +63,22 @@ export const MessageList: React.FC<MessageListProps> = ({
         loadOlderMessages,
     } = useChat();
     const { user } = useUser();
-    const { assistantType, isDarkMode, portalBackgroundType } = useSettings();
+    const { assistantType, isDarkMode, chatBackgroundType, chatBackground } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
-    const isPhotoBg = portalBackgroundType === 'image';
-    const shouldUseBubbleBlur = Platform.OS === 'android' ? (isPhotoBg || isDarkMode) : isPhotoBg;
+    const isImageBg = chatBackgroundType === 'image';
+    const isLightChatBackground =
+        (chatBackgroundType === 'color' && isColorLight(chatBackground)) ||
+        (chatBackgroundType === 'gradient' && isGradientLight(chatBackground));
+    const shouldUseBubbleBlur = Platform.OS === 'android'
+        ? (isImageBg || (!isLightChatBackground && isDarkMode))
+        : isImageBg;
     const theme = {
         accent: colors.accent,
         primary: colors.accent,
-        text: isPhotoBg ? '#F8FAFC' : colors.textPrimary,
-        subText: isPhotoBg ? 'rgba(248,250,252,0.78)' : colors.textSecondary,
-        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-        botBubble: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
+        text: isImageBg ? '#F8FAFC' : (isLightChatBackground ? '#1F2937' : colors.textPrimary),
+        subText: isImageBg ? 'rgba(248,250,252,0.78)' : (isLightChatBackground ? '#64748B' : colors.textSecondary),
+        borderColor: isImageBg ? 'rgba(255,255,255,0.26)' : (isLightChatBackground ? 'rgba(15,23,42,0.16)' : colors.border),
+        botBubble: isImageBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
     };
     const flatListRef = useRef<FlatList>(null);
     const autoScrollFrameRef = useRef<number | null>(null);
@@ -225,13 +231,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         }
     };
 
-    const mdStyles: any = {
-        body: { color: theme.text, fontSize: 16, lineHeight: 22 },
-        paragraph: { marginTop: 0, marginBottom: 8 },
-        imageContainer: { marginVertical: 8, alignItems: 'center' as const },
-        markdownImage: { width: '100%', maxWidth: 300, height: 200, borderRadius: 8, marginBottom: 8 },
-    };
-
     const mdRules = {
         image: (node: any) => {
             const imageUrl = node.attributes?.src || '';
@@ -319,9 +318,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (rawItem.type === 'header') {
             return (
                 <View style={styles.dateHeader}>
-                    <View style={[styles.dateLine, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
+                    <View style={[styles.dateLine, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
                     <Text style={[styles.dateText, { color: theme.subText }]}>{rawItem.title}</Text>
-                    <View style={[styles.dateLine, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
+                    <View style={[styles.dateLine, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
                 </View>
             );
         }
@@ -334,6 +333,23 @@ export const MessageList: React.FC<MessageListProps> = ({
         const recipientAvatarUrl = getMediaUrl(recipientUser?.avatarUrl);
         const recipientName = recipientUser?.spiritualName || recipientUser?.karmicName || '';
         const recipientInitial = recipientName.trim().charAt(0).toUpperCase() || '?';
+        const bubbleTextColor = isUser ? '#F8FAFC' : theme.text;
+        const bubbleSubTextColor = isUser ? 'rgba(248,250,252,0.78)' : theme.subText;
+        const mdStyles: any = {
+            body: { color: bubbleTextColor, fontSize: 16, lineHeight: 22 },
+            paragraph: { marginTop: 0, marginBottom: 8 },
+            imageContainer: { marginVertical: 8, alignItems: 'center' as const },
+            markdownImage: { width: '100%', maxWidth: 300, height: 200, borderRadius: 8, marginBottom: 8 },
+        };
+        const documentCardBg = isUser
+            ? (isImageBg ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.16)')
+            : (isImageBg ? 'rgba(255,255,255,0.12)' : (isLightChatBackground ? 'rgba(255,255,255,0.96)' : colors.surface));
+        const documentIconBg = isImageBg
+            ? 'rgba(255,255,255,0.2)'
+            : (isUser ? 'rgba(255,255,255,0.22)' : colors.accentSoft);
+        const extensionBadgeBg = isImageBg
+            ? 'rgba(255,255,255,0.18)'
+            : (isUser ? 'rgba(255,255,255,0.24)' : colors.accentSoft);
 
         const bubbleStyle = [
             styles.bubble,
@@ -341,7 +357,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             {
                 backgroundColor: 'transparent',
                 borderColor: isUser
-                    ? (isPhotoBg ? 'rgba(255,255,255,0.34)' : colors.accent)
+                    ? (isImageBg ? 'rgba(255,255,255,0.34)' : colors.accent)
                     : theme.borderColor,
                 borderWidth: 1.2,
                 overflow: 'hidden' as const,
@@ -350,8 +366,8 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         const bubbleShadowStyle = isUser ? styles.userGlassShadow : styles.botGlassShadow;
         const glassTint = isUser
-            ? (isPhotoBg ? 'rgba(15,23,42,0.44)' : colors.accentSoft)
-            : (isPhotoBg ? 'rgba(255,255,255,0.09)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,255,255,0.45)'));
+            ? (isImageBg ? 'rgba(15,23,42,0.44)' : (isLightChatBackground ? 'rgba(31,41,55,0.56)' : colors.accentSoft))
+            : (isImageBg ? 'rgba(255,255,255,0.09)' : (isLightChatBackground ? 'rgba(255,255,255,0.92)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,255,255,0.45)')));
 
         const Content = () => {
             if (item.uploading) {
@@ -363,13 +379,13 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     style={StyleSheet.absoluteFill}
                                     blurType={isDarkMode ? 'dark' : 'light'}
                                     blurAmount={20}
-                                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                                    reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
                                 />
                             )}
                             <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
                             <View style={styles.uploadingContainer}>
                                 <ActivityIndicator size="small" color={theme.primary} />
-                                <Text style={[styles.uploadingText, { color: theme.text }]}>{t('chat.uploading')}</Text>
+                                <Text style={[styles.uploadingText, { color: bubbleTextColor }]}>{t('chat.uploading')}</Text>
                             </View>
                         </View>
                     </View>
@@ -387,19 +403,19 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ) : (item.type === 'document' || item.type === 'file') && item.content ? (
                         <TouchableOpacity
                             onPress={() => openDocument(item.content!, item.fileName)}
-                            style={[styles.documentCard, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: theme.borderColor }]}
+                            style={[styles.documentCard, { backgroundColor: documentCardBg, borderColor: theme.borderColor }]}
                         >
-                            <View style={[styles.documentIconContainer, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : colors.accentSoft }]}>
+                            <View style={[styles.documentIconContainer, { backgroundColor: documentIconBg }]}>
                                 {getFileIcon(item.fileName || '')}
                             </View>
                             <View style={styles.documentInfo}>
-                                <Text style={[styles.documentName, { color: theme.text }]} numberOfLines={1}>{item.fileName || t('chat.document')}</Text>
+                                <Text style={[styles.documentName, { color: bubbleTextColor }]} numberOfLines={1}>{item.fileName || t('chat.document')}</Text>
                                 <View style={styles.documentMeta}>
-                                    <Text style={[styles.documentSize, { color: theme.subText }]}>
+                                    <Text style={[styles.documentSize, { color: bubbleSubTextColor }]}>
                                         {item.fileSize ? mediaService.formatFileSize(item.fileSize) : 'File'}
                                     </Text>
-                                    <View style={[styles.extensionBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : colors.accentSoft }]}>
-                                        <Text style={[styles.extensionText, { color: theme.subText }]}>
+                                    <View style={[styles.extensionBadge, { backgroundColor: extensionBadgeBg }]}>
+                                        <Text style={[styles.extensionText, { color: bubbleSubTextColor }]}>
                                             {(item.fileName?.split('.').pop() || 'FILE').toUpperCase()}
                                         </Text>
                                     </View>
@@ -422,7 +438,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                 {part}
                                             </Markdown>
                                         </View>
-                                        <Text style={[styles.timeText, styles.embeddedTime, { color: theme.subText }]}>{time}</Text>
+                                        <Text style={[styles.timeText, styles.embeddedTime, { color: bubbleSubTextColor }]}>{time}</Text>
                                     </View>
                                 );
                             })}
@@ -431,7 +447,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
                     {!text && !item.uploading && (
                         <View style={styles.timeOverlay}>
-                            <Text style={[styles.timeText, { color: theme.subText }]}>{time}</Text>
+                            <Text style={[styles.timeText, { color: bubbleSubTextColor }]}>{time}</Text>
                         </View>
                     )}
 
@@ -460,14 +476,14 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <View style={styles.ragMetaRow}>
                             {item.assistantContext.retrieverPath ? (
                                 <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
-                                    <Text style={[styles.ragBadgeText, { color: theme.subText }]}>
+                                    <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
                                         {t('chat.retrieverLabel', 'Поиск')}: {item.assistantContext.retrieverPath}
                                     </Text>
                                 </View>
                             ) : null}
                             {formatConfidencePercent(item.assistantContext.confidence) ? (
                                 <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
-                                    <Text style={[styles.ragBadgeText, { color: theme.subText }]}>
+                                    <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
                                         {t('chat.confidenceLabel', 'Уверенность')}: {formatConfidencePercent(item.assistantContext.confidence)}
                                     </Text>
                                 </View>
@@ -477,7 +493,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
                     {!isUser && item.assistantContext?.sources?.length ? (
                         <View style={[styles.sourcesContainer, { borderTopColor: theme.borderColor }]}>
-                            <Text style={[styles.sourcesTitle, { color: theme.subText }]}>
+                            <Text style={[styles.sourcesTitle, { color: bubbleSubTextColor }]}>
                                 {t('chat.sourcesTitle', 'Источники')}
                             </Text>
                             {item.assistantContext.sources.slice(0, 3).map((source, index) => (
@@ -488,17 +504,17 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     activeOpacity={0.85}
                                 >
                                     <View style={styles.sourceHeader}>
-                                        <Text style={[styles.sourceTitle, { color: theme.text }]} numberOfLines={1}>
+                                        <Text style={[styles.sourceTitle, { color: bubbleTextColor }]} numberOfLines={1}>
                                             {source.title || `${t('chat.sourceTitle', 'Источник')} ${index + 1}`}
                                         </Text>
                                         {source.sourceUrl ? (
-                                            <ExternalLink size={13} color={theme.subText} />
+                                            <ExternalLink size={13} color={bubbleSubTextColor} />
                                         ) : (
-                                            <FileText size={13} color={theme.subText} />
+                                            <FileText size={13} color={bubbleSubTextColor} />
                                         )}
                                     </View>
                                     {source.snippet ? (
-                                        <Text style={[styles.sourceSnippet, { color: theme.subText }]} numberOfLines={2}>
+                                        <Text style={[styles.sourceSnippet, { color: bubbleSubTextColor }]} numberOfLines={2}>
                                             {source.snippet}
                                         </Text>
                                     ) : null}
@@ -517,7 +533,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 style={StyleSheet.absoluteFill}
                                 blurType={isDarkMode ? 'dark' : 'light'}
                                 blurAmount={20}
-                                reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                                reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
                             />
                         )}
                         <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />

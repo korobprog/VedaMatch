@@ -4,6 +4,14 @@
 - Обрабатывать задачи без фоновых процессов и без нескольких агентов.
 - Работать с файлами по одному и отчитываться после каждого шага.
 
+## Portal Service UI
+- Для сервисов объявлений и путешествий (`activeTab === 'ads' || activeTab === 'travel'`) в `frontend/screens/portal/PortalMainScreen.tsx` service-layer принудительно однотонный:
+  - `serviceLayerBackgroundType='color'`,
+  - `serviceLayerActiveWallpaper=''`,
+  - `serviceLayerSlideshowEnabled=false`,
+  - `serviceLayerOverlayColor='transparent'`.
+- Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
+
 ## iOS Map Connectivity
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
 - Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.
@@ -68,11 +76,26 @@
   - `frontend/components/chat/ChatHeader.tsx` для светлого фона использует более темные title/subtitle/icon цвета в VedaMatch-теме;
   - `frontend/components/chat/ChatInput.tsx` адаптирует `inputColor/placeholder/icon` и фон поля ввода под светлый фон чата;
   - `frontend/screens/ChatScreen.tsx` переключает `StatusBar` на `dark-content` при светлом фоне.
+- Дополнительно для области переписки:
+  - `frontend/components/chat/MessageList.tsx` переведен на `chatBackgroundType/chatBackground` (вместо `portalBackgroundType`);
+  - введены раздельные цвета текста/времени для исходящих и входящих bubble;
+  - на светлом фоне входящие сообщения рендерятся темным текстом (устранена проблема “не видно букв”).
+- Экран истории чатов (`frontend/SettingsDrawer.tsx`) больше не использует фото/градиент portal-фона:
+  - фон принудительно однотонный `#F2EFE6`;
+  - карточки и текст в истории чатов переведены на контрастные цвета (`textPrimary #1F2937`, `textSecondary #64748B`) для стабильной читаемости.
 - Фон чата отделен от portal-фона:
   - в `frontend/context/SettingsContext.tsx` добавлены отдельные chat keys (`chat_background*`, `chat_wallpaper_slides*`);
   - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
   - в `frontend/screens/settings/AppSettingsScreen.tsx` добавлен отдельный блок “Фон чата” (пресеты/галерея/слайдшоу);
   - `frontend/screens/ChatScreen.tsx` рендерит background только из chat-specific настроек.
+
+## Profile UI Reliability
+- `frontend/screens/settings/EditProfileScreen.tsx` больше не наследует `portalBackground`-фотообои:
+  - удален рендер `ImageBackground` по `portalBackgroundType`;
+  - установлен стабильный однотонный фон `#0E1525` для загрузки и основного контента экрана.
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx` также отключен от `portalBackground`-фотообоев:
+  - удалена ветка `portalBackgroundType === 'image'` с `ImageBackground`;
+  - для профиля контакта остаются только градиентный фон или однотонный `vTheme.colors.background`.
 
 ## Push Notifications
 - На Android 13+ (`API 33`) в `frontend/services/notificationService.ts` обязателен runtime-запрос `POST_NOTIFICATIONS` через `PermissionsAndroid`; без этого FCM push в системной шторке не появятся даже при валидном токене.
@@ -584,6 +607,9 @@
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
 - 1:1 звонок: `frontend/screens/calls/CallScreen.tsx` + `frontend/services/webRTCService.ts` (P2P WebRTC, WS-типы `offer/answer/candidate/hangup`, TURN creds из `/turn-credentials`).
 - Комнаты (совместные звонки): `RoomChatScreen` включает `RoomVideoBar`, который берет SFU config/token через `frontend/services/roomCallService.ts` (`/rooms/:id/sfu/config`, `/rooms/:id/sfu/token`) и подключается через `RoomSfuClient` к LiveKit.
+- В `frontend/services/roomSfuClient.ts` исправлена инициализация LiveKit SDK:
+  - `registerGlobals()` берется из `@livekit/react-native` и вызывается единоразово;
+  - `Room`/`RoomEvent` берутся из `livekit-client` (а не из `@livekit/react-native`), иначе на iOS/эмуляторе возможен runtime `LiveKit Room SDK is unavailable`.
 - Сервер SFU: `server/internal/handlers/room_sfu_handler.go`, `server/internal/services/sfu/livekit_service.go`, роуты в `server/cmd/api/main.go`.
 - Доступ к комнатному SFU: проверка `ensureRoomAccess` + флаг `RequireMembership` (`server/internal/handlers/room_access.go`, `server/internal/config/sfu_config.go`).
 - В проекте также есть legacy room-signaling путь в `webRTCService.startRoomCall` и WS-типы `room_offer/room_answer/room_candidate/room_hangup`, но текущий UI комнатных звонков идет через SFU/LiveKit.
@@ -700,6 +726,7 @@
   - добавлен `⋯`-entrypoint редактирования (виден только автору);
   - для published-поста автора действует окно 24 часа (UI учитывает backend-правило `POST_EDIT_WINDOW_EXPIRED`);
   - комментарии работают через bottom sheet (list + send);
+  - для iOS keyboard-safe ввода комментариев используется динамический расчет высоты клавиатуры (`keyboardWillChangeFrame`): `keyboardHeight = screenHeight - keyboardScreenY`, и в comments sheet применяется вычисляемый `marginBottom`; это убирает перекрытие инпута клавиатурой и держит composer почти вплотную;
   - `mediaJson` рендерится безопасно (fallback без падения при битом JSON).
 - Добавлена загрузка обложки канала:
   - endpoint `POST /api/channels/:id/cover/upload` (owner/admin);
@@ -715,6 +742,19 @@
 - В production остаётся `console.warn`, но тоже без объекта ошибки (только короткое сообщение + первая строка причины).
 
 ## Multimedia Runtime Notes
+- Org-visibility в multimedia теперь централизована по `madh`:
+  - anonymous viewer получает только global-контент (`madh` пустой/NULL);
+  - non-PRO получает `global + user.madh`;
+  - PRO/Admin/GodMode получает весь контент без org-ограничений.
+- Публичные multimedia endpoints (`/api/multimedia/*`) используют `OptionalAuth` для read-персонализации без обязательного логина.
+- Совместимость org query в multimedia: сервер принимает алиасы `matha`, `madh`, `math` (приоритет именно такой).
+- Админка `admin/src/app/multimedia/page.tsx` унифицирована по полю видимости:
+  - `madh=''` = `Для всех`;
+  - `madh='<org>'` = контент конкретной организации;
+  - create-формы Track/Video/Radio/TV берут default `madh` из `localStorage.admin_data.madh`.
+- RN multimedia UI (`Audio/Video/Radio/TV/Hub`) работает в двух режимах:
+  - PRO: доступны org-чипы и ручной org-фильтр;
+  - non-PRO: org-чипы скрыты, работает ограниченный scope, при пустом `user.madh` показывается мягкий CTA (`Профиль`/`PRO`).
 - В RN нельзя полагаться на `URLSearchParams.entries()` для query-объектов в сервисах: на iOS/Hermes это может отсутствовать и давать `params.entries is not a function`.
 - В `frontend/services/multimediaService.ts` query параметры для `/multimedia/tracks`, `/multimedia/radio`, `/multimedia/tv` формируются обычным объектом `params`, без `URLSearchParams`.
 - В `frontend/screens/multimedia/MultimediaHubScreen.tsx` обработанный сбой загрузки логируется через `console.warn`, чтобы не поднимать RedBox в dev.
@@ -723,6 +763,16 @@
 - В `frontend/services/charityService.ts` нельзя использовать `URLSearchParams.set/entries` на iOS/Hermes: возможна ошибка `URLSearchParams.set is not implemented`.
 - Для `get()` в charity service query-параметры endpoint (часть после `?`) парсятся в plain object (`parseQueryString`) и передаются в axios как `params`.
 - В `frontend/screens/seva/SevaHubScreen.tsx` обработанные ошибки загрузки (`loadProjects`, `loadData`, `onRefresh`) логируются через `console.warn`, чтобы не показывать RedBox при recoverable сбоях.
+- Текущий user-flow `Seva Marketplace`:
+  - вход через `resolveServiceLaunch('seva') -> navigate('SevaHub')`;
+  - `SevaHub` читает проекты из `GET /charity/projects` и кошелек из `WalletContext`;
+  - донат отправляется в `POST /charity/donate` c `sourceService='seva'`, `sourceTrigger='donate_modal'`, `sourceContext`.
+- Денежная модель Seva на backend:
+  - при донате сумма проекта (`amount`) уходит в `frozen_balance` кошелька организации, tips (если включены) — в platform wallet;
+  - donation создается в статусе `pending` с `canRefundUntil = +24h`;
+  - worker `StartDonationConfirmWorker` (каждые 10 минут) переводит просроченные `pending` в `confirmed` и переносит сумму из `frozen_balance` в `balance` организации.
+- Возврат `POST /charity/refund/:id` доступен только для `pending` донатов до дедлайна 24 часа; при refund откатываются user/org/platform балансы и пересчитываются `raised_amount`, `donations_count`, `unique_donors`.
+- `frontend/screens/seva/SevaProjectDetailsScreen.tsx` сейчас частично демо: `userBalance=2500` (mock) и `handleDonate` как заглушка; реальный донат-флоу полноценно подключен в `SevaHubScreen`.
 
 ## P2P Calls: Known Failure Points
 - В `server/internal/websocket/hub.go` сигналинг форвардится только подключенному WS-клиенту; если получатель не в `h.clients`, логируется `Target User X not connected` и звонок не доставляется.
@@ -879,6 +929,8 @@
 - Контрастный hotfix для light theme:
   - в `PortalChatScreen`, `ContactsScreen`, `LibraryHomeScreen`, `CallHistoryScreen` правило `isPhotoBg` ограничено до `portalBackgroundType === 'image' && isDarkMode`, чтобы не форсить белый текст на светлых поверхностях.
   - в `PortalMainScreen` (service header, включая Rooms) и `WidgetSelectionScreen` добавлено dark-aware условие для светлых иконок/бордеров (`useLightHeaderIcons = isDarkMode && effectiveBgType === 'image'`), чтобы верхний бар не становился белым на светлом фоне.
+  - для сервиса `education` в `frontend/screens/portal/PortalMainScreen.tsx` фото/слайдшоу фон отключается точечно (`activeTab === 'education'`): слой принудительно переключается на `color` с `vTheme.colors.background`, иконки service-header идут в обычной (не белой) палитре.
+  - в `PortalMainScreen` для `ScreenScaffold` задан `headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}` в grid/service режимах, чтобы убрать верхнюю glass-подложку у menu bar header.
 - В Settings добавлен переключатель визуального режима экранов:
   - `screenVisualStyle: 'classic' | 'saffron'` (ключ `screen_visual_style_v1`) в `frontend/context/SettingsContext.tsx`;
   - UI переключателя в `frontend/screens/settings/AppSettingsScreen.tsx`.
@@ -1064,6 +1116,18 @@
   - `scheduleTimeMain` получил `numberOfLines=1`, `adjustsFontSizeToFit`, `fontVariant: ['tabular-nums']`, выровненный `lineHeight`.
 - Результат: `09:00` держится в одну строку и не ломает карточку.
 
+## Sadhu Sanga Search Mode (Hub)
+- В `SadhuSangaHubScreen` включен отдельный режим поиска проповедников:
+  - если `search.trim().length > 0`, скрываются hero/feature/live/seminars/recommendations блоки;
+  - остаются строка поиска, фильтры и список найденных проповедников;
+  - заголовок списка меняется на `Результаты поиска`.
+- Это устраняет UX-конфликт, когда при поиске пользователь видел “другие блоки”, а не чистую выдачу проповедников.
+
+## Sadhu Sanga Channel Details: Subscribe CTA Cleanup
+- В `ChannelDetailsScreen` удалена нижняя фиксированная (sticky) кнопка `Подписаться`/`Открыть расписание`.
+- Сохранена только верхняя кнопка подписки в шапке карточки канала.
+- `ScrollView` больше не использует условный отступ под sticky CTA (`contentScrollContainerWithStickyCta` не применяется).
+
 ## Sadhu Sanga Bio UX (Date + Organization/Math)
 - Экран `ChannelPreacherBioManageScreen` переведен с ручного ввода дат на нативный `react-native-date-picker`:
   - `Дата рождения`, `Дата ухода`, `Дата события` выбираются модально.
@@ -1097,9 +1161,22 @@
 - `ChannelManageScreen`: убраны пользовательские поля ручного ввода `URL аватарки` и `URL обложки`; брендирование сохраняет только `description`, а обложка обновляется через upload-flow.
 - Превью обложки усилено: добавлен cache-busting query-param и fallback-состояние с понятным текстом при ошибке загрузки вместо пустого/белого блока.
 
+## Sadhu Sanga PRO/Math Bypass Consistency
+- Backend `channel_service.resolveEffectiveSadhuMathFilter` теперь считает bypass активным, если выполняется одно из условий:
+  - роль `admin/superadmin`,
+  - `god_mode_enabled=true`,
+  - `current_plan` содержит `pro` или равен `admin`.
+- `loadSadhuViewer` загружает `current_plan`, чтобы filter-bypass не зависел только от кэш-флага.
+- Frontend Sadhu-экранов (`SadhuSangaHubScreen`, `SadhuSangaScheduleScreen`, `SadhuSangaLiveScreen`) синхронизирован с той же bypass-логикой для корректных подсказок при пустом `madh`.
+
 ## Portal Icons
 - 2026-03-02: для связки `Контакты <-> История звонков` добавлен контекстный header-shortcut в `frontend/screens/portal/PortalMainScreen.tsx`:
   - на `contacts` показывается иконка `Phone`, по нажатию переключает на `calls`;
   - на `calls` показывается иконка `Contact`, по нажатию переключает на `contacts`;
   - на остальных сервисах остается `MessageSquare` и открытие меню (`setIsMenuOpen(true)`).
 - `frontend/types/portal.ts`: сервис `contacts` использует иконку `MessageSquare` (из предыдущего UI-swap).
+
+## Union (Dating) Profile Loading
+- Экран `frontend/screens/portal/dating/EditDatingProfileScreen.tsx` не должен использовать `datingService.getUsers()` для загрузки собственного профиля: endpoint `/contacts` может вернуть объект пагинации (`items/hasMore/...`), а не массив.
+- Рабочий путь: загружать профиль через `datingService.getProfile(userId)` (`GET /dating/profile/:id`), чтобы получать один объект пользователя без `find` по массиву.
+- Для поля `intentions` нужен defensive parse: поддерживать и строку CSV, и массив, иначе возможны ошибки при несовпадении формата ответа API.
