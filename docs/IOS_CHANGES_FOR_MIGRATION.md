@@ -7315,3 +7315,95 @@ const useLightServiceHeaderIcons = isEducationTabActive ? false : useLightHeader
   ...
 />
 ```
+
+## 2026-03-04 (Ads: новый Festival-раздел с гибридным календарем Ads + Sadhu Sanga)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+- `server/internal/models/ad.go`
+- `server/internal/database/database.go`
+- `server/internal/handlers/ads_handler.go`
+- `server/internal/handlers/ads_handler_test.go`
+- `server/internal/services/service_service.go`
+- `server/internal/services/channel_service.go`
+- `frontend/types/ads.ts`
+- `frontend/services/adsService.ts`
+- `frontend/components/ads/FestivalSectionSwitch.tsx`
+- `frontend/components/ads/FestivalMonthCalendar.tsx`
+- `frontend/components/ads/FestivalAgendaList.tsx`
+- `frontend/components/ads/FestivalPreacherPickerModal.tsx`
+- `frontend/components/ads/FestivalServicePickerModal.tsx`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+- `frontend/screens/portal/ads/CreateAdScreen.tsx`
+- `frontend/screens/portal/ads/AdDetailScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `admin/src/app/ads/page.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Ads работал только как list/filters объявлений без отдельного календарного режима фестивалей;
+  - event-объявления не имели структурированных festival-полей (start/end/timezone/organizer/venue/preachers/linked services);
+  - не было единого backend-агрегатора `Ads + Sadhu Sanga` с дедупом по `linkedServiceIds`;
+  - в админке отсутствовали сортировка по дате фестиваля и индикатор количества проповедников.
+- Стало:
+  - добавлен гибридный API фестивалей:
+    - `GET /api/ads/festivals/calendar`
+    - `GET /api/ads/festivals`
+    с фильтрами `month/date, city, search, preacherChannelId, includeSadhu, myOnly`;
+  - `POST/PUT /api/ads` и `GET /api/ads/:id` расширены festival-полями и `resolvedPreachers`;
+  - event-поля валидируются: обязательный `festivalStartAt` для `category=events`, проверка диапазона дат, ограничение массивов `preacherChannelIds/linkedServiceIds`;
+  - добавлен гибридный merge Ads + Sadhu Service occurrences с приоритетом Ads (дедуп виртуальных sadhu-элементов, если ad покрывает linked occurrence);
+  - RN Ads получил переключатель секций `Объявления | Фестивали`, Month-календарь и Agenda-список;
+  - Create/Edit Ads для `events` получил festival-блок: date-time, organizer/venue, manual preachers picker и linked services picker;
+  - Ad Detail для event выводит блоки «О фестивале» и «Проповедники»;
+  - админка Ads показывает `festivalStartAt`, count `resolvedPreachers` и sort по festival date.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+api.Get("/ads/festivals/calendar", middleware.OptionalAuth(), adsHandler.GetFestivalCalendar)
+api.Get("/ads/festivals", middleware.OptionalAuth(), adsHandler.GetFestivals)
+```
+
+`server/internal/handlers/ads_handler.go`:
+```go
+func (h *AdsHandler) GetFestivals(c *fiber.Ctx) error {
+  _, rangeStart, rangeEnd, err := parseFestivalDateRange(c.Query("date"))
+  ...
+  items, err := h.buildFestivalItems(c, rangeStart, rangeEnd, ...)
+  return c.JSON(models.FestivalListResponse{Items: items[offset:end], Total: total, ...})
+}
+```
+
+`server/internal/services/service_service.go`:
+```go
+func (s *ServiceService) ListFestivalOccurrences(filters FestivalServiceOccurrenceFilters) ([]FestivalServiceOccurrence, error) {
+  // active services + format=event + schedules -> occurrence list (specificDate/dayOfWeek)
+}
+```
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+<FestivalSectionSwitch mode={sectionMode} onChange={setSectionMode} />
+{sectionMode === 'festivals' ? (
+  <>
+    <FestivalMonthCalendar ... />
+    <FestivalAgendaList items={festivalItems} ... />
+  </>
+) : (
+  <FlatList ... />
+)}
+```
+
+`frontend/screens/portal/ads/CreateAdScreen.tsx`:
+```tsx
+{category === 'events' && (
+  <View>
+    <DatePicker modal open={startPickerOpen} ... />
+    <FestivalPreacherPickerModal ... />
+    <FestivalServicePickerModal ... />
+  </View>
+)}
+```

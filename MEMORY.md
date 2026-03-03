@@ -12,6 +12,38 @@
   - `serviceLayerOverlayColor='transparent'`.
 - Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
 
+## Ads Festivals (Hybrid Calendar)
+- В Ads добавлен отдельный режим секции `Фестивали` (внутри `AdsScreen`), с переключателем `Объявления | Фестивали`.
+- Новый backend API:
+  - `GET /api/ads/festivals/calendar`
+  - `GET /api/ads/festivals`
+  - оба маршрута зарегистрированы с `middleware.OptionalAuth()` в `server/cmd/api/main.go`.
+- Модель `Ad` расширена festival-полями:
+  - `festivalStartAt/festivalEndAt/festivalTimezone`
+  - `organizerName/organizerContact`
+  - `venueName/venueAddress/venueLat/venueLng`
+  - `preacherChannelIds/linkedServiceIds`
+  - `resolvedPreachers` (runtime, non-persisted).
+- Для `category=events` в `ads_handler` действует валидация:
+  - `festivalStartAt` обязателен;
+  - `festivalEndAt >= festivalStartAt`;
+  - лимиты на `preacherChannelIds/linkedServiceIds` (до 20).
+- Гибридный merge `Ads + Sadhu`:
+  - источник `ad`: активные `events` объявления;
+  - источник `sadhu_service`: active services с `formats` содержащим `event` + occurrence из `service_schedules`;
+  - дедуп: sadhu occurrence скрывается, если linked `event ad` покрывает тот же интервал (`linkedServiceIds` + time interval).
+- Для Sadhu math-правил добавлен reusable scope в `channel_service`:
+  - `ResolveSadhuOwnerScope(viewerID)` возвращает `ownerIDs/bypass/showNone`.
+- Для расписаний сервисов добавлен reusable метод:
+  - `ServiceService.ListFestivalOccurrences(...)` с генерацией событий по `specificDate` и weekly `dayOfWeek`.
+- RN-слой:
+  - новые компоненты: `FestivalSectionSwitch`, `FestivalMonthCalendar`, `FestivalAgendaList`, `FestivalPreacherPickerModal`, `FestivalServicePickerModal`;
+  - `CreateAdScreen` для `events` показывает date-time, organizer/venue, ручной picker проповедников и picker linked services;
+  - `AdDetailScreen` для event-объявлений показывает блоки «О фестивале» и «Проповедники».
+- Admin Ads:
+  - добавлена сортировка `festival_date_asc/festival_date_desc`;
+  - в таблице выводятся `festivalStartAt` и count `resolvedPreachers`.
+
 ## iOS Map Connectivity
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
 - Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.

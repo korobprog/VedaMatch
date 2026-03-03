@@ -36,6 +36,10 @@ export default {
     },
     ads: {
         title: 'Ads',
+        sections: {
+            ads: 'Ads',
+            festivals: 'Festivals',
+        },
         looking: 'Looking For',
         offering: 'Offering',
         my: 'My',
@@ -101,7 +105,27 @@ export default {
             removeFromFavorites: 'Remove from Favorites',
             report: 'Report Ad',
             contactSuccess: 'Request Sent'
-        }
+        },
+        festivals: {
+            emptyDay: 'No festivals found for the selected date',
+            sourceAd: 'Ads',
+            sourceSadhu: 'Sadhu Sanga',
+            eventBlockTitle: 'Festival details',
+            startAt: 'Start',
+            hasEndAt: 'Set end time',
+            endAt: 'End',
+            organizerName: 'Organizer',
+            organizerContact: 'Organizer contact',
+            venueName: 'Venue',
+            venueAddress: 'Venue address',
+            pickPreachers: 'Pick preachers',
+            pickLinkedServices: 'Link services',
+            autoPreachers: 'Auto-added preachers',
+            preacherPickerTitle: 'Sadhu Sanga preachers',
+            servicePickerTitle: 'Event format services',
+            aboutFestival: 'About festival',
+            preachers: 'Preachers',
+        },
     },
     calls: {
         title: 'Calls',

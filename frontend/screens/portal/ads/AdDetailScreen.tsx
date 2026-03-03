@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, useColorScheme, ActivityIndicator, Alert, Dimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -16,7 +16,7 @@ import {
     MessageCircle,
     Heart,
     Flag,
-    User
+    CalendarClock
 } from 'lucide-react-native';
 
 type AdDetailRouteProp = RouteProp<RootStackParamList, 'AdDetail'>;
@@ -35,11 +35,7 @@ export const AdDetailScreen: React.FC = () => {
     const [ad, setAd] = useState<Ad | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadAd();
-    }, [adId]);
-
-    const loadAd = async () => {
+    const loadAd = useCallback(async () => {
         try {
             setLoading(true);
             const data = await adsService.getAd(adId);
@@ -50,14 +46,18 @@ export const AdDetailScreen: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [adId]);
+
+    useEffect(() => {
+        void loadAd();
+    }, [loadAd]);
 
     const handleFavorite = async () => {
         if (!ad) return;
         try {
             const result = await adsService.toggleFavorite(ad.ID);
             setAd(prev => prev ? { ...prev, isFavorite: result.isFavorite } : null);
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Failed to update favorite');
         }
     };
@@ -96,7 +96,7 @@ export const AdDetailScreen: React.FC = () => {
         try {
             await adsService.reportAd(ad.ID, reason);
             Alert.alert('Reported', 'Thank you for your report.');
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Failed to submit report');
         }
     };
@@ -122,6 +122,24 @@ export const AdDetailScreen: React.FC = () => {
         : (ad.price ? `${ad.price} ${ad.currency}` : '');
 
     const isOwner = user?.ID === ad.userId;
+
+    const formatFestivalDateTime = (iso?: string) => {
+        if (!iso) {
+            return '';
+        }
+        try {
+            return new Date(iso).toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: ad.festivalTimezone || 'Europe/Moscow',
+            });
+        } catch {
+            return iso;
+        }
+    };
 
     return (
         <ProtectedScreen>
@@ -159,6 +177,50 @@ export const AdDetailScreen: React.FC = () => {
                         <MapPin size={18} color={colors.textSecondary} style={{ marginRight: 6 }} />
                         <Text style={{ color: colors.textSecondary }}>{ad.city}{ad.district ? `, ${ad.district}` : ''}</Text>
                     </View>
+
+                    {ad.category === 'events' && (
+                        <>
+                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ddd' : colors.text }]}>
+                                {t('ads.festivals.aboutFestival')}
+                            </Text>
+                            <View style={[styles.festivalCard, { backgroundColor: isDarkMode ? '#2a2a2a' : '#fff', borderColor: colors.textSecondary }]}>
+                                {ad.festivalStartAt ? (
+                                    <View style={styles.row}>
+                                        <CalendarClock size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                                        <Text style={{ color: isDarkMode ? '#eee' : colors.text }}>
+                                            {formatFestivalDateTime(ad.festivalStartAt)}
+                                            {ad.festivalEndAt ? ` — ${formatFestivalDateTime(ad.festivalEndAt)}` : ''}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                                {ad.organizerName ? (
+                                    <Text style={[styles.festivalMeta, { color: isDarkMode ? '#ddd' : colors.textSecondary }]}>
+                                        {t('ads.festivals.organizerName')}: {ad.organizerName}
+                                    </Text>
+                                ) : null}
+                                {ad.venueName || ad.venueAddress ? (
+                                    <Text style={[styles.festivalMeta, { color: isDarkMode ? '#ddd' : colors.textSecondary }]}>
+                                        {t('ads.festivals.venueName')}: {[ad.venueName, ad.venueAddress].filter(Boolean).join(', ')}
+                                    </Text>
+                                ) : null}
+                            </View>
+
+                            {ad.resolvedPreachers && ad.resolvedPreachers.length > 0 ? (
+                                <>
+                                    <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ddd' : colors.text }]}>
+                                        {t('ads.festivals.preachers')}
+                                    </Text>
+                                    <View style={[styles.festivalCard, { backgroundColor: isDarkMode ? '#2a2a2a' : '#fff', borderColor: colors.textSecondary }]}>
+                                        {ad.resolvedPreachers.map((preacher) => (
+                                            <Text key={`${preacher.channelId}-${preacher.ownerId}`} style={[styles.festivalMeta, { color: isDarkMode ? '#ddd' : colors.textSecondary }]}>
+                                                • {preacher.name}
+                                            </Text>
+                                        ))}
+                                    </View>
+                                </>
+                            ) : null}
+                        </>
+                    )}
 
                     {/* Description */}
                     <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ddd' : colors.text }]}>{t('ads.create.description')}</Text>
@@ -224,6 +286,8 @@ const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, marginTop: 10 },
     description: { fontSize: 16, lineHeight: 24, marginBottom: 20 },
+    festivalCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
+    festivalMeta: { fontSize: 14, lineHeight: 20, marginTop: 6 },
     authorCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 20 },
     avatar: { width: 50, height: 50, borderRadius: 25 },
     authorName: { fontSize: 16, fontWeight: 'bold' },

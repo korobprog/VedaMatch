@@ -6,6 +6,7 @@ import (
 	"rag-agent-server/internal/models"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -164,5 +165,82 @@ func TestCalculateAdTotalPages(t *testing.T) {
 	maxInt := int64(^uint(0) >> 1)
 	if got := calculateAdTotalPages(maxInt, 1); got != int(maxInt) {
 		t.Fatalf("expected capped max int pages=%d, got %d", maxInt, got)
+	}
+}
+
+func TestValidateFestivalFields_RequiresStartForEvents(t *testing.T) {
+	req := models.AdCreateRequest{
+		Category: models.AdCategoryEvents,
+	}
+	_, err := validateFestivalFields(req, true)
+	if err == nil {
+		t.Fatalf("expected validation error when festivalStartAt is missing")
+	}
+}
+
+func TestValidateFestivalFields_EndBeforeStart(t *testing.T) {
+	req := models.AdCreateRequest{
+		FestivalStartAt: "2026-03-03T12:00:00+03:00",
+		FestivalEndAt:   "2026-03-03T11:00:00+03:00",
+	}
+	_, err := validateFestivalFields(req, true)
+	if err == nil {
+		t.Fatalf("expected validation error for end before start")
+	}
+}
+
+func TestValidateFestivalFields_DefaultTimezoneAndIDLimits(t *testing.T) {
+	req := models.AdCreateRequest{
+		FestivalStartAt:    "2026-03-03T12:00:00+03:00",
+		FestivalTimezone:   "Bad/Timezone",
+		PreacherChannelIDs: []uint{1, 2, 2, 0, 3},
+		LinkedServiceIDs:   []uint{11, 11, 12},
+	}
+
+	fields, err := validateFestivalFields(req, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fields.Timezone != defaultFestivalTimezone {
+		t.Fatalf("expected default timezone %q, got %q", defaultFestivalTimezone, fields.Timezone)
+	}
+	if len(fields.PreacherIDs) != 3 {
+		t.Fatalf("expected 3 deduped preacher IDs, got %d", len(fields.PreacherIDs))
+	}
+	if len(fields.LinkedServiceIDs) != 2 {
+		t.Fatalf("expected 2 deduped linked services, got %d", len(fields.LinkedServiceIDs))
+	}
+}
+
+func TestParseFestivalMonthRange(t *testing.T) {
+	month, start, end, err := parseFestivalMonthRange("2026-03")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if month != "2026-03" {
+		t.Fatalf("unexpected month: %s", month)
+	}
+	if start.Format("2006-01-02") != "2026-03-01" {
+		t.Fatalf("unexpected range start: %s", start.Format(time.RFC3339))
+	}
+	if end.Format("2006-01-02") != "2026-03-31" {
+		t.Fatalf("unexpected range end: %s", end.Format(time.RFC3339))
+	}
+}
+
+func TestIsSadhuOccurrenceSuppressed(t *testing.T) {
+	start := time.Date(2026, 3, 3, 10, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Hour)
+	intervals := map[uint][]linkedServiceInterval{
+		100: {
+			{Start: start, End: end},
+		},
+	}
+
+	if !isSadhuOccurrenceSuppressed(intervals, 100, start.Add(30*time.Minute)) {
+		t.Fatalf("expected occurrence to be suppressed inside interval")
+	}
+	if isSadhuOccurrenceSuppressed(intervals, 100, end.Add(time.Minute)) {
+		t.Fatalf("expected occurrence outside interval to be visible")
 	}
 }

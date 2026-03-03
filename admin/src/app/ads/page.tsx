@@ -79,12 +79,13 @@ export default function AdsPage() {
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
     const [category, setCategory] = useState('');
+    const [sort, setSort] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [rejectModal, setRejectModal] = useState<{ id: number; open: boolean }>({ id: 0, open: false });
     const [rejectReason, setRejectReason] = useState('');
 
     const { data, error, mutate } = useSWR(
-        `/admin/ads?search=${search}&status=${status}&category=${category}`,
+        `/admin/ads?search=${search}&status=${status}&category=${category}&sort=${sort}`,
         fetcher
     );
 
@@ -196,6 +197,15 @@ export default function AdsPage() {
                         <option value="education">Education</option>
                         <option value="events">Events</option>
                     </select>
+                    <select
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value)}
+                        className="bg-[var(--secondary)] border-none rounded-xl py-2.5 px-4 text-sm outline-none cursor-pointer"
+                    >
+                        <option value="">Newest</option>
+                        <option value="festival_date_asc">Festival date ↑</option>
+                        <option value="festival_date_desc">Festival date ↓</option>
+                    </select>
                 </div>
             </div>
 
@@ -219,6 +229,8 @@ export default function AdsPage() {
                                     <th className="px-6 py-4 font-semibold">Ad</th>
                                     <th className="px-6 py-4 font-semibold">Author</th>
                                     <th className="px-6 py-4 font-semibold">Category</th>
+                                    <th className="px-6 py-4 font-semibold">Festival</th>
+                                    <th className="px-6 py-4 font-semibold">Preachers</th>
                                     <th className="px-6 py-4 font-semibold">Status</th>
                                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                                 </tr>
@@ -258,6 +270,16 @@ export default function AdsPage() {
                                                 <td className="px-6 py-4">
                                                     <span className="text-xs font-medium bg-[var(--secondary)] px-2 py-1 rounded-lg">
                                                         {ad.category}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs text-[var(--muted-foreground)]">
+                                                        {ad.festivalStartAt ? new Date(ad.festivalStartAt).toLocaleString('ru-RU') : '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs font-medium">
+                                                        {Array.isArray(ad.resolvedPreachers) ? ad.resolvedPreachers.length : 0}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">

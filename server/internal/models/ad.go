@@ -89,17 +89,17 @@ type Ad struct {
 	ExpiresAt string `json:"expiresAt"`
 
 	// Festival metadata (for category=events)
-	FestivalStartAt    *time.Time `json:"festivalStartAt" gorm:"index"`
-	FestivalEndAt      *time.Time `json:"festivalEndAt"`
-	FestivalTimezone   string     `json:"festivalTimezone" gorm:"type:varchar(64)"`
-	OrganizerName      string     `json:"organizerName" gorm:"type:varchar(200)"`
-	OrganizerContact   string     `json:"organizerContact" gorm:"type:varchar(200)"`
-	VenueName          string     `json:"venueName" gorm:"type:varchar(200)"`
-	VenueAddress       string     `json:"venueAddress" gorm:"type:varchar(500)"`
-	VenueLat           *float64   `json:"venueLat" gorm:"type:decimal(10,8)"`
-	VenueLng           *float64   `json:"venueLng" gorm:"type:decimal(11,8)"`
-	PreacherChannelIDs []uint     `json:"preacherChannelIds,omitempty" gorm:"type:jsonb;serializer:json"`
-	LinkedServiceIDs   []uint     `json:"linkedServiceIds,omitempty" gorm:"type:jsonb;serializer:json"`
+	FestivalStartAt    *time.Time         `json:"festivalStartAt" gorm:"index"`
+	FestivalEndAt      *time.Time         `json:"festivalEndAt"`
+	FestivalTimezone   string             `json:"festivalTimezone" gorm:"type:varchar(64)"`
+	OrganizerName      string             `json:"organizerName" gorm:"type:varchar(200)"`
+	OrganizerContact   string             `json:"organizerContact" gorm:"type:varchar(200)"`
+	VenueName          string             `json:"venueName" gorm:"type:varchar(200)"`
+	VenueAddress       string             `json:"venueAddress" gorm:"type:varchar(500)"`
+	VenueLat           *float64           `json:"venueLat" gorm:"type:decimal(10,8)"`
+	VenueLng           *float64           `json:"venueLng" gorm:"type:decimal(11,8)"`
+	PreacherChannelIDs []uint             `json:"preacherChannelIds,omitempty" gorm:"type:jsonb;serializer:json"`
+	LinkedServiceIDs   []uint             `json:"linkedServiceIds,omitempty" gorm:"type:jsonb;serializer:json"`
 	ResolvedPreachers  []FestivalPreacher `json:"resolvedPreachers,omitempty" gorm:"-"`
 
 	// Relations
@@ -167,17 +167,17 @@ type AdCreateRequest struct {
 	Photos       []string   `json:"photos"` // URLs
 
 	// Festival/event specific fields
-	FestivalStartAt  string  `json:"festivalStartAt"`
-	FestivalEndAt    string  `json:"festivalEndAt"`
-	FestivalTimezone string  `json:"festivalTimezone"`
-	OrganizerName    string  `json:"organizerName"`
-	OrganizerContact string  `json:"organizerContact"`
-	VenueName        string  `json:"venueName"`
-	VenueAddress     string  `json:"venueAddress"`
-	VenueLat         *float64 `json:"venueLat"`
-	VenueLng         *float64 `json:"venueLng"`
-	PreacherChannelIDs []uint `json:"preacherChannelIds"`
-	LinkedServiceIDs   []uint `json:"linkedServiceIds"`
+	FestivalStartAt    string   `json:"festivalStartAt"`
+	FestivalEndAt      string   `json:"festivalEndAt"`
+	FestivalTimezone   string   `json:"festivalTimezone"`
+	OrganizerName      string   `json:"organizerName"`
+	OrganizerContact   string   `json:"organizerContact"`
+	VenueName          string   `json:"venueName"`
+	VenueAddress       string   `json:"venueAddress"`
+	VenueLat           *float64 `json:"venueLat"`
+	VenueLng           *float64 `json:"venueLng"`
+	PreacherChannelIDs []uint   `json:"preacherChannelIds"`
+	LinkedServiceIDs   []uint   `json:"linkedServiceIds"`
 }
 
 type FestivalPreacher struct {

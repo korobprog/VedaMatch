@@ -608,7 +608,7 @@ func parseFestivalDateRange(raw string) (string, time.Time, time.Time, error) {
 	return dateRaw, start, end, nil
 }
 
-func parseOptionalUintQuery(raw string) (uint, error) {
+func parseFestivalOptionalUintQuery(raw string) (uint, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return 0, nil
@@ -755,14 +755,24 @@ func (h *AdsHandler) buildFestivalItemFromServiceOccurrence(
 	}
 
 	return models.FestivalItem{
-		ID:            fmt.Sprintf("sadhu:%d:%d", occ.Service.ID, occ.StartAt.Unix()),
-		Source:        "sadhu_service",
-		StartAt:       occ.StartAt.UTC().Format(time.RFC3339),
-		EndAt:         func() string { if occ.EndAt != nil { return occ.EndAt.UTC().Format(time.RFC3339) }; return "" }(),
-		Timezone:      normalizeFestivalTimezone(occ.Timezone),
-		Title:         strings.TrimSpace(occ.Service.Title),
-		Description:   strings.TrimSpace(occ.Service.Description),
-		City:          strings.TrimSpace(func() string { if occ.Service.Owner != nil { return occ.Service.Owner.City }; return "" }()),
+		ID:      fmt.Sprintf("sadhu:%d:%d", occ.Service.ID, occ.StartAt.Unix()),
+		Source:  "sadhu_service",
+		StartAt: occ.StartAt.UTC().Format(time.RFC3339),
+		EndAt: func() string {
+			if occ.EndAt != nil {
+				return occ.EndAt.UTC().Format(time.RFC3339)
+			}
+			return ""
+		}(),
+		Timezone:    normalizeFestivalTimezone(occ.Timezone),
+		Title:       strings.TrimSpace(occ.Service.Title),
+		Description: strings.TrimSpace(occ.Service.Description),
+		City: strings.TrimSpace(func() string {
+			if occ.Service.Owner != nil {
+				return occ.Service.Owner.City
+			}
+			return ""
+		}()),
 		VenueName:     venueName,
 		VenueAddress:  venueAddress,
 		OrganizerName: buildOrganizerNameFromOwner(occ.Service.Owner),
@@ -932,7 +942,7 @@ func (h *AdsHandler) GetFestivalCalendar(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	preacherChannelID, err := parseOptionalUintQuery(c.Query("preacherChannelId"))
+	preacherChannelID, err := parseFestivalOptionalUintQuery(c.Query("preacherChannelId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
 	}
@@ -992,7 +1002,7 @@ func (h *AdsHandler) GetFestivals(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	preacherChannelID, err := parseOptionalUintQuery(c.Query("preacherChannelId"))
+	preacherChannelID, err := parseFestivalOptionalUintQuery(c.Query("preacherChannelId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
 	}
@@ -1308,17 +1318,6 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		festivalFields = fields
 	}
 
-	var festivalFields *validatedFestivalFields
-	if isFestivalCategory(req.Category) || hasFestivalPayload(req) {
-		fields, err := validateFestivalFields(req, isFestivalCategory(req.Category))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
-		festivalFields = fields
-	}
-
 	// Set defaults
 	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
 	if currency == "" {
@@ -1458,6 +1457,17 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid category",
 		})
+	}
+
+	var festivalFields *validatedFestivalFields
+	if isFestivalCategory(req.Category) || hasFestivalPayload(req) {
+		fields, err := validateFestivalFields(req, isFestivalCategory(req.Category))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		festivalFields = fields
 	}
 
 	// Update fields
@@ -2311,39 +2321,133 @@ func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 
+	originalCategory := ad.Category
+
 	var req struct {
-		Title       string  `json:"title"`
-		Description string  `json:"description"`
-		Category    string  `json:"category"`
-		Price       float64 `json:"price"`
-		City        string  `json:"city"`
+		Title              *string  `json:"title"`
+		Description        *string  `json:"description"`
+		Category           *string  `json:"category"`
+		Price              *float64 `json:"price"`
+		City               *string  `json:"city"`
+		FestivalStartAt    *string  `json:"festivalStartAt"`
+		FestivalEndAt      *string  `json:"festivalEndAt"`
+		FestivalTimezone   *string  `json:"festivalTimezone"`
+		OrganizerName      *string  `json:"organizerName"`
+		OrganizerContact   *string  `json:"organizerContact"`
+		VenueName          *string  `json:"venueName"`
+		VenueAddress       *string  `json:"venueAddress"`
+		VenueLat           *float64 `json:"venueLat"`
+		VenueLng           *float64 `json:"venueLng"`
+		PreacherChannelIDs *[]uint  `json:"preacherChannelIds"`
+		LinkedServiceIDs   *[]uint  `json:"linkedServiceIds"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	req.Title = strings.TrimSpace(req.Title)
-	req.Description = strings.TrimSpace(req.Description)
-	req.Category = strings.TrimSpace(req.Category)
-	req.City = strings.TrimSpace(req.City)
 
-	// Update fields if provided
-	if req.Title != "" {
-		ad.Title = req.Title
-	}
-	if req.Description != "" {
-		ad.Description = req.Description
-	}
-	if req.Category != "" {
-		if !isValidAdCategory(models.AdCategory(req.Category)) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category"})
+	targetCategory := ad.Category
+	if req.Category != nil {
+		category := strings.TrimSpace(*req.Category)
+		if category != "" {
+			if !isValidAdCategory(models.AdCategory(category)) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category"})
+			}
+			targetCategory = models.AdCategory(category)
 		}
-		ad.Category = models.AdCategory(req.Category)
 	}
-	if req.Price > 0 {
-		ad.Price = &req.Price
+
+	if req.Title != nil {
+		ad.Title = strings.TrimSpace(*req.Title)
 	}
-	if req.City != "" {
-		ad.City = req.City
+	if req.Description != nil {
+		ad.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.Price != nil {
+		if *req.Price < 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Price cannot be negative"})
+		}
+		price := *req.Price
+		ad.Price = &price
+	}
+	if req.City != nil {
+		ad.City = strings.TrimSpace(*req.City)
+	}
+	ad.Category = targetCategory
+
+	existingFestivalReq := models.AdCreateRequest{
+		FestivalTimezone:   ad.FestivalTimezone,
+		OrganizerName:      ad.OrganizerName,
+		OrganizerContact:   ad.OrganizerContact,
+		VenueName:          ad.VenueName,
+		VenueAddress:       ad.VenueAddress,
+		VenueLat:           ad.VenueLat,
+		VenueLng:           ad.VenueLng,
+		PreacherChannelIDs: append([]uint{}, ad.PreacherChannelIDs...),
+		LinkedServiceIDs:   append([]uint{}, ad.LinkedServiceIDs...),
+	}
+	if ad.FestivalStartAt != nil {
+		existingFestivalReq.FestivalStartAt = ad.FestivalStartAt.UTC().Format(time.RFC3339)
+	}
+	if ad.FestivalEndAt != nil {
+		existingFestivalReq.FestivalEndAt = ad.FestivalEndAt.UTC().Format(time.RFC3339)
+	}
+
+	festivalPayloadChanged := req.FestivalStartAt != nil ||
+		req.FestivalEndAt != nil ||
+		req.FestivalTimezone != nil ||
+		req.OrganizerName != nil ||
+		req.OrganizerContact != nil ||
+		req.VenueName != nil ||
+		req.VenueAddress != nil ||
+		req.VenueLat != nil ||
+		req.VenueLng != nil ||
+		req.PreacherChannelIDs != nil ||
+		req.LinkedServiceIDs != nil
+
+	if req.FestivalStartAt != nil {
+		existingFestivalReq.FestivalStartAt = strings.TrimSpace(*req.FestivalStartAt)
+	}
+	if req.FestivalEndAt != nil {
+		existingFestivalReq.FestivalEndAt = strings.TrimSpace(*req.FestivalEndAt)
+	}
+	if req.FestivalTimezone != nil {
+		existingFestivalReq.FestivalTimezone = strings.TrimSpace(*req.FestivalTimezone)
+	}
+	if req.OrganizerName != nil {
+		existingFestivalReq.OrganizerName = strings.TrimSpace(*req.OrganizerName)
+	}
+	if req.OrganizerContact != nil {
+		existingFestivalReq.OrganizerContact = strings.TrimSpace(*req.OrganizerContact)
+	}
+	if req.VenueName != nil {
+		existingFestivalReq.VenueName = strings.TrimSpace(*req.VenueName)
+	}
+	if req.VenueAddress != nil {
+		existingFestivalReq.VenueAddress = strings.TrimSpace(*req.VenueAddress)
+	}
+	if req.VenueLat != nil {
+		lat := *req.VenueLat
+		existingFestivalReq.VenueLat = &lat
+	}
+	if req.VenueLng != nil {
+		lng := *req.VenueLng
+		existingFestivalReq.VenueLng = &lng
+	}
+	if req.PreacherChannelIDs != nil {
+		existingFestivalReq.PreacherChannelIDs = append([]uint{}, (*req.PreacherChannelIDs)...)
+	}
+	if req.LinkedServiceIDs != nil {
+		existingFestivalReq.LinkedServiceIDs = append([]uint{}, (*req.LinkedServiceIDs)...)
+	}
+
+	if isFestivalCategory(targetCategory) {
+		festivalFields, err := validateFestivalFields(existingFestivalReq, true)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		applyFestivalFieldsToAd(&ad, festivalFields)
+	} else if festivalPayloadChanged || isFestivalCategory(originalCategory) {
+		applyFestivalFieldsToAd(&ad, nil)
 	}
 
 	if err := database.DB.Save(&ad).Error; err != nil {

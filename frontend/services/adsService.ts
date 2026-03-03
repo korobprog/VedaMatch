@@ -1,5 +1,13 @@
 import apiClient from '../lib/apiClient';
-import { Ad, AdFilters, AdFormData, CategoryConfig } from '../types/ads';
+import {
+    Ad,
+    AdFilters,
+    AdFormData,
+    CategoryConfig,
+    FestivalCalendarResponse,
+    FestivalFilters,
+    FestivalListResponse
+} from '../types/ads';
 import { getGodModeQueryParams } from './godModeService';
 
 class AdsService {
@@ -19,9 +27,39 @@ class AdsService {
     async getAd(id: number): Promise<Ad> {
         try {
             const response = await apiClient.get(`/ads/${id}`);
-            return response.data;
+            return response.data?.ad || response.data;
         } catch (error) {
             console.error(`Error fetching ad ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async getFestivalCalendar(month: string, filters: Omit<FestivalFilters, 'page' | 'limit'> = {}): Promise<FestivalCalendarResponse> {
+        try {
+            const response = await apiClient.get('/ads/festivals/calendar', {
+                params: {
+                    month,
+                    ...filters,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching festival calendar:', error);
+            throw error;
+        }
+    }
+
+    async getFestivalsByDate(date: string, filters: FestivalFilters = {}): Promise<FestivalListResponse> {
+        try {
+            const response = await apiClient.get('/ads/festivals', {
+                params: {
+                    date,
+                    ...filters,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching festivals for ${date}:`, error);
             throw error;
         }
     }

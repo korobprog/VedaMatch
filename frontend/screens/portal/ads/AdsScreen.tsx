@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { adsService } from '../../../services/adsService';
-import { Ad, AdCategory, AdType } from '../../../types/ads';
+import { Ad, AdCategory, AdType, FestivalCalendarResponse, FestivalItem } from '../../../types/ads';
 import { RootStackParamList } from '../../../types/navigation';
 import { useSettings } from '../../../context/SettingsContext';
 
 import { AdCard } from '../../../components/ads/AdCard';
 import { CategoryPills } from '../../../components/ads/CategoryPills';
 import { AdTabSwitcher } from '../../../components/ads/AdTabSwitcher';
+import { AdsSectionMode, FestivalSectionSwitch } from '../../../components/ads/FestivalSectionSwitch';
+import { FestivalMonthCalendar } from '../../../components/ads/FestivalMonthCalendar';
+import { FestivalAgendaList } from '../../../components/ads/FestivalAgendaList';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import {
@@ -32,22 +34,29 @@ export const AdsScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdType>('looking');
     const [selectedCategory, setSelectedCategory] = useState<AdCategory | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [sectionMode, setSectionMode] = useState<AdsSectionMode>('ads');
 
     const [ads, setAds] = useState<Ad[]>([]);
+    const [festivalCalendar, setFestivalCalendar] = useState<FestivalCalendarResponse | null>(null);
+    const [festivalItems, setFestivalItems] = useState<FestivalItem[]>([]);
+    const [festivalMonthDate, setFestivalMonthDate] = useState<Date>(new Date());
+    const [selectedFestivalDate, setSelectedFestivalDate] = useState<string>(new Date().toISOString().slice(0, 10));
     const [loading, setLoading] = useState(true);
+    const [festivalLoading, setFestivalLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const pageRef = React.useRef(1);
 
 
     const fetchAds = useCallback(async (reset = false) => {
         try {
             if (reset) {
                 setLoading(true);
+                pageRef.current = 1;
             }
 
 
-            const currentPage = reset ? 1 : page;
+            const currentPage = reset ? 1 : pageRef.current;
             let response;
 
             if (activeTab === 'my') {
@@ -76,7 +85,7 @@ export const AdsScreen: React.FC = () => {
             }
 
             setHasMore(currentPage < response.totalPages);
-            setPage(currentPage + 1);
+            pageRef.current = currentPage + 1;
         } catch (error) {
             console.error('Failed to load ads', error);
         } finally {
@@ -85,12 +94,53 @@ export const AdsScreen: React.FC = () => {
         }
     }, [activeTab, selectedCategory, searchQuery]);
 
+    const monthKey = useCallback((date: Date) => {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }, []);
+
+    const fetchFestivalData = useCallback(async () => {
+        try {
+            setFestivalLoading(true);
+            const month = monthKey(festivalMonthDate);
+            const [calendarResponse, agendaResponse] = await Promise.all([
+                adsService.getFestivalCalendar(month, {
+                    search: searchQuery || undefined,
+                    includeSadhu: true,
+                }),
+                adsService.getFestivalsByDate(selectedFestivalDate, {
+                    search: searchQuery || undefined,
+                    includeSadhu: true,
+                    page: 1,
+                    limit: 50,
+                }),
+            ]);
+            setFestivalCalendar(calendarResponse);
+            setFestivalItems(agendaResponse.items || []);
+        } catch (error) {
+            console.error('Failed to load festivals', error);
+        } finally {
+            setFestivalLoading(false);
+        }
+    }, [festivalMonthDate, monthKey, searchQuery, selectedFestivalDate]);
+
     useEffect(() => {
-        fetchAds(true);
-    }, [fetchAds]);
+        if (sectionMode === 'ads') {
+            fetchAds(true);
+        }
+    }, [fetchAds, sectionMode]);
+
+    useEffect(() => {
+        if (sectionMode === 'festivals') {
+            fetchFestivalData();
+        }
+    }, [fetchFestivalData, sectionMode]);
 
     const onRefresh = () => {
         setRefreshing(true);
+        if (sectionMode === 'festivals') {
+            fetchFestivalData().finally(() => setRefreshing(false));
+            return;
+        }
         fetchAds(true);
     };
 
@@ -124,10 +174,23 @@ export const AdsScreen: React.FC = () => {
                             placeholderTextColor={colors.textSecondary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            onSubmitEditing={() => fetchAds(true)}
+                            onSubmitEditing={() => {
+                                if (sectionMode === 'festivals') {
+                                    void fetchFestivalData();
+                                } else {
+                                    void fetchAds(true);
+                                }
+                            }}
                         />
                         {searchQuery !== '' && (
-                            <TouchableOpacity onPress={() => { setSearchQuery(''); fetchAds(true); }}>
+                            <TouchableOpacity onPress={() => {
+                                setSearchQuery('');
+                                if (sectionMode === 'festivals') {
+                                    void fetchFestivalData();
+                                } else {
+                                    void fetchAds(true);
+                                }
+                            }}>
                                 <X size={18} color={colors.textSecondary} />
                             </TouchableOpacity>
                         )}
@@ -140,43 +203,77 @@ export const AdsScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Tab Switcher */}
-                <AdTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
-                <GodModeStatusBanner />
+                <FestivalSectionSwitch mode={sectionMode} onChange={setSectionMode} />
 
-                {/* Categories */}
-                <CategoryPills selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+                {sectionMode === 'ads' ? (
+                    <>
+                        {/* Tab Switcher */}
+                        <AdTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+                        <GodModeStatusBanner />
 
-                {/* Ads List */}
-                <FlatList
-                    data={ads}
-                    keyExtractor={item => item.ID.toString()}
-                    renderItem={({ item }) => (
-                        <AdCard
-                            ad={item}
-                            onPress={() => navigation.navigate('AdDetail', { adId: item.ID })}
-                            onFavorite={() => handleFavorite(item)}
-                            onEdit={() => navigation.navigate('CreateAd', { adId: item.ID })} // In a real app, this would be EditAd
+                        {/* Categories */}
+                        <CategoryPills selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+
+                        {/* Ads List */}
+                        <FlatList
+                            data={ads}
+                            keyExtractor={item => item.ID.toString()}
+                            renderItem={({ item }) => (
+                                <AdCard
+                                    ad={item}
+                                    onPress={() => navigation.navigate('AdDetail', { adId: item.ID })}
+                                    onFavorite={() => handleFavorite(item)}
+                                    onEdit={() => navigation.navigate('CreateAd', { adId: item.ID })}
+                                />
+                            )}
+                            contentContainerStyle={styles.list}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+                            }
+                            onEndReached={loadMore}
+                            onEndReachedThreshold={0.5}
+                            ListEmptyComponent={
+                                !loading ? (
+                                    <View style={styles.emptyContainer}>
+                                        <Inbox size={64} color={colors.textSecondary} opacity={0.3} style={{ marginBottom: 16 }} />
+                                        <Text style={{ color: colors.textSecondary }}>{t('ads.noAds')}</Text>
+                                    </View>
+                                ) : null
+                            }
+                            ListFooterComponent={
+                                loading && !refreshing ? <ActivityIndicator color={colors.primary} style={{ margin: 20 }} /> : null
+                            }
                         />
-                    )}
-                    contentContainerStyle={styles.list}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-                    }
-                    onEndReached={loadMore}
-                    onEndReachedThreshold={0.5}
-                    ListEmptyComponent={
-                        !loading ? (
-                            <View style={styles.emptyContainer}>
-                                <Inbox size={64} color={colors.textSecondary} opacity={0.3} style={{ marginBottom: 16 }} />
-                                <Text style={{ color: colors.textSecondary }}>{t('ads.noAds')}</Text>
-                            </View>
-                        ) : null
-                    }
-                    ListFooterComponent={
-                        loading && !refreshing ? <ActivityIndicator color={colors.primary} style={{ margin: 20 }} /> : null
-                    }
-                />
+                    </>
+                ) : (
+                    <ScrollView
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+                        }
+                    >
+                        <FestivalMonthCalendar
+                            monthDate={festivalMonthDate}
+                            selectedDate={selectedFestivalDate}
+                            calendar={festivalCalendar}
+                            onSelectDate={setSelectedFestivalDate}
+                            onPrevMonth={() => {
+                                const next = new Date(festivalMonthDate.getFullYear(), festivalMonthDate.getMonth() - 1, 1);
+                                setFestivalMonthDate(next);
+                                setSelectedFestivalDate(new Date(next.getFullYear(), next.getMonth(), 1).toISOString().slice(0, 10));
+                            }}
+                            onNextMonth={() => {
+                                const next = new Date(festivalMonthDate.getFullYear(), festivalMonthDate.getMonth() + 1, 1);
+                                setFestivalMonthDate(next);
+                                setSelectedFestivalDate(new Date(next.getFullYear(), next.getMonth(), 1).toISOString().slice(0, 10));
+                            }}
+                        />
+                        <FestivalAgendaList
+                            items={festivalItems}
+                            loading={festivalLoading}
+                            onOpenAd={(adId) => navigation.navigate('AdDetail', { adId })}
+                        />
+                    </ScrollView>
+                )}
 
                 {/* FAB - Create Ad */}
                 <TouchableOpacity

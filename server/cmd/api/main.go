@@ -368,6 +368,8 @@ func main() {
 	api.Get("/ads/categories", adsHandler.GetAdCategories)
 	api.Get("/ads/cities", adsHandler.GetAdCities)
 	api.Get("/ads/stats", adsHandler.GetAdStats)
+	api.Get("/ads/festivals/calendar", middleware.OptionalAuth(), adsHandler.GetFestivalCalendar)
+	api.Get("/ads/festivals", middleware.OptionalAuth(), adsHandler.GetFestivals)
 	api.Get("/ads/:id", adsHandler.GetAd)
 
 	// Public Dating Routes

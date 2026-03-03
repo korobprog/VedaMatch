@@ -38,6 +38,10 @@ export default {
     },
     ads: {
         title: 'Объявления',
+        sections: {
+            ads: 'Объявления',
+            festivals: 'Фестивали',
+        },
         looking: 'Ищу',
         offering: 'Предлагаю',
         my: 'Мои',
@@ -103,7 +107,27 @@ export default {
             removeFromFavorites: 'Убрать из избранного',
             report: 'Пожаловаться',
             contactSuccess: 'Запрос отправлен'
-        }
+        },
+        festivals: {
+            emptyDay: 'На выбранную дату фестивали не найдены',
+            sourceAd: 'Ads',
+            sourceSadhu: 'Sadhu Sanga',
+            eventBlockTitle: 'Данные фестиваля',
+            startAt: 'Начало',
+            hasEndAt: 'Указать время окончания',
+            endAt: 'Окончание',
+            organizerName: 'Организатор',
+            organizerContact: 'Контакт организатора',
+            venueName: 'Площадка',
+            venueAddress: 'Адрес площадки',
+            pickPreachers: 'Выбрать проповедников',
+            pickLinkedServices: 'Привязать сервисы',
+            autoPreachers: 'Авто-добавлено проповедников',
+            preacherPickerTitle: 'Проповедники Sadhu Sanga',
+            servicePickerTitle: 'Сервисы формата event',
+            aboutFestival: 'О фестивале',
+            preachers: 'Проповедники',
+        },
     },
     calls: {
         title: 'Звонки',
