@@ -51,7 +51,15 @@ func MetricsEnabled() bool {
 }
 
 func MetricsEndpoint() fiber.Handler {
-	httpHandler := adaptor.HTTPHandler(promhttp.Handler())
+	httpHandler := adaptor.HTTPHandler(promhttp.HandlerFor(
+		prometheus.DefaultGatherer,
+		promhttp.HandlerOpts{
+			// Do not fail the whole scrape when one collector reports an error.
+			// This keeps /metrics available for monitoring and exposes collection
+			// errors inline in the payload.
+			ErrorHandling: promhttp.ContinueOnError,
+		},
+	))
 
 	return func(c *fiber.Ctx) error {
 		if !MetricsEnabled() {

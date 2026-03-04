@@ -40,7 +40,7 @@ export type RootStackParamList = {
     Preview: undefined;
     LegalDocument: { type: 'terms' | 'privacy' | 'account-deletion'; language?: 'en' | 'ru' | 'hi' };
     Ads: undefined;
-    CreateAd: { adId?: number } | undefined;
+    CreateAd: { adId?: number; initialCategory?: 'events' } | undefined;
     AdDetail: { adId: number };
     AdsFilters: undefined;
     Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile', inviteCode?: string };

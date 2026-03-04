@@ -48,7 +48,7 @@ import {
     Plus
 } from 'lucide-react-native';
 
-const DEFAULT_PERIOD: FestivalFeedPeriod = '30d';
+const DEFAULT_PERIOD: FestivalFeedPeriod = 'upcoming';
 const DEFAULT_SOURCE: FestivalFeedSource = 'all';
 
 export const AdsScreen: React.FC = () => {
@@ -161,8 +161,14 @@ export const AdsScreen: React.FC = () => {
             ]);
             setFestivalCalendar(calendarResponse);
             setFestivalItems(agendaResponse.items || []);
-        } catch (error) {
-            console.error('Failed to load festivals calendar', error);
+        } catch (error: any) {
+            const status = error?.response?.status;
+            if (status === 404) {
+                setFestivalCalendar({ month: monthKey(festivalMonthDate), days: [] });
+                setFestivalItems([]);
+            } else {
+                console.warn('Failed to load festivals calendar', error?.message || error);
+            }
         } finally {
             setFestivalCalendarLoading(false);
             setFestivalCalendarRefreshing(false);
@@ -195,8 +201,14 @@ export const AdsScreen: React.FC = () => {
 
             setFestivalFeedHasMore(currentPage < response.totalPages);
             festivalFeedPageRef.current = currentPage + 1;
-        } catch (error) {
-            console.error('Failed to load festival feed', error);
+        } catch (error: any) {
+            const status = error?.response?.status;
+            if (status === 404) {
+                setFestivalFeedItems([]);
+                setFestivalFeedHasMore(false);
+            } else {
+                console.warn('Failed to load festival feed', error?.message || error);
+            }
         } finally {
             setFestivalFeedLoading(false);
             setFestivalFeedRefreshing(false);
@@ -212,8 +224,10 @@ export const AdsScreen: React.FC = () => {
                 includeSadhu: true,
             });
             setFestivalCities(response.cities || []);
-        } catch (error) {
-            console.error('Failed to load festival facets', error);
+        } catch (error: any) {
+            if (error?.response?.status !== 404) {
+                console.warn('Failed to load festival facets', error?.message || error);
+            }
             setFestivalCities([]);
         }
     }, [festivalPeriodFilter, festivalSourceFilter, searchQuery]);
@@ -537,7 +551,7 @@ export const AdsScreen: React.FC = () => {
 
                 <TouchableOpacity
                     style={[styles.fab, { backgroundColor: colors.gradientStart }]}
-                    onPress={() => navigation.navigate('CreateAd')}
+                    onPress={() => navigation.navigate('CreateAd', sectionMode === 'festivals' ? { initialCategory: 'events' } : undefined)}
                 >
                     <Plus size={32} color="#fff" />
                 </TouchableOpacity>

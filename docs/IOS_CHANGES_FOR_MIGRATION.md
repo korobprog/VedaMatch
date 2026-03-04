@@ -1,5 +1,57 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Ads Festivals create preset: only Events + only Offering tab)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+- `frontend/screens/portal/ads/CreateAdScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - во вкладке `Фестивали` кнопка `+` открывала общий create-flow объявлений без фестивального пресета;
+  - на экране создания оставались общий выбор категорий и переключатель `Ищу/Предлагаю/Мои`, что путало при создании фестиваля;
+  - пользователь мог попасть в нерелевантный сценарий `Ищу` для фестиваля.
+- Стало:
+  - в режиме `Фестивали` кнопка `+` передает в `CreateAd` пресет `initialCategory='events'`;
+  - `CreateAdScreen` для этого пресета принудительно выставляет:
+    - `category='events'`
+    - `adType='offering'`
+  - при фестивальном пресете скрываются:
+    - общий `CategoryPills` (показывается только фиксированный pill `Мероприятия`);
+    - `AdTabSwitcher` (`Ищу/Предлагаю/Мои`), чтобы оставить только релевантный поток публикации фестиваля.
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+onPress={() =>
+  navigation.navigate(
+    'CreateAd',
+    sectionMode === 'festivals' ? { initialCategory: 'events' } : undefined
+  )
+}
+```
+
+`frontend/screens/portal/ads/CreateAdScreen.tsx`:
+```tsx
+const initialCategory = route.params?.initialCategory;
+const isFestivalPresetCreate = !adId && initialCategory === 'events';
+
+useEffect(() => {
+  if (!adId && initialCategory === 'events') {
+    setCategory('events');
+    setAdType('offering');
+  }
+}, [adId, initialCategory]);
+```
+
+```tsx
+{!isFestivalPresetCreate && (
+  <AdTabSwitcher activeTab={adType} onTabChange={setAdType} />
+)}
+```
+
 ## 2026-03-04 (Ads: default festivals feed + feed filters + feed/calendar sub-tabs)
 
 ### Измененные файлы
@@ -7931,4 +7983,124 @@ if (isMissingApsEnvironmentEntitlement(error)) {
   logPushTelemetry('token_register_skipped', { reason: 'missing_aps_environment' });
   return null;
 }
+```
+
+## 2026-03-04 (Ads Festivals: graceful fallback when feed/facets endpoints return 404)
+
+### Измененные файлы
+- `frontend/services/adsService.ts`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при открытии режима `Фестивали -> Лента` клиент вызывал `/api/ads/festivals/feed` и `/api/ads/festivals/facets`;
+  - если backend еще не обновлен и отвечает `404`, в dev-режиме появлялся `Console Error`/redbox (`Failed to load festival feed ... 404`).
+- Стало:
+  - `adsService.getFestivalFeed()` при `404` автоматически делает fallback на `/api/ads/festivals?date=today`;
+  - `adsService.getFestivalFacets()` при `404` делает fallback на `/api/ads/cities`;
+  - в `AdsScreen` для ожидаемых `404` убран `console.error`, вместо этого используется тихий fallback (пустые данные) без падения экрана.
+
+### Сниппеты кода
+
+`frontend/services/adsService.ts`:
+```ts
+if (error?.response?.status === 404) {
+  const today = new Date().toISOString().slice(0, 10);
+  const fallbackResponse = await apiClient.get('/ads/festivals', { params: { date: today, ... } });
+  return fallbackResponse.data;
+}
+```
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```ts
+if (status === 404) {
+  setFestivalFeedItems([]);
+  setFestivalFeedHasMore(false);
+} else {
+  console.warn('Failed to load festival feed', error?.message || error);
+}
+```
+
+## 2026-03-04 (Ads Festivals: created festival not visible in feed)
+
+### Измененные файлы
+- `frontend/services/adsService.ts`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - дефолтный период фестивальной ленты был `30d`;
+  - при отсутствии `/api/ads/festivals/feed` fallback был на `/api/ads/festivals?date=today`, поэтому будущие фестивали после создания могли не отображаться.
+- Стало:
+  - дефолт периода в ленте изменен на `upcoming`;
+  - fallback `getFestivalFeed` при `404` теперь берет `category=events` из обычного Ads API и строит фестивальные карточки на клиенте с фильтрацией по периоду/источнику;
+  - новый фестиваль появляется в ленте сразу после создания (если он в будущем).
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```ts
+const DEFAULT_PERIOD: FestivalFeedPeriod = 'upcoming';
+```
+
+`frontend/services/adsService.ts`:
+```ts
+const adsResponse = await this.getAds({ category: 'events', status: 'active', ... });
+const filtered = (adsResponse.ads || []).map(mapAdToFestivalItem).filter(...period/source...);
+return { items, total, page, totalPages };
+```
+
+## 2026-03-04 (Ads FAB in Festivals mode opens CreateAd with events preset)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+- `frontend/screens/portal/ads/CreateAdScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - FAB `+` в разделе `Фестивали` всегда открывал универсальный `CreateAd` без пресета категории;
+  - пользователь попадал в обычное создание объявления (default `goods`), а не фестиваля.
+- Стало:
+  - в режиме `sectionMode === 'festivals'` FAB передает `initialCategory: 'events'` в `CreateAd`;
+  - `CreateAdScreen` применяет этот пресет для нового объявления (не для edit по `adId`).
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+onPress={() => navigation.navigate('CreateAd', sectionMode === 'festivals' ? { initialCategory: 'events' } : undefined)}
+```
+
+`frontend/screens/portal/ads/CreateAdScreen.tsx`:
+```tsx
+const initialCategory = route.params?.initialCategory;
+if (!adId && initialCategory === 'events') {
+  setCategory('events');
+}
+```
+
+## 2026-03-04 (Festival create UX: hide category chooser, keep only Events)
+
+### Измененные файлы
+- `frontend/screens/portal/ads/CreateAdScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при открытии формы из вкладки `Фестивали` пользователь видел общий `CategoryPills` со всеми категориями (`Все`, `Йога`, `Аюрведа` и т.д.).
+- Стало:
+  - если форма открыта как `festival preset` (`initialCategory='events'` и это создание, не edit), общий `CategoryPills` скрывается;
+  - отображается только фиксированная категория `Мероприятия`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/CreateAdScreen.tsx`:
+```tsx
+const isFestivalPresetCreate = !adId && initialCategory === 'events';
+
+{isFestivalPresetCreate ? (
+  <View ...><Text ...>{t('ads.categories.events')}</Text></View>
+) : (
+  <CategoryPills ... />
+)}
 ```

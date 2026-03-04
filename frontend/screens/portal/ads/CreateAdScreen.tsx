@@ -25,7 +25,9 @@ export const CreateAdScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation();
     const route = useRoute<RouteProp<RootStackParamList, 'CreateAd'>>();
-    const adId = (route.params as any)?.adId;
+    const adId = route.params?.adId;
+    const initialCategory = route.params?.initialCategory;
+    const isFestivalPresetCreate = !adId && initialCategory === 'events';
 
     const isDarkMode = useColorScheme() === 'dark';
     const colors = vedicTheme.colors;
@@ -109,6 +111,13 @@ export const CreateAdScreen: React.FC = () => {
             void loadExistingAd();
         }
     }, [adId, loadExistingAd]);
+
+    React.useEffect(() => {
+        if (!adId && initialCategory === 'events') {
+            setCategory('events');
+            setAdType('offering');
+        }
+    }, [adId, initialCategory]);
 
     const loadFestivalReferences = React.useCallback(async () => {
         if (festivalRefsLoading) {
@@ -270,7 +279,9 @@ export const CreateAdScreen: React.FC = () => {
                 >
                     <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('ads.create.title')}</Text>
 
-                    <AdTabSwitcher activeTab={adType} onTabChange={setAdType} />
+                    {!isFestivalPresetCreate && (
+                        <AdTabSwitcher activeTab={adType} onTabChange={setAdType} />
+                    )}
 
                     <View style={styles.section}>
                         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('ads.create.photos')}</Text>
@@ -298,7 +309,15 @@ export const CreateAdScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.section}>
-                        <CategoryPills selectedCategory={category} onSelectCategory={(c) => c !== 'all' && setCategory(c)} />
+                        {isFestivalPresetCreate ? (
+                            <View style={[styles.presetCategoryPill, { borderColor: colors.primary, backgroundColor: colors.primary + '12' }]}>
+                                <Text style={[styles.presetCategoryText, { color: colors.primary }]}>
+                                    {t('ads.categories.events')}
+                                </Text>
+                            </View>
+                        ) : (
+                            <CategoryPills selectedCategory={category} onSelectCategory={(c) => c !== 'all' && setCategory(c)} />
+                        )}
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>{t('ads.create.adTitle')}</Text>
                         <TextInput
@@ -523,6 +542,17 @@ const styles = StyleSheet.create({
     photoThumb: { width: 80, height: 80, borderRadius: 12 },
     removePhoto: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     input: { borderRadius: 12, padding: 12, fontSize: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' },
+    presetCategoryPill: {
+        borderWidth: 1,
+        borderRadius: 24,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        alignSelf: 'flex-start',
+    },
+    presetCategoryText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
     pickerField: { justifyContent: 'center' },
     textArea: { minHeight: 100, textAlignVertical: 'top' },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 },

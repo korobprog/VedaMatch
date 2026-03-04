@@ -4,6 +4,10 @@
 - Обрабатывать задачи без фоновых процессов и без нескольких агентов.
 - Работать с файлами по одному и отчитываться после каждого шага.
 
+## Backend Observability
+- Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.
+- Причина: при частичной ошибке одного collector дефолтный режим может отдавать `500` на весь scrape; `ContinueOnError` сохраняет доступность `/metrics` и публикует ошибки в payload без полного падения endpoint.
+
 ## Portal Service UI
 - Для сервисов объявлений и путешествий (`activeTab === 'ads' || activeTab === 'travel'`) в `frontend/screens/portal/PortalMainScreen.tsx` service-layer принудительно однотонный:
   - `serviceLayerBackgroundType='color'`,
@@ -74,6 +78,22 @@
 - Admin Ads:
   - добавлена сортировка `festival_date_asc/festival_date_desc`;
   - в таблице выводятся `festivalStartAt` и count `resolvedPreachers`.
+- Runtime-совместимость:
+  - если backend еще не содержит `/ads/festivals/feed` и `/ads/festivals/facets` (ответ `404`), frontend теперь не падает;
+  - `getFestivalFeed` делает fallback на `GET /ads?category=events&status=active` с клиентским mapping в `FestivalItem` и фильтрацией по period/source;
+  - `getFestivalFacets` fallback — на `/ads/cities`;
+  - в `AdsScreen` `404` обрабатывается тихо (без `console.error` redbox), показываются пустые/fallback-данные.
+- UX фильтра периода в ленте фестивалей:
+  - default period для feed установлен в `upcoming` (вместо `30d`), чтобы будущие только что созданные фестивали не скрывались по умолчанию.
+- FAB поведение в Ads/Festivals:
+  - в режиме `sectionMode='festivals'` кнопка `+` должна открывать `CreateAd` с пресетом `initialCategory='events'`;
+  - `CreateAdScreen` применяет пресет только для новых объявлений (`!adId`), чтобы не ломать редактирование существующих.
+- Category UI в пресете фестиваля:
+  - при `initialCategory='events'` (новое создание из фестивалей) в `CreateAdScreen` не показывать `CategoryPills` со всеми категориями;
+  - вместо этого показывать только фиксированный pill `Мероприятия`.
+- Ad type UI в пресете фестиваля:
+  - при `initialCategory='events'` (новое создание из фестивалей) `CreateAdScreen` принудительно ставит `adType='offering'`;
+  - переключатель `Ищу/Предлагаю/Мои` (`AdTabSwitcher`) скрыт, чтобы не показывать нерелевантные варианты для создания фестиваля.
 
 ## iOS Map Connectivity
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
