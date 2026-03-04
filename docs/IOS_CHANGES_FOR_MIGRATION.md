@@ -3,14 +3,14 @@
 ## 2026-03-04 (Grafana FastAPI-template compatibility for current Go metrics)
 
 ### Измененные файлы
-- `infra/monitoring/grafana/dashboards/vedamatch-fastapi-template-compatible.json`
+- `infra/monitoring/grafana/dashboards/fastapi-observability.json`
 
 ### Суть правки (от старого к новому)
 - Было:
   - импортируемый FastAPI dashboard ожидал метрики `fastapi_*` и Loki label `compose_service`;
   - в текущем Vedamatch backend/collector используются `http_*` метрики и Loki labels `service/container`, из-за чего панели были пустыми.
 - Стало:
-  - добавлен совместимый dashboard `FastAPI Observability (Vedamatch Compatible)` с рабочими запросами под существующие метрики:
+  - дефолтный dashboard `uid=fastapi-observability` заменен на совместимую Vedamatch-версию с рабочими запросами под существующие метрики:
     - `http_requests_total`
     - `http_request_duration_seconds_*`
     - `http_in_flight_requests`;
@@ -18,11 +18,11 @@
 
 ### Сниппеты кода
 
-`infra/monitoring/grafana/dashboards/vedamatch-fastapi-template-compatible.json`:
+`infra/monitoring/grafana/dashboards/fastapi-observability.json`:
 ```json
 {
-  "title": "FastAPI Observability (Vedamatch Compatible)",
-  "uid": "fastapi-observability-vedamatch"
+  "title": "FastAPI Observability",
+  "uid": "fastapi-observability"
 }
 ```
 

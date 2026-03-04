@@ -618,8 +618,9 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": [
-    "vedamatch",
-    "fastapi-template-compatible"
+    "default-replaced",
+    "fastapi-template-compatible",
+    "vedamatch"
   ],
   "templating": {
     "list": [
@@ -672,8 +673,8 @@
     "to": "now"
   },
   "timezone": "",
-  "title": "FastAPI Observability (Vedamatch Compatible)",
-  "uid": "fastapi-observability-vedamatch",
-  "version": 1,
+  "title": "FastAPI Observability",
+  "uid": "fastapi-observability",
+  "version": 2,
   "weekStart": ""
 }
