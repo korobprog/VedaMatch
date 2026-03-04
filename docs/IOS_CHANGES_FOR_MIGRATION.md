@@ -1,5 +1,41 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Grafana FastAPI-template compatibility for current Go metrics)
+
+### Измененные файлы
+- `infra/monitoring/grafana/dashboards/vedamatch-fastapi-template-compatible.json`
+
+### Суть правки (от старого к новому)
+- Было:
+  - импортируемый FastAPI dashboard ожидал метрики `fastapi_*` и Loki label `compose_service`;
+  - в текущем Vedamatch backend/collector используются `http_*` метрики и Loki labels `service/container`, из-за чего панели были пустыми.
+- Стало:
+  - добавлен совместимый dashboard `FastAPI Observability (Vedamatch Compatible)` с рабочими запросами под существующие метрики:
+    - `http_requests_total`
+    - `http_request_duration_seconds_*`
+    - `http_in_flight_requests`;
+  - Loki панели переведены на selector `{service=~"vedamatch-.*|dokploy-traefik"}`.
+
+### Сниппеты кода
+
+`infra/monitoring/grafana/dashboards/vedamatch-fastapi-template-compatible.json`:
+```json
+{
+  "title": "FastAPI Observability (Vedamatch Compatible)",
+  "uid": "fastapi-observability-vedamatch"
+}
+```
+
+Prometheus panel expression (пример):
+```promql
+sum(http_requests_total{job=~"$app_name",route!="/metrics"})
+```
+
+Loki panel expression (пример):
+```logql
+{service=~"vedamatch-.*|dokploy-traefik"} |= "$log_keyword"
+```
+
 ## 2026-03-04 (Services: platform fee snapshot + master payout visibility)
 
 ### Измененные файлы

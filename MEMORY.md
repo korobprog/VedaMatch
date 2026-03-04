@@ -1402,3 +1402,7 @@
   - keep: `vedamatch-*`, `dokploy-traefik`;
   - исключаются прочие `dokploy-*`/чужие контейнеры.
 - Promtail имеет EOL (2026-03-02), поэтому следующая обязательная итерация observability: миграция collector-пайплайнов на Grafana Alloy.
+- Для быстрого импорта шаблонов типа `FastAPI Observability` добавлен совместимый dashboard:
+  - `infra/monitoring/grafana/dashboards/vedamatch-fastapi-template-compatible.json`
+  - он использует текущие Vedamatch метрики `http_*` вместо `fastapi_*`;
+  - Loki-запросы переведены с `compose_service` на `service` (`vedamatch-*`, `dokploy-traefik`).
