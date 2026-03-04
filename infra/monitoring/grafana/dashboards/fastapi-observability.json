@@ -267,7 +267,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(http_requests_total{job=~\"$app_name\",status_class=\"5xx\",route!=\"/metrics\"})",
+          "expr": "sum(increase(http_requests_total{job=~\"$app_name\",status_class=\"5xx\",route!=\"/metrics\"}[24h])) or vector(0)",
           "instant": true,
           "legendFormat": "",
           "range": false,

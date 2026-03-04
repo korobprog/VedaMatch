@@ -1,5 +1,26 @@
 # IOS Changes For Migration
 
+## 2026-03-05 (Grafana dashboard: `Total 5xx Responses` no-data fallback fix)
+
+### Измененные файлы
+- `infra/monitoring/grafana/dashboards/fastapi-observability.json`
+
+### Суть правки (от старого к новому)
+- Было:
+  - панель `Total 5xx Responses` использовала выражение `sum(http_requests_total{...,status_class="5xx"})`;
+  - при отсутствии 5xx Prometheus возвращал пустой вектор, и Grafana показывала `No data`.
+- Стало:
+  - выражение панели переведено на range + fallback:
+    - `sum(increase(http_requests_total{...,status_class="5xx"}[24h])) or vector(0)`;
+  - при нулевых 5xx панель теперь показывает `0` вместо `No data`.
+
+### Сниппеты кода
+
+`infra/monitoring/grafana/dashboards/fastapi-observability.json`:
+```promql
+sum(increase(http_requests_total{job=~"$app_name",status_class="5xx",route!="/metrics"}[24h])) or vector(0)
+```
+
 ## 2026-03-04 (Rooms header: remove photo wallpaper in chat/rooms service)
 
 ### Измененные файлы

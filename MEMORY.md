@@ -1442,3 +1442,8 @@
   - `infra/monitoring/grafana/dashboards/fastapi-observability.json` (`uid=fastapi-observability`)
   - использует текущие Vedamatch метрики `http_*` вместо `fastapi_*`;
   - Loki-запросы переведены с `compose_service` на `service` (`vedamatch-*`, `dokploy-traefik`).
+- Фикс панели `Total 5xx Responses`:
+  - причина `No data`: при отсутствии 5xx не существовало временных рядов;
+  - применен fallback-запрос:
+    - `sum(increase(http_requests_total{job=~"$app_name",status_class="5xx",route!="/metrics"}[24h])) or vector(0)`
+  - результат: панель показывает `0`, когда ошибок 5xx нет.
