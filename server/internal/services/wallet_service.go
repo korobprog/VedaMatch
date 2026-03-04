@@ -1144,6 +1144,69 @@ func (s *WalletService) HoldFundsWithOptions(userID uint, amount int, bookingID 
 	return &allocation, nil
 }
 
+// HoldFundsForOrderTxWithOptions freezes funds for a cafe order inside caller transaction.
+func (s *WalletService) HoldFundsForOrderTxWithOptions(tx *gorm.DB, userID uint, amount int, orderID uint, description string, opts SpendOptions) (*SpendAllocation, error) {
+	if tx == nil {
+		return nil, errors.New("transaction is required")
+	}
+	if amount <= 0 {
+		return nil, errors.New("amount must be positive")
+	}
+	opts = normalizeSpendOptions(opts)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Cafe order hold"
+	}
+
+	var wallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("wallet not found")
+		}
+		return nil, err
+	}
+
+	allocation, allocErr := calculateSpendAllocation(amount, wallet.Balance, wallet.BonusBalance, opts)
+	if allocErr != nil {
+		return nil, allocErr
+	}
+	if wallet.Balance < allocation.RegularAmount || wallet.BonusBalance < allocation.BonusAmount {
+		return nil, errors.New("insufficient balance")
+	}
+
+	newBalance := wallet.Balance - allocation.RegularAmount
+	newBonusBalance := wallet.BonusBalance - allocation.BonusAmount
+	newFrozen := wallet.FrozenBalance + allocation.RegularAmount
+	newFrozenBonus := wallet.FrozenBonusBalance + allocation.BonusAmount
+
+	if err := tx.Model(&wallet).Updates(map[string]interface{}{
+		"balance":              newBalance,
+		"bonus_balance":        newBonusBalance,
+		"frozen_balance":       newFrozen,
+		"frozen_bonus_balance": newFrozenBonus,
+	}).Error; err != nil {
+		return nil, err
+	}
+
+	orderIDCopy := orderID
+	holdTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeHold,
+		Amount:       amount,
+		BonusAmount:  allocation.BonusAmount,
+		Description:  description,
+		OrderID:      &orderIDCopy,
+		BalanceAfter: newBalance,
+	}
+	if err := tx.Create(&holdTx).Error; err != nil {
+		return nil, err
+	}
+
+	log.Printf("[Wallet] CafeOrder Hold: %d LKM from user %d for order %d (bonus=%d)", amount, userID, orderID, allocation.BonusAmount)
+	return &allocation, nil
+}
+
 // ReleaseFunds releases held funds to provider or back to user
 func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, toUserID uint, description string) error {
 	return s.ReleaseFundsWithSplit(userID, amount, 0, bookingID, toUserID, description)
@@ -1365,6 +1428,157 @@ func (s *WalletService) ReleaseFundsWithPlatformFeeSplit(userID uint, regularAmo
 	})
 }
 
+// ReleaseOrderHoldWithPlatformFeeTx releases frozen order funds and splits payout between cafe owner and platform.
+// Returns processed=false when the same dedup key was already applied earlier.
+func (s *WalletService) ReleaseOrderHoldWithPlatformFeeTx(tx *gorm.DB, userID uint, regularAmount int, bonusAmount int, orderID uint, providerUserID uint, platformFeeAmount int, dedupKey string, description string) (bool, error) {
+	if tx == nil {
+		return false, errors.New("transaction is required")
+	}
+	if regularAmount < 0 || bonusAmount < 0 {
+		return false, errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	if platformFeeAmount < 0 {
+		return false, errors.New("platform fee amount must be non-negative")
+	}
+	if platformFeeAmount > totalAmount {
+		return false, errors.New("platform fee exceeds total release amount")
+	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Cafe order settlement"
+	}
+
+	var payerWallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&payerWallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, errors.New("wallet not found")
+		}
+		return false, err
+	}
+
+	if dedupKey != "" {
+		var existing models.WalletTransaction
+		if err := tx.Where("wallet_id = ? AND dedup_key = ? AND type = ?",
+			payerWallet.ID, dedupKey, models.TransactionTypeRelease).
+			First(&existing).Error; err == nil {
+			if existing.Amount != totalAmount || existing.BonusAmount != bonusAmount {
+				return false, errors.New("dedup key already used with different amount")
+			}
+			return false, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, err
+		}
+	}
+
+	if payerWallet.FrozenBalance < regularAmount || payerWallet.FrozenBonusBalance < bonusAmount {
+		return false, errors.New("insufficient frozen balance")
+	}
+
+	newFrozen := payerWallet.FrozenBalance - regularAmount
+	newFrozenBonus := payerWallet.FrozenBonusBalance - bonusAmount
+	if err := tx.Model(&payerWallet).Updates(map[string]interface{}{
+		"frozen_balance":       newFrozen,
+		"frozen_bonus_balance": newFrozenBonus,
+		"total_spent":          payerWallet.TotalSpent + totalAmount,
+	}).Error; err != nil {
+		return false, err
+	}
+
+	orderIDCopy := orderID
+	releaseTx := models.WalletTransaction{
+		WalletID:     payerWallet.ID,
+		Type:         models.TransactionTypeRelease,
+		Amount:       totalAmount,
+		BonusAmount:  bonusAmount,
+		Description:  description,
+		OrderID:      &orderIDCopy,
+		DedupKey:     dedupKey,
+		BalanceAfter: payerWallet.Balance,
+	}
+	if err := tx.Create(&releaseTx).Error; err != nil {
+		return false, err
+	}
+
+	providerNet := totalAmount - platformFeeAmount
+	if providerNet < 0 {
+		providerNet = 0
+	}
+
+	providerWallet, err := s.getOrCreateLockedWalletTx(tx, providerUserID)
+	if err != nil {
+		return false, err
+	}
+	if providerNet > 0 {
+		newProviderBalance := providerWallet.Balance + providerNet
+		if err := tx.Model(providerWallet).Updates(map[string]interface{}{
+			"balance":      newProviderBalance,
+			"total_earned": providerWallet.TotalEarned + providerNet,
+		}).Error; err != nil {
+			return false, err
+		}
+
+		providerTx := models.WalletTransaction{
+			WalletID:        providerWallet.ID,
+			Type:            models.TransactionTypeCredit,
+			Amount:          providerNet,
+			BonusAmount:     0,
+			Description:     description,
+			OrderID:         &orderIDCopy,
+			RelatedWalletID: &payerWallet.ID,
+			DedupKey:        dedupKey,
+			BalanceAfter:    newProviderBalance,
+		}
+		if err := tx.Create(&providerTx).Error; err != nil {
+			return false, err
+		}
+	}
+
+	if platformFeeAmount > 0 {
+		var platformWallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("type = ?", models.WalletTypePlatform).
+			First(&platformWallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, errors.New("platform wallet not configured")
+			}
+			return false, err
+		}
+
+		newPlatformBalance := platformWallet.Balance + platformFeeAmount
+		if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
+			"balance":      newPlatformBalance,
+			"total_earned": platformWallet.TotalEarned + platformFeeAmount,
+		}).Error; err != nil {
+			return false, err
+		}
+
+		platformDesc := "Cafe order fee #" + strconv.FormatUint(uint64(orderID), 10)
+		platformTx := models.WalletTransaction{
+			WalletID:        platformWallet.ID,
+			Type:            models.TransactionTypeCredit,
+			Amount:          platformFeeAmount,
+			BonusAmount:     0,
+			Description:     platformDesc,
+			OrderID:         &orderIDCopy,
+			RelatedWalletID: &payerWallet.ID,
+			DedupKey:        dedupKey,
+			BalanceAfter:    newPlatformBalance,
+		}
+		if err := tx.Create(&platformTx).Error; err != nil {
+			return false, err
+		}
+	}
+
+	log.Printf("[Wallet] CafeOrder release with fee: total=%d provider=%d fee=%d from user %d to user %d (order=%d, bonus=%d, dedup=%s)", totalAmount, providerNet, platformFeeAmount, userID, providerUserID, orderID, bonusAmount, dedupKey)
+	return true, nil
+}
+
 // RefundHold returns held funds back to user's active balance
 func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, description string) error {
 	return s.RefundHoldWithSplit(userID, amount, 0, bookingID, description)
@@ -1429,4 +1643,83 @@ func (s *WalletService) RefundHoldWithSplit(userID uint, regularAmount int, bonu
 		log.Printf("[Wallet] RefundHold: %d LKM to user %d (booking %d cancelled, bonus=%d)", totalAmount, userID, bookingID, bonusAmount)
 		return nil
 	})
+}
+
+// RefundOrderHoldTx refunds frozen order funds back to payer wallet.
+// Returns processed=false when the same dedup key was already applied earlier.
+func (s *WalletService) RefundOrderHoldTx(tx *gorm.DB, userID uint, regularAmount int, bonusAmount int, orderID uint, dedupKey string, description string) (bool, error) {
+	if tx == nil {
+		return false, errors.New("transaction is required")
+	}
+	if regularAmount < 0 || bonusAmount < 0 {
+		return false, errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Cafe order refund"
+	}
+
+	var wallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, errors.New("wallet not found")
+		}
+		return false, err
+	}
+
+	if dedupKey != "" {
+		var existing models.WalletTransaction
+		if err := tx.Where("wallet_id = ? AND dedup_key = ? AND type = ?",
+			wallet.ID, dedupKey, models.TransactionTypeRefund).
+			First(&existing).Error; err == nil {
+			if existing.Amount != totalAmount || existing.BonusAmount != bonusAmount {
+				return false, errors.New("dedup key already used with different amount")
+			}
+			return false, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, err
+		}
+	}
+
+	if wallet.FrozenBalance < regularAmount || wallet.FrozenBonusBalance < bonusAmount {
+		return false, errors.New("insufficient frozen balance")
+	}
+
+	newBalance := wallet.Balance + regularAmount
+	newBonusBalance := wallet.BonusBalance + bonusAmount
+	newFrozen := wallet.FrozenBalance - regularAmount
+	newFrozenBonus := wallet.FrozenBonusBalance - bonusAmount
+
+	if err := tx.Model(&wallet).Updates(map[string]interface{}{
+		"balance":              newBalance,
+		"bonus_balance":        newBonusBalance,
+		"frozen_balance":       newFrozen,
+		"frozen_bonus_balance": newFrozenBonus,
+	}).Error; err != nil {
+		return false, err
+	}
+
+	orderIDCopy := orderID
+	refundTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeRefund,
+		Amount:       totalAmount,
+		BonusAmount:  bonusAmount,
+		Description:  description,
+		OrderID:      &orderIDCopy,
+		DedupKey:     dedupKey,
+		BalanceAfter: newBalance,
+	}
+	if err := tx.Create(&refundTx).Error; err != nil {
+		return false, err
+	}
+
+	log.Printf("[Wallet] CafeOrder refund hold: %d LKM to user %d (order=%d, bonus=%d, dedup=%s)", totalAmount, userID, orderID, bonusAmount, dedupKey)
+	return true, nil
 }

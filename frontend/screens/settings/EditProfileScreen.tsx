@@ -117,6 +117,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { colors: roleColors } = useRoleTheme(role, true);
     const canManageProMode = user?.role === 'admin' || user?.role === 'superadmin';
     const effectiveProEnabled = proStatus?.isProEffective ?? godModeEnabled;
+    const isSeekerRole = role === 'user';
+    const showSpiritualFields = !isSeekerRole;
 
     useEffect(() => {
         loadProfile();
@@ -250,8 +252,40 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [user?.ID]);
 
+    const getProfileValidationError = (): string | null => {
+        const normalizedNickname = nickname.trim().replace(/^@+/, '');
+        const hasSpiritualContext = [yatra, timezone, madh, yogaStyle, guna].some(value => value.trim().length > 0);
+
+        if (!city.trim()) {
+            return 'Выберите город.';
+        }
+
+        if (!normalizedNickname) {
+            return 'Укажите Nickname (уникальный ID).';
+        }
+
+        if (datingEnabled && !isSeekerRole) {
+            if (!bio.trim()) {
+                return 'Заполните поле "О себе".';
+            }
+            if (!interests.trim()) {
+                return 'Заполните поле "Интересы".';
+            }
+            if (!hasSpiritualContext) {
+                return 'Для выбранной роли укажите минимум одно духовное поле: Ятра, Таймзона, Традиция, Стиль йоги или Гуна.';
+            }
+        }
+
+        return null;
+    };
+
     const handleSave = async () => {
         if (!user?.ID || saving) return;
+        const validationError = getProfileValidationError();
+        if (validationError) {
+            Alert.alert(t('common.error'), validationError);
+            return;
+        }
 
         const requestId = ++latestSaveRequestRef.current;
         if (isMountedRef.current) {
@@ -574,23 +608,27 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     autoCorrect={false}
                                 />
 
-                                <Text style={styles.label}>{t('dating.yatra')}</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={yatra}
-                                    onChangeText={setYatra}
-                                    placeholder={t('dating.yatraPlaceholder')}
-                                    placeholderTextColor="rgba(248,250,252,0.4)"
-                                />
+                                {showSpiritualFields && (
+                                    <>
+                                        <Text style={styles.label}>{t('dating.yatra')}</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={yatra}
+                                            onChangeText={setYatra}
+                                            placeholder={t('dating.yatraPlaceholder')}
+                                            placeholderTextColor="rgba(248,250,252,0.4)"
+                                        />
 
-                                <Text style={styles.label}>{t('dating.timezone')}</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={timezone}
-                                    onChangeText={setTimezone}
-                                    placeholder={t('dating.timezonePlaceholder')}
-                                    placeholderTextColor="rgba(248,250,252,0.4)"
-                                />
+                                        <Text style={styles.label}>{t('dating.timezone')}</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={timezone}
+                                            onChangeText={setTimezone}
+                                            placeholder={t('dating.timezonePlaceholder')}
+                                            placeholderTextColor="rgba(248,250,252,0.4)"
+                                        />
+                                    </>
+                                )}
 
                                 <Text style={styles.label}>{t('dating.bio') || 'About Me (Bio)'}</Text>
                                 <TextInput
@@ -657,44 +695,48 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     </View>
                                 )}
 
-                                <Text style={styles.label}>{t('dating.madh') || 'Tradition (Madh)'}</Text>
-                                <TouchableOpacity
-                                    style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => {
-                                        Keyboard.dismiss();
-                                        setShowMadhPicker(true);
-                                    }}
-                                >
-                                    <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                        {madh || t('dating.selectTradition')}
-                                    </Text>
-                                </TouchableOpacity>
+                                {showSpiritualFields && (
+                                    <>
+                                        <Text style={styles.label}>{t('dating.madh') || 'Tradition (Madh)'}</Text>
+                                        <TouchableOpacity
+                                            style={[styles.input, { justifyContent: 'center' }]}
+                                            onPress={() => {
+                                                Keyboard.dismiss();
+                                                setShowMadhPicker(true);
+                                            }}
+                                        >
+                                            <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                                {madh || t('dating.selectTradition')}
+                                            </Text>
+                                        </TouchableOpacity>
 
-                                <Text style={styles.label}>{t('dating.yogaStyle') || 'Yoga Style'}</Text>
-                                <TouchableOpacity
-                                    style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => {
-                                        Keyboard.dismiss();
-                                        setShowYogaPicker(true);
-                                    }}
-                                >
-                                    <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                        {yogaStyle || t('dating.selectStyle')}
-                                    </Text>
-                                </TouchableOpacity>
+                                        <Text style={styles.label}>{t('dating.yogaStyle') || 'Yoga Style'}</Text>
+                                        <TouchableOpacity
+                                            style={[styles.input, { justifyContent: 'center' }]}
+                                            onPress={() => {
+                                                Keyboard.dismiss();
+                                                setShowYogaPicker(true);
+                                            }}
+                                        >
+                                            <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                                {yogaStyle || t('dating.selectStyle')}
+                                            </Text>
+                                        </TouchableOpacity>
 
-                                <Text style={styles.label}>{t('dating.guna') || 'Mode of Nature (Guna)'}</Text>
-                                <TouchableOpacity
-                                    style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => {
-                                        Keyboard.dismiss();
-                                        setShowGunaPicker(true);
-                                    }}
-                                >
-                                    <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                        {guna || t('dating.selectGuna')}
-                                    </Text>
-                                </TouchableOpacity>
+                                        <Text style={styles.label}>{t('dating.guna') || 'Mode of Nature (Guna)'}</Text>
+                                        <TouchableOpacity
+                                            style={[styles.input, { justifyContent: 'center' }]}
+                                            onPress={() => {
+                                                Keyboard.dismiss();
+                                                setShowGunaPicker(true);
+                                            }}
+                                        >
+                                            <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                                {guna || t('dating.selectGuna')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
                             </View>
 
                             {/* Extra Space */}

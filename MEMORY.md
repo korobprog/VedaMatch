@@ -15,14 +15,15 @@
   - `serviceLayerSlideshowEnabled=false`,
   - `serviceLayerOverlayColor='transparent'`.
 - Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
-- Для `contacts` и `rooms` в `PortalMainScreen` включен отдельный непрозрачный header:
+- Для `contacts` и сервиса комнат (`rooms` и `chat`) в `PortalMainScreen` включен отдельный непрозрачный header:
   - `shouldUseSolidContactsHeader = activeTab === 'contacts'`,
-  - `shouldUseSolidRoomsHeader = activeTab === 'rooms'`,
+  - `shouldUseSolidRoomsHeader = activeTab === 'rooms' || activeTab === 'chat'`,
   - `shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader`,
-  - `serviceHeaderBackgroundColor = vTheme.colors.surface`,
+  - `serviceHeaderBackgroundColor = vTheme.colors.background` (непрозрачный, без просвечивания обоев),
   - `serviceHeaderBorderColor = vTheme.colors.divider`.
 - Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
 - iOS debug-предупреждение `RCTView has a shadow set but cannot calculate shadow efficiently` для back-кнопки в `PortalMainScreen` устраняется переносом `shadow*` с прозрачного `View` на `TouchableOpacity` с непрозрачным `backgroundColor`; shadow на внутреннем прозрачном icon-wrapper не использовать.
+- Для `frontend/components/portal/PortalIcon.tsx` на iOS shadow для иконок теперь разрешен только на непрозрачных поверхностях (`portalIconStyle === 'vedamatch' || 'solid'`); на glass/полупрозрачных режимах (`image`, `premium3d`, rgba-сurface) shadow отключается, чтобы убрать массовый warning `RCTView has a shadow set but cannot calculate shadow efficiently`.
 
 ## Cafe List Performance
 - Экран `frontend/screens/portal/cafe/CafeListScreen.tsx` оптимизирован под меньший объем лишних ререндеров:
@@ -35,6 +36,29 @@
   - `ListHeaderComponent` стабилизирован через `useMemo`, ключевые обработчики через `useCallback`;
   - full-screen loader для кафе показывается только до завершения первого загрузочного запроса (`initialLoadCompleted`), поэтому при последующих фильтрах/поиске нет “полной перезагрузки” экрана;
   - `setFilters(...page:1)` защищен проверкой текущей страницы, чтобы не создавать лишние обновления state.
+
+## Cafe Orders Settlement (LKM)
+- Для `cafe` включена модель `hold -> settlement on completed` только для `paymentMethod='lkm'`:
+  - на создании заказа средства не списываются окончательно, а замораживаются (`hold`);
+  - на `completed` выполняется split в кошельки: `platform fee + payout кафе`;
+  - на `cancelled` (до settlement) выполняется полный refund из hold.
+- В `CafeOrder` добавлены финансовые snapshot/состояния settlement:
+  - `regularLkmHeld/bonusLkmHeld`;
+  - `platformFee*Snapshot`, `platformFeeAmountLkm`, `merchantPayoutLkm`;
+  - `settlementStatus`, `settledAt`, `settlementTxId`.
+- `WalletTransaction` расширен `orderId` для явной трассировки cafe-транзакций (без перегрузки `bookingId`).
+- Идемпотентность для финансов cafe-order:
+  - settlement key: `cafe_order_settlement_<orderId>`;
+  - refund key: `cafe_order_refund_<orderId>`;
+  - дополнительно к dedup используется precondition `settlementStatus` + row lock.
+- Добавлен конфиг комиссии `CAFE_PLATFORM_FEE_*` (DB `system_settings` + env fallback):
+  - `ENABLED`, `PERCENT_BPS`, `CAP_LKM`, `MIN_ORDER_LKM`, `EFFECTIVE_FROM`, `ROLLOUT_PERCENT`.
+- По метрикам добавлены ключи:
+  - `cafe_platform_fee_charged_total`,
+  - `cafe_platform_fee_orders_total`,
+  - `cafe_platform_fee_failed_total`,
+  - `cafe_merchant_net_paid_total`,
+  - `cafe_settlement_refund_total`.
 
 ## Ads Festivals (Hybrid Calendar)
 - В Ads добавлен отдельный режим секции `Фестивали` (внутри `AdsScreen`), с переключателем `Объявления | Фестивали`.
@@ -190,6 +214,13 @@
 - `frontend/screens/settings/EditProfileScreen.tsx` больше не наследует `portalBackground`-фотообои:
   - удален рендер `ImageBackground` по `portalBackgroundType`;
   - установлен стабильный однотонный фон `#0E1525` для загрузки и основного контента экрана.
+- Для формы `Sambandha Profile` в `frontend/screens/settings/EditProfileScreen.tsx` действует role-aware видимость полей:
+  - для роли `user` (Искатель) скрыты духовные поля `yatra`, `timezone`, `madh`, `yogaStyle`, `guna`;
+  - для `in_goodness`, `yogi`, `devotee` эти поля отображаются;
+  - цель: снизить порог первичного заполнения для стартовой роли без потери уже сохраненных данных.
+- Для `Save` на `Sambandha Profile` действует role-aware валидация:
+  - для всех ролей обязательны `city` и `nickname`;
+  - для `in_goodness/yogi/devotee` при включенном `datingEnabled` обязательны `bio`, `interests` и минимум одно духовное поле из (`yatra`, `timezone`, `madh`, `yogaStyle`, `guna`).
 - `frontend/screens/portal/contacts/ContactProfileScreen.tsx` также отключен от `portalBackground`-фотообоев:
   - удалена ветка `portalBackgroundType === 'image'` с `ImageBackground`;
   - для профиля контакта остаются только градиентный фон или однотонный `vTheme.colors.background`.
@@ -250,6 +281,11 @@
   - `pro_90d`: `799 LKM`.
 - Пополнение LKM реализовано через `YooKassa/Stripe` с конфигурируемыми лимитами/пакетами и админ-настройками processing-cost.
 - AI монетизация: в AI-room отправка одного сообщения списывает `1 LKM`.
+- Маркетплейс магазинов (`shops/products/orders`):
+  - есть оплата заказа методом `lkm` (`OrderService.CreateOrder`) и возврат LKM при отмене заказа;
+  - отдельной монетизации платформы в магазинах пока нет: нет полей/логики `platform_fee`, `commission`, `merchant_payout` в `Order` и `OrderService`;
+  - `SellerStats.TotalRevenue` в `shop_handler` пока заглушка (`0`, TODO), поэтому финансовая аналитика магазинов неполная;
+  - `BalancePill` в `MarketHomeScreen` показывает баланс кошелька пользователя, это не отдельный магазинный тариф/комиссия.
   - `video_circles_upload_s3_fail_total`
   - `video_circles_non_cdn_detected_total`
 

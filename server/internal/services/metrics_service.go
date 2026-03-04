@@ -26,6 +26,11 @@ const (
 	MetricServicesPlatformFeeBookingsTotal   = "services_platform_fee_bookings_total"
 	MetricServicesPlatformFeeFailedTotal     = "services_platform_fee_failed_total"
 	MetricServicesProviderNetPaidTotal       = "services_provider_net_paid_total"
+	MetricCafePlatformFeeChargedTotal        = "cafe_platform_fee_charged_total"
+	MetricCafePlatformFeeOrdersTotal         = "cafe_platform_fee_orders_total"
+	MetricCafePlatformFeeFailedTotal         = "cafe_platform_fee_failed_total"
+	MetricCafeMerchantNetPaidTotal           = "cafe_merchant_net_paid_total"
+	MetricCafeSettlementRefundTotal          = "cafe_settlement_refund_total"
 
 	MetricAuthRefreshSuccess                 = "auth_refresh_success"
 	MetricAuthRefreshFail                    = "auth_refresh_fail"

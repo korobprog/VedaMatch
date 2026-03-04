@@ -1,5 +1,150 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Rooms header: remove photo wallpaper in chat/rooms service)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - solid-header включался для `contacts` и `rooms`, но не для `chat`;
+  - сервис комнат у пользователя открывался через вкладку `chat`, поэтому в header продолжал просвечивать фото-фон.
+- Стало:
+  - header для сервиса комнат принудительно solid и для `activeTab === 'chat'`;
+  - цвет header переключен на гарантированно непрозрачный `vTheme.colors.background` (вместо `surface`), чтобы полностью убрать просвечивание обоев.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const shouldUseSolidRoomsHeader = activeTab === 'rooms' || activeTab === 'chat';
+const serviceHeaderBackgroundColor = shouldUseSolidServiceHeader ? vTheme.colors.background : 'transparent';
+```
+
+## 2026-03-04 (Sambandha profile: role-based field visibility in edit form)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - поля духовного блока (`Yatra`, `Timezone`, `Tradition/Madh`, `Yoga Style`, `Guna`) всегда отображались для всех ролей, включая `Искатель`.
+  - перед сохранением не было role-aware валидации обязательных полей.
+- Стало:
+  - введена role-aware логика в форме:
+    - `user` (`Искатель`) видит базовые поля без духовного блока;
+    - `in_goodness`, `yogi`, `devotee` видят духовные поля;
+  - добавлена role-aware валидация перед `Save`:
+    - для всех ролей обязательны `city` и `nickname`;
+    - для `in_goodness/yogi/devotee` при `datingEnabled=true` обязательны `bio`, `interests` и минимум одно духовное поле из набора (`yatra/timezone/madh/yogaStyle/guna`);
+  - снижен порог заполнения профиля для стартовой роли без удаления существующих данных в state/backend.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const isSeekerRole = role === 'user';
+const showSpiritualFields = !isSeekerRole;
+```
+
+```tsx
+{showSpiritualFields && (
+  <>
+    <Text style={styles.label}>{t('dating.yatra')}</Text>
+    <TextInput ... />
+    <Text style={styles.label}>{t('dating.timezone')}</Text>
+    <TextInput ... />
+  </>
+)}
+```
+
+```tsx
+const validationError = getProfileValidationError();
+if (validationError) {
+  Alert.alert(t('common.error'), validationError);
+  return;
+}
+```
+
+```tsx
+{showSpiritualFields && (
+  <>
+    <Text style={styles.label}>{t('dating.madh')}</Text>
+    <TouchableOpacity ... />
+    <Text style={styles.label}>{t('dating.yogaStyle')}</Text>
+    <TouchableOpacity ... />
+    <Text style={styles.label}>{t('dating.guna')}</Text>
+    <TouchableOpacity ... />
+  </>
+)}
+```
+
+## 2026-03-04 (Cafe commission v1: LKM hold -> settlement on completed)
+
+### Измененные файлы
+- `server/internal/models/cafe_order.go`
+- `server/internal/models/wallet.go`
+- `server/internal/services/cafe_order_service.go`
+- `server/internal/services/wallet_service.go`
+- `server/internal/services/cafe_fee_config_service.go`
+- `server/internal/services/cafe_fee_config_service_test.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/database/seed.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - LKM в `cafe` списывался сразу при создании заказа (`spend`);
+  - на `completed` не было финансового split в платформу/кафе;
+  - не было snapshot полей комиссии и settlement state в заказе;
+  - wallet-трассировка cafe-транзакций не имела отдельной ссылки на `order`.
+- Стало:
+  - для `payment_method='lkm'` при создании заказа используется `hold` (заморозка), не финальный spend;
+  - на `completed` выполняется settlement с комиссией платформы:
+    - `platform_wallet += fee`
+    - `merchant_wallet += payout`;
+  - на `cancelled` до settlement выполняется полный refund hold;
+  - добавлены snapshot поля комиссии и `settlementStatus` в `CafeOrder`;
+  - в `WalletTransaction` добавлен `orderId`;
+  - добавлен конфиг `CAFE_PLATFORM_FEE_*` (db/env) + rollout/effective_from;
+  - добавлены метрики cafe settlement/fee.
+
+### Сниппеты кода
+
+`server/internal/services/cafe_order_service.go`:
+```go
+processed, err := s.walletService.ReleaseOrderHoldWithPlatformFeeTx(
+  tx,
+  *order.CustomerID,
+  order.RegularLkmHeld,
+  order.BonusLkmHeld,
+  order.ID,
+  cafe.OwnerID,
+  order.PlatformFeeAmountLkm,
+  fmt.Sprintf("cafe_order_settlement_%d", order.ID),
+  "Оплата заказа в кафе "+order.OrderNumber,
+)
+```
+
+`server/internal/services/cafe_fee_config_service.go`:
+```go
+type CafeFeeConfig struct {
+  Enabled        bool
+  PercentBps     int
+  CapLkm         int
+  MinOrderLkm    int
+  EffectiveFrom  *time.Time
+  RolloutPercent int
+}
+```
+
+`server/internal/models/cafe_order.go`:
+```go
+SettlementStatus models.CafeOrderSettlementStatus `gorm:"type:varchar(20);default:'pending';index"`
+PlatformFeeAmountLkm int
+MerchantPayoutLkm int
+SettlementTxID string `gorm:"type:varchar(100)"`
+```
+
 ## 2026-03-04 (Grafana FastAPI-template compatibility for current Go metrics)
 
 ### Измененные файлы
@@ -8466,4 +8611,38 @@ await supportService.createTicket({
 <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" tools:node="remove" />
 <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove" />
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+```
+
+## 2026-03-04 (Portal iOS debug: efficient shadow rendering for icon surfaces)
+
+### Измененные файлы
+- `frontend/components/portal/PortalIcon.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - тени для `PortalIcon` включались на iOS также для полупрозрачных/glass поверхностей (`rgba(...)`) в `image/premium3d` и ряде dark/light режимов;
+  - это вызывало массовый warning: `RCTView has a shadow set but cannot calculate shadow efficiently`.
+- Стало:
+  - введена проверка эффективной поверхности (`iconSurfaceHasEfficientShadow`);
+  - на iOS shadow теперь применяется только для непрозрачных режимов (`vedamatch`/`solid`);
+  - для остальных режимов сохранен акцент через границы/контраст без iOS shadow warning spam.
+
+### Сниппеты кода
+
+`frontend/components/portal/PortalIcon.tsx`:
+```ts
+const iconSurfaceHasEfficientShadow = portalIconStyle === 'vedamatch' || portalIconStyle === 'solid';
+const shouldRenderIconShadow = (roleHighlight || portalIconStyle === 'vedamatch')
+  && !isAndroidReducedEffects
+  && (Platform.OS !== 'ios' || iconSurfaceHasEfficientShadow);
+```
+
+```ts
+...(shouldRenderIconShadow ? {
+  shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
+  shadowOpacity: portalIconStyle === 'vedamatch' ? 0.5 : 0.35,
+  shadowRadius: portalIconStyle === 'vedamatch' ? 10 : 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 6,
+} : {}),
 ```

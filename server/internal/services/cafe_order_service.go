@@ -93,6 +93,16 @@ func normalizeCafeOrderItemStatus(status string) string {
 	return strings.ToLower(strings.TrimSpace(status))
 }
 
+func isCafeFeeEnabledAt(cfg CafeFeeConfig, customerID uint, now time.Time) bool {
+	if !cfg.Enabled || !isCafeFeeRolloutEligible(customerID, cfg) {
+		return false
+	}
+	if cfg.EffectiveFrom != nil && now.UTC().Before(cfg.EffectiveFrom.UTC()) {
+		return false
+	}
+	return true
+}
+
 func calculateCafeOrderTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
@@ -310,34 +320,64 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	}
 
 	total := subtotal + deliveryFee
+	totalLKM := moneyToLKM(total)
+	if totalLKM < 0 {
+		return nil, errors.New("invalid order amount")
+	}
 
 	// Generate order number
 	orderNumber := s.generateOrderNumber(req.CafeID)
 
 	// Calculate estimated ready time
-	estimatedReadyAt := time.Now().UTC().Add(time.Duration(cafe.AvgPrepTime) * time.Minute)
+	nowUTC := time.Now().UTC()
+	estimatedReadyAt := nowUTC.Add(time.Duration(cafe.AvgPrepTime) * time.Minute)
+	settlementStatus := models.CafeOrderSettlementStatusSettled
+	platformFeePercentSnapshotBps := 0
+	platformFeeCapSnapshotLkm := 0
+	platformFeeMinOrderSnapshotLkm := 0
+	platformFeeAmountLkm := 0
+	merchantPayoutLkm := 0
+	if req.PaymentMethod == "lkm" {
+		settlementStatus = models.CafeOrderSettlementStatusPending
+		merchantPayoutLkm = totalLKM
+		if customerID != nil && *customerID != 0 {
+			feeCfg := ResolveCafeFeeConfig()
+			if isCafeFeeEnabledAt(feeCfg, *customerID, nowUTC) {
+				platformFeeAmountLkm, merchantPayoutLkm = CalculateCafePlatformFee(totalLKM, feeCfg)
+				platformFeePercentSnapshotBps = feeCfg.PercentBps
+				platformFeeCapSnapshotLkm = feeCfg.CapLkm
+				platformFeeMinOrderSnapshotLkm = feeCfg.MinOrderLkm
+			}
+		}
+	}
 
 	order := &models.CafeOrder{
-		OrderNumber:       orderNumber,
-		CafeID:            req.CafeID,
-		CustomerID:        customerID,
-		CustomerName:      req.CustomerName,
-		OrderType:         req.OrderType,
-		TableID:           req.TableID,
-		DeliveryAddress:   req.DeliveryAddress,
-		DeliveryLatitude:  req.DeliveryLat,
-		DeliveryLongitude: req.DeliveryLng,
-		DeliveryPhone:     req.DeliveryPhone,
-		Status:            models.CafeOrderStatusNew,
-		ItemsCount:        len(items),
-		Subtotal:          subtotal,
-		DeliveryFee:       deliveryFee,
-		Total:             total,
-		Currency:          "RUB",
-		PaymentMethod:     req.PaymentMethod,
-		CustomerNote:      req.CustomerNote,
-		EstimatedReadyAt:  &estimatedReadyAt,
-		Items:             items,
+		OrderNumber:                    orderNumber,
+		CafeID:                         req.CafeID,
+		CustomerID:                     customerID,
+		CustomerName:                   req.CustomerName,
+		OrderType:                      req.OrderType,
+		TableID:                        req.TableID,
+		DeliveryAddress:                req.DeliveryAddress,
+		DeliveryLatitude:               req.DeliveryLat,
+		DeliveryLongitude:              req.DeliveryLng,
+		DeliveryPhone:                  req.DeliveryPhone,
+		Status:                         models.CafeOrderStatusNew,
+		ItemsCount:                     len(items),
+		Subtotal:                       subtotal,
+		DeliveryFee:                    deliveryFee,
+		Total:                          total,
+		Currency:                       "RUB",
+		PaymentMethod:                  req.PaymentMethod,
+		CustomerNote:                   req.CustomerNote,
+		EstimatedReadyAt:               &estimatedReadyAt,
+		SettlementStatus:               settlementStatus,
+		PlatformFeePercentSnapshotBps:  platformFeePercentSnapshotBps,
+		PlatformFeeCapSnapshotLkm:      platformFeeCapSnapshotLkm,
+		PlatformFeeMinOrderSnapshotLkm: platformFeeMinOrderSnapshotLkm,
+		PlatformFeeAmountLkm:           platformFeeAmountLkm,
+		MerchantPayoutLkm:              merchantPayoutLkm,
+		Items:                          items,
 	}
 	shouldTriggerReferralActivation := false
 
@@ -369,10 +409,6 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			if customerID == nil || *customerID == 0 {
 				return errors.New("authentication required for lkm payment")
 			}
-			totalLKM := moneyToLKM(order.Total)
-			if totalLKM < 0 {
-				return errors.New("invalid order amount")
-			}
 
 			effectiveBonusCap := bonusCapLKM
 			if effectiveBonusCap > totalLKM {
@@ -381,12 +417,12 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 
 			paymentAllocation := SpendAllocation{}
 			if totalLKM > 0 {
-				allocation, _, err := s.walletService.spendTxWithOptions(
+				allocation, err := s.walletService.HoldFundsForOrderTxWithOptions(
 					tx,
 					*customerID,
 					totalLKM,
-					fmt.Sprintf("cafe_order_%d", order.ID),
-					"Оплата заказа в кафе "+cafe.Name,
+					order.ID,
+					"Холд оплаты заказа в кафе "+cafe.Name,
 					SpendOptions{
 						AllowBonus:      cafe.IsVedaMatch && effectiveBonusCap > 0,
 						MaxBonusPercent: 100,
@@ -394,18 +430,21 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 					},
 				)
 				if err != nil {
-					return fmt.Errorf("payment failed: %w", err)
+					return fmt.Errorf("payment hold failed: %w", err)
 				}
-				paymentAllocation = allocation
+				paymentAllocation = *allocation
 				shouldTriggerReferralActivation = true
 			}
 
 			now := time.Now().UTC()
 			if err := tx.Model(order).Updates(map[string]interface{}{
-				"is_paid":          true,
-				"paid_at":          now,
-				"regular_lkm_paid": paymentAllocation.RegularAmount,
-				"bonus_lkm_paid":   paymentAllocation.BonusAmount,
+				"is_paid":           true,
+				"paid_at":           now,
+				"regular_lkm_paid":  paymentAllocation.RegularAmount,
+				"bonus_lkm_paid":    paymentAllocation.BonusAmount,
+				"regular_lkm_held":  paymentAllocation.RegularAmount,
+				"bonus_lkm_held":    paymentAllocation.BonusAmount,
+				"settlement_status": models.CafeOrderSettlementStatusPending,
 			}).Error; err != nil {
 				return err
 			}
@@ -413,6 +452,9 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			order.PaidAt = &now
 			order.RegularLkmPaid = paymentAllocation.RegularAmount
 			order.BonusLkmPaid = paymentAllocation.BonusAmount
+			order.RegularLkmHeld = paymentAllocation.RegularAmount
+			order.BonusLkmHeld = paymentAllocation.BonusAmount
+			order.SettlementStatus = models.CafeOrderSettlementStatusPending
 		}
 
 		// Increment dish order counts
@@ -710,6 +752,109 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 			return nil
 		}
 
+		if status == models.CafeOrderStatusCompleted && order.PaymentMethod == "lkm" {
+			if order.CustomerID == nil || *order.CustomerID == 0 {
+				return errors.New("lkm order has no customer")
+			}
+			if order.SettlementStatus != models.CafeOrderSettlementStatusPending {
+				return errors.New("order settlement is not pending")
+			}
+
+			dedupKey := fmt.Sprintf("cafe_order_settlement_%d", order.ID)
+			if order.RegularLkmHeld+order.BonusLkmHeld > 0 {
+				var cafe models.Cafe
+				if err := tx.Select("id", "owner_id").First(&cafe, order.CafeID).Error; err != nil {
+					return err
+				}
+
+				processed, err := s.walletService.ReleaseOrderHoldWithPlatformFeeTx(
+					tx,
+					*order.CustomerID,
+					order.RegularLkmHeld,
+					order.BonusLkmHeld,
+					order.ID,
+					cafe.OwnerID,
+					order.PlatformFeeAmountLkm,
+					dedupKey,
+					"Оплата заказа в кафе "+order.OrderNumber,
+				)
+				if err != nil {
+					if metricsErr := GetMetricsService().Increment(MetricCafePlatformFeeFailedTotal, 1); metricsErr != nil {
+						fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafePlatformFeeFailedTotal, metricsErr)
+					}
+					return err
+				}
+				if !processed {
+					return errors.New("order settlement already processed")
+				}
+			}
+
+			settledAt := time.Now().UTC()
+			merchantNet := order.RegularLkmHeld + order.BonusLkmHeld - order.PlatformFeeAmountLkm
+			if merchantNet < 0 {
+				merchantNet = 0
+			}
+			updates["settlement_status"] = models.CafeOrderSettlementStatusSettled
+			updates["settled_at"] = settledAt
+			updates["settlement_tx_id"] = dedupKey
+			updates["merchant_payout_lkm"] = merchantNet
+
+			if order.PlatformFeeAmountLkm > 0 {
+				if metricsErr := GetMetricsService().Increment(MetricCafePlatformFeeChargedTotal, int64(order.PlatformFeeAmountLkm)); metricsErr != nil {
+					fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafePlatformFeeChargedTotal, metricsErr)
+				}
+				if metricsErr := GetMetricsService().Increment(MetricCafePlatformFeeOrdersTotal, 1); metricsErr != nil {
+					fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafePlatformFeeOrdersTotal, metricsErr)
+				}
+			}
+			if metricsErr := GetMetricsService().Increment(MetricCafeMerchantNetPaidTotal, int64(merchantNet)); metricsErr != nil {
+				fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafeMerchantNetPaidTotal, metricsErr)
+			}
+		}
+
+		if status == models.CafeOrderStatusCancelled && order.PaymentMethod == "lkm" {
+			if order.CustomerID == nil || *order.CustomerID == 0 {
+				return errors.New("lkm order has no customer")
+			}
+			if order.SettlementStatus == models.CafeOrderSettlementStatusSettled {
+				return errors.New("settled order requires manual post-settlement refund")
+			}
+			if order.SettlementStatus == models.CafeOrderSettlementStatusPending {
+				dedupKey := fmt.Sprintf("cafe_order_refund_%d", order.ID)
+				if (order.RegularLkmHeld + order.BonusLkmHeld) > 0 {
+					processed, err := s.walletService.RefundOrderHoldTx(
+						tx,
+						*order.CustomerID,
+						order.RegularLkmHeld,
+						order.BonusLkmHeld,
+						order.ID,
+						dedupKey,
+						"Возврат за отмену заказа "+order.OrderNumber,
+					)
+					if err != nil {
+						return err
+					}
+					if !processed {
+						return errors.New("order refund already processed")
+					}
+				}
+				updates["settlement_status"] = models.CafeOrderSettlementStatusRefunded
+				updates["settled_at"] = time.Now().UTC()
+				updates["settlement_tx_id"] = dedupKey
+				updates["platform_fee_amount_lkm"] = 0
+				updates["merchant_payout_lkm"] = 0
+				updates["regular_lkm_paid"] = 0
+				updates["bonus_lkm_paid"] = 0
+				updates["regular_lkm_held"] = 0
+				updates["bonus_lkm_held"] = 0
+				updates["is_paid"] = false
+				updates["paid_at"] = nil
+				if metricsErr := GetMetricsService().Increment(MetricCafeSettlementRefundTotal, int64(order.RegularLkmHeld+order.BonusLkmHeld)); metricsErr != nil {
+					fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafeSettlementRefundTotal, metricsErr)
+				}
+			}
+		}
+
 		if err := tx.Model(&order).Updates(updates).Error; err != nil {
 			return err
 		}
@@ -760,7 +905,7 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var order models.CafeOrder
-		if err := tx.First(&order, orderID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
 			return err
 		}
 
@@ -776,21 +921,44 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 			"cancel_reason": reason,
 		}
 
-		if order.PaymentMethod == "lkm" && order.IsPaid && order.CustomerID != nil && (order.RegularLkmPaid+order.BonusLkmPaid) > 0 {
-			if err := s.walletService.refundTxWithSplit(
-				tx,
-				*order.CustomerID,
-				order.RegularLkmPaid,
-				order.BonusLkmPaid,
-				"Возврат за отмену заказа "+order.OrderNumber,
-				nil,
-			); err != nil {
-				return err
+		if order.PaymentMethod == "lkm" {
+			if order.SettlementStatus == models.CafeOrderSettlementStatusSettled {
+				return errors.New("settled order requires manual post-settlement refund")
 			}
-			orderUpdates["is_paid"] = false
-			orderUpdates["paid_at"] = nil
-			orderUpdates["regular_lkm_paid"] = 0
-			orderUpdates["bonus_lkm_paid"] = 0
+			if order.IsPaid && order.CustomerID != nil && order.SettlementStatus == models.CafeOrderSettlementStatusPending {
+				dedupKey := fmt.Sprintf("cafe_order_refund_%d", order.ID)
+				if (order.RegularLkmHeld + order.BonusLkmHeld) > 0 {
+					processed, err := s.walletService.RefundOrderHoldTx(
+						tx,
+						*order.CustomerID,
+						order.RegularLkmHeld,
+						order.BonusLkmHeld,
+						order.ID,
+						dedupKey,
+						"Возврат за отмену заказа "+order.OrderNumber,
+					)
+					if err != nil {
+						return err
+					}
+					if !processed {
+						return errors.New("order refund already processed")
+					}
+				}
+				orderUpdates["is_paid"] = false
+				orderUpdates["paid_at"] = nil
+				orderUpdates["regular_lkm_paid"] = 0
+				orderUpdates["bonus_lkm_paid"] = 0
+				orderUpdates["regular_lkm_held"] = 0
+				orderUpdates["bonus_lkm_held"] = 0
+				orderUpdates["settlement_status"] = models.CafeOrderSettlementStatusRefunded
+				orderUpdates["settled_at"] = now
+				orderUpdates["settlement_tx_id"] = dedupKey
+				orderUpdates["platform_fee_amount_lkm"] = 0
+				orderUpdates["merchant_payout_lkm"] = 0
+				if metricsErr := GetMetricsService().Increment(MetricCafeSettlementRefundTotal, int64(order.RegularLkmHeld+order.BonusLkmHeld)); metricsErr != nil {
+					fmt.Printf("[CafeOrders] metric increment failed (%s): %v\n", MetricCafeSettlementRefundTotal, metricsErr)
+				}
+			}
 		}
 
 		// Update order

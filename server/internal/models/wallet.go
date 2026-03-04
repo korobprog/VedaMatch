@@ -95,6 +95,7 @@ type WalletTransaction struct {
 
 	// Related booking (if applicable)
 	BookingID *uint `json:"bookingId" gorm:"index"`
+	OrderID   *uint `json:"orderId" gorm:"index"`
 
 	// Related wallet (for transfers between users)
 	RelatedWalletID *uint   `json:"relatedWalletId" gorm:"index"`

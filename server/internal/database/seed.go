@@ -152,6 +152,30 @@ func SeedSystemSettings() {
 			Value: "20",
 		},
 		{
+			Key:   "CAFE_PLATFORM_FEE_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "CAFE_PLATFORM_FEE_PERCENT_BPS",
+			Value: "800",
+		},
+		{
+			Key:   "CAFE_PLATFORM_FEE_CAP_LKM",
+			Value: "250",
+		},
+		{
+			Key:   "CAFE_PLATFORM_FEE_MIN_ORDER_LKM",
+			Value: "100",
+		},
+		{
+			Key:   "CAFE_PLATFORM_FEE_EFFECTIVE_FROM",
+			Value: "",
+		},
+		{
+			Key:   "CAFE_PLATFORM_FEE_ROLLOUT_PERCENT",
+			Value: "0",
+		},
+		{
 			Key:   "SADHU_SANGA_LANGUAGE_LABELS_ENABLED",
 			Value: "true",
 		},

@@ -150,6 +150,34 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     );
     const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const isImageOrPremiumSurface = portalBackgroundType === 'image' || portalIconStyle === 'premium3d';
+    const iconBackgroundColor = portalIconStyle === 'vedamatch'
+        ? '#121212'
+        : portalIconStyle === 'solid'
+            ? service.color
+            : isImageOrPremiumSurface
+                ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)')
+                : isDarkMode
+                    ? 'rgba(30,30,30,0.85)'
+                    : 'rgba(255,255,255,0.9)';
+    const iconBorderColor = portalIconStyle === 'vedamatch'
+        ? '#D4AF37'
+        : portalIconStyle === 'solid'
+            ? 'rgba(255,255,255,0.25)'
+            : isImageOrPremiumSurface
+                ? 'rgba(255,255,255,0.3)'
+                : `${service.color}30`;
+    const iconBorderWidth = portalIconStyle === 'vedamatch'
+        ? 1
+        : roleHighlight
+            ? 2
+            : isImageOrPremiumSurface || portalIconStyle === 'solid'
+                ? 1.5
+                : 1;
+    const iconSurfaceHasEfficientShadow = portalIconStyle === 'vedamatch' || portalIconStyle === 'solid';
+    const shouldRenderIconShadow = (roleHighlight || portalIconStyle === 'vedamatch')
+        && !isAndroidReducedEffects
+        && (Platform.OS !== 'ios' || iconSurfaceHasEfficientShadow);
 
     const sizeConfig = ICON_SIZES[size];
     const IconComponent = IconComponents[service.icon] || Users;
@@ -213,29 +241,15 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalIconStyle === 'vedamatch'
-                                ? '#121212'
-                                : portalIconStyle === 'solid'
-                                    ? service.color
-                                    : portalBackgroundType === 'image' || portalIconStyle === 'premium3d'
-                                        ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)') // Frost glass
-                                        : isDarkMode
-                                            ? 'rgba(30,30,30,0.85)'
-                                            : 'rgba(255,255,255,0.9)',
-                            borderColor: portalIconStyle === 'vedamatch'
-                                ? '#D4AF37'
-                                : portalIconStyle === 'solid'
-                                    ? 'rgba(255,255,255,0.25)'
-                                    : portalBackgroundType === 'image' || portalIconStyle === 'premium3d' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
-                            borderWidth: portalIconStyle === 'vedamatch'
-                                ? 1
-                                : roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'solid' || portalIconStyle === 'premium3d' ? 1.5 : 1,
-                            ...(roleHighlight || portalIconStyle === 'vedamatch' ? {
+                            backgroundColor: iconBackgroundColor,
+                            borderColor: iconBorderColor,
+                            borderWidth: iconBorderWidth,
+                            ...(shouldRenderIconShadow ? {
                                 shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
-                                shadowOpacity: isAndroidReducedEffects ? 0 : (portalIconStyle === 'vedamatch' ? 0.5 : 0.35),
-                                shadowRadius: isAndroidReducedEffects ? 0 : (portalIconStyle === 'vedamatch' ? 10 : 8),
+                                shadowOpacity: portalIconStyle === 'vedamatch' ? 0.5 : 0.35,
+                                shadowRadius: portalIconStyle === 'vedamatch' ? 10 : 8,
                                 shadowOffset: { width: 0, height: 2 },
-                                elevation: isAndroidReducedEffects ? 0 : 6,
+                                elevation: 6,
                             } : {}),
                             marginBottom: showLabel ? 6 : 0,
                         },

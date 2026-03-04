@@ -29,6 +29,14 @@ const (
 	CafeOrderStatusCancelled  CafeOrderStatus = "cancelled"  // Cancelled
 )
 
+type CafeOrderSettlementStatus string
+
+const (
+	CafeOrderSettlementStatusPending  CafeOrderSettlementStatus = "pending"
+	CafeOrderSettlementStatusSettled  CafeOrderSettlementStatus = "settled"
+	CafeOrderSettlementStatusRefunded CafeOrderSettlementStatus = "refunded"
+)
+
 // CafeOrder represents an order in a cafe
 type CafeOrder struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
@@ -77,6 +85,17 @@ type CafeOrder struct {
 	PaidAt         *time.Time `json:"paidAt"`
 	RegularLkmPaid int        `json:"regularLkmPaid" gorm:"default:0"`
 	BonusLkmPaid   int        `json:"bonusLkmPaid" gorm:"default:0"`
+	RegularLkmHeld int        `json:"regularLkmHeld" gorm:"default:0"`
+	BonusLkmHeld   int        `json:"bonusLkmHeld" gorm:"default:0"`
+
+	PlatformFeePercentSnapshotBps  int                       `json:"platformFeePercentSnapshotBps" gorm:"default:0"`
+	PlatformFeeCapSnapshotLkm      int                       `json:"platformFeeCapSnapshotLkm" gorm:"default:0"`
+	PlatformFeeMinOrderSnapshotLkm int                       `json:"platformFeeMinOrderSnapshotLkm" gorm:"default:0"`
+	PlatformFeeAmountLkm           int                       `json:"platformFeeAmountLkm" gorm:"default:0"`
+	MerchantPayoutLkm              int                       `json:"merchantPayoutLkm" gorm:"default:0"`
+	SettlementStatus               CafeOrderSettlementStatus `json:"settlementStatus" gorm:"type:varchar(20);default:'pending';index"`
+	SettledAt                      *time.Time                `json:"settledAt"`
+	SettlementTxID                 string                    `json:"settlementTxId" gorm:"type:varchar(100)"`
 
 	// Notes
 	CustomerNote string `json:"customerNote" gorm:"type:text"` // Special requests
