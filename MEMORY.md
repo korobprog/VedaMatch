@@ -238,6 +238,18 @@
 - Для мониторинга добавлены метрики:
   - `video_circles_created_total`
   - `video_circles_create_rejected_non_cdn_total`
+
+## Monetization & Tariffs
+- Текущие video-circles тарифы по умолчанию в backend (`video_tariffs` seed через сервис):
+  - `lkm_boost`: `10 LKM` за `60 минут` продления;
+  - `city_boost`: `20 LKM` за `120 минут` и городское продвижение;
+  - `premium_boost`: `30 LKM` за `180 минут`.
+- PRO подписка в LKM:
+  - `pro_7d`: `99 LKM`;
+  - `pro_30d`: `299 LKM`;
+  - `pro_90d`: `799 LKM`.
+- Пополнение LKM реализовано через `YooKassa/Stripe` с конфигурируемыми лимитами/пакетами и админ-настройками processing-cost.
+- AI монетизация: в AI-room отправка одного сообщения списывает `1 LKM`.
   - `video_circles_upload_s3_fail_total`
   - `video_circles_non_cdn_detected_total`
 
@@ -639,8 +651,38 @@
   - без `Location: /login`;
   - в HTML присутствует релевантный заголовок документа, без формы логина.
 - Текущий статус на 2026-03-04:
-  - локально (`admin` dev) `/terms`, `/privacy`, `/delete-account` проходят с `200` и без login redirect;
-  - прод `https://vedamatch.ru/*` пока возвращает `404` до выката/деплоя актуального admin build.
+  - `https://vedamatch.ru/terms`, `https://vedamatch.ru/privacy`, `https://vedamatch.ru/delete-account` отдают `200` без auth-редиректа;
+  - legal страницы используются как публичные ссылки для RuStore.
+
+## RuStore UGC Moderation (Fast-Track)
+- Для релизного контура RuStore используется существующий support pipeline (без новой отдельной UGC-таблицы):
+  - мобильный flow: Chat -> `Пожаловаться` -> `SupportTicketForm` (`entryPoint=abuse_report`) -> `POST /api/support/tickets`;
+  - backend сохраняет report metadata в `support_conversations.meta_json` (`reportType`, `reportedUserId`, `reportedContentType`, `reportedContentId`, `reportReasonCode`);
+  - admin triage выполняется через существующий inbox `GET /api/admin/support/conversations` с фильтром `entryPoint`.
+- Блокировка пользователя остается через существующий контракт:
+  - `POST /api/blocks/add`, `POST /api/blocks/remove`, `GET /api/blocks`.
+- Публичные legal-требования RuStore закреплены в web:
+  - `terms` содержит явный список запрещенного контента и меры enforcement;
+  - `privacy` содержит раздел по модерационной обработке жалоб и срокам хранения.
+- Контакты модерации/поддержки, используемые в app/legal/store-материалах:
+  - `support@vedamatch.ru`
+  - `privacy@vedamatch.ru`
+  - `legal@vedamatch.ru`
+
+## RuStore Android Permissions
+- Для публикации в RuStore permissions hardened на уровне `frontend/android/app/src/main/AndroidManifest.xml`:
+  - удалены app-level неиспользуемые/рисковые permissions: `READ_MEDIA_VIDEO`, `ACCESS_COARSE_LOCATION`, `BIND_TELECOM_CONNECTION_SERVICE`, `MANAGE_OWN_CALLS`, `FOREGROUND_SERVICE_PHONE_CALL`, `FOREGROUND_SERVICE_CAMERA`, `WRITE_EXTERNAL_STORAGE`.
+  - удален app-level `VoiceConnectionService` (`io.wazo.callkeep.VoiceConnectionService`) как неиспользуемый в текущем Android runtime (CallKeep UI инициализируется только для iOS в `App.tsx`).
+- Добавлен `tools:node="remove"` для принудительного исключения transitive permissions из merged manifest:
+  - `CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`, `MANAGE_OWN_CALLS`, `SYSTEM_ALERT_WINDOW`, `WRITE_EXTERNAL_STORAGE`.
+- Фактически подтверждено после `./gradlew :app:processDebugMainManifest`:
+  - указанные запрещенные/опасные системные permissions отсутствуют в final merged manifest debug.
+- Оставшиеся dangerous permissions для декларации RuStore:
+  - `CAMERA`
+  - `READ_MEDIA_IMAGES` (`READ_EXTERNAL_STORAGE` только до Android 12)
+  - `RECORD_AUDIO`
+  - `ACCESS_FINE_LOCATION`
+  - `POST_NOTIFICATIONS`
 
 ## Account Deletion / Auth Invalidation
 - API удаления аккаунта:

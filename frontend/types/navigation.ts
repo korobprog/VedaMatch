@@ -57,7 +57,16 @@ export type RootStackParamList = {
     ContactProfile: { userId: number };
     AppSettings: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;
-    SupportTicketForm: { entryPoint?: string; targetPreacherId?: number; targetPreacherName?: string } | undefined;
+    SupportTicketForm: {
+        entryPoint?: string;
+        targetPreacherId?: number;
+        targetPreacherName?: string;
+        reportType?: 'user' | 'content';
+        reportedUserId?: number;
+        reportedUserName?: string;
+        reportedContentType?: 'chat_message' | 'ad' | 'profile' | 'other';
+        reportedContentId?: string;
+    } | undefined;
     SupportInbox: undefined;
     SupportConversation: { conversationId: number };
     EditProfile: undefined;

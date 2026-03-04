@@ -50,22 +50,27 @@ type supportRateLimiter struct {
 }
 
 type supportCreateTicketRequest struct {
-	Subject            string `json:"subject"`
-	Message            string `json:"message"`
-	Contact            string `json:"contact"`
-	Name               string `json:"name"`
-	EntryPoint         string `json:"entryPoint"`
-	TargetPreacherID   *uint  `json:"targetPreacherId"`
-	AttachmentURL      string `json:"attachmentUrl"`
-	AttachmentMimeType string `json:"attachmentMimeType"`
-	ClientRequestID    string `json:"clientRequestId"`
-	DevicePlatform     string `json:"devicePlatform"`
-	DeviceOS           string `json:"deviceOs"`
-	DeviceOSVersion    string `json:"deviceOsVersion"`
-	DeviceModel        string `json:"deviceModel"`
-	AppVersion         string `json:"appVersion"`
-	AppBuild           string `json:"appBuild"`
-	UserAgent          string `json:"userAgent"`
+	Subject             string `json:"subject"`
+	Message             string `json:"message"`
+	Contact             string `json:"contact"`
+	Name                string `json:"name"`
+	EntryPoint          string `json:"entryPoint"`
+	ReportType          string `json:"reportType"`
+	ReportedUserID      *uint  `json:"reportedUserId"`
+	ReportedContentType string `json:"reportedContentType"`
+	ReportedContentID   string `json:"reportedContentId"`
+	ReportReasonCode    string `json:"reportReasonCode"`
+	TargetPreacherID    *uint  `json:"targetPreacherId"`
+	AttachmentURL       string `json:"attachmentUrl"`
+	AttachmentMimeType  string `json:"attachmentMimeType"`
+	ClientRequestID     string `json:"clientRequestId"`
+	DevicePlatform      string `json:"devicePlatform"`
+	DeviceOS            string `json:"deviceOs"`
+	DeviceOSVersion     string `json:"deviceOsVersion"`
+	DeviceModel         string `json:"deviceModel"`
+	AppVersion          string `json:"appVersion"`
+	AppBuild            string `json:"appBuild"`
+	UserAgent           string `json:"userAgent"`
 }
 
 type supportAddMessageRequest struct {
@@ -958,6 +963,10 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	req.Contact = strings.TrimSpace(req.Contact)
 	req.Name = strings.TrimSpace(req.Name)
 	req.EntryPoint = strings.TrimSpace(strings.ToLower(req.EntryPoint))
+	req.ReportType = strings.TrimSpace(strings.ToLower(req.ReportType))
+	req.ReportedContentType = strings.TrimSpace(strings.ToLower(req.ReportedContentType))
+	req.ReportedContentID = strings.TrimSpace(req.ReportedContentID)
+	req.ReportReasonCode = strings.TrimSpace(strings.ToLower(req.ReportReasonCode))
 	req.AttachmentURL = strings.TrimSpace(req.AttachmentURL)
 	req.AttachmentMimeType = strings.TrimSpace(req.AttachmentMimeType)
 	req.ClientRequestID = strings.TrimSpace(req.ClientRequestID)
@@ -969,8 +978,14 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	req.AppBuild = strings.TrimSpace(req.AppBuild)
 	req.UserAgent = strings.TrimSpace(req.UserAgent)
 
+	if req.EntryPoint == "abuse_report" && req.Subject == "" {
+		req.Subject = "UGC report"
+	}
 	if req.Subject == "" {
 		req.Subject = "Support request"
+	}
+	if req.ReportedUserID != nil && *req.ReportedUserID == 0 {
+		req.ReportedUserID = nil
 	}
 	if req.TargetPreacherID != nil && *req.TargetPreacherID == 0 {
 		req.TargetPreacherID = nil
@@ -992,6 +1007,29 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	}
 	if userID == 0 && req.Contact != "" && !isValidSupportContact(req.Contact) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "contact must be a valid email or @telegram"})
+	}
+	if req.EntryPoint == "abuse_report" {
+		if req.ReportType != "user" && req.ReportType != "content" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportType must be user or content"})
+		}
+		if req.ReportType == "user" {
+			if req.ReportedUserID == nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportedUserId is required for user reports"})
+			}
+			if userID > 0 && *req.ReportedUserID == userID {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "you cannot report yourself"})
+			}
+		}
+		if req.ReportType == "content" {
+			if req.ReportedContentType == "" || req.ReportedContentID == "" {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportedContentType and reportedContentId are required for content reports"})
+			}
+			switch req.ReportedContentType {
+			case "chat_message", "ad", "profile", "other":
+			default:
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportedContentType is invalid"})
+			}
+		}
 	}
 
 	if req.ClientRequestID != "" {
@@ -1044,14 +1082,30 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	}
 	ticketNumberPtr := &ticketNumber
 	metaJSON := ""
+	meta := make(map[string]interface{})
 	if req.TargetPreacherID != nil {
-		meta := map[string]interface{}{
-			"targetPreacherId": *req.TargetPreacherID,
-			"scope":            "sadhu_sanga",
-		}
+		meta["targetPreacherId"] = *req.TargetPreacherID
+		meta["scope"] = "sadhu_sanga"
 		if req.EntryPoint == "unknown" {
 			req.EntryPoint = "sadhu_sanga_question"
 		}
+	}
+	if req.EntryPoint == "abuse_report" {
+		meta["reportType"] = req.ReportType
+		if req.ReportedUserID != nil {
+			meta["reportedUserId"] = *req.ReportedUserID
+		}
+		if req.ReportedContentType != "" {
+			meta["reportedContentType"] = req.ReportedContentType
+		}
+		if req.ReportedContentID != "" {
+			meta["reportedContentId"] = req.ReportedContentID
+		}
+		if req.ReportReasonCode != "" {
+			meta["reportReasonCode"] = req.ReportReasonCode
+		}
+	}
+	if len(meta) > 0 {
 		encodedMeta, err := json.Marshal(meta)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid support metadata"})
@@ -1704,6 +1758,7 @@ func (h *SupportHandler) ListConversations(c *fiber.Ctx) error {
 	limit := parseSupportInt(c.Query("limit"), 30, 1, 200)
 	status := strings.TrimSpace(strings.ToLower(c.Query("status")))
 	channel := strings.TrimSpace(strings.ToLower(c.Query("channel")))
+	entryPoint := strings.TrimSpace(strings.ToLower(c.Query("entryPoint")))
 
 	query := database.DB.Model(&models.SupportConversation{}).Preload("Contact").Preload("AppUser")
 	if status != "" {
@@ -1711,6 +1766,9 @@ func (h *SupportHandler) ListConversations(c *fiber.Ctx) error {
 	}
 	if channel != "" {
 		query = query.Where("channel = ?", channel)
+	}
+	if entryPoint != "" {
+		query = query.Where("entry_point = ?", entryPoint)
 	}
 
 	var total int64

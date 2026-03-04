@@ -800,17 +800,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 styles.avatarButton,
                                 {
                                     backgroundColor: 'transparent',
-                                    ...Platform.select({
-                                        ios: {
-                                            shadowColor: '#000',
-                                            shadowOffset: { width: 0, height: 4 },
-                                            shadowOpacity: 0.3,
-                                            shadowRadius: 8,
-                                        },
-                                        android: {
-                                            elevation: 8,
-                                        }
-                                    })
                                 }
                             ]}>
                                 <TouchableOpacity
@@ -826,6 +815,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         borderWidth: 1.2,
                                         justifyContent: 'center',
                                         alignItems: 'center',
+                                        ...Platform.select({
+                                            ios: {
+                                                shadowColor: '#000',
+                                                shadowOffset: { width: 0, height: 4 },
+                                                shadowOpacity: 0.3,
+                                                shadowRadius: 8,
+                                            },
+                                            android: {
+                                                elevation: 8,
+                                            },
+                                        }),
                                     }}
                                 >
                                     {useLightServiceHeaderIcons && androidVisualPolicy.enableBlur && (
@@ -838,11 +838,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     )}
                                     <View style={{
                                         backgroundColor: 'transparent',
-                                        shadowColor: "#000",
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: (useLightServiceHeaderIcons) ? 0.5 : 0,
-                                        shadowRadius: 2,
-                                        elevation: (useLightServiceHeaderIcons) ? 5 : 0,
                                     }}>
                                         <List
                                             size={22}

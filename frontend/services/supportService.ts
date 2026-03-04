@@ -58,6 +58,11 @@ export interface CreateSupportTicketPayload {
     contact?: string;
     name?: string;
     entryPoint?: string;
+    reportType?: 'user' | 'content';
+    reportedUserId?: number;
+    reportedContentType?: 'chat_message' | 'ad' | 'profile' | 'other';
+    reportedContentId?: string;
+    reportReasonCode?: string;
     targetPreacherId?: number;
     attachmentUrl?: string;
     attachmentMimeType?: string;

@@ -66,12 +66,13 @@ const getErrorMessage = (error: unknown): string => {
 
 const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
     id: (m.id || m.ID || Date.now()).toString(),
-    text: m.content || '',
+    text: m.content || m.text || '',
     sender: (m.senderId === currentUserId ? 'user' : 'other') as 'user' | 'other',
     type: m.type || 'text',
-    content: m.content,
+    content: m.content || m.text || '',
     fileName: m.fileName,
     fileSize: m.fileSize,
+    mimeType: m.mimeType,
     duration: m.duration,
     createdAt: m.createdAt || m.CreatedAt,
 });
@@ -389,12 +390,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             if (shouldAdd) {
                 const newMessage: Message = {
                     id: msg.id?.toString() || msg.ID?.toString() || Date.now().toString(),
-                    text: msg.content || '',
+                    text: msg.content || msg.text || '',
                     sender: senderType,
                     type: msg.type || 'text',
-                    content: msg.content || '',
+                    content: msg.content || msg.text || '',
                     fileName: msg.fileName,
                     fileSize: msg.fileSize,
+                    mimeType: msg.mimeType,
                     duration: msg.duration,
                     createdAt: msg.createdAt || msg.CreatedAt || new Date().toISOString()
                 };
@@ -566,6 +568,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 content: savedMsg.content || text,
                 fileName: savedMsg.fileName,
                 fileSize: savedMsg.fileSize,
+                mimeType: savedMsg.mimeType,
                 duration: savedMsg.duration,
                 createdAt: savedMsg.createdAt || savedMsg.CreatedAt || new Date().toISOString(),
             };
@@ -769,6 +772,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 type: media.type,
                 fileName: media.name,
                 fileSize: media.size,
+                mimeType: media.mimeType,
                 uploading: true,
                 content: media.uri,
             };
@@ -797,6 +801,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 type: savedMessage.type || media.type,
                 fileName: savedMessage.fileName,
                 fileSize: savedMessage.fileSize,
+                mimeType: savedMessage.mimeType || media.mimeType,
                 duration: savedMessage.duration,
                 content: savedMessage.content,
                 senderId: savedMessage.senderId,

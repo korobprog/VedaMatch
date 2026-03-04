@@ -13,6 +13,7 @@ export interface P2PMessage {
     type: 'text' | 'image' | 'audio' | 'video' | 'file';
     fileName?: string;
     fileSize?: number;
+    mimeType?: string;
     duration?: number;
 }
 

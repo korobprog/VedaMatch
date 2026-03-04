@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -34,8 +34,21 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
     const [submitting, setSubmitting] = useState(false);
 
     const entryPoint = useMemo(() => route.params?.entryPoint || 'portal', [route.params?.entryPoint]);
+    const isAbuseReport = entryPoint === 'abuse_report';
     const targetPreacherId = useMemo(() => route.params?.targetPreacherId, [route.params?.targetPreacherId]);
     const targetPreacherName = useMemo(() => route.params?.targetPreacherName, [route.params?.targetPreacherName]);
+    const reportType = useMemo(() => route.params?.reportType, [route.params?.reportType]);
+    const reportedUserId = useMemo(() => route.params?.reportedUserId, [route.params?.reportedUserId]);
+    const reportedUserName = useMemo(() => route.params?.reportedUserName, [route.params?.reportedUserName]);
+    const reportedContentType = useMemo(() => route.params?.reportedContentType, [route.params?.reportedContentType]);
+    const reportedContentId = useMemo(() => route.params?.reportedContentId, [route.params?.reportedContentId]);
+
+    useEffect(() => {
+        if (!isAbuseReport) {
+            return;
+        }
+        setSubject((prev) => prev.trim() ? prev : 'Жалоба на пользователя/контент');
+    }, [isAbuseReport]);
 
     const pickImage = async () => {
         try {
@@ -98,11 +111,15 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
             }
 
             const response = await supportService.createTicket({
-                subject: trimmedSubject || 'Support request',
+                subject: trimmedSubject || (isAbuseReport ? 'Жалоба на пользователя/контент' : 'Support request'),
                 message: trimmedMessage,
                 contact: trimmedContact,
                 name: trimmedName,
                 entryPoint,
+                reportType,
+                reportedUserId,
+                reportedContentType,
+                reportedContentId,
                 targetPreacherId,
                 attachmentUrl,
                 attachmentMimeType,
@@ -152,7 +169,32 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                     keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                 >
                     <Text style={styles.title}>Создать обращение</Text>
-                    <Text style={styles.subtitle}>Опишите проблему, и мы ответим в приложении.</Text>
+                    <Text style={styles.subtitle}>
+                        {isAbuseReport
+                            ? 'Опишите нарушение. Жалоба отправляется в модерацию и службу поддержки.'
+                            : 'Опишите проблему, и мы ответим в приложении.'}
+                    </Text>
+                    {isAbuseReport ? (
+                        <View style={styles.moderationHint}>
+                            <Text style={styles.moderationHintTitle}>Куда отправляется жалоба</Text>
+                            <Text style={styles.moderationHintText}>
+                                Модерация VedaMatch: support@vedamatch.ru
+                            </Text>
+                            <Text style={styles.moderationHintText}>
+                                Вопросы приватности: privacy@vedamatch.ru
+                            </Text>
+                            {reportType === 'user' && reportedUserId ? (
+                                <Text style={styles.moderationHintTarget}>
+                                    Объект жалобы: {reportedUserName ? `${reportedUserName}` : 'Пользователь'} (ID {reportedUserId})
+                                </Text>
+                            ) : null}
+                            {reportType === 'content' && reportedContentType && reportedContentId ? (
+                                <Text style={styles.moderationHintTarget}>
+                                    Объект жалобы: {reportedContentType} / {reportedContentId}
+                                </Text>
+                            ) : null}
+                        </View>
+                    ) : null}
                     {targetPreacherId ? (
                         <View style={styles.targetHint}>
                             <Text style={styles.targetHintLabel}>Вопрос проповеднику</Text>
@@ -290,6 +332,33 @@ const styles = StyleSheet.create({
         color: '#1E293B',
         fontSize: 13,
         fontWeight: '600',
+    },
+    moderationHint: {
+        backgroundColor: '#FFF7ED',
+        borderColor: '#FDBA74',
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 14,
+    },
+    moderationHintTitle: {
+        color: '#9A3412',
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    moderationHintText: {
+        color: '#7C2D12',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    moderationHintTarget: {
+        color: '#431407',
+        fontSize: 12,
+        lineHeight: 18,
+        fontWeight: '600',
+        marginTop: 6,
     },
     field: {
         marginBottom: 14,

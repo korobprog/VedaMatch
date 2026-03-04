@@ -72,6 +72,20 @@ LKM policy:
 - LKM are not legal tender, not a payment instrument, and not redeemable for money.
 ```
 
+### RuStore UGC moderation note
+```text
+UGC moderation (RuStore readiness):
+- User report flow: Chat -> menu -> "Пожаловаться" -> Support form -> sent as moderation ticket.
+- User block flow: Chat -> menu -> "Заблокировать" (user appears in Blocked list, can be unblocked later).
+- Public rules pages:
+  - Terms: https://vedamatch.ru/terms
+  - Privacy: https://vedamatch.ru/privacy
+- Moderation/support contacts:
+  - support@vedamatch.ru
+  - privacy@vedamatch.ru
+  - legal@vedamatch.ru
+```
+
 ### Data safety (заполнять по фактическому прод-сбору)
 Mark collected only what is actually processed by production backend/app.  
 At minimum verify consistency with current features:
@@ -82,14 +96,36 @@ At minimum verify consistency with current features:
 
 ### Sensitive permissions declaration
 Current Android manifest after P0:
-- Removed: `CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`
+- Removed: `CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`, `MANAGE_OWN_CALLS`, `SYSTEM_ALERT_WINDOW`, `WRITE_EXTERNAL_STORAGE`, `BIND_TELECOM_CONNECTION_SERVICE`, `FOREGROUND_SERVICE_PHONE_CALL`, `FOREGROUND_SERVICE_CAMERA`, `READ_MEDIA_VIDEO`
 - Still present (needs accurate declaration/justification):
+  - `CAMERA`
+  - `READ_MEDIA_IMAGES` (Android 13+) / `READ_EXTERNAL_STORAGE` (Android 12-)
   - `RECORD_AUDIO`
-  - location permissions
-  - notifications
-  - callkeep-related capabilities (`MANAGE_OWN_CALLS`, `BIND_TELECOM_CONNECTION_SERVICE`, `FOREGROUND_SERVICE_PHONE_CALL`)
+  - `ACCESS_FINE_LOCATION`
+  - `POST_NOTIFICATIONS`
 
-If call features are not required for production rollout, remove call-related permissions in next pass to reduce review risk.
+RuStore declaration text (copy-paste):
+```text
+Опасные разрешения и обоснование:
+
+1) CAMERA
+Используется только по действию пользователя: сделать фото профиля или вложение в сообщение/обращение.
+
+2) READ_MEDIA_IMAGES (Android 13+) / READ_EXTERNAL_STORAGE (Android 12 и ниже)
+Нужно для выбора изображения из галереи как вложения в чат/поддержку и для фото профиля.
+
+3) RECORD_AUDIO
+Нужно для записи голосовых сообщений и работы голосовых функций в звонках.
+
+4) ACCESS_FINE_LOCATION
+Используется только при включении пользователем гео-функций (карта, nearby-поиск, маршруты).
+
+5) POST_NOTIFICATIONS
+Нужно для доставки системных уведомлений о сообщениях, звонках и статусах обращений.
+```
+
+Not for use by third-party / запрещенные системные разрешения:
+- В итоговом merged manifest отсутствуют `CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`, `MANAGE_OWN_CALLS`, `SYSTEM_ALERT_WINDOW`.
 
 ---
 

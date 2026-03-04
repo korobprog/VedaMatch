@@ -132,6 +132,14 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Text style={styles.subtitle}>
                     Техпроблемы, навигация по продукту и фидбек по улучшениям.
                 </Text>
+                <View style={styles.moderationBox}>
+                    <Text style={styles.moderationTitle}>Модерация UGC</Text>
+                    <Text style={styles.moderationText}>
+                        Для жалоб на контент/пользователей используйте "Создать обращение".
+                    </Text>
+                    <Text style={styles.moderationText}>support@vedamatch.ru</Text>
+                    <Text style={styles.moderationText}>privacy@vedamatch.ru</Text>
+                </View>
 
                 <View style={styles.slaBox}>
                     <Text style={styles.slaTitle}>SLA</Text>
@@ -221,6 +229,27 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 22,
         color: '#334155',
+    },
+    moderationBox: {
+        marginTop: 14,
+        backgroundColor: '#FFF7ED',
+        borderWidth: 1,
+        borderColor: '#FDBA74',
+        borderRadius: 14,
+        padding: 12,
+        gap: 3,
+    },
+    moderationTitle: {
+        color: '#9A3412',
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        marginBottom: 4,
+    },
+    moderationText: {
+        color: '#7C2D12',
+        fontSize: 13,
+        lineHeight: 18,
     },
     slaBox: {
         marginTop: 20,

@@ -257,6 +257,51 @@ export const MessageList: React.FC<MessageListProps> = ({
         return <File size={24} color={theme.primary} />;
     };
 
+    const hasAudioExtension = (value?: string) => {
+        if (!value) return false;
+        const normalized = value.toLowerCase().split('?')[0].split('#')[0];
+        return normalized.endsWith('.m4a') ||
+            normalized.endsWith('.mp3') ||
+            normalized.endsWith('.wav') ||
+            normalized.endsWith('.aac') ||
+            normalized.endsWith('.ogg') ||
+            normalized.endsWith('.webm');
+    };
+
+    const resolveAudioUrl = (item: Message): string | undefined => {
+        const type = (item.type || '').toLowerCase();
+        const mimeType = (item.mimeType || '').toLowerCase();
+        const content = (item.content || '').trim();
+        const textValue = (item.text || '').trim();
+        const fileName = (item.fileName || '').toLowerCase();
+
+        const looksLikeAudio =
+            type === 'audio' ||
+            mimeType.startsWith('audio/') ||
+            hasAudioExtension(fileName) ||
+            hasAudioExtension(content) ||
+            hasAudioExtension(textValue);
+
+        if (!looksLikeAudio) {
+            return undefined;
+        }
+
+        if (content) {
+            return content;
+        }
+
+        if (
+            textValue.startsWith('http://') ||
+            textValue.startsWith('https://') ||
+            textValue.startsWith('file://') ||
+            textValue.startsWith('/uploads/')
+        ) {
+            return textValue;
+        }
+
+        return undefined;
+    };
+
     const renderAudioPlayer = (url: string, key: string | number) => {
         const html = `
             <!DOCTYPE html>
@@ -329,6 +374,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         const isUser = item.sender === 'user';
         const isOtherUser = item.sender === 'other';
         const text = item.text || '';
+        const audioUrl = resolveAudioUrl(item);
         const time = formatMessageTime(item.createdAt);
         const recipientAvatarUrl = getMediaUrl(recipientUser?.avatarUrl);
         const recipientName = recipientUser?.spiritualName || recipientUser?.karmicName || '';
@@ -398,8 +444,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <TouchableOpacity onPress={() => openImage(item.content!)}>
                             <Image source={{ uri: item.content }} style={styles.messageImage} />
                         </TouchableOpacity>
-                    ) : item.type === 'audio' && item.content ? (
-                        <AudioPlayer url={item.content} duration={item.duration} isDarkMode={isDarkMode} />
+                    ) : audioUrl ? (
+                        <AudioPlayer url={audioUrl} duration={item.duration} isDarkMode={isDarkMode} />
                     ) : (item.type === 'document' || item.type === 'file') && item.content ? (
                         <TouchableOpacity
                             onPress={() => openDocument(item.content!, item.fileName)}

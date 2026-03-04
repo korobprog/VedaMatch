@@ -223,6 +223,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         const isImplemented = !recipientUser ||
                             option === 'contacts.viewProfile' ||
                             option === 'contacts.block' ||
+                            option === 'contacts.report' ||
                             option === 'contacts.takePhoto' ||
                             option === 'contacts.attachFile' ||
                             option === 'contacts.clearHistory';

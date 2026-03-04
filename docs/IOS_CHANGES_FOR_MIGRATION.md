@@ -8251,3 +8251,121 @@ if claims.SessionID > 0 {
   }
 }
 ```
+
+## 2026-03-04 (RuStore UGC moderation fast-track: report via support ticket + legal/support contacts)
+
+### Измененные файлы
+- `server/internal/handlers/support_handler.go`
+- `frontend/components/chat/ChatInput.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/services/supportService.ts`
+- `frontend/screens/support/SupportTicketFormScreen.tsx`
+- `frontend/screens/support/SupportHomeScreen.tsx`
+- `admin/src/app/terms/page.tsx`
+- `admin/src/app/privacy/page.tsx`
+- `docs/store-submission-packet-p0.md`
+- `docs/store-console-field-by-field-wave1.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - пункт `Пожаловаться` присутствовал в chat menu, но был отключен (`isImplemented` не включал `contacts.report`);
+  - `SupportTicketForm` не принимал/не отправлял UGC report metadata;
+  - backend `POST /api/support/tickets` не валидировал `abuse_report` payload и не сохранял report fields в `meta_json`;
+  - admin list `/api/admin/support/conversations` не имел фильтра `entryPoint`;
+  - legal тексты были общими, без явного перечисления prohibited UGC категорий и отдельного privacy-блока по модерации.
+- Стало:
+  - `contacts.report` активирован в UI и из личного чата открывает `SupportTicketForm` с `entryPoint=abuse_report` + `reportType=user` + `reportedUserId`;
+  - `SupportTicketForm` поддерживает prefill для жалобы, показывает блок модерационных контактов и отправляет report fields в API;
+  - backend валидирует `abuse_report` (`reportType=user|content`, обязательные поля, self-report запрет) и сохраняет report metadata в `support_conversations.meta_json`;
+  - admin support inbox поддерживает фильтр `entryPoint` для triage жалоб;
+  - `SupportHome` содержит явный UGC moderation/contact блок;
+  - `terms/privacy` дополнены запрещенным контентом, enforcement и модерационной обработкой данных.
+
+### Сниппеты кода
+
+`server/internal/handlers/support_handler.go`:
+```go
+if req.EntryPoint == "abuse_report" {
+  if req.ReportType != "user" && req.ReportType != "content" {
+    return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportType must be user or content"})
+  }
+  if req.ReportType == "user" && req.ReportedUserID == nil {
+    return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reportedUserId is required for user reports"})
+  }
+}
+```
+
+```go
+if req.EntryPoint == "abuse_report" {
+  meta["reportType"] = req.ReportType
+  if req.ReportedUserID != nil {
+    meta["reportedUserId"] = *req.ReportedUserID
+  }
+}
+```
+
+`frontend/screens/ChatScreen.tsx`:
+```ts
+navigation.navigate('SupportTicketForm', {
+  entryPoint: 'abuse_report',
+  reportType: 'user',
+  reportedUserId: recipientUser.ID,
+  reportedUserName: recipientUser.spiritualName || recipientUser.karmicName,
+});
+```
+
+`frontend/screens/support/SupportTicketFormScreen.tsx`:
+```ts
+const isAbuseReport = entryPoint === 'abuse_report';
+...
+await supportService.createTicket({
+  entryPoint,
+  reportType,
+  reportedUserId,
+  reportedContentType,
+  reportedContentId,
+});
+```
+
+`admin/src/app/terms/page.tsx`:
+```tsx
+<ul className="list-disc ...">
+  <li>Насилие, угрозы, призывы к причинению вреда.</li>
+  <li>Оскорбления, harassment, hate speech и дискриминация.</li>
+  ...
+</ul>
+```
+
+## 2026-03-04 (RuStore permissions hardening: Android manifest cleanup)
+
+### Измененные файлы
+- `frontend/android/app/src/main/AndroidManifest.xml`
+- `docs/store-submission-packet-p0.md`
+- `docs/store-console-field-by-field-wave1.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в app manifest и merged manifest присутствовали рисковые/лишние permissions (`CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`, `MANAGE_OWN_CALLS`, `SYSTEM_ALERT_WINDOW`, `WRITE_EXTERNAL_STORAGE`) из app/lib merge;
+  - не было унифицированного текста декларации для RuStore по каждому оставшемуся dangerous permission.
+- Стало:
+  - app manifest очищен от неиспользуемых callkeep/legacy permissions и service;
+  - добавлены `tools:node="remove"` правила, чтобы принудительно убрать запрещенные/лишние transitive permissions из final merged manifest;
+  - в store docs добавлен готовый RuStore declaration text с обоснованием для каждого оставшегося dangerous permission.
+
+### Сниппеты кода
+
+`frontend/android/app/src/main/AndroidManifest.xml`:
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+```
+
+```xml
+<uses-permission android:name="android.permission.CALL_PHONE" tools:node="remove" />
+<uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+<uses-permission android:name="android.permission.READ_PHONE_NUMBERS" tools:node="remove" />
+<uses-permission android:name="android.permission.MANAGE_OWN_CALLS" tools:node="remove" />
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+```

@@ -162,6 +162,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         );
     };
 
+    const handleReportUser = () => {
+        if (!recipientUser?.ID) return;
+        setShowMenu(false);
+        navigation.navigate('SupportTicketForm', {
+            entryPoint: 'abuse_report',
+            reportType: 'user',
+            reportedUserId: recipientUser.ID,
+            reportedUserName: recipientUser.spiritualName || recipientUser.karmicName || `User ${recipientUser.ID}`,
+        });
+    };
+
 
     const handleCallPress = () => {
         if (recipientUser?.ID) {
@@ -244,6 +255,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                         }
                         if (option === 'contacts.block') {
                             handleBlockUser();
+                            return;
+                        }
+                        if (option === 'contacts.report') {
+                            handleReportUser();
                             return;
                         }
                         handleMenuOption(option,

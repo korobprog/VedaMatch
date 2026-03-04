@@ -22,6 +22,15 @@ Backend deletion endpoints:
 - `DELETE /api/account` (immediate deletion)
 - `POST /api/account/deletion-request` (optional scheduled deletion)
 
+UGC moderation/support contacts template (for listing/review fields):
+
+```text
+UGC moderation and support contacts:
+- support@vedamatch.ru
+- privacy@vedamatch.ru
+- legal@vedamatch.ru
+```
+
 ## 0.1) Operator identity strategy (current state: no legal entity yet)
 
 - Use current operator model consistently: self-employed individual in the Russian Federation (NPD).
@@ -166,12 +175,28 @@ Make sure this URL clearly describes:
 
 Prepare reviewer-safe explanations for remaining sensitive permissions:
 
-- `RECORD_AUDIO` -> in-app call/voice features
-- Location -> nearby/map
-- Notification permission -> chat/service notifications
-- Call-related permissions (if still present) -> explicit call functionality only
+- `CAMERA` -> user-initiated photo capture for avatar/attachments
+- `READ_MEDIA_IMAGES` (Android 13+) / `READ_EXTERNAL_STORAGE` (Android 12-) -> user-initiated image selection from gallery
+- `RECORD_AUDIO` -> in-app voice messages and call audio
+- `ACCESS_FINE_LOCATION` -> nearby/map flows only when user enables location features
+- `POST_NOTIFICATIONS` -> chat/call/support status notifications
 
-If call features are not part of first public rollout, remove call-related permissions before final release.
+Removed from final merged manifest (must stay removed):
+- `CALL_PHONE`
+- `READ_PHONE_STATE`
+- `READ_PHONE_NUMBERS`
+- `MANAGE_OWN_CALLS`
+- `SYSTEM_ALERT_WINDOW`
+
+RuStore declaration template:
+```text
+Опасные разрешения используются только для пользовательских функций приложения:
+CAMERA — фото профиля и вложений по действию пользователя.
+READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE — выбор изображений из галереи по действию пользователя.
+RECORD_AUDIO — голосовые сообщения и звонки.
+ACCESS_FINE_LOCATION — карта и nearby-функции при включении геолокации пользователем.
+POST_NOTIFICATIONS — уведомления о сообщениях, звонках и обращениях поддержки.
+```
 
 ### D. Release notes (Google Play)
 
