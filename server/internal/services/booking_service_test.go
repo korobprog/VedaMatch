@@ -2,6 +2,7 @@ package services
 
 import (
 	"math"
+	"rag-agent-server/internal/models"
 	"strings"
 	"testing"
 	"time"
@@ -75,5 +76,35 @@ func TestParseBookingDate(t *testing.T) {
 	}
 	if _, ok := parseBookingDate("not-a-date"); ok {
 		t.Fatalf("expected invalid date to be rejected")
+	}
+}
+
+func TestBookingPlatformFeeAmount(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   int
+		pay  int
+		want int
+	}{
+		{name: "normal fee", in: 80, pay: 1000, want: 80},
+		{name: "negative fee clamped to zero", in: -10, pay: 1000, want: 0},
+		{name: "fee exceeds price is clamped", in: 1500, pay: 1000, want: 1000},
+		{name: "zero price keeps non-negative fee", in: 120, pay: 0, want: 120},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := bookingPlatformFeeAmount(&models.ServiceBooking{
+				PlatformFeeAmount: tc.in,
+				PricePaid:         tc.pay,
+			})
+			if got != tc.want {
+				t.Fatalf("bookingPlatformFeeAmount(in=%d,pay=%d)=%d want=%d", tc.in, tc.pay, got, tc.want)
+			}
+		})
 	}
 }

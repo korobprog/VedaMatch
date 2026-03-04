@@ -303,6 +303,10 @@ export default function IncomingBookingsScreen() {
         const isProcessing = processingId === booking.id;
         const soon = isStartingSoon(booking);
         const past = isPast(booking);
+        const platformFee = Math.max(0, booking.platformFeeAmount || 0);
+        const providerNet = (booking.providerNetAmount ?? 0) > 0
+            ? booking.providerNetAmount
+            : Math.max(0, (booking.pricePaid || 0) - platformFee);
 
         return (
             <View style={[styles.bookingCard, soon && styles.bookingCardSoon]}>
@@ -369,6 +373,21 @@ export default function IncomingBookingsScreen() {
                     <Text style={[styles.tariffText, { color: colors.textSecondary }]}>
                         {booking.tariff?.name || 'Тариф'} • {formatDuration(booking.durationMinutes)}
                     </Text>
+                </View>
+
+                <View style={[styles.financeSection, { backgroundColor: colors.surface }]}>
+                    <View style={styles.financeRow}>
+                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>Цена</Text>
+                        <Text style={[styles.financeValue, { color: colors.textPrimary }]}>{booking.pricePaid} ₵</Text>
+                    </View>
+                    <View style={styles.financeRow}>
+                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>Комиссия платформы</Text>
+                        <Text style={[styles.financeValue, { color: colors.warning }]}>-{platformFee} ₵</Text>
+                    </View>
+                    <View style={styles.financeRow}>
+                        <Text style={[styles.financeLabelStrong, { color: colors.textPrimary }]}>К получению</Text>
+                        <Text style={[styles.financeValueStrong, { color: colors.success }]}>{providerNet} ₵</Text>
+                    </View>
                 </View>
 
                 {booking.clientNote && (
@@ -646,6 +665,36 @@ const styles = StyleSheet.create({
     price: { color: 'white', fontSize: 18, fontWeight: '900' },
     tariffRow: { marginBottom: 20, paddingHorizontal: 4 },
     tariffText: { color: 'rgba(255, 255, 255, 0.3)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+    financeSection: {
+        borderRadius: 16,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        gap: 8,
+    },
+    financeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    financeLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    financeLabelStrong: {
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    financeValue: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    financeValueStrong: {
+        fontSize: 16,
+        fontWeight: '900',
+    },
     noteSection: {
         backgroundColor: 'rgba(245, 158, 11, 0.05)',
         padding: 16,

@@ -53,6 +53,13 @@ type ServiceBooking struct {
 	PricePaid      int   `json:"pricePaid" gorm:"default:0"`      // Total amount paid in Лакшми
 	RegularLkmHeld int   `json:"regularLkmHeld" gorm:"default:0"` // Frozen regular LKM
 	BonusLkmHeld   int   `json:"bonusLkmHeld" gorm:"default:0"`   // Frozen bonus LKM
+	// Platform fee snapshot (captured at booking creation)
+	CommissionPercentBps int        `json:"commissionPercentBps" gorm:"default:0"` // e.g. 800 = 8%
+	CommissionCapLkm     int        `json:"commissionCapLkm" gorm:"default:0"`     // max fee in LKM
+	PlatformFeeAmount    int        `json:"platformFeeAmount" gorm:"default:0"`    // calculated fee in LKM
+	ProviderNetAmount    int        `json:"providerNetAmount" gorm:"default:0"`    // amount to provider after fee
+	FeeCalculatedAt      *time.Time `json:"feeCalculatedAt,omitempty"`
+	FeeReleasedAt        *time.Time `json:"feeReleasedAt,omitempty"`
 
 	// Notes
 	ClientNote   string `json:"clientNote" gorm:"type:text"`   // Message from client

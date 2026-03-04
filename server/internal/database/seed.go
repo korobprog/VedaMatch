@@ -132,6 +132,26 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "SERVICES_PLATFORM_FEE_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SERVICES_PLATFORM_FEE_PERCENT_BPS",
+			Value: "800",
+		},
+		{
+			Key:   "SERVICES_PLATFORM_FEE_CAP_LKM",
+			Value: "300",
+		},
+		{
+			Key:   "SERVICES_PLATFORM_FEE_APPLY_NO_SHOW",
+			Value: "true",
+		},
+		{
+			Key:   "SERVICES_PLATFORM_FEE_ROLLOUT_PERCENT",
+			Value: "20",
+		},
+		{
 			Key:   "SADHU_SANGA_LANGUAGE_LABELS_ENABLED",
 			Value: "true",
 		},

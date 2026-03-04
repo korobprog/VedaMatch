@@ -25,6 +25,12 @@ export interface ServiceBooking {
     status: BookingStatus;
     transactionId?: number;
     pricePaid: number;
+    commissionPercentBps?: number;
+    commissionCapLkm?: number;
+    platformFeeAmount?: number;
+    providerNetAmount?: number;
+    feeCalculatedAt?: string;
+    feeReleasedAt?: string;
     clientNote?: string;
     providerNote?: string;
     source?: string;

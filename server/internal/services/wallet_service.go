@@ -5,6 +5,7 @@ import (
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1230,6 +1231,136 @@ func (s *WalletService) ReleaseFundsWithSplit(userID uint, regularAmount int, bo
 		}
 
 		log.Printf("[Wallet] Release: %d LKM from user %d to user %d (booking %d, bonus=%d)", totalAmount, userID, toUserID, bookingID, bonusAmount)
+		return nil
+	})
+}
+
+// ReleaseFundsWithPlatformFeeSplit releases regular+bonus frozen funds and splits payout between provider and platform fee wallet.
+func (s *WalletService) ReleaseFundsWithPlatformFeeSplit(userID uint, regularAmount int, bonusAmount int, bookingID uint, providerUserID uint, platformFeeAmount int, description string) error {
+	if regularAmount < 0 || bonusAmount < 0 {
+		return errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
+		return errors.New("amount must be positive")
+	}
+	if platformFeeAmount < 0 {
+		return errors.New("platform fee amount must be non-negative")
+	}
+	if platformFeeAmount > totalAmount {
+		return errors.New("platform fee exceeds total release amount")
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Funds release"
+	}
+
+	providerNet := totalAmount - platformFeeAmount
+	if providerNet < 0 {
+		return errors.New("invalid provider net amount")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var payerWallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&payerWallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
+		}
+
+		if payerWallet.FrozenBalance < regularAmount || payerWallet.FrozenBonusBalance < bonusAmount {
+			return errors.New("insufficient frozen balance")
+		}
+
+		newFrozen := payerWallet.FrozenBalance - regularAmount
+		newFrozenBonus := payerWallet.FrozenBonusBalance - bonusAmount
+		if err := tx.Model(&payerWallet).Updates(map[string]interface{}{
+			"frozen_balance":       newFrozen,
+			"frozen_bonus_balance": newFrozenBonus,
+			"total_spent":          payerWallet.TotalSpent + totalAmount,
+		}).Error; err != nil {
+			return err
+		}
+
+		releaseTx := models.WalletTransaction{
+			WalletID:     payerWallet.ID,
+			Type:         models.TransactionTypeRelease,
+			Amount:       totalAmount,
+			BonusAmount:  bonusAmount,
+			Description:  description,
+			BookingID:    &bookingID,
+			BalanceAfter: payerWallet.Balance,
+		}
+		if err := tx.Create(&releaseTx).Error; err != nil {
+			return err
+		}
+
+		providerWallet, err := s.getOrCreateLockedWalletTx(tx, providerUserID)
+		if err != nil {
+			return err
+		}
+		if providerNet > 0 {
+			newProviderBalance := providerWallet.Balance + providerNet
+			if err := tx.Model(providerWallet).Updates(map[string]interface{}{
+				"balance":      newProviderBalance,
+				"total_earned": providerWallet.TotalEarned + providerNet,
+			}).Error; err != nil {
+				return err
+			}
+
+			providerTx := models.WalletTransaction{
+				WalletID:        providerWallet.ID,
+				Type:            models.TransactionTypeCredit,
+				Amount:          providerNet,
+				BonusAmount:     0,
+				Description:     description,
+				BookingID:       &bookingID,
+				RelatedWalletID: &payerWallet.ID,
+				BalanceAfter:    newProviderBalance,
+			}
+			if err := tx.Create(&providerTx).Error; err != nil {
+				return err
+			}
+		}
+
+		if platformFeeAmount > 0 {
+			var platformWallet models.Wallet
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("type = ?", models.WalletTypePlatform).
+				First(&platformWallet).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return errors.New("platform wallet not configured")
+				}
+				return err
+			}
+
+			newPlatformBalance := platformWallet.Balance + platformFeeAmount
+			if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
+				"balance":      newPlatformBalance,
+				"total_earned": platformWallet.TotalEarned + platformFeeAmount,
+			}).Error; err != nil {
+				return err
+			}
+
+			platformDesc := "Service fee booking #" + strconv.FormatUint(uint64(bookingID), 10)
+			platformTx := models.WalletTransaction{
+				WalletID:        platformWallet.ID,
+				Type:            models.TransactionTypeCredit,
+				Amount:          platformFeeAmount,
+				BonusAmount:     0,
+				Description:     platformDesc,
+				BookingID:       &bookingID,
+				RelatedWalletID: &payerWallet.ID,
+				BalanceAfter:    newPlatformBalance,
+			}
+			if err := tx.Create(&platformTx).Error; err != nil {
+				return err
+			}
+		}
+
+		log.Printf("[Wallet] Release with fee: total=%d provider=%d fee=%d from user %d to provider %d (booking %d, bonus=%d)", totalAmount, providerNet, platformFeeAmount, userID, providerUserID, bookingID, bonusAmount)
 		return nil
 	})
 }

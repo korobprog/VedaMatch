@@ -27,6 +27,17 @@ func bookingHoldSplit(booking *models.ServiceBooking) (regular int, bonus int) {
 	return regular, bonus
 }
 
+func bookingPlatformFeeAmount(booking *models.ServiceBooking) int {
+	fee := booking.PlatformFeeAmount
+	if fee < 0 {
+		return 0
+	}
+	if booking.PricePaid > 0 && fee > booking.PricePaid {
+		return booking.PricePaid
+	}
+	return fee
+}
+
 func isVedaMatchService(service *models.Service) (bool, error) {
 	if service.IsVedaMatch {
 		return true, nil
@@ -181,19 +192,39 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	}
 
 	// Create booking
+	now := time.Now().UTC()
+	commissionCfg := ResolveServiceFeeConfig()
+	commissionEnabled := service.AccessType == models.ServiceAccessPaid &&
+		tariff.Price > 0 &&
+		IsServiceFeeEnabledForUser(clientID)
+	platformFeeAmount := 0
+	providerNetAmount := tariff.Price
+	commissionPercentBps := 0
+	commissionCapLkm := 0
+	if commissionEnabled {
+		platformFeeAmount, providerNetAmount = CalculateServicePlatformFee(tariff.Price, commissionCfg)
+		commissionPercentBps = commissionCfg.PercentBps
+		commissionCapLkm = commissionCfg.CapLkm
+	}
+
 	booking := models.ServiceBooking{
-		ServiceID:       serviceID,
-		TariffID:        req.TariffID,
-		ClientID:        clientID,
-		ScheduledAt:     req.ScheduledAt,
-		DurationMinutes: duration,
-		EndAt:           endAt,
-		Status:          models.BookingStatusPending,
-		PricePaid:       tariff.Price,
-		ClientNote:      req.ClientNote,
-		Source:          normalizeBookingSource(req.Source),
-		SourcePostID:    req.SourcePostID,
-		SourceChannelID: req.SourceChannelID,
+		ServiceID:            serviceID,
+		TariffID:             req.TariffID,
+		ClientID:             clientID,
+		ScheduledAt:          req.ScheduledAt,
+		DurationMinutes:      duration,
+		EndAt:                endAt,
+		Status:               models.BookingStatusPending,
+		PricePaid:            tariff.Price,
+		CommissionPercentBps: commissionPercentBps,
+		CommissionCapLkm:     commissionCapLkm,
+		PlatformFeeAmount:    platformFeeAmount,
+		ProviderNetAmount:    providerNetAmount,
+		FeeCalculatedAt:      &now,
+		ClientNote:           req.ClientNote,
+		Source:               normalizeBookingSource(req.Source),
+		SourcePostID:         req.SourcePostID,
+		SourceChannelID:      req.SourceChannelID,
 	}
 
 	if err := database.DB.Create(&booking).Error; err != nil {
@@ -498,16 +529,41 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 	// Release held funds to provider
 	if booking.PricePaid > 0 {
 		regularHeld, bonusHeld := bookingHoldSplit(&booking)
-		if err := s.walletService.ReleaseFundsWithSplit(
+		platformFee := bookingPlatformFeeAmount(&booking)
+		if err := s.walletService.ReleaseFundsWithPlatformFeeSplit(
 			booking.ClientID,
 			regularHeld,
 			bonusHeld,
 			booking.ID,
 			booking.Service.OwnerID,
+			platformFee,
 			"Оплата услуги: "+booking.Service.Title,
 		); err != nil {
 			log.Printf("[Booking] Failed to release funds for booking %d: %v", bookingID, err)
+			if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeFailedTotal, 1); metricsErr != nil {
+				log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeFailedTotal, metricsErr)
+			}
 			// Don't fail completion, just log
+		} else {
+			releasedAt := time.Now().UTC()
+			if err := database.DB.Model(&models.ServiceBooking{}).Where("id = ?", booking.ID).Update("fee_released_at", &releasedAt).Error; err != nil {
+				log.Printf("[Booking] Failed to persist fee release timestamp for booking %d: %v", booking.ID, err)
+			}
+			if platformFee > 0 {
+				if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeChargedTotal, int64(platformFee)); metricsErr != nil {
+					log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeChargedTotal, metricsErr)
+				}
+				if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeBookingsTotal, 1); metricsErr != nil {
+					log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeBookingsTotal, metricsErr)
+				}
+			}
+			providerNet := regularHeld + bonusHeld - platformFee
+			if providerNet < 0 {
+				providerNet = 0
+			}
+			if metricsErr := GetMetricsService().Increment(MetricServicesProviderNetPaidTotal, int64(providerNet)); metricsErr != nil {
+				log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesProviderNetPaidTotal, metricsErr)
+			}
 		}
 	}
 
@@ -562,15 +618,43 @@ func (s *BookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBoo
 	// Release funds to provider on no-show (client penalty)
 	if booking.PricePaid > 0 {
 		regularHeld, bonusHeld := bookingHoldSplit(&booking)
-		if err := s.walletService.ReleaseFundsWithSplit(
+		platformFee := 0
+		if ResolveServiceFeeConfig().ApplyNoShow {
+			platformFee = bookingPlatformFeeAmount(&booking)
+		}
+		if err := s.walletService.ReleaseFundsWithPlatformFeeSplit(
 			booking.ClientID,
 			regularHeld,
 			bonusHeld,
 			booking.ID,
 			booking.Service.OwnerID,
+			platformFee,
 			"Неявка клиента: "+booking.Service.Title,
 		); err != nil {
 			log.Printf("[Booking] Failed to release funds for no-show booking %d: %v", bookingID, err)
+			if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeFailedTotal, 1); metricsErr != nil {
+				log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeFailedTotal, metricsErr)
+			}
+		} else {
+			releasedAt := time.Now().UTC()
+			if err := database.DB.Model(&models.ServiceBooking{}).Where("id = ?", booking.ID).Update("fee_released_at", &releasedAt).Error; err != nil {
+				log.Printf("[Booking] Failed to persist fee release timestamp for booking %d: %v", booking.ID, err)
+			}
+			if platformFee > 0 {
+				if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeChargedTotal, int64(platformFee)); metricsErr != nil {
+					log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeChargedTotal, metricsErr)
+				}
+				if metricsErr := GetMetricsService().Increment(MetricServicesPlatformFeeBookingsTotal, 1); metricsErr != nil {
+					log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesPlatformFeeBookingsTotal, metricsErr)
+				}
+			}
+			providerNet := regularHeld + bonusHeld - platformFee
+			if providerNet < 0 {
+				providerNet = 0
+			}
+			if metricsErr := GetMetricsService().Increment(MetricServicesProviderNetPaidTotal, int64(providerNet)); metricsErr != nil {
+				log.Printf("[Booking] metric increment failed (%s): %v", MetricServicesProviderNetPaidTotal, metricsErr)
+			}
 		}
 	}
 

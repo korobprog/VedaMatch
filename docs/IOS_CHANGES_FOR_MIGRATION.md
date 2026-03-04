@@ -1,5 +1,67 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Services: platform fee snapshot + master payout visibility)
+
+### Измененные файлы
+- `server/internal/models/service_booking.go`
+- `server/internal/services/service_fee_config_service.go`
+- `server/internal/services/booking_service.go`
+- `server/internal/services/wallet_service.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/database/seed.go`
+- `frontend/services/bookingService.ts`
+- `frontend/screens/portal/services/IncomingBookingsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `Services bookings` не было встроенной комиссии платформы;
+  - при `completed/no_show` вся разморозка уходила мастеру;
+  - в ответе `ServiceBooking` не было финансового snapshot комиссии;
+  - на экране входящих записей мастера показывалась только полная сумма.
+- Стало:
+  - добавлен конфиг комиссии платформы через `SystemSetting` (`enabled/percent_bps/cap/apply_no_show/rollout`);
+  - на создании брони сохраняется snapshot: `commissionPercentBps`, `commissionCapLkm`, `platformFeeAmount`, `providerNetAmount`, `feeCalculatedAt`;
+  - при `completed/no_show` используется атомарный split: часть в `WalletTypePlatform`, остаток мастеру;
+  - для `cancelled` сохранен полный refund клиенту без комиссии;
+  - в UI мастера (`IncomingBookingsScreen`) добавлен блок: `Цена / Комиссия платформы / К получению`.
+
+### Сниппеты кода
+
+`server/internal/services/booking_service.go`:
+```go
+platformFee := bookingPlatformFeeAmount(&booking)
+if err := s.walletService.ReleaseFundsWithPlatformFeeSplit(
+  booking.ClientID,
+  regularHeld,
+  bonusHeld,
+  booking.ID,
+  booking.Service.OwnerID,
+  platformFee,
+  "Оплата услуги: "+booking.Service.Title,
+); err != nil { ... }
+```
+
+`server/internal/services/wallet_service.go`:
+```go
+func (s *WalletService) ReleaseFundsWithPlatformFeeSplit(...) error {
+  // payer frozen -> release
+  // provider credit (net)
+  // platform wallet credit (fee)
+}
+```
+
+`frontend/screens/portal/services/IncomingBookingsScreen.tsx`:
+```tsx
+<View style={styles.financeRow}>
+  <Text style={styles.financeLabel}>Комиссия платформы</Text>
+  <Text style={[styles.financeValue, { color: colors.warning }]}>-{platformFee} ₵</Text>
+</View>
+<View style={styles.financeRow}>
+  <Text style={styles.financeLabelStrong}>К получению</Text>
+  <Text style={[styles.financeValueStrong, { color: colors.success }]}>{providerNet} ₵</Text>
+</View>
+```
+
 ## 2026-03-04 (iOS debug: remove inefficient shadow on transparent View in Portal header)
 
 ### Измененные файлы

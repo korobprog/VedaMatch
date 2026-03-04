@@ -253,6 +253,36 @@
   - `video_circles_upload_s3_fail_total`
   - `video_circles_non_cdn_detected_total`
 
+## Services Platform Fee
+- Для `Услуг` добавлен MVP-комиссии платформы с snapshot на уровне `ServiceBooking`:
+  - поля: `commissionPercentBps`, `commissionCapLkm`, `platformFeeAmount`, `providerNetAmount`, `feeCalculatedAt`, `feeReleasedAt`.
+- Стартовые дефолты в `SystemSetting`:
+  - `SERVICES_PLATFORM_FEE_ENABLED=true`
+  - `SERVICES_PLATFORM_FEE_PERCENT_BPS=800`
+  - `SERVICES_PLATFORM_FEE_CAP_LKM=300`
+  - `SERVICES_PLATFORM_FEE_APPLY_NO_SHOW=true`
+  - `SERVICES_PLATFORM_FEE_ROLLOUT_PERCENT=100`
+- Формула:
+  - `fee = min(pricePaid * percentBps / 10000, capLkm)`
+  - `providerNet = pricePaid - fee`
+- Точки применения:
+  - `Create booking`: расчет и фиксация snapshot комиссии;
+  - `Complete` и `No-show`: release через split-метод кошелька;
+  - `Cancel`: полный refund hold клиенту, комиссии нет.
+- Новый wallet-путь:
+  - `ReleaseFundsWithPlatformFeeSplit(...)` в `server/internal/services/wallet_service.go`:
+    - разморозка у плательщика;
+    - зачисление `net` мастеру;
+    - зачисление `fee` в `WalletTypePlatform`.
+- Метрики комиссии:
+  - `services_platform_fee_charged_total`
+  - `services_platform_fee_bookings_total`
+  - `services_platform_fee_failed_total`
+  - `services_provider_net_paid_total`
+- UI:
+  - На `IncomingBookingsScreen` мастер видит блок `Цена / Комиссия платформы / К получению`;
+  - клиентские экраны не менялись.
+
 ## Sadhu Sanga Module (MVP Contracts)
 - Scope принят как модуль внутри существующего VedaMatch (без отдельного приложения).
 - Подписка на проповедника реализуется через `channels`:

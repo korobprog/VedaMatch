@@ -22,6 +22,10 @@ const (
 	MetricChannelPersonalDeliveryFailedTotal = "channel_personal_delivery_failed_total"
 	MetricPromotedAdsServedTotal             = "promoted_ads_served_total"
 	MetricPromotedAdsClickedTotal            = "promoted_ads_clicked_total"
+	MetricServicesPlatformFeeChargedTotal    = "services_platform_fee_charged_total"
+	MetricServicesPlatformFeeBookingsTotal   = "services_platform_fee_bookings_total"
+	MetricServicesPlatformFeeFailedTotal     = "services_platform_fee_failed_total"
+	MetricServicesProviderNetPaidTotal       = "services_provider_net_paid_total"
 
 	MetricAuthRefreshSuccess                 = "auth_refresh_success"
 	MetricAuthRefreshFail                    = "auth_refresh_fail"
