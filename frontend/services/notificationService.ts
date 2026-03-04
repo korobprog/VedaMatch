@@ -3,8 +3,6 @@ import {
     requestPermission,
     getToken,
     getAPNSToken,
-    registerDeviceForRemoteMessages,
-    isDeviceRegisteredForRemoteMessages,
     onMessage,
     onNotificationOpenedApp,
     getInitialNotification,
@@ -28,6 +26,8 @@ let _incomingCallPushHandler: IncomingCallPushHandler | null = null;
 export const setIncomingCallPushHandler = (fn: IncomingCallPushHandler | null) => {
     _incomingCallPushHandler = fn;
 };
+let hasLoggedMissingApsEntitlement = false;
+let hasLoggedApnsUnavailable = false;
 
 // Lazy-loaded messaging instance to prevent initialization race conditions.
 let messagingInstance: any = null;
@@ -63,16 +63,6 @@ const isMessagingUnregisteredError = (error: unknown): boolean => {
     const message = normalizeErrorMessage(error).toLowerCase();
     return message.includes('messaging/unregistered') ||
         message.includes('registerdeviceforremotemessages');
-};
-
-const ensureIosRemoteMessageRegistration = async (messaging: any): Promise<void> => {
-    if (Platform.OS !== 'ios') return;
-
-    const alreadyRegistered = !!isDeviceRegisteredForRemoteMessages(messaging);
-    if (alreadyRegistered) return;
-
-    await registerDeviceForRemoteMessages(messaging);
-    logPushTelemetry('device_registered_for_remote_messages', { platform: Platform.OS });
 };
 
 const waitForIosApnsToken = async (messaging: any): Promise<string | null> => {
@@ -205,11 +195,13 @@ export const notificationService = {
             const messaging = getMessagingInstance();
 
             if (Platform.OS === 'ios') {
-                await ensureIosRemoteMessageRegistration(messaging);
                 const apnsToken = await waitForIosApnsToken(messaging);
                 logPushTelemetry('apns_token_state', { hasToken: !!apnsToken });
                 if (!apnsToken) {
-                    console.warn('[NotificationService] APNS token unavailable on iOS; skipping FCM token request. Check push capability/profile if this persists.');
+                    if (!hasLoggedApnsUnavailable) {
+                        hasLoggedApnsUnavailable = true;
+                        console.warn('[NotificationService] APNS token unavailable on iOS; skipping FCM token request. Check push capability/profile if this persists.');
+                    }
                     logPushTelemetry('token_register_skipped', { reason: 'apns_token_unavailable' });
                     return null;
                 }
@@ -223,30 +215,16 @@ export const notificationService = {
             }
         } catch (error) {
             if (isMissingApsEnvironmentEntitlement(error)) {
-                console.warn('[NotificationService] FCM token unavailable: missing aps-environment entitlement in current iOS signing profile.');
+                if (!hasLoggedMissingApsEntitlement) {
+                    hasLoggedMissingApsEntitlement = true;
+                    console.warn('[NotificationService] FCM token unavailable: missing aps-environment entitlement in current iOS signing profile.');
+                }
                 logPushTelemetry('token_register_skipped', { reason: 'missing_aps_environment' });
                 return null;
             }
             if (isMessagingUnregisteredError(error)) {
-                try {
-                    const messaging = getMessagingInstance();
-                    await ensureIosRemoteMessageRegistration(messaging);
-                    const apnsToken = await waitForIosApnsToken(messaging);
-                    if (!apnsToken) {
-                        logPushTelemetry('token_register_skipped', { reason: 'apns_token_unavailable_after_register' });
-                        return null;
-                    }
-                    const retryFcmToken = await getToken(messaging);
-                    if (retryFcmToken) {
-                        await AsyncStorage.setItem('pushToken', retryFcmToken);
-                        await registerTokenOnServer(retryFcmToken);
-                        logPushTelemetry('token_register_retry_success', { platform: Platform.OS });
-                        return retryFcmToken;
-                    }
-                } catch (retryError) {
-                    const retryDetails = normalizeErrorMessage(retryError);
-                    console.warn(`[NotificationService] FCM retry failed after device registration: ${retryDetails}`);
-                }
+                logPushTelemetry('token_register_skipped', { reason: 'messaging_unregistered' });
+                return null;
             }
 
             const details = normalizeErrorMessage(error);

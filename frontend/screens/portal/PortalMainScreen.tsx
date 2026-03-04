@@ -211,6 +211,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const serviceLayerSlideshowEnabled = useSolidServiceLayer ? false : layerSlideshowEnabled;
     const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
     const useLightServiceHeaderIcons = useSolidServiceLayer ? false : useLightHeaderIcons;
+    const shouldUseSolidContactsHeader = activeTab === 'contacts';
+    const serviceHeaderBackgroundColor = shouldUseSolidContactsHeader ? vTheme.colors.surface : 'transparent';
+    const serviceHeaderBorderColor = shouldUseSolidContactsHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
 
@@ -779,13 +782,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 variant="portal"
                 enableAura={!useClassicWallpaper}
                 transparentBackground={useClassicWallpaper}
-                headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
+                headerStyle={{
+                    backgroundColor: serviceHeaderBackgroundColor,
+                    borderBottomColor: serviceHeaderBorderColor,
+                }}
             >
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back - Hidden if service manages its own header (like Dating) */}
             {(activeTab !== 'dating' && activeTab !== 'cafe' && activeTab !== 'services' && activeTab !== 'shops' && activeTab !== 'multimedia') && (
-                <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+                <View style={[styles.header, { backgroundColor: serviceHeaderBackgroundColor }]}>
                     <View style={styles.headerLeft}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <View style={[

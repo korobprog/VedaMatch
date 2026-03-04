@@ -1,19 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    Image,
     TextInput,
     ActivityIndicator,
-    RefreshControl,
     Dimensions,
     ImageBackground,
     Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -49,19 +48,227 @@ interface CafeListScreenProps {
     onBack?: () => void;
 }
 
+type CafeSortType = NonNullable<CafeFilters['sort']>;
+
+interface CafeCardProps {
+    item: Cafe;
+    styles: ReturnType<typeof createStyles>;
+    accentColor: string;
+    textSecondaryColor: string;
+    deliveryLabel: string;
+    minLabel: string;
+    onPress: (cafe: Cafe) => void;
+}
+
+const CafeCard = React.memo<CafeCardProps>(({
+    item,
+    styles,
+    accentColor,
+    textSecondaryColor,
+    deliveryLabel,
+    minLabel,
+    onPress,
+}) => {
+    if (!item || item.id === undefined) return null;
+
+    const rating = item.rating ?? 0;
+    const reviewsCount = item.reviewsCount ?? 0;
+
+    return (
+        <TouchableOpacity
+            style={styles.cafeCard}
+            onPress={() => onPress(item)}
+            activeOpacity={0.9}
+        >
+            <View style={styles.cardImageContainer}>
+                <FastImage
+                    source={{
+                        uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200',
+                        priority: FastImage.priority.normal,
+                        cache: FastImage.cacheControl.immutable,
+                    }}
+                    style={styles.cardImage}
+                    resizeMode={FastImage.resizeMode.cover}
+                />
+                <LinearGradient
+                    colors={['transparent', 'rgba(10, 10, 20, 0.9)']}
+                    style={styles.cardImageOverlay}
+                />
+
+                <View style={styles.cardTopBadges}>
+                    <View style={styles.ratingBadge}>
+                        <Star size={10} color={accentColor} fill={accentColor} />
+                        <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+                        <Text style={styles.reviewsText}>({reviewsCount})</Text>
+                    </View>
+
+                    {item.hasDelivery && (
+                        <View style={styles.deliveryBadge}>
+                            <Car size={10} color={accentColor} />
+                            <Text style={styles.deliveryBadgeText}>{deliveryLabel}</Text>
+                        </View>
+                    )}
+                </View>
+
+                {item.logoUrl && (
+                    <View style={styles.cardLogoContainer}>
+                        <FastImage
+                            source={{
+                                uri: item.logoUrl,
+                                priority: FastImage.priority.low,
+                                cache: FastImage.cacheControl.immutable,
+                            }}
+                            style={styles.cardLogo}
+                            resizeMode={FastImage.resizeMode.cover}
+                        />
+                    </View>
+                )}
+            </View>
+
+            <View style={styles.cardContent}>
+                <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+
+                <View style={styles.cardDetailsRow}>
+                    <View style={styles.detailItem}>
+                        <MapPin size={12} color={textSecondaryColor} />
+                        <Text style={styles.detailText} numberOfLines={1}>{item.address}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.cardFooter}>
+                    <View style={styles.badgesRow}>
+                        {item.hasDineIn && (
+                            <View style={styles.miniBadge}>
+                                <Utensils size={10} color={textSecondaryColor} />
+                            </View>
+                        )}
+                        {item.hasTakeaway && (
+                            <View style={styles.miniBadge}>
+                                <ShoppingBag size={10} color={textSecondaryColor} />
+                            </View>
+                        )}
+                    </View>
+
+                    {!!item.avgPrepTime && (
+                        <View style={styles.timeInfo}>
+                            <Clock size={12} color={accentColor} />
+                            <Text style={styles.timeText}>{item.avgPrepTime} {minLabel}</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+}, (prevProps, nextProps) => (
+    prevProps.item === nextProps.item
+    && prevProps.styles === nextProps.styles
+    && prevProps.accentColor === nextProps.accentColor
+    && prevProps.textSecondaryColor === nextProps.textSecondaryColor
+    && prevProps.deliveryLabel === nextProps.deliveryLabel
+    && prevProps.minLabel === nextProps.minLabel
+    && prevProps.onPress === nextProps.onPress
+));
+
+interface CafeSearchInputProps {
+    styles: ReturnType<typeof createStyles>;
+    placeholder: string;
+    placeholderTextColor: string;
+    iconColor: string;
+    onSearchCommit: (query: string) => void;
+}
+
+const CafeSearchInput = React.memo<CafeSearchInputProps>(({
+    styles,
+    placeholder,
+    placeholderTextColor,
+    iconColor,
+    onSearchCommit,
+}) => {
+    const [value, setValue] = useState('');
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const commitSearch = useCallback((query: string) => {
+        onSearchCommit(query);
+    }, [onSearchCommit]);
+
+    const handleChange = useCallback((text: string) => {
+        setValue(text);
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
+        debounceRef.current = setTimeout(() => {
+            commitSearch(text);
+            debounceRef.current = null;
+        }, 350);
+    }, [commitSearch]);
+
+    const handleSubmit = useCallback(() => {
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+            debounceRef.current = null;
+        }
+        commitSearch(value);
+    }, [commitSearch, value]);
+
+    const handleClear = useCallback(() => {
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+            debounceRef.current = null;
+        }
+        setValue('');
+        commitSearch('');
+    }, [commitSearch]);
+
+    useEffect(() => {
+        return () => {
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current);
+                debounceRef.current = null;
+            }
+        };
+    }, []);
+
+    return (
+        <View style={styles.searchSection}>
+            <View style={styles.searchBackground}>
+                <Search size={20} color={iconColor} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder={placeholder}
+                    placeholderTextColor={placeholderTextColor}
+                    value={value}
+                    onChangeText={handleChange}
+                    onSubmitEditing={handleSubmit}
+                />
+                {value.length > 0 && (
+                    <TouchableOpacity onPress={handleClear}>
+                        <XCircle size={20} color={iconColor} />
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+}, (prevProps, nextProps) => (
+    prevProps.styles === nextProps.styles
+    && prevProps.placeholder === nextProps.placeholder
+    && prevProps.placeholderTextColor === nextProps.placeholderTextColor
+    && prevProps.iconColor === nextProps.iconColor
+    && prevProps.onSearchCommit === nextProps.onSearchCommit
+));
+
 const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-    const styles = React.useMemo(() => createStyles(colors), [colors]);
+    const styles = useMemo(() => createStyles(colors), [colors]);
 
     const [cafes, setCafes] = useState<Cafe[]>([]);
     const [loading, setLoading] = useState(true);
+    const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [search, setSearch] = useState('');
     const [filters, setFilters] = useState<CafeFilters>({
         sort: 'rating',
         page: 1,
@@ -74,6 +281,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const latestMyCafeRequestRef = useRef(0);
     const loadMoreInProgressRef = useRef(false);
     const isMountedRef = useRef(true);
+    const searchRef = useRef('');
+    const loadCafesRef = useRef<((reset?: boolean, overrides?: Partial<CafeFilters>, searchOverride?: string) => Promise<void>) | null>(null);
 
     const checkMyCafe = async () => {
         const requestId = ++latestMyCafeRequestRef.current;
@@ -107,9 +316,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         };
         try {
             if (reset) {
-                if (isMountedRef.current) {
+                if (isMountedRef.current && !initialLoadCompleted) {
                     setLoading(true);
-                    setFilters(prev => ({ ...prev, ...overrides, page: 1 }));
                 }
             } else if (isMountedRef.current) {
                 setLoadingMore(true);
@@ -117,7 +325,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
             const response = await cafeService.getCafes({
                 ...nextFilters,
-                search: (searchOverride ?? search) || undefined,
+                search: (searchOverride ?? searchRef.current) || undefined,
             });
             if (requestId !== latestCafesRequestRef.current || !isMountedRef.current) {
                 return;
@@ -141,10 +349,17 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 setLoading(false);
                 setRefreshing(false);
                 setLoadingMore(false);
+                if (!initialLoadCompleted) {
+                    setInitialLoadCompleted(true);
+                }
             }
             loadMoreInProgressRef.current = false;
         }
-    }, [filters, search]);
+    }, [filters, initialLoadCompleted]);
+
+    useEffect(() => {
+        loadCafesRef.current = loadCafes;
+    }, [loadCafes]);
 
     useEffect(() => {
         if (didInitialLoad.current) return;
@@ -166,6 +381,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             return;
         }
         setRefreshing(true);
+        setFilters(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
         loadCafes(true);
     };
 
@@ -178,97 +394,69 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         }
     };
 
-    const handleSearch = () => {
-        loadCafes(true, { page: 1 });
-    };
+    const triggerSearch = useCallback((query: string) => {
+        searchRef.current = query;
+        setFilters(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+        loadCafesRef.current?.(true, { page: 1 }, query);
+    }, []);
 
-    const handleCafePress = (cafe: Cafe) => {
+    const handleCafePress = useCallback((cafe: Cafe) => {
         navigation.navigate('CafeDetail', { cafeId: cafe.id });
-    };
+    }, [navigation]);
 
-    const renderCafeCard = ({ item }: { item: Cafe }) => {
-        if (!item || item.id === undefined) return null;
+    const handleBackPress = useCallback(() => {
+        if (onBack) {
+            onBack();
+            return;
+        }
+        navigation.goBack();
+    }, [navigation, onBack]);
 
-        const rating = item.rating ?? 0;
-        const reviewsCount = item.reviewsCount ?? 0;
+    const handleCreateOrManageCafe = useCallback(() => {
+        if (myCafe) {
+            navigation.navigate('EditCafe', { cafeId: myCafe.id });
+            return;
+        }
+        navigation.navigate('CreateCafe');
+    }, [myCafe, navigation]);
 
-        return (
-            <TouchableOpacity
-                style={styles.cafeCard}
-                onPress={() => handleCafePress(item)}
-                activeOpacity={0.9}
-            >
-                {/* Image Section */}
-                <View style={styles.cardImageContainer}>
-                    <Image
-                        source={{ uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200' }}
-                        style={styles.cardImage}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(10, 10, 20, 0.9)']}
-                        style={styles.cardImageOverlay}
-                    />
+    const handleOpenMap = useCallback(() => {
+        navigation.navigate('CafesMap');
+    }, [navigation]);
 
-                    <View style={styles.cardTopBadges}>
-                        <View style={styles.ratingBadge}>
-                            <Star size={10} color={colors.accent} fill={colors.accent} />
-                            <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-                            <Text style={styles.reviewsText}>({reviewsCount})</Text>
-                        </View>
+    const handleSortChange = useCallback((sort: CafeSortType) => {
+        const currentSort = filters.sort ?? 'rating';
+        if (currentSort === sort) {
+            return;
+        }
 
-                        {item.hasDelivery && (
-                            <View style={styles.deliveryBadge}>
-                                <Car size={10} color={colors.accent} />
-                                <Text style={styles.deliveryBadgeText}>{t('cafe.form.delivery')}</Text>
-                            </View>
-                        )}
-                    </View>
+        setFilters(prev => ({ ...prev, sort, page: 1 }));
+        loadCafes(true, { sort, page: 1 });
+    }, [filters.sort, loadCafes]);
 
-                    {item.logoUrl && (
-                        <View style={styles.cardLogoContainer}>
-                            <Image source={{ uri: item.logoUrl }} style={styles.cardLogo} />
-                        </View>
-                    )}
-                </View>
+    const sortOptions = useMemo(() => ([
+        { type: 'rating' as CafeSortType, label: t('cafe.list.rating'), icon: Star, color: colors.accent },
+        { type: 'popular' as CafeSortType, label: t('cafe.list.popular'), icon: Flame, color: roleTheme.accentStrong },
+        { type: 'newest' as CafeSortType, label: t('cafe.list.newest'), icon: Sparkles, color: colors.warning },
+    ]), [colors.accent, colors.warning, roleTheme.accentStrong, t]);
 
-                {/* Info Section */}
-                <View style={styles.cardContent}>
-                    <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+    const activeSort = filters.sort ?? 'rating';
+    const deliveryLabel = t('cafe.form.delivery');
+    const minLabel = t('common.min');
 
-                    <View style={styles.cardDetailsRow}>
-                        <View style={styles.detailItem}>
-                            <MapPin size={12} color={colors.textSecondary} />
-                            <Text style={styles.detailText} numberOfLines={1}>{item.address}</Text>
-                        </View>
-                    </View>
+    const renderCafeCard = useCallback(({ item }: { item: Cafe }) => (
+        <CafeCard
+            item={item}
+            styles={styles}
+            accentColor={colors.accent}
+            textSecondaryColor={colors.textSecondary}
+            deliveryLabel={deliveryLabel}
+            minLabel={minLabel}
+            onPress={handleCafePress}
+        />
+    ), [colors.accent, colors.textSecondary, deliveryLabel, handleCafePress, minLabel, styles]);
 
-                    <View style={styles.cardFooter}>
-                        <View style={styles.badgesRow}>
-                            {item.hasDineIn && (
-                                <View style={styles.miniBadge}>
-                                    <Utensils size={10} color={colors.textSecondary} />
-                                </View>
-                            )}
-                            {item.hasTakeaway && (
-                                <View style={styles.miniBadge}>
-                                    <ShoppingBag size={10} color={colors.textSecondary} />
-                                </View>
-                            )}
-                        </View>
-
-                        {!!item.avgPrepTime && (
-                            <View style={styles.timeInfo}>
-                                <Clock size={12} color={colors.accent} />
-                                <Text style={styles.timeText}>{item.avgPrepTime} {t('common.min')}</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderHeader = () => (
+    const listHeaderComponent = useMemo(() => (
         <View style={styles.header}>
             <ImageBackground
                 source={require('../../../assets/cafe_banner_bg.png')}
@@ -279,7 +467,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 <View style={styles.headerTop}>
                     <TouchableOpacity
                         style={styles.backButton}
-                        onPress={() => onBack ? onBack() : navigation.goBack()}
+                        onPress={handleBackPress}
                     >
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
@@ -302,7 +490,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 <View style={styles.actionRow}>
                     <TouchableOpacity
                         style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.accentSoft }]}
-                        onPress={() => myCafe ? navigation.navigate('EditCafe', { cafeId: myCafe.id }) : navigation.navigate('CreateCafe')}
+                        onPress={handleCreateOrManageCafe}
                     >
                         <LinearGradient
                             colors={[roleTheme.accentSoft, 'transparent']}
@@ -323,7 +511,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
                     <TouchableOpacity
                         style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                        onPress={() => navigation.navigate('CafesMap')}
+                        onPress={handleOpenMap}
                     >
                         <View style={styles.actionIconOuter}>
                             <MapIcon size={24} color={colors.textPrimary} />
@@ -336,44 +524,23 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 </View>
             </View>
 
-            <View style={styles.searchSection}>
-                <View style={styles.searchBackground}>
-                    <Search size={20} color={colors.textSecondary} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder={t('cafe.list.searchPlaceholder')}
-                        placeholderTextColor={colors.textSecondary}
-                        value={search}
-                        onChangeText={setSearch}
-                        onSubmitEditing={handleSearch}
-                    />
-                    {search.length > 0 && (
-                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true, { page: 1 }, ''); }}>
-                            <XCircle size={20} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
+            <CafeSearchInput
+                styles={styles}
+                placeholder={t('cafe.list.searchPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                iconColor={colors.textSecondary}
+                onSearchCommit={triggerSearch}
+            />
 
             <View style={styles.sortSection}>
-                <FlatList
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    data={[
-                        { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: colors.accent },
-                        { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: roleTheme.accentStrong },
-                        { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: colors.warning },
-                    ]}
-                    contentContainerStyle={styles.sortList}
-                    renderItem={({ item }) => {
-                        const isActive = filters.sort === item.type;
+                <View style={styles.sortList}>
+                    {sortOptions.map(item => {
+                        const isActive = activeSort === item.type;
                         return (
                             <TouchableOpacity
+                                key={item.type}
                                 style={[styles.sortPill, isActive && styles.sortPillActive]}
-                                onPress={() => {
-                                    setFilters(prev => ({ ...prev, sort: item.type as any, page: 1 }));
-                                    loadCafes(true, { sort: item.type as any, page: 1 });
-                                }}
+                                onPress={() => handleSortChange(item.type)}
                             >
                                 <item.icon size={14} color={isActive ? colors.textPrimary : item.color} fill={isActive ? colors.textPrimary : 'none'} />
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
@@ -381,12 +548,36 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                                 </Text>
                             </TouchableOpacity>
                         );
-                    }}
-                    keyExtractor={item => item.type}
-                />
+                    })}
+                </View>
             </View>
         </View>
-    );
+    ), [
+        activeSort,
+        colors.accent,
+        colors.accentSoft,
+        colors.border,
+        colors.surface,
+        colors.textPrimary,
+        colors.textSecondary,
+        handleBackPress,
+        handleCreateOrManageCafe,
+        handleOpenMap,
+        handleSortChange,
+        myCafe,
+        roleTheme.accentSoft,
+        sortOptions,
+        styles,
+        t,
+        triggerSearch,
+    ]);
+
+    const fullHeaderComponent = useMemo(() => (
+        <>
+            <GodModeStatusBanner />
+            {listHeaderComponent}
+        </>
+    ), [listHeaderComponent]);
 
     return (
         <LinearGradient
@@ -394,7 +585,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             style={styles.gradient}
         >
             <View style={styles.container}>
-                {loading && cafes.length === 0 ? (
+                {loading && !initialLoadCompleted ? (
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color={colors.accent} />
                     </View>
@@ -403,22 +594,17 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         data={cafes}
                         renderItem={renderCafeCard}
                         keyExtractor={item => item.id.toString()}
-                        ListHeaderComponent={
-                            <>
-                                <GodModeStatusBanner />
-                                {renderHeader()}
-                            </>
-                        }
+                        ListHeaderComponent={fullHeaderComponent}
                         contentContainerStyle={styles.listContent}
                         numColumns={2}
                         columnWrapperStyle={styles.columnWrapper}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={handleRefresh}
-                                tintColor={colors.accent}
-                            />
-                        }
+                        removeClippedSubviews
+                        initialNumToRender={6}
+                        maxToRenderPerBatch={8}
+                        windowSize={7}
+                        updateCellsBatchingPeriod={50}
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
                         ListFooterComponent={
@@ -614,6 +800,7 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         marginBottom: 20,
     },
     sortList: {
+        flexDirection: 'row',
         paddingHorizontal: 20,
         gap: 10,
     },

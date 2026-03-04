@@ -47,7 +47,7 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Title:          "Искатель",
 		Description:    "Базовый портрет для повседневной духовной практики.",
 		HighlightColor: "#6B7280",
-		QuickAccess:    []string{"path_tracker", "chat", "multimedia"},
+		QuickAccess:    []string{"contacts", "calls", "services"},
 		HeroServices:   []string{"path_tracker", "multimedia", "news", "library"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "path_tracker", Title: "Путь дня", Filters: []string{"daily_step", "gentle_onboarding"}},
@@ -62,7 +62,7 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Title:          "В благости",
 		Description:    "Фокус на благостный лайфстайл, саттвичное окружение и практику.",
 		HighlightColor: "#22C55E",
-		QuickAccess:    []string{"path_tracker", "education", "news"},
+		QuickAccess:    []string{"contacts", "calls", "services"},
 		HeroServices:   []string{"path_tracker", "cafe", "education", "services"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "path_tracker", Title: "Путь дня", Filters: []string{"routine", "stability"}},
@@ -76,7 +76,7 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Title:          "Йог",
 		Description:    "Практики йоги, путешествия, образовательные и офлайн-форматы.",
 		HighlightColor: "#0EA5E9",
-		QuickAccess:    []string{"path_tracker", "travel", "education"},
+		QuickAccess:    []string{"contacts", "calls", "services"},
 		HeroServices:   []string{"path_tracker", "services", "travel", "multimedia"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "path_tracker", Title: "Путь дня", Filters: []string{"technique", "progress"}},
@@ -90,7 +90,7 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Title:          "Преданный",
 		Description:    "Максимальный духовный профиль с акцентом на севу, ятры и общину.",
 		HighlightColor: "#F97316",
-		QuickAccess:    []string{"path_tracker", "seva", "news"},
+		QuickAccess:    []string{"contacts", "calls", "services"},
 		HeroServices:   []string{"path_tracker", "seva", "travel", "news"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "path_tracker", Title: "Путь дня", Filters: []string{"service_focus", "community"}},

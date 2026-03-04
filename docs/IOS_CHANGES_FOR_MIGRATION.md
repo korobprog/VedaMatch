@@ -1,5 +1,62 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Portal header scope fix: keep wallpaper system, apply solid header only in Contacts)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - непрозрачный service-header (`surface`) применялся ко всем service tabs;
+  - это затрагивало общий визуальный режим сервисов шире, чем требовалось для задачи.
+- Стало:
+  - правило сужено только до `activeTab === 'contacts'`;
+  - для остальных service tabs и портального режима сохранено прежнее поведение с прозрачным header и системной сменой обоев.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const shouldUseSolidContactsHeader = activeTab === 'contacts';
+const serviceHeaderBackgroundColor = shouldUseSolidContactsHeader ? vTheme.colors.surface : 'transparent';
+const serviceHeaderBorderColor = shouldUseSolidContactsHeader ? vTheme.colors.divider : 'transparent';
+```
+
+## 2026-03-04 (Portal service header: remove photo wallpaper background in Contacts header area)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - для service-экрана в `ScreenScaffold` явно передавался прозрачный `headerStyle`;
+  - первая попытка через `topBar` не решила проблему до конца, так как `topBar` в теме полупрозрачный (`rgba ... 0.8/0.76`);
+  - в `Contacts` (и других service tabs) фото-фон продолжал просвечивать в шапке.
+- Стало:
+  - добавлен полностью непрозрачный фон service-header: `vTheme.colors.surface`;
+  - этот же фон применяется к самому `View` шапки (не только к `ScreenScaffold.headerStyle`);
+  - фото-фон в header больше не виден.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const serviceHeaderBackgroundColor = vTheme.colors.surface;
+const serviceHeaderBorderColor = vTheme.colors.divider;
+
+<ScreenScaffold
+  variant="portal"
+  enableAura={!useClassicWallpaper}
+  transparentBackground={useClassicWallpaper}
+  headerStyle={{
+    backgroundColor: serviceHeaderBackgroundColor,
+    borderBottomColor: serviceHeaderBorderColor,
+  }}
+>
+
+<View style={[styles.header, { backgroundColor: serviceHeaderBackgroundColor }]}>
+```
+
 ## 2026-03-04 (PROD Observability rollout: backend `/metrics` + monitoring IaC)
 
 ### Измененные файлы
@@ -7480,4 +7537,257 @@ func (s *ServiceService) ListFestivalOccurrences(filters FestivalServiceOccurren
     <FestivalServicePickerModal ... />
   </View>
 )}
+```
+
+## 2026-03-04 (Sattva Cafe: оптимизация ререндеров списка и хедера)
+
+### Измененные файлы
+- `frontend/screens/portal/cafe/CafeListScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при переключении `Рейтинг/Популярные/Новые` происходили лишние ререндеры из-за двойного обновления `filters` и пересоздания тяжелых UI-узлов;
+  - карточки кафе ререндерились на любые изменения в родителе (поиск/сортировка/пагинация);
+  - `FlatList` не использовал базовые настройки виртуализации для снижения нагрузки.
+- Стало:
+  - основной список кафе переведен с `FlatList` на `FlashList` (`@shopify/flash-list`) с `estimatedItemSize/drawDistance`;
+  - сортировка теперь обновляет состояние один раз и игнорирует повторный клик по уже активному фильтру;
+  - горизонтальный сорт-блок заменен с вложенного `FlatList` на обычный `View + map` (3 элемента), чтобы убрать лишнюю виртуализацию;
+  - добавлен debounce поиска `350ms` (при вводе), плюс мгновенный submit без ожидания таймера;
+  - изображения карточек (`cover/logo`) переведены на `react-native-fast-image` с immutable cache;
+  - карточка вынесена в `React.memo` (`CafeCard`) c compare-функцией для пропсов;
+  - хедер списка стабилизирован через `useMemo`, обработчики через `useCallback`;
+  - при reset-запросах `loading` включается только когда список пуст, без лишних state-триггеров на уже загруженном экране.
+
+### Сниппеты кода
+
+`frontend/screens/portal/cafe/CafeListScreen.tsx`:
+```tsx
+const CafeCard = React.memo<CafeCardProps>(..., (prevProps, nextProps) => (
+  prevProps.item === nextProps.item &&
+  prevProps.styles === nextProps.styles &&
+  prevProps.accentColor === nextProps.accentColor &&
+  prevProps.textSecondaryColor === nextProps.textSecondaryColor &&
+  prevProps.deliveryLabel === nextProps.deliveryLabel &&
+  prevProps.minLabel === nextProps.minLabel &&
+  prevProps.onPress === nextProps.onPress
+));
+```
+
+```tsx
+const handleSortChange = useCallback((sort: CafeSortType) => {
+  const currentSort = filters.sort ?? 'rating';
+  if (currentSort === sort) return;
+
+  setFilters(prev => ({ ...prev, sort, page: 1 }));
+  loadCafes(true, { sort, page: 1 });
+}, [filters.sort, loadCafes]);
+```
+
+```tsx
+const handleSearchInput = useCallback((text: string) => {
+  setSearch(text);
+  if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+  searchDebounceRef.current = setTimeout(() => triggerSearch(text), 350);
+}, [triggerSearch]);
+```
+
+```tsx
+<FastImage
+  source={{ uri: item.coverUrl, cache: FastImage.cacheControl.immutable }}
+  resizeMode={FastImage.resizeMode.cover}
+  style={styles.cardImage}
+/>
+```
+
+```tsx
+<FlashList
+  data={cafes}
+  renderItem={renderCafeCard}
+  ListHeaderComponent={fullHeaderComponent}
+  estimatedItemSize={208}
+  drawDistance={900}
+  onRefresh={handleRefresh}
+  refreshing={refreshing}
+  ...
+/>
+```
+
+```tsx
+<View style={styles.sortList}>
+  {sortOptions.map(item => (
+    <TouchableOpacity key={item.type} onPress={() => handleSortChange(item.type)}>
+      ...
+    </TouchableOpacity>
+  ))}
+</View>
+```
+
+## 2026-03-04 (Cafe crash fix on iOS old architecture: FlashList v2 -> FlatList fallback)
+
+### Измененные файлы
+- `frontend/screens/portal/cafe/CafeListScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - основной список кафе использовал `FlashList` v2;
+  - на iOS со старой архитектурой экран падал с ошибкой: `FlashList v2 is only supported on new architecture`.
+- Стало:
+  - список возвращен на `FlatList` с виртуализацией (`removeClippedSubviews`, `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `updateCellsBatchingPeriod`);
+  - остальные оптимизации сохранены (`React.memo` карточек, debounce поиска, `FastImage` cache).
+
+### Сниппеты кода
+
+`frontend/screens/portal/cafe/CafeListScreen.tsx`:
+```tsx
+import { FlatList } from 'react-native';
+// import { FlashList } from '@shopify/flash-list'; // removed
+```
+
+```tsx
+<FlatList
+  data={cafes}
+  renderItem={renderCafeCard}
+  ListHeaderComponent={fullHeaderComponent}
+  removeClippedSubviews
+  initialNumToRender={6}
+  maxToRenderPerBatch={8}
+  windowSize={7}
+  updateCellsBatchingPeriod={50}
+  ...
+/>
+```
+
+## 2026-03-04 (Cafe rerender reduction: local search state + no full-screen reload after initial load)
+
+### Измененные файлы
+- `frontend/screens/portal/cafe/CafeListScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - поле поиска было контролируемым state родительского `CafeListScreen`, из-за чего весь экран пересчитывался на каждый ввод символа;
+  - при `reset`-запросах на пустом списке снова включался глобальный `loading`, что визуально давало “полное обновление экрана”;
+  - даже когда `page` уже `1`, выполнялся лишний `setFilters`.
+- Стало:
+  - поиск вынесен в локальный memo-компонент `CafeSearchInput` со своим state и debounce; родитель обновляется только по commit (debounce/submit/clear);
+  - глобальный full-screen loader показывается только до завершения первого запроса (`initialLoadCompleted`);
+  - обновление `filters.page` выполняется только если страница действительно меняется.
+
+### Сниппеты кода
+
+`frontend/screens/portal/cafe/CafeListScreen.tsx`:
+```tsx
+const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
+...
+if (reset && isMountedRef.current && !initialLoadCompleted) {
+  setLoading(true);
+}
+...
+if (!initialLoadCompleted) setInitialLoadCompleted(true);
+```
+
+```tsx
+const CafeSearchInput = React.memo((...) => {
+  const [value, setValue] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  ...
+  debounceRef.current = setTimeout(() => commitSearch(text), 350);
+});
+```
+
+```tsx
+{loading && !initialLoadCompleted ? (
+  <ActivityIndicator ... />
+) : (
+  <FlatList ... />
+)}
+```
+
+## 2026-03-04 (Default Quick Access: Contacts + Calls + AI Chat)
+
+### Changed Files
+- `frontend/types/portal.ts`
+- `frontend/constants/portalRoles.ts`
+- `server/internal/handlers/portal_blueprints.go`
+
+### Old -> New
+- Old default quick access on install could resolve to non-target combinations (e.g. `calls/services/rooms` or role-specific shortcuts from blueprint).
+- New default quick access on install is unified to:
+  - `contacts`
+  - `calls`
+  - `services` (AI-chat shortcut)
+
+### Code Snippets
+
+`frontend/types/portal.ts`:
+```ts
+export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['contacts', 'calls', 'services'] as const;
+```
+
+`frontend/constants/portalRoles.ts`:
+```ts
+quickAccess: ['contacts', 'calls', 'services'],
+```
+
+`server/internal/handlers/portal_blueprints.go`:
+```go
+QuickAccess: []string{"contacts", "calls", "services"},
+```
+
+### Validation
+- Frontend typecheck attempt:
+  - `npx tsc --noEmit -p tsconfig.json` -> fails on pre-existing unrelated `FlashList` typing in `frontend/screens/portal/cafe/CafeListScreen.tsx` (`columnWrapperStyle`).
+- Frontend targeted test attempt:
+  - `npx jest __tests__/services/portalLayoutService.test.ts --runInBand --watchman=false` -> fails due pre-existing RN test env mock issue (`NativeEventEmitter requires a non-null argument` from `react-native-device-info` import chain).
+- Server package test attempt:
+  - `go test ./internal/handlers/...` -> fails on pre-existing integration tests/auth & env-dependent cases, unrelated to quick-access constant change.
+
+## 2026-03-04 (iOS Push: remove manual RNFirebase registration warning + reduce entitlement log noise)
+
+### Измененные файлы
+- `frontend/services/notificationService.ts`
+
+### Суть правки (от старого к новому)
+- iOS FCM registration flow:
+  - Было: сервис вызывал `registerDeviceForRemoteMessages()` через `ensureIosRemoteMessageRegistration()`, что в текущей конфигурации auto-registration давало warning `Usage of ... is not required`.
+  - Стало: ручная регистрация удалена; используется только стандартный auto-registration путь RNFirebase.
+- Шум логов при отсутствии push-entitlement:
+  - Было: warning про `aps-environment` и `APNS token unavailable` мог повторяться при каждом запуске.
+  - Стало: эти warning-сообщения ограничены одноразовым выводом за сессию (`hasLoggedMissingApsEntitlement`, `hasLoggedApnsUnavailable`), telemetry сохраняется.
+- Поведение при `messaging/unregistered`:
+  - Было: выполнялся retry с ручной регистрацией девайса для remote messages.
+  - Стало: ручной retry удален, событие маркируется как `token_register_skipped: messaging_unregistered` без лишнего шума.
+
+### Сниппеты кода
+
+`frontend/services/notificationService.ts`:
+```ts
+// removed imports
+// registerDeviceForRemoteMessages,
+// isDeviceRegisteredForRemoteMessages,
+```
+
+```ts
+if (Platform.OS === 'ios') {
+  const apnsToken = await waitForIosApnsToken(messaging);
+  if (!apnsToken) {
+    if (!hasLoggedApnsUnavailable) {
+      hasLoggedApnsUnavailable = true;
+      console.warn('[NotificationService] APNS token unavailable on iOS; skipping FCM token request. Check push capability/profile if this persists.');
+    }
+    logPushTelemetry('token_register_skipped', { reason: 'apns_token_unavailable' });
+    return null;
+  }
+}
+```
+
+```ts
+if (isMissingApsEnvironmentEntitlement(error)) {
+  if (!hasLoggedMissingApsEntitlement) {
+    hasLoggedMissingApsEntitlement = true;
+    console.warn('[NotificationService] FCM token unavailable: missing aps-environment entitlement in current iOS signing profile.');
+  }
+  logPushTelemetry('token_register_skipped', { reason: 'missing_aps_environment' });
+  return null;
+}
 ```

@@ -53,7 +53,7 @@ export interface ServiceDefinition {
     color: string;
 }
 
-export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['calls', 'services', 'rooms'] as const;
+export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['contacts', 'calls', 'services'] as const;
 
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [

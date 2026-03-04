@@ -11,6 +11,23 @@
   - `serviceLayerSlideshowEnabled=false`,
   - `serviceLayerOverlayColor='transparent'`.
 - Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
+- Для `contacts` в `PortalMainScreen` включен отдельный непрозрачный header:
+  - `shouldUseSolidContactsHeader = activeTab === 'contacts'`,
+  - `serviceHeaderBackgroundColor = vTheme.colors.surface`,
+  - `serviceHeaderBorderColor = vTheme.colors.divider`.
+- Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
+
+## Cafe List Performance
+- Экран `frontend/screens/portal/cafe/CafeListScreen.tsx` оптимизирован под меньший объем лишних ререндеров:
+  - из-за ограничения `FlashList v2` на старой архитектуре iOS используется `FlatList` fallback с виртуализацией: `removeClippedSubviews`, `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `updateCellsBatchingPeriod`;
+  - изображения карточек (`cover/logo`) переведены на `react-native-fast-image` с `immutable` cache;
+  - поиск переведен в локальный `CafeSearchInput` (memo) с внутренним state и debounce `350ms`; это убирает ререндер всего `CafeListScreen` на каждый символ;
+  - карточка списка вынесена в `React.memo` (`CafeCard`) с compare по стабильным пропсам;
+  - сортировка (`rating/popular/newest`) не триггерит повторную загрузку при клике по уже активному фильтру;
+  - блок сортировки (`Рейтинг/Популярные/Новые`) переведен с `FlatList` на `View + map`, чтобы убрать лишнюю виртуализацию для 3 элементов;
+  - `ListHeaderComponent` стабилизирован через `useMemo`, ключевые обработчики через `useCallback`;
+  - full-screen loader для кафе показывается только до завершения первого загрузочного запроса (`initialLoadCompleted`), поэтому при последующих фильтрах/поиске нет “полной перезагрузки” экрана;
+  - `setFilters(...page:1)` защищен проверкой текущей страницы, чтобы не создавать лишние обновления state.
 
 ## Ads Festivals (Hybrid Calendar)
 - В Ads добавлен отдельный режим секции `Фестивали` (внутри `AdsScreen`), с переключателем `Объявления | Фестивали`.
@@ -579,9 +596,10 @@
 ## Portal Home Layout
 - Иконка ассистента в верхнем хедере портала удалена (`frontend/screens/portal/PortalMainScreen.tsx`).
 - Ярлык `services` закреплен как AI-ярлык (`Bot` -> открытие `Chat` + `handleNewChat()`), а каталог услуг вынесен в отдельный ярлык `services_catalog` (`Briefcase`) (`frontend/types/portal.ts`, `frontend/screens/portal/serviceLaunchResolver.ts`).
-- Дефолтный нижний бар (quick access) зафиксирован как `calls/services/rooms`:
+- Дефолтный нижний бар (quick access) зафиксирован как `contacts/calls/services`:
   - локальный default layout (`frontend/types/portal.ts`);
   - fallback role blueprints (`frontend/constants/portalRoles.ts`);
+  - server role blueprints (`server/internal/handlers/portal_blueprints.go`);
   - нормализация quick access при инициализации layout (`frontend/services/portalLayoutService.ts`), включая автозамену `history -> services`.
 - Для существующих layout добавлена миграция `services_catalog` в первую страницу (рядом с `services` или после 1-го ряда при отсутствии `services`) в `frontend/services/portalLayoutService.ts`.
 - Добавлен отдельный сервисный ярлык `feed` (`Лента`, `PlayCircle`) в `DEFAULT_SERVICES`; для существующих layout он подтягивается через `ensureDefaultServices` при инициализации.
