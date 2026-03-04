@@ -26,6 +26,7 @@ import (
 const (
 	defaultFestivalTimezone = "Europe/Moscow"
 	maxFestivalLinkItems    = 20
+	festivalUpcomingDays    = 3650
 )
 
 type AdsHandler struct {
@@ -608,6 +609,147 @@ func parseFestivalDateRange(raw string) (string, time.Time, time.Time, error) {
 	return dateRaw, start, end, nil
 }
 
+func parseFestivalSourceFilter(raw string) (string, error) {
+	source := strings.TrimSpace(strings.ToLower(raw))
+	if source == "" {
+		return "all", nil
+	}
+	switch source {
+	case "all", "ad", "sadhu":
+		return source, nil
+	default:
+		return "", fmt.Errorf("source must be one of: all, ad, sadhu")
+	}
+}
+
+func parseFestivalFeedPeriodRange(rawPeriod, rawTimezone string, now time.Time) (string, time.Time, time.Time, error) {
+	period := strings.TrimSpace(strings.ToLower(rawPeriod))
+	if period == "" {
+		period = "30d"
+	}
+	switch period {
+	case "today", "7d", "30d", "upcoming":
+	default:
+		return "", time.Time{}, time.Time{}, fmt.Errorf("period must be one of: today, 7d, 30d, upcoming")
+	}
+
+	timezone := strings.TrimSpace(rawTimezone)
+	if timezone == "" {
+		timezone = defaultFestivalTimezone
+	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		return "", time.Time{}, time.Time{}, fmt.Errorf("invalid timezone")
+	}
+
+	nowUTC := now.UTC()
+	nowLocal := nowUTC.In(loc)
+	startAt := nowUTC
+	endAt := nowUTC
+
+	switch period {
+	case "today":
+		startAt = nowUTC
+		endOfDayLocal := time.Date(
+			nowLocal.Year(),
+			nowLocal.Month(),
+			nowLocal.Day(),
+			23,
+			59,
+			59,
+			int(time.Second-time.Nanosecond),
+			loc,
+		)
+		endAt = endOfDayLocal.UTC()
+	case "7d":
+		startAt = nowUTC
+		endAt = nowUTC.Add(7 * 24 * time.Hour)
+	case "30d":
+		startAt = nowUTC
+		endAt = nowUTC.Add(30 * 24 * time.Hour)
+	case "upcoming":
+		startAt = nowUTC
+		endAt = nowUTC.Add(festivalUpcomingDays * 24 * time.Hour)
+	}
+
+	return period, startAt, endAt, nil
+}
+
+func filterFestivalItemsBySource(items []models.FestivalItem, source string) []models.FestivalItem {
+	if source == "all" || source == "" {
+		return items
+	}
+	filtered := make([]models.FestivalItem, 0, len(items))
+	for _, item := range items {
+		switch source {
+		case "ad":
+			if item.Source == "ad" {
+				filtered = append(filtered, item)
+			}
+		case "sadhu":
+			if item.Source == "sadhu_service" {
+				filtered = append(filtered, item)
+			}
+		}
+	}
+	return filtered
+}
+
+func parseFestivalItemStartEnd(item models.FestivalItem) (time.Time, *time.Time, bool) {
+	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(item.StartAt))
+	if err != nil {
+		return time.Time{}, nil, false
+	}
+	startAt = startAt.UTC()
+	trimmedEnd := strings.TrimSpace(item.EndAt)
+	if trimmedEnd == "" {
+		return startAt, nil, true
+	}
+	endAt, endErr := time.Parse(time.RFC3339, trimmedEnd)
+	if endErr != nil {
+		return startAt, nil, true
+	}
+	endUTC := endAt.UTC()
+	return startAt, &endUTC, true
+}
+
+func isFestivalItemOngoing(item models.FestivalItem, now time.Time) bool {
+	startAt, endAt, ok := parseFestivalItemStartEnd(item)
+	if !ok {
+		return false
+	}
+	if startAt.After(now) {
+		return false
+	}
+	if endAt == nil {
+		return true
+	}
+	return !endAt.Before(now)
+}
+
+func sortFestivalFeedItems(items []models.FestivalItem, now time.Time) {
+	sort.SliceStable(items, func(i, j int) bool {
+		leftOngoing := isFestivalItemOngoing(items[i], now)
+		rightOngoing := isFestivalItemOngoing(items[j], now)
+		if leftOngoing != rightOngoing {
+			return leftOngoing
+		}
+
+		leftStart, _, leftOK := parseFestivalItemStartEnd(items[i])
+		rightStart, _, rightOK := parseFestivalItemStartEnd(items[j])
+		if leftOK && rightOK && !leftStart.Equal(rightStart) {
+			return leftStart.Before(rightStart)
+		}
+		if leftOK != rightOK {
+			return leftOK
+		}
+		if items[i].Source != items[j].Source {
+			return items[i].Source == "ad"
+		}
+		return strings.ToLower(items[i].Title) < strings.ToLower(items[j].Title)
+	})
+}
+
 func parseFestivalOptionalUintQuery(raw string) (uint, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
@@ -722,6 +864,8 @@ func (h *AdsHandler) buildFestivalItemFromAd(ad models.Ad, preachers []models.Fe
 		City:          strings.TrimSpace(ad.City),
 		VenueName:     strings.TrimSpace(ad.VenueName),
 		VenueAddress:  strings.TrimSpace(ad.VenueAddress),
+		VenueLat:      ad.VenueLat,
+		VenueLng:      ad.VenueLng,
 		OrganizerName: organizerName,
 		AdID:          &adID,
 		Preachers:     preachers,
@@ -775,6 +919,8 @@ func (h *AdsHandler) buildFestivalItemFromServiceOccurrence(
 		}()),
 		VenueName:     venueName,
 		VenueAddress:  venueAddress,
+		VenueLat:      occ.Service.OfflineLat,
+		VenueLng:      occ.Service.OfflineLng,
 		OrganizerName: buildOrganizerNameFromOwner(occ.Service.Owner),
 		ServiceID:     &serviceID,
 		ChannelID:     channelID,
@@ -1049,6 +1195,168 @@ func (h *AdsHandler) GetFestivals(c *fiber.Ctx) error {
 		Total:      total,
 		Page:       page,
 		TotalPages: calculateAdTotalPages(total, limit),
+	})
+}
+
+// GetFestivalFeed returns upcoming festival feed sorted by relevance:
+// ongoing events first, then upcoming nearest events.
+func (h *AdsHandler) GetFestivalFeed(c *fiber.Ctx) error {
+	_, rangeStart, rangeEnd, err := parseFestivalFeedPeriodRange(
+		c.Query("period"),
+		c.Query("timezone"),
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	sourceFilter, err := parseFestivalSourceFilter(c.Query("source"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	preacherChannelID, err := parseFestivalOptionalUintQuery(c.Query("preacherChannelId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
+	}
+
+	myOnly := parseAdBoolWithDefault(c.Query("myOnly"), false)
+	if myOnly && middleware.GetUserID(c) == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	includeSadhu := parseAdBoolWithDefault(c.Query("includeSadhu"), true)
+	if sourceFilter == "ad" {
+		includeSadhu = false
+	} else if sourceFilter == "sadhu" {
+		includeSadhu = true
+	}
+
+	items, err := h.buildFestivalItems(
+		c,
+		rangeStart,
+		rangeEnd,
+		c.Query("city"),
+		c.Query("search"),
+		preacherChannelID,
+		includeSadhu,
+		myOnly,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch festival feed"})
+	}
+
+	items = filterFestivalItemsBySource(items, sourceFilter)
+	sortFestivalFeedItems(items, time.Now().UTC())
+
+	page, limit, offset := parsePagination(c, 100)
+	total := int64(len(items))
+	if offset >= len(items) {
+		return c.JSON(models.FestivalListResponse{
+			Items:      []models.FestivalItem{},
+			Total:      total,
+			Page:       page,
+			TotalPages: calculateAdTotalPages(total, limit),
+		})
+	}
+
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+
+	return c.JSON(models.FestivalListResponse{
+		Items:      items[offset:end],
+		Total:      total,
+		Page:       page,
+		TotalPages: calculateAdTotalPages(total, limit),
+	})
+}
+
+// GetFestivalFacets returns facet values for festival feed filters.
+func (h *AdsHandler) GetFestivalFacets(c *fiber.Ctx) error {
+	_, rangeStart, rangeEnd, err := parseFestivalFeedPeriodRange(
+		c.Query("period"),
+		c.Query("timezone"),
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	sourceFilter, err := parseFestivalSourceFilter(c.Query("source"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	preacherChannelID, err := parseFestivalOptionalUintQuery(c.Query("preacherChannelId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "preacherChannelId must be a number"})
+	}
+
+	myOnly := parseAdBoolWithDefault(c.Query("myOnly"), false)
+	if myOnly && middleware.GetUserID(c) == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	includeSadhu := parseAdBoolWithDefault(c.Query("includeSadhu"), true)
+	if sourceFilter == "ad" {
+		includeSadhu = false
+	} else if sourceFilter == "sadhu" {
+		includeSadhu = true
+	}
+
+	items, err := h.buildFestivalItems(
+		c,
+		rangeStart,
+		rangeEnd,
+		"",
+		c.Query("search"),
+		preacherChannelID,
+		includeSadhu,
+		myOnly,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch festival facets"})
+	}
+
+	items = filterFestivalItemsBySource(items, sourceFilter)
+
+	type cityBucket struct {
+		display string
+		count   int64
+	}
+	cityBuckets := make(map[string]cityBucket)
+	for _, item := range items {
+		display := strings.TrimSpace(item.City)
+		if display == "" {
+			continue
+		}
+		key := strings.ToLower(display)
+		bucket := cityBuckets[key]
+		if bucket.display == "" {
+			bucket.display = display
+		}
+		bucket.count++
+		cityBuckets[key] = bucket
+	}
+
+	cities := make([]models.FestivalFacetOption, 0, len(cityBuckets))
+	for _, bucket := range cityBuckets {
+		cities = append(cities, models.FestivalFacetOption{
+			Value: bucket.display,
+			Count: bucket.count,
+		})
+	}
+	sort.Slice(cities, func(i, j int) bool {
+		if cities[i].Count != cities[j].Count {
+			return cities[i].Count > cities[j].Count
+		}
+		return strings.ToLower(cities[i].Value) < strings.ToLower(cities[j].Value)
+	})
+
+	return c.JSON(models.FestivalFacetsResponse{
+		Cities: cities,
 	})
 }
 

@@ -212,8 +212,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
     const useLightServiceHeaderIcons = useSolidServiceLayer ? false : useLightHeaderIcons;
     const shouldUseSolidContactsHeader = activeTab === 'contacts';
-    const serviceHeaderBackgroundColor = shouldUseSolidContactsHeader ? vTheme.colors.surface : 'transparent';
-    const serviceHeaderBorderColor = shouldUseSolidContactsHeader ? vTheme.colors.divider : 'transparent';
+    const shouldUseSolidRoomsHeader = activeTab === 'rooms';
+    const shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader;
+    const serviceHeaderBackgroundColor = shouldUseSolidServiceHeader ? vTheme.colors.surface : 'transparent';
+    const serviceHeaderBorderColor = shouldUseSolidServiceHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
 

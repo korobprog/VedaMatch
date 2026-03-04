@@ -5,6 +5,8 @@ import {
     AdFormData,
     CategoryConfig,
     FestivalCalendarResponse,
+    FestivalFacetsResponse,
+    FestivalFeedFilters,
     FestivalFilters,
     FestivalListResponse
 } from '../types/ads';
@@ -60,6 +62,34 @@ class AdsService {
             return response.data;
         } catch (error) {
             console.error(`Error fetching festivals for ${date}:`, error);
+            throw error;
+        }
+    }
+
+    async getFestivalFeed(filters: FestivalFeedFilters = {}): Promise<FestivalListResponse> {
+        try {
+            const response = await apiClient.get('/ads/festivals/feed', {
+                params: {
+                    ...filters,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching festival feed:', error);
+            throw error;
+        }
+    }
+
+    async getFestivalFacets(filters: Omit<FestivalFeedFilters, 'page' | 'limit' | 'city' | 'myOnly' | 'preacherChannelId'> = {}): Promise<FestivalFacetsResponse> {
+        try {
+            const response = await apiClient.get('/ads/festivals/facets', {
+                params: {
+                    ...filters,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching festival facets:', error);
             throw error;
         }
     }

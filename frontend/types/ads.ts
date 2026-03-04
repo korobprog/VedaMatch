@@ -54,6 +54,8 @@ export interface FestivalItem {
     city?: string;
     venueName?: string;
     venueAddress?: string;
+    venueLat?: number;
+    venueLng?: number;
     organizerName?: string;
     adId?: number;
     serviceId?: number;
@@ -177,4 +179,22 @@ export interface FestivalFilters {
     myOnly?: boolean;
     page?: number;
     limit?: number;
+}
+
+export type FestivalFeedSource = 'all' | 'ad' | 'sadhu';
+export type FestivalFeedPeriod = 'today' | '7d' | '30d' | 'upcoming';
+
+export interface FestivalFeedFilters extends FestivalFilters {
+    source?: FestivalFeedSource;
+    period?: FestivalFeedPeriod;
+    timezone?: string;
+}
+
+export interface FestivalFacetOption {
+    value: string;
+    count: number;
+}
+
+export interface FestivalFacetsResponse {
+    cities: FestivalFacetOption[];
 }

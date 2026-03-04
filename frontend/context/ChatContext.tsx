@@ -853,8 +853,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             recordingStartedAtRef.current = Date.now();
             setIsRecording(true);
             setRecordingDuration(0);
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to start recording:', error);
+            Alert.alert(
+                'Запись недоступна',
+                getErrorMessage(error) || 'Не удалось начать запись аудио'
+            );
         }
     };
 
@@ -875,11 +879,15 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             console.log('🚀 Calling handleSendMedia with audio...');
             await handleSendMedia(media);
             console.log('✅ handleSendMedia completed');
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to stop recording:', error);
             setIsRecording(false);
             setRecordingDuration(0);
             recordingStartedAtRef.current = null;
+            Alert.alert(
+                'Ошибка аудио',
+                getErrorMessage(error) || 'Не удалось завершить запись аудио'
+            );
         }
     };
 

@@ -5,7 +5,13 @@ import {
 	launchCamera,
 } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import AudioRecorderPlayer, {
+	AudioEncoderAndroidType,
+	AudioSourceAndroidType,
+	AVEncoderAudioQualityIOSType,
+	AVEncodingOption,
+	OutputFormatAndroidType,
+} from 'react-native-audio-recorder-player';
 import { API_PATH } from '../config/api.config';
 import { PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
@@ -39,6 +45,31 @@ export interface Message {
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 let lastDuration = 0;
+
+function createRecorderConfig() {
+	const isIOS = Platform.OS === 'ios';
+	const path = isIOS
+		? 'DEFAULT'
+		: `${RNFS.CachesDirectoryPath}/voice_${Date.now()}.mp4`;
+
+	const audioSet = isIOS
+		? {
+			AVFormatIDKeyIOS: AVEncodingOption.aac,
+			AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
+			AVSampleRateKeyIOS: 44100,
+			AVNumberOfChannelsKeyIOS: 1,
+		}
+		: {
+			AudioSourceAndroid: AudioSourceAndroidType.MIC,
+			OutputFormatAndroid: OutputFormatAndroidType.MPEG_4,
+			AudioEncoderAndroid: AudioEncoderAndroidType.AAC,
+			AudioSamplingRateAndroid: 44100,
+			AudioEncodingBitRateAndroid: 128000,
+			AudioChannelsAndroid: 1,
+		};
+
+	return { path, audioSet };
+}
 
 function getUploadError(error: unknown, fallback: string): string {
 	const axiosError = error as AxiosError<any>;
@@ -255,13 +286,13 @@ export const mediaService = {
 			}
 
 			console.log('✅ Starting audio recording...');
-
-			const result = await audioRecorderPlayer.startRecorder();
+			lastDuration = 0;
+			const { path, audioSet } = createRecorderConfig();
+			const result = await audioRecorderPlayer.startRecorder(path, audioSet as any, true);
 			console.log('✅ Recording started, result:', result);
 
 			audioRecorderPlayer.addRecordBackListener((e) => {
 				lastDuration = e.currentPosition;
-				console.log('⏱️ Recording duration:', e.currentPosition);
 			});
 		} catch (error) {
 			console.error('❌ Failed to start recording:', error);
@@ -274,6 +305,9 @@ export const mediaService = {
 			console.log('🛑 Stopping audio recording...');
 
 			const rawUri = await audioRecorderPlayer.stopRecorder();
+			if (!rawUri || rawUri === 'Already stopped') {
+				throw new Error('Recording session is not active');
+			}
 			console.log('✅ Recording stopped, URI:', rawUri);
 
 			audioRecorderPlayer.removeRecordBackListener();

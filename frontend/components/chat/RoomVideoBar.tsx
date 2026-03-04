@@ -86,6 +86,12 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose, blo
         setIsPublishingAudio(false);
         setIsPublishingVideo(false);
       } catch (error: any) {
+        if (isExpectedClientDisconnectError(error)) {
+          if (mounted) {
+            setStatus('Disconnected');
+          }
+          return;
+        }
         console.error('[RoomVideoBar] failed to connect SFU:', error);
         if (mounted) {
           setStatus('Room video unavailable');
@@ -94,6 +100,12 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose, blo
     };
 
     connect().catch((error: any) => {
+      if (isExpectedClientDisconnectError(error)) {
+        if (mounted) {
+          setStatus('Disconnected');
+        }
+        return;
+      }
       console.error('[RoomVideoBar] connect effect failed', error);
       if (mounted) {
         setStatus('Room video unavailable');
@@ -103,6 +115,9 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose, blo
     return () => {
       mounted = false;
       sfuClient.disconnect().catch((error: any) => {
+        if (isExpectedClientDisconnectError(error)) {
+          return;
+        }
         console.error('[RoomVideoBar] disconnect effect failed', error);
       });
     };
@@ -314,4 +329,9 @@ function formatConnectionState(state: RoomSfuConnectionState): string {
     default:
       return 'Preparing room call...';
   }
+}
+
+function isExpectedClientDisconnectError(error: unknown): boolean {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return message.includes('client initiated disconnect');
 }

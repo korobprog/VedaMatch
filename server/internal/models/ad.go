@@ -198,6 +198,8 @@ type FestivalItem struct {
 	City          string             `json:"city,omitempty"`
 	VenueName     string             `json:"venueName,omitempty"`
 	VenueAddress  string             `json:"venueAddress,omitempty"`
+	VenueLat      *float64           `json:"venueLat,omitempty"`
+	VenueLng      *float64           `json:"venueLng,omitempty"`
 	OrganizerName string             `json:"organizerName,omitempty"`
 	AdID          *uint              `json:"adId,omitempty"`
 	ServiceID     *uint              `json:"serviceId,omitempty"`
@@ -221,6 +223,15 @@ type FestivalCalendarDay struct {
 type FestivalCalendarResponse struct {
 	Month string                `json:"month"`
 	Days  []FestivalCalendarDay `json:"days"`
+}
+
+type FestivalFacetOption struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+type FestivalFacetsResponse struct {
+	Cities []FestivalFacetOption `json:"cities"`
 }
 
 // AdResponse for API responses

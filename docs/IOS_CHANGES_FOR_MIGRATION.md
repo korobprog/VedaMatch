@@ -1,5 +1,146 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (Ads: default festivals feed + feed filters + feed/calendar sub-tabs)
+
+### Измененные файлы
+- `server/internal/models/ad.go`
+- `server/internal/handlers/ads_handler.go`
+- `server/cmd/api/main.go`
+- `frontend/types/ads.ts`
+- `frontend/services/adsService.ts`
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+- `frontend/components/ads/FestivalViewSwitch.tsx`
+- `frontend/components/ads/FestivalFeedList.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в Ads для фестивалей был только календарный режим, отдельной карточной ленты не было;
+  - отсутствовали API для фестивальной feed-выдачи и фасетов городов;
+  - на фронте не было под-переключателя `Лента/Календарь` внутри `Фестивали`, дефолтный вход в Ads не открывал сразу feed;
+  - в i18n не хватало ключей для feed-фильтров и карточек.
+- Стало:
+  - добавлены API:
+    - `GET /api/ads/festivals/feed`
+    - `GET /api/ads/festivals/facets`
+  - feed сортируется по правилу: сначала `ongoing`, затем ближайшие `upcoming` по `startAt ASC`;
+  - добавлены фильтры feed: `Город`, `Источник (all/ad/sadhu)`, `Период (today/7d/30d/upcoming)`, поиск;
+  - `AdsScreen` теперь по умолчанию открывается в `Фестивали -> Лента`, календарь сохранен как второй режим;
+  - добавлены новые RN-компоненты `FestivalViewSwitch` и `FestivalFeedList`, локализация расширена.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+api.Get("/ads/festivals/feed", middleware.OptionalAuth(), adsHandler.GetFestivalFeed)
+api.Get("/ads/festivals/facets", middleware.OptionalAuth(), adsHandler.GetFestivalFacets)
+```
+
+`server/internal/handlers/ads_handler.go`:
+```go
+func (h *AdsHandler) GetFestivalFeed(c *fiber.Ctx) error {
+  // period/source parsing + buildFestivalItems + sortFestivalFeedItems + pagination
+}
+```
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+const [sectionMode, setSectionMode] = useState<AdsSectionMode>('festivals');
+const [festivalViewMode, setFestivalViewMode] = useState<FestivalViewMode>('feed');
+```
+
+```tsx
+{festivalViewMode === 'feed' ? (
+  <FestivalFeedList ... />
+) : (
+  <FestivalMonthCalendar ... />
+)}
+```
+
+## 2026-03-04 (Chat audio recording: explicit recorder config + user-visible errors)
+
+### Измененные файлы
+- `frontend/services/mediaService.ts`
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `startRecorder()` запускался с дефолтными параметрами без явного `audioSet` и без целевого пути файла;
+  - после первой доработки на iOS передавался абсолютный путь, но `react-native-audio-recorder-player` на iOS ожидает `DEFAULT`/relative path, из-за чего возникал `Error occured during initiating recorder`;
+  - в `ChatContext` ошибки старта/остановки записи логировались только в консоль, пользователь не получал ясную причину.
+- Стало:
+  - добавлен явный конфиг рекордера: `audioSet` для iOS/Android (AAC, sample rate, channels);
+  - для iOS путь записи переключен на `DEFAULT` (совместимо с native-модулем), для Android остается cache-файл;
+  - добавлена защита на `stopRecorder()` для случая `Already stopped`;
+  - при ошибках старта/остановки записи теперь показывается `Alert` с текстом ошибки.
+
+### Сниппеты кода
+
+`frontend/services/mediaService.ts`:
+```tsx
+const { path, audioSet } = createRecorderConfig();
+const result = await audioRecorderPlayer.startRecorder(path, audioSet as any, true);
+
+const path = Platform.OS === 'ios'
+  ? 'DEFAULT'
+  : `${RNFS.CachesDirectoryPath}/voice_${Date.now()}.mp4`;
+```
+
+`frontend/context/ChatContext.tsx`:
+```tsx
+Alert.alert(
+  'Запись недоступна',
+  getErrorMessage(error) || 'Не удалось начать запись аудио'
+);
+```
+
+## 2026-03-04 (Rooms SFU: suppress expected client-disconnect race in RoomVideoBar)
+
+### Измененные файлы
+- `frontend/components/chat/RoomVideoBar.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при `connect()` гонка с cleanup `disconnect()` (часто в dev/эмуляторе) приводила к ожидаемой ошибке `ConnectionError: Client initiated disconnect`;
+  - эта ожидаемая ситуация логировалась через `console.error`, из-за чего показывался overlay `Console Error`.
+- Стало:
+  - добавлен фильтр ожидаемой ошибки `Client initiated disconnect`;
+  - для этого случая статус переводится в `Disconnected` без `console.error`;
+  - нецелевые ошибки SFU по-прежнему логируются как раньше.
+
+### Сниппеты кода
+
+`frontend/components/chat/RoomVideoBar.tsx`:
+```tsx
+if (isExpectedClientDisconnectError(error)) {
+  if (mounted) setStatus('Disconnected');
+  return;
+}
+```
+
+## 2026-03-04 (Rooms service header: remove photo wallpaper under menu bar)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - непрозрачный header был включен только для `contacts`;
+  - в `rooms` (service tab `activeTab === 'rooms'`) верхняя шапка оставалась прозрачной и показывала фото-обои.
+- Стало:
+  - добавлено отдельное условие для `rooms`;
+  - в сервисе комнат header рендерится непрозрачным (`surface/divider`), фото-фон под меню не показывается.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const shouldUseSolidContactsHeader = activeTab === 'contacts';
+const shouldUseSolidRoomsHeader = activeTab === 'rooms';
+const shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader;
+```
+
 ## 2026-03-04 (Portal header scope fix: keep wallpaper system, apply solid header only in Contacts)
 
 ### Измененные файлы

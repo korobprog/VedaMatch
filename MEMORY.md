@@ -11,8 +11,10 @@
   - `serviceLayerSlideshowEnabled=false`,
   - `serviceLayerOverlayColor='transparent'`.
 - Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
-- Для `contacts` в `PortalMainScreen` включен отдельный непрозрачный header:
+- Для `contacts` и `rooms` в `PortalMainScreen` включен отдельный непрозрачный header:
   - `shouldUseSolidContactsHeader = activeTab === 'contacts'`,
+  - `shouldUseSolidRoomsHeader = activeTab === 'rooms'`,
+  - `shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader`,
   - `serviceHeaderBackgroundColor = vTheme.colors.surface`,
   - `serviceHeaderBorderColor = vTheme.colors.divider`.
 - Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
@@ -31,9 +33,14 @@
 
 ## Ads Festivals (Hybrid Calendar)
 - В Ads добавлен отдельный режим секции `Фестивали` (внутри `AdsScreen`), с переключателем `Объявления | Фестивали`.
+- Внутри `Фестивали` добавлен второй уровень представления:
+  - `Лента | Календарь`, где по умолчанию открыт режим `Лента`;
+  - при открытии сервиса Ads дефолтный сценарий: `Фестивали -> Лента`.
 - Новый backend API:
   - `GET /api/ads/festivals/calendar`
   - `GET /api/ads/festivals`
+  - `GET /api/ads/festivals/feed` (поиск/фильтры/пагинация для карточной ленты)
+  - `GET /api/ads/festivals/facets` (фасеты городов для фильтра ленты)
   - оба маршрута зарегистрированы с `middleware.OptionalAuth()` в `server/cmd/api/main.go`.
 - Модель `Ad` расширена festival-полями:
   - `festivalStartAt/festivalEndAt/festivalTimezone`
@@ -55,6 +62,13 @@
   - `ServiceService.ListFestivalOccurrences(...)` с генерацией событий по `specificDate` и weekly `dayOfWeek`.
 - RN-слой:
   - новые компоненты: `FestivalSectionSwitch`, `FestivalMonthCalendar`, `FestivalAgendaList`, `FestivalPreacherPickerModal`, `FestivalServicePickerModal`;
+  - добавлены `FestivalViewSwitch` и `FestivalFeedList` для карточной ленты фестивалей;
+  - `AdsScreen` разделен на 3 режима рендера:
+    - `Объявления` (старый режим),
+    - `Фестивали -> Лента` (новый дефолт),
+    - `Фестивали -> Календарь` (existing behavior);
+  - в ленте работают фильтры `Город/Источник/Период` и поиск по фестивалям;
+  - карточка ленты поддерживает CTA `Подробнее` и `На карте`.
   - `CreateAdScreen` для `events` показывает date-time, organizer/venue, ручной picker проповедников и picker linked services;
   - `AdDetailScreen` для event-объявлений показывает блоки «О фестивале» и «Проповедники».
 - Admin Ads:
@@ -108,6 +122,10 @@
   - раньше `Unregister` удалял запись только по `userID` и мог снести уже новый активный сокет;
   - теперь удаление идет только если `current == client`, а при новом `Register` старый сокет того же `userID` закрывается.
 - Добавлен тест `server/internal/websocket/hub_test.go` на сценарий `old unregister after new register`, чтобы не допустить регресс пропусков сообщений.
+- В `frontend/components/chat/RoomVideoBar.tsx` ожидаемая гонка `connect()/disconnect()` с текстом `Client initiated disconnect` больше не логируется как `console.error`:
+  - добавлен фильтр `isExpectedClientDisconnectError(...)`;
+  - для этой ситуации выставляется статус `Disconnected` без error-overlay в dev/эмуляторе;
+  - остальные ошибки подключения SFU по-прежнему логируются.
 
 ## Chat Navigation Reliability (Android)
 - Для `frontend/screens/ChatScreen.tsx` аппаратный back переведен на `useFocusEffect` + единый `handleBackNavigation`, чтобы listener был активен только при фокусе экрана.
@@ -120,6 +138,11 @@
 - В `frontend/components/chat/MessageList.tsx` входящие P2P-сообщения (`sender === 'other'`) теперь используют реальный `recipientUser.avatarUrl` (через `getMediaUrl`) вместо ассистент-аватара; при отсутствии фото показывается инициал.
 - В `frontend/screens/portal/PortalMainScreen.tsx` `NotificationPanel` рендерится не только в grid-режиме, но и в активных сервисах (`contacts/calls`), чтобы колокольчик открывал историю уведомлений на обоих экранах.
 - В `frontend/components/chat/ChatHeader.tsx` и `frontend/screens/ChatScreen.tsx` выровнены отступы/высота шапки под VedaMatch: header получает `topInset`, исправлены line-height/title-subtitle clipping.
+- Для голосовых сообщений чата:
+  - в `frontend/services/mediaService.ts` запись запускается с явным `audioSet` и выделенным файлом (`createRecorderConfig`) вместо дефолтного `startRecorder()` без параметров;
+  - важный iOS нюанс `react-native-audio-recorder-player`: для стабильного старта нужно использовать путь `DEFAULT` (а не абсолютный путь), иначе возможен `Error occured during initiating recorder`;
+  - добавлена проверка на `stopRecorder() === "Already stopped"` с понятной ошибкой;
+  - в `frontend/context/ChatContext.tsx` ошибки старта/остановки записи показываются пользователю через `Alert`, а не только в консоли.
 - Для светлых chat backgrounds добавлен отдельный контрастный режим:
   - `frontend/utils/chatBackgroundContrast.ts` определяет светлый/темный цвет и градиент;
   - `frontend/components/chat/ChatHeader.tsx` для светлого фона использует более темные title/subtitle/icon цвета в VedaMatch-теме;
