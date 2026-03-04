@@ -8219,3 +8219,35 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://vedamatch.ru/terms' },
 };
 ```
+
+## 2026-03-04 (Account deletion hardening: revoke session enforced for access tokens)
+
+### Измененные файлы
+- `server/internal/middleware/auth.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после `DELETE /account` refresh-сессии помечались как revoked, но `Protected()` проверял только валидность JWT;
+  - access token мог оставаться рабочим до истечения `exp` (по умолчанию до 15 минут), даже если сессия уже отозвана.
+- Стало:
+  - `Protected()` теперь дополнительно валидирует `sessionId` из JWT по таблице `auth_sessions` (`revoked_at IS NULL` и `expires_at > now`);
+  - отозванная/просроченная сессия немедленно дает `401 Session revoked`;
+  - `OptionalAuth()` также игнорирует контекст пользователя при неактивной сессии.
+
+### Сниппеты кода
+
+`server/internal/middleware/auth.go`:
+```go
+func isActiveAuthSession(userID uint, sessionID uint) (bool, error) {
+  return count > 0, nil
+}
+```
+
+```go
+if claims.SessionID > 0 {
+  active, sessionErr := isActiveAuthSession(claims.UserID, claims.SessionID)
+  if !active {
+    return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Session revoked"})
+  }
+}
+```

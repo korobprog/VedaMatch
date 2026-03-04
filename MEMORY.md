@@ -642,6 +642,17 @@
   - локально (`admin` dev) `/terms`, `/privacy`, `/delete-account` проходят с `200` и без login redirect;
   - прод `https://vedamatch.ru/*` пока возвращает `404` до выката/деплоя актуального admin build.
 
+## Account Deletion / Auth Invalidation
+- API удаления аккаунта:
+  - `DELETE /api/account` удаляет/анонимизирует аккаунт и ревокает refresh-сессии (`auth_sessions.revoked_at`) + device tokens.
+- Критичное усиление (2026-03-04):
+  - `server/internal/middleware/auth.go` теперь проверяет `sessionId` из access JWT против `auth_sessions` на каждом `Protected()` запросе;
+  - revoked/expired session немедленно блокирует доступ (`401 Session revoked`) без ожидания истечения `exp` токена;
+  - аналогичная проверка добавлена в `OptionalAuth()` (неактивная сессия игнорируется как anonymous).
+- Пользовательский эффект:
+  - после удаления аккаунта приложение чистит локальную сессию;
+  - сервер больше не принимает старый access token от отозванной сессии.
+
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии (2026-02-27):

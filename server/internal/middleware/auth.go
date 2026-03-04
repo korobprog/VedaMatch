@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strconv"
 	"strings"
@@ -153,6 +154,21 @@ func applyAccessClaims(c *fiber.Ctx, claims *AccessClaims) {
 	}
 }
 
+func isActiveAuthSession(userID uint, sessionID uint) (bool, error) {
+	if userID == 0 || sessionID == 0 {
+		return true, nil
+	}
+
+	var count int64
+	err := database.DB.Model(&models.AuthSession{}).
+		Where("id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?", sessionID, userID, time.Now().UTC()).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // Protected verifies the JWT token
 func Protected() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -183,6 +199,23 @@ func Protected() fiber.Handler {
 				"error": "Invalid or expired token",
 			})
 		}
+
+		if claims.SessionID > 0 {
+			active, sessionErr := isActiveAuthSession(claims.UserID, claims.SessionID)
+			if sessionErr != nil {
+				log.Printf("[AUTH] Session state check failed user=%d session=%d err=%v", claims.UserID, claims.SessionID, sessionErr)
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"error": "Auth service unavailable",
+				})
+			}
+			if !active {
+				logAuthFailure(c, "revoked_session", "")
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Session revoked",
+				})
+			}
+		}
+
 		applyAccessClaims(c, claims)
 
 		return c.Next()
@@ -205,6 +238,13 @@ func OptionalAuth() fiber.Handler {
 		claims, err := ParseAccessToken(tokenString)
 		if err != nil {
 			return c.Next()
+		}
+
+		if claims.SessionID > 0 {
+			active, sessionErr := isActiveAuthSession(claims.UserID, claims.SessionID)
+			if sessionErr != nil || !active {
+				return c.Next()
+			}
 		}
 
 		applyAccessClaims(c, claims)
