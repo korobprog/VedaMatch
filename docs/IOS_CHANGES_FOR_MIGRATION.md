@@ -1,5 +1,80 @@
 # IOS Changes For Migration
 
+## 2026-03-04 (iOS debug: remove inefficient shadow on transparent View in Portal header)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `shadow*` применялся к обертке `View` с `backgroundColor: 'transparent'` в кнопке Back в service-header;
+  - iOS в debug выдавал повторяющийся advisory: `RCTView has a shadow set but cannot calculate shadow efficiently`.
+- Стало:
+  - shadow перенесен на `TouchableOpacity`, где уже есть непрозрачный фон;
+  - у внутреннего прозрачного `View` удалены shadow-параметры;
+  - визуально кнопка сохранена, шум debug-консоли снижен.
+
+### Сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<View style={[styles.avatarButton, { backgroundColor: 'transparent' }]}>
+  <TouchableOpacity
+    style={{
+      ...,
+      backgroundColor: useLightServiceHeaderIcons ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+        },
+        android: { elevation: 8 },
+      }),
+    }}
+  >
+```
+
+## 2026-03-04 (Chat audio visibility monitoring: robust audio render fallback)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/services/messageService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - аудио-UI рендерился строго при `item.type === 'audio' && item.content`;
+  - если payload приходил без `content` (но с URL в `text`) или с неполным `type`, аудио-сообщение визуально «пропадало»;
+  - `mimeType` не прокидывался во всех местах нормализации (`history/ws/local`), что усложняло fallback-детекцию.
+- Стало:
+  - в `ChatContext` унифицировано заполнение `text/content/mimeType` для history, websocket и локальной отправки;
+  - в `MessageList` добавлен `resolveAudioUrl(...)`: аудио определяется не только по `type`, но и по `mimeType`, расширению `fileName` и URL (`.m4a/.mp3/.wav/.aac/.ogg/.webm`);
+  - если `content` пуст, но аудио-URL есть в `text`, компонент теперь рендерит `AudioPlayer`.
+
+### Сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```tsx
+const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
+  text: m.content || m.text || '',
+  content: m.content || m.text || '',
+  mimeType: m.mimeType,
+  ...
+});
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const audioUrl = resolveAudioUrl(item);
+
+...
+{audioUrl ? (
+  <AudioPlayer url={audioUrl} duration={item.duration} isDarkMode={isDarkMode} />
+) : ...}
+```
+
 ## 2026-03-04 (Ads Festivals create preset: only Events + only Offering tab)
 
 ### Измененные файлы
@@ -8103,4 +8178,44 @@ const isFestivalPresetCreate = !adId && initialCategory === 'events';
 ) : (
   <CategoryPills ... />
 )}
+```
+
+## 2026-03-04 (RuStore legal links: public web pages without auth gate)
+
+### Измененные файлы
+- `admin/src/components/AdminLayout.tsx`
+- `admin/src/app/terms/page.tsx`
+- `admin/src/app/privacy/page.tsx`
+- `admin/src/app/delete-account/page.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `https://vedamatch.ru/terms`, `https://vedamatch.ru/privacy`, `https://vedamatch.ru/delete-account` на проде не имели публичных страниц;
+  - legal URL могли попадать под общий auth-gate admin layout.
+- Стало:
+  - добавлены публичные Next.js страницы `/terms`, `/privacy`, `/delete-account` с RU-контентом и canonical URL;
+  - в `AdminLayout` legal роуты вынесены в публичный allowlist и не редиректятся на `/login` для гостя;
+  - проверка маршрутов усилена: учитываются как точные пути, так и варианты с хвостом (`/terms/...`).
+
+### Сниппеты кода
+
+`admin/src/components/AdminLayout.tsx`:
+```ts
+const publicLegalRoutes = ['/terms', '/privacy', '/delete-account'];
+const isPublicLegalRoute = (path: string): boolean =>
+  publicLegalRoutes.some((route) => path === route || path.startsWith(`${route}/`));
+```
+
+```ts
+const isGuestAllowedRoute = pathname === '/feed-posts' || isPublicLegalRoute(pathname);
+...
+const isPublicRoute = ... || isPublicLegalRoute(pathname);
+```
+
+`admin/src/app/terms/page.tsx` (аналогично для `privacy`/`delete-account`):
+```ts
+export const metadata: Metadata = {
+  title: 'Условия использования | VedaMatch',
+  alternates: { canonical: 'https://vedamatch.ru/terms' },
+};
 ```

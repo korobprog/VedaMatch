@@ -22,6 +22,7 @@
   - `serviceHeaderBackgroundColor = vTheme.colors.surface`,
   - `serviceHeaderBorderColor = vTheme.colors.divider`.
 - Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
+- iOS debug-предупреждение `RCTView has a shadow set but cannot calculate shadow efficiently` для back-кнопки в `PortalMainScreen` устраняется переносом `shadow*` с прозрачного `View` на `TouchableOpacity` с непрозрачным `backgroundColor`; shadow на внутреннем прозрачном icon-wrapper не использовать.
 
 ## Cafe List Performance
 - Экран `frontend/screens/portal/cafe/CafeListScreen.tsx` оптимизирован под меньший объем лишних ререндеров:
@@ -163,6 +164,10 @@
   - важный iOS нюанс `react-native-audio-recorder-player`: для стабильного старта нужно использовать путь `DEFAULT` (а не абсолютный путь), иначе возможен `Error occured during initiating recorder`;
   - добавлена проверка на `stopRecorder() === "Already stopped"` с понятной ошибкой;
   - в `frontend/context/ChatContext.tsx` ошибки старта/остановки записи показываются пользователю через `Alert`, а не только в консоли.
+  - для стабильного отображения аудио-сообщений в `frontend/components/chat/MessageList.tsx` добавлен fallback `resolveAudioUrl`:
+    - рендер аудио теперь определяется не только `type==='audio'`, но и по `mimeType`, extension (`fileName/url`) и URL из `text`;
+    - если `content` пуст, но аудио-URL есть в `text`, показывается `AudioPlayer`.
+  - в `frontend/context/ChatContext.tsx` и `frontend/services/messageService.ts` унифицировано пробрасывание `mimeType` и `content` (`content || text`) для history/ws/local upload.
 - Для светлых chat backgrounds добавлен отдельный контрастный режим:
   - `frontend/utils/chatBackgroundContrast.ts` определяет светлый/темный цвет и градиент;
   - `frontend/components/chat/ChatHeader.tsx` для светлого фона использует более темные title/subtitle/icon цвета в VedaMatch-теме;
@@ -612,6 +617,30 @@
   - Рекомендуется добавить как фактически используемый в продукте: `43` (temporary accommodation + cafes/restaurants booking/info).
   - `36` оставлять только при реальном запуске финсервиса с отдельным compliance-контуром; не смешивать с мобильной витриной, где LKM описывается как non-monetary internal points.
   - В `42` избегать избыточных формулировок про заказную разработку ПО/B2B-консалтинг, если это не отдельная коммерческая услуга.
+
+## Store Legal Links (RuStore)
+- Целевой публичный контракт для стора:
+  - `https://vedamatch.ru/terms`
+  - `https://vedamatch.ru/privacy`
+  - `https://vedamatch.ru/delete-account`
+- Источник страниц: Next.js admin (`/Users/mamu/Documents/vedicai/admin`) с публичными app-router page:
+  - `src/app/terms/page.tsx`
+  - `src/app/privacy/page.tsx`
+  - `src/app/delete-account/page.tsx`
+- Auth-gate требование:
+  - legal-роуты должны быть в public allowlist в `src/components/AdminLayout.tsx`;
+  - для гостя без `admin_data` не допускается redirect на `/login` с legal URL.
+- Контентный минимум (RU для RuStore):
+  - дата обновления;
+  - юридический/приватный контакт (`legal@vedamatch.ru`, `privacy@vedamatch.ru`, `support@vedamatch.ru`);
+  - описание удаления аккаунта и сроков хранения.
+- Проверка готовности:
+  - `curl -I` для 3 URL возвращает `200`;
+  - без `Location: /login`;
+  - в HTML присутствует релевантный заголовок документа, без формы логина.
+- Текущий статус на 2026-03-04:
+  - локально (`admin` dev) `/terms`, `/privacy`, `/delete-account` проходят с `200` и без login redirect;
+  - прод `https://vedamatch.ru/*` пока возвращает `404` до выката/деплоя актуального admin build.
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.

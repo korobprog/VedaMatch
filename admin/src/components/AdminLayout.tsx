@@ -75,10 +75,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const [admin, setAdmin] = useState<any>(null);
     const router = useRouter();
     const pathname = usePathname();
+    const publicLegalRoutes = ['/terms', '/privacy', '/delete-account'];
+    const isPublicLegalRoute = (path: string): boolean =>
+        publicLegalRoutes.some((route) => path === route || path.startsWith(`${route}/`));
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
-        const isGuestAllowedRoute = pathname === '/feed-posts';
+        const isGuestAllowedRoute = pathname === '/feed-posts' || isPublicLegalRoute(pathname);
         if (!data) {
             if (!isGuestAllowedRoute && pathname !== '/login' && pathname !== '/' && pathname !== '/register') {
                 router.push('/login');
@@ -118,7 +121,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.push('/login');
     };
 
-    const isPublicRoute = pathname === '/login' || pathname === '/' || pathname === '/register' || pathname === '/admin-login' || pathname === '/feed-posts';
+    const isPublicRoute =
+        pathname === '/login' ||
+        pathname === '/' ||
+        pathname === '/register' ||
+        pathname === '/admin-login' ||
+        pathname === '/feed-posts' ||
+        isPublicLegalRoute(pathname);
     const isUserDashboard = pathname === '/user/dashboard';
 
     // Shared routes that both admins and users can access, but with different layouts
