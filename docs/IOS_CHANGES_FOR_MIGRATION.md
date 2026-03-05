@@ -1,5 +1,324 @@
 # IOS Changes For Migration
 
+## 2026-03-06 (Chat open-at-bottom stabilization + large history virtualization)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при входе в чат с большим числом аудио/медиа-сообщений список мог открываться не на последнем сообщении;
+  - автодокрутка вниз происходила заметно позже (через несколько секунд), когда менялся `contentSize`;
+  - `maintainVisibleContentPosition` работал сразу и мог конфликтовать со стартовым `scrollToEnd`;
+  - параметры виртуализации FlatList были дефолтными.
+- Стало:
+  - добавлен initial bottom-lock: серия коротких `scrollToEnd` в первые ~2 секунды после входа, пока пользователь не начал ручной скролл;
+  - initial-stick окно сокращено (`~8s -> ~2.6s`), чтобы убрать поздние “прыжки” вниз;
+  - `maintainVisibleContentPosition` включается только после пользовательского скролла/подгрузки старых сообщений;
+  - добавлены параметры виртуализации под длинные чаты:
+    - `initialNumToRender=12`
+    - `maxToRenderPerBatch=12`
+    - `updateCellsBatchingPeriod=50`
+    - `windowSize=9`
+    - `removeClippedSubviews` только на Android;
+  - увеличен нижний отступ ленты (`paddingBottom: 10 -> 18`) для лучшей видимости последнего bubble над инпутом.
+
+### Сниппеты кода
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const startInitialBottomLock = useCallback(() => {
+  stopInitialBottomLock();
+  initialSnapAttemptsRef.current = 0;
+  flatListRef.current?.scrollToEnd({ animated: false });
+  initialSnapIntervalRef.current = setInterval(() => {
+    if (hasUserInteractedRef.current || initialSnapAttemptsRef.current >= 14) {
+      stopInitialBottomLock();
+      return;
+    }
+    flatListRef.current?.scrollToEnd({ animated: false });
+    initialSnapAttemptsRef.current += 1;
+  }, 120);
+}, [stopInitialBottomLock]);
+```
+
+```tsx
+maintainVisibleContentPosition={
+  enableMaintainVisiblePosition ? { minIndexForVisible: 1 } : undefined
+}
+```
+
+```tsx
+<FlatList
+  initialNumToRender={12}
+  maxToRenderPerBatch={12}
+  updateCellsBatchingPeriod={50}
+  windowSize={9}
+  removeClippedSubviews={Platform.OS === 'android'}
+/>
+```
+
+## 2026-03-06 (Chat list positioning: keep latest message near input on open)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при короткой истории список сообщений визуально выравнивался к верхней части контейнера;
+  - при входе в чат появлялся большой пустой промежуток между последним сообщением и инпутом.
+- Стало:
+  - `contentContainerStyle` списка переведен в режим нижнего якоря (`flexGrow:1`, `justifyContent:'flex-end'`);
+  - уменьшен лишний `paddingBottom` (`44 -> 10`) для более плотного прилегания последнего сообщения к зоне ввода;
+  - добавлен `onContentSizeChange` c initial `scrollToEnd` и коротким повторным settle-scroll (`~180ms`) для iOS;
+  - добавлен sticky-bottom guard: пока пользователь находится у нижней границы списка (`distanceFromBottom <= 120`), любое последующее изменение высоты контента (в т.ч. поздний layout аудио bubble) автоматически докручивает чат вниз;
+  - добавлен initial-stick window (`~8s`): если пользователь еще не взаимодействовал со скроллом, чат удерживается у низа даже при поздних пересчетах высоты;
+  - `loadOlderMessages` теперь стартует только после реального пользовательского скролла (`onScrollBeginDrag`), чтобы исключить отложенные авто-прыжки списка на входе;
+  - результат: при входе в чат последнее сообщение видно сразу над инпутом.
+
+### Сниппеты кода
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+listContent: {
+  flexGrow: 1,
+  justifyContent: 'flex-end',
+  paddingTop: 8,
+  paddingHorizontal: 14,
+  paddingBottom: 10,
+},
+```
+
+```tsx
+useEffect(() => {
+  listSnapshotRef.current = { length: 0 };
+}, [recipientUser?.ID]);
+```
+
+```tsx
+settleScrollTimeoutRef.current = setTimeout(() => {
+  flatListRef.current?.scrollToEnd({ animated: false });
+}, 180);
+```
+
+## 2026-03-06 (Chat audio playback: prevent parallel voice playback)
+
+### Измененные файлы
+- `frontend/components/chat/AudioPlayer.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - каждый `AudioPlayer` в чате создавал собственный `AudioRecorderPlayer` без глобальной координации;
+  - при нажатии `play` на разных аудио несколько сообщений могли воспроизводиться одновременно.
+- Стало:
+  - добавлен module-level `activeAudioController` (single-active playback);
+  - при старте нового аудио предыдущий активный плеер принудительно останавливается;
+  - при pause/stop/unmount active-controller корректно освобождается.
+
+### Сниппеты кода
+
+`frontend/components/chat/AudioPlayer.tsx`:
+```tsx
+let activeAudioController: ActiveAudioController | null = null;
+
+const claimActiveAudioController = async (next: ActiveAudioController) => {
+  if (activeAudioController && activeAudioController.id !== next.id) {
+    await activeAudioController.stop();
+  }
+  activeAudioController = next;
+};
+```
+
+```tsx
+await claimActiveAudioController({
+  id: playerInstanceIdRef.current,
+  stop: async () => {
+    await stopPlayback(true);
+  },
+});
+```
+
+## 2026-03-05 (Support flow hardening: in-app ticket enabled + @vedamatch_bot + RU/EN/HI)
+
+### Измененные файлы
+- `frontend/screens/support/SupportHomeScreen.tsx`
+- `frontend/screens/support/SupportTicketFormScreen.tsx`
+- `frontend/screens/support/SupportConversationScreen.tsx`
+- `frontend/services/supportService.ts`
+- `server/internal/handlers/support_handler.go`
+- `server/internal/services/telegram_support_service.go`
+- `server/internal/services/support_ai_service.go`
+- `server/internal/database/seed.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - кнопка `Создать обращение без Telegram` могла быть недоступна в app-конфиге;
+  - support-ссылка могла указывать не на целевой бот;
+  - support UI/бот/AI не были полноценно доведены до единого `ru/en/hi` поведения;
+  - в in-app сообщениях не передавался явный device-context клиента.
+- Стало:
+  - in-app тикеты включены по умолчанию (кроме явного force-disable);
+  - ссылка поддержки нормализуется и форсируется на `https://t.me/vedamatch_bot`;
+  - тексты support-экрана и Telegram-бота локализованы для `ru/en/hi`, включая Hindi;
+  - AI поддержки получил явные Hindi ветки (prompt/sanitize/diagnostics) и улучшенное автоопределение языка;
+  - в create/post ticket payload добавлены поля устройства (`devicePlatform`, `deviceOs`, `deviceOsVersion`) для операторской диагностики;
+  - email-сценарий в UI поддержки убран в пользу "поддержки в чате/системе".
+
+### Сниппеты кода
+
+`frontend/screens/support/SupportHomeScreen.tsx`:
+```tsx
+const DEFAULT_SUPPORT_BOT_URL = 'https://t.me/vedamatch_bot';
+const inAppTicketAvailable = !!config.channels.inAppTicket;
+const target = config.telegramBotUrl || config.channelUrl || DEFAULT_SUPPORT_BOT_URL;
+```
+
+`frontend/screens/support/SupportTicketFormScreen.tsx`:
+```tsx
+const clientMeta = useMemo(() => ({
+  devicePlatform: Platform.OS,
+  deviceOs: Platform.OS,
+  deviceOsVersion: String(Platform.Version ?? ''),
+}), []);
+
+await supportService.createTicket({
+  ...payload,
+  ...clientMeta,
+});
+```
+
+`server/internal/handlers/support_handler.go`:
+```go
+const defaultSupportTelegramBotURL = "https://t.me/vedamatch_bot"
+
+func (h *SupportHandler) supportInAppTicketAllowed(userID uint, ip string) bool {
+  _ = userID
+  _ = ip
+  if parseSupportBool(getSupportSetting("SUPPORT_INAPP_TICKET_FORCE_DISABLE"), false) {
+    return false
+  }
+  return true
+}
+```
+
+`server/internal/services/support_ai_service.go`:
+```go
+func normalizeSupportLanguage(language string) string {
+  lower := strings.ToLower(strings.TrimSpace(language))
+  if strings.HasPrefix(lower, "ru") { return "ru" }
+  if strings.HasPrefix(lower, "hi") { return "hi" }
+  return "en"
+}
+```
+
+## 2026-03-05 (Russian locale parity rollout: screen-level 100%)
+
+### Измененные файлы
+- `frontend/i18n/locales/ru.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ru.ts` отставал от `en.ts` по новым ключам, часть экранов уходила в fallback/missing.
+- Стало:
+  - добавлены отсутствующие ключи для экранных namespace (`common`, `map`, `market`, `cafe`, `library`, `qr`, `reader`, `chat`, `auth`, `dating`, `wallet`, `videoCircles`);
+  - переведены fallback-строки, включая новые product/validation ключи и системные сообщения;
+  - итог по экранным ссылкам i18n: `RU 100%` (`missing=0`, `fallback=0`).
+
+### Сниппеты кода
+
+`frontend/i18n/locales/ru.ts`:
+```ts
+common: {
+  open: 'Открыть',
+  retry: 'Повторить',
+},
+map: {
+  navigate: 'Маршрут',
+  near_objects: 'Рядом с вами',
+},
+wallet: {
+  goToWallet: 'Перейти в кошелек',
+  topUpToChat: 'Пополните LKM, чтобы продолжить',
+}
+```
+
+## 2026-03-05 (Hindi rollout phase 1-10: full screen-level i18n parity)
+
+### Измененные файлы
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `hi.ts` значительная часть UI-строк оставалась на English fallback для ключевых экранов (`ads`, `market`, `cafe`, `contacts`, `wallet`, `common/map/calls`).
+- Стало:
+  - переведены на Hindi высокочастотные ключи для основных пользовательских потоков;
+  - дополнительно переведены блоки `pathTracker`, `dating`, `profile`, `videoTariffs`, `videoCircles`, `education`, `reader`;
+  - добавлены отсутствующие ключи в `en.ts` и `hi.ts`, чтобы убрать runtime missing keys на экранах;
+  - устранен конфликт ключа `market.shops.productsCount` через перенос на `market.productsCount` в экране `MyProductsScreen`;
+  - в phase 10 добит остаточный fallback (включая брендо/терминные строки) до полного parity;
+  - итог: `missing keys = 0`, экранный Hindi coverage по i18n-ссылкам `100.00%` (`1153/1153`);
+  - сохранена структура и совместимость i18n без изменения экранной логики;
+  - уменьшен English fallback на iOS/Android для ключевых экранов.
+
+### Сниппеты кода
+
+`frontend/i18n/locales/hi.ts`:
+```ts
+"ads": {
+  "title": "विज्ञापन",
+  "createAd": "विज्ञापन बनाएं",
+  "searchPlaceholder": "विज्ञापन खोजें..."
+},
+"cafe": {
+  "title": "कैफ़े और रेस्टोरेंट",
+  "cart": {
+    "title": "कार्ट",
+    "placeOrder": "ऑर्डर करें"
+  }
+},
+"wallet": {
+  "management": "गतिविधि अवलोकन",
+  "history": "गतिविधि इतिहास"
+}
+```
+
+`frontend/screens/portal/shops/MyProductsScreen.tsx`:
+```tsx
+{totalItems} {t('market.productsCount') || 'products'}
+```
+
+## 2026-03-05 (Hindi locale completion to full key coverage)
+
+### Измененные файлы
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Hindi-локаль покрывала только часть модулей (`~11%` ключей), из-за чего на iOS многие экраны в режиме `hi` уходили в fallback на `en` через отсутствие ключей.
+- Стало:
+  - `hi.ts` синхронизирован по полной структуре с `en.ts` (`100%` ключей);
+  - существующие Hindi-переводы сохранены без изменений;
+  - отсутствующие ранее ключи заполнены fallback-значениями из английской локали, чтобы исключить runtime-missing-key для iOS/Android.
+
+### Сниппеты кода
+
+`frontend/i18n/locales/hi.ts`:
+```ts
+export default {
+    "common": {
+        "error": "त्रुटि",
+        "success": "सफल",
+        "info": "जानकारी",
+        "save": "सहेजें",
+        "add": "जोड़ें",
+        "cancel": "रद्द करें",
+        "delete": "हटाएं",
+        "edit": "संपादित करें"
+    },
+    ...
+};
+```
+
 ## 2026-03-05 (iOS startup crash fix: PushKit VoIP registration guarded in DEV runtime)
 
 ### Измененные файлы
@@ -9577,4 +9896,359 @@ title: {
 `frontend/i18n/locales/ru.ts`:
 ```ts
 subtitle: 'Соединяй сердца • Создавай союз осознанно'
+```
+
+## 2026-03-05 (Settings language switch: persistent + moved to top)
+
+### Измененные файлы
+- `frontend/i18n/index.ts`
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `i18n` инициализировался с жестким `lng: 'ru'` без чтения/кэширования выбора пользователя;
+  - блок выбора языка находился внутри сворачиваемой секции `Внешний вид`, из-за чего переключение было неочевидным в профиле.
+- Стало:
+  - добавлен async language detector на `AsyncStorage` (`app_language`) с нормализацией кодов `ru/en/hi`;
+  - `i18n` использует `supportedLngs` и автоматически кеширует выбранный язык;
+  - секция выбора языка вынесена в самый верх `AppSettingsScreen` (первый блок в `ScrollView`);
+  - из `Внешний вид` удален дублирующий блок языка.
+
+### Сниппеты кода
+
+`frontend/i18n/index.ts`:
+```ts
+const languageDetector: LanguageDetectorAsyncModule = {
+  type: 'languageDetector',
+  async: true,
+  detect: async (callback) => {
+    const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+    callback(normalizeLanguageCode(savedLanguage) ?? 'ru');
+  },
+  cacheUserLanguage: async (language) => {
+    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, normalizedLanguage);
+  },
+};
+```
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+  <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
+    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.language')}</Text>
+    <View style={styles.sizeOptions}>
+      {LANGUAGE_OPTIONS.map((languageOption) => ...)}
+    </View>
+  </View>
+```
+
+## 2026-03-05 (Settings screen localization parity for EN/HI/RU)
+
+### Измененные файлы
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на `AppSettingsScreen` значительная часть текста была захардкожена на русском (hero, quick access, wallet, appearance, background, AI sections, alerts);
+  - при переключении языка на English/Hindi экран оставался частично русским.
+- Стало:
+  - экран переведен на `t('settings.appScreen.*')` для всех основных секций и alert-сообщений;
+  - добавлен единый словарь `settings.appScreen` в `en/ru/hi` для полного покрытия строк этого экрана;
+  - формат суммы кошелька переключен на locale-зависимый (`ru-RU` / `en-US` / `hi-IN`) вместо фиксированного `ru-RU`.
+
+### Сниппеты кода
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+<Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
+  {t('settings.appScreen.hero.title', { defaultValue: 'Personal settings' })}
+</Text>
+```
+
+```tsx
+{walletLoading ? '...' : totalBalance.toLocaleString(numberLocale)}
+```
+
+`frontend/i18n/locales/en.ts`:
+```ts
+settings: {
+  appScreen: {
+    quickAccess: { title: 'Quick access' },
+    portalBackground: { title: 'Portal background' },
+  }
+}
+```
+
+## 2026-03-05 (Settings cleanup: remove remaining hardcoded labels)
+
+### Измененные файлы
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после основного переноса на i18n оставались единичные хардкоды в `AppSettingsScreen`:
+    - названия языков в `LANGUAGE_OPTIONS`,
+    - `VedaMatch` в секции стиля иконок,
+    - `Auto-Magic` в секции AI.
+- Стало:
+  - все эти подписи переведены на ключи `settings.appScreen.*`;
+  - в `en/ru/hi` добавлены ключи:
+    - `settings.appScreen.languageOptions.*`,
+    - `settings.appScreen.iconStyle.vedamatch`,
+    - `settings.appScreen.aiSettings.autoMagicTitle`.
+
+### Сниппеты кода
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+const LANGUAGE_OPTIONS = [
+  { code: 'ru', labelKey: 'settings.appScreen.languageOptions.ru' },
+  { code: 'en', labelKey: 'settings.appScreen.languageOptions.en' },
+  { code: 'hi', labelKey: 'settings.appScreen.languageOptions.hi' },
+];
+```
+
+```tsx
+{t('settings.appScreen.aiSettings.autoMagicTitle', { defaultValue: 'Auto-Magic' })}
+```
+
+## 2026-03-05 (Portal global language sync: service labels now dynamic)
+
+### Измененные файлы
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - названия сервисов портала брались из `DEFAULT_SERVICES` с русскими `label` в `types/portal.ts`, поэтому при смене языка в настройках иконки/подписи портала оставались на русском;
+  - в `PortalMainScreen` были хардкодные русские строки (`header hint`, текст блокировки Ятры).
+- Стало:
+  - `PortalGrid` локализует названия сервисов на лету через `t('portal.serviceLabels.<serviceId>')` по `serviceId`;
+  - бейдж активной организации локализован через `t('portal.orgBadge')`;
+  - `PortalMainScreen` переведен на `t('portal.headerHint')` и `t('portal.seekerTravelLocked.*')`;
+  - добавлены ключи `portal.serviceLabels.*` и связанные ключи в `en/ru/hi`.
+
+### Сниппеты кода
+
+`frontend/components/portal/PortalGrid.tsx`:
+```tsx
+label: t(`portal.serviceLabels.${service.id}`, { defaultValue: service.label }),
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+{t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' })}
+```
+
+## 2026-03-05 (Services module: localized Services Home screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServicesHomeScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на экране сервисов (`ServicesHomeScreen`) оставался хардкод на русском (заголовок, подзаголовок, категории, CTA-карточки, мини-действия, placeholder поиска, empty-state), из-за чего при английском языке часть UI оставалась русской.
+- Стало:
+  - `ServicesHomeScreen` переведен на i18n через ключи `portal.servicesHome.*`;
+  - категории переведены на `labelKey` + `t(...)` вместо захардкоженных строк;
+  - в `en/ru/hi` добавлен полный набор ключей `portal.servicesHome` для заголовка, карточек, поиска, empty-state и категорий.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/ServicesHomeScreen.tsx`:
+```tsx
+const { t } = useTranslation();
+...
+{t('portal.servicesHome.headerTitle')}
+...
+placeholder={t('portal.servicesHome.searchPlaceholder')}
+...
+{t(cat.labelKey)}
+```
+
+`frontend/i18n/locales/en.ts`:
+```ts
+portal: {
+  servicesHome: {
+    headerTitle: 'Services',
+    headerSubtitle: 'Services and specialists',
+    ...
+  }
+}
+```
+
+## 2026-03-05 (Services module: localized My Services screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/MyServicesScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `MyServicesScreen` содержал русский хардкод в header, empty-state, статусах, alert-диалогах, счетчиках и ссылке расписания;
+  - названия категорий брались из `CATEGORY_LABELS` (русские значения из `serviceService.ts`), поэтому при English/Hindi категории оставались на русском.
+- Стало:
+  - экран переведен на i18n-ключи `portal.myServices.*`;
+  - статусы, alert-диалоги, header, empty-state, labels статистики и текст расписания локализуются через `t(...)`;
+  - категории переведены на ключи `portal.servicesHome.categories.*` через `CATEGORY_LABEL_KEYS`, чтобы не зависеть от русских констант в service layer.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/MyServicesScreen.tsx`:
+```tsx
+const STATUS_CONFIG: Record<ServiceStatus, { labelKey: string; color: string }> = {
+  draft: { labelKey: 'portal.myServices.status.draft', ... },
+  ...
+};
+```
+
+```tsx
+<Text style={styles.serviceCategory}>
+  {t(CATEGORY_LABEL_KEYS[service.category])}
+</Text>
+```
+
+## 2026-03-05 (Services module: localized My Bookings screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/MyBookingsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `MyBookingsScreen` содержал русский хардкод в tabs, header, empty-state, alert-диалогах отмены, текстах ошибок и календарном share-title.
+- Стало:
+  - экран переведен на ключи `portal.myBookings.*`;
+  - фильтры табов (`all/upcoming/past/cancelled`) локализуются через `labelKey`;
+  - cancel flow, empty-state и calendar share полностью локализованы для `en/ru/hi`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/MyBookingsScreen.tsx`:
+```tsx
+const FILTER_TABS = [
+  { key: 'all', labelKey: 'portal.myBookings.tabs.all', ... },
+  ...
+];
+```
+
+```tsx
+Alert.alert(
+  t('portal.myBookings.cancel.title'),
+  t('portal.myBookings.cancel.message', { title: booking.service?.title }),
+  ...
+);
+```
+
+## 2026-03-06 (Services module: localized Service Detail screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServiceDetailScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `ServiceDetailScreen` содержал русский хардкод в alert/empty-state/section/footer;
+  - категории/форматы/каналы подтягивались из `serviceService` констант (`CATEGORY_LABELS`, `FORMAT_LABELS`, `CHANNEL_LABELS`) с русскими значениями, из-за чего EN/HI были частично русскими.
+- Стало:
+  - экран переведен на `portal.serviceDetail.*`;
+  - заменены все текстовые блоки (share message, owner subtitle, stats, section headings, tariffs, CTA);
+  - добавлены локальные key-map для categories/formats/channels и вывод через `t(...)`, без зависимости от русских service-layer labels;
+  - формат чисел для цен теперь зависит от языка (`ru-RU` / `en-US` / `hi-IN`) вместо фиксированного `ru-RU`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/ServiceDetailScreen.tsx`:
+```tsx
+const categoryLabel = t(CATEGORY_LABEL_KEYS[service.category], { defaultValue: service.category });
+...
+{t(CHANNEL_LABEL_KEYS[service.channel], { defaultValue: service.channel })}
+```
+
+```tsx
+const numberLocale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+```
+
+## 2026-03-06 (Services module: localized Service Schedule screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServiceScheduleScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ServiceScheduleScreen` содержал русский хардкод по всему UI: дни недели, alerts, time picker, секции и параметры.
+- Стало:
+  - экран переведен на i18n `portal.serviceSchedule.*`;
+  - `DAYS` переведен на `labelKey/shortLabelKey`, отрисовка и валидационные сообщения используют `t(...)`;
+  - локализованы copy/save/error flows, day-off и все блоки параметров.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/ServiceScheduleScreen.tsx`:
+```tsx
+const DAYS = [
+  { key: 'monday', labelKey: 'portal.serviceSchedule.days.monday', shortLabelKey: 'portal.serviceSchedule.daysShort.monday' },
+  ...
+];
+```
+
+```tsx
+Alert.alert(
+  t('portal.serviceSchedule.copy.title'),
+  t('portal.serviceSchedule.copy.message', { day: t(DAYS.find((d) => d.key === selectedDay)?.labelKey || '') }),
+  ...
+);
+```
+
+## 2026-03-06 (Services module: localized Service Booking screen)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServiceBookingScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ServiceBookingScreen` содержал русский хардкод в header/sections/review/CTA/alerts;
+  - название канала бралось из `CHANNEL_LABELS` (русские значения), и часть текста оставалась на русском даже в English/Hindi;
+  - формат даты был фиксирован `ru-RU`.
+- Стало:
+  - экран переведен на `portal.serviceBooking.*`;
+  - labels канала переведены через i18n key-map `CHANNEL_LABEL_KEYS` (`portal.serviceDetail.channels.*`);
+  - все alert/CTA/review/placeholder строки локализуются через `t(...)`;
+  - дата в booking summary форматируется по текущему языку (`ru-RU` / `en-US` / `hi-IN`).
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/ServiceBookingScreen.tsx`:
+```tsx
+<Text style={styles.channelLabel}>
+  {t(CHANNEL_LABEL_KEYS[service.channel], { defaultValue: service.channel })}
+</Text>
+```
+
+```tsx
+const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 ```

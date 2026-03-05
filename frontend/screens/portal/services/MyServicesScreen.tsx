@@ -1,5 +1,5 @@
 /**
- * MyServicesScreen - Экран "Мои сервисы" (для специалиста)
+ * MyServicesScreen - my services screen for specialist
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -16,6 +16,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Plus,
@@ -42,7 +43,7 @@ import {
     deleteService,
     publishService,
     pauseService,
-    CATEGORY_LABELS,
+    ServiceCategory,
     CATEGORY_ICON_NAMES,
 } from '../../../services/serviceService';
 import { useUser } from '../../../context/UserContext';
@@ -50,11 +51,22 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
-const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string }> = {
-    draft: { label: 'Черновик', color: 'rgb(158,158,158)' },
-    active: { label: 'Активен', color: 'rgb(76,175,80)' },
-    paused: { label: 'Приостановлен', color: 'rgb(255,165,0)' },
-    archived: { label: 'Архив', color: 'rgb(97,97,97)' },
+const STATUS_CONFIG: Record<ServiceStatus, { labelKey: string; color: string }> = {
+    draft: { labelKey: 'portal.myServices.status.draft', color: 'rgb(158,158,158)' },
+    active: { labelKey: 'portal.myServices.status.active', color: 'rgb(76,175,80)' },
+    paused: { labelKey: 'portal.myServices.status.paused', color: 'rgb(255,165,0)' },
+    archived: { labelKey: 'portal.myServices.status.archived', color: 'rgb(97,97,97)' },
+};
+
+const CATEGORY_LABEL_KEYS: Record<ServiceCategory, string> = {
+    astrology: 'portal.servicesHome.categories.astrology',
+    psychology: 'portal.servicesHome.categories.psychology',
+    coaching: 'portal.servicesHome.categories.coaching',
+    spirituality: 'portal.servicesHome.categories.spirituality',
+    yagya: 'portal.servicesHome.categories.yagya',
+    education: 'portal.servicesHome.categories.education',
+    health: 'portal.servicesHome.categories.health',
+    other: 'portal.servicesHome.categories.other',
 };
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
@@ -73,6 +85,7 @@ const CategoryIcon = ({ name, color, size }: { name: string, color: string, size
 
 export default function MyServicesScreen() {
     const navigation = useNavigation<any>();
+    const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -86,10 +99,11 @@ export default function MyServicesScreen() {
     const actionLocksRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
+        const actionLocks = actionLocksRef.current;
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
-            actionLocksRef.current.clear();
+            actionLocks.clear();
         };
     }, []);
 
@@ -156,18 +170,18 @@ export default function MyServicesScreen() {
             if (service.status === 'active') {
                 await pauseService(service.id);
                 if (isMountedRef.current) {
-                    Alert.alert('Готово', 'Услуга приостановлена');
+                    Alert.alert(t('common.success'), t('portal.myServices.alerts.paused'));
                 }
             } else {
                 await publishService(service.id);
                 if (isMountedRef.current) {
-                    Alert.alert('Готово', 'Услуга опубликована');
+                    Alert.alert(t('common.success'), t('portal.myServices.alerts.published'));
                 }
             }
             await loadServices(true);
         } catch (error: any) {
             if (isMountedRef.current) {
-                Alert.alert('Ошибка', error.message || 'Не удалось изменить статус');
+                Alert.alert(t('common.error'), error.message || t('portal.myServices.alerts.statusChangeError'));
             }
         } finally {
             actionLocksRef.current.delete(service.id);
@@ -176,12 +190,12 @@ export default function MyServicesScreen() {
 
     const handleDeleteService = (service: Service) => {
         Alert.alert(
-            'Удалить услугу?',
-            `Вы уверены, что хотите удалить "${service.title}"? Это действие нельзя отменить.`,
+            t('portal.myServices.delete.title'),
+            t('portal.myServices.delete.message', { title: service.title }),
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Удалить',
+                    text: t('portal.myServices.delete.confirm'),
                     style: 'destructive',
                     onPress: async () => {
                         if (actionLocksRef.current.has(service.id)) {
@@ -191,12 +205,12 @@ export default function MyServicesScreen() {
                         try {
                             await deleteService(service.id);
                             if (isMountedRef.current) {
-                                Alert.alert('Готово', 'Услуга удалена');
+                                Alert.alert(t('common.success'), t('portal.myServices.alerts.deleted'));
                             }
                             await loadServices(true);
                         } catch (error: any) {
                             if (isMountedRef.current) {
-                                Alert.alert('Ошибка', error.message || 'Не удалось удалить');
+                                Alert.alert(t('common.error'), error.message || t('portal.myServices.alerts.deleteError'));
                             }
                         } finally {
                             actionLocksRef.current.delete(service.id);
@@ -216,13 +230,13 @@ export default function MyServicesScreen() {
             <View style={styles.emptyIconCircle}>
                 <LayoutGrid size={48} color="rgba(255, 255, 255, 0.1)" />
             </View>
-            <Text style={styles.emptyTitle}>У вас пока нет услуг</Text>
+            <Text style={styles.emptyTitle}>{t('portal.myServices.empty.title')}</Text>
             <Text style={styles.emptySubtitle}>
-                Создайте свою первую услугу и начните принимать записи от клиентов
+                {t('portal.myServices.empty.subtitle')}
             </Text>
             <TouchableOpacity style={styles.createButton} onPress={handleCreateService}>
                 <Plus size={20} color={colors.textPrimary} />
-                <Text style={styles.createButtonText}>Добавить первую услугу</Text>
+                <Text style={styles.createButtonText}>{t('portal.myServices.empty.cta')}</Text>
             </TouchableOpacity>
         </View>
     );
@@ -249,7 +263,7 @@ export default function MyServicesScreen() {
                     <View style={[styles.statusBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
                         <Text style={[styles.statusText, { color: colors.textPrimary }]}>
-                            {statusConfig.label.toUpperCase()}
+                            {t(statusConfig.labelKey).toUpperCase()}
                         </Text>
                     </View>
                 </View>
@@ -260,7 +274,7 @@ export default function MyServicesScreen() {
                     <View style={styles.categoryRow}>
                         <CategoryIcon name={iconName} size={12} color={colors.accent} />
                         <Text style={styles.serviceCategory}>
-                            {CATEGORY_LABELS[service.category]}
+                            {t(CATEGORY_LABEL_KEYS[service.category])}
                         </Text>
                     </View>
 
@@ -269,12 +283,12 @@ export default function MyServicesScreen() {
                         <View style={styles.statItem}>
                             <Users size={14} color="rgba(255,255,255,0.4)" />
                             <Text style={styles.statValue}>{service.bookingsCount || 0}</Text>
-                            <Text style={styles.statLabel}>записей</Text>
+                            <Text style={styles.statLabel}>{t('portal.myServices.stats.bookings')}</Text>
                         </View>
                         <View style={styles.statItem}>
                             <Eye size={14} color="rgba(255,255,255,0.4)" />
                             <Text style={styles.statValue}>{service.viewsCount || 0}</Text>
-                            <Text style={styles.statLabel}>просмотров</Text>
+                            <Text style={styles.statLabel}>{t('portal.myServices.stats.views')}</Text>
                         </View>
                         {service.rating > 0 && (
                             <View style={styles.statItem}>
@@ -326,7 +340,7 @@ export default function MyServicesScreen() {
                     onPress={() => handleManageSchedule(service)}
                 >
                     <Calendar size={16} color={colors.accent} />
-                    <Text style={[styles.scheduleLinkText, { color: colors.accent }]}>Настроить расписание и слоты</Text>
+                    <Text style={[styles.scheduleLinkText, { color: colors.accent }]}>{t('portal.myServices.schedule')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -341,8 +355,8 @@ export default function MyServicesScreen() {
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Управление услугами</Text>
-                        <Text style={styles.headerSubtitle}>Ваши духовные предложения</Text>
+                        <Text style={styles.headerTitle}>{t('portal.myServices.headerTitle')}</Text>
+                        <Text style={styles.headerSubtitle}>{t('portal.myServices.headerSubtitle')}</Text>
                     </View>
                     <TouchableOpacity style={styles.addButton} onPress={handleCreateService}>
                         <Plus size={22} color={colors.accent} />

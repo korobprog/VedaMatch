@@ -1,5 +1,5 @@
 /**
- * IncomingBookingsScreen - Экран "Входящие записи" (для специалиста)
+ * IncomingBookingsScreen - incoming bookings screen for provider
  */
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
@@ -12,12 +12,12 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    Dimensions,
     Share,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Calendar,
@@ -39,7 +39,7 @@ import {
     completeBooking,
     markNoShow,
     exportBookingCalendarIcs,
-    STATUS_LABELS,
+    BookingStatus,
     STATUS_COLORS,
     formatDuration,
 } from '../../../services/bookingService';
@@ -47,18 +47,25 @@ import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 
-const { width } = Dimensions.get('window');
-
 type FilterTab = 'pending' | 'confirmed' | 'all';
 
-const FILTER_TABS: { key: FilterTab; label: string }[] = [
-    { key: 'pending', label: 'Ожидают' },
-    { key: 'confirmed', label: 'Подтверждённые' },
-    { key: 'all', label: 'Все' },
+const FILTER_TABS: { key: FilterTab }[] = [
+    { key: 'pending' },
+    { key: 'confirmed' },
+    { key: 'all' },
 ];
+
+const STATUS_LABEL_KEYS: Record<BookingStatus, string> = {
+    pending: 'portal.bookingCard.status.pending',
+    confirmed: 'portal.bookingCard.status.confirmed',
+    completed: 'portal.bookingCard.status.completed',
+    cancelled: 'portal.bookingCard.status.cancelled',
+    no_show: 'portal.bookingCard.status.no_show',
+};
 
 export default function IncomingBookingsScreen() {
     const navigation = useNavigation<any>();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -73,10 +80,11 @@ export default function IncomingBookingsScreen() {
     const actionLocksRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
+        const actionLocks = actionLocksRef.current;
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
-            actionLocksRef.current.clear();
+            actionLocks.clear();
         };
     }, []);
 
@@ -128,7 +136,7 @@ export default function IncomingBookingsScreen() {
         void loadBookings(true);
     };
 
-    const handleConfirm = async (booking: ServiceBooking) => {
+    const handleConfirm = useCallback(async (booking: ServiceBooking) => {
         if (actionLocksRef.current.has(booking.id)) {
             return;
         }
@@ -137,12 +145,12 @@ export default function IncomingBookingsScreen() {
         try {
             await confirmBooking(booking.id);
             if (isMountedRef.current) {
-                Alert.alert('Готово', 'Запись подтверждена');
+                Alert.alert(t('common.success'), t('portal.incomingBookings.alerts.confirmed'));
             }
             await loadBookings(true);
         } catch (error: any) {
             if (isMountedRef.current) {
-                Alert.alert('Ошибка', error.message || 'Не удалось подтвердить');
+                Alert.alert(t('common.error'), error.message || t('portal.incomingBookings.alerts.confirmFailed'));
             }
         } finally {
             actionLocksRef.current.delete(booking.id);
@@ -150,16 +158,16 @@ export default function IncomingBookingsScreen() {
                 setProcessingId(null);
             }
         }
-    };
+    }, [loadBookings, t]);
 
-    const handleReject = async (booking: ServiceBooking) => {
+    const handleReject = useCallback(async (booking: ServiceBooking) => {
         Alert.alert(
-            'Отклонить запись?',
-            'Клиенту будет возвращена оплата. Вы уверены?',
+            t('portal.incomingBookings.alerts.rejectTitle'),
+            t('portal.incomingBookings.alerts.rejectText'),
             [
-                { text: 'Нет', style: 'cancel' },
+                { text: t('portal.incomingBookings.alerts.no'), style: 'cancel' },
                 {
-                    text: 'Да, отклонить',
+                    text: t('portal.incomingBookings.alerts.rejectConfirm'),
                     style: 'destructive',
                     onPress: async () => {
                         if (actionLocksRef.current.has(booking.id)) {
@@ -168,14 +176,14 @@ export default function IncomingBookingsScreen() {
                         actionLocksRef.current.add(booking.id);
                         setProcessingId(booking.id);
                         try {
-                            await cancelBooking(booking.id, { reason: 'Отклонено специалистом' });
+                            await cancelBooking(booking.id, { reason: t('portal.incomingBookings.alerts.rejectedByProvider') });
                             if (isMountedRef.current) {
-                                Alert.alert('Готово', 'Запись отклонена');
+                                Alert.alert(t('common.success'), t('portal.incomingBookings.alerts.rejected'));
                             }
                             await loadBookings(true);
                         } catch (error: any) {
                             if (isMountedRef.current) {
-                                Alert.alert('Ошибка', error.message || 'Не удалось отклонить');
+                                Alert.alert(t('common.error'), error.message || t('portal.incomingBookings.alerts.rejectFailed'));
                             }
                         } finally {
                             actionLocksRef.current.delete(booking.id);
@@ -187,9 +195,9 @@ export default function IncomingBookingsScreen() {
                 },
             ]
         );
-    };
+    }, [loadBookings, t]);
 
-    const handleComplete = async (booking: ServiceBooking) => {
+    const handleComplete = useCallback(async (booking: ServiceBooking) => {
         if (actionLocksRef.current.has(booking.id)) {
             return;
         }
@@ -198,12 +206,12 @@ export default function IncomingBookingsScreen() {
         try {
             await completeBooking(booking.id);
             if (isMountedRef.current) {
-                Alert.alert('Готово', 'Запись завершена');
+                Alert.alert(t('common.success'), t('portal.incomingBookings.alerts.completed'));
             }
             await loadBookings(true);
         } catch (error: any) {
             if (isMountedRef.current) {
-                Alert.alert('Ошибка', error.message || 'Не удалось завершить');
+                Alert.alert(t('common.error'), error.message || t('portal.incomingBookings.alerts.completeFailed'));
             }
         } finally {
             actionLocksRef.current.delete(booking.id);
@@ -211,16 +219,16 @@ export default function IncomingBookingsScreen() {
                 setProcessingId(null);
             }
         }
-    };
+    }, [loadBookings, t]);
 
-    const handleNoShow = async (booking: ServiceBooking) => {
+    const handleNoShow = useCallback(async (booking: ServiceBooking) => {
         Alert.alert(
-            'Клиент не явился?',
-            'Отметить запись как неявку?',
+            t('portal.incomingBookings.alerts.noShowTitle'),
+            t('portal.incomingBookings.alerts.noShowText'),
             [
-                { text: 'Нет', style: 'cancel' },
+                { text: t('portal.incomingBookings.alerts.no'), style: 'cancel' },
                 {
-                    text: 'Да, неявка',
+                    text: t('portal.incomingBookings.alerts.noShowConfirm'),
                     onPress: async () => {
                         if (actionLocksRef.current.has(booking.id)) {
                             return;
@@ -230,12 +238,12 @@ export default function IncomingBookingsScreen() {
                         try {
                             await markNoShow(booking.id);
                             if (isMountedRef.current) {
-                                Alert.alert('Готово', 'Отмечено как неявка');
+                                Alert.alert(t('common.success'), t('portal.incomingBookings.alerts.markedNoShow'));
                             }
                             await loadBookings(true);
                         } catch (error: any) {
                             if (isMountedRef.current) {
-                                Alert.alert('Ошибка', error.message || 'Не удалось отметить');
+                                Alert.alert(t('common.error'), error.message || t('portal.incomingBookings.alerts.noShowFailed'));
                             }
                         } finally {
                             actionLocksRef.current.delete(booking.id);
@@ -247,7 +255,7 @@ export default function IncomingBookingsScreen() {
                 },
             ]
         );
-    };
+    }, [loadBookings, t]);
 
     const handleOpenChat = (booking: ServiceBooking) => {
         if (booking.chatRoomId) {
@@ -260,19 +268,22 @@ export default function IncomingBookingsScreen() {
     const handleAddToCalendar = async (booking: ServiceBooking) => {
         try {
             const icsPayload = await exportBookingCalendarIcs(booking.id);
-            const shareTitle = `Календарь: ${booking.service?.title || 'Семинар'}`;
+            const shareTitle = t('portal.myBookings.calendar.shareTitle', {
+                title: booking.service?.title || t('portal.myBookings.calendar.fallbackTitle'),
+            });
             await Share.share({
                 title: shareTitle,
                 message: icsPayload,
             });
         } catch (error: any) {
-            Alert.alert('Ошибка', error?.message || 'Не удалось сформировать событие календаря');
+            Alert.alert(t('common.error'), error?.message || t('portal.myBookings.alerts.calendarError'));
         }
     };
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
-        return date.toLocaleDateString('ru-RU', {
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return date.toLocaleDateString(locale, {
             weekday: 'short',
             day: 'numeric',
             month: 'short',
@@ -281,7 +292,8 @@ export default function IncomingBookingsScreen() {
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
-        return date.toLocaleTimeString('ru-RU', {
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return date.toLocaleTimeString(locale, {
             hour: '2-digit',
             minute: '2-digit',
         });
@@ -314,13 +326,13 @@ export default function IncomingBookingsScreen() {
                     <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                         <Text style={[styles.statusText, { color: statusColor }]}>
-                            {STATUS_LABELS[booking.status]}
+                            {t(STATUS_LABEL_KEYS[booking.status])}
                         </Text>
                     </View>
                     {soon && (
                         <View style={[styles.soonBadge, { backgroundColor: colors.accentSoft }]}>
                             <Sparkles size={10} color={colors.accent} />
-                            <Text style={[styles.soonText, { color: colors.accent }]}>Срочно</Text>
+                            <Text style={[styles.soonText, { color: colors.accent }]}>{t('portal.incomingBookings.urgent')}</Text>
                         </View>
                     )}
                     <TouchableOpacity style={styles.moreButton} onPress={() => handleOpenChat(booking)}>
@@ -330,7 +342,7 @@ export default function IncomingBookingsScreen() {
 
                 <View style={styles.cardBody}>
                     <Text style={[styles.serviceName, { color: colors.textPrimary }]} numberOfLines={1}>
-                        {booking.service?.title || 'Услуга'}
+                        {booking.service?.title || t('portal.incomingBookings.serviceFallback')}
                     </Text>
 
                     <View style={[styles.clientRow, { backgroundColor: colors.surface }]}>
@@ -346,10 +358,10 @@ export default function IncomingBookingsScreen() {
                         </View>
                         <View style={styles.clientInfo}>
                             <Text style={[styles.clientName, { color: colors.textPrimary }]}>
-                                {booking.client?.karmicName || 'Клиент'}
+                                {booking.client?.karmicName || t('portal.incomingBookings.clientFallback')}
                             </Text>
                             <Text style={[styles.clientMeta, { color: colors.textSecondary }]}>
-                                {booking.client?.spiritualName || 'Духовное имя не указано'}
+                                {booking.client?.spiritualName || t('portal.incomingBookings.spiritualNameMissing')}
                             </Text>
                         </View>
                     </View>
@@ -371,28 +383,28 @@ export default function IncomingBookingsScreen() {
 
                 <View style={styles.tariffRow}>
                     <Text style={[styles.tariffText, { color: colors.textSecondary }]}>
-                        {booking.tariff?.name || 'Тариф'} • {formatDuration(booking.durationMinutes)}
+                        {booking.tariff?.name || t('portal.incomingBookings.tariffFallback')} • {formatDuration(booking.durationMinutes)}
                     </Text>
                 </View>
 
                 <View style={[styles.financeSection, { backgroundColor: colors.surface }]}>
                     <View style={styles.financeRow}>
-                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>Цена</Text>
+                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>{t('portal.incomingBookings.finance.price')}</Text>
                         <Text style={[styles.financeValue, { color: colors.textPrimary }]}>{booking.pricePaid} ₵</Text>
                     </View>
                     <View style={styles.financeRow}>
-                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>Комиссия платформы</Text>
+                        <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>{t('portal.incomingBookings.finance.platformFee')}</Text>
                         <Text style={[styles.financeValue, { color: colors.warning }]}>-{platformFee} ₵</Text>
                     </View>
                     <View style={styles.financeRow}>
-                        <Text style={[styles.financeLabelStrong, { color: colors.textPrimary }]}>К получению</Text>
+                        <Text style={[styles.financeLabelStrong, { color: colors.textPrimary }]}>{t('portal.incomingBookings.finance.toReceive')}</Text>
                         <Text style={[styles.financeValueStrong, { color: colors.success }]}>{providerNet} ₵</Text>
                     </View>
                 </View>
 
                 {booking.clientNote && (
                     <View style={[styles.noteSection, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
-                        <Text style={[styles.noteLabel, { color: colors.accent }]}>Заметка клиента:</Text>
+                        <Text style={[styles.noteLabel, { color: colors.accent }]}>{t('portal.incomingBookings.clientNote')}</Text>
                         <Text style={[styles.noteText, { color: colors.textSecondary }]}>{booking.clientNote}</Text>
                     </View>
                 )}
@@ -422,7 +434,7 @@ export default function IncomingBookingsScreen() {
                                 ) : (
                                     <>
                                         <CheckCircle size={18} color={colors.background} />
-                                        <Text style={[styles.confirmButtonText, { color: colors.background }]}>Принять</Text>
+                                        <Text style={[styles.confirmButtonText, { color: colors.background }]}>{t('portal.incomingBookings.accept')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -439,7 +451,7 @@ export default function IncomingBookingsScreen() {
                     {booking.status === 'confirmed' && !past && (
                         <TouchableOpacity style={[styles.startButton, { backgroundColor: colors.surfaceElevated }]} onPress={() => handleOpenChat(booking)}>
                             <Video size={18} color={colors.background} />
-                            <Text style={[styles.startButtonText, { color: colors.background }]}>Начать сессию</Text>
+                            <Text style={[styles.startButtonText, { color: colors.background }]}>{t('portal.incomingBookings.startSession')}</Text>
                         </TouchableOpacity>
                     )}
 
@@ -451,7 +463,7 @@ export default function IncomingBookingsScreen() {
                                 disabled={isProcessing}
                             >
                                 <CheckCircle size={18} color={colors.background} />
-                                <Text style={[styles.confirmButtonText, { color: colors.background }]}>Завершить</Text>
+                                <Text style={[styles.confirmButtonText, { color: colors.background }]}>{t('portal.incomingBookings.complete')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.rejectButton, { borderColor: colors.danger, backgroundColor: colors.accentSoft }]}
@@ -473,10 +485,14 @@ export default function IncomingBookingsScreen() {
                 <LayoutGrid size={48} color={colors.textSecondary} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-                {activeFilter === 'pending' ? 'Ожидание пусто' : activeFilter === 'confirmed' ? 'Нет планов' : 'Тишина'}
+                {activeFilter === 'pending'
+                    ? t('portal.incomingBookings.empty.pending')
+                    : activeFilter === 'confirmed'
+                        ? t('portal.incomingBookings.empty.confirmed')
+                        : t('portal.incomingBookings.empty.all')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                Здесь появятся новые запросы от ваших последователей.
+                {t('portal.incomingBookings.empty.subtitle')}
             </Text>
         </View>
     );
@@ -489,8 +505,8 @@ export default function IncomingBookingsScreen() {
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Входящие записи</Text>
-                        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Управление вашим расписанием</Text>
+                        <Text style={styles.headerTitle}>{t('portal.incomingBookings.headerTitle')}</Text>
+                        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{t('portal.incomingBookings.headerSubtitle')}</Text>
                     </View>
                     <View style={[styles.countBadge, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
                         <Text style={[styles.countText, { color: colors.accent }]}>{bookings.length}</Text>

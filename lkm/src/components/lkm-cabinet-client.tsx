@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import type { LKMRegion } from '@/lib/host-config';
 
 type WalletBalance = {
@@ -1075,6 +1076,11 @@ export default function LkmCabinetClient({
         <p className="hero-subtitle">
           Пополнение баланса LKM для экосистемы VedaMatch. Доступно на сайте и в Telegram-боте.
         </p>
+        <div className="hero-actions">
+          <Link href="/tariffs" className="secondary hero-action-link">
+            Тарифы
+          </Link>
+        </div>
         <div className="hero-meta">
           <span>Регион: {regionLabel}</span>
           <span>Шлюз оплаты: {gatewayCode}</span>

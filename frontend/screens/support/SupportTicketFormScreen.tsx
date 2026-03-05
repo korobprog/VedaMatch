@@ -42,6 +42,11 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
     const reportedUserName = useMemo(() => route.params?.reportedUserName, [route.params?.reportedUserName]);
     const reportedContentType = useMemo(() => route.params?.reportedContentType, [route.params?.reportedContentType]);
     const reportedContentId = useMemo(() => route.params?.reportedContentId, [route.params?.reportedContentId]);
+    const clientMeta = useMemo(() => ({
+        devicePlatform: Platform.OS,
+        deviceOs: Platform.OS,
+        deviceOsVersion: String(Platform.Version ?? ''),
+    }), []);
 
     useEffect(() => {
         if (!isAbuseReport) {
@@ -68,7 +73,7 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
             if (image?.uri) {
                 setAttachment(image);
             }
-        } catch (error) {
+        } catch {
             Alert.alert('Поддержка', 'Не удалось выбрать изображение.');
         }
     };
@@ -124,6 +129,7 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                 attachmentUrl,
                 attachmentMimeType,
                 clientRequestId: supportService.randomRequestId(),
+                ...clientMeta,
             });
 
             const conversation = response?.conversation;
@@ -178,10 +184,7 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                         <View style={styles.moderationHint}>
                             <Text style={styles.moderationHintTitle}>Куда отправляется жалоба</Text>
                             <Text style={styles.moderationHintText}>
-                                Модерация VedaMatch: support@vedamatch.ru
-                            </Text>
-                            <Text style={styles.moderationHintText}>
-                                Вопросы приватности: privacy@vedamatch.ru
+                                Жалоба отправляется команде модерации и поддержки VedaMatch прямо в системе.
                             </Text>
                             {reportType === 'user' && reportedUserId ? (
                                 <Text style={styles.moderationHintTarget}>

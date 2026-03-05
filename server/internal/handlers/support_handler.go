@@ -25,11 +25,12 @@ import (
 )
 
 const (
-	supportUploadMaxBytes   int64 = 10 * 1024 * 1024 // 10MB
-	supportTicketRateLimit        = 6
-	supportTicketRateWindow       = 10 * time.Minute
-	supportUploadRateLimit        = 20
-	supportUploadRateWindow       = 10 * time.Minute
+	supportUploadMaxBytes        int64 = 10 * 1024 * 1024 // 10MB
+	supportTicketRateLimit             = 6
+	supportTicketRateWindow            = 10 * time.Minute
+	supportUploadRateLimit             = 20
+	supportUploadRateWindow            = 10 * time.Minute
+	defaultSupportTelegramBotURL       = "https://t.me/vedamatch_bot"
 )
 
 var telegramContactPattern = regexp.MustCompile(`^@[A-Za-z0-9_]{4,32}$`)
@@ -188,21 +189,12 @@ func (h *SupportHandler) getOperatorChatID() int64 {
 }
 
 func (h *SupportHandler) supportInAppTicketAllowed(userID uint, ip string) bool {
-	telegramBotURL := strings.TrimSpace(getSupportSetting("SUPPORT_TELEGRAM_BOT_URL"))
-	channelURL := strings.TrimSpace(getSupportSetting("SUPPORT_CHANNEL_URL"))
-	hasTelegramChannel := telegramBotURL != "" || channelURL != ""
-	if !hasTelegramChannel {
-		// Fallback ticket must stay available when Telegram is not configured.
-		return true
-	}
-
-	appEntryEnabled := parseSupportBool(getSupportSetting("SUPPORT_APP_ENTRY_ENABLED"), false)
-	if !appEntryEnabled {
+	_ = userID
+	_ = ip
+	if parseSupportBool(getSupportSetting("SUPPORT_INAPP_TICKET_FORCE_DISABLE"), false) {
 		return false
 	}
-
-	rolloutPercent := parseSupportInt(getSupportSetting("SUPPORT_APP_ENTRY_ROLLOUT_PERCENT"), 10, 0, 100)
-	return h.isRolloutEligible(userID, ip, rolloutPercent)
+	return true
 }
 
 func (h *SupportHandler) aiEnabled() bool {
@@ -259,16 +251,29 @@ func (h *SupportHandler) detectInAppLanguage(conversation *models.SupportConvers
 	if mode == "ru" {
 		return "ru"
 	}
+	if mode == "hi" {
+		return "hi"
+	}
+	if mode == "en" {
+		return "en"
+	}
 
 	if containsCyrillic(userText) {
 		return "ru"
+	}
+	if containsDevanagari(userText) {
+		return "hi"
 	}
 
 	if conversation != nil && conversation.AppUserID != nil {
 		var user models.User
 		if err := database.DB.Select("language").First(&user, *conversation.AppUserID).Error; err == nil {
-			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(user.Language)), "ru") {
+			language := strings.ToLower(strings.TrimSpace(user.Language))
+			if strings.HasPrefix(language, "ru") {
 				return "ru"
+			}
+			if strings.HasPrefix(language, "hi") {
+				return "hi"
 			}
 		}
 	}
@@ -282,6 +287,38 @@ func containsCyrillic(text string) bool {
 		}
 	}
 	return false
+}
+
+func containsDevanagari(text string) bool {
+	for _, r := range text {
+		if r >= '\u0900' && r <= '\u097F' {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeSupportTelegramBotURL(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return defaultSupportTelegramBotURL
+	}
+
+	if strings.HasPrefix(value, "@") {
+		value = "https://t.me/" + strings.TrimPrefix(value, "@")
+	} else if !strings.Contains(value, "://") {
+		if strings.Contains(value, "t.me/") {
+			value = "https://" + strings.TrimPrefix(value, "https://")
+			value = "https://" + strings.TrimPrefix(value, "http://")
+		} else {
+			value = "https://t.me/" + strings.TrimPrefix(value, "@")
+		}
+	}
+
+	if !strings.Contains(strings.ToLower(value), "vedamatch_bot") {
+		return defaultSupportTelegramBotURL
+	}
+	return value
 }
 
 func trimSupportClientContext(ctx supportClientContext) supportClientContext {
@@ -825,14 +862,15 @@ func (h *SupportHandler) TelegramWebhook(c *fiber.Ctx) error {
 // GET /api/support/config
 func (h *SupportHandler) GetPublicConfig(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
-	appEntryEnabled := parseSupportBool(getSupportSetting("SUPPORT_APP_ENTRY_ENABLED"), false)
-	rolloutPercent := parseSupportInt(getSupportSetting("SUPPORT_APP_ENTRY_ROLLOUT_PERCENT"), 10, 0, 100)
-	eligible := appEntryEnabled && h.isRolloutEligible(userID, c.IP(), rolloutPercent)
+	_ = userID
+	appEntryEnabled := !parseSupportBool(getSupportSetting("SUPPORT_INAPP_TICKET_FORCE_DISABLE"), false)
+	rolloutPercent := 100
+	eligible := appEntryEnabled
 
-	telegramBotURL := strings.TrimSpace(getSupportSetting("SUPPORT_TELEGRAM_BOT_URL"))
+	telegramBotURL := normalizeSupportTelegramBotURL(getSupportSetting("SUPPORT_TELEGRAM_BOT_URL"))
 	channelURL := strings.TrimSpace(getSupportSetting("SUPPORT_CHANNEL_URL"))
-	if telegramBotURL == "" {
-		telegramBotURL = channelURL
+	if channelURL == "" {
+		channelURL = telegramBotURL
 	}
 
 	slaRu := strings.TrimSpace(getSupportSetting("SUPPORT_SLA_TEXT_RU"))
@@ -843,6 +881,10 @@ func (h *SupportHandler) GetPublicConfig(c *fiber.Ctx) error {
 	if slaEn == "" {
 		slaEn = "AI replies instantly, operator response during business hours is within 4 hours."
 	}
+	slaHi := strings.TrimSpace(getSupportSetting("SUPPORT_SLA_TEXT_HI"))
+	if slaHi == "" {
+		slaHi = "AI तुरंत जवाब देता है, और कार्य समय में ऑपरेटर 4 घंटे के भीतर जवाब देता है।"
+	}
 	autoReplyRu := strings.TrimSpace(getSupportSetting("SUPPORT_AUTO_REPLY_RU"))
 	if autoReplyRu == "" {
 		autoReplyRu = "Спасибо! Мы получили обращение и уже работаем над ответом."
@@ -850,6 +892,10 @@ func (h *SupportHandler) GetPublicConfig(c *fiber.Ctx) error {
 	autoReplyEn := strings.TrimSpace(getSupportSetting("SUPPORT_AUTO_REPLY_EN"))
 	if autoReplyEn == "" {
 		autoReplyEn = "Thanks! We received your request and are already working on a response."
+	}
+	autoReplyHi := strings.TrimSpace(getSupportSetting("SUPPORT_AUTO_REPLY_HI"))
+	if autoReplyHi == "" {
+		autoReplyHi = "धन्यवाद! हमने आपका अनुरोध प्राप्त कर लिया है और जवाब तैयार कर रहे हैं।"
 	}
 
 	return c.JSON(fiber.Map{
@@ -860,12 +906,14 @@ func (h *SupportHandler) GetPublicConfig(c *fiber.Ctx) error {
 		"channelUrl":             channelURL,
 		"slaTextRu":              slaRu,
 		"slaTextEn":              slaEn,
+		"slaTextHi":              slaHi,
 		"autoReplyTemplateRu":    autoReplyRu,
 		"autoReplyTemplateEn":    autoReplyEn,
-		"languages":              []string{"ru", "en"},
+		"autoReplyTemplateHi":    autoReplyHi,
+		"languages":              []string{"ru", "en", "hi"},
 		"channels": fiber.Map{
-			"telegram":    telegramBotURL != "",
-			"inAppTicket": true,
+			"telegram":    true,
+			"inAppTicket": appEntryEnabled,
 		},
 	})
 }

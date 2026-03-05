@@ -94,6 +94,27 @@ func TestBuildSupportAIInput_IncludesClientContext(t *testing.T) {
 	}
 }
 
+func TestNormalizeSupportTelegramBotURL(t *testing.T) {
+	if got := normalizeSupportTelegramBotURL(""); got != defaultSupportTelegramBotURL {
+		t.Fatalf("empty url = %q, want %q", got, defaultSupportTelegramBotURL)
+	}
+	if got := normalizeSupportTelegramBotURL("@vedamatch_bot"); got != "https://t.me/vedamatch_bot" {
+		t.Fatalf("username url = %q, want https://t.me/vedamatch_bot", got)
+	}
+	if got := normalizeSupportTelegramBotURL("https://t.me/some_other_channel"); got != defaultSupportTelegramBotURL {
+		t.Fatalf("non bot url = %q, want %q", got, defaultSupportTelegramBotURL)
+	}
+}
+
+func TestContainsDevanagari(t *testing.T) {
+	if !containsDevanagari("नमस्ते") {
+		t.Fatalf("expected devanagari detection for hindi text")
+	}
+	if containsDevanagari("hello") {
+		t.Fatalf("expected no devanagari detection for latin text")
+	}
+}
+
 func TestParseSupportInt_TrimsInput(t *testing.T) {
 	got := parseSupportInt(" 42 ", 1, 1, 100)
 	if got != 42 {

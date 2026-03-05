@@ -63,6 +63,11 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
     const [draft, setDraft] = useState('');
     const [attachment, setAttachment] = useState<Asset | null>(null);
     const [sending, setSending] = useState(false);
+    const clientMeta = useMemo(() => ({
+        devicePlatform: Platform.OS,
+        deviceOs: Platform.OS,
+        deviceOsVersion: String(Platform.Version ?? ''),
+    }), []);
 
     const load = useCallback(async (silent: boolean) => {
         if (!conversationId) {
@@ -114,7 +119,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
             if (image?.uri) {
                 setAttachment(image);
             }
-        } catch (error) {
+        } catch {
             Alert.alert('Поддержка', 'Не удалось выбрать изображение.');
         }
     };
@@ -145,6 +150,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                 message: messageText,
                 attachmentUrl,
                 attachmentMimeType,
+                ...clientMeta,
             });
 
             setDraft('');
@@ -226,8 +232,8 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                             return (
                                 <View style={[styles.messageRow, outbound ? styles.rowOutbound : styles.rowInbound]}>
                                     <View style={[styles.bubble, outbound ? styles.bubbleOutbound : styles.bubbleInbound]}>
-                                        {!!item.text ? <Text style={styles.messageText}>{item.text}</Text> : null}
-                                        {!!item.caption ? <Text style={styles.messageText}>{item.caption}</Text> : null}
+                                        {item.text ? <Text style={styles.messageText}>{item.text}</Text> : null}
+                                        {item.caption ? <Text style={styles.messageText}>{item.caption}</Text> : null}
                                         {media ? (
                                             <Image source={{ uri: media }} style={styles.mediaPreview} resizeMode="cover" />
                                         ) : null}

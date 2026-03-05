@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import i18n from '../../../../i18n';
 import { ChannelPost } from '../../../../types/channel';
 import { CartItem } from '../../../../types/market';
 import { channelService } from '../../../../services/channelService';
@@ -90,10 +91,10 @@ const parseBookServicePayload = (payload: Record<string, any> | null): BookServi
 
 export const getChannelPostCtaLabel = (post: ChannelPost): string | null => {
   if (post.ctaType === 'order_products') {
-    return 'Заказать';
+    return i18n.t('portal.channelCta.order');
   }
   if (post.ctaType === 'book_service') {
-    return 'Записаться';
+    return i18n.t('portal.channelCta.book');
   }
   return null;
 };
@@ -105,7 +106,7 @@ export const handleChannelPostCta = (navigation: NavigationLike, post: ChannelPo
   if (post.ctaType === 'order_products') {
     const orderPayload = parseOrderPayload(payload);
     if (!orderPayload) {
-      Alert.alert('Ошибка', 'Пост содержит некорректные данные заказа');
+      Alert.alert(i18n.t('common.error'), i18n.t('portal.channelCta.invalidOrderData'));
       return;
     }
 
@@ -129,7 +130,7 @@ export const handleChannelPostCta = (navigation: NavigationLike, post: ChannelPo
   if (post.ctaType === 'book_service') {
     const servicePayload = parseBookServicePayload(payload);
     if (!servicePayload) {
-      Alert.alert('Ошибка', 'Пост содержит некорректные данные услуги');
+      Alert.alert(i18n.t('common.error'), i18n.t('portal.channelCta.invalidServiceData'));
       return;
     }
 

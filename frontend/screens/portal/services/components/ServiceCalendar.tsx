@@ -1,5 +1,5 @@
 /**
- * ServiceCalendar - Компонент календаря для выбора даты/времени записи
+ * ServiceCalendar - calendar component for booking date/time selection
  */
 import React, { useState, useCallback, useMemo } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
     ScrollView,
     ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react-native';
 
 interface TimeSlot {
@@ -29,12 +30,6 @@ interface ServiceCalendarProps {
     durationMinutes?: number;
 }
 
-const DAYS_OF_WEEK = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-const MONTHS = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-];
-
 export default function ServiceCalendar({
     availableSlots,
     selectedDate,
@@ -44,7 +39,31 @@ export default function ServiceCalendar({
     loading = false,
     durationMinutes = 60,
 }: ServiceCalendarProps) {
+    const { t } = useTranslation();
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const daysOfWeek = useMemo(() => ([
+        t('portal.serviceCalendar.days.sun'),
+        t('portal.serviceCalendar.days.mon'),
+        t('portal.serviceCalendar.days.tue'),
+        t('portal.serviceCalendar.days.wed'),
+        t('portal.serviceCalendar.days.thu'),
+        t('portal.serviceCalendar.days.fri'),
+        t('portal.serviceCalendar.days.sat'),
+    ]), [t]);
+    const months = useMemo(() => ([
+        t('portal.serviceCalendar.months.jan'),
+        t('portal.serviceCalendar.months.feb'),
+        t('portal.serviceCalendar.months.mar'),
+        t('portal.serviceCalendar.months.apr'),
+        t('portal.serviceCalendar.months.may'),
+        t('portal.serviceCalendar.months.jun'),
+        t('portal.serviceCalendar.months.jul'),
+        t('portal.serviceCalendar.months.aug'),
+        t('portal.serviceCalendar.months.sep'),
+        t('portal.serviceCalendar.months.oct'),
+        t('portal.serviceCalendar.months.nov'),
+        t('portal.serviceCalendar.months.dec'),
+    ]), [t]);
     const formatDateKey = useCallback((date: Date): string => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -121,7 +140,7 @@ export default function ServiceCalendar({
                 </TouchableOpacity>
 
                 <Text style={styles.monthTitle}>
-                    {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                    {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </Text>
 
                 <TouchableOpacity onPress={goToNextMonth} style={styles.navCircle}>
@@ -131,7 +150,7 @@ export default function ServiceCalendar({
 
             {/* Day Headers */}
             <View style={styles.weekHeader}>
-                {DAYS_OF_WEEK.map((day, index) => (
+                {daysOfWeek.map((day, index) => (
                     <View key={index} style={styles.weekDayCell}>
                         <Text style={styles.weekDayText}>{day.toUpperCase()}</Text>
                     </View>
@@ -193,16 +212,16 @@ export default function ServiceCalendar({
                 <View style={styles.timeSlotsContainer}>
                     <View style={styles.timeSlotsHeader}>
                         <View style={styles.headerIndicator} />
-                        <Text style={styles.timeSlotsTitle}>Доступное время</Text>
+                        <Text style={styles.timeSlotsTitle}>{t('portal.serviceCalendar.availableTime')}</Text>
                         <View style={styles.durationBadge}>
                             <Clock size={10} color="rgba(10, 10, 20, 0.6)" />
-                            <Text style={styles.durationText}>{durationMinutes}м</Text>
+                            <Text style={styles.durationText}>{t('portal.serviceCalendar.durationMinutes', { count: durationMinutes })}</Text>
                         </View>
                     </View>
 
                     {selectedDateSlots.length === 0 ? (
                         <View style={styles.noSlotsBox}>
-                            <Text style={styles.noSlotsText}>На этот день записей нет</Text>
+                            <Text style={styles.noSlotsText}>{t('portal.serviceCalendar.noSlots')}</Text>
                         </View>
                     ) : (
                         <ScrollView

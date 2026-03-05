@@ -1,5 +1,5 @@
 /**
- * ServiceCard - Карточка сервиса
+ * ServiceCard - service card
  */
 import React from 'react';
 import {
@@ -11,12 +11,12 @@ import {
     Dimensions,
     Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import {
     Service,
-    CATEGORY_LABELS,
+    ServiceCategory,
     CATEGORY_ICON_NAMES,
-    ACCESS_LABELS,
 } from '../../../../services/serviceService';
 import { formatBalance } from '../../../../services/walletService';
 import { useUser } from '../../../../context/UserContext';
@@ -58,7 +58,19 @@ interface ServiceCardProps {
     compact?: boolean;
 }
 
+const CATEGORY_LABEL_KEYS: Record<ServiceCategory, string> = {
+    astrology: 'portal.servicesHome.categories.astrology',
+    psychology: 'portal.servicesHome.categories.psychology',
+    coaching: 'portal.servicesHome.categories.coaching',
+    spirituality: 'portal.servicesHome.categories.spirituality',
+    yagya: 'portal.servicesHome.categories.yagya',
+    education: 'portal.servicesHome.categories.education',
+    health: 'portal.servicesHome.categories.health',
+    other: 'portal.servicesHome.categories.other',
+};
+
 export default function ServiceCard({ service, onPress, compact = false }: ServiceCardProps) {
+    const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -68,17 +80,17 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
     const shouldRenderCoverImage = Boolean(service.coverImageUrl) && !isAndroidFlatMode;
     const overlayAlpha = isAndroidReducedEffects ? 0.45 : 0.8;
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
-    const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
+    const categoryLabel = t(CATEGORY_LABEL_KEYS[service.category], { defaultValue: service.category });
 
     // Get minimum price from tariffs
     const minPrice = service.tariffs && service.tariffs.length > 0
-        ? Math.min(...service.tariffs.map(t => Number.isFinite(t.price) ? t.price : Number.POSITIVE_INFINITY))
+        ? Math.min(...service.tariffs.map((tariff) => Number.isFinite(tariff.price) ? tariff.price : Number.POSITIVE_INFINITY))
         : Number.POSITIVE_INFINITY;
     const hasPrice = Number.isFinite(minPrice) && minPrice > 0;
 
     const ownerName = service.owner
         ? `${service.owner.karmicName}${service.owner.spiritualName ? ' ' + service.owner.spiritualName : ''}`
-        : 'Специалист';
+        : t('portal.serviceCard.specialist');
 
     if (compact) {
         return (
@@ -113,7 +125,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                         <Text style={[styles.compactCategory, { color: colors.textSecondary }]}>{categoryLabel}</Text>
                     </View>
                     {hasPrice && (
-                        <Text style={[styles.compactPrice, { color: colors.accent }]}>от {formatBalance(minPrice)}</Text>
+                        <Text style={[styles.compactPrice, { color: colors.accent }]}>{t('portal.serviceCard.from')} {formatBalance(minPrice)}</Text>
                     )}
                 </View>
             </TouchableOpacity>
@@ -188,11 +200,11 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                 <View style={styles.footer}>
                     {hasPrice ? (
                         <View style={styles.priceRow}>
-                            <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>от</Text>
+                            <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>{t('portal.serviceCard.from')}</Text>
                             <Text style={[styles.priceValue, { color: colors.accent }]}>{formatBalance(minPrice)}</Text>
                         </View>
                     ) : (
-                        <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>По запросу</Text>
+                        <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>{t('portal.serviceCard.onRequest')}</Text>
                     )}
 
                     <View style={[styles.actionArrow, { backgroundColor: colors.accentSoft }, isAndroidFlatMode && styles.actionArrowFlatAndroid]}>

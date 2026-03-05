@@ -75,7 +75,7 @@ const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
-    useTranslation();
+    const { t } = useTranslation();
     const { handleNewChat } = useChat();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
     const {
@@ -703,8 +703,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     )}
                     {seekerTravelLocked && (
                         <View style={styles.lockedServiceHint}>
-                            <Text style={styles.lockedServiceHintTitle}>Ятра откроется после завершения профиля</Text>
-                            <Text style={styles.lockedServiceHintBody}>Завершите регистрацию, чтобы увидеть сервис в основной сетке портала.</Text>
+                            <Text style={styles.lockedServiceHintTitle}>
+                                {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
+                            </Text>
+                            <Text style={styles.lockedServiceHintBody}>
+                                {t('portal.seekerTravelLocked.subtitle', {
+                                    defaultValue: 'Complete registration to see this service in the main portal grid.',
+                                })}
+                            </Text>
                         </View>
                     )}
 
@@ -742,13 +748,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             },
                         ]}
                     >
-                        Портал · свайп влево для виджетов
+                        {t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' })}
                     </Text>
                 </View>
 
                 <RoleInfoModal
                     visible={showRoleInfo}
-                    title={roleDescriptor?.title || 'Роль'}
+                    title={roleDescriptor?.title || t('portal.roleFallbackTitle', { defaultValue: 'Role' })}
                     servicesHint={roleDescriptor?.servicesHint || []}
                     role={roleDescriptor?.role}
                     onClose={() => setShowRoleInfo(false)}

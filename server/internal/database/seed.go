@@ -469,7 +469,7 @@ func SeedSystemSettings() {
 		},
 		{
 			Key:   "SUPPORT_TELEGRAM_BOT_URL",
-			Value: "",
+			Value: "https://t.me/vedamatch_bot",
 		},
 		{
 			Key:   "SUPPORT_LKM_WEBAPP_URL_RU",
@@ -517,15 +517,19 @@ func SeedSystemSettings() {
 		},
 		{
 			Key:   "SUPPORT_LANG_MODE",
-			Value: "auto_ru_en",
+			Value: "auto_ru_en_hi",
 		},
 		{
 			Key:   "SUPPORT_APP_ENTRY_ENABLED",
-			Value: "false",
+			Value: "true",
 		},
 		{
 			Key:   "SUPPORT_APP_ENTRY_ROLLOUT_PERCENT",
-			Value: "10",
+			Value: "100",
+		},
+		{
+			Key:   "SUPPORT_INAPP_TICKET_FORCE_DISABLE",
+			Value: "false",
 		},
 		{
 			Key:   "SUPPORT_SLA_TEXT_RU",
@@ -536,12 +540,20 @@ func SeedSystemSettings() {
 			Value: "AI replies instantly, operator response during business hours is within 4 hours.",
 		},
 		{
+			Key:   "SUPPORT_SLA_TEXT_HI",
+			Value: "AI तुरंत जवाब देता है, और कार्य समय में ऑपरेटर 4 घंटे के भीतर जवाब देता है।",
+		},
+		{
 			Key:   "SUPPORT_AUTO_REPLY_RU",
 			Value: "Спасибо! Мы получили обращение и уже работаем над ответом.",
 		},
 		{
 			Key:   "SUPPORT_AUTO_REPLY_EN",
 			Value: "Thanks! We received your request and are already working on a response.",
+		},
+		{
+			Key:   "SUPPORT_AUTO_REPLY_HI",
+			Value: "धन्यवाद! हमने आपका अनुरोध प्राप्त कर लिया है और जवाब तैयार कर रहे हैं।",
 		},
 		{
 			Key:   "support.rooms.enabled",

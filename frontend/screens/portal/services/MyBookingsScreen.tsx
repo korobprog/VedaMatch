@@ -1,5 +1,5 @@
 /**
- * MyBookingsScreen - Экран "Мои записи" (для клиента)
+ * MyBookingsScreen - my bookings screen for client
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -16,6 +16,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react-native';
 import {
     ServiceBooking,
@@ -32,15 +33,16 @@ import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type FilterTab = 'all' | 'upcoming' | 'past' | 'cancelled';
 
-const FILTER_TABS: { key: FilterTab; label: string; icon: any }[] = [
-    { key: 'all', label: 'Все', icon: Calendar },
-    { key: 'upcoming', label: 'Предстоящие', icon: Clock },
-    { key: 'past', label: 'Прошедшие', icon: CheckCircle },
-    { key: 'cancelled', label: 'Отменённые', icon: XCircle },
+const FILTER_TABS: { key: FilterTab; labelKey: string; icon: any }[] = [
+    { key: 'all', labelKey: 'portal.myBookings.tabs.all', icon: Calendar },
+    { key: 'upcoming', labelKey: 'portal.myBookings.tabs.upcoming', icon: Clock },
+    { key: 'past', labelKey: 'portal.myBookings.tabs.past', icon: CheckCircle },
+    { key: 'cancelled', labelKey: 'portal.myBookings.tabs.cancelled', icon: XCircle },
 ];
 
 export default function MyBookingsScreen() {
     const navigation = useNavigation<any>();
+    const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -56,10 +58,11 @@ export default function MyBookingsScreen() {
     const cancellingIdsRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
+        const cancellingIds = cancellingIdsRef.current;
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
-            cancellingIdsRef.current.clear();
+            cancellingIds.clear();
         };
     }, []);
 
@@ -136,12 +139,12 @@ export default function MyBookingsScreen() {
 
     const handleCancelBooking = async (booking: ServiceBooking) => {
         Alert.alert(
-            'Отменить запись?',
-            `Вы уверены, что хотите отменить запись на "${booking.service?.title}"?`,
+            t('portal.myBookings.cancel.title'),
+            t('portal.myBookings.cancel.message', { title: booking.service?.title }),
             [
-                { text: 'Нет', style: 'cancel' },
+                { text: t('portal.myBookings.cancel.no'), style: 'cancel' },
                 {
-                    text: 'Да, отменить',
+                    text: t('portal.myBookings.cancel.yes'),
                     style: 'destructive',
                     onPress: async () => {
                         if (cancellingIdsRef.current.has(booking.id)) {
@@ -149,14 +152,14 @@ export default function MyBookingsScreen() {
                         }
                         cancellingIdsRef.current.add(booking.id);
                         try {
-                            await cancelBooking(booking.id, { reason: 'Отменено клиентом' });
+                            await cancelBooking(booking.id, { reason: t('portal.myBookings.cancel.reason') });
                             if (isMountedRef.current) {
-                                Alert.alert('Готово', 'Запись отменена');
+                                Alert.alert(t('common.success'), t('portal.myBookings.alerts.cancelled'));
                             }
                             await loadBookings(true);
                         } catch (error: any) {
                             if (isMountedRef.current) {
-                                Alert.alert('Ошибка', error.message || 'Не удалось отменить запись');
+                                Alert.alert(t('common.error'), error.message || t('portal.myBookings.alerts.cancelError'));
                             }
                         } finally {
                             cancellingIdsRef.current.delete(booking.id);
@@ -183,13 +186,15 @@ export default function MyBookingsScreen() {
     const handleAddToCalendar = async (booking: ServiceBooking) => {
         try {
             const icsPayload = await exportBookingCalendarIcs(booking.id);
-            const shareTitle = `Календарь: ${booking.service?.title || 'Семинар'}`;
+            const shareTitle = t('portal.myBookings.calendar.shareTitle', {
+                title: booking.service?.title || t('portal.myBookings.calendar.fallbackTitle'),
+            });
             await Share.share({
                 title: shareTitle,
                 message: icsPayload,
             });
         } catch (error: any) {
-            Alert.alert('Ошибка', error?.message || 'Не удалось сформировать событие календаря');
+            Alert.alert(t('common.error'), error?.message || t('portal.myBookings.alerts.calendarError'));
         }
     };
 
@@ -198,22 +203,22 @@ export default function MyBookingsScreen() {
             <Text style={styles.emptyIcon}>📅</Text>
             <Text style={styles.emptyTitle}>
                 {activeFilter === 'all'
-                    ? 'У вас пока нет записей'
+                    ? t('portal.myBookings.empty.all')
                     : activeFilter === 'upcoming'
-                        ? 'Нет предстоящих записей'
+                        ? t('portal.myBookings.empty.upcoming')
                         : activeFilter === 'past'
-                            ? 'Нет прошедших записей'
-                            : 'Нет отменённых записей'
+                            ? t('portal.myBookings.empty.past')
+                            : t('portal.myBookings.empty.cancelled')
                 }
             </Text>
             <Text style={styles.emptySubtitle}>
-                Найдите интересный сервис и запишитесь
+                {t('portal.myBookings.empty.subtitle')}
             </Text>
             <TouchableOpacity
                 style={styles.browseButton}
                 onPress={() => navigation.navigate('ServicesHome')}
             >
-                <Text style={styles.browseButtonText}>Найти сервис</Text>
+                <Text style={styles.browseButtonText}>{t('portal.myBookings.empty.cta')}</Text>
             </TouchableOpacity>
         </View>
     );
@@ -227,8 +232,8 @@ export default function MyBookingsScreen() {
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Мои записи</Text>
-                        <Text style={styles.headerSubtitle}>История ваших сессий</Text>
+                        <Text style={styles.headerTitle}>{t('portal.myBookings.headerTitle')}</Text>
+                        <Text style={styles.headerSubtitle}>{t('portal.myBookings.headerSubtitle')}</Text>
                     </View>
                     <View style={styles.countBadge}>
                         <Text style={styles.countText}>{totalCount}</Text>
@@ -255,7 +260,7 @@ export default function MyBookingsScreen() {
                                         <tab.icon size={14} color={isActive ? colors.textPrimary : colors.accent} />
                                     </View>
                                     <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-                                        {tab.label}
+                                        {t(tab.labelKey)}
                                     </Text>
                                 </TouchableOpacity>
                             );

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
     View,
     FlatList,
@@ -83,23 +83,80 @@ export const MessageList: React.FC<MessageListProps> = ({
     };
     const flatListRef = useRef<FlatList>(null);
     const autoScrollFrameRef = useRef<number | null>(null);
+    const settleScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const initialSnapIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const initialSnapAttemptsRef = useRef(0);
     const listSnapshotRef = useRef<{ firstId?: string; lastId?: string; length: number }>({ length: 0 });
+    const shouldSnapToBottomRef = useRef(true);
+    const isUserNearBottomRef = useRef(true);
+    const hasUserInteractedRef = useRef(false);
+    const initialStickDeadlineRef = useRef(0);
     const loadingOlderGuardRef = useRef(false);
+    const [enableMaintainVisiblePosition, setEnableMaintainVisiblePosition] = useState(false);
     const [transcribingIds, setTranscribingIds] = useState<Record<string, boolean>>({});
     const [transcriptOverrides, setTranscriptOverrides] = useState<Record<string, { text?: string; language?: string; model?: string; status?: string }>>({});
+
+    const stopInitialBottomLock = useCallback(() => {
+        if (initialSnapIntervalRef.current) {
+            clearInterval(initialSnapIntervalRef.current);
+            initialSnapIntervalRef.current = null;
+        }
+    }, []);
+
+    const startInitialBottomLock = useCallback(() => {
+        stopInitialBottomLock();
+        initialSnapAttemptsRef.current = 0;
+
+        flatListRef.current?.scrollToEnd({ animated: false });
+
+        initialSnapIntervalRef.current = setInterval(() => {
+            if (hasUserInteractedRef.current || initialSnapAttemptsRef.current >= 14) {
+                stopInitialBottomLock();
+                return;
+            }
+            flatListRef.current?.scrollToEnd({ animated: false });
+            initialSnapAttemptsRef.current += 1;
+        }, 120);
+    }, [stopInitialBottomLock]);
 
     useEffect(() => {
         return () => {
             if (autoScrollFrameRef.current !== null) {
                 cancelAnimationFrame(autoScrollFrameRef.current);
             }
+            if (settleScrollTimeoutRef.current) {
+                clearTimeout(settleScrollTimeoutRef.current);
+            }
+            stopInitialBottomLock();
         };
-    }, []);
+    }, [stopInitialBottomLock]);
+
+    useEffect(() => {
+        listSnapshotRef.current = { length: 0 };
+        shouldSnapToBottomRef.current = true;
+        isUserNearBottomRef.current = true;
+        hasUserInteractedRef.current = false;
+        initialStickDeadlineRef.current = Date.now() + 2600;
+        loadingOlderGuardRef.current = false;
+        setEnableMaintainVisiblePosition(false);
+        initialSnapAttemptsRef.current = 0;
+        stopInitialBottomLock();
+        if (autoScrollFrameRef.current !== null) {
+            cancelAnimationFrame(autoScrollFrameRef.current);
+            autoScrollFrameRef.current = null;
+        }
+        if (settleScrollTimeoutRef.current) {
+            clearTimeout(settleScrollTimeoutRef.current);
+            settleScrollTimeoutRef.current = null;
+        }
+    }, [recipientUser?.ID, stopInitialBottomLock]);
 
     useEffect(() => {
         if (!isLoadingOlderMessages) {
             loadingOlderGuardRef.current = false;
+            return;
         }
+        setEnableMaintainVisiblePosition(true);
     }, [isLoadingOlderMessages]);
 
     useEffect(() => {
@@ -122,6 +179,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             messages.length > prev.length &&
             !!prev.lastId &&
             nextLastId !== prev.lastId;
+        const shouldAutoScrollForAppend = !hasUserInteractedRef.current || isUserNearBottomRef.current;
 
         listSnapshotRef.current = {
             firstId: nextFirstId,
@@ -129,8 +187,16 @@ export const MessageList: React.FC<MessageListProps> = ({
             length: messages.length,
         };
 
-        if (isLoadingOlderMessages || (!isInitialLoad && !appendedNewMessage)) {
+        if (
+            isLoadingOlderMessages ||
+            (!isInitialLoad && !appendedNewMessage) ||
+            (appendedNewMessage && !shouldAutoScrollForAppend)
+        ) {
             return;
+        }
+
+        if (isInitialLoad) {
+            startInitialBottomLock();
         }
 
         if (autoScrollFrameRef.current !== null) {
@@ -138,8 +204,15 @@ export const MessageList: React.FC<MessageListProps> = ({
         }
         autoScrollFrameRef.current = requestAnimationFrame(() => {
             flatListRef.current?.scrollToEnd({ animated: !isUploading });
+            if (settleScrollTimeoutRef.current) {
+                clearTimeout(settleScrollTimeoutRef.current);
+            }
+            settleScrollTimeoutRef.current = setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: false });
+                settleScrollTimeoutRef.current = null;
+            }, 140);
         });
-    }, [messages, isLoadingOlderMessages, isUploading]);
+    }, [messages, isLoadingOlderMessages, isUploading, startInitialBottomLock]);
 
     const formatMessageTime = (dateStr?: string) => {
         if (!dateStr) return '';
@@ -754,6 +827,16 @@ export const MessageList: React.FC<MessageListProps> = ({
     };
 
     const handleListScroll = ({ nativeEvent }: any) => {
+        const layoutHeight = Number(nativeEvent?.layoutMeasurement?.height || 0);
+        const offsetY = Number(nativeEvent?.contentOffset?.y || 0);
+        const contentHeight = Number(nativeEvent?.contentSize?.height || 0);
+        const distanceFromBottom = contentHeight - (offsetY + layoutHeight);
+        isUserNearBottomRef.current = distanceFromBottom <= 120;
+
+        if (!hasUserInteractedRef.current) {
+            return;
+        }
+
         if (!hasOlderMessages || isLoadingOlderMessages || !recipientUser) {
             return;
         }
@@ -772,6 +855,42 @@ export const MessageList: React.FC<MessageListProps> = ({
         });
     };
 
+    const handleContentSizeChange = () => {
+        if (messages.length === 0 || isLoadingOlderMessages) {
+            return;
+        }
+
+        const withinInitialStickWindow = !hasUserInteractedRef.current && Date.now() <= initialStickDeadlineRef.current;
+        const shouldAutoStickBottom =
+            withinInitialStickWindow ||
+            shouldSnapToBottomRef.current ||
+            isUserNearBottomRef.current;
+        if (!shouldAutoStickBottom) {
+            return;
+        }
+
+        if (withinInitialStickWindow) {
+            startInitialBottomLock();
+        }
+
+        shouldSnapToBottomRef.current = false;
+
+        if (autoScrollFrameRef.current !== null) {
+            cancelAnimationFrame(autoScrollFrameRef.current);
+        }
+
+        autoScrollFrameRef.current = requestAnimationFrame(() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+            if (settleScrollTimeoutRef.current) {
+                clearTimeout(settleScrollTimeoutRef.current);
+            }
+            settleScrollTimeoutRef.current = setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: false });
+                settleScrollTimeoutRef.current = null;
+            }, 180);
+        });
+    };
+
     return (
         <View style={styles.chatContainer}>
             <View style={styles.overlay}>
@@ -782,11 +901,22 @@ export const MessageList: React.FC<MessageListProps> = ({
                     keyExtractor={(item: any, index) => item?.id?.toString?.() || `chat_item_${index}`}
                     extraData={`${messages.length}_${isLoadingOlderMessages ? 'older' : 'idle'}_${recipientUser?.ID || 'none'}`}
                     contentContainerStyle={styles.listContent}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={12}
+                    updateCellsBatchingPeriod={50}
+                    windowSize={9}
+                    removeClippedSubviews={Platform.OS === 'android'}
                     keyboardDismissMode="none"
                     keyboardShouldPersistTaps="always"
                     onScroll={handleListScroll}
-                    scrollEventThrottle={16}
-                    maintainVisibleContentPosition={Platform.OS === 'android' ? { minIndexForVisible: 1 } : undefined}
+                    onScrollBeginDrag={() => {
+                        hasUserInteractedRef.current = true;
+                        setEnableMaintainVisiblePosition(true);
+                        stopInitialBottomLock();
+                    }}
+                    onContentSizeChange={handleContentSizeChange}
+                    scrollEventThrottle={32}
+                    maintainVisibleContentPosition={enableMaintainVisiblePosition ? { minIndexForVisible: 1 } : undefined}
                     ListHeaderComponent={
                         isLoadingOlderMessages ? (
                             <View style={styles.historyLoader}>
@@ -820,7 +950,13 @@ export const MessageList: React.FC<MessageListProps> = ({
 const styles = StyleSheet.create({
     chatContainer: { flex: 1 },
     overlay: { flex: 1 },
-    listContent: { paddingTop: 8, paddingHorizontal: 14, paddingBottom: 44 },
+    listContent: {
+        flexGrow: 1,
+        justifyContent: 'flex-end',
+        paddingTop: 8,
+        paddingHorizontal: 14,
+        paddingBottom: 18,
+    },
     historyLoader: {
         flexDirection: 'row',
         alignItems: 'center',

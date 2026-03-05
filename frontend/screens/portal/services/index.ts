@@ -1,5 +1,5 @@
 /**
- * index.ts - Экспорт всех экранов и компонентов сервисов
+ * index.ts - exports for service screens and components
  */
 // Main Screens
 export { default as ServicesHomeScreen } from './ServicesHomeScreen';

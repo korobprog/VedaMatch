@@ -1,5 +1,5 @@
 /**
- * BookingCard - Карточка записи
+ * BookingCard - booking card
  */
 import React from 'react';
 import {
@@ -10,9 +10,10 @@ import {
     Image,
     Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, User, MapPin, Video, MessageCircle, X, Sparkles, CalendarPlus } from 'lucide-react-native';
-import { ServiceBooking, STATUS_LABELS, STATUS_COLORS } from '../../../../services/bookingService';
-import { CHANNEL_LABELS } from '../../../../services/serviceService';
+import { ServiceBooking, STATUS_COLORS, BookingStatus } from '../../../../services/bookingService';
+import { ServiceChannel } from '../../../../services/serviceService';
 
 interface BookingCardProps {
     booking: ServiceBooking;
@@ -22,6 +23,23 @@ interface BookingCardProps {
     onAddToCalendar?: () => void;
 }
 
+const STATUS_LABEL_KEYS: Record<BookingStatus, string> = {
+    pending: 'portal.bookingCard.status.pending',
+    confirmed: 'portal.bookingCard.status.confirmed',
+    completed: 'portal.bookingCard.status.completed',
+    cancelled: 'portal.bookingCard.status.cancelled',
+    no_show: 'portal.bookingCard.status.no_show',
+};
+
+const CHANNEL_LABEL_KEYS: Record<ServiceChannel, string> = {
+    video: 'portal.serviceDetail.channels.video',
+    zoom: 'portal.serviceDetail.channels.zoom',
+    youtube: 'portal.serviceDetail.channels.youtube',
+    telegram: 'portal.serviceDetail.channels.telegram',
+    offline: 'portal.serviceDetail.channels.offline',
+    file: 'portal.serviceDetail.channels.file',
+};
+
 export default function BookingCard({
     booking,
     onPress,
@@ -29,6 +47,7 @@ export default function BookingCard({
     onChat,
     onAddToCalendar,
 }: BookingCardProps) {
+    const { t, i18n } = useTranslation();
     const statusColor = STATUS_COLORS[booking.status] || 'rgba(158, 158, 158, 1)';
     const isUpcoming = booking.status === 'confirmed' || booking.status === 'pending';
     const scheduledAt = new Date(booking.scheduledAt);
@@ -37,10 +56,11 @@ export default function BookingCard({
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
         if (Number.isNaN(date.getTime())) {
-            return 'Дата не указана';
+            return t('portal.bookingCard.dateMissing');
         }
-        return date.toLocaleDateString('ru-RU', {
+        return date.toLocaleDateString(locale, {
             weekday: 'short',
             day: 'numeric',
             month: 'short',
@@ -49,10 +69,11 @@ export default function BookingCard({
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
         if (Number.isNaN(date.getTime())) {
             return '--:--';
         }
-        return date.toLocaleTimeString('ru-RU', {
+        return date.toLocaleTimeString(locale, {
             hour: '2-digit',
             minute: '2-digit',
         });
@@ -65,7 +86,7 @@ export default function BookingCard({
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                     <Text style={[styles.statusText, { color: statusColor }]}>
-                        {STATUS_LABELS[booking.status]}
+                        {t(STATUS_LABEL_KEYS[booking.status])}
                     </Text>
                 </View>
                 <View style={styles.priceBadge}>
@@ -87,7 +108,7 @@ export default function BookingCard({
                 )}
                 <View style={styles.serviceDetails}>
                     <Text style={styles.serviceTitle} numberOfLines={2}>
-                        {booking.service?.title || 'Священная сессия'}
+                        {booking.service?.title || t('portal.bookingCard.fallbackSessionTitle')}
                     </Text>
                     {booking.service?.owner && (
                         <View style={styles.ownerRow}>
@@ -117,7 +138,7 @@ export default function BookingCard({
                         <Video size={14} color="rgba(245,158,11,1)" />
                     )}
                     <Text style={styles.logisticsText} numberOfLines={1}>
-                        {CHANNEL_LABELS[booking.service?.channel || 'video']}
+                        {t(CHANNEL_LABEL_KEYS[booking.service?.channel || 'video'])}
                     </Text>
                 </View>
             </View>
@@ -128,14 +149,14 @@ export default function BookingCard({
                     {onChat && booking.chatRoomId && (
                         <TouchableOpacity style={styles.chatAction} onPress={onChat}>
                             <MessageCircle size={18} color="rgba(245,158,11,1)" />
-                            <Text style={styles.chatActionText}>Обсудить в чате</Text>
+                            <Text style={styles.chatActionText}>{t('portal.bookingCard.chat')}</Text>
                         </TouchableOpacity>
                     )}
                     {onAddToCalendar && (
                         <TouchableOpacity style={styles.calendarAction} onPress={onAddToCalendar}>
                             <CalendarPlus size={17} color="rgba(245,158,11,1)" />
                             <Text style={styles.calendarActionText}>
-                                {Platform.OS === 'ios' ? 'В календарь' : 'Календарь'}
+                                {Platform.OS === 'ios' ? t('portal.bookingCard.toCalendar') : t('portal.bookingCard.calendar')}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -150,7 +171,7 @@ export default function BookingCard({
             {/* Personal Note */}
             {booking.clientNote && (
                 <View style={styles.noteOverlay}>
-                    <Text style={styles.noteTitle}>Мои пожелания:</Text>
+                    <Text style={styles.noteTitle}>{t('portal.bookingCard.noteTitle')}</Text>
                     <Text style={styles.noteContent} numberOfLines={2}>{booking.clientNote}</Text>
                 </View>
             )}

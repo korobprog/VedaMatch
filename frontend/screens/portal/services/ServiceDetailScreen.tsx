@@ -1,5 +1,5 @@
 /**
- * ServiceDetailScreen - Детали сервиса
+ * ServiceDetailScreen - service details screen
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -18,6 +18,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Share2,
@@ -39,10 +40,9 @@ import {
 import {
     Service,
     getServiceById,
-    CATEGORY_LABELS,
     CATEGORY_ICON_NAMES,
-    FORMAT_LABELS,
-    CHANNEL_LABELS,
+    ServiceCategory,
+    ServiceChannel,
     ServiceFormat,
 } from '../../../services/serviceService';
 import { getMediaUrl } from '../../../utils/url';
@@ -83,8 +83,37 @@ const parseServiceFormats = (raw?: string): ServiceFormat[] => {
     }
 };
 
+const CATEGORY_LABEL_KEYS: Record<ServiceCategory, string> = {
+    astrology: 'portal.servicesHome.categories.astrology',
+    psychology: 'portal.servicesHome.categories.psychology',
+    coaching: 'portal.servicesHome.categories.coaching',
+    spirituality: 'portal.servicesHome.categories.spirituality',
+    yagya: 'portal.servicesHome.categories.yagya',
+    education: 'portal.servicesHome.categories.education',
+    health: 'portal.servicesHome.categories.health',
+    other: 'portal.servicesHome.categories.other',
+};
+
+const FORMAT_LABEL_KEYS: Record<ServiceFormat, string> = {
+    individual: 'portal.serviceDetail.formats.individual',
+    group: 'portal.serviceDetail.formats.group',
+    subscription: 'portal.serviceDetail.formats.subscription',
+    event: 'portal.serviceDetail.formats.event',
+    donation: 'portal.serviceDetail.formats.donation',
+};
+
+const CHANNEL_LABEL_KEYS: Record<ServiceChannel, string> = {
+    video: 'portal.serviceDetail.channels.video',
+    zoom: 'portal.serviceDetail.channels.zoom',
+    youtube: 'portal.serviceDetail.channels.youtube',
+    telegram: 'portal.serviceDetail.channels.telegram',
+    offline: 'portal.serviceDetail.channels.offline',
+    file: 'portal.serviceDetail.channels.file',
+};
+
 export default function ServiceDetailScreen() {
     const navigation = useNavigation<any>();
+    const { t, i18n } = useTranslation();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
     const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
@@ -118,7 +147,7 @@ export default function ServiceDetailScreen() {
         } catch (error) {
             console.error('Failed to load service:', error);
             if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось загрузить услугу');
+                Alert.alert(t('common.error'), t('portal.serviceDetail.alerts.loadError'));
                 navigation.goBack();
             }
         } finally {
@@ -127,7 +156,7 @@ export default function ServiceDetailScreen() {
                 setRefreshing(false);
             }
         }
-    }, [serviceId, navigation]);
+    }, [serviceId, navigation, t]);
 
     useEffect(() => {
         loadService();
@@ -154,7 +183,11 @@ export default function ServiceDetailScreen() {
 
         try {
             await Share.share({
-                message: `${service.title}\n\n${service.description || ''}\n\nЗаписаться: https://vedamatch.ru/services/${service.id}`,
+                message: t('portal.serviceDetail.shareMessage', {
+                    title: service.title,
+                    description: service.description || '',
+                    link: `https://vedamatch.ru/services/${service.id}`,
+                }),
             });
         } catch (error) {
             console.error('Share error:', error);
@@ -169,7 +202,7 @@ export default function ServiceDetailScreen() {
     const handleChat = () => {
         if (!service?.owner) return;
         if (user?.ID && service.owner.id === user.ID) {
-            Alert.alert('Информация', 'Это ваш сервис');
+            Alert.alert(t('portal.serviceDetail.alerts.infoTitle'), t('portal.serviceDetail.alerts.ownService'));
             return;
         }
         navigation.navigate('Chat', { userId: service.owner.id, name: service.owner.karmicName });
@@ -180,7 +213,7 @@ export default function ServiceDetailScreen() {
     const formats = useMemo(() => parseServiceFormats(service?.formats), [service?.formats]);
 
     const minPrice = service?.tariffs && service.tariffs.length > 0
-        ? Math.min(...service.tariffs.map(t => t.price))
+        ? Math.min(...service.tariffs.map((tariff) => tariff.price))
         : 0;
 
     if (loading) {
@@ -201,9 +234,9 @@ export default function ServiceDetailScreen() {
                         <View style={styles.errorCircle}>
                             <Sparkles size={48} color="rgba(255,255,255,0.1)" />
                         </View>
-                        <Text style={styles.errorText}>Услуга не найдена</Text>
+                        <Text style={styles.errorText}>{t('portal.serviceDetail.notFound.title')}</Text>
                         <TouchableOpacity style={styles.backButtonAlt} onPress={() => navigation.goBack()}>
-                            <Text style={styles.backButtonText}>Вернуться назад</Text>
+                            <Text style={styles.backButtonText}>{t('portal.serviceDetail.notFound.back')}</Text>
                         </TouchableOpacity>
                     </View>
                 </SafeAreaView>
@@ -212,7 +245,8 @@ export default function ServiceDetailScreen() {
     }
 
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
-    const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
+    const categoryLabel = t(CATEGORY_LABEL_KEYS[service.category], { defaultValue: service.category });
+    const numberLocale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
     return (
         <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
@@ -287,10 +321,10 @@ export default function ServiceDetailScreen() {
                                         <Text style={styles.ownerName}>
                                             {service.owner.karmicName}
                                         </Text>
-                                        <Text style={styles.ownerRoleBadge}>Expert</Text>
+                                        <Text style={styles.ownerRoleBadge}>{t('portal.serviceDetail.owner.expert')}</Text>
                                     </View>
                                     <Text style={styles.ownerSubtitle}>
-                                        {service.owner.spiritualName || 'Проверенный мастер'}
+                                        {service.owner.spiritualName || t('portal.serviceDetail.owner.verifiedMaster')}
                                     </Text>
                                 </View>
                                 <TouchableOpacity
@@ -310,17 +344,17 @@ export default function ServiceDetailScreen() {
                             <View style={styles.statBox}>
                                 <Star size={16} color={colors.accent} fill={colors.accent} />
                                 <Text style={styles.statValue}>{service.rating > 0 ? service.rating.toFixed(1) : '5.0'}</Text>
-                                <Text style={styles.statLabel}>Рейтинг</Text>
+                                <Text style={styles.statLabel}>{t('portal.serviceDetail.stats.rating')}</Text>
                             </View>
                             <View style={styles.statBox}>
                                 <Eye size={16} color="rgba(255,255,255,0.4)" />
                                 <Text style={styles.statValue}>{service.viewsCount}</Text>
-                                <Text style={styles.statLabel}>Визиты</Text>
+                                <Text style={styles.statLabel}>{t('portal.serviceDetail.stats.views')}</Text>
                             </View>
                             <View style={styles.statBox}>
                                 <Calendar size={16} color="rgba(255,255,255,0.4)" />
                                 <Text style={styles.statValue}>{service.bookingsCount}</Text>
-                                <Text style={styles.statLabel}>Записи</Text>
+                                <Text style={styles.statLabel}>{t('portal.serviceDetail.stats.bookings')}</Text>
                             </View>
                         </View>
 
@@ -329,7 +363,7 @@ export default function ServiceDetailScreen() {
                             <View style={styles.infoSection}>
                                 <View style={styles.sectionHeadingRow}>
                                     <View style={styles.headingIndicator} />
-                                    <Text style={styles.sectionHeading}>О сервисе</Text>
+                                    <Text style={styles.sectionHeading}>{t('portal.serviceDetail.sections.about')}</Text>
                                 </View>
                                 <Text style={styles.descriptionText}>{service.description}</Text>
                             </View>
@@ -339,7 +373,7 @@ export default function ServiceDetailScreen() {
                         <View style={styles.infoSection}>
                             <View style={styles.sectionHeadingRow}>
                                 <View style={styles.headingIndicator} />
-                                <Text style={styles.sectionHeading}>Формат взаимодействия</Text>
+                                <Text style={styles.sectionHeading}>{t('portal.serviceDetail.sections.interactionFormat')}</Text>
                             </View>
                             <LinearGradient
                                 colors={
@@ -354,9 +388,9 @@ export default function ServiceDetailScreen() {
                                         {service.channel === 'offline' ? <MapPin size={20} color={colors.accent} /> : <Video size={20} color={colors.accent} />}
                                     </View>
                                     <View style={styles.logisticsContent}>
-                                        <Text style={styles.logisticsTitle}>{CHANNEL_LABELS[service.channel] || service.channel}</Text>
+                                        <Text style={styles.logisticsTitle}>{t(CHANNEL_LABEL_KEYS[service.channel], { defaultValue: service.channel })}</Text>
                                         <Text style={styles.logisticsSubtitle}>
-                                            {service.offlineAddress || 'Индивидуальная онлайн-сессия'}
+                                            {service.offlineAddress || t('portal.serviceDetail.onlineSessionFallback')}
                                         </Text>
                                     </View>
                                 </View>
@@ -364,7 +398,7 @@ export default function ServiceDetailScreen() {
                                     <View style={styles.formatTags}>
                                         {formats.map((f) => (
                                             <View key={f} style={styles.formatTag}>
-                                                <Text style={styles.formatTagText}>{FORMAT_LABELS[f] || f}</Text>
+                                                <Text style={styles.formatTagText}>{t(FORMAT_LABEL_KEYS[f], { defaultValue: f })}</Text>
                                             </View>
                                         ))}
                                     </View>
@@ -377,7 +411,7 @@ export default function ServiceDetailScreen() {
                             <View style={styles.infoSection}>
                                 <View style={styles.sectionHeadingRow}>
                                     <View style={styles.headingIndicator} />
-                                    <Text style={styles.sectionHeading}>Тарифные планы</Text>
+                                    <Text style={styles.sectionHeading}>{t('portal.serviceDetail.sections.tariffs')}</Text>
                                 </View>
                                 {service.tariffs.map((tariff) => (
                                     <TouchableOpacity
@@ -387,7 +421,7 @@ export default function ServiceDetailScreen() {
                                     >
                                         {tariff.isDefault && (
                                             <View style={styles.featuredBadge}>
-                                                <Text style={styles.featuredBadgeText}>Популярный</Text>
+                                                <Text style={styles.featuredBadgeText}>{t('portal.serviceDetail.popular')}</Text>
                                             </View>
                                         )}
                                         <View style={styles.tariffMainRow}>
@@ -396,19 +430,23 @@ export default function ServiceDetailScreen() {
                                                 <View style={styles.tariffMetaRow}>
                                                     {tariff.durationMinutes > 0 && (
                                                         <View style={styles.metaBadge}>
-                                                            <Text style={styles.metaBadgeText}>{tariff.durationMinutes} мин</Text>
+                                                            <Text style={styles.metaBadgeText}>
+                                                                {t('portal.serviceDetail.durationMinutes', { count: tariff.durationMinutes })}
+                                                            </Text>
                                                         </View>
                                                     )}
                                                     {tariff.sessionsCount > 1 && (
                                                         <View style={styles.metaBadge}>
-                                                            <Text style={styles.metaBadgeText}>{tariff.sessionsCount} сесс.</Text>
+                                                            <Text style={styles.metaBadgeText}>
+                                                                {t('portal.serviceDetail.sessionsCount', { count: tariff.sessionsCount })}
+                                                            </Text>
                                                         </View>
                                                     )}
                                                 </View>
                                             </View>
                                             <View style={styles.tariffPriceContainer}>
                                                 <Text style={styles.tariffPriceSymbol}>₵</Text>
-                                                <Text style={styles.tariffPriceValue}>{tariff.price.toLocaleString('ru-RU')}</Text>
+                                                <Text style={styles.tariffPriceValue}>{tariff.price.toLocaleString(numberLocale)}</Text>
                                             </View>
                                         </View>
                                     </TouchableOpacity>
@@ -426,11 +464,11 @@ export default function ServiceDetailScreen() {
                         style={[styles.footer, isAndroidReducedEffects && styles.footerReducedAndroid]}
                     >
                         <View style={styles.priceColumn}>
-                            <Text style={styles.priceLabel}>Начиная от</Text>
+                            <Text style={styles.priceLabel}>{t('portal.serviceDetail.startingFrom')}</Text>
                             <View style={styles.priceRow}>
                                 <Text style={styles.priceValueSymbol}>₵</Text>
                                 <Text style={styles.priceValueText}>
-                                    {minPrice > 0 ? minPrice.toLocaleString('ru-RU') : '0'}
+                                    {minPrice > 0 ? minPrice.toLocaleString(numberLocale) : '0'}
                                 </Text>
                             </View>
                         </View>
@@ -441,11 +479,11 @@ export default function ServiceDetailScreen() {
                                 onPress={() => navigation.navigate('CreateService', { serviceId: service.id })}
                             >
                                 <Edit size={18} color={colors.textPrimary} />
-                                <Text style={styles.editButtonText}>Правка</Text>
+                                <Text style={styles.editButtonText}>{t('portal.serviceDetail.edit')}</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity style={styles.bookButton} onPress={handleBook}>
-                                <Text style={styles.bookButtonText}>Забронировать</Text>
+                                <Text style={styles.bookButtonText}>{t('portal.serviceDetail.book')}</Text>
                                 <View style={styles.bookButtonIcon}>
                                     <Sparkles size={16} color={colors.textPrimary} />
                                 </View>

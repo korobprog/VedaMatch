@@ -13,6 +13,7 @@ import {
 import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import Animated, {
     SharedValue,
     useSharedValue,
@@ -132,6 +133,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     activeMathLabel,
     serviceBadges = {},
 }) => {
+    const { t } = useTranslation();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const androidVisualPolicy = useMemo(
@@ -214,6 +216,25 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     }, [items]);
     const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
     const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
+    const localizedServicesById = useMemo(() => {
+        const map = new Map<string, (typeof DEFAULT_SERVICES)[number]>();
+        for (const service of DEFAULT_SERVICES) {
+            map.set(service.id, {
+                ...service,
+                label: t(`portal.serviceLabels.${service.id}`, { defaultValue: service.label }),
+            });
+        }
+        return map;
+    }, [t]);
+    const orgMathBadge = useMemo(() => {
+        if (!godModeEnabled || !activeMathLabel) {
+            return undefined;
+        }
+        return t('portal.orgBadge', {
+            name: activeMathLabel,
+            defaultValue: `Org: ${activeMathLabel}`,
+        });
+    }, [activeMathLabel, godModeEnabled, t]);
     const dockEdgeMaskColor = portalBackgroundType === 'image'
         ? (isDarkMode ? 'rgba(8,13,20,0.25)' : 'rgba(34,48,69,0.18)')
         : (isDarkMode ? 'rgba(8,13,20,0.35)' : 'rgba(241,245,251,0.4)');
@@ -399,7 +420,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 </View>
             );
         } else {
-            const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
+            const service = localizedServicesById.get(item.serviceId);
             if (!service) return null;
             pressHandler = () => handleServicePress(item.serviceId);
             component = (
@@ -415,7 +436,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         size={layout.iconSize}
                         badge={serviceBadges[service.id] || 0}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Орг: ${activeMathLabel} ` : undefined}
+                        mathBadge={orgMathBadge}
                         onRemove={() => deleteGridItem(item.id)}
                     />
                 </View>
@@ -449,17 +470,17 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         handleDragEnd,
         setEditMode,
         highlightedServices,
-        godModeEnabled,
-        activeMathLabel,
         serviceBadges,
         deleteFolder,
         deleteGridItem,
         gridDnd,
+        localizedServicesById,
+        orgMathBadge,
     ]);
 
     // Render dock item
     const renderDockItem = useCallback((item: PortalItem) => {
-        const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
+        const service = localizedServicesById.get(item.serviceId);
         if (!service) return null;
 
         return (
@@ -487,12 +508,12 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         badge={serviceBadges[service.id] || 0}
                         showLabel={false}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Орг: ${activeMathLabel} ` : undefined}
+                        mathBadge={orgMathBadge}
                     />
                 </View>
             </DraggablePortalItem>
         );
-    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel, serviceBadges]);
+    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, orgMathBadge, localizedServicesById, serviceBadges]);
 
     // Page indicator dots
     const renderPageDots = () => (

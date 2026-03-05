@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowLeft, Shield, UserPlus, Users } from 'lucide-react-native';
@@ -37,16 +38,16 @@ const toPositiveInt = (value: string): number => {
   return intVal > 0 ? intVal : 0;
 };
 
-const roleLabel = (role: ChannelMemberRole): string => {
+const roleLabel = (role: ChannelMemberRole, t: (key: string) => string): string => {
   switch (role) {
     case 'owner':
-      return 'Владелец';
+      return t('portal.channelTeam.roles.owner');
     case 'admin':
-      return 'Администратор';
+      return t('portal.channelTeam.roles.admin');
     case 'editor':
-      return 'Редактор';
+      return t('portal.channelTeam.roles.editor');
     case 'subscriber':
-      return 'Подписчик';
+      return t('portal.channelTeam.roles.subscriber');
     default:
       return role;
   }
@@ -91,6 +92,7 @@ const getInitials = (label: string): string => {
 
 export default function ChannelTeamScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const route = useRoute<RouteProp<RouteParams, 'ChannelTeam'>>();
   const channelId = route.params?.channelId;
 
@@ -219,7 +221,7 @@ export default function ChannelTeamScreen() {
 
       if (!(resolvedViewerRole === 'owner' || resolvedViewerRole === 'admin' || resolvedViewerRole === 'editor')) {
         setMembers([]);
-        Alert.alert('Доступ ограничен', 'У вас нет прав для просмотра команды канала.');
+        Alert.alert(t('portal.channelTeam.alerts.accessDeniedTitle'), t('portal.channelTeam.alerts.accessDeniedText'));
         return;
       }
 
@@ -232,14 +234,14 @@ export default function ChannelTeamScreen() {
       if (!mountedRef.current || reqId !== latestLoadRef.current) {
         return;
       }
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить команду канала');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelTeam.alerts.loadFailed'));
       setMembers([]);
     } finally {
       if (mountedRef.current && reqId === latestLoadRef.current) {
         setLoading(false);
       }
     }
-  }, [channelId, user?.ID]);
+  }, [channelId, t, user?.ID]);
 
   useFocusEffect(
     useCallback(() => {
@@ -282,11 +284,11 @@ export default function ChannelTeamScreen() {
       ? memberUserIdInput.trim()
       : '';
     if (userId <= 0 && !nicknameCandidate) {
-      Alert.alert('Ошибка', 'Введите корректный userId или @nickname');
+      Alert.alert(t('common.error'), t('portal.channelTeam.alerts.invalidUserInput'));
       return;
     }
     if (memberRoleInput === 'owner') {
-      Alert.alert('Ошибка', 'Роль owner нельзя назначить через добавление');
+      Alert.alert(t('common.error'), t('portal.channelTeam.alerts.ownerAssignForbidden'));
       return;
     }
 
@@ -301,13 +303,13 @@ export default function ChannelTeamScreen() {
       setMemberSearchQuery('');
       await loadData(true);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось добавить участника');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelTeam.alerts.addFailed'));
     } finally {
       if (mountedRef.current) {
         setBusyAction('');
       }
     }
-  }, [canManageTeam, channelId, loadData, memberRoleInput, memberUserIdInput]);
+  }, [canManageTeam, channelId, loadData, memberRoleInput, memberUserIdInput, t]);
 
   const toggleMemberRole = useCallback(async (member: ChannelMemberResponse) => {
     if (!channelId || !canManageTeam || member.role === 'owner') {
@@ -320,23 +322,23 @@ export default function ChannelTeamScreen() {
       await channelService.updateMemberRole(channelId, member.userId, nextRole);
       await loadData(true);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить роль');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelTeam.alerts.updateRoleFailed'));
     } finally {
       if (mountedRef.current) {
         setBusyAction('');
       }
     }
-  }, [canManageTeam, channelId, loadData]);
+  }, [canManageTeam, channelId, loadData, t]);
 
   const removeMember = useCallback((member: ChannelMemberResponse) => {
     if (!channelId || !canManageTeam || member.role === 'owner' || member.userId === channel?.ownerId) {
       return;
     }
 
-    Alert.alert('Удалить участника?', `ID ${member.userId}`, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('portal.channelTeam.alerts.removeMemberTitle'), `ID ${member.userId}`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('portal.channelTeam.remove'),
         style: 'destructive',
         onPress: async () => {
           setBusyAction(`remove-${member.userId}`);
@@ -344,7 +346,7 @@ export default function ChannelTeamScreen() {
             await channelService.removeMember(channelId, member.userId);
             await loadData(true);
           } catch (error: any) {
-            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось удалить участника');
+            Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelTeam.alerts.removeFailed'));
           } finally {
             if (mountedRef.current) {
               setBusyAction('');
@@ -353,7 +355,7 @@ export default function ChannelTeamScreen() {
         },
       },
     ]);
-  }, [canManageTeam, channel?.ownerId, channelId, loadData]);
+  }, [canManageTeam, channel?.ownerId, channelId, loadData, t]);
 
   if (loading) {
     return (
@@ -373,8 +375,8 @@ export default function ChannelTeamScreen() {
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Команда канала</Text>
-            <Text style={styles.headerSubtitle}>{channel?.title || 'Канал'}</Text>
+            <Text style={styles.headerTitle}>{t('portal.channelTeam.headerTitle')}</Text>
+            <Text style={styles.headerSubtitle}>{channel?.title || t('portal.channelTeam.channelFallback')}</Text>
           </View>
           <View style={styles.headerPlaceholder} />
         </View>
@@ -387,21 +389,21 @@ export default function ChannelTeamScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Users size={16} color={colors.accent} />
-              <Text style={styles.infoTitle}>Участники: {members.length}</Text>
+              <Text style={styles.infoTitle}>{t('portal.channelTeam.membersCount', { count: members.length })}</Text>
             </View>
             <Text style={styles.infoMeta}>
               owner: {members.filter(item => item.role === 'owner').length} · admin: {members.filter(item => item.role === 'admin').length} · editor: {members.filter(item => item.role === 'editor').length}
             </Text>
             <Text style={styles.infoText}>
               {canManageTeam
-                ? 'Вы можете добавлять участников, менять роли admin/editor и удалять из команды.'
-                : 'У вас доступ только к просмотру состава команды.'}
+                ? t('portal.channelTeam.info.manageHint')
+                : t('portal.channelTeam.info.viewOnlyHint')}
             </Text>
           </View>
 
           {!canViewTeam ? (
             <View style={styles.deniedCard}>
-              <Text style={styles.deniedText}>Нет прав для просмотра команды канала.</Text>
+              <Text style={styles.deniedText}>{t('portal.channelTeam.denied')}</Text>
             </View>
           ) : null}
 
@@ -409,13 +411,13 @@ export default function ChannelTeamScreen() {
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <UserPlus size={16} color={colors.textPrimary} />
-                <Text style={styles.sectionTitle}>Добавить участника</Text>
+                <Text style={styles.sectionTitle}>{t('portal.channelTeam.addMember')}</Text>
               </View>
 
               <TextInput
                 value={memberUserIdInput}
                 onChangeText={setMemberUserIdInput}
-                placeholder="User ID или @nickname"
+                placeholder={t('portal.channelTeam.placeholders.userIdOrNickname')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
@@ -423,7 +425,7 @@ export default function ChannelTeamScreen() {
               <TextInput
                 value={memberSearchQuery}
                 onChangeText={setMemberSearchQuery}
-                placeholder="Поиск по имени, @nickname, email или ID"
+                placeholder={t('portal.channelTeam.placeholders.search')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
@@ -446,10 +448,10 @@ export default function ChannelTeamScreen() {
                       }}
                     >
                       <Text style={styles.searchName} numberOfLines={1}>
-                        {contact.spiritualName || contact.karmicName || `User #${contact.ID}`}
+                        {contact.spiritualName || contact.karmicName || t('portal.channelTeam.userFallback', { id: contact.ID })}
                       </Text>
                       <Text style={styles.searchMeta} numberOfLines={1}>
-                        {getDisplayNickname(contact.nicknameDisplay || contact.nickname) || `ID ${contact.ID}`} · {contact.email || 'без email'}
+                        {getDisplayNickname(contact.nicknameDisplay || contact.nickname) || t('portal.channelTeam.idLabel', { id: contact.ID })} · {contact.email || t('portal.channelTeam.noEmail')}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -475,7 +477,7 @@ export default function ChannelTeamScreen() {
                 {busyAction === 'add' ? (
                   <ActivityIndicator size="small" color={colors.textPrimary} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>Добавить в команду</Text>
+                  <Text style={styles.primaryButtonText}>{t('portal.channelTeam.addToTeam')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -484,11 +486,11 @@ export default function ChannelTeamScreen() {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Shield size={16} color={colors.textPrimary} />
-              <Text style={styles.sectionTitle}>Состав команды</Text>
+              <Text style={styles.sectionTitle}>{t('portal.channelTeam.teamComposition')}</Text>
             </View>
 
             {members.length === 0 ? (
-              <Text style={styles.emptyText}>Пока нет участников.</Text>
+              <Text style={styles.emptyText}>{t('portal.channelTeam.empty')}</Text>
             ) : (
               <View style={styles.memberList}>
                 {sortedMembers.map(member => {
@@ -512,11 +514,11 @@ export default function ChannelTeamScreen() {
                             {displayName}
                           </Text>
                           <Text style={styles.memberMeta} numberOfLines={1}>
-                            {getDisplayNickname(member.userInfo?.nicknameDisplay || member.userInfo?.nickname) || `ID ${member.userId}`}
+                            {getDisplayNickname(member.userInfo?.nicknameDisplay || member.userInfo?.nickname) || t('portal.channelTeam.idLabel', { id: member.userId })}
                           </Text>
                         </View>
                         <View style={styles.memberRoleBadge}>
-                          <Text style={styles.memberRoleText}>{roleLabel(member.role)}</Text>
+                          <Text style={styles.memberRoleText}>{roleLabel(member.role, t)}</Text>
                         </View>
                       </View>
 
@@ -531,7 +533,7 @@ export default function ChannelTeamScreen() {
                               <ActivityIndicator size="small" color={colors.textPrimary} />
                             ) : (
                               <Text style={styles.secondaryButtonText}>
-                                {member.role === 'admin' ? 'Сделать editor' : 'Сделать admin'}
+                                {member.role === 'admin' ? t('portal.channelTeam.makeEditor') : t('portal.channelTeam.makeAdmin')}
                               </Text>
                             )}
                           </TouchableOpacity>
@@ -543,7 +545,7 @@ export default function ChannelTeamScreen() {
                             {removeBusy ? (
                               <ActivityIndicator size="small" color={colors.textPrimary} />
                             ) : (
-                              <Text style={styles.deleteButtonText}>Удалить</Text>
+                              <Text style={styles.deleteButtonText}>{t('portal.channelTeam.remove')}</Text>
                             )}
                           </TouchableOpacity>
                         </View>

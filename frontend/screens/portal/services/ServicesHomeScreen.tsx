@@ -1,5 +1,5 @@
 /**
- * ServicesHomeScreen - Главный экран сервисов
+ * ServicesHomeScreen - services module home screen
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -11,14 +11,13 @@ import {
     TouchableOpacity,
     TextInput,
     RefreshControl,
-    Dimensions,
     ActivityIndicator,
     ImageBackground,
     Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Search,
@@ -55,18 +54,16 @@ import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPol
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 
-const { width } = Dimensions.get('window');
-
-const CATEGORIES: { key: ServiceCategory | 'all'; label: string; iconName: string }[] = [
-    { key: 'all', label: 'Все', iconName: 'Sparkles' },
-    { key: 'astrology', label: 'Астрология', iconName: 'Star' },
-    { key: 'psychology', label: 'Психология', iconName: 'Brain' },
-    { key: 'coaching', label: 'Коучинг', iconName: 'Target' },
-    { key: 'spirituality', label: 'Духовность', iconName: 'Infinity' },
-    { key: 'yagya', label: 'Ягьи', iconName: 'Flame' },
-    { key: 'education', label: 'Обучение', iconName: 'BookOpen' },
-    { key: 'health', label: 'Здоровье', iconName: 'Leaf' },
-    { key: 'other', label: 'Другое', iconName: 'Sparkles' },
+const CATEGORIES: { key: ServiceCategory | 'all'; labelKey: string; iconName: string }[] = [
+    { key: 'all', labelKey: 'portal.servicesHome.categories.all', iconName: 'Sparkles' },
+    { key: 'astrology', labelKey: 'portal.servicesHome.categories.astrology', iconName: 'Star' },
+    { key: 'psychology', labelKey: 'portal.servicesHome.categories.psychology', iconName: 'Brain' },
+    { key: 'coaching', labelKey: 'portal.servicesHome.categories.coaching', iconName: 'Target' },
+    { key: 'spirituality', labelKey: 'portal.servicesHome.categories.spirituality', iconName: 'Infinity' },
+    { key: 'yagya', labelKey: 'portal.servicesHome.categories.yagya', iconName: 'Flame' },
+    { key: 'education', labelKey: 'portal.servicesHome.categories.education', iconName: 'BookOpen' },
+    { key: 'health', labelKey: 'portal.servicesHome.categories.health', iconName: 'Leaf' },
+    { key: 'other', labelKey: 'portal.servicesHome.categories.other', iconName: 'Sparkles' },
 ];
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
@@ -95,6 +92,7 @@ interface ServicesHomeScreenProps {
 
 const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
+    const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -182,9 +180,9 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                Маркетплейс
+                                {t('portal.servicesHome.headerTitle')}
                             </Text>
-                            <Text style={[styles.headerSubtitle, styles.headerSubtitleReducedAndroid, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
+                            <Text style={[styles.headerSubtitle, styles.headerSubtitleReducedAndroid, { color: 'rgba(255,255,255,0.8)' }]}>{t('portal.servicesHome.headerSubtitle')}</Text>
                         </View>
 
                         <View style={styles.headerActions}>
@@ -214,9 +212,9 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                Маркетплейс
+                                {t('portal.servicesHome.headerTitle')}
                             </Text>
-                            <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
+                            <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('portal.servicesHome.headerSubtitle')}</Text>
                         </View>
 
                         <View style={styles.headerActions}>
@@ -248,8 +246,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <PlusCircle size={24} color={colors.accent} />
                         </View>
                         <View>
-                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>Создать</Text>
-                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>Свою услугу</Text>
+                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>{t('portal.servicesHome.featured.createTitle')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>{t('portal.servicesHome.featured.createSubtitle')}</Text>
                         </View>
                     </TouchableOpacity>
 
@@ -265,8 +263,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <Users size={24} color={colors.textPrimary} />
                         </View>
                         <View>
-                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>Заказы</Text>
-                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>Ваши клиенты</Text>
+                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>{t('portal.servicesHome.featured.ordersTitle')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>{t('portal.servicesHome.featured.ordersSubtitle')}</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -274,17 +272,17 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                 <View style={[styles.actionRow, { marginTop: 12 }]}>
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyBookings}>
                         <History size={18} color={colors.textSecondary} />
-                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Мои записи</Text>
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>{t('portal.servicesHome.mini.myBookings')}</Text>
                     </TouchableOpacity>
                     <View style={styles.miniDivider} />
                     <TouchableOpacity style={styles.miniAction} onPress={handleChannels}>
                         <Radio size={18} color={colors.textSecondary} />
-                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Каналы</Text>
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>{t('portal.servicesHome.mini.channels')}</Text>
                     </TouchableOpacity>
                     <View style={styles.miniDivider} />
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyServices}>
                         <Briefcase size={18} color={colors.textSecondary} />
-                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Библиотека</Text>
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>{t('portal.servicesHome.mini.library')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -301,7 +299,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     <Search size={20} color={colors.textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: colors.textPrimary }]}
-                        placeholder="Кого вы ищете сегодня?"
+                        placeholder={t('portal.servicesHome.searchPlaceholder')}
                         placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -357,7 +355,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             { color: colors.textSecondary },
                             selectedCategory === cat.key && styles.activeCategoryLabel
                         ]}>
-                            {cat.label}
+                            {t(cat.labelKey)}
                         </Text>
                     </TouchableOpacity>
                 ))}
@@ -370,15 +368,15 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             <View style={styles.emptyIconCircle}>
                 <Search size={40} color={colors.textSecondary} />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Услуги не найдены</Text>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{t('portal.servicesHome.empty.title')}</Text>
             <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                Попробуйте изменить категорию или уточнить запрос
+                {t('portal.servicesHome.empty.subtitle')}
             </Text>
             <TouchableOpacity
                 style={[styles.emptyButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
                 onPress={handleCreateService}
             >
-                <Text style={[styles.emptyButtonText, { color: colors.textPrimary }]}>Создать первую услугу</Text>
+                <Text style={[styles.emptyButtonText, { color: colors.textPrimary }]}>{t('portal.servicesHome.empty.create')}</Text>
             </TouchableOpacity>
         </View>
     );

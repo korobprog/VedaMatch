@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { PlayCircle, Radio } from 'lucide-react-native';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -22,6 +23,7 @@ import SadhuSangaLayout from './components/SadhuSangaLayout';
 
 export default function SadhuSangaLiveScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -64,13 +66,13 @@ export default function SadhuSangaLiveScreen() {
       setChannels(channelsResponse.channels || []);
       setArchiveTracks(archiveResponse.tracks || []);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось загрузить эфиры');
+      Alert.alert(t('common.error'), error?.response?.data?.error || error?.message || t('portal.sadhuSangaLive.alerts.loadFailed'));
       setChannels([]);
       setArchiveTracks([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadChannels();
@@ -106,11 +108,11 @@ export default function SadhuSangaLiveScreen() {
         return {
           id: track.ID,
           channelId: 0,
-          title: track.title || `Лекция #${track.ID}`,
-          subtitle: track.description || 'Лекция из архива',
+          title: track.title || t('portal.sadhuSangaLive.archiveLectureFallback', { id: track.ID }),
+          subtitle: track.description || t('portal.sadhuSangaLive.archiveSubtitleFallback'),
           image: track.thumbnailUrl || '',
           duration,
-          tag: track.language ? `Язык: ${String(track.language).toUpperCase()}` : 'Архив',
+          tag: track.language ? t('portal.sadhuSangaLive.languageTag', { code: String(track.language).toUpperCase() }) : t('portal.sadhuSangaLive.archiveTag'),
           followers: track.viewCount || 0,
           youtubeUrl: track.youtubeUrl || '',
         };
@@ -120,26 +122,26 @@ export default function SadhuSangaLiveScreen() {
     return channels.slice(0, 8).map((item, index) => ({
       id: item.ID,
       channelId: item.ID,
-      title: item.title || `Лекция ${index + 1}`,
-      subtitle: item.description || 'Лекция из архива',
+      title: item.title || t('portal.sadhuSangaLive.archiveLectureIndex', { index: index + 1 }),
+      subtitle: item.description || t('portal.sadhuSangaLive.archiveSubtitleFallback'),
       image: item.coverUrl || item.avatarUrl || '',
       duration: index % 2 === 0 ? '1:24:00' : '48:30',
-      tag: 'Духовная практика',
+      tag: t('portal.sadhuSangaLive.spiritualPracticeTag'),
       followers: item.followersCount || 0,
       youtubeUrl: '',
     }));
-  }, [archiveTracks, channels]);
+  }, [archiveTracks, channels, t]);
 
   const handleJoinLive = useCallback(async (item: Channel) => {
     const session = item.currentLiveSession;
     if (!session || session.status !== 'live') {
-      Alert.alert('Эфир', 'Сейчас эфир не активен.');
+      Alert.alert(t('portal.sadhuSangaLive.liveTitle'), t('portal.sadhuSangaLive.alerts.notActive'));
       return;
     }
 
     const canJoin = Boolean(user?.ID) && (item.ownerId === user?.ID || Boolean(item.isFollowing));
     if (!canJoin) {
-      Alert.alert('Требуется подписка', 'Подпишитесь на проповедника, чтобы смотреть эфир.');
+      Alert.alert(t('portal.sadhuSangaLive.alerts.subscriptionRequiredTitle'), t('portal.sadhuSangaLive.alerts.subscriptionRequiredText'));
       return;
     }
     if (liveJoinLoadingChannelId === item.ID) {
@@ -160,17 +162,17 @@ export default function SadhuSangaLiveScreen() {
         liveId: session.id,
       });
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось подключиться к эфиру');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.sadhuSangaLive.alerts.joinFailed'));
       void loadChannels();
     } finally {
       setLiveJoinLoadingChannelId(null);
     }
-  }, [liveJoinLoadingChannelId, loadChannels, navigation, user?.ID, user?.karmicName, user?.spiritualName]);
+  }, [liveJoinLoadingChannelId, loadChannels, navigation, t, user?.ID, user?.karmicName, user?.spiritualName]);
 
   return (
     <SadhuSangaLayout
       colors={colors}
-      subtitle="Прямые эфиры и архив"
+      subtitle={t('portal.sadhuSangaLive.subtitle')}
       activeTab="live"
       onBack={() => navigation.goBack()}
       onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
@@ -183,7 +185,7 @@ export default function SadhuSangaLiveScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.tabPaneWrap}>
-            <Text style={styles.tabPaneTitle}>Прямой эфир</Text>
+            <Text style={styles.tabPaneTitle}>{t('portal.sadhuSangaLive.liveTitle')}</Text>
 
             {loading ? (
               <View style={styles.loaderWrap}>
@@ -192,8 +194,8 @@ export default function SadhuSangaLiveScreen() {
             ) : liveChannels.length === 0 ? (
               <Text style={styles.liveEmpty}>
                 {isMathProfileMissing
-                  ? 'Укажите матх в профиле, чтобы видеть эфиры вашего направления.'
-                  : 'Скоро здесь появятся эфиры проповедников'}
+                  ? t('portal.sadhuSangaLive.empty.mathMissing')
+                  : t('portal.sadhuSangaLive.empty.liveSoon')}
               </Text>
             ) : (
               <View style={styles.liveList}>
@@ -208,7 +210,9 @@ export default function SadhuSangaLiveScreen() {
                         <View style={styles.liveTitleWrap}>
                           <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
                           <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
-                            {isLive ? `В эфире • ${languageCode}` : `Запланировано • ${languageCode}`}
+                            {isLive
+                              ? t('portal.sadhuSangaLive.badges.liveNow', { code: languageCode })
+                              : t('portal.sadhuSangaLive.badges.scheduled', { code: languageCode })}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -225,15 +229,15 @@ export default function SadhuSangaLiveScreen() {
                           ) : (
                             <>
                               <Radio size={14} color={colors.textPrimary} />
-                              <Text style={styles.liveActionButtonText}>Смотреть эфир</Text>
+                              <Text style={styles.liveActionButtonText}>{t('portal.sadhuSangaLive.watchLive')}</Text>
                             </>
                           )}
                         </TouchableOpacity>
                       </View>
-                      <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || 'Эфир'}</Text>
+                      <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || t('portal.sadhuSangaLive.liveFallback')}</Text>
                       {(session.startedAt || session.scheduledAt) ? (
                         <Text style={styles.liveCardDate}>
-                          {new Date(session.startedAt || session.scheduledAt || '').toLocaleString('ru-RU', {
+                          {new Date(session.startedAt || session.scheduledAt || '').toLocaleString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US', {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
@@ -249,9 +253,9 @@ export default function SadhuSangaLiveScreen() {
           </View>
 
           <View style={styles.tabPaneWrap}>
-            <Text style={styles.tabPaneTitle}>Архив лекций</Text>
+            <Text style={styles.tabPaneTitle}>{t('portal.sadhuSangaLive.archiveTitle')}</Text>
             {archiveItems.length === 0 ? (
-              <Text style={styles.liveEmpty}>Архив пока пуст</Text>
+              <Text style={styles.liveEmpty}>{t('portal.sadhuSangaLive.empty.archiveEmpty')}</Text>
             ) : (
               <View style={styles.archiveList}>
                 {archiveItems.map((item, index) => (
@@ -277,7 +281,7 @@ export default function SadhuSangaLiveScreen() {
                     </View>
                     <View style={styles.archiveBody}>
                       <Text style={styles.archiveTitle}>{item.subtitle}</Text>
-                      <Text style={styles.archiveSub}>{item.title} · 2 дня назад</Text>
+                      <Text style={styles.archiveSub}>{t('portal.sadhuSangaLive.archiveSub', { title: item.title })}</Text>
                       <View style={styles.archiveMetaRow}>
                         <Text style={styles.archiveTag}>{item.tag}</Text>
                         <Text style={styles.archiveLikes}>♡ {item.followers}</Text>
@@ -289,16 +293,16 @@ export default function SadhuSangaLiveScreen() {
                             try {
                               const supported = await Linking.canOpenURL(item.youtubeUrl);
                               if (!supported) {
-                                Alert.alert('YouTube', 'Не удалось открыть ссылку.');
+                                Alert.alert('YouTube', t('portal.sadhuSangaLive.alerts.youtubeOpenFailed'));
                                 return;
                               }
                               await Linking.openURL(item.youtubeUrl);
                             } catch {
-                              Alert.alert('YouTube', 'Не удалось открыть ссылку на YouTube.');
+                              Alert.alert('YouTube', t('portal.sadhuSangaLive.alerts.youtubeOpenYoutubeFailed'));
                             }
                           }}
                         >
-                          <Text style={styles.archiveYoutubeButtonText}>Открыть в YouTube</Text>
+                          <Text style={styles.archiveYoutubeButtonText}>{t('portal.sadhuSangaLive.openYouTube')}</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>

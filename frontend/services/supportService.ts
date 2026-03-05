@@ -13,6 +13,7 @@ export interface SupportConfig {
     channelUrl: string;
     slaTextRu: string;
     slaTextEn: string;
+    slaTextHi?: string;
     languages: string[];
     channels: {
         telegram: boolean;
@@ -67,12 +68,26 @@ export interface CreateSupportTicketPayload {
     attachmentUrl?: string;
     attachmentMimeType?: string;
     clientRequestId?: string;
+    devicePlatform?: string;
+    deviceOs?: string;
+    deviceOsVersion?: string;
+    deviceModel?: string;
+    appVersion?: string;
+    appBuild?: string;
+    userAgent?: string;
 }
 
 export interface AddSupportMessagePayload {
     message?: string;
     attachmentUrl?: string;
     attachmentMimeType?: string;
+    devicePlatform?: string;
+    deviceOs?: string;
+    deviceOsVersion?: string;
+    deviceModel?: string;
+    appVersion?: string;
+    appBuild?: string;
+    userAgent?: string;
 }
 
 export interface SupportPreacherQuestion {

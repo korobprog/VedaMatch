@@ -1,5 +1,5 @@
 /**
- * TariffSelector - Компонент выбора тарифа
+ * TariffSelector - tariff selection component
  */
 import React from 'react';
 import {
@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Check, Clock, Sparkles } from 'lucide-react-native';
 import { ServiceTariff } from '../../../../services/serviceService';
 import { useUser } from '../../../../context/UserContext';
@@ -27,6 +28,7 @@ export default function TariffSelector({
     selectedTariffId,
     onSelect,
 }: TariffSelectorProps) {
+    const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -35,7 +37,7 @@ export default function TariffSelector({
     if (!tariffs || tariffs.length === 0) {
         return (
             <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Тарифы не настроены</Text>
+                <Text style={styles.emptyText}>{t('portal.tariffSelector.empty')}</Text>
             </View>
         );
     }
@@ -63,7 +65,7 @@ export default function TariffSelector({
                         {tariff.isDefault && (
                             <View style={styles.featuredBadge}>
                                 <Sparkles size={10} color={colors.textPrimary} />
-                                <Text style={styles.featuredText}>ПОПУЛЯРНО</Text>
+                                <Text style={styles.featuredText}>{t('portal.tariffSelector.popular')}</Text>
                             </View>
                         )}
 
@@ -84,7 +86,7 @@ export default function TariffSelector({
                             <View style={styles.metaItem}>
                                 <Clock size={12} color={isSelected ? colors.textPrimary : colors.accent} />
                                 <Text style={[styles.metaText, isSelected && styles.metaTextSelected]}>
-                                    {tariff.durationMinutes} мин
+                                    {t('portal.tariffSelector.minutes', { count: tariff.durationMinutes })}
                                 </Text>
                             </View>
                         </View>

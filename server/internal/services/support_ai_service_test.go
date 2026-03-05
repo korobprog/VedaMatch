@@ -36,3 +36,21 @@ func TestEnsureSupportDiagnosticsPrompt_SkipsWhenDetailsAlreadyProvided(t *testi
 		t.Fatalf("expected no extra diagnostics prompt, got %q", result)
 	}
 }
+
+func TestSupportSystemPrompt_Hindi(t *testing.T) {
+	prompt := supportSystemPrompt("hi")
+	if !strings.Contains(prompt, "आप VedaMatch सपोर्ट असिस्टेंट हैं") {
+		t.Fatalf("expected hindi prompt, got %q", prompt)
+	}
+}
+
+func TestSanitizeSupportReply_HindiEmailRemoved(t *testing.T) {
+	reply := "कृपया support@vedamatch.ru पर मेल करें।"
+	clean := sanitizeSupportReply(reply, "hi")
+	if strings.Contains(strings.ToLower(clean), "support@vedamatch.ru") {
+		t.Fatalf("expected email to be removed, got %q", clean)
+	}
+	if !strings.Contains(clean, "इसी चैट") {
+		t.Fatalf("expected hindi in-chat guidance, got %q", clean)
+	}
+}

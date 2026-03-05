@@ -13,6 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { useUser } from '../../../../context/UserContext';
@@ -22,6 +23,7 @@ import { KeyboardAwareContainer } from '../../../../components/ui/KeyboardAwareC
 
 export default function CreateChannelScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -35,7 +37,7 @@ export default function CreateChannelScreen() {
   const handleCreate = async () => {
     const cleanTitle = title.trim();
     if (!cleanTitle) {
-      Alert.alert('Ошибка', 'Введите название канала');
+      Alert.alert(t('common.error'), t('portal.createChannel.alerts.enterTitle'));
       return;
     }
 
@@ -47,10 +49,10 @@ export default function CreateChannelScreen() {
         isPublic,
       });
 
-      Alert.alert('Готово', 'Канал создан');
+      Alert.alert(t('common.success'), t('portal.createChannel.alerts.created'));
       navigation.replace('ChannelDetails', { channelId: channel.ID });
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось создать канал');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.createChannel.alerts.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -63,7 +65,7 @@ export default function CreateChannelScreen() {
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Новый канал</Text>
+          <Text style={styles.headerTitle}>{t('portal.createChannel.headerTitle')}</Text>
           <View style={styles.headerPlaceholder} />
         </View>
 
@@ -73,21 +75,21 @@ export default function CreateChannelScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.label}>Название</Text>
+          <Text style={styles.label}>{t('portal.createChannel.fields.title')}</Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
-            placeholder="Например: Ягьи и мантры"
+            placeholder={t('portal.createChannel.placeholders.title')}
             placeholderTextColor={colors.textSecondary}
             style={styles.input}
             maxLength={200}
           />
 
-          <Text style={styles.label}>Описание</Text>
+          <Text style={styles.label}>{t('portal.createChannel.fields.description')}</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
-            placeholder="О чем этот канал"
+            placeholder={t('portal.createChannel.placeholders.description')}
             placeholderTextColor={colors.textSecondary}
             style={[styles.input, styles.textArea]}
             multiline
@@ -96,8 +98,8 @@ export default function CreateChannelScreen() {
 
           <View style={styles.visibilityRow}>
             <View>
-              <Text style={styles.visibilityTitle}>Публичный канал</Text>
-              <Text style={styles.visibilitySub}>Доступен всем пользователям</Text>
+              <Text style={styles.visibilityTitle}>{t('portal.createChannel.visibility.title')}</Text>
+              <Text style={styles.visibilitySub}>{t('portal.createChannel.visibility.subtitle')}</Text>
             </View>
             <Switch
               value={isPublic}
@@ -111,7 +113,7 @@ export default function CreateChannelScreen() {
             {saving ? (
               <ActivityIndicator color={colors.textPrimary} />
             ) : (
-              <Text style={styles.createButtonText}>Создать канал</Text>
+              <Text style={styles.createButtonText}>{t('portal.createChannel.cta')}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -132,7 +134,6 @@ const createStyles = (
     gradientToken.includes('1e3a8a') ||
     gradientToken.includes('0f172a');
   const onGradientPrimary = useLightText ? '#F8FAFC' : colors.textPrimary;
-  const onGradientSecondary = useLightText ? '#E2E8F0' : colors.textSecondary;
 
   return StyleSheet.create({
     gradient: {

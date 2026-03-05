@@ -1,5 +1,5 @@
 /**
- * ServiceScheduleScreen - Экран настройки расписания сервиса
+ * ServiceScheduleScreen - service schedule settings screen
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -16,6 +16,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Save,
@@ -48,14 +49,14 @@ interface DaySchedule {
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
-const DAYS: { key: DayOfWeek; label: string; shortLabel: string }[] = [
-    { key: 'monday', label: 'Понедельник', shortLabel: 'Пн' },
-    { key: 'tuesday', label: 'Вторник', shortLabel: 'Вт' },
-    { key: 'wednesday', label: 'Среда', shortLabel: 'Ср' },
-    { key: 'thursday', label: 'Четверг', shortLabel: 'Чт' },
-    { key: 'friday', label: 'Пятница', shortLabel: 'Пт' },
-    { key: 'saturday', label: 'Суббота', shortLabel: 'Сб' },
-    { key: 'sunday', label: 'Воскресенье', shortLabel: 'Вс' },
+const DAYS: { key: DayOfWeek; labelKey: string; shortLabelKey: string }[] = [
+    { key: 'monday', labelKey: 'portal.serviceSchedule.days.monday', shortLabelKey: 'portal.serviceSchedule.daysShort.monday' },
+    { key: 'tuesday', labelKey: 'portal.serviceSchedule.days.tuesday', shortLabelKey: 'portal.serviceSchedule.daysShort.tuesday' },
+    { key: 'wednesday', labelKey: 'portal.serviceSchedule.days.wednesday', shortLabelKey: 'portal.serviceSchedule.daysShort.wednesday' },
+    { key: 'thursday', labelKey: 'portal.serviceSchedule.days.thursday', shortLabelKey: 'portal.serviceSchedule.daysShort.thursday' },
+    { key: 'friday', labelKey: 'portal.serviceSchedule.days.friday', shortLabelKey: 'portal.serviceSchedule.daysShort.friday' },
+    { key: 'saturday', labelKey: 'portal.serviceSchedule.days.saturday', shortLabelKey: 'portal.serviceSchedule.daysShort.saturday' },
+    { key: 'sunday', labelKey: 'portal.serviceSchedule.days.sunday', shortLabelKey: 'portal.serviceSchedule.daysShort.sunday' },
 ];
 
 const DEFAULT_SLOT: TimeSlot = { startTime: '09:00', endTime: '18:00' };
@@ -77,6 +78,7 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 
 export default function ServiceScheduleScreen() {
     const navigation = useNavigation<ServiceScheduleNavigationProp>();
+    const { t } = useTranslation();
     const route = useRoute<RouteProp<RootStackParamList, 'ServiceSchedule'>>();
     const serviceId = route.params?.serviceId;
     const { user } = useUser();
@@ -145,10 +147,10 @@ export default function ServiceScheduleScreen() {
             loadSchedule();
         } else {
             setLoading(false);
-            Alert.alert('Ошибка', 'Не указан сервис');
+            Alert.alert(t('common.error'), t('portal.serviceSchedule.alerts.serviceMissing'));
             navigation.goBack();
         }
-    }, [serviceId, loadSchedule, navigation]);
+    }, [serviceId, loadSchedule, navigation, t]);
 
     const handleToggleDay = (day: DayOfWeek) => {
         setSchedule(prev => ({
@@ -161,12 +163,12 @@ export default function ServiceScheduleScreen() {
         }));
     };
 
-    const handleAddSlot = (day: DayOfWeek) => {
+    const handleAddSlot = useCallback((day: DayOfWeek) => {
         let warningMessage = '';
         setSchedule(prev => {
             const daySchedule = prev[day];
             if (daySchedule.slots.length >= 5) {
-                warningMessage = 'Максимум 5 слотов на день';
+                warningMessage = t('portal.serviceSchedule.alerts.maxSlots');
                 return prev;
             }
 
@@ -176,7 +178,7 @@ export default function ServiceScheduleScreen() {
             const newStartMinutes = parseTimeToMinutes(newStartTime);
             const newEndMinutes = parseTimeToMinutes(newEndTime);
             if (newStartMinutes < 0 || newEndMinutes < 0 || newStartMinutes >= newEndMinutes) {
-                warningMessage = 'Нельзя добавить интервал позже 23:30';
+                warningMessage = t('portal.serviceSchedule.alerts.invalidLateInterval');
                 return prev;
             }
 
@@ -190,13 +192,13 @@ export default function ServiceScheduleScreen() {
         });
 
         if (warningMessage) {
-            Alert.alert('Лимит', warningMessage);
+            Alert.alert(t('portal.serviceSchedule.alerts.limitTitle'), warningMessage);
         }
-    };
+    }, [t]);
 
-    const handleRemoveSlot = (day: DayOfWeek, index: number) => {
+    const handleRemoveSlot = useCallback((day: DayOfWeek, index: number) => {
         if (schedule[day].slots.length <= 1) {
-            Alert.alert('Ошибка', 'Нужен хотя бы один слот');
+            Alert.alert(t('common.error'), t('portal.serviceSchedule.alerts.atLeastOneSlot'));
             return;
         }
 
@@ -207,7 +209,7 @@ export default function ServiceScheduleScreen() {
                 slots: prev[day].slots.filter((_, i) => i !== index),
             },
         }));
-    };
+    }, [schedule, t]);
 
     const handleSlotChange = (day: DayOfWeek, index: number, field: 'startTime' | 'endTime', value: string) => {
         setSchedule(prev => ({
@@ -221,15 +223,15 @@ export default function ServiceScheduleScreen() {
         }));
     };
 
-    const handleCopyToAllDays = () => {
+    const handleCopyToAllDays = useCallback(() => {
         const sourceDay = schedule[selectedDay];
         Alert.alert(
-            'Скопировать расписание?',
-            `Скопировать расписание ${DAYS.find(d => d.key === selectedDay)?.label} на все рабочие дни?`,
+            t('portal.serviceSchedule.copy.title'),
+            t('portal.serviceSchedule.copy.message', { day: t(DAYS.find((d) => d.key === selectedDay)?.labelKey || '') }),
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Да',
+                    text: t('portal.serviceSchedule.copy.confirm'),
                     onPress: () => {
                         setSchedule(prev => {
                             const updated = { ...prev };
@@ -243,23 +245,23 @@ export default function ServiceScheduleScreen() {
                             });
                             return updated;
                         });
-                        Alert.alert('Готово', 'Расписание скопировано');
+                        Alert.alert(t('common.success'), t('portal.serviceSchedule.alerts.copied'));
                     },
                 },
             ]
         );
-    };
+    }, [schedule, selectedDay, t]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (saving || saveInProgressRef.current) {
             return;
         }
         if (!serviceId) {
-            Alert.alert('Ошибка', 'Не указан сервис');
+            Alert.alert(t('common.error'), t('portal.serviceSchedule.alerts.serviceMissing'));
             return;
         }
 
-        for (const { key, label } of DAYS) {
+        for (const { key, labelKey } of DAYS) {
             const daySchedule = schedule[key];
             if (!daySchedule.enabled) {
                 continue;
@@ -276,14 +278,18 @@ export default function ServiceScheduleScreen() {
 
             for (const slot of normalizedSlots) {
                 if (slot.startMinutes < 0 || slot.endMinutes < 0 || slot.startMinutes >= slot.endMinutes) {
-                    Alert.alert('Ошибка', `Некорректный интервал в "${label}": ${slot.start} - ${slot.end}`);
+                    Alert.alert(t('common.error'), t('portal.serviceSchedule.alerts.invalidInterval', {
+                        day: t(labelKey),
+                        start: slot.start,
+                        end: slot.end,
+                    }));
                     return;
                 }
             }
 
             for (let i = 1; i < normalizedSlots.length; i++) {
                 if (normalizedSlots[i].startMinutes < normalizedSlots[i - 1].endMinutes) {
-                    Alert.alert('Ошибка', `Пересечение интервалов в "${label}"`);
+                    Alert.alert(t('common.error'), t('portal.serviceSchedule.alerts.overlap', { day: t(labelKey) }));
                     return;
                 }
             }
@@ -313,7 +319,7 @@ export default function ServiceScheduleScreen() {
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            Alert.alert('Готово! ✨', 'Расписание сохранено');
+            Alert.alert(t('portal.serviceSchedule.alerts.savedTitle'), t('portal.serviceSchedule.alerts.saved'));
             navigation.goBack();
         } catch (error: unknown) {
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
@@ -324,14 +330,14 @@ export default function ServiceScheduleScreen() {
                 typeof error === 'object' && error !== null && 'message' in error
                     ? String((error as { message?: string }).message)
                     : '';
-            Alert.alert('Ошибка', message || 'Не удалось сохранить');
+            Alert.alert(t('common.error'), message || t('portal.serviceSchedule.alerts.saveFailed'));
         } finally {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
                 setSaving(false);
             }
             saveInProgressRef.current = false;
         }
-    };
+    }, [saving, serviceId, schedule, slotDuration, breakBetween, maxBookingsPerDay, navigation, t]);
 
     const incrementTime = (time: string, minutes: number): string => {
         const [h, m] = time.split(':').map(Number);
@@ -355,22 +361,22 @@ export default function ServiceScheduleScreen() {
     function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', _currentValue: string) {
         const [startH, startM] = schedule[day].slots[slotIndex].startTime.split(':').map(Number);
         const startTotal = startH * 60 + startM;
-        const options = TIME_OPTIONS.filter(t => {
-            const [h, m] = t.split(':').map(Number);
+        const options = TIME_OPTIONS.filter((timeOption) => {
+            const [h, m] = timeOption.split(':').map(Number);
             const total = h * 60 + m;
             if (field === 'startTime') return h >= 6 && h < 23;
             return total > startTotal;
         });
 
         Alert.alert(
-            field === 'startTime' ? 'Начало' : 'Окончание',
-            'Выберите время',
+            field === 'startTime' ? t('portal.serviceSchedule.timePicker.start') : t('portal.serviceSchedule.timePicker.end'),
+            t('portal.serviceSchedule.timePicker.selectTime'),
             [
                 ...options.slice(0, 10).map(time => ({
                     text: time,
                     onPress: () => handleSlotChange(day, slotIndex, field, time),
                 })),
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
             ]
         );
     }
@@ -396,8 +402,8 @@ export default function ServiceScheduleScreen() {
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Настройка времени</Text>
-                        <Text style={styles.headerSubtitle}>Управление доступными часами</Text>
+                        <Text style={styles.headerTitle}>{t('portal.serviceSchedule.headerTitle')}</Text>
+                        <Text style={styles.headerSubtitle}>{t('portal.serviceSchedule.headerSubtitle')}</Text>
                     </View>
                     <TouchableOpacity
                         activeOpacity={0.8}
@@ -419,9 +425,9 @@ export default function ServiceScheduleScreen() {
                 >
                     {/* Week Days Mastery */}
                     <View style={styles.daysContainer}>
-                        <Text style={styles.sectionLabel}>Дни недели</Text>
+                        <Text style={styles.sectionLabel}>{t('portal.serviceSchedule.weekDays')}</Text>
                         <View style={styles.daysRow}>
-                            {DAYS.map(({ key, shortLabel }) => {
+                            {DAYS.map(({ key, shortLabelKey }) => {
                                 const isSelected = selectedDay === key;
                                 const isEnabled = schedule[key].enabled;
                                 return (
@@ -440,7 +446,7 @@ export default function ServiceScheduleScreen() {
                                             isSelected && styles.dayTabTextSelected,
                                             !isEnabled && !isSelected && styles.dayTabTextDisabled,
                                         ]}>
-                                            {shortLabel}
+                                            {t(shortLabelKey)}
                                         </Text>
                                         {isEnabled && !isSelected && <View style={styles.activeIndicator} />}
                                     </TouchableOpacity>
@@ -454,7 +460,7 @@ export default function ServiceScheduleScreen() {
                         <View style={styles.cardHeaderArea}>
                             <View style={styles.cardIndicator} />
                             <Text style={styles.cardMainTitle}>
-                                {DAYS.find(d => d.key === selectedDay)?.label}
+                                {t(DAYS.find((d) => d.key === selectedDay)?.labelKey || '')}
                             </Text>
                             <Switch
                                 value={currentDaySchedule.enabled}
@@ -508,7 +514,7 @@ export default function ServiceScheduleScreen() {
                                         onPress={() => handleAddSlot(selectedDay)}
                                     >
                                         <Plus size={18} color={colors.accent} />
-                                        <Text style={styles.ghostAddText}>Добавить интервал</Text>
+                                        <Text style={styles.ghostAddText}>{t('portal.serviceSchedule.addInterval')}</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
@@ -516,24 +522,24 @@ export default function ServiceScheduleScreen() {
                                         onPress={handleCopyToAllDays}
                                     >
                                         <Copy size={16} color="rgba(255,255,255,0.4)" />
-                                        <Text style={styles.copyButtonText}>Дублировать</Text>
+                                        <Text style={styles.copyButtonText}>{t('portal.serviceSchedule.duplicate')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </>
                         ) : (
                             <View style={styles.emptyDayBox}>
-                                <Text style={styles.emptyDayTitle}>Выходной день</Text>
-                                <Text style={styles.emptyDayText}>Записи в этот день не принимаются</Text>
+                                <Text style={styles.emptyDayTitle}>{t('portal.serviceSchedule.dayOffTitle')}</Text>
+                                <Text style={styles.emptyDayText}>{t('portal.serviceSchedule.dayOffText')}</Text>
                             </View>
                         )}
                     </View>
 
                     {/* Global Recording Settings */}
                     <View style={styles.globalSettingsCard}>
-                        <Text style={styles.globalTitle}>Параметры сессий</Text>
+                        <Text style={styles.globalTitle}>{t('portal.serviceSchedule.sessionParams')}</Text>
 
                         <View style={styles.globalItem}>
-                            <Text style={styles.globalLabel}>Длительность слота</Text>
+                            <Text style={styles.globalLabel}>{t('portal.serviceSchedule.slotDuration')}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
                                 {[30, 45, 60, 90, 120].map(mins => (
                                     <TouchableOpacity
@@ -548,7 +554,7 @@ export default function ServiceScheduleScreen() {
                                             styles.glassOptionText,
                                             slotDuration === mins && styles.glassOptionTextActive,
                                         ]}>
-                                            {mins} мин
+                                            {t('portal.serviceSchedule.minutes', { count: mins })}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -556,7 +562,7 @@ export default function ServiceScheduleScreen() {
                         </View>
 
                         <View style={styles.globalItem}>
-                            <Text style={styles.globalLabel}>Перерыв между записями</Text>
+                            <Text style={styles.globalLabel}>{t('portal.serviceSchedule.breakBetween')}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
                                 {[0, 5, 10, 15, 30].map(mins => (
                                     <TouchableOpacity
@@ -571,7 +577,7 @@ export default function ServiceScheduleScreen() {
                                             styles.glassOptionText,
                                             breakBetween === mins && styles.glassOptionTextActive,
                                         ]}>
-                                            {mins === 0 ? 'Нет' : `${mins} мин`}
+                                            {mins === 0 ? t('portal.serviceSchedule.none') : t('portal.serviceSchedule.minutes', { count: mins })}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -579,7 +585,7 @@ export default function ServiceScheduleScreen() {
                         </View>
 
                         <View style={styles.globalItem}>
-                            <Text style={styles.globalLabel}>Макс. записей в день</Text>
+                            <Text style={styles.globalLabel}>{t('portal.serviceSchedule.maxBookingsPerDay')}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
                                 {[0, 3, 5, 8, 10].map(count => (
                                     <TouchableOpacity
@@ -594,7 +600,7 @@ export default function ServiceScheduleScreen() {
                                             styles.glassOptionText,
                                             maxBookingsPerDay === count && styles.glassOptionTextActive,
                                         ]}>
-                                            {count === 0 ? 'Без лимита' : count}
+                                            {count === 0 ? t('portal.serviceSchedule.unlimited') : count}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -604,9 +610,9 @@ export default function ServiceScheduleScreen() {
 
                     {/* Preview Visualization */}
                     <View style={styles.weekPreviewCard}>
-                        <Text style={styles.previewHeading}>Визуализация недели</Text>
+                        <Text style={styles.previewHeading}>{t('portal.serviceSchedule.weekPreview')}</Text>
                         <View style={styles.visualGrid}>
-                            {DAYS.map(({ key, shortLabel }) => {
+                            {DAYS.map(({ key, shortLabelKey }) => {
                                 const dayData = schedule[key];
                                 return (
                                     <View key={key} style={styles.visualDay}>
@@ -614,7 +620,7 @@ export default function ServiceScheduleScreen() {
                                             styles.visualDayLabel,
                                             dayData.enabled && styles.visualDayActive,
                                         ]}>
-                                            {shortLabel}
+                                            {t(shortLabelKey)}
                                         </Text>
                                         <View style={styles.dotsContainer}>
                                             {dayData.enabled ? (

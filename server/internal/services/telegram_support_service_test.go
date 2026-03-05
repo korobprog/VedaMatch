@@ -564,6 +564,10 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 		wantText     string
 		wantURL      string
 		wantInline   string
+		wantGuide    string
+		wantIOS      string
+		wantAndroid  string
+		wantChannel  string
 	}{
 		{
 			name:         "english default",
@@ -571,6 +575,10 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			wantText:     "LKM Cabinet",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
 			wantInline:   "LKM Office",
+			wantGuide:    "How to use this chat:",
+			wantIOS:      "Download iOS",
+			wantAndroid:  "Download Android",
+			wantChannel:  "Our channel",
 		},
 		{
 			name:         "hindi label",
@@ -578,6 +586,10 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			wantText:     "LKM कैबिनेट",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
 			wantInline:   "LKM ऑफिस",
+			wantGuide:    "चैट का उपयोग कैसे करें:",
+			wantIOS:      "iOS डाउनलोड करें",
+			wantAndroid:  "Android डाउनलोड करें",
+			wantChannel:  "हमारा चैनल",
 		},
 		{
 			name:         "russian cis domain",
@@ -585,6 +597,10 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			wantText:     "LKM кабинет",
 			wantURL:      "https://lkm.vedamatch.ru/?tg=1",
 			wantInline:   "LKM офис",
+			wantGuide:    "Как пользоваться чатом:",
+			wantIOS:      "Скачать iOS",
+			wantAndroid:  "Скачать Android",
+			wantChannel:  "Наш канал",
 		},
 	}
 
@@ -642,19 +658,39 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			}
 
 			var hasInlineLKM bool
+			var hasGuide bool
+			var hasLocalizedButtons bool
 			for _, sent := range client.sentMessages {
+				if sent.ChatID == 707 && strings.Contains(sent.Text, tc.wantGuide) {
+					hasGuide = true
+				}
 				if sent.ChatID != 707 || sent.Options.ReplyMarkup == nil {
 					continue
 				}
 				for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
 					if button["text"] == tc.wantInline && button["web_app_url"] == tc.wantURL {
 						hasInlineLKM = true
-						break
 					}
 				}
+				var texts []string
+				for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
+					texts = append(texts, button["text"])
+				}
+				joined := strings.Join(texts, "|")
+				if strings.Contains(joined, tc.wantIOS) &&
+					strings.Contains(joined, tc.wantAndroid) &&
+					strings.Contains(joined, tc.wantChannel) {
+					hasLocalizedButtons = true
+				}
+			}
+			if !hasGuide {
+				t.Fatalf("expected localized start guide containing %q", tc.wantGuide)
 			}
 			if !hasInlineLKM {
 				t.Fatalf("expected inline LKM web_app button %q -> %q", tc.wantInline, tc.wantURL)
+			}
+			if !hasLocalizedButtons {
+				t.Fatalf("expected localized start buttons (%q, %q, %q)", tc.wantIOS, tc.wantAndroid, tc.wantChannel)
 			}
 		})
 	}

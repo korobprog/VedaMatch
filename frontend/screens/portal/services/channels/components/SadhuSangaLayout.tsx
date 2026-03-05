@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Bell, CalendarDays, House, PlayCircle, UserRound } from 'lucide-react-native';
 import { useRoleTheme } from '../../../../../hooks/useRoleTheme';
 
@@ -26,6 +27,7 @@ export default function SadhuSangaLayout({
   onTabPress,
   children,
 }: SadhuSangaLayoutProps) {
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const gradientColors = useMemo<[string, string, string]>(() => {
     return [colors.background, colors.background, colors.background];
@@ -39,7 +41,7 @@ export default function SadhuSangaLayout({
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Садху Санга</Text>
+            <Text style={styles.headerTitle}>{t('portal.sadhuSangaLayout.title')}</Text>
             <Text style={styles.headerSubtitle}>{subtitle}</Text>
           </View>
           <TouchableOpacity style={styles.notifyButton} onPress={onNotificationsPress}>
@@ -53,19 +55,19 @@ export default function SadhuSangaLayout({
         <View style={styles.bottomNavBar}>
           <TouchableOpacity style={styles.bottomNavItem} onPress={() => onTabPress('home')}>
             <House size={20} color={activeTab === 'home' ? '#FFAA00' : colors.textSecondary} />
-            <Text style={[styles.bottomNavText, activeTab === 'home' && styles.bottomNavTextActive]}>Главная</Text>
+            <Text style={[styles.bottomNavText, activeTab === 'home' && styles.bottomNavTextActive]}>{t('portal.sadhuSangaLayout.tabs.home')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bottomNavItem} onPress={() => onTabPress('schedule')}>
             <CalendarDays size={20} color={activeTab === 'schedule' ? '#FFAA00' : colors.textSecondary} />
-            <Text style={[styles.bottomNavText, activeTab === 'schedule' && styles.bottomNavTextActive]}>Расписание</Text>
+            <Text style={[styles.bottomNavText, activeTab === 'schedule' && styles.bottomNavTextActive]}>{t('portal.sadhuSangaLayout.tabs.schedule')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bottomNavItem} onPress={() => onTabPress('live')}>
             <PlayCircle size={20} color={activeTab === 'live' ? '#FFAA00' : colors.textSecondary} />
-            <Text style={[styles.bottomNavText, activeTab === 'live' && styles.bottomNavTextActive]}>Эфиры</Text>
+            <Text style={[styles.bottomNavText, activeTab === 'live' && styles.bottomNavTextActive]}>{t('portal.sadhuSangaLayout.tabs.live')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bottomNavItem} onPress={() => onTabPress('profile')}>
             <UserRound size={20} color={activeTab === 'profile' ? '#FFAA00' : colors.textSecondary} />
-            <Text style={[styles.bottomNavText, activeTab === 'profile' && styles.bottomNavTextActive]}>Профиль</Text>
+            <Text style={[styles.bottomNavText, activeTab === 'profile' && styles.bottomNavTextActive]}>{t('portal.sadhuSangaLayout.tabs.profile')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

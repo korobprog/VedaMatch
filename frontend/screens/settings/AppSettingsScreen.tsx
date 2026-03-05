@@ -36,9 +36,17 @@ const SETTINGS_PANELS_STORAGE_KEY = 'settings_screen_expanded_panels_v1';
 
 const IMAGE_SIZE_OPTIONS = [200, 240, 280, 320, 360];
 const THEME_MODE_OPTIONS: Array<'system' | 'light' | 'dark'> = ['system', 'light', 'dark'];
-const SCREEN_VISUAL_STYLE_OPTIONS: Array<{ key: 'classic' | 'saffron'; label: string; hint: string }> = [
-    { key: 'classic', label: 'Классический (обои)', hint: 'Обои и интервал слайд-шоу работают как раньше' },
-    { key: 'saffron', label: 'Шафрановый (новый)', hint: 'Новый цельный стиль экранов с glow-слоем' },
+const SCREEN_VISUAL_STYLE_OPTIONS: Array<{ key: 'classic' | 'saffron'; labelKey: string; hintKey: string }> = [
+    {
+        key: 'classic',
+        labelKey: 'settings.appScreen.screenStyle.classic.label',
+        hintKey: 'settings.appScreen.screenStyle.classic.hint',
+    },
+    {
+        key: 'saffron',
+        labelKey: 'settings.appScreen.screenStyle.saffron.label',
+        hintKey: 'settings.appScreen.screenStyle.saffron.hint',
+    },
 ];
 const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
 const PRESET_GRADIENTS = [
@@ -48,47 +56,52 @@ const PRESET_GRADIENTS = [
     '#fa709a|#fee140',
     '#6a11cb|#2575fc',
 ];
-const PERFORMANCE_MODE_OPTIONS: Array<{ key: PerformanceMode; title: string; subtitle: string }> = [
+const PERFORMANCE_MODE_OPTIONS: Array<{ key: PerformanceMode; titleKey: string; subtitleKey: string }> = [
     {
         key: 'adaptive',
-        title: 'Adaptive',
-        subtitle: 'Баланс качества и стабильности. На Android автоматически снижает нагрузку при лагах.',
+        titleKey: 'settings.appScreen.performanceModes.adaptive.title',
+        subtitleKey: 'settings.appScreen.performanceModes.adaptive.subtitle',
     },
     {
         key: 'high_quality',
-        title: 'High Quality',
-        subtitle: 'Максимум визуальных эффектов и анимаций.',
+        titleKey: 'settings.appScreen.performanceModes.highQuality.title',
+        subtitleKey: 'settings.appScreen.performanceModes.highQuality.subtitle',
     },
     {
         key: 'battery_saver',
-        title: 'Battery Saver',
-        subtitle: 'Минимум blur/анимаций для плавности и экономии батареи.',
+        titleKey: 'settings.appScreen.performanceModes.batterySaver.title',
+        subtitleKey: 'settings.appScreen.performanceModes.batterySaver.subtitle',
     },
+];
+const LANGUAGE_OPTIONS: Array<{ code: 'ru' | 'en' | 'hi'; labelKey: string }> = [
+    { code: 'ru', labelKey: 'settings.appScreen.languageOptions.ru' },
+    { code: 'en', labelKey: 'settings.appScreen.languageOptions.en' },
+    { code: 'hi', labelKey: 'settings.appScreen.languageOptions.hi' },
 ];
 const ASSISTANT_OPTIONS: Array<{
     key: AssistantType;
-    label: string;
+    labelKey: string;
     image: number;
     activeBorder: string;
     activeBackground: string;
 }> = [
         {
             key: 'feather2',
-            label: 'Перо дас',
+            labelKey: 'settings.appScreen.assistants.feather2',
             image: require('../../assets/nano_banano.png'),
             activeBorder: '#10B981',
             activeBackground: 'rgba(16,185,129,0.1)',
         },
         {
             key: 'feather',
-            label: 'Перо дас',
+            labelKey: 'settings.appScreen.assistants.feather',
             image: require('../../assets/peacockAssistant.png'),
             activeBorder: '#00838F',
             activeBackground: 'rgba(0,131,143,0.1)',
         },
         {
             key: 'smiley',
-            label: 'Колобок дас',
+            labelKey: 'settings.appScreen.assistants.smiley',
             image: require('../../assets/krishnaAssistant.png'),
             activeBorder: '#F59E0B',
             activeBackground: 'rgba(245,158,11,0.1)',
@@ -160,11 +173,22 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const [portalBackgroundBusy, setPortalBackgroundBusy] = useState(false);
     const [locationActionInProgress, setLocationActionInProgress] = useState(false);
     const isMountedRef = useRef(true);
+    const selectedLanguage = normalizeLanguageCode(i18n.language);
+    const numberLocale = useMemo(() => {
+        if (selectedLanguage === 'ru') return 'ru-RU';
+        if (selectedLanguage === 'hi') return 'hi-IN';
+        return 'en-US';
+    }, [selectedLanguage]);
     const appVersionLabel = useMemo(() => {
         const version = DeviceInfo.getVersion();
         const build = DeviceInfo.getBuildNumber();
-        return `Версия: ${version} (${Platform.OS} build ${build})`;
-    }, []);
+        return t('settings.appScreen.versionLabel', {
+            version,
+            platform: Platform.OS,
+            build,
+            defaultValue: `Version: ${version} (${Platform.OS} build ${build})`,
+        });
+    }, [t]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -188,7 +212,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await setPortalBackground(value, type);
         } catch (error) {
             console.warn('Failed to apply portal background:', error);
-            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('common.tryAgain', { defaultValue: 'Try again' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setPortalBackgroundBusy(false);
@@ -206,7 +233,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await setChatBackground(value, type);
         } catch (error) {
             console.warn('Failed to apply chat background:', error);
-            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('common.tryAgain', { defaultValue: 'Try again' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setPortalBackgroundBusy(false);
@@ -241,13 +271,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await applyPortalBackground(uri, 'image');
         } catch (error) {
             console.warn('Failed to pick image:', error);
-            Alert.alert('Ошибка', 'Не удалось выбрать изображение');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('settings.appScreen.alerts.pickImageFailed', { defaultValue: 'Failed to select image' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setMediaActionInProgress(false);
             }
         }
-    }, [applyPortalBackground, mediaActionInProgress, pickImageUri]);
+    }, [applyPortalBackground, mediaActionInProgress, pickImageUri, t]);
 
     const handleAddSlideFromGallery = useCallback(async () => {
         if (mediaActionInProgress) {
@@ -260,13 +293,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await addWallpaperSlide(uri);
         } catch (error) {
             console.warn('Failed to add wallpaper slide:', error);
-            Alert.alert('Ошибка', 'Не удалось добавить фон');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('settings.appScreen.alerts.addWallpaperFailed', { defaultValue: 'Failed to add wallpaper' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setMediaActionInProgress(false);
             }
         }
-    }, [addWallpaperSlide, mediaActionInProgress, pickImageUri]);
+    }, [addWallpaperSlide, mediaActionInProgress, pickImageUri, t]);
 
     const handlePickChatImage = useCallback(async () => {
         if (mediaActionInProgress) {
@@ -279,13 +315,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await applyChatBackground(uri, 'image');
         } catch (error) {
             console.warn('Failed to pick chat image:', error);
-            Alert.alert('Ошибка', 'Не удалось выбрать изображение');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('settings.appScreen.alerts.pickImageFailed', { defaultValue: 'Failed to select image' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setMediaActionInProgress(false);
             }
         }
-    }, [applyChatBackground, mediaActionInProgress, pickImageUri]);
+    }, [applyChatBackground, mediaActionInProgress, pickImageUri, t]);
 
     const handleAddChatSlideFromGallery = useCallback(async () => {
         if (mediaActionInProgress) {
@@ -298,70 +337,85 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             await addChatWallpaperSlide(uri);
         } catch (error) {
             console.warn('Failed to add chat wallpaper slide:', error);
-            Alert.alert('Ошибка', 'Не удалось добавить фон');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('settings.appScreen.alerts.addWallpaperFailed', { defaultValue: 'Failed to add wallpaper' })
+            );
         } finally {
             if (isMountedRef.current) {
                 setMediaActionInProgress(false);
             }
         }
-    }, [addChatWallpaperSlide, mediaActionInProgress, pickImageUri]);
+    }, [addChatWallpaperSlide, mediaActionInProgress, pickImageUri, t]);
 
     const handleRemoveSlide = useCallback((uri: string) => {
         if (wallpaperSlides.length <= 1) {
-            Alert.alert('Нельзя удалить', 'Должен остаться хотя бы один фон');
+            Alert.alert(
+                t('settings.appScreen.alerts.cannotDeleteWallpaperTitle', { defaultValue: 'Cannot delete' }),
+                t('settings.appScreen.alerts.cannotDeleteWallpaperMessage', { defaultValue: 'At least one wallpaper must remain' })
+            );
             return;
         }
         Alert.alert(
-            'Удалить фон?',
-            'Этот фон будет убран из слайд-шоу',
+            t('settings.appScreen.alerts.removeWallpaperTitle', { defaultValue: 'Remove wallpaper?' }),
+            t('settings.appScreen.alerts.removeWallpaperMessage', { defaultValue: 'This wallpaper will be removed from slideshow' }),
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
                 {
-                    text: 'Удалить',
+                    text: t('common.delete', { defaultValue: 'Delete' }),
                     style: 'destructive',
                     onPress: () => {
                         void removeWallpaperSlide(uri).catch((error) => {
                             console.warn('Failed to remove wallpaper slide:', error);
-                            Alert.alert('Ошибка', 'Не удалось удалить фон');
+                            Alert.alert(
+                                t('common.error', { defaultValue: 'Error' }),
+                                t('settings.appScreen.alerts.removeWallpaperFailed', { defaultValue: 'Failed to remove wallpaper' })
+                            );
                         });
                     },
                 },
             ]
         );
-    }, [removeWallpaperSlide, wallpaperSlides.length]);
+    }, [removeWallpaperSlide, t, wallpaperSlides.length]);
 
     const handleRemoveChatSlide = useCallback((uri: string) => {
         if (chatWallpaperSlides.length <= 1) {
-            Alert.alert('Нельзя удалить', 'Должен остаться хотя бы один фон');
+            Alert.alert(
+                t('settings.appScreen.alerts.cannotDeleteWallpaperTitle', { defaultValue: 'Cannot delete' }),
+                t('settings.appScreen.alerts.cannotDeleteWallpaperMessage', { defaultValue: 'At least one wallpaper must remain' })
+            );
             return;
         }
         Alert.alert(
-            'Удалить фон?',
-            'Этот фон будет убран из слайд-шоу чата',
+            t('settings.appScreen.alerts.removeChatWallpaperTitle', { defaultValue: 'Remove wallpaper?' }),
+            t('settings.appScreen.alerts.removeChatWallpaperMessage', { defaultValue: 'This wallpaper will be removed from chat slideshow' }),
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
                 {
-                    text: 'Удалить',
+                    text: t('common.delete', { defaultValue: 'Delete' }),
                     style: 'destructive',
                     onPress: () => {
                         void removeChatWallpaperSlide(uri).catch((error) => {
                             console.warn('Failed to remove chat wallpaper slide:', error);
-                            Alert.alert('Ошибка', 'Не удалось удалить фон');
+                            Alert.alert(
+                                t('common.error', { defaultValue: 'Error' }),
+                                t('settings.appScreen.alerts.removeWallpaperFailed', { defaultValue: 'Failed to remove wallpaper' })
+                            );
                         });
                     },
                 },
             ]
         );
-    }, [chatWallpaperSlides.length, removeChatWallpaperSlide]);
+    }, [chatWallpaperSlides.length, removeChatWallpaperSlide, t]);
 
     const slideshowIntervalLabel = useMemo(() => {
         const matched = SLIDESHOW_INTERVALS.find((item) => item.value === slideshowInterval);
-        return matched?.label ?? `${slideshowInterval} сек`;
-    }, [slideshowInterval]);
+        return matched?.label ?? t('settings.appScreen.intervalSeconds', { count: slideshowInterval, defaultValue: `${slideshowInterval}s` });
+    }, [slideshowInterval, t]);
     const chatSlideshowIntervalLabel = useMemo(() => {
         const matched = SLIDESHOW_INTERVALS.find((item) => item.value === chatSlideshowInterval);
-        return matched?.label ?? `${chatSlideshowInterval} сек`;
-    }, [chatSlideshowInterval]);
+        return matched?.label ?? t('settings.appScreen.intervalSeconds', { count: chatSlideshowInterval, defaultValue: `${chatSlideshowInterval}s` });
+    }, [chatSlideshowInterval, t]);
     const themedStyles = useMemo(
         () =>
             StyleSheet.create({
@@ -448,17 +502,21 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         };
     }, []);
 
-    const selectedLanguage = normalizeLanguageCode(i18n.language);
-
     const changeLanguageSafely = useCallback(async (language: 'ru' | 'en' | 'hi') => {
+        if (selectedLanguage === language) {
+            return;
+        }
         triggerTapFeedback();
         try {
             await i18n.changeLanguage(language);
         } catch (error) {
             console.warn('Failed to change language:', error);
-            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+            Alert.alert(
+                t('common.error', { defaultValue: 'Error' }),
+                t('common.tryAgain', { defaultValue: 'Try again' })
+            );
         }
-    }, [i18n, t, triggerTapFeedback]);
+    }, [i18n, selectedLanguage, t, triggerTapFeedback]);
 
     useEffect(() => {
         AsyncStorage.setItem(SETTINGS_PANELS_STORAGE_KEY, JSON.stringify(expandedPanels))
@@ -482,13 +540,48 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
+                        {t('settings.language')}
+                    </Text>
+                    <View style={styles.sizeOptions}>
+                        {LANGUAGE_OPTIONS.map((languageOption) => {
+                            const isSelected = selectedLanguage === languageOption.code;
+                            return (
+                                <TouchableOpacity
+                                    key={languageOption.code}
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.sizeBtn,
+                                        {
+                                            backgroundColor: isSelected ? colors.accent : theme.inputBackground,
+                                            borderColor: isSelected ? colors.accent : theme.borderColor,
+                                        },
+                                    ]}
+                                    onPress={() => {
+                                        void changeLanguageSafely(languageOption.code);
+                                    }}
+                                >
+                                    <Text style={isSelected ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>
+                                        {t(languageOption.labelKey)}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
                 <View style={[styles.heroCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
                     <View style={[styles.heroIcon, { backgroundColor: colors.accentSoft }]}>
                         <Sparkles size={18} color={colors.accent} />
                     </View>
                     <View style={themedStyles.heroBody}>
-                        <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Персональные настройки</Text>
-                        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>Быстрый доступ к теме, профилю и моделям AI</Text>
+                        <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
+                            {t('settings.appScreen.hero.title', { defaultValue: 'Personal settings' })}
+                        </Text>
+                        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+                            {t('settings.appScreen.hero.subtitle', { defaultValue: 'Quick access to theme, profile, and AI models' })}
+                        </Text>
                     </View>
                 </View>
 
@@ -500,8 +593,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('quick')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Быстрый доступ</Text>
-                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Профиль, баланс и приглашения</Text>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.quickAccess.title', { defaultValue: 'Quick access' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>
+                                {t('settings.appScreen.quickAccess.subtitle', { defaultValue: 'Profile, balance, and invitations' })}
+                            </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
                             {expandedPanels.quick ? '▾' : '▸'}
@@ -549,24 +646,27 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     </View>
                                     <View style={styles.walletInfo}>
                                         <Text style={[styles.walletLabel, { color: vTheme.colors.textSecondary }]}>
-                                            Итого доступно
+                                            {t('settings.appScreen.wallet.availableTotal', { defaultValue: 'Total available' })}
                                         </Text>
                                         <View style={styles.walletBalanceRow}>
                                             <Text style={styles.walletBalance}>
-                                                {walletLoading ? '...' : totalBalance.toLocaleString('ru-RU')}
+                                                {walletLoading ? '...' : totalBalance.toLocaleString(numberLocale)}
                                             </Text>
                                             <Text style={styles.walletCurrency}>LKM</Text>
                                             {!walletLoading && bonusBalance > 0 && (
                                                 <View style={styles.walletBonusBadge}>
                                                     <Text style={styles.walletBonusText}>
-                                                        B: {bonusBalance.toLocaleString('ru-RU')}
+                                                        B: {bonusBalance.toLocaleString(numberLocale)}
                                                     </Text>
                                                 </View>
                                             )}
                                         </View>
                                         {(wallet?.pendingBalance ?? 0) > 0 && (
                                             <Text style={styles.walletPending}>
-                                                +{wallet?.pendingBalance.toLocaleString('ru-RU')} в ожидании
+                                                {t('settings.appScreen.wallet.pendingAmount', {
+                                                    amount: `+${wallet?.pendingBalance.toLocaleString(numberLocale)}`,
+                                                    defaultValue: `+${wallet?.pendingBalance.toLocaleString(numberLocale)} pending`,
+                                                })}
                                             </Text>
                                         )}
                                         <Text style={[styles.walletLegalHint, { color: vTheme.colors.textSecondary }]}>
@@ -589,11 +689,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     <View style={themedStyles.rowCenterGap8}>
                                         <Users size={20} color="#22C55E" />
                                         <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
-                                            Пригласить друзей
+                                            {t('settings.appScreen.quickAccess.inviteTitle', { defaultValue: 'Invite friends' })}
                                         </Text>
                                     </View>
                                     <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
-                                        Бонусные 100 LKM за каждого активного друга
+                                        {t('settings.appScreen.quickAccess.inviteDescription', {
+                                            defaultValue: 'Bonus 100 LKM for each active friend',
+                                        })}
                                     </Text>
                                 </View>
                                 <ChevronRight size={20} color="#22C55E" />
@@ -614,11 +716,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     <View style={themedStyles.rowCenterGap8}>
                                         <LifeBuoy size={20} color="#2563EB" />
                                         <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
-                                            Поддержка
+                                            {t('settings.appScreen.quickAccess.supportTitle', { defaultValue: 'Support' })}
                                         </Text>
                                     </View>
                                     <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
-                                        Открыть Telegram или создать обращение в приложении
+                                        {t('settings.appScreen.quickAccess.supportDescription', {
+                                            defaultValue: 'Open Telegram or create a ticket in the app',
+                                        })}
                                     </Text>
                                 </View>
                                 <ChevronRight size={20} color="#2563EB" />
@@ -635,8 +739,14 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('appearance')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Внешний вид</Text>
-                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Тема, язык, ассистент и размер изображений</Text>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.appearance.title', { defaultValue: 'Appearance' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>
+                                {t('settings.appScreen.appearance.subtitle', {
+                                    defaultValue: 'Theme, language, assistant, and image size',
+                                })}
+                            </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
                             {expandedPanels.appearance ? '▾' : '▸'}
@@ -645,7 +755,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
 
                     {expandedPanels.appearance && (
                         <>
-                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Тема приложения</Text>
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.appearance.themeSectionTitle', { defaultValue: 'App theme' })}
+                            </Text>
                             <View style={styles.sizeOptions}>
                                 {THEME_MODE_OPTIONS.map((mode) => (
                                     <TouchableOpacity
@@ -670,7 +782,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 ))}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Стиль экранов</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.screenStyle.sectionTitle', { defaultValue: 'Screen style' })}
+                            </Text>
                             <View style={styles.performanceModeList}>
                                 {SCREEN_VISUAL_STYLE_OPTIONS.map((option) => {
                                     const isActive = screenVisualStyle === option.key;
@@ -691,65 +805,22 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                             }}
                                         >
                                             <View style={styles.performanceModeHeader}>
-                                                <Text style={[styles.performanceModeTitle, { color: vTheme.colors.text }]}>{option.label}</Text>
+                                                <Text style={[styles.performanceModeTitle, { color: vTheme.colors.text }]}>
+                                                    {t(option.labelKey)}
+                                                </Text>
                                                 {isActive ? <Text style={[styles.performanceModeActiveMark, { color: colors.accent }]}>✓</Text> : null}
                                             </View>
-                                            <Text style={[styles.performanceModeSubtitle, { color: vTheme.colors.textSecondary }]}>{option.hint}</Text>
+                                            <Text style={[styles.performanceModeSubtitle, { color: vTheme.colors.textSecondary }]}>
+                                                {t(option.hintKey)}
+                                            </Text>
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>{t('settings.language')}</Text>
-                            <View style={styles.sizeOptions}>
-                                <TouchableOpacity
-                                    activeOpacity={0.88}
-                                    style={[
-                                        styles.sizeBtn,
-                                        {
-                                            backgroundColor: selectedLanguage === 'ru' ? colors.accent : theme.inputBackground,
-                                            borderColor: selectedLanguage === 'ru' ? colors.accent : theme.borderColor
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        void changeLanguageSafely('ru');
-                                    }}
-                                >
-                                    <Text style={selectedLanguage === 'ru' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>Русский</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    activeOpacity={0.88}
-                                    style={[
-                                        styles.sizeBtn,
-                                        {
-                                            backgroundColor: selectedLanguage === 'en' ? colors.accent : theme.inputBackground,
-                                            borderColor: selectedLanguage === 'en' ? colors.accent : theme.borderColor
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        void changeLanguageSafely('en');
-                                    }}
-                                >
-                                    <Text style={selectedLanguage === 'en' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>English</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    activeOpacity={0.88}
-                                    style={[
-                                        styles.sizeBtn,
-                                        {
-                                            backgroundColor: selectedLanguage === 'hi' ? colors.accent : theme.inputBackground,
-                                            borderColor: selectedLanguage === 'hi' ? colors.accent : theme.borderColor
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        void changeLanguageSafely('hi');
-                                    }}
-                                >
-                                    <Text style={selectedLanguage === 'hi' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>हिंदी</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>Ассистент</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>
+                                {t('settings.appScreen.assistant.sectionTitle', { defaultValue: 'Assistant' })}
+                            </Text>
                             <View style={styles.assistantSelection}>
                                 {ASSISTANT_OPTIONS.map((assistant) => (
                                     <TouchableOpacity
@@ -768,7 +839,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         }}
                                     >
                                         <RNImage source={assistant.image} style={styles.assistantPreview} />
-                                        <Text style={[styles.assistantName, { color: theme.text }]}>{assistant.label}</Text>
+                                        <Text style={[styles.assistantName, { color: theme.text }]}>
+                                            {t(assistant.labelKey)}
+                                        </Text>
                                         {assistantType === assistant.key && (
                                             <View style={styles.checkBadge}>
                                                 <Text style={styles.checkText}>✓</Text>
@@ -778,7 +851,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 ))}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>Стиль иконок</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>
+                                {t('settings.appScreen.iconStyle.sectionTitle', { defaultValue: 'Icon style' })}
+                            </Text>
                             <View style={styles.sizeOptions}>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -794,7 +869,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         setPortalIconStyle('vedamatch');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'vedamatch' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>VedaMatch</Text>
+                                    <Text style={portalIconStyle === 'vedamatch' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                        {t('settings.appScreen.iconStyle.vedamatch', { defaultValue: 'VedaMatch' })}
+                                    </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -810,7 +887,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         setPortalIconStyle('premium3d');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Премиум 3D</Text>
+                                    <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                        {t('settings.appScreen.iconStyle.premium3d', { defaultValue: 'Premium 3D' })}
+                                    </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -826,7 +905,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         setPortalIconStyle('solid');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'solid' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Заливка</Text>
+                                    <Text style={portalIconStyle === 'solid' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                        {t('settings.appScreen.iconStyle.solid', { defaultValue: 'Solid' })}
+                                    </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -842,7 +923,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         setPortalIconStyle('minimal');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'minimal' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Контур</Text>
+                                    <Text style={portalIconStyle === 'minimal' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                        {t('settings.appScreen.iconStyle.minimal', { defaultValue: 'Outline' })}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -882,9 +965,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('performance')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Производительность</Text>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.performance.title', { defaultValue: 'Performance' })}
+                            </Text>
                             <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>
-                                Режим рендера и энергопотребления для Android/iOS
+                                {t('settings.appScreen.performance.subtitle', {
+                                    defaultValue: 'Rendering and power mode for Android/iOS',
+                                })}
                             </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
@@ -915,12 +1002,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         >
                                             <View style={styles.performanceModeHeader}>
                                                 <Text style={[styles.performanceModeTitle, { color: active ? colors.accent : vTheme.colors.text }]}>
-                                                    {modeOption.title}
+                                                    {t(modeOption.titleKey)}
                                                 </Text>
                                                 {active && <Text style={[styles.performanceModeActiveMark, { color: colors.accent }]}>✓</Text>}
                                             </View>
                                             <Text style={[styles.performanceModeSubtitle, { color: vTheme.colors.textSecondary }]}>
-                                                {modeOption.subtitle}
+                                                {t(modeOption.subtitleKey)}
                                             </Text>
                                         </TouchableOpacity>
                                     );
@@ -929,7 +1016,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             {runtimePerformanceState.isAutoDegraded && (
                                 <View style={[styles.performanceBadge, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }]}>
                                     <Text style={styles.performanceBadgeText}>
-                                        Рендер временно снижен до battery profile ({runtimePerformanceState.reason || 'render'})
+                                        {t('settings.appScreen.performance.autoDegraded', {
+                                            reason: runtimePerformanceState.reason || 'render',
+                                            defaultValue: `Rendering temporarily reduced to battery profile (${runtimePerformanceState.reason || 'render'})`,
+                                        })}
                                     </Text>
                                 </View>
                             )}
@@ -945,8 +1035,14 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('background')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Фон портала</Text>
-                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Выберите стиль фона и настройте автосмену</Text>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.portalBackground.title', { defaultValue: 'Portal background' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>
+                                {t('settings.appScreen.portalBackground.subtitle', {
+                                    defaultValue: 'Choose background style and configure auto-switch',
+                                })}
+                            </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
                             {expandedPanels.background ? '▾' : '▸'}
@@ -955,7 +1051,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
 
                     {expandedPanels.background && (
                         <>
-                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Свой фон</Text>
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.customBackground', { defaultValue: 'Custom background' })}
+                            </Text>
                             <View style={styles.imageRow}>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -972,7 +1070,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     }}
                                 >
                                     <ImageIcon size={24} color={vTheme.colors.primary} />
-                                    <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать из галереи</Text>
+                                    <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>
+                                        {t('settings.appScreen.background.selectFromGallery', { defaultValue: 'Choose from gallery' })}
+                                    </Text>
                                 </TouchableOpacity>
 
                                 {portalBackgroundType === 'image' && !isSlideshowEnabled && (
@@ -985,7 +1085,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 )}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Цвета</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.colors', { defaultValue: 'Colors' })}
+                            </Text>
                             <View style={styles.presetsGrid}>
                                 {PRESET_COLORS.map((color) => (
                                     <TouchableOpacity
@@ -1005,7 +1107,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 ))}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Градиенты</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.gradients', { defaultValue: 'Gradients' })}
+                            </Text>
                             <View style={styles.presetsGrid}>
                                 {PRESET_GRADIENTS.map((grad) => (
                                     <TouchableOpacity
@@ -1035,11 +1139,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
 
                             <View style={styles.slideshowToggle}>
                                 <View style={themedStyles.slideshowInfo}>
-                                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Автосмена обоев</Text>
+                                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                        {t('settings.appScreen.background.slideshowTitle', { defaultValue: 'Wallpaper slideshow' })}
+                                    </Text>
                                     <Text style={[styles.slideshowSub, { color: vTheme.colors.textSecondary }]}>
                                         {isSlideshowEnabled
-                                            ? `Меняются каждые ${slideshowIntervalLabel}`
-                                            : 'Выключена'}
+                                            ? t('settings.appScreen.background.slideshowEnabledEvery', {
+                                                interval: slideshowIntervalLabel,
+                                                defaultValue: `Changes every ${slideshowIntervalLabel}`,
+                                            })
+                                            : t('settings.appScreen.background.slideshowDisabled', { defaultValue: 'Disabled' })}
                                     </Text>
                                 </View>
                                 <Switch
@@ -1047,7 +1156,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     onValueChange={(val) => {
                                         triggerTapFeedback();
                                         if (val && !hasWallpaperSlides) {
-                                            Alert.alert('Слайд-шоу недоступно', 'Сначала добавьте хотя бы один фон');
+                                            Alert.alert(
+                                                t('settings.appScreen.alerts.slideshowUnavailableTitle', { defaultValue: 'Slideshow unavailable' }),
+                                                t('settings.appScreen.alerts.slideshowUnavailableMessage', {
+                                                    defaultValue: 'Add at least one wallpaper first',
+                                                })
+                                            );
                                             return;
                                         }
                                         setIsSlideshowEnabled(val);
@@ -1061,7 +1175,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 <View style={styles.intervalSection}>
                                     <View style={themedStyles.intervalHeader}>
                                         <Clock size={14} color={vTheme.colors.textSecondary} />
-                                        <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>Интервал смены</Text>
+                                        <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>
+                                            {t('settings.appScreen.background.intervalLabel', { defaultValue: 'Change interval' })}
+                                        </Text>
                                     </View>
                                     <View style={styles.sizeOptions}>
                                         {SLIDESHOW_INTERVALS.map(item => (
@@ -1090,7 +1206,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             )}
 
                             <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
-                                Обои в ротации ({wallpaperSlides.length})
+                                {t('settings.appScreen.background.wallpapersInRotation', {
+                                    count: wallpaperSlides.length,
+                                    defaultValue: `Wallpapers in rotation (${wallpaperSlides.length})`,
+                                })}
                             </Text>
                             <View style={styles.wallpapersGrid}>
                                 {wallpaperSlides.map((uri, idx) => (
@@ -1144,18 +1263,26 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     }}
                                 >
                                     <Plus size={24} color={colors.accent} />
-                                    <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>Добавить</Text>
+                                    <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>
+                                        {t('common.add', { defaultValue: 'Add' })}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
 
                             <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider, marginTop: 20 }]} />
 
-                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 12 }]}>Фон чата</Text>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 12 }]}>
+                                {t('settings.appScreen.chatBackground.title', { defaultValue: 'Chat background' })}
+                            </Text>
                             <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary, marginTop: 4, marginBottom: 10 }]}>
-                                Настройки фона только для экрана переписки
+                                {t('settings.appScreen.chatBackground.subtitle', {
+                                    defaultValue: 'Background settings only for chat screen',
+                                })}
                             </Text>
 
-                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Свой фон</Text>
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.customBackground', { defaultValue: 'Custom background' })}
+                            </Text>
                             <View style={styles.imageRow}>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -1172,7 +1299,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     }}
                                 >
                                     <ImageIcon size={24} color={vTheme.colors.primary} />
-                                    <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать для чата</Text>
+                                    <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>
+                                        {t('settings.appScreen.chatBackground.selectForChat', { defaultValue: 'Choose for chat' })}
+                                    </Text>
                                 </TouchableOpacity>
 
                                 {chatBackgroundType === 'image' && !chatSlideshowEnabled && (
@@ -1185,7 +1314,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 )}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Цвета</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.colors', { defaultValue: 'Colors' })}
+                            </Text>
                             <View style={styles.presetsGrid}>
                                 {PRESET_COLORS.map((color) => (
                                     <TouchableOpacity
@@ -1205,7 +1336,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 ))}
                             </View>
 
-                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Градиенты</Text>
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.background.gradients', { defaultValue: 'Gradients' })}
+                            </Text>
                             <View style={styles.presetsGrid}>
                                 {PRESET_GRADIENTS.map((grad) => (
                                     <TouchableOpacity
@@ -1235,11 +1368,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
 
                             <View style={styles.slideshowToggle}>
                                 <View style={themedStyles.slideshowInfo}>
-                                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Автосмена обоев (чат)</Text>
+                                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                        {t('settings.appScreen.chatBackground.slideshowTitle', { defaultValue: 'Wallpaper slideshow (chat)' })}
+                                    </Text>
                                     <Text style={[styles.slideshowSub, { color: vTheme.colors.textSecondary }]}>
                                         {chatSlideshowEnabled
-                                            ? `Меняются каждые ${chatSlideshowIntervalLabel}`
-                                            : 'Выключена'}
+                                            ? t('settings.appScreen.background.slideshowEnabledEvery', {
+                                                interval: chatSlideshowIntervalLabel,
+                                                defaultValue: `Changes every ${chatSlideshowIntervalLabel}`,
+                                            })
+                                            : t('settings.appScreen.background.slideshowDisabled', { defaultValue: 'Disabled' })}
                                     </Text>
                                 </View>
                                 <Switch
@@ -1247,7 +1385,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     onValueChange={(val) => {
                                         triggerTapFeedback();
                                         if (val && !hasChatWallpaperSlides) {
-                                            Alert.alert('Слайд-шоу недоступно', 'Сначала добавьте хотя бы один фон');
+                                            Alert.alert(
+                                                t('settings.appScreen.alerts.slideshowUnavailableTitle', { defaultValue: 'Slideshow unavailable' }),
+                                                t('settings.appScreen.alerts.slideshowUnavailableMessage', {
+                                                    defaultValue: 'Add at least one wallpaper first',
+                                                })
+                                            );
                                             return;
                                         }
                                         setChatSlideshowEnabled(val);
@@ -1261,7 +1404,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 <View style={styles.intervalSection}>
                                     <View style={themedStyles.intervalHeader}>
                                         <Clock size={14} color={vTheme.colors.textSecondary} />
-                                        <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>Интервал смены (чат)</Text>
+                                        <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>
+                                            {t('settings.appScreen.chatBackground.intervalLabel', { defaultValue: 'Change interval (chat)' })}
+                                        </Text>
                                     </View>
                                     <View style={styles.sizeOptions}>
                                         {SLIDESHOW_INTERVALS.map(item => (
@@ -1290,7 +1435,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             )}
 
                             <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
-                                Обои чата ({chatWallpaperSlides.length})
+                                {t('settings.appScreen.chatBackground.wallpapersInRotation', {
+                                    count: chatWallpaperSlides.length,
+                                    defaultValue: `Chat wallpapers (${chatWallpaperSlides.length})`,
+                                })}
                             </Text>
                             <View style={styles.wallpapersGrid}>
                                 {chatWallpaperSlides.map((uri, idx) => (
@@ -1344,7 +1492,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     }}
                                 >
                                     <Plus size={24} color={colors.accent} />
-                                    <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>Добавить</Text>
+                                    <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>
+                                        {t('common.add', { defaultValue: 'Add' })}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </>
@@ -1359,8 +1509,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('ai')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>AI настройки</Text>
-                            <Text style={[styles.sectionHint, { color: theme.subText }]}>Поведение и автоподбор моделей</Text>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                                {t('settings.appScreen.aiSettings.title', { defaultValue: 'AI settings' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: theme.subText }]}>
+                                {t('settings.appScreen.aiSettings.subtitle', { defaultValue: 'Behavior and model auto-selection' })}
+                            </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: theme.subText }]}>
                             {expandedPanels.ai ? '▾' : '▸'}
@@ -1370,9 +1524,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                     {expandedPanels.ai && (
                         <View style={themedStyles.aiRow}>
                             <View style={styles.actionContent}>
-                                <Text style={[styles.sectionTitle, themedStyles.sectionTitleCompact, { color: theme.text }]}>Auto-Magic</Text>
+                                <Text style={[styles.sectionTitle, themedStyles.sectionTitleCompact, { color: theme.text }]}>
+                                    {t('settings.appScreen.aiSettings.autoMagicTitle', { defaultValue: 'Auto-Magic' })}
+                                </Text>
                                 <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: theme.subText }]}>
-                                    Автоматически выбирать лучшую модель для ваших запросов
+                                    {t('settings.appScreen.aiSettings.autoMagicDescription', {
+                                        defaultValue: 'Automatically choose the best model for your requests',
+                                    })}
                                 </Text>
                             </View>
                             <Switch
@@ -1432,7 +1590,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 } catch (error) {
                                     console.warn('Failed to clear location cache:', error);
                                     if (isMountedRef.current) {
-                                        Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+                                        Alert.alert(
+                                            t('common.error', { defaultValue: 'Error' }),
+                                            t('common.tryAgain', { defaultValue: 'Try again' })
+                                        );
                                     }
                                 } finally {
                                     if (isMountedRef.current) {
@@ -1454,8 +1615,12 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         onPress={() => togglePanel('models')}
                     >
                         <View style={styles.sectionToggleTextWrap}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>Модели AI</Text>
-                            <Text style={[styles.sectionHint, { color: theme.subText }]}>Выбор модели по категориям задач</Text>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                                {t('settings.appScreen.models.title', { defaultValue: 'AI models' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: theme.subText }]}>
+                                {t('settings.appScreen.models.subtitle', { defaultValue: 'Choose model by task category' })}
+                            </Text>
                         </View>
                         <Text style={[styles.sectionToggleIcon, { color: theme.subText }]}>
                             {expandedPanels.models ? '▾' : '▸'}
@@ -1601,9 +1766,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             triggerTapFeedback();
                             Alert.alert(
                                 t('auth.logout') || 'Logout',
-                                t('auth.logoutConfirm') || 'Вы уверены, что хотите выйти?',
+                                t('auth.logoutConfirm') || 'Are you sure you want to log out?',
                                 [
-                                    { text: t('common.cancel') || 'Отмена', style: 'cancel' },
+                                    { text: t('common.cancel') || 'Cancel', style: 'cancel' },
                                     { text: t('auth.logout') || 'Logout', style: 'destructive', onPress: logout },
                                 ]
                             );

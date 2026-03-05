@@ -4,6 +4,30 @@
 - Обрабатывать задачи без фоновых процессов и без нескольких агентов.
 - Работать с файлами по одному и отчитываться после каждого шага.
 
+## Support (Telegram + In-App + Multilingual)
+- Ссылка поддержки в клиентской конфигурации нормализуется и форсируется на `https://t.me/vedamatch_bot`:
+  - поддерживаются входные форматы `@username`, `username`, `t.me/...`, URL без схемы;
+  - если в итоге не распознан `vedamatch_bot`, используется безопасный fallback `https://t.me/vedamatch_bot`.
+- Кнопка `Создать обращение без Telegram` включена по умолчанию:
+  - `supportInAppTicketAllowed(...)` возвращает `true`, кроме случая явного флага `SUPPORT_INAPP_TICKET_FORCE_DISABLE=true`.
+- Публичный support-config для приложения:
+  - `channels.inAppTicket` зависит только от force-disable;
+  - rollout для in-app тикетов в ответе выставляется как полностью доступный (`100%`) при включенном канале.
+- In-app support больше не ведет на email в UI:
+  - тексты на экране поддержки и форме обращения описывают поддержку "в чате/в системе".
+- Клиент передает device-context в support API:
+  - `devicePlatform`, `deviceOs`, `deviceOsVersion` отправляются при создании обращения и при сообщениях в треде.
+- Telegram support bot локализован для `ru/en/hi`:
+  - `/start` сообщение и подписи inline-кнопок отдаются по языку пользователя;
+  - fallback для языков без явного совпадения — английский.
+- AI поддержки работает для `ru/en/hi`:
+  - добавлена нормализация языка (`ru|en|hi`);
+  - добавлены Hindi prompt/sanitize/diagnostic ветки;
+  - улучшено автоопределение Hindi (по коду языка и Devanagari символам).
+- Скриншоты в support-боте обрабатываются без AI/vision-анализа:
+  - фото сохраняется как media-message и пересылается оператору;
+  - auto-AI анализ изображения не вызывается.
+
 ## Auth / Login Localization
 - Stage-1 rollout для login выполнен как `i18n + language switch + Google auth + VK auth`, Telegram оставлен подготовленным entry point.
 - Login экран (`frontend/screens/LoginScreen.tsx`) теперь использует единый namespace `auth.loginScreen.*` вместо хардкодных строк.
@@ -23,7 +47,7 @@
 - Локали login добавлены/синхронизированы в:
   - `frontend/i18n/locales/ru.ts`
   - `frontend/i18n/locales/en.ts`
-  - `frontend/i18n/locales/hi.ts` (закрыт пробел неполной Hindi-локализации для login).
+  - `frontend/i18n/locales/hi.ts` (login-переводы добавлены; полный ключевой паритет с `en.ts` зафиксирован отдельным аудитом ниже).
 - Backend stage-1 Google auth:
   - feature flag `AUTH_GOOGLE_ENABLED` (`server/internal/config/feature_flags.go`);
   - endpoint `POST /api/auth/google/login` (`server/cmd/api/main.go`);
@@ -75,6 +99,86 @@
   - `TELEGRAM_AUTH_MAX_AGE_SEC`,
   - `TELEGRAM_AUTH_CIS_LANG_CODES`;
   - `.env.example` синхронизирован тем же набором.
+
+## Settings Language Runtime
+- Для `frontend/i18n/index.ts` включен async language detector через `AsyncStorage` (ключ `app_language`) с нормализацией кодов `ru/en/hi`; жесткий `lng: 'ru'` больше не используется.
+- В `frontend/screens/settings/AppSettingsScreen.tsx` блок выбора языка вынесен в начало контента экрана (первый section в `ScrollView`), дубликат внутри `Внешний вид` удален.
+- Переключение языка в настройках профиля теперь:
+  - не делает лишний вызов при повторном нажатии на уже активный язык;
+  - сохраняет выбор между перезапусками приложения через кеш `i18next` detector.
+- `AppSettingsScreen` переведен с русских хардкодов на namespace `settings.appScreen.*` (hero, quick access, wallet, appearance, performance, backgrounds, AI, alerts).
+- Для `frontend/i18n/locales/en.ts`, `ru.ts`, `hi.ts` добавлен единый блок `settings.appScreen`, чтобы при переключении на English/Hindi экран настроек не оставался частично русским.
+- Формат чисел в блоке кошелька на экране настроек теперь зависит от выбранного языка (`ru-RU`/`en-US`/`hi-IN`) вместо фиксированного `ru-RU`.
+- Дополнительно убран остаточный хардкод в `AppSettingsScreen`:
+  - названия языков (`languageOptions`), подпись `VedaMatch` в icon-style и заголовок `Auto-Magic` переведены на i18n-ключи;
+  - добавлены ключи в `en/ru/hi`: `settings.appScreen.languageOptions.*`, `settings.appScreen.iconStyle.vedamatch`, `settings.appScreen.aiSettings.autoMagicTitle`.
+- Причина, почему «портал не менял язык» после выбора в настройках:
+  - подписи иконок сервисов брались из `DEFAULT_SERVICES` (русские `label`) и не зависели от текущего языка.
+- Фикс:
+  - `frontend/components/portal/PortalGrid.tsx` теперь строит локализованный список сервисов через `t('portal.serviceLabels.<serviceId>')`;
+  - `frontend/screens/portal/PortalMainScreen.tsx` переведен для `portal.headerHint`, `portal.seekerTravelLocked.*`, `portal.roleFallbackTitle`;
+  - в `frontend/i18n/locales/en.ts`, `ru.ts`, `hi.ts` добавлены `portal.serviceLabels.*`, `portal.orgBadge` и сопутствующие ключи.
+- Дополнительный фикс по модулю сервисов:
+  - `frontend/screens/portal/services/ServicesHomeScreen.tsx` переведен с хардкода на `portal.servicesHome.*` (header, categories, featured cards, mini-actions, search placeholder, empty-state);
+  - в `frontend/i18n/locales/en.ts`, `ru.ts`, `hi.ts` добавлен блок `portal.servicesHome` для полного переключения экрана на выбранный язык.
+- Следующий этап локализации сервисов:
+  - `frontend/screens/portal/services/MyServicesScreen.tsx` переведен на i18n (`portal.myServices.*`) для header, empty-state, статусов, alert-диалогов, статистики и ссылки расписания;
+  - категории в `MyServicesScreen` больше не берутся напрямую из `CATEGORY_LABELS` (русский хардкод service-layer), вместо этого используются ключи `portal.servicesHome.categories.*`.
+- Продолжение локализации сервисов:
+  - `frontend/screens/portal/services/MyBookingsScreen.tsx` переведен на i18n (`portal.myBookings.*`): tabs, header, empty-state, cancel alerts, calendar share-title и ошибки;
+  - в `frontend/i18n/locales/en.ts`, `ru.ts`, `hi.ts` добавлен блок `portal.myBookings`.
+- Следующий этап локализации сервисов:
+  - `frontend/screens/portal/services/ServiceDetailScreen.tsx` переведен на `portal.serviceDetail.*`;
+  - экран больше не зависит от русских `CATEGORY_LABELS/FORMAT_LABELS/CHANNEL_LABELS` из service layer — используются i18n key-map для categories/formats/channels;
+  - цены в деталях сервиса форматируются по языку (`ru-RU` / `en-US` / `hi-IN`).
+- Дальнейшая локализация сервисов:
+  - `frontend/screens/portal/services/ServiceScheduleScreen.tsx` переведен на i18n (`portal.serviceSchedule.*`) для дней недели, alert-потоков, time-picker и параметров сессий;
+  - массив `DAYS` в расписании теперь хранит `labelKey/shortLabelKey` и не привязан к русским строкам.
+- Продолжение локализации сервисов:
+  - `frontend/screens/portal/services/ServiceBookingScreen.tsx` переведен на i18n (`portal.serviceBooking.*`) для header, секций, review, CTA и alert-потоков;
+  - labels канала на booking-экране больше не зависят от русских `CHANNEL_LABELS` service layer, а берутся из i18n (`portal.serviceDetail.channels.*`);
+  - формат даты в summary бронирования привязан к языку (`ru-RU` / `en-US` / `hi-IN`).
+- Дополнительный шаг локализации сервисов:
+  - `frontend/screens/portal/services/components/TariffSelector.tsx` переведен на i18n (`portal.tariffSelector.*`) для empty-state, бейджа popular и единиц минут;
+  - добавлены ключи `portal.tariffSelector` в `en/ru/hi`.
+- Дополнительный шаг локализации сервисов (карточка записи):
+  - `frontend/screens/portal/services/components/BookingCard.tsx` переведен на i18n (`portal.bookingCard.*`) для статусов, fallback-текста, кнопок chat/calendar и заметки;
+  - `BookingCard` больше не использует русские `STATUS_LABELS`/`CHANNEL_LABELS` как источник UI-подписей, статусы и канал берутся через i18n-ключи.
+- Быстрый дополнительный этап:
+  - в `frontend/screens/portal/services/channels/channelCta.ts` CTA-лейблы и ошибки переведены на i18n через `i18n.t(...)` (`portal.channelCta.*`);
+  - в `frontend/screens/portal/services/MyBookingsScreen.tsx` и `frontend/screens/portal/services/MyServicesScreen.tsx` убрана кириллица из file-header комментариев.
+- Еще один быстрый этап:
+  - `frontend/screens/portal/services/components/ServiceCard.tsx` переведен на i18n для fallback-имен (`specialist`) и price-маркеров (`from/onRequest`);
+  - `ServiceCard` больше не использует русские `CATEGORY_LABELS` как источник category-текста, категории берутся через `portal.servicesHome.categories.*`.
+- Дополнительный быстрый этап (channels layout):
+  - `frontend/screens/portal/services/channels/components/SadhuSangaLayout.tsx` переведен на i18n (`portal.sadhuSangaLayout.*`) для title и нижних табов;
+  - в `frontend/screens/portal/services/index.ts` убрана кириллица в file-header комментарии.
+- Следующий этап (channels create):
+  - `frontend/screens/portal/services/channels/CreateChannelScreen.tsx` переведен на i18n (`portal.createChannel.*`) для title, labels, placeholders, visibility и alerts;
+  - добавлены ключи `portal.createChannel` в `en/ru/hi`.
+- Следующий этап (channels profile):
+  - `frontend/screens/portal/services/channels/SadhuSangaProfileScreen.tsx` переведен на i18n (`portal.sadhuSangaProfile.*`) для subtitle, карточек профиля, статуса, fallback-значений и блока поддержки;
+  - добавлены ключи `portal.sadhuSangaProfile` в `en/ru/hi`.
+- Следующий этап (calendar component):
+  - `frontend/screens/portal/services/components/ServiceCalendar.tsx` переведен на i18n (`portal.serviceCalendar.*`) для дней недели, месяцев, заголовка доступного времени, отсутствия слотов и duration badge;
+  - добавлены ключи `portal.serviceCalendar` в `en/ru/hi`.
+- Следующий этап (Sadhu Sanga schedule):
+  - `frontend/screens/portal/services/channels/SadhuSangaScheduleScreen.tsx` переведен на i18n (`portal.sadhuSangaSchedule.*`) для subtitle/title/chips, фильтра по дате, empty-state, route-alerts, notice-card и action-кнопок;
+  - формат времени и short-date в расписании привязан к языку (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.sadhuSangaSchedule` в `en/ru/hi`.
+- Следующий этап (Sadhu Sanga live):
+  - `frontend/screens/portal/services/channels/SadhuSangaLiveScreen.tsx` переведен на i18n (`portal.sadhuSangaLive.*`) для subtitle, live/archive блоков, badges, empty-state, watch/open YouTube кнопок и всех alert-сообщений;
+  - формат даты/времени live-сессий привязан к языку (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.sadhuSangaLive` в `en/ru/hi`.
+- Следующий этап (Channel team):
+  - `frontend/screens/portal/services/channels/ChannelTeamScreen.tsx` переведен на i18n (`portal.channelTeam.*`) для header, info блока, denied состояния, add/search формы, member actions и alert-потоков;
+  - локализованы role labels (`owner/admin/editor/subscriber`) и fallback-тексты user/email/id;
+  - добавлены ключи `portal.channelTeam` в `en/ru/hi`.
+- Следующий этап (Incoming bookings):
+  - `frontend/screens/portal/services/IncomingBookingsScreen.tsx` переведен на i18n (`portal.incomingBookings.*`) для header, empty-state, карточки бронирования, finance-секции, action-кнопок и всех alert-потоков;
+  - статусные подписи переведены через `portal.bookingCard.status.*` вместо русских `STATUS_LABELS`;
+  - формат даты/времени в карточках привязан к языку (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.incomingBookings` в `en/ru/hi`.
 
 ## Backend Observability
 - Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.
@@ -238,6 +342,60 @@
   - проверка версии: `adb shell dumpsys package com.ragagent | rg "versionCode=|versionName="`.
 - Признак release-сборки на устройстве: в `adb shell dumpsys package com.ragagent` отсутствует флаг `DEBUGGABLE`, а `pkgFlags` выглядит как `HAS_CODE ALLOW_CLEAR_USER_DATA`.
 
+## LKM Web Tariffs
+- Для `lkm` (`/Users/mamu/Documents/vedicai/lkm`) тарифы реализуются отдельным route `/tariffs`, без изменений backend API.
+- Источник тарифов: `GET /lkm/packages`; используем response как source-of-truth для цен, лимитов и disclaimer.
+- Языки страницы тарифов: `ru`, `en`, `hi`; покрытие локализации ограничено только новой страницей тарифов и связанными UI-строками.
+- Логика языка для `lkm` тарифов:
+  - приоритет `?lang=`,
+  - затем сохраненный выбор в `localStorage`,
+  - затем host default (`.ru -> ru`, иначе `en`),
+  - `hi` доступен через ручной переключатель.
+- В существующем кабинете должна быть явная навигация на `/tariffs`.
+
+## Localization Coverage Audit
+- Базовый язык для сравнения: `frontend/i18n/locales/en.ts` (`1263` ключа).
+- Русский (`frontend/i18n/locales/ru.ts`):
+  - покрытие ключей: `100%` (`1263/1263`);
+  - заполненность: `100%` (`1263/1263`);
+  - строк, отличающихся от английского: `1237/1263` (`97.94%`).
+- Хинди (`frontend/i18n/locales/hi.ts`):
+  - покрытие ключей: `100%` (`1263/1263`);
+  - заполненность: `100%` (`1263/1263`);
+  - строк, отличающихся от английского: `133/1263` (`10.53%`).
+- Вывод по состоянию локализации:
+  - `EN` и `RU` практически полностью готовы для продакшена;
+  - `HI` технически покрыт по всем ключам (missing-key закрыт), но требует полноценного контентного перевода оставшихся английских строк.
+
+### Screen-Level Hindi Status (frontend/screens)
+- Проверено экранов `*Screen.tsx`: `126`.
+- Экраны с i18n-вызовами: `60`.
+- Экраны без i18n-вызовов (вероятно есть хардкод/внешние константы): `66`.
+- По ссылкам на i18n-ключи в экранах:
+  - всего ссылок: `1153`;
+  - Hindi-значение отличается от English: `1153` (`100.00%`);
+  - English fallback (значение в `hi.ts` совпадает с `en.ts`): `0`;
+  - ключи, которых нет в локалях (статические, без `${...}`): `0`.
+- Текущий вывод: все экраны не переведены на Hindi; полноценно закрыт только ограниченный набор экранов (в первую очередь auth/registration/settings), основной портал остается преимущественно на English fallback.
+- Этапы Hindi rollout (2026-03-05):
+  - Phase 1: переведены `common`, `map`, `ads`, `calls`, крупная часть `market`.
+  - Phase 2: переведены приоритетные блоки `cafe`, `contacts`, `wallet`.
+  - Phase 3: переведены `pathTracker`, `videoTariffs`, `videoCircles`.
+  - Phase 4: переведены `dating` и `profile`.
+  - Phase 5: переведены `education` и `reader`.
+  - Phase 6: переведены high-impact остатки в `chat/dating/cafe/staff`, `market.product`, `settings`; добавлены alias-ключи.
+  - Phase 7: устранены все `missing` i18n keys (`0`) через синхронизацию `en.ts` + `hi.ts` и правку экрана `MyProductsScreen` (`market.productsCount`).
+  - Phase 8: дополнительный перевод fallback-строк в `chat`/`dating`/`cafe`.
+  - Phase 9: доперевод fallback в `market.product`, `portal.roles`, `settings`, `videoCircles`, `pathTracker`.
+  - Phase 10: переведены остаточные брендо/тех fallback-строки (включая social labels, units/placeholders, `Sadhu Sanga`) для достижения полного паритета.
+
+### Screen-Level Russian Status (frontend/screens)
+- По результатам доработки `ru.ts`:
+  - `translated=1153`, `fallback=0`, `missing=0`, `total=1153`;
+  - покрытие по экранным i18n-ссылкам: `100.00%`.
+- Закрыты новые ключи, которые ранее отсутствовали после расширения `en.ts`/`hi.ts`:
+  - `library.*`, `qr.*`, `common.open/retry`, `map.navigate/*`, `market.productsCount` и product validation ключи, `cafe.cart.*`, `chat.roomOptions/editImage/sendError`, `auth.logoutConfirm`, `dating.new24h/tradition`, `wallet.goToWallet/topUpToChat/insufficientBalance`, `videoCircles.noCirclesHint/commentPlaceholder`.
+
 ## Marketplace (Shops) Service
 - Архитектура сервиса `Магазины` разделена на три блока API:
   - `shops` (витрина/магазин продавца/модерация),
@@ -277,6 +435,16 @@
 - В `frontend/components/chat/MessageList.tsx` входящие P2P-сообщения (`sender === 'other'`) теперь используют реальный `recipientUser.avatarUrl` (через `getMediaUrl`) вместо ассистент-аватара; при отсутствии фото показывается инициал.
 - В `frontend/screens/portal/PortalMainScreen.tsx` `NotificationPanel` рендерится не только в grid-режиме, но и в активных сервисах (`contacts/calls`), чтобы колокольчик открывал историю уведомлений на обоих экранах.
 - В `frontend/components/chat/ChatHeader.tsx` и `frontend/screens/ChatScreen.tsx` выровнены отступы/высота шапки под VedaMatch: header получает `topInset`, исправлены line-height/title-subtitle clipping.
+- Для позиционирования ленты сообщений при открытии диалога:
+  - `frontend/components/chat/MessageList.tsx` использует нижний якорь (`flexGrow:1` + `justifyContent:'flex-end'`) и `paddingBottom: 18`, чтобы последнее сообщение не пряталось за инпутом.
+  - при смене собеседника сбрасываются снапшоты и запускается initial bottom-lock:
+    - серия коротких `scrollToEnd` (каждые ~120ms, до ~14 попыток), пока пользователь не начал ручной скролл;
+    - это убирает кейс “вход в чат -> старые сообщения -> через 6 секунд только докручивает вниз”.
+  - окно initial-stick сокращено до `~2.6s` (вместо `~8s`) для устранения поздних автопрыжков.
+  - `maintainVisibleContentPosition` включается только после пользовательского скролла или подгрузки старых сообщений, чтобы не конфликтовать со стартовым snap-to-bottom.
+  - для больших диалогов добавлены безопасные параметры виртуализации FlatList:
+    - `initialNumToRender=12`, `maxToRenderPerBatch=12`, `updateCellsBatchingPeriod=50`, `windowSize=9`;
+    - `removeClippedSubviews` включен только на Android (избегаем iOS missing-content артефактов).
 - Для голосовых сообщений чата:
   - в `frontend/services/mediaService.ts` запись запускается с явным `audioSet` и выделенным файлом (`createRecorderConfig`) вместо дефолтного `startRecorder()` без параметров;
   - важный iOS нюанс `react-native-audio-recorder-player`: для стабильного старта нужно использовать путь `DEFAULT` (а не абсолютный путь), иначе возможен `Error occured during initiating recorder`;
@@ -286,6 +454,9 @@
     - рендер аудио теперь определяется не только `type==='audio'`, но и по `mimeType`, extension (`fileName/url`) и URL из `text`;
     - если `content` пуст, но аудио-URL есть в `text`, показывается `AudioPlayer`.
   - в `frontend/context/ChatContext.tsx` и `frontend/services/messageService.ts` унифицировано пробрасывание `mimeType` и `content` (`content || text`) для history/ws/local upload.
+  - в `frontend/components/chat/AudioPlayer.tsx` добавлен global single-active playback controller:
+    - при запуске нового аудиосообщения предыдущее активное принудительно `stop`;
+    - устранен баг одновременного воспроизведения нескольких voice message в одном чате.
   - прод-диагностика от `2026-03-05`: backend успешно сохраняет аудио (`/api/messages/media` -> `200`, `messages.type='audio'` в БД), но `https://cdn.vedamatch.ru/messages/audio/...` возвращает `403`, при этом прямой S3 URL (`https://s3.firstvds.ru/<bucket>/messages/audio/...`) отдает `200`.
   - временный mitigation в `frontend/components/chat/MessageList.tsx`: fallback `cdn -> direct s3` только для audio-path `messages/audio`, чтобы голосовые воспроизводились до правки CDN.
   - в `frontend/context/ChatContext.tsx` финализация `handleSendMedia` сделана idempotent:

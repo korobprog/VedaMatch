@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
@@ -19,6 +20,7 @@ import SadhuSangaLayout from './components/SadhuSangaLayout';
 
 export default function SadhuSangaProfileScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -94,13 +96,13 @@ export default function SadhuSangaProfileScreen() {
     void loadProfileData();
   }, [loadProfileData]);
 
-  const displayName = user?.spiritualName || user?.karmicName || 'Садхака';
-  const displayLetter = displayName[0]?.toUpperCase?.() || 'С';
+  const displayName = user?.spiritualName || user?.karmicName || t('portal.sadhuSangaProfile.fallbackName');
+  const displayLetter = displayName[0]?.toUpperCase?.() || t('portal.sadhuSangaProfile.fallbackLetter');
 
   return (
     <SadhuSangaLayout
       colors={colors}
-      subtitle="Профиль последователя"
+      subtitle={t('portal.sadhuSangaProfile.subtitle')}
       activeTab="profile"
       onBack={() => navigation.goBack()}
       onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
@@ -124,38 +126,38 @@ export default function SadhuSangaProfileScreen() {
                 </View>
                 <View style={styles.profileInfo}>
                   <Text style={styles.profileName}>{displayName}</Text>
-                  <Text style={styles.profileStatus}>В поиске истины</Text>
+                  <Text style={styles.profileStatus}>{t('portal.sadhuSangaProfile.status')}</Text>
                 </View>
               </View>
 
               <View style={styles.profileCardList}>
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => openTab('home')}>
-                  <Text style={styles.profileCardTitle}>Мои подписки</Text>
+                  <Text style={styles.profileCardTitle}>{t('portal.sadhuSangaProfile.cards.subscriptions')}</Text>
                   <Text style={styles.profileCardValue}>{subscriptionsCount}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('FavoritesScreen')}>
-                  <Text style={styles.profileCardTitle}>Сохраненные лекции</Text>
+                  <Text style={styles.profileCardTitle}>{t('portal.sadhuSangaProfile.cards.savedLectures')}</Text>
                   <Text style={styles.profileCardValue}>{savedLecturesCount}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('SupportInbox')}>
-                  <Text style={styles.profileCardTitle}>Мои вопросы</Text>
+                  <Text style={styles.profileCardTitle}>{t('portal.sadhuSangaProfile.cards.myQuestions')}</Text>
                   <Text style={styles.profileCardValue}>{questionsCount}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('SadhuSangaSmartPush')}>
-                  <Text style={styles.profileCardTitle}>Мой город</Text>
-                  <Text style={styles.profileCardText}>{profileCity || 'Не указан'}</Text>
+                  <Text style={styles.profileCardTitle}>{t('portal.sadhuSangaProfile.cards.myCity')}</Text>
+                  <Text style={styles.profileCardText}>{profileCity || t('portal.sadhuSangaProfile.notSpecified')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.profileCardRow} onPress={() => navigation.navigate('EditProfile')}>
-                  <Text style={styles.profileCardTitle}>Мой матх</Text>
-                  <Text style={styles.profileCardText}>{profileMath || 'Не указан'}</Text>
+                  <Text style={styles.profileCardTitle}>{t('portal.sadhuSangaProfile.cards.myMath')}</Text>
+                  <Text style={styles.profileCardText}>{profileMath || t('portal.sadhuSangaProfile.notSpecified')}</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.profileDonateCard}>
-                <Text style={styles.profileDonateTitle}>Поддержите проект</Text>
-                <Text style={styles.profileDonateText}>Ваша поддержка помогает нам развивать сервис и делать знание доступнее.</Text>
-                <TouchableOpacity style={styles.profileDonateButton} onPress={() => Alert.alert('Поддержка', 'Раздел пожертвований подключим следующим шагом.') }>
-                  <Text style={styles.profileDonateButtonText}>Поддержать сервис</Text>
+                <Text style={styles.profileDonateTitle}>{t('portal.sadhuSangaProfile.donate.title')}</Text>
+                <Text style={styles.profileDonateText}>{t('portal.sadhuSangaProfile.donate.text')}</Text>
+                <TouchableOpacity style={styles.profileDonateButton} onPress={() => Alert.alert(t('portal.sadhuSangaProfile.donate.alertTitle'), t('portal.sadhuSangaProfile.donate.alertText')) }>
+                  <Text style={styles.profileDonateButtonText}>{t('portal.sadhuSangaProfile.donate.button')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

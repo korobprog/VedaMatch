@@ -158,7 +158,7 @@ export const MyProductsScreen: React.FC = () => {
             <View style={styles.screen}>
                 <View style={styles.header}>
                     <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                        {totalItems} {t('market.shops.productsCount') || 'products'}
+                        {totalItems} {t('market.productsCount') || 'products'}
                     </Text>
                     <TouchableOpacity
                         style={[styles.addButton, { backgroundColor: colors.accent }]}

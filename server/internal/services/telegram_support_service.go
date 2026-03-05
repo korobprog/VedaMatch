@@ -203,26 +203,43 @@ func (s *TelegramSupportService) handleUserMessage(ctx context.Context, msg *Tel
 	if err := s.store.UpdateConversationActivity(conversation.ID, s.preview(userText), now); err != nil {
 		log.Printf("[Support] update conversation activity failed: %v", err)
 	}
+	language := s.detectLanguage(contact, userText)
 
 	if s.shouldEscalateByKeyword(userText) {
 		return s.escalateToOperator(ctx, conversation.ID, msg.Chat.ID, msg.MessageID, contact.TelegramUserID, inbound.ID, operatorChatID,
-			"Передаю вопрос оператору. Мы ответим в этом чате.")
+			s.localizeSupportText(language,
+				"Передаю вопрос оператору. Мы ответим в этом чате.",
+				"Transferring your request to an operator. We will reply in this chat.",
+				"आपका अनुरोध ऑपरेटर को भेज रहा हूँ। जवाब इसी चैट में आएगा.",
+			))
 	}
 
 	if !s.aiEnabled() || s.aiResponder == nil {
 		return s.escalateToOperator(ctx, conversation.ID, msg.Chat.ID, msg.MessageID, contact.TelegramUserID, inbound.ID, operatorChatID,
-			"Передаю вопрос оператору. Мы ответим в этом чате.")
+			s.localizeSupportText(language,
+				"Передаю вопрос оператору. Мы ответим в этом чате.",
+				"Transferring your request to an operator. We will reply in this chat.",
+				"आपका अनुरोध ऑपरेटर को भेज रहा हूँ। जवाब इसी चैट में आएगा.",
+			))
 	}
 
-	reply, confidence, err := s.aiResponder.GenerateReply(ctx, userText, s.detectLanguage(contact, userText))
+	reply, confidence, err := s.aiResponder.GenerateReply(ctx, userText, language)
 	if err != nil {
 		log.Printf("[Support] ai responder failed: %v", err)
 		return s.escalateToOperator(ctx, conversation.ID, msg.Chat.ID, msg.MessageID, contact.TelegramUserID, inbound.ID, operatorChatID,
-			"Не удалось дать точный авто-ответ. Передаю вопрос оператору.")
+			s.localizeSupportText(language,
+				"Не удалось дать точный авто-ответ. Передаю вопрос оператору.",
+				"Could not provide a precise auto-reply. Forwarding your request to an operator.",
+				"सटीक ऑटो-उत्तर नहीं दे पाया। आपका अनुरोध ऑपरेटर को भेज रहा हूँ.",
+			))
 	}
 	if confidence < s.aiThreshold() {
 		return s.escalateToOperator(ctx, conversation.ID, msg.Chat.ID, msg.MessageID, contact.TelegramUserID, inbound.ID, operatorChatID,
-			"Для точного ответа подключаю оператора.")
+			s.localizeSupportText(language,
+				"Для точного ответа подключаю оператора.",
+				"Connecting an operator for a more accurate answer.",
+				"अधिक सटीक उत्तर के लिए ऑपरेटर जोड़ रहा हूँ.",
+			))
 	}
 
 	return s.sendAndPersistText(ctx, conversation.ID, msg.Chat.ID, models.SupportMessageSourceBot, reply)
@@ -245,6 +262,7 @@ func (s *TelegramSupportService) handleUserPhoto(
 	}
 
 	caption := strings.TrimSpace(msg.Caption)
+	language := s.detectLanguage(contact, caption)
 	inbound := &models.SupportMessage{
 		ConversationID:    conversation.ID,
 		Direction:         models.SupportMessageDirectionInbound,
@@ -281,14 +299,22 @@ func (s *TelegramSupportService) handleUserPhoto(
 
 	if operatorChatID == 0 || s.client == nil {
 		return s.sendAndPersistText(ctx, conversation.ID, msg.Chat.ID, models.SupportMessageSourceBot,
-			"Скриншот получен. Оператор свяжется с вами при первой возможности.")
+			s.localizeSupportText(language,
+				"Скриншот получен. Оператор свяжется с вами при первой возможности.",
+				"Screenshot received. An operator will contact you as soon as possible.",
+				"स्क्रीनशॉट मिल गया। ऑपरेटर जल्द से जल्द आपसे इसी चैट में संपर्क करेगा.",
+			))
 	}
 
 	copiedMessageID, err := s.client.CopyMessage(ctx, operatorChatID, msg.Chat.ID, msg.MessageID)
 	if err != nil {
 		log.Printf("[Support] failed to copy screenshot to operator chat: %v", err)
 		return s.sendAndPersistText(ctx, conversation.ID, msg.Chat.ID, models.SupportMessageSourceBot,
-			"Скриншот получен. Передаю оператору.")
+			s.localizeSupportText(language,
+				"Скриншот получен. Передаю оператору.",
+				"Screenshot received. Forwarding it to an operator.",
+				"स्क्रीनशॉट मिल गया। इसे ऑपरेटर को भेज रहा हूँ.",
+			))
 	}
 
 	supportMessageID := inbound.ID
@@ -326,7 +352,11 @@ func (s *TelegramSupportService) handleUserPhoto(
 	}
 
 	return s.sendAndPersistText(ctx, conversation.ID, msg.Chat.ID, models.SupportMessageSourceBot,
-		"Скриншот передан оператору. Ответ придет в этом чате.")
+		s.localizeSupportText(language,
+			"Скриншот передан оператору. Ответ придет в этом чате.",
+			"Screenshot has been sent to an operator. The reply will come in this chat.",
+			"स्क्रीनशॉट ऑपरेटर को भेज दिया गया है। जवाब इसी चैट में आएगा.",
+		))
 }
 
 func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg *TelegramMessage, operatorChatID int64) error {
@@ -500,16 +530,7 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 
 	s.configureMiniAppMenuButtonBestEffort(ctx, chatID, languageCode)
 
-	message := strings.Join([]string{
-		"Добро пожаловать в поддержку VedaMatch.",
-		"",
-		"Как пользоваться чатом:",
-		"1. Опишите вопрос одним сообщением.",
-		"2. При необходимости прикрепите скриншот.",
-		"3. Оператор ответит здесь, просто отвечайте в этом же чате.",
-		"",
-		"Кнопки ниже: ссылки на приложения и наш канал.",
-	}, "\n")
+	message := s.startMessageText(languageCode)
 	replyMarkup := s.buildStartButtons(languageCode)
 
 	messageID, err := s.client.SendMessage(ctx, chatID, message, TelegramSendMessageOptions{
@@ -534,6 +555,44 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		return err
 	}
 	return s.store.UpdateConversationActivity(conversationID, s.preview(message), now)
+}
+
+func (s *TelegramSupportService) startMessageText(languageCode string) string {
+	switch normalizeTelegramLanguageCode(languageCode) {
+	case "hi":
+		return strings.Join([]string{
+			"VedaMatch सपोर्ट में आपका स्वागत है।",
+			"",
+			"चैट का उपयोग कैसे करें:",
+			"1. अपना सवाल एक संदेश में लिखें।",
+			"2. ज़रूरत हो तो स्क्रीनशॉट जोड़ें।",
+			"3. ऑपरेटर यहीं जवाब देगा, इसी चैट में उत्तर दें।",
+			"",
+			"नीचे के बटन: ऐप डाउनलोड और हमारा चैनल।",
+		}, "\n")
+	case "en":
+		return strings.Join([]string{
+			"Welcome to VedaMatch support.",
+			"",
+			"How to use this chat:",
+			"1. Describe your issue in one message.",
+			"2. Attach a screenshot if needed.",
+			"3. The operator will reply here, keep replying in this same chat.",
+			"",
+			"Buttons below: app download links and our channel.",
+		}, "\n")
+	default:
+		return strings.Join([]string{
+			"Добро пожаловать в поддержку VedaMatch.",
+			"",
+			"Как пользоваться чатом:",
+			"1. Опишите вопрос одним сообщением.",
+			"2. При необходимости прикрепите скриншот.",
+			"3. Оператор ответит здесь, просто отвечайте в этом же чате.",
+			"",
+			"Кнопки ниже: ссылки на приложения и наш канал.",
+		}, "\n")
+	}
 }
 
 func (s *TelegramSupportService) sendAndPersistText(ctx context.Context, conversationID uint, chatID int64, source models.SupportMessageSource, text string) error {
@@ -654,9 +713,9 @@ func (s *TelegramSupportService) buildStartButtons(languageCode string) map[stri
 		})
 	}
 
-	addURLButton(s.buttonLabel("SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
-	addURLButton(s.buttonLabel("SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
-	addURLButton(s.buttonLabel("SUPPORT_CHANNEL_TEXT", "Наш канал"), s.getSetting("SUPPORT_CHANNEL_URL"))
+	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS", "Download iOS", "iOS डाउनलोड करें"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
+	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android", "Download Android", "Android डाउनलोड करें"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
+	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_CHANNEL_TEXT", "Наш канал", "Our channel", "हमारा चैनल"), s.getSetting("SUPPORT_CHANNEL_URL"))
 	addWebAppButton(s.lkmInlineButtonText(languageCode), s.miniAppURLByLanguage(languageCode))
 
 	if len(rows) == 0 {
@@ -673,6 +732,35 @@ func (s *TelegramSupportService) buttonLabel(settingKey, fallback string) string
 		return fallback
 	}
 	return label
+}
+
+func (s *TelegramSupportService) localizedButtonLabel(languageCode, baseKey, fallbackRU, fallbackEN, fallbackHI string) string {
+	switch normalizeTelegramLanguageCode(languageCode) {
+	case "hi":
+		if value := strings.TrimSpace(s.getSetting(baseKey + "_HI")); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(s.getSetting(baseKey)); value != "" {
+			return value
+		}
+		return fallbackHI
+	case "en":
+		if value := strings.TrimSpace(s.getSetting(baseKey + "_EN")); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(s.getSetting(baseKey)); value != "" {
+			return value
+		}
+		return fallbackEN
+	default:
+		if value := strings.TrimSpace(s.getSetting(baseKey + "_RU")); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(s.getSetting(baseKey)); value != "" {
+			return value
+		}
+		return fallbackRU
+	}
 }
 
 func (s *TelegramSupportService) lkmInlineButtonText(languageCode string) string {
@@ -708,14 +796,43 @@ func (s *TelegramSupportService) detectLanguage(contact *models.SupportContact, 
 	if mode == "ru" {
 		return "ru"
 	}
+	if mode == "hi" {
+		return "hi"
+	}
+	if mode == "en" {
+		return "en"
+	}
 
-	if contact != nil && strings.HasPrefix(strings.ToLower(strings.TrimSpace(contact.LanguageCode)), "ru") {
-		return "ru"
+	if contact != nil {
+		code := normalizeTelegramLanguageCode(contact.LanguageCode)
+		switch code {
+		case "ru":
+			return "ru"
+		case "hi":
+			return "hi"
+		}
 	}
 	if containsCyrillic(userText) {
 		return "ru"
 	}
+	if containsDevanagari(userText) {
+		return "hi"
+	}
 	return "en"
+}
+
+func (s *TelegramSupportService) localizeSupportText(languageCode, ru, en, hi string) string {
+	switch normalizeTelegramLanguageCode(languageCode) {
+	case "hi":
+		if strings.TrimSpace(hi) != "" {
+			return hi
+		}
+		return en
+	case "en":
+		return en
+	default:
+		return ru
+	}
 }
 
 func (s *TelegramSupportService) operatorChatID() int64 {
@@ -933,6 +1050,15 @@ func selectBestPhoto(items []TelegramPhotoSize) *TelegramPhotoSize {
 func containsCyrillic(text string) bool {
 	for _, r := range text {
 		if (r >= 'А' && r <= 'я') || r == 'ё' || r == 'Ё' {
+			return true
+		}
+	}
+	return false
+}
+
+func containsDevanagari(text string) bool {
+	for _, r := range text {
+		if r >= '\u0900' && r <= '\u097F' {
 			return true
 		}
 	}

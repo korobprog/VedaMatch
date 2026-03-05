@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Clock3 } from 'lucide-react-native';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -112,6 +113,7 @@ const buildSeminarRouteUrl = (service: Service): string => {
 
 export default function SadhuSangaScheduleScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -184,10 +186,10 @@ export default function SadhuSangaScheduleScreen() {
         return {
           service,
           nextAt,
-          formatLabel: service.channel === 'offline' ? 'Оффлайн' : 'Онлайн',
+          formatLabel: service.channel === 'offline' ? t('portal.sadhuSangaSchedule.tags.offline') : t('portal.sadhuSangaSchedule.tags.online'),
           venueLabel: service.channel === 'offline'
-            ? (service.offlineAddress || 'Адрес уточняется')
-            : (service.channelLink || 'Ссылка после записи'),
+            ? (service.offlineAddress || t('portal.sadhuSangaSchedule.addressPending'))
+            : (service.channelLink || t('portal.sadhuSangaSchedule.linkAfterBooking')),
         } as SeminarPreview;
       }));
 
@@ -206,13 +208,13 @@ export default function SadhuSangaScheduleScreen() {
 
       setUpcomingSeminars(sorted.slice(0, 8));
     } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить расписание';
-      Alert.alert('Ошибка', message);
+      const message = error?.response?.data?.error || error?.message || t('portal.sadhuSangaSchedule.alerts.loadFailed');
+      Alert.alert(t('common.error'), message);
       setUpcomingSeminars([]);
     } finally {
       setLoading(false);
     }
-  }, [seminarsOnlyWithDate]);
+  }, [seminarsOnlyWithDate, t]);
 
   useEffect(() => {
     void loadUpcomingSeminars();
@@ -221,46 +223,47 @@ export default function SadhuSangaScheduleScreen() {
   const scheduleChips = useMemo(() => {
     const now = new Date();
     const result = [
-      { key: 'today', label: 'Сегодня' },
-      { key: 'tomorrow', label: 'Завтра' },
+      { key: 'today', label: t('portal.sadhuSangaSchedule.chips.today') },
+      { key: 'tomorrow', label: t('portal.sadhuSangaSchedule.chips.tomorrow') },
     ];
+    const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
     for (let i = 2; i <= 3; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() + i);
       result.push({
         key: `d-${i}`,
-        label: d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }),
+        label: d.toLocaleDateString(locale, { day: '2-digit', month: 'short' }),
       });
     }
     return result;
-  }, []);
+  }, [i18n.language, t]);
 
   const openSeminarRoute = useCallback(async (service: Service) => {
     if (service.channel !== 'offline') {
-      Alert.alert('Маршрут', 'Маршрут доступен только для офлайн-семинаров.');
+      Alert.alert(t('portal.sadhuSangaSchedule.route.title'), t('portal.sadhuSangaSchedule.route.offlineOnly'));
       return;
     }
     const routeUrl = buildSeminarRouteUrl(service);
     if (!routeUrl) {
-      Alert.alert('Маршрут', 'Адрес семинара пока не указан.');
+      Alert.alert(t('portal.sadhuSangaSchedule.route.title'), t('portal.sadhuSangaSchedule.route.addressMissing'));
       return;
     }
     try {
       const supported = await Linking.canOpenURL(routeUrl);
       if (!supported) {
-        Alert.alert('Маршрут', 'Не удалось открыть карту на устройстве.');
+        Alert.alert(t('portal.sadhuSangaSchedule.route.title'), t('portal.sadhuSangaSchedule.route.mapOpenFailed'));
         return;
       }
       await Linking.openURL(routeUrl);
     } catch {
-      Alert.alert('Маршрут', 'Не удалось открыть маршрут.');
+      Alert.alert(t('portal.sadhuSangaSchedule.route.title'), t('portal.sadhuSangaSchedule.route.routeOpenFailed'));
     }
-  }, []);
+  }, [t]);
 
   return (
     <SadhuSangaLayout
       colors={colors}
-      subtitle="Расписание лекций и семинаров"
+      subtitle={t('portal.sadhuSangaSchedule.subtitle')}
       activeTab="schedule"
       onBack={() => navigation.goBack()}
       onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
@@ -273,7 +276,7 @@ export default function SadhuSangaScheduleScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.tabPaneWrap}>
-            <Text style={styles.tabPaneTitle}>Расписание</Text>
+            <Text style={styles.tabPaneTitle}>{t('portal.sadhuSangaSchedule.title')}</Text>
 
             <View style={styles.scheduleChipRow}>
               {scheduleChips.map((chip, index) => (
@@ -300,7 +303,7 @@ export default function SadhuSangaScheduleScreen() {
                   seminarsOnlyWithDate ? styles.seminarsDateFilterButtonTextActive : styles.seminarsDateFilterButtonTextInactive,
                 ]}
               >
-                Только с датой
+                {t('portal.sadhuSangaSchedule.onlyWithDate')}
               </Text>
             </TouchableOpacity>
 
@@ -311,8 +314,8 @@ export default function SadhuSangaScheduleScreen() {
             ) : upcomingSeminars.length === 0 ? (
               <Text style={styles.emptyText}>
                 {isMathProfileMissing
-                  ? 'Укажите матх в профиле, чтобы видеть семинары вашего направления.'
-                  : 'Пока нет ближайших семинаров'}
+                  ? t('portal.sadhuSangaSchedule.empty.mathMissing')
+                  : t('portal.sadhuSangaSchedule.empty.noSeminars')}
               </Text>
             ) : (
               upcomingSeminars.map((item) => (
@@ -326,13 +329,17 @@ export default function SadhuSangaScheduleScreen() {
                   >
                     <View style={styles.scheduleTimeCol}>
                       <Text style={styles.scheduleTimeMain} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
-                        {item.nextAt ? item.nextAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        {item.nextAt
+                          ? item.nextAt.toLocaleTimeString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+                          : '--:--'}
                       </Text>
-                      <Text style={styles.scheduleTimeSub}>MSK</Text>
+                      <Text style={styles.scheduleTimeSub}>{t('portal.sadhuSangaSchedule.timezoneLabel')}</Text>
                     </View>
                     <View style={styles.scheduleCardBody}>
                       <Text style={[styles.schedulePill, item.service.channel === 'offline' ? styles.schedulePillCity : styles.schedulePillOnline]}>
-                        {item.service.channel === 'offline' ? 'МОСКВА' : 'ОНЛАЙН'}
+                        {item.service.channel === 'offline'
+                          ? t('portal.sadhuSangaSchedule.tags.offline')
+                          : t('portal.sadhuSangaSchedule.tags.online')}
                       </Text>
                       <Text style={styles.scheduleCardTitle} numberOfLines={2}>{item.service.title}</Text>
                       <Text style={styles.scheduleCardSub} numberOfLines={1}>{item.venueLabel}</Text>
@@ -344,14 +351,14 @@ export default function SadhuSangaScheduleScreen() {
                       style={styles.scheduleActionButton}
                       onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
                     >
-                      <Text style={styles.scheduleActionButtonText}>Записаться</Text>
+                      <Text style={styles.scheduleActionButtonText}>{t('portal.sadhuSangaSchedule.bookButton')}</Text>
                     </TouchableOpacity>
                     {item.service.channel === 'offline' ? (
                       <TouchableOpacity
                         style={styles.scheduleRouteButton}
                         onPress={() => void openSeminarRoute(item.service)}
                       >
-                        <Text style={styles.scheduleRouteButtonText}>Маршрут</Text>
+                        <Text style={styles.scheduleRouteButtonText}>{t('portal.sadhuSangaSchedule.routeButton')}</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>
@@ -361,13 +368,13 @@ export default function SadhuSangaScheduleScreen() {
 
             <View style={styles.scheduleNoticeCard}>
               <Clock3 size={28} color="#E7B70D" />
-              <Text style={styles.scheduleNoticeTitle}>Не пропустите важное</Text>
-              <Text style={styles.scheduleNoticeText}>Включите уведомления, чтобы сервис подсказывал вам вовремя.</Text>
+              <Text style={styles.scheduleNoticeTitle}>{t('portal.sadhuSangaSchedule.notice.title')}</Text>
+              <Text style={styles.scheduleNoticeText}>{t('portal.sadhuSangaSchedule.notice.text')}</Text>
               <TouchableOpacity
                 style={styles.scheduleNoticeButton}
                 onPress={() => navigation.navigate('SadhuSangaSmartPush')}
               >
-                <Text style={styles.scheduleNoticeButtonText}>Включить уведомления</Text>
+                <Text style={styles.scheduleNoticeButtonText}>{t('portal.sadhuSangaSchedule.notice.button')}</Text>
               </TouchableOpacity>
             </View>
           </View>

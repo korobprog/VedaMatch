@@ -1,5 +1,5 @@
 /**
- * ServiceBookingScreen - Экран бронирования сервиса
+ * ServiceBookingScreen - service booking screen
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -15,14 +15,15 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ArrowLeft, User, MapPin, Video, CreditCard, MessageCircle } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import { ArrowLeft, User, MapPin, Video } from 'lucide-react-native';
 import {
     Service,
     ServiceTariff,
     getServiceById,
     getSlotsForRange,
     AvailableSlot,
-    CHANNEL_LABELS,
+    ServiceChannel,
 } from '../../../services/serviceService';
 import { bookService, CreateBookingRequest } from '../../../services/bookingService';
 import { formatBalance, getCurrencyName } from '../../../services/walletService';
@@ -57,8 +58,18 @@ interface AvailableSlotDay {
     slots: TimeSlot[];
 }
 
+const CHANNEL_LABEL_KEYS: Record<ServiceChannel, string> = {
+    video: 'portal.serviceDetail.channels.video',
+    zoom: 'portal.serviceDetail.channels.zoom',
+    youtube: 'portal.serviceDetail.channels.youtube',
+    telegram: 'portal.serviceDetail.channels.telegram',
+    offline: 'portal.serviceDetail.channels.offline',
+    file: 'portal.serviceDetail.channels.file',
+};
+
 export default function ServiceBookingScreen() {
     const navigation = useNavigation<any>();
+    const { t, i18n } = useTranslation();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
@@ -109,7 +120,7 @@ export default function ServiceBookingScreen() {
 
             // Auto-select default tariff
             if (data.tariffs && data.tariffs.length > 0) {
-                const defaultTariff = data.tariffs.find(t => t.isDefault) || data.tariffs[0];
+                const defaultTariff = data.tariffs.find((tariff) => tariff.isDefault) || data.tariffs[0];
                 setSelectedTariff(defaultTariff);
             }
         } catch (error) {
@@ -117,14 +128,14 @@ export default function ServiceBookingScreen() {
                 return;
             }
             console.error('Failed to load service:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить сервис');
+            Alert.alert(t('common.error'), t('portal.serviceBooking.alerts.loadServiceError'));
             navigation.goBack();
         } finally {
             if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
-    }, [serviceId, navigation]);
+    }, [serviceId, navigation, t]);
 
     // Load available slots
     const loadSlots = useCallback(async (_tariffId: number) => {
@@ -225,9 +236,13 @@ export default function ServiceBookingScreen() {
         if (!hasEnoughBalance) {
             const currencyName = getCurrencyName(user?.language);
             Alert.alert(
-                `Недостаточно ${currencyName}`,
-                `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedTotalBalance}. Не хватает: ${formatBalance(missingForBooking)}`,
-                [{ text: 'OK' }]
+                t('portal.serviceBooking.balance.insufficientTitle', { currency: currencyName }),
+                t('portal.serviceBooking.balance.insufficientMessage', {
+                    required: formatBalance(selectedTariff.price),
+                    balance: formattedTotalBalance,
+                    missing: formatBalance(missingForBooking),
+                }),
+                [{ text: t('common.ok', { defaultValue: 'OK' }) }]
             );
             return;
         }
@@ -259,15 +274,20 @@ export default function ServiceBookingScreen() {
             }
 
             Alert.alert(
-                'Запись создана! ✨',
-                `Вы успешно записались на "${service.title}"\n\nДата: ${formatDate(selectedDate)}\nВремя: ${selectedTime}\nСтоимость: ${formatBalance(selectedTariff.price)}`,
+                t('portal.serviceBooking.alerts.bookedTitle'),
+                t('portal.serviceBooking.alerts.bookedMessage', {
+                    title: service.title,
+                    date: formatDate(selectedDate),
+                    time: selectedTime,
+                    price: formatBalance(selectedTariff.price),
+                }),
                 [
                     {
-                        text: 'Мои записи',
+                        text: t('portal.serviceBooking.alerts.myBookings'),
                         onPress: () => navigation.navigate('MyBookings'),
                     },
                     {
-                        text: 'OK',
+                        text: t('common.ok', { defaultValue: 'OK' }),
                         onPress: () => navigation.goBack(),
                     },
                 ]
@@ -278,8 +298,8 @@ export default function ServiceBookingScreen() {
             }
             console.error('Booking failed:', error);
             Alert.alert(
-                'Ошибка бронирования',
-                error.message || 'Не удалось создать запись. Попробуйте позже.'
+                t('portal.serviceBooking.alerts.bookingErrorTitle'),
+                error.message || t('portal.serviceBooking.alerts.bookingErrorMessage')
             );
         } finally {
             if (requestId === latestBookRequestRef.current && isMountedRef.current) {
@@ -290,7 +310,8 @@ export default function ServiceBookingScreen() {
 
     const formatDate = (dateStr: string): string => {
         const date = new Date(dateStr);
-        return date.toLocaleDateString('ru-RU', {
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return date.toLocaleDateString(locale, {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
@@ -313,9 +334,9 @@ export default function ServiceBookingScreen() {
                 <SafeAreaView style={styles.container}>
                     <View style={styles.errorContainer}>
                         <Text style={styles.errorIcon}>😔</Text>
-                        <Text style={styles.errorText}>Сервис не найден</Text>
+                        <Text style={styles.errorText}>{t('portal.serviceBooking.notFound.title')}</Text>
                         <TouchableOpacity style={styles.backButtonAlt} onPress={() => navigation.goBack()}>
-                            <Text style={styles.backButtonText}>Назад</Text>
+                            <Text style={styles.backButtonText}>{t('common.back')}</Text>
                         </TouchableOpacity>
                     </View>
                 </SafeAreaView>
@@ -331,7 +352,7 @@ export default function ServiceBookingScreen() {
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Запись на сессию</Text>
+                    <Text style={styles.headerTitle}>{t('portal.serviceBooking.headerTitle')}</Text>
                     <View style={styles.headerActions}>
                         <AssistantChatButton size={36} />
                         <BalancePill size="small" />
@@ -363,7 +384,9 @@ export default function ServiceBookingScreen() {
                                 ) : (
                                     <Video size={12} color={colors.accent} />
                                 )}
-                                <Text style={styles.channelLabel}>{CHANNEL_LABELS[service.channel]}</Text>
+                                <Text style={styles.channelLabel}>
+                                    {t(CHANNEL_LABEL_KEYS[service.channel], { defaultValue: service.channel })}
+                                </Text>
                             </View>
                         </View>
 
@@ -371,7 +394,7 @@ export default function ServiceBookingScreen() {
                         <View style={styles.selectionSection}>
                             <View style={styles.sectionHeading}>
                                 <View style={styles.headingIndicator} />
-                                <Text style={styles.sectionLabel}>Выберите формат</Text>
+                                <Text style={styles.sectionLabel}>{t('portal.serviceBooking.sections.chooseFormat')}</Text>
                             </View>
                             <TariffSelector
                                 tariffs={service.tariffs || []}
@@ -384,7 +407,7 @@ export default function ServiceBookingScreen() {
                             <View style={styles.selectionSection}>
                                 <View style={styles.sectionHeading}>
                                     <View style={styles.headingIndicator} />
-                                    <Text style={styles.sectionLabel}>Время и пространство</Text>
+                                    <Text style={styles.sectionLabel}>{t('portal.serviceBooking.sections.timeAndSpace')}</Text>
                                 </View>
                                 <ServiceCalendar
                                     availableSlots={availableSlots}
@@ -401,11 +424,11 @@ export default function ServiceBookingScreen() {
                         <View style={styles.selectionSection}>
                             <View style={styles.sectionHeading}>
                                 <View style={styles.headingIndicator} />
-                                <Text style={styles.sectionLabel}>Ваше намерение</Text>
+                                <Text style={styles.sectionLabel}>{t('portal.serviceBooking.sections.intention')}</Text>
                             </View>
                             <TextInput
                                 style={styles.glassNoteInput}
-                                placeholder="Опишите ваш запрос или вопрос..."
+                                placeholder={t('portal.serviceBooking.notePlaceholder')}
                                 placeholderTextColor="rgba(255,255,255,0.2)"
                                 value={clientNote}
                                 onChangeText={setClientNote}
@@ -418,18 +441,18 @@ export default function ServiceBookingScreen() {
                         {/* Final Review */}
                         {canBook && selectedTariff && (
                             <View style={styles.reviewCard}>
-                                <Text style={styles.reviewTitle}>ИТОГОВАЯ ПРОВЕРКА</Text>
+                                <Text style={styles.reviewTitle}>{t('portal.serviceBooking.review.title')}</Text>
                                 <View style={styles.reviewGrid}>
                                     <View style={styles.reviewItem}>
-                                        <Text style={styles.reviewLabel}>ТАРИФ</Text>
+                                        <Text style={styles.reviewLabel}>{t('portal.serviceBooking.review.tariff')}</Text>
                                         <Text style={styles.reviewValue}>{selectedTariff.name}</Text>
                                     </View>
                                     <View style={styles.reviewItem}>
-                                        <Text style={styles.reviewLabel}>ДАТА</Text>
+                                        <Text style={styles.reviewLabel}>{t('portal.serviceBooking.review.date')}</Text>
                                         <Text style={styles.reviewValue}>{formatDate(selectedDate!)}</Text>
                                     </View>
                                     <View style={styles.reviewItem}>
-                                        <Text style={styles.reviewLabel}>ВРЕМЯ</Text>
+                                        <Text style={styles.reviewLabel}>{t('portal.serviceBooking.review.time')}</Text>
                                         <Text style={styles.reviewValue}>{selectedTime}</Text>
                                     </View>
                                 </View>
@@ -437,14 +460,17 @@ export default function ServiceBookingScreen() {
                                 <View style={styles.costDivider} />
 
                                 <View style={styles.costSection}>
-                                    <Text style={styles.totalText}>К ОПЛАТЕ</Text>
+                                    <Text style={styles.totalText}>{t('portal.serviceBooking.review.toPay')}</Text>
                                     <Text style={styles.totalAmount}>{selectedTariff.price} ₵</Text>
                                 </View>
 
                                 {!hasEnoughBalance && (
                                     <View style={styles.balanceAlert}>
                                         <Text style={styles.balanceAlertText}>
-                                            Недостаточно {getCurrencyName(user?.language)}. Не хватает {missingForBooking} ₵
+                                            {t('portal.serviceBooking.balance.inlineInsufficient', {
+                                                currency: getCurrencyName(user?.language),
+                                                missing: missingForBooking,
+                                            })}
                                         </Text>
                                     </View>
                                 )}
@@ -471,10 +497,10 @@ export default function ServiceBookingScreen() {
                         ) : (
                             <Text style={styles.primaryBookButtonText}>
                                 {!canBook
-                                    ? 'ВЫБЕРИТЕ ПАРАМЕТРЫ'
+                                    ? t('portal.serviceBooking.cta.chooseParams')
                                     : !hasEnoughBalance
-                                        ? 'ПОПОЛНИТЕ БАЛАНС'
-                                        : 'ПОДТВЕРДИТЬ И ОПЛАТИТЬ'
+                                        ? t('portal.serviceBooking.cta.topUp')
+                                        : t('portal.serviceBooking.cta.confirmPay')
                                 }
                             </Text>
                         )}

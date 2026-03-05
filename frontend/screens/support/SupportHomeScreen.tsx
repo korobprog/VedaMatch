@@ -18,20 +18,87 @@ import { useUser } from '../../context/UserContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupportHome'>;
 
+const DEFAULT_SUPPORT_BOT_URL = 'https://t.me/vedamatch_bot';
+
 const defaultConfig: SupportConfig = {
     appEntryEnabled: true,
     appEntryRolloutPercent: 100,
     appEntryEligible: true,
-    telegramBotUrl: '',
+    telegramBotUrl: DEFAULT_SUPPORT_BOT_URL,
     channelUrl: '',
     slaTextRu: 'AI отвечает сразу, оператор в рабочее время — до 4 часов.',
     slaTextEn: 'AI replies instantly, operator response during business hours is within 4 hours.',
-    languages: ['ru', 'en'],
+    slaTextHi: 'AI तुरंत जवाब देता है, और कार्य समय में ऑपरेटर 4 घंटे के भीतर जवाब देता है।',
+    languages: ['ru', 'en', 'hi'],
     channels: {
         telegram: false,
         inAppTicket: true,
     },
 };
+
+const supportHomeCopy = {
+    ru: {
+        back: 'Назад',
+        title: 'Поддержка VedaMatch',
+        subtitle: 'Техпроблемы, навигация по продукту и фидбек по улучшениям.',
+        moderationTitle: 'МОДЕРАЦИЯ UGC',
+        moderationText: 'Для жалоб на контент/пользователей используйте «Создать обращение». Поддержка ведется в чате, без email.',
+        slaTitle: 'SLA',
+        loading: 'Загружаем каналы поддержки…',
+        openTelegram: 'Открыть Telegram поддержку',
+        createTicket: 'Создать обращение без Telegram',
+        myTickets: 'Мои обращения',
+        refresh: 'Обновить',
+        refreshing: 'Обновляем…',
+        alertTitle: 'Поддержка',
+        alertCantOpenLink: 'Не удалось открыть ссылку Telegram.',
+    },
+    en: {
+        back: 'Back',
+        title: 'VedaMatch Support',
+        subtitle: 'Technical issues, product navigation, and feedback.',
+        moderationTitle: 'UGC MODERATION',
+        moderationText: 'For content/user complaints, use "Create ticket". Support is handled in chat, without email.',
+        slaTitle: 'SLA',
+        loading: 'Loading support channels…',
+        openTelegram: 'Open Telegram support',
+        createTicket: 'Create ticket without Telegram',
+        myTickets: 'My tickets',
+        refresh: 'Refresh',
+        refreshing: 'Refreshing…',
+        alertTitle: 'Support',
+        alertCantOpenLink: 'Failed to open Telegram link.',
+    },
+    hi: {
+        back: 'वापस',
+        title: 'VedaMatch सहायता',
+        subtitle: 'तकनीकी समस्याएँ, प्रोडक्ट नेविगेशन और सुधार हेतु फीडबैक।',
+        moderationTitle: 'UGC मॉडरेशन',
+        moderationText: 'कंटेंट/यूज़र शिकायत के लिए "टिकट बनाएं" उपयोग करें। सहायता चैट में होती है, ईमेल से नहीं।',
+        slaTitle: 'SLA',
+        loading: 'सहायता चैनल लोड हो रहे हैं…',
+        openTelegram: 'Telegram सहायता खोलें',
+        createTicket: 'Telegram के बिना टिकट बनाएं',
+        myTickets: 'मेरे टिकट',
+        refresh: 'रीफ्रेश',
+        refreshing: 'रीफ्रेश हो रहा है…',
+        alertTitle: 'सहायता',
+        alertCantOpenLink: 'Telegram लिंक नहीं खुल सका।',
+    },
+} as const;
+
+const normalizeSupportHomeLanguage = (language?: string): 'ru' | 'en' | 'hi' => {
+    const lower = String(language || '').trim().toLowerCase();
+    if (lower.startsWith('ru')) {
+        return 'ru';
+    }
+    if (lower.startsWith('hi')) {
+        return 'hi';
+    }
+    return 'en';
+};
+
+const getSupportHomeCopy = (language?: string) => supportHomeCopy[normalizeSupportHomeLanguage(language)];
 
 export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
     const { i18n } = useTranslation();
@@ -77,29 +144,30 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         navigation.navigate('SupportConversation', { conversationId });
     }, [route.params?.conversationId, isLoggedIn, navigation]);
 
+    const ui = useMemo(() => getSupportHomeCopy(i18n.language), [i18n.language]);
     const slaText = useMemo(() => {
-        return i18n.language?.startsWith('ru') ? config.slaTextRu : config.slaTextEn;
-    }, [config.slaTextEn, config.slaTextRu, i18n.language]);
-    const hasTelegramChannel = !!(config.telegramBotUrl || config.channelUrl);
-    const inAppTicketAvailable = config.channels.inAppTicket && (
-        (config.appEntryEnabled && config.appEntryEligible) || !hasTelegramChannel
-    );
+        const lang = normalizeSupportHomeLanguage(i18n.language);
+        if (lang === 'ru') {
+            return config.slaTextRu;
+        }
+        if (lang === 'hi') {
+            return config.slaTextHi || config.slaTextEn;
+        }
+        return config.slaTextEn;
+    }, [config.slaTextEn, config.slaTextHi, config.slaTextRu, i18n.language]);
+    const inAppTicketAvailable = !!config.channels.inAppTicket;
 
     const openTelegram = async () => {
-        const target = config.telegramBotUrl || config.channelUrl;
-        if (!target) {
-            Alert.alert('Поддержка', 'Telegram ссылка пока не настроена.');
-            return;
-        }
+        const target = config.telegramBotUrl || config.channelUrl || DEFAULT_SUPPORT_BOT_URL;
         try {
             const canOpen = await Linking.canOpenURL(target);
             if (!canOpen) {
-                Alert.alert('Поддержка', 'Не удалось открыть ссылку Telegram.');
+                Alert.alert(ui.alertTitle, ui.alertCantOpenLink);
                 return;
             }
             await Linking.openURL(target);
-        } catch (error) {
-            Alert.alert('Поддержка', 'Не удалось открыть Telegram.');
+        } catch {
+            Alert.alert(ui.alertTitle, ui.alertCantOpenLink);
         }
     };
 
@@ -126,35 +194,33 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={styles.container}>
                 <TouchableOpacity style={styles.backButton} onPress={handleBackPress} activeOpacity={0.8}>
                     <ArrowLeft size={18} color="#0F172A" />
-                    <Text style={styles.backButtonText}>Назад</Text>
+                    <Text style={styles.backButtonText}>{ui.back}</Text>
                 </TouchableOpacity>
-                <Text style={styles.title}>Поддержка VedaMatch</Text>
+                <Text style={styles.title}>{ui.title}</Text>
                 <Text style={styles.subtitle}>
-                    Техпроблемы, навигация по продукту и фидбек по улучшениям.
+                    {ui.subtitle}
                 </Text>
                 <View style={styles.moderationBox}>
-                    <Text style={styles.moderationTitle}>Модерация UGC</Text>
+                    <Text style={styles.moderationTitle}>{ui.moderationTitle}</Text>
                     <Text style={styles.moderationText}>
-                        Для жалоб на контент/пользователей используйте "Создать обращение".
+                        {ui.moderationText}
                     </Text>
-                    <Text style={styles.moderationText}>support@vedamatch.ru</Text>
-                    <Text style={styles.moderationText}>privacy@vedamatch.ru</Text>
                 </View>
 
                 <View style={styles.slaBox}>
-                    <Text style={styles.slaTitle}>SLA</Text>
+                    <Text style={styles.slaTitle}>{ui.slaTitle}</Text>
                     <Text style={styles.slaText}>{slaText}</Text>
                 </View>
 
                 {loading ? (
                     <View style={styles.loaderWrap}>
                         <ActivityIndicator size="small" color="#2563EB" />
-                        <Text style={styles.loaderText}>Загружаем каналы поддержки…</Text>
+                        <Text style={styles.loaderText}>{ui.loading}</Text>
                     </View>
                 ) : (
                     <>
                         <TouchableOpacity style={styles.primaryButton} onPress={openTelegram} activeOpacity={0.9}>
-                            <Text style={styles.primaryButtonText}>Открыть Telegram поддержку</Text>
+                            <Text style={styles.primaryButtonText}>{ui.openTelegram}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -163,14 +229,8 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                             activeOpacity={0.9}
                             disabled={!inAppTicketAvailable}
                         >
-                            <Text style={styles.secondaryButtonText}>Создать обращение без Telegram</Text>
+                            <Text style={styles.secondaryButtonText}>{ui.createTicket}</Text>
                         </TouchableOpacity>
-
-                        {!inAppTicketAvailable && hasTelegramChannel ? (
-                            <Text style={styles.rolloutHint}>
-                                In-app тикеты включаются поэтапно. Сейчас доступен Telegram-канал.
-                            </Text>
-                        ) : null}
 
                         {isLoggedIn ? (
                             <TouchableOpacity
@@ -178,7 +238,7 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                                 onPress={() => navigation.navigate('SupportInbox')}
                                 activeOpacity={0.9}
                             >
-                                <Text style={styles.linkButtonText}>Мои обращения</Text>
+                                <Text style={styles.linkButtonText}>{ui.myTickets}</Text>
                             </TouchableOpacity>
                         ) : null}
 
@@ -188,7 +248,7 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                             disabled={refreshing}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.refreshText}>{refreshing ? 'Обновляем…' : 'Обновить'}</Text>
+                            <Text style={styles.refreshText}>{refreshing ? ui.refreshing : ui.refresh}</Text>
                         </TouchableOpacity>
                     </>
                 )}

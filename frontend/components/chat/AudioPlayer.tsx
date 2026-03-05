@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
 	View,
 	Text,
@@ -6,7 +6,6 @@ import {
 	StyleSheet,
 	Dimensions,
 } from 'react-native';
-import { COLORS } from './ChatConstants';
 import Slider from '@react-native-community/slider';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 
@@ -21,35 +20,72 @@ interface AudioPlayerProps {
 	onError?: () => void;
 }
 
+type ActiveAudioController = {
+	id: string;
+	stop: () => Promise<void>;
+};
+
+let activeAudioController: ActiveAudioController | null = null;
+
+const claimActiveAudioController = async (next: ActiveAudioController) => {
+	if (activeAudioController && activeAudioController.id !== next.id) {
+		try {
+			await activeAudioController.stop();
+		} catch { }
+	}
+	activeAudioController = next;
+};
+
+const releaseActiveAudioController = (id: string) => {
+	if (activeAudioController?.id === id) {
+		activeAudioController = null;
+	}
+};
+
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 	url,
 	duration = 0,
 	isDarkMode,
 	onError,
 }) => {
-	const theme = isDarkMode ? COLORS.dark : COLORS.light;
 	const audioRecorderPlayerRef = useRef<any>(new AudioRecorderPlayer());
+	const playerInstanceIdRef = useRef(`audio_player_${Math.random().toString(36).slice(2)}`);
+	const isMountedRef = useRef(true);
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [currentPosition, setCurrentPosition] = useState(0);
 	const [totalDuration, setTotalDuration] = useState(duration > 0 ? duration * 1000 : 0);
 	const isLoaded = useRef(false);
 
+	const stopPlayback = useCallback(async (resetPosition: boolean) => {
+		if (!audioRecorderPlayerRef.current) return;
+		try {
+			await audioRecorderPlayerRef.current.stopPlayer();
+		} catch { }
+		try {
+			audioRecorderPlayerRef.current.removePlayBackListener();
+		} catch { }
+		isLoaded.current = false;
+		releaseActiveAudioController(playerInstanceIdRef.current);
+		if (isMountedRef.current) {
+			setIsPlaying(false);
+			if (resetPosition) {
+				setCurrentPosition(0);
+			}
+		}
+	}, []);
+
 	useEffect(() => {
 		return () => {
-			if (audioRecorderPlayerRef.current) {
-				try {
-					audioRecorderPlayerRef.current.stopPlayer();
-					audioRecorderPlayerRef.current.removePlayBackListener();
-				} catch (e) { }
-			}
+			isMountedRef.current = false;
+			stopPlayback(false).catch(() => undefined);
 		};
-	}, []);
+	}, [stopPlayback]);
 
 	useEffect(() => {
 		if (duration > 0 && totalDuration === 0) {
 			setTotalDuration(duration * 1000);
 		}
-	}, [duration]);
+	}, [duration, totalDuration]);
 
 	const formatTime = (ms: number): string => {
 		if (!ms || isNaN(ms)) return '0:00';
@@ -64,7 +100,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 			if (isPlaying) {
 				await audioRecorderPlayerRef.current.pausePlayer();
 				setIsPlaying(false);
+				releaseActiveAudioController(playerInstanceIdRef.current);
 			} else {
+				await claimActiveAudioController({
+					id: playerInstanceIdRef.current,
+					stop: async () => {
+						await stopPlayback(true);
+					},
+				});
+
 				audioRecorderPlayerRef.current.removePlayBackListener();
 				if (!isLoaded.current || currentPosition >= totalDuration) {
 					await audioRecorderPlayerRef.current.startPlayer(url);
@@ -80,18 +124,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 						setTotalDuration(e.duration);
 					}
 					if (e.currentPosition > 0 && e.duration > 0 && Math.abs(e.currentPosition - e.duration) < 200) {
-						audioRecorderPlayerRef.current.stopPlayer();
-						audioRecorderPlayerRef.current.removePlayBackListener();
-						setIsPlaying(false);
-						setCurrentPosition(0);
-						isLoaded.current = false;
+						stopPlayback(true).catch(() => undefined);
 					}
 				});
 				setIsPlaying(true);
 			}
-		} catch (error) {
+		} catch {
 			setIsPlaying(false);
 			isLoaded.current = false;
+			releaseActiveAudioController(playerInstanceIdRef.current);
 			if (onError) onError();
 		}
 	};
@@ -103,7 +144,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 			await audioRecorderPlayerRef.current.seekToPlayer(position);
 			setCurrentPosition(position);
 			if (isPlaying) await audioRecorderPlayerRef.current.resumePlayer();
-		} catch (error) { }
+		} catch { }
 	};
 
 	const progress = totalDuration > 0 ? Math.min(Math.max(currentPosition / totalDuration, 0), 1) : 0;
@@ -123,7 +164,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 				{isPlaying ? (
 					<Pause size={20} color={accent} fill={accent} />
 				) : (
-					<Play size={20} color={accent} fill={accent} style={{ marginLeft: 2 }} />
+					<Play size={20} color={accent} fill={accent} style={styles.playIcon} />
 				)}
 			</TouchableOpacity>
 
@@ -163,6 +204,9 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		alignItems: 'center',
 		marginRight: 12,
+	},
+	playIcon: {
+		marginLeft: 2,
 	},
 	content: {
 		flex: 1,

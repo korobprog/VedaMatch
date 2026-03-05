@@ -35,10 +35,11 @@ func (s *SupportAIService) GenerateReply(ctx context.Context, userText string, l
 	if text == "" {
 		return "", 0, fmt.Errorf("empty user text")
 	}
+	lang := normalizeSupportLanguage(language)
 
 	if faqAnswer, ok := s.matchFAQ(text); ok {
-		reply := sanitizeSupportReply(faqAnswer, language)
-		reply = ensureSupportDiagnosticsPrompt(reply, text, language)
+		reply := sanitizeSupportReply(faqAnswer, lang)
+		reply = ensureSupportDiagnosticsPrompt(reply, text, lang)
 		return reply, 0.95, nil
 	}
 
@@ -46,7 +47,7 @@ func (s *SupportAIService) GenerateReply(ctx context.Context, userText string, l
 		return "", 0, fmt.Errorf("support ai key is not configured")
 	}
 
-	prompt := supportSystemPrompt(language)
+	prompt := supportSystemPrompt(lang)
 
 	messages := []map[string]string{
 		{
@@ -64,14 +65,28 @@ func (s *SupportAIService) GenerateReply(ctx context.Context, userText string, l
 		return "", 0, err
 	}
 
-	reply = sanitizeSupportReply(reply, language)
-	reply = ensureSupportDiagnosticsPrompt(reply, text, language)
+	reply = sanitizeSupportReply(reply, lang)
+	reply = ensureSupportDiagnosticsPrompt(reply, text, lang)
 	confidence := estimateSupportConfidence(reply)
 	return strings.TrimSpace(reply), confidence, nil
 }
 
 func supportSystemPrompt(language string) string {
-	if language == "ru" {
+	lang := normalizeSupportLanguage(language)
+	if lang == "hi" {
+		return strings.Join([]string{
+			"आप VedaMatch सपोर्ट असिस्टेंट हैं।",
+			"नियम:",
+			"- सपोर्ट केवल इसी चैट में दें।",
+			"- यूज़र को ईमेल या किसी बाहरी चैनल पर न भेजें।",
+			"- ऑपरेटर चाहिए तो लिखें कि ऑपरेटर इसी चैट में जवाब देगा।",
+			"- तकनीकी समस्या में पहले डायग्नोस्टिक्स लें: प्लेटफ़ॉर्म (Android/iOS/Web), डिवाइस मॉडल, OS वर्ज़न, ऐप वर्ज़न, और समस्या दोहराने के स्टेप्स।",
+			"- जानकारी कम हो तो छोटे और साफ़ follow-up सवाल पूछें।",
+			"- जवाब संक्षिप्त और काम का रखें।",
+		}, "\n")
+	}
+
+	if lang == "ru" {
 		return strings.Join([]string{
 			"Ты помощник поддержки VedaMatch.",
 			"Правила:",
@@ -97,6 +112,7 @@ func supportSystemPrompt(language string) string {
 }
 
 func sanitizeSupportReply(reply string, language string) string {
+	lang := normalizeSupportLanguage(language)
 	clean := strings.TrimSpace(reply)
 	if clean == "" {
 		return clean
@@ -117,7 +133,9 @@ func sanitizeSupportReply(reply string, language string) string {
 			strings.Contains(lower, "e-mail") ||
 			strings.Contains(lower, "почта") ||
 			strings.Contains(lower, "почту") ||
-			strings.Contains(lower, "по почте") {
+			strings.Contains(lower, "по почте") ||
+			strings.Contains(lower, "ईमेल") ||
+			strings.Contains(lower, "मेल करें") {
 			removedEmailGuidance = true
 			continue
 		}
@@ -129,11 +147,17 @@ func sanitizeSupportReply(reply string, language string) string {
 		removedEmailGuidance = true
 	}
 	if removedEmailGuidance {
-		if language == "ru" {
+		if lang == "ru" {
 			if clean == "" {
 				return "Поддержка работает прямо в этом чате. Опишите проблему, и мы поможем здесь."
 			}
 			return clean + "\n\nПоддержка ведется в этом чате. Если не помогло, напишите здесь, подключим оператора."
+		}
+		if lang == "hi" {
+			if clean == "" {
+				return "सपोर्ट इसी चैट में उपलब्ध है। अपनी समस्या लिखें, हम यहीं मदद करेंगे।"
+			}
+			return clean + "\n\nसपोर्ट इसी चैट में है। अगर समस्या रहे, यहीं लिखें, हम ऑपरेटर जोड़ देंगे।"
 		}
 		if clean == "" {
 			return "Support works directly in this chat. Describe the issue and we will help here."
@@ -144,6 +168,7 @@ func sanitizeSupportReply(reply string, language string) string {
 }
 
 func ensureSupportDiagnosticsPrompt(reply string, userText string, language string) string {
+	lang := normalizeSupportLanguage(language)
 	cleanReply := strings.TrimSpace(reply)
 	if cleanReply == "" {
 		return cleanReply
@@ -158,12 +183,17 @@ func ensureSupportDiagnosticsPrompt(reply string, userText string, language stri
 	lowerReply := strings.ToLower(cleanReply)
 	if strings.Contains(lowerReply, "версия ос") ||
 		strings.Contains(lowerReply, "модель устройства") ||
+		strings.Contains(lowerReply, "डिवाइस मॉडल") ||
+		strings.Contains(lowerReply, "os वर्ज़न") ||
 		strings.Contains(lowerReply, "version") && strings.Contains(lowerReply, "device") {
 		return cleanReply
 	}
 
-	if language == "ru" {
+	if lang == "ru" {
 		return cleanReply + "\n\nЧтобы быстрее помочь, напишите: устройство (модель), версия ОС, версия приложения и что вы нажимаете перед ошибкой."
+	}
+	if lang == "hi" {
+		return cleanReply + "\n\nतेज़ मदद के लिए लिखें: डिवाइस मॉडल, OS वर्ज़न, ऐप वर्ज़न और त्रुटि से पहले आपने कौन से स्टेप्स किए।"
 	}
 	return cleanReply + "\n\nTo help faster, please share your device model, OS version, app version, and exact steps before the issue."
 }
@@ -177,6 +207,7 @@ func isTechnicalSupportIssue(text string) bool {
 		"не работает", "ошибка", "баг", "вылет", "crash", "doesn't work", "error",
 		"android", "ios", "iphone", "ipad", "web", "кнопк", "экран", "portal", "портал",
 		"обновлен", "update", "hang", "freeze", "завис",
+		"काम नहीं", "समस्या", "एरर", "क्रैश", "बटन", "स्क्रीन", "ऐप",
 	}
 	for _, kw := range keywords {
 		if strings.Contains(lower, kw) {
@@ -196,16 +227,33 @@ func hasDiagnosticsDetails(text string) bool {
 		strings.Contains(lower, "ios") ||
 		strings.Contains(lower, "iphone") ||
 		strings.Contains(lower, "ipad") ||
-		strings.Contains(lower, "web")
+		strings.Contains(lower, "web") ||
+		strings.Contains(lower, "एंड्रॉइड") ||
+		strings.Contains(lower, "आईओएस")
 	versionMention := strings.Contains(lower, "версия") ||
 		strings.Contains(lower, "version") ||
+		strings.Contains(lower, "वर्ज़न") ||
+		strings.Contains(lower, "संस्करण") ||
 		supportVersionPattern.MatchString(lower)
 	deviceMention := strings.Contains(lower, "устрой") ||
 		strings.Contains(lower, "модель") ||
 		strings.Contains(lower, "device") ||
-		strings.Contains(lower, "model")
+		strings.Contains(lower, "model") ||
+		strings.Contains(lower, "डिवाइस") ||
+		strings.Contains(lower, "मॉडल")
 
 	return platformMention && (versionMention || deviceMention)
+}
+
+func normalizeSupportLanguage(language string) string {
+	value := strings.ToLower(strings.TrimSpace(language))
+	if strings.HasPrefix(value, "ru") {
+		return "ru"
+	}
+	if strings.HasPrefix(value, "hi") {
+		return "hi"
+	}
+	return "en"
 }
 
 func (s *SupportAIService) matchFAQ(userText string) (string, bool) {
