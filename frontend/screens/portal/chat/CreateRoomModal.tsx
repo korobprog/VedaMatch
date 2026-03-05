@@ -314,7 +314,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                         {t('chat.publicRoom')}
                                     </Text>
                                     <Text style={[styles.switchHint, { color: isPhotoBg ? 'rgba(255,255,255,0.74)' : colors.textSecondary }]}>
-                                        {isPublic ? (t('chat.publicRoomDesc') || 'Комнату видят все пользователи') : (t('chat.privateRoomDesc') || 'Вход только по приглашению')}
+                                        {isPublic ? (t('chat.publicRoomDesc') || 'Visible to all users') : (t('chat.privateRoomDesc') || 'Invite-only access')}
                                     </Text>
                                 </View>
                                 <Switch

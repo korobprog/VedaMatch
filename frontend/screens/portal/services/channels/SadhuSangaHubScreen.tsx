@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Search, Sparkles, MessageCircle, CalendarDays, Radio, PlayCircle, MapPin, Clock3, Heart } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel, ChannelFacetsResponse } from '../../../../types/channel';
@@ -127,32 +128,25 @@ const buildSeminarRouteUrl = (service: Service): string => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 };
 
-const languageLabels: Record<string, string> = {
-  ru: 'Русский',
-  en: 'English',
-  hi: 'Hindi',
-};
-
-const formatFacetLabel = (value: string, type: FacetType): string => {
+const formatFacetLabel = (
+  value: string,
+  type: FacetType,
+  getLanguageLabel: (code: string) => string,
+): string => {
   const clean = String(value || '').trim();
   if (!clean) {
     return '';
   }
   const normalized = clean.toLowerCase();
   if (type === 'language') {
-    return languageLabels[normalized] || normalized.toUpperCase();
+    return getLanguageLabel(normalized);
   }
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
-const facetTitleByType: Record<FacetType, string> = {
-  city: 'Выберите город',
-  language: 'Выберите язык',
-  topic: 'Выберите тему',
-};
-
 export default function SadhuSangaHubScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -188,11 +182,28 @@ export default function SadhuSangaHubScreen() {
   const [seminarsOnlyWithDate, setSeminarsOnlyWithDate] = useState(true);
   const [liveJoinLoadingChannelId, setLiveJoinLoadingChannelId] = useState<number | null>(null);
   const isSearchMode = search.trim().length > 0;
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
   const mountedRef = useRef(true);
   const latestReqRef = useRef(0);
   const latestFacetsReqRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getLanguageLabel = useCallback((code: string) => {
+    const normalized = String(code || '').trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+    if (normalized === 'ru' || normalized === 'en' || normalized === 'hi') {
+      return t(`portal.sadhuSangaHub.languageLabels.${normalized}`);
+    }
+    return normalized.toUpperCase();
+  }, [t]);
+  const facetTitleByType = useMemo<Record<FacetType, string>>(() => ({
+    city: t('portal.sadhuSangaHub.facetPicker.selectCity'),
+    language: t('portal.sadhuSangaHub.facetPicker.selectLanguage'),
+    topic: t('portal.sadhuSangaHub.facetPicker.selectTopic'),
+  }), [t]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -262,10 +273,10 @@ export default function SadhuSangaHubScreen() {
     } catch (error: any) {
       if (mountedRef.current && reqId === latestReqRef.current) {
         const status = error?.response?.status ?? 'n/a';
-        const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить список';
+        const message = error?.response?.data?.error || error?.message || t('portal.sadhuSangaHub.alerts.loadListFailed');
         console.warn(`[SadhuSangaHub] Load failed (status=${status}): ${message}`);
         setRecommendedPreachers([]);
-        Alert.alert('Ошибка', message);
+        Alert.alert(t('common.error'), message);
       }
     } finally {
       if (mountedRef.current && reqId === latestReqRef.current) {
@@ -273,7 +284,7 @@ export default function SadhuSangaHubScreen() {
         setRefreshing(false);
       }
     }
-  }, [city, language, search, topic]);
+  }, [city, language, search, t, topic]);
 
   const loadFacets = useCallback(async () => {
     const reqId = ++latestFacetsReqRef.current;
@@ -294,7 +305,7 @@ export default function SadhuSangaHubScreen() {
         return;
       }
       const status = error?.response?.status ?? 'n/a';
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить фильтры';
+      const message = error?.response?.data?.error || error?.message || t('portal.sadhuSangaHub.alerts.loadFacetsFailed');
       console.warn(`[SadhuSangaHub] Facets failed (status=${status}): ${message}`);
       setFacets({
         cities: [],
@@ -307,7 +318,7 @@ export default function SadhuSangaHubScreen() {
         setFacetsLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   const loadUpcomingSeminars = useCallback(async () => {
     setSeminarsLoading(true);
@@ -344,10 +355,12 @@ export default function SadhuSangaHubScreen() {
         return {
           service,
           nextAt,
-          formatLabel: service.channel === 'offline' ? 'Оффлайн' : 'Онлайн',
+          formatLabel: service.channel === 'offline'
+            ? t('portal.sadhuSangaHub.tags.offline')
+            : t('portal.sadhuSangaHub.tags.online'),
           venueLabel: service.channel === 'offline'
-            ? (service.offlineAddress || 'Адрес уточняется')
-            : (service.channelLink || 'Ссылка после записи'),
+            ? (service.offlineAddress || t('portal.sadhuSangaHub.addressPending'))
+            : (service.channelLink || t('portal.sadhuSangaHub.linkAfterBooking')),
         } as SeminarPreview;
       }));
 
@@ -376,7 +389,7 @@ export default function SadhuSangaHubScreen() {
       }
     } catch (error: any) {
       const status = error?.response?.status ?? 'n/a';
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить семинары';
+      const message = error?.response?.data?.error || error?.message || t('portal.sadhuSangaHub.alerts.loadSeminarsFailed');
       console.warn(`[SadhuSangaHub] Upcoming seminars failed (status=${status}): ${message}`);
       if (mountedRef.current) {
         setUpcomingSeminars([]);
@@ -386,7 +399,7 @@ export default function SadhuSangaHubScreen() {
         setSeminarsLoading(false);
       }
     }
-  }, [city, language, seminarsOnlyWithDate]);
+  }, [city, language, seminarsOnlyWithDate, t]);
 
   useEffect(() => {
     if (searchDebounceRef.current) {
@@ -453,31 +466,31 @@ export default function SadhuSangaHubScreen() {
         return;
       }
       setFollowStateByChannel(prev => ({ ...prev, [channel.ID]: current }));
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить подписку');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.sadhuSangaHub.alerts.updateSubscriptionFailed'));
     }
-  }, [followStateByChannel, user?.ID]);
+  }, [followStateByChannel, t, user?.ID]);
 
   const openSeminarRoute = useCallback(async (service: Service) => {
     if (service.channel !== 'offline') {
-      Alert.alert('Маршрут', 'Маршрут доступен только для офлайн-семинаров.');
+      Alert.alert(t('portal.sadhuSangaHub.route.title'), t('portal.sadhuSangaHub.route.offlineOnly'));
       return;
     }
     const routeUrl = buildSeminarRouteUrl(service);
     if (!routeUrl) {
-      Alert.alert('Маршрут', 'Адрес семинара пока не указан.');
+      Alert.alert(t('portal.sadhuSangaHub.route.title'), t('portal.sadhuSangaHub.route.addressMissing'));
       return;
     }
     try {
       const supported = await Linking.canOpenURL(routeUrl);
       if (!supported) {
-        Alert.alert('Маршрут', 'Не удалось открыть карту на устройстве.');
+        Alert.alert(t('portal.sadhuSangaHub.route.title'), t('portal.sadhuSangaHub.route.mapOpenFailed'));
         return;
       }
       await Linking.openURL(routeUrl);
     } catch {
-      Alert.alert('Маршрут', 'Не удалось открыть маршрут.');
+      Alert.alert(t('portal.sadhuSangaHub.route.title'), t('portal.sadhuSangaHub.route.routeOpenFailed'));
     }
-  }, []);
+  }, [t]);
 
   const facetOptions = useMemo(() => {
     const sanitize = (items: { value: string; count: number }[]) => {
@@ -574,15 +587,17 @@ export default function SadhuSangaHubScreen() {
               onPress={() => void toggleFollow(item)}
             >
               <Text style={styles.followButtonText}>
-                {followState.isFollowing ? 'Вы подписаны' : 'Подписаться'}
+                {followState.isFollowing
+                  ? t('portal.sadhuSangaHub.channelCard.subscribed')
+                  : t('portal.sadhuSangaHub.channelCard.subscribe')}
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
         <Text style={styles.channelDescription} numberOfLines={2}>
-          {item.description || 'Описание пока не заполнено'}
+          {item.description || t('portal.sadhuSangaHub.channelCard.descriptionFallback')}
         </Text>
-        <Text style={styles.channelFollowers}>Подписчиков: {followState.followersCount}</Text>
+        <Text style={styles.channelFollowers}>{t('portal.sadhuSangaHub.channelCard.followers', { count: followState.followersCount })}</Text>
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.secondaryAction}
@@ -593,7 +608,7 @@ export default function SadhuSangaHubScreen() {
             })}
           >
             <MessageCircle size={14} color={colors.accent} />
-            <Text style={styles.secondaryActionText}>Вопрос</Text>
+            <Text style={styles.secondaryActionText}>{t('portal.sadhuSangaHub.channelCard.question')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryAction}
@@ -604,7 +619,7 @@ export default function SadhuSangaHubScreen() {
             })}
           >
             <CalendarDays size={14} color={colors.accent} />
-            <Text style={styles.secondaryActionText}>Семинары</Text>
+            <Text style={styles.secondaryActionText}>{t('portal.sadhuSangaHub.channelCard.seminars')}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -633,7 +648,7 @@ export default function SadhuSangaHubScreen() {
   const handleJoinLive = useCallback(async (item: Channel) => {
     const session = item.currentLiveSession;
     if (!session || session.status !== 'live') {
-      Alert.alert('Эфир', 'Сейчас эфир не активен.');
+      Alert.alert(t('portal.sadhuSangaHub.live.alertTitle'), t('portal.sadhuSangaHub.live.notActive'));
       return;
     }
     const followState = followStateByChannel[item.ID] || {
@@ -642,7 +657,10 @@ export default function SadhuSangaHubScreen() {
     };
     const canJoin = Boolean(user?.ID) && (item.ownerId === user?.ID || followState.isFollowing);
     if (!canJoin) {
-      Alert.alert('Требуется подписка', 'Подпишитесь на проповедника, чтобы смотреть эфир.');
+      Alert.alert(
+        t('portal.sadhuSangaHub.live.subscriptionRequiredTitle'),
+        t('portal.sadhuSangaHub.live.subscriptionRequiredText'),
+      );
       return;
     }
     if (liveJoinLoadingChannelId === item.ID) {
@@ -662,14 +680,14 @@ export default function SadhuSangaHubScreen() {
         liveId: session.id,
       });
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось подключиться к эфиру');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.sadhuSangaHub.alerts.joinLiveFailed'));
       void loadChannels(true);
     } finally {
       if (mountedRef.current) {
         setLiveJoinLoadingChannelId(null);
       }
     }
-  }, [followStateByChannel, liveJoinLoadingChannelId, loadChannels, navigation, user?.ID, user?.karmicName, user?.spiritualName]);
+  }, [followStateByChannel, liveJoinLoadingChannelId, loadChannels, navigation, t, user?.ID, user?.karmicName, user?.spiritualName]);
 
   const openServiceTab = useCallback((tab: ServiceTab) => {
     const tabRouteMap: Record<ServiceTab, 'SadhuSangaHub' | 'SadhuSangaSchedule' | 'SadhuSangaLive' | 'SadhuSangaProfile'> = {
@@ -689,7 +707,7 @@ export default function SadhuSangaHubScreen() {
     if (feature === 'live') {
       const firstLive = liveChannels[0];
       if (!firstLive) {
-        Alert.alert('Прямые эфиры', 'Сейчас нет активных эфиров. Проверьте запланированные трансляции ниже.');
+        Alert.alert(t('portal.sadhuSangaHub.features.liveTitle'), t('portal.sadhuSangaHub.features.liveEmpty'));
         return;
       }
       navigation.navigate('ChannelDetails', { channelId: firstLive.ID, source: 'sadhu_sanga' });
@@ -698,7 +716,7 @@ export default function SadhuSangaHubScreen() {
     if (feature === 'seminars') {
       const firstSeminar = upcomingSeminars[0];
       if (!firstSeminar) {
-        Alert.alert('Семинары', 'Ближайшие семинары появятся здесь немного позже.');
+        Alert.alert(t('portal.sadhuSangaHub.features.seminarsTitle'), t('portal.sadhuSangaHub.features.seminarsEmpty'));
         return;
       }
       navigation.navigate('ServiceDetail', { serviceId: firstSeminar.service.id });
@@ -707,7 +725,7 @@ export default function SadhuSangaHubScreen() {
     if (feature === 'qa') {
       const firstChannel = channels[0];
       if (!firstChannel) {
-        Alert.alert('Вопрос-ответ', 'Сначала выберите проповедника в каталоге.');
+        Alert.alert(t('portal.sadhuSangaHub.features.qaTitle'), t('portal.sadhuSangaHub.features.qaEmpty'));
         return;
       }
       navigation.navigate('SupportTicketForm', {
@@ -718,12 +736,12 @@ export default function SadhuSangaHubScreen() {
       return;
     }
     void openServiceTab('schedule');
-  }, [channels, liveChannels, navigation, openServiceTab, upcomingSeminars]);
+  }, [channels, liveChannels, navigation, openServiceTab, t, upcomingSeminars]);
 
   return (
     <SadhuSangaLayout
       colors={colors}
-      subtitle="Лекции, эфиры и живая санга каждый день"
+      subtitle={t('portal.sadhuSangaHub.subtitle')}
       activeTab="home"
       onBack={() => navigation.goBack()}
       onNotificationsPress={() => navigation.navigate('SadhuSangaSmartPush')}
@@ -748,7 +766,7 @@ export default function SadhuSangaHubScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Поиск проповедника"
+                placeholder={t('portal.sadhuSangaHub.searchPlaceholder')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.searchInput}
               />
@@ -758,19 +776,22 @@ export default function SadhuSangaHubScreen() {
               <>
                 <View style={styles.heroCard}>
                   <View style={styles.heroBadge}>
-                    <Text style={styles.heroBadgeText}>Новый сервис</Text>
+                    <Text style={styles.heroBadgeText}>{t('portal.sadhuSangaHub.hero.badge')}</Text>
                   </View>
                   <View style={styles.heroRow}>
                     <View style={styles.heroTextWrap}>
-                      <Text style={styles.heroTitle}>Пространство общения</Text>
+                      <Text style={styles.heroTitle}>{t('portal.sadhuSangaHub.hero.title')}</Text>
                       <Text style={styles.heroSubtitle}>
-                        Будьте ближе к проповедникам, лекциям и живому общению каждый день.
+                        {t('portal.sadhuSangaHub.hero.subtitle')}
                       </Text>
                       <TouchableOpacity
                         style={styles.heroActionButton}
-                        onPress={() => Alert.alert('Садху Санга', 'Листайте ниже: эфиры, семинары, вопросы и подписки уже доступны.')}
+                        onPress={() => Alert.alert(
+                          t('portal.sadhuSangaLayout.title'),
+                          t('portal.sadhuSangaHub.hero.moreInfoText'),
+                        )}
                       >
-                        <Text style={styles.heroActionText}>Узнать больше</Text>
+                        <Text style={styles.heroActionText}>{t('portal.sadhuSangaHub.hero.moreInfo')}</Text>
                       </TouchableOpacity>
                     </View>
                     <View style={styles.heroIconWrap}>
@@ -780,35 +801,35 @@ export default function SadhuSangaHubScreen() {
                 </View>
 
                 <View style={styles.featuresSection}>
-                  <Text style={styles.featuresTitle}>Возможности Садху Санга</Text>
+                  <Text style={styles.featuresTitle}>{t('portal.sadhuSangaHub.features.title')}</Text>
                   <View style={styles.featuresGrid}>
                     <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('live')}>
                       <View style={[styles.featureIconWrap, styles.featureIconLive]}>
                         <PlayCircle size={18} color="#2F67F6" />
                       </View>
-                      <Text style={styles.featureCardTitle}>Прямые эфиры</Text>
-                      <Text style={styles.featureCardSub}>Смотрите вживую и в записи</Text>
+                      <Text style={styles.featureCardTitle}>{t('portal.sadhuSangaHub.features.liveTitle')}</Text>
+                      <Text style={styles.featureCardSub}>{t('portal.sadhuSangaHub.features.liveSub')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('seminars')}>
                       <View style={[styles.featureIconWrap, styles.featureIconSeminar]}>
                         <MapPin size={18} color="#0D9B6C" />
                       </View>
-                      <Text style={styles.featureCardTitle}>Семинары</Text>
-                      <Text style={styles.featureCardSub}>Онлайн и офлайн в вашем городе</Text>
+                      <Text style={styles.featureCardTitle}>{t('portal.sadhuSangaHub.features.seminarsTitle')}</Text>
+                      <Text style={styles.featureCardSub}>{t('portal.sadhuSangaHub.features.seminarsSub')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('qa')}>
                       <View style={[styles.featureIconWrap, styles.featureIconQuestion]}>
                         <MessageCircle size={18} color="#8A2BE2" />
                       </View>
-                      <Text style={styles.featureCardTitle}>Вопрос-ответ</Text>
-                      <Text style={styles.featureCardSub}>Задайте вопрос проповеднику</Text>
+                      <Text style={styles.featureCardTitle}>{t('portal.sadhuSangaHub.features.qaTitle')}</Text>
+                      <Text style={styles.featureCardSub}>{t('portal.sadhuSangaHub.features.qaSub')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.featureCard} onPress={() => openFeatureCard('schedule')}>
                       <View style={[styles.featureIconWrap, styles.featureIconSchedule]}>
                         <Clock3 size={18} color="#E64173" />
                       </View>
-                      <Text style={styles.featureCardTitle}>Расписание</Text>
-                      <Text style={styles.featureCardSub}>Уведомления по вашим фильтрам</Text>
+                      <Text style={styles.featureCardTitle}>{t('portal.sadhuSangaHub.features.scheduleTitle')}</Text>
+                      <Text style={styles.featureCardSub}>{t('portal.sadhuSangaHub.features.scheduleSub')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -821,7 +842,9 @@ export default function SadhuSangaHubScreen() {
                 onPress={() => setActiveFacetPicker('city')}
               >
                 <Text style={[styles.inlineFilterButtonText, city && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
-                  {city ? formatFacetLabel(city, 'city') : 'Город'}
+                  {city
+                    ? formatFacetLabel(city, 'city', getLanguageLabel)
+                    : t('portal.sadhuSangaHub.inlineFilters.city')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -829,7 +852,9 @@ export default function SadhuSangaHubScreen() {
                 onPress={() => setActiveFacetPicker('language')}
               >
                 <Text style={[styles.inlineFilterButtonText, language && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
-                  {language ? formatFacetLabel(language, 'language') : 'Язык'}
+                  {language
+                    ? formatFacetLabel(language, 'language', getLanguageLabel)
+                    : t('portal.sadhuSangaHub.inlineFilters.language')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -837,7 +862,9 @@ export default function SadhuSangaHubScreen() {
                 onPress={() => setActiveFacetPicker('topic')}
               >
                 <Text style={[styles.inlineFilterButtonText, topic && styles.inlineFilterButtonTextActive]} numberOfLines={1}>
-                  {topic ? formatFacetLabel(topic, 'topic') : 'Тема'}
+                  {topic
+                    ? formatFacetLabel(topic, 'topic', getLanguageLabel)
+                    : t('portal.sadhuSangaHub.inlineFilters.topic')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -849,10 +876,10 @@ export default function SadhuSangaHubScreen() {
               <View style={styles.seminarsSection}>
               <View style={styles.liveSection}>
                 <View style={styles.liveHeaderRow}>
-                  <Text style={styles.liveTitle}>Прямой эфир</Text>
+                  <Text style={styles.liveTitle}>{t('portal.sadhuSangaHub.live.title')}</Text>
                 </View>
                 {liveChannels.length === 0 ? (
-                  <Text style={styles.liveEmpty}>Скоро здесь появятся эфиры проповедников</Text>
+                  <Text style={styles.liveEmpty}>{t('portal.sadhuSangaHub.live.empty')}</Text>
                 ) : (
                   <View style={styles.liveList}>
                     {liveChannels.map((item) => {
@@ -866,7 +893,9 @@ export default function SadhuSangaHubScreen() {
                             <View style={styles.liveTitleWrap}>
                               <Text style={styles.liveCardTitle} numberOfLines={1}>{item.title}</Text>
                               <Text style={[styles.liveBadge, isLive ? styles.liveBadgeActive : styles.liveBadgeScheduled]}>
-                                {isLive ? `В эфире • ${languageCode}` : `Запланировано • ${languageCode}`}
+                                {isLive
+                                  ? t('portal.sadhuSangaHub.live.badges.live', { code: languageCode })
+                                  : t('portal.sadhuSangaHub.live.badges.scheduled', { code: languageCode })}
                               </Text>
                             </View>
                             <TouchableOpacity
@@ -883,15 +912,15 @@ export default function SadhuSangaHubScreen() {
                               ) : (
                                 <>
                                   <Radio size={14} color={colors.textPrimary} />
-                                  <Text style={styles.liveActionButtonText}>Смотреть эфир</Text>
+                                  <Text style={styles.liveActionButtonText}>{t('portal.sadhuSangaHub.live.watch')}</Text>
                                 </>
                               )}
                             </TouchableOpacity>
                           </View>
-                          <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || 'Эфир'}</Text>
+                          <Text style={styles.liveCardMeta} numberOfLines={1}>{session.title || t('portal.sadhuSangaHub.live.fallback')}</Text>
                           {(session.startedAt || session.scheduledAt) ? (
                             <Text style={styles.liveCardDate}>
-                              {new Date(session.startedAt || session.scheduledAt || '').toLocaleString('ru-RU', {
+                              {new Date(session.startedAt || session.scheduledAt || '').toLocaleString(locale, {
                                 day: '2-digit',
                                 month: 'short',
                                 hour: '2-digit',
@@ -907,7 +936,7 @@ export default function SadhuSangaHubScreen() {
               </View>
 
               <View style={styles.seminarsHeaderRow}>
-                <Text style={styles.seminarsTitle}>Ближайшие семинары</Text>
+                <Text style={styles.seminarsTitle}>{t('portal.sadhuSangaHub.seminars.title')}</Text>
                 <View style={styles.seminarsHeaderActions}>
                   {seminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
                   <TouchableOpacity
@@ -928,13 +957,13 @@ export default function SadhuSangaHubScreen() {
                           : styles.seminarsDateFilterButtonTextInactive,
                       ]}
                     >
-                      Только с датой
+                      {t('portal.sadhuSangaHub.seminars.onlyWithDate')}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
               {upcomingSeminars.length === 0 ? (
-                <Text style={styles.seminarsEmpty}>Пока нет ближайших семинаров</Text>
+                <Text style={styles.seminarsEmpty}>{t('portal.sadhuSangaHub.seminars.empty')}</Text>
               ) : (
                 <View style={styles.seminarsList}>
                   {upcomingSeminars.map((item) => (
@@ -945,13 +974,13 @@ export default function SadhuSangaHubScreen() {
                       </View>
                       <Text style={styles.seminarDate}>
                         {item.nextAt
-                          ? item.nextAt.toLocaleString('ru-RU', {
+                          ? item.nextAt.toLocaleString(locale, {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
                             minute: '2-digit',
                           })
-                          : 'Дата уточняется'}
+                          : t('portal.sadhuSangaHub.seminars.datePending')}
                       </Text>
                       <Text style={styles.seminarVenue} numberOfLines={1}>{item.venueLabel}</Text>
                       <View style={styles.seminarActionsRow}>
@@ -959,14 +988,14 @@ export default function SadhuSangaHubScreen() {
                           style={styles.seminarBookButton}
                           onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
                         >
-                          <Text style={styles.seminarBookButtonText}>Записаться</Text>
+                          <Text style={styles.seminarBookButtonText}>{t('portal.sadhuSangaHub.seminars.book')}</Text>
                         </TouchableOpacity>
                         {item.service.channel === 'offline' ? (
                           <TouchableOpacity
                             style={styles.seminarRouteButton}
                             onPress={() => void openSeminarRoute(item.service)}
                           >
-                            <Text style={styles.seminarRouteButtonText}>Маршрут</Text>
+                            <Text style={styles.seminarRouteButtonText}>{t('portal.sadhuSangaHub.seminars.route')}</Text>
                           </TouchableOpacity>
                         ) : null}
                       </View>
@@ -986,8 +1015,8 @@ export default function SadhuSangaHubScreen() {
                 {!isSearchMode && recommendedPreachers.length > 0 ? (
                   <View style={styles.recommendedSection}>
                     <View style={styles.recommendedHeader}>
-                      <Text style={styles.recommendedTitleMain}>Рекомендуем вам</Text>
-                      <Text style={styles.recommendedHeaderMeta}>Персональная подборка</Text>
+                      <Text style={styles.recommendedTitleMain}>{t('portal.sadhuSangaHub.recommended.title')}</Text>
+                      <Text style={styles.recommendedHeaderMeta}>{t('portal.sadhuSangaHub.recommended.subtitle')}</Text>
                     </View>
                     <View style={styles.recommendedList}>
                       {recommendedPreachers.map((item) => {
@@ -1005,17 +1034,19 @@ export default function SadhuSangaHubScreen() {
                                 <Text style={styles.recommendedCardTitle} numberOfLines={1}>{channel.title}</Text>
                                 <Text style={styles.recommendedCardReason} numberOfLines={1}>{item.reason}</Text>
                               </View>
-                              <Text style={styles.recommendedCardFollowers}>Подписчики: {followState.followersCount}</Text>
+                              <Text style={styles.recommendedCardFollowers}>
+                                {t('portal.sadhuSangaHub.channelCard.followers', { count: followState.followersCount })}
+                              </Text>
                             </View>
                             <Text style={styles.recommendedCardDesc} numberOfLines={2}>
-                              {channel.description || 'Подключитесь к каналу, чтобы смотреть эфиры и семинары.'}
+                              {channel.description || t('portal.sadhuSangaHub.recommended.descriptionFallback')}
                             </Text>
                             <View style={styles.recommendedActionsRow}>
                               <TouchableOpacity
                                 style={styles.recommendedOpenButton}
                                 onPress={() => navigation.navigate('ChannelDetails', { channelId: channel.ID, source: 'sadhu_sanga' })}
                               >
-                                <Text style={styles.recommendedOpenButtonText}>Открыть</Text>
+                                <Text style={styles.recommendedOpenButtonText}>{t('portal.sadhuSangaHub.recommended.open')}</Text>
                               </TouchableOpacity>
                               {canFollow ? (
                                 <TouchableOpacity
@@ -1026,7 +1057,9 @@ export default function SadhuSangaHubScreen() {
                                   onPress={() => void toggleFollow(channel)}
                                 >
                                   <Text style={styles.recommendedFollowButtonText}>
-                                    {followState.isFollowing ? 'Вы подписаны' : 'Подписаться'}
+                                    {followState.isFollowing
+                                      ? t('portal.sadhuSangaHub.channelCard.subscribed')
+                                      : t('portal.sadhuSangaHub.channelCard.subscribe')}
                                   </Text>
                                 </TouchableOpacity>
                               ) : null}
@@ -1039,25 +1072,35 @@ export default function SadhuSangaHubScreen() {
                 ) : null}
 
                 <View style={styles.preachersHeader}>
-                  <Text style={styles.preachersTitle}>{isSearchMode ? 'Результаты поиска' : 'Проповедники'}</Text>
-                  <Text style={styles.preachersCount}>{isSearchMode ? `Найдено · ${channels.length}` : `Все · ${channels.length}`}</Text>
+                  <Text style={styles.preachersTitle}>
+                    {isSearchMode ? t('portal.sadhuSangaHub.preachers.searchResults') : t('portal.sadhuSangaHub.preachers.title')}
+                  </Text>
+                  <Text style={styles.preachersCount}>
+                    {isSearchMode
+                      ? t('portal.sadhuSangaHub.preachers.found', { count: channels.length })
+                      : t('portal.sadhuSangaHub.preachers.all', { count: channels.length })}
+                  </Text>
                 </View>
                 {isMathProfileMissing ? (
                   <View style={styles.mathHintCard}>
-                    <Text style={styles.mathHintTitle}>Укажите матх в профиле</Text>
+                    <Text style={styles.mathHintTitle}>{t('portal.sadhuSangaHub.mathHint.title')}</Text>
                     <Text style={styles.mathHintSubtitle}>
-                      Чтобы видеть рекомендованных проповедников вашего направления, заполните поле «Мой матх» в профиле.
+                      {t('portal.sadhuSangaHub.mathHint.subtitle')}
                     </Text>
                   </View>
                 ) : null}
                 {channels.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Sparkles size={26} color={colors.textSecondary} />
-                    <Text style={styles.emptyTitle}>{isMathProfileMissing ? 'Список пока пуст' : 'Проповедники не найдены'}</Text>
+                    <Text style={styles.emptyTitle}>
+                      {isMathProfileMissing
+                        ? t('portal.sadhuSangaHub.empty.listEmpty')
+                        : t('portal.sadhuSangaHub.empty.notFound')}
+                    </Text>
                     <Text style={styles.emptySubtitle}>
                       {isMathProfileMissing
-                        ? 'Заполните поле «Мой матх» в профиле или включите расширенный режим.'
-                        : 'Попробуйте изменить фильтры поиска'}
+                        ? t('portal.sadhuSangaHub.empty.fillMath')
+                        : t('portal.sadhuSangaHub.empty.tryFilters')}
                     </Text>
                   </View>
                 ) : (
@@ -1100,7 +1143,7 @@ export default function SadhuSangaHubScreen() {
                         !activeFacetValue && styles.filterOptionTextActive,
                       ]}
                     >
-                      Все
+                      {t('portal.sadhuSangaHub.facetPicker.all')}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -1118,7 +1161,9 @@ export default function SadhuSangaHubScreen() {
                         activeFacetValue === String(user.city || '').trim().toLowerCase() && styles.filterOptionTextActive,
                       ]}
                     >
-                      Мой город: {formatFacetLabel(String(user.city || ''), 'city')}
+                      {t('portal.sadhuSangaHub.facetPicker.myCity', {
+                        city: formatFacetLabel(String(user.city || ''), 'city', getLanguageLabel),
+                      })}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -1142,13 +1187,13 @@ export default function SadhuSangaHubScreen() {
                         option.value === activeFacetValue && styles.filterOptionTextActive,
                       ]}
                     >
-                      {formatFacetLabel(option.value, activeFacetPicker || 'city')}
+                      {formatFacetLabel(option.value, activeFacetPicker || 'city', getLanguageLabel)}
                     </Text>
                     <Text style={styles.filterOptionCount}>{option.count}</Text>
                   </TouchableOpacity>
                 ))}
                 {activeFacetOptions.length === 0 ? (
-                  <Text style={styles.filterOptionEmpty}>Пока нет доступных значений</Text>
+                  <Text style={styles.filterOptionEmpty}>{t('portal.sadhuSangaHub.facetPicker.empty')}</Text>
                 ) : null}
               </ScrollView>
             </View>

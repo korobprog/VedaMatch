@@ -218,7 +218,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 t('common.error'),
                 msg,
                 [
-                    { text: t('common.close') || 'Закрыть', style: 'cancel' },
+                    { text: t('common.close') || 'Close', style: 'cancel' },
                     {
                         text: t('auth.loginScreen.supportCta'),
                         onPress: () => navigation.navigate('SupportHome', { entryPoint: 'login' }),
@@ -333,7 +333,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 token: 'dev-offline-access-token',
             });
 
-            Alert.alert('DEV Mode', 'Сервер недоступен. Вход выполнен в локальном DEV-режиме.');
+            Alert.alert('DEV Mode', 'Server unavailable. Signed in with local DEV mode.');
         };
 
         const devRequest = async <T,>(

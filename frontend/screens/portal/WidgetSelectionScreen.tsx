@@ -237,7 +237,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix'; size: '1x1' | '2x1' | '2x2' }) => {
         const result = addWidget(widget);
         if (!result.ok && result.reason === 'duplicate') {
-            Alert.alert('Виджет уже добавлен', 'Для каждого вида доступен только один экземпляр.');
+            Alert.alert('Widget already added', 'Only one instance is available for each type.');
         }
         return result;
     }, [addWidget]);
@@ -436,7 +436,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                             { color: (isPhotoBg || isDarkMode) ? '#FFFFFF' : vTheme.colors.textSecondary },
                         ]}
                     >
-                        Виджеты · свайп вправо к порталу
+                        Widgets · swipe right to return to portal
                     </Text>
                 </View>
             )}
@@ -468,7 +468,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         activeOpacity={0.88}
                     >
-                        <Text style={styles.toolbarPrimaryButtonText}>Готово</Text>
+                        <Text style={styles.toolbarPrimaryButtonText}>Done</Text>
                     </TouchableOpacity>
                 </View>
             )}

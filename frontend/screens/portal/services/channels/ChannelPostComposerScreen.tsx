@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowLeft, Check, Plus, Trash2, Video } from 'lucide-react-native';
@@ -42,11 +43,7 @@ type RouteParams = {
 
 type PublishAction = 'draft' | 'publish' | 'schedule';
 
-const CTA_TYPES: { value: ChannelPostCTAType; label: string }[] = [
-  { value: 'none', label: 'Без CTA' },
-  { value: 'order_products', label: 'Заказ товаров' },
-  { value: 'book_service', label: 'Запись на услугу' },
-];
+const CTA_TYPES: ChannelPostCTAType[] = ['none', 'order_products', 'book_service'];
 
 const MAX_POST_IMAGES = 5;
 const MAX_POST_CIRCLES = 10;
@@ -76,16 +73,6 @@ const buildPresetDate = (mode: 'plus1h' | 'plus3h' | 'tomorrow0900' | 'tomorrow1
     tomorrow.setHours(18, 0, 0, 0);
   }
   return tomorrow.toISOString();
-};
-
-const ctaPlaceholder = (ctaType: ChannelPostCTAType) => {
-  if (ctaType === 'book_service') {
-    return '{"serviceId": 123}';
-  }
-  if (ctaType === 'order_products') {
-    return '{"shopId": 10, "items": [{"productId": 1, "quantity": 1}], "buyerNote": "Имена для ягьи"}';
-  }
-  return '';
 };
 
 const normalizeImageMime = (raw?: string): ChannelPostMediaImage['mimeType'] => {
@@ -143,6 +130,7 @@ const toCircleMedia = (circle: VideoCircle): ChannelPostMediaCircle => ({
 
 export default function ChannelPostComposerScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const route = useRoute<RouteProp<RouteParams, 'ChannelPostComposer'>>();
   const channelId = route.params?.channelId;
   const mode = route.params?.mode === 'edit' ? 'edit' : 'create';
@@ -153,6 +141,7 @@ export default function ChannelPostComposerScreen() {
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
   const [content, setContent] = useState('');
   const [ctaType, setCtaType] = useState<ChannelPostCTAType>('none');
@@ -188,6 +177,15 @@ export default function ChannelPostComposerScreen() {
     setImages(media.images || []);
     setCircles(media.circles || []);
   }, []);
+  const ctaPlaceholder = useCallback((ctaType: ChannelPostCTAType) => {
+    if (ctaType === 'book_service') {
+      return t('portal.channelPostComposer.ctaPlaceholders.bookService');
+    }
+    if (ctaType === 'order_products') {
+      return t('portal.channelPostComposer.ctaPlaceholders.orderProducts');
+    }
+    return '';
+  }, [t]);
 
   useEffect(() => {
     let isActive = true;
@@ -229,7 +227,7 @@ export default function ChannelPostComposerScreen() {
       return;
     }
     if (!channelId) {
-      Alert.alert('Ошибка', 'Канал не найден');
+      Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.channelNotFound'));
       navigation.goBack();
       return;
     }
@@ -245,7 +243,7 @@ export default function ChannelPostComposerScreen() {
           return;
         }
         if (!postId) {
-          Alert.alert('Ошибка', 'Пост для редактирования не найден');
+          Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.postEditNotFound'));
           navigation.goBack();
           return;
         }
@@ -254,13 +252,13 @@ export default function ChannelPostComposerScreen() {
         if (!isActive) return;
         const found = (response.posts || []).find(item => item.ID === postId);
         if (!found) {
-          Alert.alert('Ошибка', 'Пост не найден');
+          Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.postNotFound'));
           navigation.goBack();
           return;
         }
         applyPostState(found);
       } catch (error: any) {
-        Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить пост');
+        Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelPostComposer.alerts.loadPostFailed'));
         navigation.goBack();
       } finally {
         if (isActive) {
@@ -274,7 +272,7 @@ export default function ChannelPostComposerScreen() {
     return () => {
       isActive = false;
     };
-  }, [applyPostState, channelId, initialPost, mode, postId]);
+  }, [applyPostState, channelId, initialPost, mode, navigation, postId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -324,10 +322,10 @@ export default function ChannelPostComposerScreen() {
   const schedulePreview = useMemo(() => {
     const date = new Date(scheduledAt);
     if (Number.isNaN(date.getTime())) {
-      return 'Некорректная дата';
+      return t('portal.channelPostComposer.alerts.invalidDate');
     }
-    return date.toLocaleString('ru-RU');
-  }, [scheduledAt]);
+    return date.toLocaleString(locale);
+  }, [locale, scheduledAt, t]);
 
   const mediaJSON = useMemo(() => {
     const payload: ChannelPostMedia = {};
@@ -377,12 +375,12 @@ export default function ChannelPostComposerScreen() {
         return prev.filter(item => item !== circleID);
       }
       if (prev.length >= MAX_POST_CIRCLES) {
-        Alert.alert('Лимит', `Можно прикрепить не более ${MAX_POST_CIRCLES} кружков`);
+        Alert.alert(t('portal.channelPostComposer.alerts.limitTitle'), t('portal.channelPostComposer.alerts.circlesLimit', { count: MAX_POST_CIRCLES }));
         return prev;
       }
       return [...prev, circleID];
     });
-  }, []);
+  }, [t]);
 
   const applyPickerSelection = useCallback(() => {
     const byID = new Map<number, ChannelPostMediaCircle>();
@@ -408,12 +406,12 @@ export default function ChannelPostComposerScreen() {
 
   const pickAndUploadImages = useCallback(async () => {
     if (!channelId) {
-      Alert.alert('Ошибка', 'Канал не найден');
+      Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.channelNotFound'));
       return;
     }
     const remaining = MAX_POST_IMAGES - images.length;
     if (remaining <= 0) {
-      Alert.alert('Лимит', `Можно добавить максимум ${MAX_POST_IMAGES} фото`);
+      Alert.alert(t('portal.channelPostComposer.alerts.limitTitle'), t('portal.channelPostComposer.alerts.imagesLimit', { count: MAX_POST_IMAGES }));
       return;
     }
 
@@ -450,11 +448,11 @@ export default function ChannelPostComposerScreen() {
         setImages(prev => [...prev, ...uploaded].slice(0, MAX_POST_IMAGES));
       }
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить фото');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelPostComposer.alerts.uploadPhotoFailed'));
     } finally {
       setUploadingImages(false);
     }
-  }, [channelId, images.length]);
+  }, [channelId, images.length, t]);
 
   const removeImage = useCallback((index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
@@ -468,11 +466,11 @@ export default function ChannelPostComposerScreen() {
     const cleanContent = content.trim();
     const hasMedia = images.length > 0 || circles.length > 0;
     if (!cleanContent && !hasMedia) {
-      Alert.alert('Ошибка', 'Добавьте текст или медиа');
+      Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.addContentOrMedia'));
       return;
     }
     if (!channelId) {
-      Alert.alert('Ошибка', 'Канал не найден');
+      Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.channelNotFound'));
       return;
     }
 
@@ -480,7 +478,7 @@ export default function ChannelPostComposerScreen() {
     if (mode === 'create' && action === 'schedule') {
       const date = new Date(scheduledAt);
       if (Number.isNaN(date.getTime())) {
-        Alert.alert('Ошибка', 'Некорректная дата отложенной публикации');
+        Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.invalidScheduledDate'));
         return;
       }
       scheduleISO = date.toISOString();
@@ -499,11 +497,11 @@ export default function ChannelPostComposerScreen() {
     try {
       if (mode === 'edit') {
         if (!postId) {
-          Alert.alert('Ошибка', 'Пост для редактирования не найден');
+          Alert.alert(t('common.error'), t('portal.channelPostComposer.alerts.postEditNotFound'));
           return;
         }
         await channelService.updatePost(channelId, postId, basePayload);
-        Alert.alert('Готово', 'Изменения сохранены');
+        Alert.alert(t('common.done'), t('portal.channelPostComposer.alerts.changesSaved'));
         navigation.goBack();
         return;
       }
@@ -518,14 +516,14 @@ export default function ChannelPostComposerScreen() {
 
       const message =
         action === 'draft'
-          ? 'Черновик сохранен'
+          ? t('portal.channelPostComposer.alerts.draftSaved')
           : action === 'publish'
-            ? 'Пост опубликован'
-            : 'Пост поставлен в отложку';
-      Alert.alert('Готово', message);
+            ? t('portal.channelPostComposer.alerts.postPublished')
+            : t('portal.channelPostComposer.alerts.postScheduled');
+      Alert.alert(t('common.done'), message);
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось сохранить пост');
+      Alert.alert(t('common.error'), error?.response?.data?.error || error?.message || t('portal.channelPostComposer.alerts.savePostFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -543,6 +541,7 @@ export default function ChannelPostComposerScreen() {
     navigation,
     postId,
     scheduledAt,
+    t,
   ]);
 
   if (loadingInitialPost) {
@@ -562,7 +561,11 @@ export default function ChannelPostComposerScreen() {
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{mode === 'edit' ? 'Редактировать пост' : 'Новый пост'}</Text>
+          <Text style={styles.headerTitle}>
+            {mode === 'edit'
+              ? t('portal.channelPostComposer.header.editTitle')
+              : t('portal.channelPostComposer.header.createTitle')}
+          </Text>
           <View style={styles.headerPlaceholder} />
         </View>
 
@@ -572,11 +575,11 @@ export default function ChannelPostComposerScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.label}>Текст поста</Text>
+            <Text style={styles.label}>{t('portal.channelPostComposer.form.postText')}</Text>
             <TextInput
               value={content}
               onChangeText={setContent}
-              placeholder="Введите текст публикации..."
+              placeholder={t('portal.channelPostComposer.form.postTextPlaceholder')}
               placeholderTextColor={colors.textSecondary}
               style={[styles.input, styles.textArea]}
               multiline
@@ -584,10 +587,12 @@ export default function ChannelPostComposerScreen() {
             />
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.label}>Фото {images.length}/{MAX_POST_IMAGES}</Text>
+              <Text style={styles.label}>
+                {t('portal.channelPostComposer.form.photos', { current: images.length, max: MAX_POST_IMAGES })}
+              </Text>
               <TouchableOpacity style={styles.addBtn} onPress={() => void pickAndUploadImages()} disabled={uploadingImages}>
                 {uploadingImages ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Plus size={16} color={colors.textPrimary} />}
-                <Text style={styles.addBtnText}>Добавить</Text>
+                <Text style={styles.addBtnText}>{t('common.add')}</Text>
               </TouchableOpacity>
             </View>
             {images.length > 0 ? (
@@ -602,14 +607,16 @@ export default function ChannelPostComposerScreen() {
                 ))}
               </ScrollView>
             ) : (
-              <Text style={styles.hint}>Добавьте до 5 фото, сервер автоматически приведет их к формату 4:5.</Text>
+              <Text style={styles.hint}>{t('portal.channelPostComposer.form.photosHint', { count: MAX_POST_IMAGES })}</Text>
             )}
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.label}>Кружки {circles.length}/{MAX_POST_CIRCLES}</Text>
+              <Text style={styles.label}>
+                {t('portal.channelPostComposer.form.circles', { current: circles.length, max: MAX_POST_CIRCLES })}
+              </Text>
               <TouchableOpacity style={styles.addBtn} onPress={openCirclePicker}>
                 <Video size={16} color={colors.textPrimary} />
-                <Text style={styles.addBtnText}>Выбрать</Text>
+                <Text style={styles.addBtnText}>{t('portal.channelPostComposer.form.choose')}</Text>
               </TouchableOpacity>
             </View>
             {circles.length > 0 ? (
@@ -623,7 +630,9 @@ export default function ChannelPostComposerScreen() {
                         <Video size={16} color={colors.textSecondary} />
                       </View>
                     )}
-                    <Text style={styles.circleLabel} numberOfLines={1}>Кружок #{item.id}</Text>
+                    <Text style={styles.circleLabel} numberOfLines={1}>
+                      {t('portal.channelPostComposer.sheet.circleLabel', { id: item.id })}
+                    </Text>
                     <TouchableOpacity style={styles.removeBtn} onPress={() => removeCircle(item.id)}>
                       <Trash2 size={14} color={colors.textPrimary} />
                     </TouchableOpacity>
@@ -631,10 +640,10 @@ export default function ChannelPostComposerScreen() {
                 ))}
               </ScrollView>
             ) : (
-              <Text style={styles.hint}>Можно прикрепить до 10 кружков вашего канала.</Text>
+              <Text style={styles.hint}>{t('portal.channelPostComposer.form.circlesHint', { count: MAX_POST_CIRCLES })}</Text>
             )}
 
-            <Text style={styles.label}>CTA</Text>
+            <Text style={styles.label}>{t('portal.channelPostComposer.form.cta')}</Text>
             <View style={styles.segmentedRow}>
               {CTA_TYPES.map(option => (
                 <TouchableOpacity
@@ -642,14 +651,14 @@ export default function ChannelPostComposerScreen() {
                   style={[styles.segmentedBtn, ctaType === option.value && styles.segmentedBtnActive]}
                   onPress={() => setCtaType(option.value)}
                 >
-                  <Text style={styles.segmentedBtnText}>{option.label}</Text>
+                  <Text style={styles.segmentedBtnText}>{t(`portal.channelPostComposer.ctaTypes.${option}`)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {ctaType !== 'none' ? (
               <>
-                <Text style={styles.label}>CTA payload (JSON)</Text>
+                <Text style={styles.label}>{t('portal.channelPostComposer.form.ctaPayload')}</Text>
                 <TextInput
                   value={ctaPayloadJson}
                   onChangeText={setCtaPayloadJson}
@@ -665,8 +674,8 @@ export default function ChannelPostComposerScreen() {
             {isPrivateChannel ? (
               <View style={styles.toggleCard}>
                 <View style={styles.toggleContent}>
-                  <Text style={styles.toggleTitle}>Отправить лично платным подписчикам</Text>
-                  <Text style={styles.toggleSubtitle}>Пост пойдет в канал + push + личное сообщение каждому участнику</Text>
+                  <Text style={styles.toggleTitle}>{t('portal.channelPostComposer.form.deliverPersonallyTitle')}</Text>
+                  <Text style={styles.toggleSubtitle}>{t('portal.channelPostComposer.form.deliverPersonallySubtitle')}</Text>
                 </View>
                 <Switch
                   value={deliverPersonally}
@@ -680,19 +689,19 @@ export default function ChannelPostComposerScreen() {
 
             {mode === 'create' ? (
               <>
-                <Text style={styles.label}>Отложка (ISO дата/время)</Text>
+                <Text style={styles.label}>{t('portal.channelPostComposer.form.scheduleLabel')}</Text>
                 <View style={styles.presetsRow}>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => setScheduledAt(buildPresetDate('plus1h'))}>
-                    <Text style={styles.presetBtnText}>+1 час</Text>
+                    <Text style={styles.presetBtnText}>{t('portal.channelPostComposer.form.presets.plus1h')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => setScheduledAt(buildPresetDate('plus3h'))}>
-                    <Text style={styles.presetBtnText}>+3 часа</Text>
+                    <Text style={styles.presetBtnText}>{t('portal.channelPostComposer.form.presets.plus3h')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => setScheduledAt(buildPresetDate('tomorrow0900'))}>
-                    <Text style={styles.presetBtnText}>Завтра 09:00</Text>
+                    <Text style={styles.presetBtnText}>{t('portal.channelPostComposer.form.presets.tomorrow0900')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => setScheduledAt(buildPresetDate('tomorrow1800'))}>
-                    <Text style={styles.presetBtnText}>Завтра 18:00</Text>
+                    <Text style={styles.presetBtnText}>{t('portal.channelPostComposer.form.presets.tomorrow1800')}</Text>
                   </TouchableOpacity>
                 </View>
                 <TextInput
@@ -704,26 +713,26 @@ export default function ChannelPostComposerScreen() {
                   autoCapitalize="none"
                 />
                 <View style={styles.schedulePreviewCard}>
-                  <Text style={styles.schedulePreviewTitle}>Публикация по времени:</Text>
+                  <Text style={styles.schedulePreviewTitle}>{t('portal.channelPostComposer.form.schedulePreviewTitle')}</Text>
                   <Text style={styles.schedulePreviewValue}>{schedulePreview}</Text>
                 </View>
 
                 <View style={styles.actionsRow}>
                   <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => void savePost('draft')} disabled={submitting}>
-                    <Text style={styles.secondaryBtnText}>Черновик</Text>
+                    <Text style={styles.secondaryBtnText}>{t('portal.channelPostComposer.form.draftButton')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => void savePost('schedule')} disabled={submitting}>
-                    <Text style={styles.secondaryBtnText}>Отложить</Text>
+                    <Text style={styles.secondaryBtnText}>{t('portal.channelPostComposer.form.scheduleButton')}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity style={styles.primaryBtn} onPress={() => void savePost('publish')} disabled={submitting}>
-                  {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Опубликовать</Text>}
+                  {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>{t('portal.channelPostComposer.form.publishButton')}</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity style={styles.primaryBtn} onPress={() => void savePost('draft')} disabled={submitting}>
-                {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Сохранить изменения</Text>}
+                {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>{t('portal.channelPostComposer.form.saveChangesButton')}</Text>}
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -740,9 +749,9 @@ export default function ChannelPostComposerScreen() {
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setPickerVisible(false)} />
           <View style={styles.sheetCard}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Выбор кружков</Text>
+              <Text style={styles.sheetTitle}>{t('portal.channelPostComposer.sheet.title')}</Text>
               <TouchableOpacity style={styles.sheetCloseBtn} onPress={() => setPickerVisible(false)}>
-                <Text style={styles.sheetCloseBtnText}>Закрыть</Text>
+                <Text style={styles.sheetCloseBtnText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -769,8 +778,8 @@ export default function ChannelPostComposerScreen() {
                           </View>
                         )}
                         <View style={styles.sheetItemMeta}>
-                          <Text style={styles.sheetItemTitle}>Кружок #{item.id}</Text>
-                          <Text style={styles.sheetItemSubtitle}>{new Date(item.createdAt).toLocaleString('ru-RU')}</Text>
+                          <Text style={styles.sheetItemTitle}>{t('portal.channelPostComposer.sheet.circleLabel', { id: item.id })}</Text>
+                          <Text style={styles.sheetItemSubtitle}>{new Date(item.createdAt).toLocaleString(locale)}</Text>
                         </View>
                         <View style={[styles.sheetCheck, selected && styles.sheetCheckActive]}>
                           {selected ? <Check size={14} color={colors.textPrimary} /> : null}
@@ -779,17 +788,17 @@ export default function ChannelPostComposerScreen() {
                     );
                   })
                 ) : (
-                  <Text style={styles.sheetEmpty}>Нет активных кружков в этом канале.</Text>
+                  <Text style={styles.sheetEmpty}>{t('portal.channelPostComposer.sheet.empty')}</Text>
                 )}
               </ScrollView>
             )}
 
             <View style={styles.sheetActions}>
               <TouchableOpacity style={[styles.sheetActionBtn, styles.sheetSecondaryBtn]} onPress={createCircleFromPicker}>
-                <Text style={styles.sheetSecondaryBtnText}>Создать кружок</Text>
+                <Text style={styles.sheetSecondaryBtnText}>{t('portal.channelPostComposer.sheet.createCircle')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.sheetActionBtn, styles.sheetPrimaryBtn]} onPress={applyPickerSelection}>
-                <Text style={styles.sheetPrimaryBtnText}>Применить</Text>
+                <Text style={styles.sheetPrimaryBtnText}>{t('common.apply')}</Text>
               </TouchableOpacity>
             </View>
           </View>

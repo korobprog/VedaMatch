@@ -208,7 +208,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setMediaModalVisible(true);
         } catch (error) {
             console.error('Failed to load media index', error);
-            Alert.alert(t('error'), 'Не удалось загрузить медиа и файлы');
+            Alert.alert(t('error'), 'Failed to load media and files');
         } finally {
             setMediaLoading(false);
         }
@@ -227,7 +227,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setSearchResults(response.items || []);
         } catch (error) {
             console.error('Failed to search messages', error);
-            Alert.alert(t('error'), 'Не удалось выполнить поиск по чату');
+            Alert.alert(t('error'), 'Failed to search in chat');
         } finally {
             setSearchLoading(false);
         }
@@ -246,12 +246,12 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             Alert.alert(
                 t('common.success'),
                 key === 'muted'
-                    ? (updated.muted ? 'Чат без звука' : 'Звук чата включен')
-                    : (updated.pinned ? 'Чат закреплен' : 'Чат откреплен'),
+                    ? (updated.muted ? 'Chat muted' : 'Chat unmuted')
+                    : (updated.pinned ? 'Chat pinned' : 'Chat unpinned'),
             );
         } catch (error) {
             console.error('Failed to update chat preference', error);
-            Alert.alert(t('error'), 'Не удалось обновить настройки чата');
+            Alert.alert(t('error'), 'Failed to update chat settings');
         }
     };
 
@@ -272,7 +272,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setShareModalVisible(true);
         } catch (error) {
             console.error('Failed to load contacts for sharing', error);
-            Alert.alert(t('error'), 'Не удалось загрузить контакты');
+            Alert.alert(t('error'), 'Failed to load contacts');
         } finally {
             setShareLoading(false);
         }
@@ -286,10 +286,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 targetUserId,
             });
             setShareModalVisible(false);
-            Alert.alert(t('common.success'), 'Контакт отправлен');
+            Alert.alert(t('common.success'), 'Contact sent');
         } catch (error) {
             console.error('Failed to share contact', error);
-            Alert.alert(t('error'), 'Не удалось отправить контакт');
+            Alert.alert(t('error'), 'Failed to send contact');
         }
     };
 
@@ -405,7 +405,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={mediaModalVisible} transparent animationType="fade" onRequestClose={() => setMediaModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Медиа и файлы</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Media and files</Text>
                         {mediaLoading ? (
                             <ActivityIndicator size="small" color={colors.accent} />
                         ) : (
@@ -413,7 +413,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                 data={mediaItems}
                                 keyExtractor={(item, index) => (item.id || item.ID || `media_${index}`).toString()}
                                 renderItem={({ item }) => {
-                                    const title = item.fileName || item.type || 'Файл';
+                                    const title = item.fileName || item.type || 'File';
                                     const subtitle = item.content || '';
                                     return (
                                         <TouchableOpacity
@@ -421,7 +421,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                             onPress={() => {
                                                 if (subtitle.startsWith('http')) {
                                                     Linking.openURL(subtitle).catch(() => {
-                                                        Alert.alert(t('error'), 'Не удалось открыть файл');
+                                                        Alert.alert(t('error'), 'Failed to open file');
                                                     });
                                                 }
                                             }}
@@ -435,7 +435,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                         </TouchableOpacity>
                                     );
                                 }}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Нет медиа</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No media</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setMediaModalVisible(false)}>
@@ -448,17 +448,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={searchModalVisible} transparent animationType="fade" onRequestClose={() => setSearchModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Поиск в чате</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Chat search</Text>
                         <View style={styles.searchRow}>
                             <TextInput
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
-                                placeholder="Введите текст"
+                                placeholder="Enter text"
                                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#9CA3AF'}
                                 style={[styles.searchInput, { color: isDarkMode ? '#F9FAFB' : '#111827', borderColor: isDarkMode ? '#374151' : '#D1D5DB' }]}
                             />
                             <TouchableOpacity style={styles.searchButton} onPress={() => void runChatSearch()}>
-                                <Text style={styles.searchButtonText}>Найти</Text>
+                                <Text style={styles.searchButtonText}>Search</Text>
                             </TouchableOpacity>
                         </View>
                         {searchLoading ? (
@@ -470,14 +470,14 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                 renderItem={({ item }) => (
                                     <View style={styles.modalListItem}>
                                         <Text style={[styles.modalItemTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]} numberOfLines={2}>
-                                            {item.content || '(без текста)'}
+                                            {item.content || '(no text)'}
                                         </Text>
                                         <Text style={[styles.modalItemSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]} numberOfLines={1}>
                                             {item.type || 'text'}
                                         </Text>
                                     </View>
                                 )}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Совпадения не найдены</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No matches found</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSearchModalVisible(false)}>
@@ -490,7 +490,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={shareModalVisible} transparent animationType="fade" onRequestClose={() => setShareModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Поделиться контактом</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Share contact</Text>
                         {shareLoading ? (
                             <ActivityIndicator size="small" color={colors.accent} />
                         ) : (
@@ -507,7 +507,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                         </Text>
                                     </TouchableOpacity>
                                 )}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Нет доступных контактов</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No available contacts</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShareModalVisible(false)}>

@@ -108,7 +108,7 @@ export const ExamTrainerScreen: React.FC = () => {
                             .finally(() => setLoading(false));
                     }}
                 >
-                    <Text style={styles.primaryButtonText}>{t('common.retry') || 'Повторить'}</Text>
+                    <Text style={styles.primaryButtonText}>{t('common.retry') || 'Retry'}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -136,7 +136,7 @@ export const ExamTrainerScreen: React.FC = () => {
                         <CircleX size={16} color={roleColors.danger} />
                     )}
                     <Text style={[styles.resultBadgeText, { color: result.passed ? roleColors.success : roleColors.danger }]}>
-                        {result.passed ? 'Тест пройден' : 'Нужна повторная попытка'}
+                        {result.passed ? 'Test passed' : 'Another attempt is needed'}
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -164,7 +164,7 @@ export const ExamTrainerScreen: React.FC = () => {
                     <Text style={[styles.topMetaBadgeText, { color: roleColors.accent }]}>Exam trainer</Text>
                 </View>
                 <Text style={[styles.topMetaTitle, { color: roleColors.textPrimary }]} numberOfLines={1}>
-                    {title || 'Модуль'}
+                    {title || 'Module'}
                 </Text>
             </View>
 

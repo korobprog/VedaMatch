@@ -1,5 +1,5 @@
 /**
- * WalletScreen - Экран кошелька Лакшми
+ * WalletScreen - Lakshmi wallet screen
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -169,7 +169,7 @@ export default function WalletScreen() {
                     </Text>
                     {bonusPart > 0 && (
                         <Text style={styles.transactionSplit}>
-                            Обычные: {regularPart.toLocaleString('ru-RU')} | Бонусные: {bonusPart.toLocaleString('ru-RU')}
+                            Regular: {regularPart.toLocaleString('en-US')} | Bonus: {bonusPart.toLocaleString('en-US')}
                         </Text>
                     )}
                 </View>

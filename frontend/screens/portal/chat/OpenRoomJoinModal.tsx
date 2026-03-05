@@ -53,7 +53,7 @@ export const OpenRoomJoinModal: React.FC<OpenRoomJoinModalProps> = ({
             {roomName || t('chat.joinRoom')}
           </Text>
           <Text style={[styles.preJoinDesc, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : colors.textSecondary }]}>
-            {t('chat.joinAsListenerDesc') || 'Слушатель: аудио/видео отключены, чат доступен.'}
+            {t('chat.joinAsListenerDesc') || 'Listener mode: audio/video disabled, chat is available.'}
           </Text>
           <View style={styles.listenerRow}>
             <Text style={[styles.listenerLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
@@ -85,7 +85,7 @@ export const OpenRoomJoinModal: React.FC<OpenRoomJoinModalProps> = ({
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={[styles.preJoinButtonText, { color: '#fff' }]}>{t('chat.joinRoom') || 'Войти'}</Text>
+                <Text style={[styles.preJoinButtonText, { color: '#fff' }]}>{t('chat.joinRoom') || 'Join'}</Text>
               )}
             </TouchableOpacity>
           </View>

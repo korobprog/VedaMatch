@@ -229,7 +229,7 @@ export const PortalChatScreen: React.FC = () => {
                         </View>
                         <View style={[styles.visibilityBadge, { backgroundColor: item.isPublic ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.24)' }]}>
                             <Text style={[styles.visibilityText, { color: item.isPublic ? '#15803d' : (isPhotoBg ? '#FFFFFF' : colors.textSecondary) }]}>
-                                {item.isPublic ? (t('chat.publicRoom') || 'Публичная') : (t('chat.privateRoom') || 'Приватная')}
+                                {item.isPublic ? (t('chat.publicRoom') || 'Public') : (t('chat.privateRoom') || 'Private')}
                             </Text>
                         </View>
                         <Text style={[styles.metaDate, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : colors.textSecondary }]}>
@@ -273,11 +273,11 @@ export const PortalChatScreen: React.FC = () => {
                     ListHeaderComponent={
                         <View style={styles.headerBlock}>
                             <View>
-                                <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Комнаты</Text>
+                                <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Rooms</Text>
                                 <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                     {visibleRooms.length
                                         ? `${t(activeTab === 'my' ? 'chat.myRoomsTab' : 'chat.openRoomsTab')}: ${visibleRooms.length}`
-                                        : (activeTab === 'my' ? (t('chat.noRooms') || 'Комнаты не найдены') : (t('chat.openRoomsEmpty') || 'Открытых комнат пока нет'))}
+                                        : (activeTab === 'my' ? (t('chat.noRooms') || 'No rooms found') : (t('chat.openRoomsEmpty') || 'No open rooms yet'))}
                                 </Text>
                             </View>
                             <View style={[styles.countBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
@@ -328,8 +328,8 @@ export const PortalChatScreen: React.FC = () => {
                             <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.noRooms')}</Text>
                             <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                 {activeTab === 'my'
-                                    ? 'Создайте первую комнату и пригласите друзей'
-                                    : (t('chat.openRoomsEmpty') || 'Открытых комнат пока нет')}
+                                    ? 'Create your first room and invite friends'
+                                    : (t('chat.openRoomsEmpty') || 'No open rooms yet')}
                             </Text>
                             {activeTab === 'my' && (
                                 <TouchableOpacity
@@ -341,7 +341,7 @@ export const PortalChatScreen: React.FC = () => {
                                     }}
                                 >
                                     <Plus size={16} color="#fff" />
-                                    <Text style={styles.emptyButtonText}>Новая комната</Text>
+                                    <Text style={styles.emptyButtonText}>New room</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -363,7 +363,7 @@ export const PortalChatScreen: React.FC = () => {
                     }}
                 >
                     <Plus size={18} color="#fff" />
-                    <Text style={styles.fabText}>Новая комната</Text>
+                    <Text style={styles.fabText}>New room</Text>
                 </TouchableOpacity>
 
                 <CreateRoomModal

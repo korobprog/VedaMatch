@@ -470,9 +470,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             default:
                 return (
                     <View style={styles.fallbackContent}>
-                        <Text style={styles.fallbackTitle}>Раздел временно недоступен</Text>
+                        <Text style={styles.fallbackTitle}>Section is temporarily unavailable</Text>
                         <TouchableOpacity style={styles.fallbackButton} onPress={backToGrid}>
-                            <Text style={styles.fallbackButtonText}>Вернуться на портал</Text>
+                            <Text style={styles.fallbackButtonText}>Back to portal</Text>
                         </TouchableOpacity>
                     </View>
                 );

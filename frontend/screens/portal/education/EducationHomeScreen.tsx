@@ -94,7 +94,7 @@ export const EducationHomeScreen: React.FC = () => {
                     <Text style={[styles.courseOrg, { color: roleColors.accent }]}>{item.organization}</Text>
                     <View style={[styles.courseChip, { backgroundColor: roleColors.accentSoft }]}>
                         <GraduationCap size={11} color={roleColors.accent} />
-                        <Text style={[styles.courseChipText, { color: roleColors.accent }]}>Курс</Text>
+                        <Text style={[styles.courseChipText, { color: roleColors.accent }]}>Course</Text>
                     </View>
                 </View>
                 <Text style={[styles.courseTitle, { color: roleColors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
@@ -208,7 +208,7 @@ export const EducationHomeScreen: React.FC = () => {
                                 loadCourses();
                             }}
                         >
-                            <Text style={styles.emptyCtaText}>{t('common.retry') || 'Повторить'}</Text>
+                            <Text style={styles.emptyCtaText}>{t('common.retry') || 'Retry'}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : otherCourses.length > 0 ? (
@@ -229,7 +229,7 @@ export const EducationHomeScreen: React.FC = () => {
                                     onRefresh();
                                 }}
                             >
-                                <Text style={styles.emptyCtaText}>Обновить список</Text>
+                                <Text style={styles.emptyCtaText}>Refresh list</Text>
                             </TouchableOpacity>
                         </View>
                     )

@@ -49,7 +49,7 @@ export const RadioPlayerScreen: React.FC = () => {
     useEffect(() => {
         const listener = TrackPlayer.addEventListener(Event.PlaybackError, (error) => {
             console.error('Screen PlaybackError:', error);
-            setErrorMessage(`Ошибка: ${error.message || 'Не удалось подключиться'}`);
+            setErrorMessage(`Error: ${error.message || 'Failed to connect'}`);
         });
 
         if (station) {
@@ -110,7 +110,7 @@ export const RadioPlayerScreen: React.FC = () => {
                     >
                         <ChevronDown size={28} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Прямой эфир</Text>
+                    <Text style={styles.headerTitle}>Live stream</Text>
                     <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}>
                         <Share2 size={24} color="#fff" />
                     </TouchableOpacity>
@@ -144,13 +144,13 @@ export const RadioPlayerScreen: React.FC = () => {
                             ]} />
                             <Text style={styles.statusLabel}>
                                 {(isPlaying || isBuffering || station.status === 'online')
-                                    ? 'В сети'
-                                    : station.status === 'offline' ? 'Не в сети' : 'Проверка...'}
+                                    ? 'Online'
+                                    : station.status === 'offline' ? 'Offline' : 'Checking...'}
                             </Text>
                         </View>
 
                         <Text style={[styles.description, { color: errorMessage ? colors.danger : 'rgba(255,255,255,0.78)' }]}>
-                            {errorMessage || (isBuffering ? 'Подключение к серверу...' : (station.description || 'Радиостанция духовного вещания'))}
+                            {errorMessage || (isBuffering ? 'Connecting to server...' : (station.description || 'Spiritual radio station'))}
                         </Text>
                     </View>
 

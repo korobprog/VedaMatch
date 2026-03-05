@@ -132,7 +132,7 @@ const CafeCartScreen: React.FC = () => {
     const handleClearCart = useCallback(() => {
         Alert.alert(
             t('cafe.cart.clear'),
-            t('cafe.cart.clearConfirm', { defaultValue: 'Очистить корзину?' }),
+            t('cafe.cart.clearConfirm', { defaultValue: 'Clear cart?' }),
             [
                 { text: t('common.cancel'), style: 'cancel' },
                 { text: t('cafe.cart.clear'), style: 'destructive', onPress: clearCart },

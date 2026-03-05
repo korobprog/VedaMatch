@@ -205,7 +205,7 @@ const CafeAdminDashboardScreen: React.FC = () => {
                 <TouchableOpacity style={[styles.headerBtn, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
                     <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('cafe.dashboard.title', 'Дашборд')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('cafe.dashboard.title', 'Dashboard')}</Text>
                 <View style={{ width: 44 }} />
             </SafeAreaView>
 

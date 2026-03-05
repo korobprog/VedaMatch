@@ -74,7 +74,7 @@ export const TVPlayerScreen: React.FC = () => {
                 {channel.isLive && (
                     <View style={[styles.liveOverlay, { backgroundColor: colors.danger }]}>
                         <View style={styles.liveDot} />
-                        <Text style={styles.liveText}>ПРЯМОЙ ЭФИР</Text>
+                        <Text style={styles.liveText}>LIVE</Text>
                     </View>
                 )}
             </View>
@@ -82,10 +82,10 @@ export const TVPlayerScreen: React.FC = () => {
             <View style={[styles.infoSection, { backgroundColor: colors.surfaceElevated }]}>
                 <View style={styles.infoTitleRow}>
                     <Info size={20} color={colors.accent} />
-                    <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>О канале</Text>
+                    <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>About channel</Text>
                 </View>
                 <Text style={[styles.description, { color: colors.textSecondary }]}>
-                    {channel.description || 'Трансляция духовных мероприятий и лекций в прямом эфире.'}
+                    {channel.description || 'Live streaming of spiritual events and lectures.'}
                 </Text>
             </View>
         </View>

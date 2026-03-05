@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel, ChannelMemberResponse, ChannelMemberRole, ChannelShowcase } from '../../../../types/channel';
@@ -34,10 +35,10 @@ type RouteParams = {
 
 const DEFAULT_SHOWCASE_KIND = 'manual_products';
 const SHOWCASE_KIND_PRESETS = [
-  { value: 'manual_products', label: 'Ручной список товаров' },
-  { value: 'products_by_category', label: 'Товары по категории' },
-  { value: 'manual_services', label: 'Ручной список услуг' },
-  { value: 'services_by_category', label: 'Услуги по категории' },
+  'manual_products',
+  'products_by_category',
+  'manual_services',
+  'services_by_category',
 ] as const;
 
 type ShowcaseFilterMode = 'builder' | 'json';
@@ -85,6 +86,7 @@ const toIDsCsv = (value: unknown): string => {
 
 export default function ChannelManageScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const route = useRoute<RouteProp<RouteParams, 'ChannelManage'>>();
   const channelId = route.params?.channelId;
 
@@ -143,9 +145,9 @@ export default function ChannelManageScreen() {
     () =>
       Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
         value,
-        label,
+        label: t(`portal.servicesHome.categories.${value}`, { defaultValue: String(label || value) }),
       })),
-    []
+    [t]
   );
   const categoryQuickOptions = useMemo(() => {
     if (isServiceShowcaseKind) {
@@ -153,7 +155,7 @@ export default function ChannelManageScreen() {
     }
     return productCategoryOptions.map(item => ({
       value: item.id,
-      label: `${item.emoji || ''} ${item.label?.ru || item.id}`.trim(),
+      label: `${item.emoji || ''} ${item.label?.ru || item.label?.en || item.id}`.trim(),
     }));
   }, [isServiceShowcaseKind, serviceCategoryOptions, productCategoryOptions]);
   const isEditShowcaseMode = editingShowcaseId !== null;
@@ -341,13 +343,13 @@ export default function ChannelManageScreen() {
         setMembers([]);
       }
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить настройки канала');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.loadFailed'));
     } finally {
       if (mountedRef.current && reqId === latestLoadRef.current) {
         setLoading(false);
       }
     }
-  }, [channelId, loadMembers]);
+  }, [channelId, loadMembers, t]);
 
   useEffect(() => {
     void load();
@@ -384,9 +386,9 @@ export default function ChannelManageScreen() {
       });
       setChannel(updated);
       setCoverUrl(updated.coverUrl || '');
-      Alert.alert('Готово', 'Брендинг канала обновлен');
+      Alert.alert(t('common.done'), t('portal.channelManage.alerts.brandingSaved'));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить брендирование');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.brandingSaveFailed'));
     } finally {
       setSavingBranding(false);
     }
@@ -409,7 +411,7 @@ export default function ChannelManageScreen() {
 
       const asset = result.assets[0];
       if (!asset.uri) {
-        Alert.alert('Ошибка', 'Не удалось получить путь к изображению');
+        Alert.alert(t('common.error'), t('portal.channelManage.alerts.imagePathMissing'));
         return;
       }
 
@@ -421,9 +423,9 @@ export default function ChannelManageScreen() {
       });
       setChannel(updated);
       setCoverUrl(updated.coverUrl || '');
-      Alert.alert('Готово', 'Обложка загружена и автоматически подогнана под 16:9');
+      Alert.alert(t('common.done'), t('portal.channelManage.alerts.coverUploaded'));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить обложку');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.coverUploadFailed'));
     } finally {
       setUploadingCover(false);
     }
@@ -440,9 +442,9 @@ export default function ChannelManageScreen() {
         timezone: timezone.trim() || 'UTC',
       });
       setChannel(updated);
-      Alert.alert('Готово', 'Настройки канала обновлены');
+      Alert.alert(t('common.done'), t('portal.channelManage.alerts.settingsSaved'));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить настройки');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.settingsSaveFailed'));
     } finally {
       setSavingSettings(false);
     }
@@ -455,23 +457,23 @@ export default function ChannelManageScreen() {
 
     const title = showcaseTitle.trim();
     if (!title) {
-      Alert.alert('Ошибка', 'Введите название витрины');
+      Alert.alert(t('common.error'), t('portal.channelManage.alerts.showcaseTitleRequired'));
       return;
     }
     const kind = showcaseKind.trim() || DEFAULT_SHOWCASE_KIND;
     if (showcaseFilterMode === 'builder') {
       if (kind === 'products_by_category' || kind === 'services_by_category') {
         if (!showcaseFilterCategory.trim()) {
-          Alert.alert('Ошибка', 'Для витрины по категории укажите category');
+          Alert.alert(t('common.error'), t('portal.channelManage.alerts.showcaseCategoryRequired'));
           return;
         }
       }
       if (kind === 'manual_products' && parseIDsList(showcaseFilterProductIDs).length === 0) {
-        Alert.alert('Ошибка', 'Для manual_products укажите productIds');
+        Alert.alert(t('common.error'), t('portal.channelManage.alerts.showcaseProductIdsRequired'));
         return;
       }
       if (kind === 'manual_services' && parseIDsList(showcaseFilterServiceIDs).length === 0) {
-        Alert.alert('Ошибка', 'Для manual_services укажите serviceIds');
+        Alert.alert(t('common.error'), t('portal.channelManage.alerts.showcaseServiceIdsRequired'));
         return;
       }
     }
@@ -483,7 +485,7 @@ export default function ChannelManageScreen() {
       try {
         JSON.parse(filterJson);
       } catch {
-        Alert.alert('Ошибка', 'filterJson должен быть валидным JSON');
+        Alert.alert(t('common.error'), t('portal.channelManage.alerts.showcaseInvalidFilterJson'));
         return;
       }
     }
@@ -503,7 +505,7 @@ export default function ChannelManageScreen() {
             .sort((a, b) => a.position - b.position || a.ID - b.ID)
         );
         resetShowcaseForm();
-        Alert.alert('Готово', 'Витрина обновлена');
+        Alert.alert(t('common.done'), t('portal.channelManage.alerts.showcaseUpdated'));
       } else {
         const created = await channelService.createShowcase(channelId, {
           title,
@@ -514,10 +516,10 @@ export default function ChannelManageScreen() {
         });
         setShowcases(prev => [...prev, created].sort((a, b) => a.position - b.position));
         resetShowcaseForm();
-        Alert.alert('Готово', 'Витрина добавлена');
+        Alert.alert(t('common.done'), t('portal.channelManage.alerts.showcaseAdded'));
       }
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить витрину');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.showcaseSaveFailed'));
     } finally {
       setCreatingShowcase(false);
     }
@@ -579,7 +581,7 @@ export default function ChannelManageScreen() {
       next[targetIndex] = { ...current, position: target.position };
       setShowcases(next.sort((a, b) => a.position - b.position || a.ID - b.ID));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось изменить порядок витрины');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.showcaseReorderFailed'));
     } finally {
       setShowcaseReorderBusy(false);
     }
@@ -595,7 +597,7 @@ export default function ChannelManageScreen() {
       });
       setShowcases(prev => prev.map(showcase => (showcase.ID === item.ID ? updated : showcase)));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить витрину');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.showcaseUpdateFailed'));
     }
   };
 
@@ -603,10 +605,10 @@ export default function ChannelManageScreen() {
     if (!channelId) {
       return;
     }
-    Alert.alert('Удалить витрину?', item.title, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('portal.channelManage.alerts.deleteShowcaseTitle'), item.title, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -616,7 +618,7 @@ export default function ChannelManageScreen() {
               resetShowcaseForm();
             }
           } catch (error: any) {
-            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось удалить витрину');
+            Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.showcaseDeleteFailed'));
           }
         },
       },
@@ -636,7 +638,7 @@ export default function ChannelManageScreen() {
       await channelService.updateMemberRole(channelId, member.userId, nextRole);
       await loadMembers(channelId);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить роль');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.memberRoleUpdateFailed'));
     } finally {
       setMemberActionBusy('');
     }
@@ -650,10 +652,10 @@ export default function ChannelManageScreen() {
       return;
     }
 
-    Alert.alert('Удалить участника?', `ID ${member.userId}`, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('portal.channelManage.alerts.deleteMemberTitle'), `ID ${member.userId}`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           setMemberActionBusy(`remove-${member.userId}`);
@@ -661,7 +663,7 @@ export default function ChannelManageScreen() {
             await channelService.removeMember(channelId, member.userId);
             await loadMembers(channelId);
           } catch (error: any) {
-            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось удалить участника');
+            Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.memberDeleteFailed'));
           } finally {
             setMemberActionBusy('');
           }
@@ -677,11 +679,11 @@ export default function ChannelManageScreen() {
 
     const userId = toIntOrZero(memberUserIdInput.trim());
     if (userId <= 0) {
-      Alert.alert('Ошибка', 'Введите корректный userId');
+      Alert.alert(t('common.error'), t('portal.channelManage.alerts.memberInvalidUserId'));
       return;
     }
     if (memberRoleInput === 'owner') {
-      Alert.alert('Ошибка', 'Роль owner нельзя назначить через добавление');
+      Alert.alert(t('common.error'), t('portal.channelManage.alerts.memberOwnerAssignForbidden'));
       return;
     }
 
@@ -692,7 +694,7 @@ export default function ChannelManageScreen() {
       setMemberSearchQuery('');
       await loadMembers(channelId);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось добавить участника');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelManage.alerts.memberAddFailed'));
     } finally {
       setMemberActionBusy('');
     }
@@ -715,17 +717,17 @@ export default function ChannelManageScreen() {
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Управление каналом</Text>
+          <Text style={styles.headerTitle}>{t('portal.channelManage.headerTitle')}</Text>
           <View style={styles.headerPlaceholder} />
         </View>
 
         <KeyboardAwareContainer style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <Text style={styles.sectionTitle}>Брендирование</Text>
+          <Text style={styles.sectionTitle}>{t('portal.channelManage.sections.branding')}</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
-            placeholder="Описание канала"
+            placeholder={t('portal.channelManage.placeholders.channelDescription')}
             placeholderTextColor={colors.textSecondary}
             style={[styles.input, styles.textArea]}
             multiline
@@ -741,24 +743,34 @@ export default function ChannelManageScreen() {
           ) : (
             <View style={[styles.coverPreview, styles.coverPreviewPlaceholder]}>
               <Text style={styles.coverPreviewPlaceholderText}>
-                {coverUrl ? 'Не удалось загрузить обложку. Попробуйте загрузить снова.' : 'Обложка пока не загружена'}
+                {coverUrl
+                  ? t('portal.channelManage.coverPreview.failed')
+                  : t('portal.channelManage.coverPreview.empty')}
               </Text>
             </View>
           )}
           <TouchableOpacity style={styles.secondaryBtn} onPress={pickAndUploadCover} disabled={uploadingCover}>
-            {uploadingCover ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.secondaryBtnText}>Загрузить обложку (16:9)</Text>}
+            {uploadingCover
+              ? <ActivityIndicator color={colors.textPrimary} />
+              : <Text style={styles.secondaryBtnText}>{t('portal.channelManage.actions.uploadCover')}</Text>}
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryBtn} onPress={saveBranding} disabled={savingBranding}>
-            {savingBranding ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Сохранить брендинг</Text>}
+            {savingBranding
+              ? <ActivityIndicator color={colors.textPrimary} />
+              : <Text style={styles.primaryBtnText}>{t('portal.channelManage.actions.saveBranding')}</Text>}
           </TouchableOpacity>
 
           {isOwner ? (
             <>
-              <Text style={styles.sectionTitle}>Доступ канала</Text>
+              <Text style={styles.sectionTitle}>{t('portal.channelManage.sections.channelAccess')}</Text>
               <View style={styles.switchRow}>
                 <View>
-                  <Text style={styles.switchTitle}>Публичный канал</Text>
-                  <Text style={styles.switchSub}>{channel?.isPublic ? 'Виден всем' : 'Только участники'}</Text>
+                  <Text style={styles.switchTitle}>{t('portal.channelManage.fields.publicChannel')}</Text>
+                  <Text style={styles.switchSub}>
+                    {channel?.isPublic
+                      ? t('portal.channelManage.fields.visibleForAll')
+                      : t('portal.channelManage.fields.membersOnly')}
+                  </Text>
                 </View>
                 <Switch
                   value={isPublic}
@@ -776,20 +788,22 @@ export default function ChannelManageScreen() {
                 autoCapitalize="none"
               />
               <TouchableOpacity style={styles.secondaryBtn} onPress={saveChannelSettings} disabled={savingSettings}>
-                {savingSettings ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.secondaryBtnText}>Сохранить настройки канала</Text>}
+                {savingSettings
+                  ? <ActivityIndicator color={colors.textPrimary} />
+                  : <Text style={styles.secondaryBtnText}>{t('portal.channelManage.actions.saveChannelSettings')}</Text>}
               </TouchableOpacity>
             </>
           ) : null}
 
           {canManageShowcases ? (
             <>
-              <Text style={styles.sectionTitle}>Участники канала</Text>
+              <Text style={styles.sectionTitle}>{t('portal.channelManage.sections.members')}</Text>
               {canManageMembers ? (
                 <View style={styles.memberAddCard}>
                   <TextInput
                     value={memberUserIdInput}
                     onChangeText={setMemberUserIdInput}
-                    placeholder="User ID для добавления"
+                    placeholder={t('portal.channelManage.placeholders.memberUserId')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                     keyboardType="numeric"
@@ -797,7 +811,7 @@ export default function ChannelManageScreen() {
                   <TextInput
                     value={memberSearchQuery}
                     onChangeText={setMemberSearchQuery}
-                    placeholder="Поиск по имени, email или ID"
+                    placeholder={t('portal.channelManage.placeholders.memberSearch')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                   />
@@ -822,7 +836,7 @@ export default function ChannelManageScreen() {
                               {contact.spiritualName || contact.karmicName || `User #${contact.ID}`}
                             </Text>
                             <Text style={styles.searchResultMeta}>
-                              ID {contact.ID} · {contact.email || 'без email'}
+                              {t('portal.channelManage.member.idLabel', { id: contact.ID })} · {contact.email || t('portal.channelManage.member.noEmail')}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -844,7 +858,9 @@ export default function ChannelManageScreen() {
                     </TouchableOpacity>
                   </View>
                   <TouchableOpacity style={styles.primaryBtn} onPress={addMember} disabled={memberActionBusy === 'add'}>
-                    {memberActionBusy === 'add' ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Добавить участника</Text>}
+                    {memberActionBusy === 'add'
+                      ? <ActivityIndicator color={colors.textPrimary} />
+                      : <Text style={styles.primaryBtnText}>{t('portal.channelManage.actions.addMember')}</Text>}
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -872,7 +888,9 @@ export default function ChannelManageScreen() {
                               <ActivityIndicator size="small" color={colors.textPrimary} />
                             ) : (
                               <Text style={styles.memberRoleSwitchText}>
-                                {member.role === 'admin' ? 'В editor' : 'В admin'}
+                                {member.role === 'admin'
+                                  ? t('portal.channelManage.actions.toEditor')
+                                  : t('portal.channelManage.actions.toAdmin')}
                               </Text>
                             )}
                           </TouchableOpacity>
@@ -886,52 +904,52 @@ export default function ChannelManageScreen() {
                 </View>
               ) : (
                 <View style={styles.readOnlyCard}>
-                  <Text style={styles.readOnlyText}>Участников пока нет</Text>
+                  <Text style={styles.readOnlyText}>{t('portal.channelManage.member.empty')}</Text>
                 </View>
               )}
 
-              <Text style={styles.sectionTitle}>Витрины канала</Text>
+              <Text style={styles.sectionTitle}>{t('portal.channelManage.sections.showcases')}</Text>
               {isEditShowcaseMode ? (
                 <View style={styles.editModeCard}>
-                  <Text style={styles.editModeText}>Режим редактирования витрины #{editingShowcaseId}</Text>
+                  <Text style={styles.editModeText}>{t('portal.channelManage.showcases.editMode', { id: editingShowcaseId })}</Text>
                   <TouchableOpacity style={styles.editModeCancelBtn} onPress={resetShowcaseForm}>
-                    <Text style={styles.editModeCancelText}>Отменить</Text>
+                    <Text style={styles.editModeCancelText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
               <TextInput
                 value={showcaseTitle}
                 onChangeText={setShowcaseTitle}
-                placeholder="Название витрины"
+                placeholder={t('portal.channelManage.placeholders.showcaseTitle')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
-              <Text style={styles.fieldLabel}>Тип витрины</Text>
+              <Text style={styles.fieldLabel}>{t('portal.channelManage.fields.showcaseType')}</Text>
               <View style={styles.showcaseKindPicker}>
                 {SHOWCASE_KIND_PRESETS.map(item => (
                   <TouchableOpacity
-                    key={item.value}
-                    style={[styles.showcaseKindOption, showcaseKind === item.value && styles.showcaseKindOptionActive]}
-                    onPress={() => setShowcaseKind(item.value)}
+                    key={item}
+                    style={[styles.showcaseKindOption, showcaseKind === item && styles.showcaseKindOptionActive]}
+                    onPress={() => setShowcaseKind(item)}
                   >
-                    <Text style={styles.showcaseKindOptionText}>{item.label}</Text>
+                    <Text style={styles.showcaseKindOptionText}>{t(`portal.channelManage.showcaseKinds.${item}`)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
               <TextInput
                 value={showcaseKind}
                 onChangeText={setShowcaseKind}
-                placeholder="или свой kind (например custom_window)"
+                placeholder={t('portal.channelManage.placeholders.customShowcaseKind')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
               />
-              <Text style={styles.fieldLabel}>Режим фильтра</Text>
+              <Text style={styles.fieldLabel}>{t('portal.channelManage.fields.filterMode')}</Text>
               <View style={styles.filterModePicker}>
                 <TouchableOpacity
                   style={[styles.filterModeOption, showcaseFilterMode === 'builder' && styles.filterModeOptionActive]}
                   onPress={() => setShowcaseFilterMode('builder')}
                 >
-                  <Text style={styles.filterModeOptionText}>Конструктор</Text>
+                  <Text style={styles.filterModeOptionText}>{t('portal.channelManage.fields.builder')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.filterModeOption, showcaseFilterMode === 'json' && styles.filterModeOptionActive]}
@@ -945,7 +963,7 @@ export default function ChannelManageScreen() {
                   <TextInput
                     value={showcaseFilterCategory}
                     onChangeText={setShowcaseFilterCategory}
-                    placeholder="category (например books / yagya)"
+                    placeholder={t('portal.channelManage.placeholders.filterCategory')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                   />
@@ -970,7 +988,7 @@ export default function ChannelManageScreen() {
                   <TextInput
                     value={showcaseFilterShopID}
                     onChangeText={setShowcaseFilterShopID}
-                    placeholder="shopId (опционально)"
+                    placeholder={t('portal.channelManage.placeholders.filterShopId')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                     keyboardType="numeric"
@@ -979,7 +997,7 @@ export default function ChannelManageScreen() {
                     <TextInput
                       value={showcaseFilterServiceIDs}
                       onChangeText={setShowcaseFilterServiceIDs}
-                      placeholder="serviceIds через запятую, например 10,11,12"
+                      placeholder={t('portal.channelManage.placeholders.filterServiceIds')}
                       placeholderTextColor={colors.textSecondary}
                       style={styles.input}
                     />
@@ -987,7 +1005,7 @@ export default function ChannelManageScreen() {
                     <TextInput
                       value={showcaseFilterProductIDs}
                       onChangeText={setShowcaseFilterProductIDs}
-                      placeholder="productIds через запятую, например 1,2,3"
+                      placeholder={t('portal.channelManage.placeholders.filterProductIds')}
                       placeholderTextColor={colors.textSecondary}
                       style={styles.input}
                     />
@@ -995,13 +1013,13 @@ export default function ChannelManageScreen() {
                   <TextInput
                     value={showcaseFilterLimit}
                     onChangeText={setShowcaseFilterLimit}
-                    placeholder="limit (опционально)"
+                    placeholder={t('portal.channelManage.placeholders.filterLimit')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                     keyboardType="numeric"
                   />
                   <View style={styles.filterPreviewCard}>
-                    <Text style={styles.filterPreviewTitle}>Собранный filterJson</Text>
+                    <Text style={styles.filterPreviewTitle}>{t('portal.channelManage.fields.builtFilterJson')}</Text>
                     <Text style={styles.filterPreviewValue}>
                       {builtShowcaseFilterJson || '{}'}
                     </Text>
@@ -1011,7 +1029,7 @@ export default function ChannelManageScreen() {
                 <TextInput
                   value={showcaseFilterJson}
                   onChangeText={setShowcaseFilterJson}
-                  placeholder='filterJson, например {"category":"books"}'
+                  placeholder={t('portal.channelManage.placeholders.filterJson')}
                   placeholderTextColor={colors.textSecondary}
                   style={[styles.input, styles.textArea]}
                   multiline
@@ -1020,7 +1038,7 @@ export default function ChannelManageScreen() {
               <TextInput
                 value={showcasePosition}
                 onChangeText={setShowcasePosition}
-                placeholder="Позиция"
+                placeholder={t('portal.channelManage.placeholders.position')}
                 placeholderTextColor={colors.textSecondary}
                 style={styles.input}
                 keyboardType="numeric"
@@ -1029,7 +1047,11 @@ export default function ChannelManageScreen() {
                 {creatingShowcase ? (
                   <ActivityIndicator color={colors.textPrimary} />
                 ) : (
-                  <Text style={styles.primaryBtnText}>{isEditShowcaseMode ? 'Сохранить витрину' : 'Добавить витрину'}</Text>
+                  <Text style={styles.primaryBtnText}>
+                    {isEditShowcaseMode
+                      ? t('portal.channelManage.actions.saveShowcase')
+                      : t('portal.channelManage.actions.addShowcase')}
+                  </Text>
                 )}
               </TouchableOpacity>
 
@@ -1056,7 +1078,11 @@ export default function ChannelManageScreen() {
                         <ChevronDown size={14} color={colors.textPrimary} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.showcaseToggle} onPress={() => toggleShowcaseActive(item)}>
-                        <Text style={styles.showcaseToggleText}>{item.isActive ? 'Активна' : 'Скрыта'}</Text>
+                        <Text style={styles.showcaseToggleText}>
+                          {item.isActive
+                            ? t('portal.channelManage.showcases.active')
+                            : t('portal.channelManage.showcases.hidden')}
+                        </Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.editBtn} onPress={() => beginEditShowcase(item)}>
                         <Pencil size={14} color={colors.textPrimary} />
@@ -1071,7 +1097,7 @@ export default function ChannelManageScreen() {
             </>
           ) : (
             <View style={styles.readOnlyCard}>
-              <Text style={styles.readOnlyText}>Недостаточно прав для управления витринами канала</Text>
+              <Text style={styles.readOnlyText}>{t('portal.channelManage.readOnly')}</Text>
             </View>
           )}
         </ScrollView>

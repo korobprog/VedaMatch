@@ -13,7 +13,7 @@ const fallbackRoomName = 'Room';
 
 export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) => {
     const { isLoggedIn } = useUser();
-    const [statusText, setStatusText] = useState('Подготовка приглашения...');
+    const [statusText, setStatusText] = useState('Preparing invite...');
     const joinAttemptedRef = useRef(false);
 
     useEffect(() => {
@@ -28,7 +28,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
         }
 
         if (!isLoggedIn) {
-            setStatusText('Нужен вход в аккаунт...');
+            setStatusText('Sign-in required...');
             AsyncStorage.setItem(PENDING_ROOM_INVITE_TOKEN_KEY, token)
                 .finally(() => {
                     navigation.replace('Login');
@@ -40,7 +40,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
             return;
         }
         joinAttemptedRef.current = true;
-        setStatusText('Вступаем в комнату...');
+        setStatusText('Joining room...');
 
         const run = async () => {
             try {
@@ -76,8 +76,8 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                 const responseData = error?.response?.data;
                 const errorMessage = typeof responseData?.error === 'string' && responseData.error.trim()
                     ? responseData.error.trim()
-                    : 'Не удалось присоединиться по ссылке';
-                Alert.alert('Ошибка', errorMessage);
+                    : 'Failed to join via invite link';
+                Alert.alert('Error', errorMessage);
                 navigation.replace('Portal', { initialTab: 'rooms' });
             }
         };

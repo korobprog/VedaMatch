@@ -774,7 +774,7 @@ export const ProductEditScreen: React.FC = () => {
                             onPress={handlePromoteProduct}
                             disabled={loading}
                         >
-                            <Text style={[styles.promoteBtnText, { color: accent }]}>Продвинуть товар</Text>
+                            <Text style={[styles.promoteBtnText, { color: accent }]}>Promote product</Text>
                         </TouchableOpacity>
                     )}
                     <TouchableOpacity

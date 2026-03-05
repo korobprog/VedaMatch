@@ -303,7 +303,7 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
                     <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('cafe.map.title', 'Карта кафе')}</Text>
+                <Text style={styles.headerTitle}>{t('cafe.map.title', 'Cafe map')}</Text>
             </SafeAreaView>
 
             <TouchableOpacity style={styles.locateBtn} onPress={handleLocateMe}>
@@ -338,7 +338,7 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
                         <View style={styles.cardFooter}>
                             <TouchableOpacity style={styles.navBtn}>
                                 <Navigation size={14} color={colors.accent} />
-                                <Text style={styles.navBtnText}>{t('map.navigate', 'Маршрут')}</Text>
+                                <Text style={styles.navBtnText}>{t('map.navigate', 'Route')}</Text>
                             </TouchableOpacity>
                         </View>
                     </TouchableOpacity>

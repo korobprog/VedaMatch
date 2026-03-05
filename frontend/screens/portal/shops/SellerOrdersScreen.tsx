@@ -101,11 +101,11 @@ export const SellerOrdersScreen: React.FC = () => {
                         ? responseData.message
                         : '';
             const fallbackMessage = channelSourceId
-                ? 'Не удалось загрузить CRM-заказы канала. Убедитесь, что у аккаунта есть магазин, и попробуйте снова.'
-                : 'Не удалось загрузить список заказов. Попробуйте снова.';
+                ? 'Failed to load channel CRM orders. Ensure the account has a shop and try again.'
+                : 'Failed to load orders list. Please try again.';
             const missingShopMessage = channelSourceId
-                ? 'CRM-заказы канала доступны только после создания магазина для этого аккаунта.'
-                : 'Заказы продавца недоступны, пока не создан магазин.';
+                ? 'Channel CRM orders are available only after creating a shop for this account.'
+                : 'Seller orders are unavailable until a shop is created.';
 
             if (statusCode === 404) {
                 setOrdersLoadError(missingShopMessage);
@@ -302,20 +302,20 @@ export const SellerOrdersScreen: React.FC = () => {
         <View style={styles.filterSection}>
             {ordersLoadError ? (
                 <View style={styles.errorBanner}>
-                    <Text style={styles.errorBannerTitle}>Ошибка загрузки заказов</Text>
+                    <Text style={styles.errorBannerTitle}>Failed to load orders</Text>
                     <Text style={styles.errorBannerText}>{ordersLoadError}</Text>
                 </View>
             ) : null}
             {channelSourceId ? (
                 <View style={styles.sourceBanner}>
                     <Text style={styles.sourceBannerText}>
-                        Показываются заказы из канала #{channelSourceId}
+                        Showing orders from channel #{channelSourceId}
                     </Text>
                     <TouchableOpacity
                         style={styles.sourceBannerReset}
                         onPress={() => navigation.setParams({ source: undefined, sourceChannelId: undefined })}
                     >
-                        <Text style={styles.sourceBannerResetText}>Сбросить</Text>
+                        <Text style={styles.sourceBannerResetText}>Reset</Text>
                     </TouchableOpacity>
                 </View>
             ) : null}

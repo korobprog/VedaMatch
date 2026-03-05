@@ -179,6 +179,168 @@
   - статусные подписи переведены через `portal.bookingCard.status.*` вместо русских `STATUS_LABELS`;
   - формат даты/времени в карточках привязан к языку (`ru-RU` / `en-US` / `hi-IN`);
   - добавлены ключи `portal.incomingBookings` в `en/ru/hi`.
+- Следующий этап (Sadhu Sanga smart push):
+  - `frontend/screens/portal/services/channels/SadhuSangaSmartPushScreen.tsx` переведен на i18n (`portal.sadhuSangaSmartPush.*`) для header, notification mode, audience filters, reminders, time-window, facet picker, CTA и alert-потоков;
+  - удален хардкод language labels/placeholder/фильтров; названия языков теперь берутся из локалей `ru/en/hi`;
+  - добавлены ключи `portal.sadhuSangaSmartPush` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - линт измененных файлов проходит без ошибок (есть только предупреждения `no-void`).
+- Следующий этап (Sadhu Sanga hub):
+  - `frontend/screens/portal/services/channels/SadhuSangaHubScreen.tsx` переведен на i18n (`portal.sadhuSangaHub.*`) для hero/features/live/seminars/recommended/preachers, inline filters и modal facet picker;
+  - alert-потоки, fallback-тексты и CTA больше не зависят от русского хардкода;
+  - формат даты/времени на hub-экране теперь зависит от языка (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.sadhuSangaHub` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 7 TSX-файлов с кириллицей.
+- Следующий этап (Channel post composer):
+  - `frontend/screens/portal/services/channels/ChannelPostComposerScreen.tsx` переведен на i18n (`portal.channelPostComposer.*`) для header, media/circles блоков, CTA, private-delivery toggle, schedule presets, sheet и alert-потоков;
+  - локализованы placeholders для CTA payload, preview даты и лейблы выбора кружков;
+  - добавлены ключи `portal.channelPostComposer` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 6 TSX-файлов с кириллицей.
+- Следующий этап (Channel roadmap manage):
+  - `frontend/screens/portal/services/channels/ChannelRoadmapManageScreen.tsx` переведен на i18n (`portal.channelRoadmapManage.*`) для header, списка точек, статусов, формы, placeholders, confirm-диалогов и alert-потоков;
+  - формат даты точек переведен на locale выбранного языка (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.channelRoadmapManage` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 5 TSX-файлов с кириллицей.
+- Следующий этап (Channel preacher bio manage):
+  - `frontend/screens/portal/services/channels/ChannelPreacherBioManageScreen.tsx` переведен на i18n (`portal.channelPreacherBioManage.*`) для header, bio-формы, date/toggle блоков, math picker, events и alert-потоков;
+  - формат дат и сортировка списка organization/math привязаны к языку (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.channelPreacherBioManage` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 4 TSX-файла с кириллицей.
+- Следующий этап (Channel manage):
+  - `frontend/screens/portal/services/channels/ChannelManageScreen.tsx` переведен на i18n (`portal.channelManage.*`) для branding/settings/members/showcases, включая alerts, confirm-диалоги и placeholders;
+  - SHOWCASE kind labels и service-category labels отвязаны от русского хардкода и берутся через i18n-ключи;
+  - добавлены ключи `portal.channelManage` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 3 TSX-файла с кириллицей.
+- Следующий этап (Create service):
+  - `frontend/screens/portal/services/CreateServiceScreen.tsx` переведен на i18n (`portal.createService.*`) для header, form, pickers, tariffs и validation/alert-потоков;
+  - подписи category/channel/access теперь берутся из i18n-ключей вместо русского service-layer хардкода;
+  - добавлены ключи `portal.createService` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` осталось 2 TSX-файла с кириллицей.
+- Следующий этап (Channels hub):
+  - `frontend/screens/portal/services/channels/ChannelsHubScreen.tsx` переведен на i18n (`portal.channelsHub.*`) для feed/my tabs, post-card текстов, comments sheet, share/post-menu alert-потоков и promoted-labels;
+  - формат даты постов переведен на locale выбранного языка (`ru-RU` / `en-US` / `hi-IN`);
+  - добавлены ключи `portal.channelsHub` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - после этого шага в `frontend/screens/portal/services` остался 1 TSX-файл с кириллицей (`ChannelDetailsScreen.tsx`).
+- Финальный шаг по кириллице в services:
+  - `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx` очищен от оставшихся русских строк в UI/alerts и fallback-текстах (заменены на English);
+  - все форматирования дат/чисел на экране переведены с фиксированного `ru-RU` на runtime-locale (`ru-RU` / `en-US` / `hi-IN`) через `i18n.language`;
+  - после шага `rg -l "[А-Яа-яЁё]" frontend/screens/portal/services -g '*.tsx'` возвращает пустой результат (кириллица в services TSX отсутствует).
+- Следующий этап вне services (chat):
+  - `frontend/screens/ChatScreen.tsx` очищен от оставшихся русских UI/alert/placeholder строк в media/search/share модалках и preference-уведомлениях;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/ChatScreen.tsx` не находит совпадений;
+  - `npx eslint screens/ChatScreen.tsx` проходит без ошибок (только предупреждения `no-void` и `react-native/no-inline-styles`).
+- Быстрый шаг вне services (registration):
+  - в `frontend/screens/RegistrationScreen.tsx` убран остаточный русский label (`Русский` -> `Russian`) в списке legal language;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/RegistrationScreen.tsx` пустой;
+  - `npx eslint screens/RegistrationScreen.tsx` проходит без ошибок (только предупреждения `react-native/no-inline-styles` и `no-void`).
+- Быстрый шаг по legal-документам:
+  - в `frontend/screens/legal/LegalDocumentScreen.tsx` убран остаточный русский label языка (`Русский` -> `Russian`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/legal/LegalDocumentScreen.tsx` пустой;
+  - `npx eslint screens/legal/LegalDocumentScreen.tsx` проходит без ошибок (только предупреждения `no-void`).
+- Быстрый шаг по market edit:
+  - в `frontend/screens/portal/shops/ProductEditScreen.tsx` убран остаточный русский хардкод кнопки (`Продвинуть товар` -> `Promote product`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/shops/ProductEditScreen.tsx` пустой;
+  - `npx eslint screens/portal/shops/ProductEditScreen.tsx` проходит без ошибок (только предупреждения `react-native/no-inline-styles`).
+- Быстрый шаг по chat room create:
+  - в `frontend/screens/portal/chat/CreateRoomModal.tsx` заменены русские fallback-строки для публичной/приватной комнаты на English (`Visible to all users` / `Invite-only access`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/chat/CreateRoomModal.tsx` пустой;
+  - `npx eslint screens/portal/chat/CreateRoomModal.tsx` показывает существующие ошибки файла (`no-unused-vars`) и warnings по inline-styles, не связанные с этой текстовой заменой.
+- Быстрый шаг по cafe admin:
+  - в `frontend/screens/portal/cafe/CafeAdminDashboardScreen.tsx` заменен русский fallback заголовка (`Дашборд` -> `Dashboard`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/cafe/CafeAdminDashboardScreen.tsx` пустой;
+  - `npx eslint screens/portal/cafe/CafeAdminDashboardScreen.tsx` показывает существующую ошибку hook deps (`react-hooks/exhaustive-deps`), не связанную с этой текстовой заменой.
+- Быстрый шаг по cafe cart:
+  - в `frontend/screens/portal/cafe/CafeCartScreen.tsx` заменен русский fallback confirm-текста (`Очистить корзину?` -> `Clear cart?`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/cafe/CafeCartScreen.tsx` пустой;
+  - `npx eslint screens/portal/cafe/CafeCartScreen.tsx` проходит без ошибок (только warnings `no-void` и `react-native/no-inline-styles`).
+- Быстрый шаг по dating profile edit:
+  - в `frontend/screens/portal/dating/EditDatingProfileScreen.tsx` заменен русский fallback validation-текста на English (`To enable the profile in Union, fill in all fields including city and astrology data.`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/dating/EditDatingProfileScreen.tsx` пустой;
+  - `npx eslint screens/portal/dating/EditDatingProfileScreen.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по login:
+  - в `frontend/screens/LoginScreen.tsx` убраны 2 остаточных русских fallback-строки (`Закрыть` -> `Close`, DEV-mode alert переведен на English);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/LoginScreen.tsx` пустой;
+  - `npx eslint screens/LoginScreen.tsx` показывает существующую ошибку hook deps (`react-hooks/exhaustive-deps`), не связанную с этой текстовой заменой.
+- Быстрый шаг по room pre-join:
+  - в `frontend/screens/portal/chat/OpenRoomJoinModal.tsx` заменены русские fallback-строки (`Слушатель...` и `Войти`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/chat/OpenRoomJoinModal.tsx` пустой;
+  - `npx eslint screens/portal/chat/OpenRoomJoinModal.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по cafe map:
+  - в `frontend/screens/portal/cafe/CafesMapScreen.tsx` заменены русские fallback-строки (`Карта кафе` -> `Cafe map`, `Маршрут` -> `Route`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/cafe/CafesMapScreen.tsx` пустой;
+  - `npx eslint screens/portal/cafe/CafesMapScreen.tsx` показывает существующие ошибки `no-unused-vars`, не связанные с этой текстовой заменой.
+- Быстрый шаг по education details:
+  - в `frontend/screens/portal/education/CourseDetailsScreen.tsx` заменены русские fallback-строки (`Повторить` -> `Retry`, `Читать оригинал` -> `Read original`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/education/CourseDetailsScreen.tsx` пустой;
+  - `npx eslint screens/portal/education/CourseDetailsScreen.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по product details:
+  - в `frontend/screens/portal/shops/ProductDetailsScreen.tsx` заменены 2 русских fallback-строки (review/contact seller) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/shops/ProductDetailsScreen.tsx` пустой;
+  - `npx eslint screens/portal/shops/ProductDetailsScreen.tsx` проходит без ошибок (только warnings `no-void` и `react-native/no-inline-styles`).
+- Быстрый шаг по portal main fallback:
+  - в `frontend/screens/portal/PortalMainScreen.tsx` заменены fallback-строки (`Раздел временно недоступен` -> `Section is temporarily unavailable`, `Вернуться на портал` -> `Back to portal`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/PortalMainScreen.tsx` пустой;
+  - `npx eslint screens/portal/PortalMainScreen.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по wallet:
+  - в `frontend/screens/wallet/WalletScreen.tsx` убраны остатки кириллицы (file-header comment и split-label транзакции);
+  - split-label приведен к English (`Regular` / `Bonus`) и числовой формат для него переведен на `en-US`;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/wallet/WalletScreen.tsx` пустой;
+  - `npx eslint screens/wallet/WalletScreen.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по registration location phase:
+  - в `frontend/screens/RegistrationLocationPhase.tsx` переведены 3 русских комментария на English (runtime/UI поведение не изменено);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/RegistrationLocationPhase.tsx` пустой;
+  - `npx eslint screens/RegistrationLocationPhase.tsx` проходит без ошибок/предупреждений.
+- Быстрый шаг по multimedia tv player:
+  - в `frontend/screens/multimedia/TVPlayerScreen.tsx` заменены 3 русские UI-строки (`ПРЯМОЙ ЭФИР`, `О канале`, fallback description) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/TVPlayerScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/TVPlayerScreen.tsx` проходит без ошибок (только warnings `no-useless-escape`).
+- Быстрый шаг по widget selection:
+  - в `frontend/screens/portal/WidgetSelectionScreen.tsx` заменены 3 русские строки (alert title/description, toolbar subtitle, CTA `Готово`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/WidgetSelectionScreen.tsx` пустой;
+  - `npx eslint screens/portal/WidgetSelectionScreen.tsx` проходит без ошибок (только warnings `react-native/no-inline-styles`).
+- Быстрый шаг по education home:
+  - в `frontend/screens/portal/education/EducationHomeScreen.tsx` заменены 3 русские строки (`Курс`, fallback `Повторить`, `Обновить список`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/education/EducationHomeScreen.tsx` пустой;
+  - `npx eslint screens/portal/education/EducationHomeScreen.tsx` показывает существующие ошибки (`unused var`, `react-hooks/exhaustive-deps`), не связанные с этой текстовой заменой.
+- Быстрый шаг по exam trainer:
+  - в `frontend/screens/portal/education/ExamTrainerScreen.tsx` заменены 3 русские строки (`Повторить`, статус результата, fallback `Модуль`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/education/ExamTrainerScreen.tsx` пустой;
+  - `npx eslint screens/portal/education/ExamTrainerScreen.tsx` показывает существующую hook-ошибку (`react-hooks/exhaustive-deps`) и warnings, не связанные с этой текстовой заменой.
+- Быстрый шаг по shops list screen:
+  - в `frontend/screens/portal/shops/ShopsScreen.tsx` заменены 4 русские fallback-строки (`Список магазинов`, `Стать продавцом`, `На карте`, `Все`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/shops/ShopsScreen.tsx` пустой;
+  - `npx eslint screens/portal/shops/ShopsScreen.tsx` показывает существующие техдолг-ошибки (`unused-vars`, `react-hooks/exhaustive-deps`), не связанные с этой текстовой заменой.
+- Быстрый шаг по offline media:
+  - в `frontend/screens/multimedia/OfflineMediaScreen.tsx` заменены 5 русских строк (`Удалить файл?`, `Отмена`, `Удалить`, `Оффлайн медиа`, `Скачанных файлов пока нет`) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/OfflineMediaScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/OfflineMediaScreen.tsx` проходит без ошибок/предупреждений.
+- Быстрый шаг по radio player:
+  - в `frontend/screens/multimedia/RadioPlayerScreen.tsx` заменены 5 русских строк (ошибка подключения, заголовок, online/offline/status, buffering/fallback description) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/RadioPlayerScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/RadioPlayerScreen.tsx` показывает существующую ошибку `unused-vars` (`height`), не связанную с этой текстовой заменой.
+- Быстрый шаг по room invite entry:
+  - в `frontend/screens/portal/chat/RoomInviteEntryScreen.tsx` заменены 5 русских статус/ошибка строк на English (`Preparing invite`, `Sign-in required`, `Joining room`, `Failed to join via invite link`, `Error`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/chat/RoomInviteEntryScreen.tsx` пустой;
+  - `npx eslint screens/portal/chat/RoomInviteEntryScreen.tsx` проходит без ошибок (1 warning `no-void`).
+- Быстрый шаг по knowledge base:
+  - в `frontend/screens/portal/knowledge_base/KnowledgeBaseScreen.tsx` заменены 5 русских строк (mock item title/category/summary + header title/subtitle) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/knowledge_base/KnowledgeBaseScreen.tsx` пустой;
+  - `npx eslint screens/portal/knowledge_base/KnowledgeBaseScreen.tsx` показывает существующие техдолг-ошибки (`unused-vars`, `react/no-unstable-nested-components`), не связанные с этой текстовой заменой.
+- Быстрый шаг по playlist detail:
+  - в `frontend/screens/multimedia/PlaylistDetailScreen.tsx` заменены 6 русских строк (delete confirm/actions/errors, fallback playlist title, empty-state) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/PlaylistDetailScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/PlaylistDetailScreen.tsx` проходит без ошибок/предупреждений.
+- Быстрый шаг по series screen:
+  - в `frontend/screens/multimedia/SeriesScreen.tsx` заменены 6 русских строк (`ТОП`, `сез.`, заголовок, search placeholder, loading text, empty-state) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/SeriesScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/SeriesScreen.tsx` проходит без ошибок (2 warnings `react-native/no-inline-styles`).
+- Быстрый шаг по portal chat screen:
+  - в `frontend/screens/portal/chat/PortalChatScreen.tsx` заменены русские fallback/UI строки на English (`Публичная/Приватная`, `Комнаты`, пустые состояния, `Новая комната`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/chat/PortalChatScreen.tsx` пустой;
+  - `npx eslint screens/portal/chat/PortalChatScreen.tsx` показывает существующую hook-ошибку (`react-hooks/exhaustive-deps`) и warnings, не связанные с этой текстовой заменой.
+- Быстрый шаг по seller orders:
+  - в `frontend/screens/portal/shops/SellerOrdersScreen.tsx` заменены русские fallback/баннер строки на English (orders load errors, channel source banner, `Reset`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/shops/SellerOrdersScreen.tsx` пустой;
+  - `npx eslint screens/portal/shops/SellerOrdersScreen.tsx` показывает существующие техдолг-ошибки (`unused-vars`, `react-hooks/exhaustive-deps`), не связанные с этой текстовой заменой.
 
 ## Backend Observability
 - Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.

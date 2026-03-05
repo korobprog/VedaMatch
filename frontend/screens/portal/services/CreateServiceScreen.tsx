@@ -1,6 +1,3 @@
-/**
- * CreateServiceScreen - Экран создания/редактирования сервиса
- */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
@@ -17,6 +14,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
     Camera,
@@ -97,6 +95,7 @@ const toPositiveInt = (value: string, fallback: number): number => {
 export default function CreateServiceScreen() {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const route = useRoute<RouteProp<RootStackParamList, 'CreateService'>>();
+    const { t } = useTranslation();
     const serviceId = route.params?.serviceId;
     const isEditing = !!serviceId;
     const { user } = useUser();
@@ -118,7 +117,7 @@ export default function CreateServiceScreen() {
 
     // Tariffs
     const [tariffs, setTariffs] = useState<TariffForm[]>([
-        { name: 'Стандарт', price: '500', durationMinutes: '60', sessionsCount: '1', isDefault: true },
+        { name: t('portal.createService.tariffs.defaultName'), price: '500', durationMinutes: '60', sessionsCount: '1', isDefault: true },
     ]);
 
     // Dropdown states
@@ -151,18 +150,18 @@ export default function CreateServiceScreen() {
             setOfflineAddress(service.offlineAddress || '');
 
             if (service.tariffs && service.tariffs.length > 0) {
-                setTariffs(service.tariffs.map(t => ({
-                    name: String(t.name || ''),
-                    price: String(t.price ?? 0),
-                    durationMinutes: String(t.durationMinutes ?? 60),
-                    sessionsCount: String(t.sessionsCount ?? 1),
-                    isDefault: Boolean(t.isDefault),
+                setTariffs(service.tariffs.map((tariffItem) => ({
+                    name: String(tariffItem.name || ''),
+                    price: String(tariffItem.price ?? 0),
+                    durationMinutes: String(tariffItem.durationMinutes ?? 60),
+                    sessionsCount: String(tariffItem.sessionsCount ?? 1),
+                    isDefault: Boolean(tariffItem.isDefault),
                 })));
             }
         } catch (error) {
             console.error('Failed to load service:', error);
             if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось загрузить сервис');
+                Alert.alert(t('common.error'), t('portal.createService.alerts.loadFailed'));
                 navigation.goBack();
             }
         } finally {
@@ -170,7 +169,7 @@ export default function CreateServiceScreen() {
                 setLoading(false);
             }
         }
-    }, [navigation, serviceId]);
+    }, [navigation, serviceId, t]);
 
     useEffect(() => {
         if (serviceId) {
@@ -212,7 +211,7 @@ export default function CreateServiceScreen() {
                 return prev;
             }
             return [...prev, {
-                name: `Тариф ${prev.length + 1}`,
+                name: t('portal.createService.tariffs.newTariffName', { index: prev.length + 1 }),
                 price: '1000',
                 durationMinutes: '60',
                 sessionsCount: '1',
@@ -220,7 +219,7 @@ export default function CreateServiceScreen() {
             }];
         });
         if (hitLimit) {
-            Alert.alert('Лимит', 'Максимум 5 тарифов');
+            Alert.alert(t('portal.createService.alerts.limitTitle'), t('portal.createService.alerts.maxTariffs'));
         }
     };
 
@@ -239,7 +238,7 @@ export default function CreateServiceScreen() {
             return next;
         });
         if (!canRemove) {
-            Alert.alert('Ошибка', 'Нужен хотя бы один тариф');
+            Alert.alert(t('common.error'), t('portal.createService.alerts.needOneTariff'));
         }
     };
 
@@ -266,37 +265,37 @@ export default function CreateServiceScreen() {
 
     const validateForm = (): boolean => {
         if (!title.trim()) {
-            Alert.alert('Ошибка', 'Введите название');
+            Alert.alert(t('common.error'), t('portal.createService.alerts.enterTitle'));
             return false;
         }
         if (!description.trim()) {
-            Alert.alert('Ошибка', 'Введите описание');
+            Alert.alert(t('common.error'), t('portal.createService.alerts.enterDescription'));
             return false;
         }
         if (channel === 'offline' && !offlineAddress.trim()) {
-            Alert.alert('Ошибка', 'Укажите адрес');
+            Alert.alert(t('common.error'), t('portal.createService.alerts.enterAddress'));
             return false;
         }
         if ((channel === 'zoom' || channel === 'youtube' || channel === 'telegram') && !channelLink.trim()) {
-            Alert.alert('Ошибка', 'Укажите ссылку для выбранного канала');
+            Alert.alert(t('common.error'), t('portal.createService.alerts.enterChannelLink'));
             return false;
         }
         for (let i = 0; i < tariffs.length; i += 1) {
             const tariff = tariffs[i];
             if (!tariff.name.trim()) {
-                Alert.alert('Ошибка', `Укажите название для тарифа #${i + 1}`);
+                Alert.alert(t('common.error'), t('portal.createService.alerts.enterTariffName', { index: i + 1 }));
                 return false;
             }
             if (accessType !== 'free' && toPositiveInt(tariff.price, 0) <= 0) {
-                Alert.alert('Ошибка', `Укажите корректную цену для тарифа #${i + 1}`);
+                Alert.alert(t('common.error'), t('portal.createService.alerts.enterTariffPrice', { index: i + 1 }));
                 return false;
             }
             if (toPositiveInt(tariff.durationMinutes, 0) <= 0) {
-                Alert.alert('Ошибка', `Укажите длительность для тарифа #${i + 1}`);
+                Alert.alert(t('common.error'), t('portal.createService.alerts.enterTariffDuration', { index: i + 1 }));
                 return false;
             }
             if (toPositiveInt(tariff.sessionsCount, 0) <= 0) {
-                Alert.alert('Ошибка', `Укажите число сессий для тарифа #${i + 1}`);
+                Alert.alert(t('common.error'), t('portal.createService.alerts.enterTariffSessions', { index: i + 1 }));
                 return false;
             }
         }
@@ -359,16 +358,16 @@ export default function CreateServiceScreen() {
             }
 
             Alert.alert(
-                isEditing ? 'Сохранено!' : 'Создано! 🎉',
-                isEditing ? 'Изменения успешно сохранены' : 'Теперь настройте расписание и слоты',
+                isEditing ? t('portal.createService.alerts.savedTitle') : t('portal.createService.alerts.createdTitle'),
+                isEditing ? t('portal.createService.alerts.savedText') : t('portal.createService.alerts.createdText'),
                 [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
         } catch (error: unknown) {
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            const message = error instanceof Error ? error.message : 'Не удалось сохранить';
-            Alert.alert('Ошибка', message);
+            const message = error instanceof Error ? error.message : t('portal.createService.alerts.saveFailed');
+            Alert.alert(t('common.error'), message);
         } finally {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
                 setSaving(false);
@@ -386,10 +385,10 @@ export default function CreateServiceScreen() {
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>
-                            {isEditing ? 'Правка услуги' : 'Новое творение'}
+                            {isEditing ? t('portal.createService.header.editTitle') : t('portal.createService.header.createTitle')}
                         </Text>
                         <Text style={styles.headerSubtitle}>
-                            {isEditing ? 'Обновите детали вашего сервиса' : 'Создайте уникальное предложение'}
+                            {isEditing ? t('portal.createService.header.editSubtitle') : t('portal.createService.header.createSubtitle')}
                         </Text>
                     </View>
                     <TouchableOpacity
@@ -441,8 +440,8 @@ export default function CreateServiceScreen() {
                                         <View style={styles.cameraCircle}>
                                             <Camera size={28} color={colors.accent} />
                                         </View>
-                                        <Text style={styles.coverPlaceholderText}>Добавить обложку</Text>
-                                        <Text style={styles.coverPlaceholderSubtext}>Рекомендуем 1200x800px</Text>
+                                        <Text style={styles.coverPlaceholderText}>{t('portal.createService.cover.addCover')}</Text>
+                                        <Text style={styles.coverPlaceholderSubtext}>{t('portal.createService.cover.recommended')}</Text>
                                     </View>
                                 )}
                             </TouchableOpacity>
@@ -451,27 +450,27 @@ export default function CreateServiceScreen() {
                             <View style={styles.formSection}>
                                 <View style={styles.sectionHeaderRow}>
                                     <View style={styles.headingIndicator} />
-                                    <Text style={styles.formSectionTitle}>Основная информация</Text>
+                                    <Text style={styles.formSectionTitle}>{t('portal.createService.sections.mainInfo')}</Text>
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Название вашего сервиса</Text>
+                                    <Text style={styles.label}>{t('portal.createService.fields.serviceTitle')}</Text>
                                     <TextInput
                                         style={styles.input}
                                         value={title}
                                         onChangeText={setTitle}
-                                        placeholder="Напр: Консультация по Джйотиш"
+                                        placeholder={t('portal.createService.placeholders.serviceTitle')}
                                         placeholderTextColor="rgba(255,255,255,0.2)"
                                     />
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Глубокое описание</Text>
+                                    <Text style={styles.label}>{t('portal.createService.fields.description')}</Text>
                                     <TextInput
                                         style={[styles.input, styles.textArea]}
                                         value={description}
                                         onChangeText={setDescription}
-                                        placeholder="Раскройте суть вашего предложения..."
+                                        placeholder={t('portal.createService.placeholders.description')}
                                         placeholderTextColor="rgba(255,255,255,0.2)"
                                         multiline
                                         numberOfLines={4}
@@ -481,7 +480,7 @@ export default function CreateServiceScreen() {
                                 {/* Sophisticated Pickers */}
                                 <View style={styles.pickerRow}>
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                                        <Text style={styles.label}>Предназначение</Text>
+                                        <Text style={styles.label}>{t('portal.createService.fields.category')}</Text>
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
@@ -494,7 +493,7 @@ export default function CreateServiceScreen() {
                                             <View style={styles.pickerIconCircle}>
                                                 <CategoryIcon name={CATEGORY_ICON_NAMES[category]} size={14} color={colors.accent} />
                                             </View>
-                                            <Text style={styles.pickerText}>{CATEGORY_LABELS[category]}</Text>
+                                            <Text style={styles.pickerText}>{t(`portal.servicesHome.categories.${category}`, { defaultValue: CATEGORY_LABELS[category] })}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
                                         </TouchableOpacity>
                                     </View>
@@ -514,7 +513,7 @@ export default function CreateServiceScreen() {
                                                 >
                                                     <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? colors.textPrimary : colors.accent} />
                                                     <Text style={[styles.pickerItemText, category === cat && styles.pickerItemTextActive]}>
-                                                        {CATEGORY_LABELS[cat]}
+                                                        {t(`portal.servicesHome.categories.${cat}`, { defaultValue: CATEGORY_LABELS[cat] })}
                                                     </Text>
                                                 </TouchableOpacity>
                                             ))}
@@ -524,7 +523,7 @@ export default function CreateServiceScreen() {
 
                                 <View style={styles.pickerRow}>
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                                        <Text style={styles.label}>Канал связи</Text>
+                                        <Text style={styles.label}>{t('portal.createService.fields.channel')}</Text>
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
@@ -537,13 +536,13 @@ export default function CreateServiceScreen() {
                                             <View style={styles.pickerIconCircle}>
                                                 {channel === 'offline' ? <MapPin size={14} color={colors.accent} /> : <Video size={14} color={colors.accent} />}
                                             </View>
-                                            <Text style={styles.pickerText}>{CHANNEL_LABELS[channel]}</Text>
+                                            <Text style={styles.pickerText}>{t(`portal.serviceDetail.channels.${channel}`, { defaultValue: CHANNEL_LABELS[channel] })}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
                                         </TouchableOpacity>
                                     </View>
 
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                                        <Text style={styles.label}>Уровень доступа</Text>
+                                        <Text style={styles.label}>{t('portal.createService.fields.accessType')}</Text>
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
@@ -556,7 +555,7 @@ export default function CreateServiceScreen() {
                                             <View style={styles.pickerIconCircle}>
                                                 <Globe size={14} color={colors.accent} />
                                             </View>
-                                            <Text style={styles.pickerText}>{ACCESS_LABELS[accessType]}</Text>
+                                            <Text style={styles.pickerText}>{t(`portal.createService.accessTypes.${accessType}`, { defaultValue: ACCESS_LABELS[accessType] })}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
                                         </TouchableOpacity>
                                     </View>
@@ -575,7 +574,7 @@ export default function CreateServiceScreen() {
                                                     }}
                                                 >
                                                     <Text style={[styles.pickerItemText, channel === ch && styles.pickerItemTextActive]}>
-                                                        {CHANNEL_LABELS[ch]}
+                                                        {t(`portal.serviceDetail.channels.${ch}`, { defaultValue: CHANNEL_LABELS[ch] })}
                                                     </Text>
                                                 </TouchableOpacity>
                                             ))}
@@ -596,7 +595,7 @@ export default function CreateServiceScreen() {
                                                     }}
                                                 >
                                                     <Text style={[styles.pickerItemText, accessType === at && styles.pickerItemTextActive]}>
-                                                        {ACCESS_LABELS[at]}
+                                                        {t(`portal.createService.accessTypes.${at}`, { defaultValue: ACCESS_LABELS[at] })}
                                                     </Text>
                                                 </TouchableOpacity>
                                             ))}
@@ -606,7 +605,7 @@ export default function CreateServiceScreen() {
 
                                 {(channel === 'zoom' || channel === 'youtube' || channel === 'telegram') && (
                                     <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Ссылка канала</Text>
+                                        <Text style={styles.label}>{t('portal.createService.fields.channelLink')}</Text>
                                         <TextInput
                                             style={styles.input}
                                             value={channelLink}
@@ -621,12 +620,12 @@ export default function CreateServiceScreen() {
 
                                 {channel === 'offline' && (
                                     <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Адрес проведения</Text>
+                                        <Text style={styles.label}>{t('portal.createService.fields.offlineAddress')}</Text>
                                         <TextInput
                                             style={styles.input}
                                             value={offlineAddress}
                                             onChangeText={setOfflineAddress}
-                                            placeholder="Город, улица, кабинет..."
+                                            placeholder={t('portal.createService.placeholders.offlineAddress')}
                                             placeholderTextColor="rgba(255,255,255,0.2)"
                                         />
                                     </View>
@@ -637,7 +636,7 @@ export default function CreateServiceScreen() {
                             <View style={styles.sectionHeader}>
                                 <View style={styles.sectionHeaderRow}>
                                     <View style={styles.headingIndicator} />
-                                    <Text style={styles.formSectionTitle}>Тарифная сетка</Text>
+                                    <Text style={styles.formSectionTitle}>{t('portal.createService.sections.tariffs')}</Text>
                                 </View>
                                 <TouchableOpacity
                                     style={styles.addTariffButton}
@@ -645,7 +644,7 @@ export default function CreateServiceScreen() {
                                     activeOpacity={0.7}
                                 >
                                     <Plus size={14} color={colors.accent} />
-                                    <Text style={styles.addTariffText}>Добавить</Text>
+                                    <Text style={styles.addTariffText}>{t('common.add')}</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -662,7 +661,7 @@ export default function CreateServiceScreen() {
                                             style={styles.tariffTitleInput}
                                             value={tariff.name}
                                             onChangeText={(v) => handleTariffChange(index, 'name', v)}
-                                            placeholder="Название тарифа"
+                                            placeholder={t('portal.createService.placeholders.tariffName')}
                                             placeholderTextColor="rgba(255,255,255,0.3)"
                                         />
                                         {tariffs.length > 1 && (
@@ -677,7 +676,7 @@ export default function CreateServiceScreen() {
 
                                     <View style={styles.tariffParameters}>
                                         <View style={styles.paramItem}>
-                                            <Text style={styles.paramLabel}>Цена (₵)</Text>
+                                            <Text style={styles.paramLabel}>{t('portal.createService.tariffs.priceLabel')}</Text>
                                             <TextInput
                                                 style={styles.paramInput}
                                                 value={tariff.price}
@@ -687,7 +686,7 @@ export default function CreateServiceScreen() {
                                         </View>
                                         <View style={styles.paramDivider} />
                                         <View style={styles.paramItem}>
-                                            <Text style={styles.paramLabel}>Время (мин)</Text>
+                                            <Text style={styles.paramLabel}>{t('portal.createService.tariffs.durationLabel')}</Text>
                                             <TextInput
                                                 style={styles.paramInput}
                                                 value={tariff.durationMinutes}
@@ -697,7 +696,7 @@ export default function CreateServiceScreen() {
                                         </View>
                                         <View style={styles.paramDivider} />
                                         <View style={styles.paramItem}>
-                                            <Text style={styles.paramLabel}>Сессий</Text>
+                                            <Text style={styles.paramLabel}>{t('portal.createService.tariffs.sessionsLabel')}</Text>
                                             <TextInput
                                                 style={styles.paramInput}
                                                 value={tariff.sessionsCount}

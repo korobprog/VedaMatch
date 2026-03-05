@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowDown, ArrowLeft, ArrowUp, MapPin, Save, Trash2 } from 'lucide-react-native';
@@ -39,14 +40,14 @@ type LocationSuggestion = {
 const canManageRoadmapByRole = (role?: ChannelMemberRole): boolean =>
   role === 'owner' || role === 'admin' || role === 'editor';
 
-const statusLabel = (status: ChannelRoadmapStatus): string => {
+const statusLabelKey = (status: ChannelRoadmapStatus): string => {
   if (status === 'current') {
-    return 'Сейчас';
+    return 'portal.channelRoadmapManage.status.current';
   }
   if (status === 'past') {
-    return 'Был';
+    return 'portal.channelRoadmapManage.status.past';
   }
-  return 'Будет';
+  return 'portal.channelRoadmapManage.status.future';
 };
 
 const sortTimelineForManage = (roadmap: ChannelRoadmapResponse | null): ChannelRoadmapPoint[] => {
@@ -80,6 +81,7 @@ const parseAutocompleteSuggestions = (raw: any): LocationSuggestion[] => {
 
 export default function ChannelRoadmapManageScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const route = useRoute<RouteProp<RouteParams, 'ChannelRoadmapManage'>>();
   const channelId = route.params?.channelId;
   const initialPointId = route.params?.pointId;
@@ -88,6 +90,7 @@ export default function ChannelRoadmapManageScreen() {
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
   const screenGradient = useMemo<[string, string, string]>(
     () => (isDarkMode
       ? roleTheme.gradient
@@ -97,7 +100,6 @@ export default function ChannelRoadmapManageScreen() {
 
   const [channel, setChannel] = useState<Channel | null>(null);
   const [viewerRole, setViewerRole] = useState<ChannelMemberRole | undefined>(undefined);
-  const [roadmap, setRoadmap] = useState<ChannelRoadmapResponse | null>(null);
   const [orderedPoints, setOrderedPoints] = useState<ChannelRoadmapPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -183,11 +185,10 @@ export default function ChannelRoadmapManageScreen() {
       const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
       setChannel(channelResponse.channel);
       setViewerRole(resolvedRole);
-      setRoadmap(roadmapResponse);
       setOrderedPoints(sortTimelineForManage(roadmapResponse));
 
       if (!canManageRoadmapByRole(resolvedRole)) {
-        Alert.alert('Доступ ограничен', 'Только owner/admin/editor могут редактировать маршрут.');
+        Alert.alert(t('portal.channelRoadmapManage.alerts.accessDeniedTitle'), t('portal.channelRoadmapManage.alerts.accessDeniedText'));
         navigation.goBack();
         return;
       }
@@ -202,15 +203,14 @@ export default function ChannelRoadmapManageScreen() {
       if (!mountedRef.current || reqId !== latestLoadRef.current) {
         return;
       }
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить дорожную карту');
-      setRoadmap(null);
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelRoadmapManage.alerts.loadFailed'));
       setOrderedPoints([]);
     } finally {
       if (mountedRef.current && reqId === latestLoadRef.current) {
         setLoading(false);
       }
     }
-  }, [applyPointToForm, channelId, initialPointId, navigation, user?.ID]);
+  }, [applyPointToForm, channelId, initialPointId, navigation, t, user?.ID]);
 
   useFocusEffect(
     useCallback(() => {
@@ -290,10 +290,10 @@ export default function ChannelRoadmapManageScreen() {
     }
     const parsed = new Date(normalized);
     if (Number.isNaN(parsed.getTime())) {
-      throw new Error('Некорректная дата. Используйте формат ISO (пример: 2026-03-05T18:00:00+03:00)');
+      throw new Error(t('portal.channelRoadmapManage.alerts.invalidDateDetailed'));
     }
     return parsed.toISOString();
-  }, []);
+  }, [t]);
 
   const savePoint = useCallback(async () => {
     if (!channelId || !canManage || saving) {
@@ -301,7 +301,7 @@ export default function ChannelRoadmapManageScreen() {
     }
     const normalizedTitle = title.trim();
     if (normalizedTitle.length < 2) {
-      Alert.alert('Ошибка', 'Введите название точки (минимум 2 символа).');
+      Alert.alert(t('common.error'), t('portal.channelRoadmapManage.alerts.invalidTitle'));
       return;
     }
 
@@ -309,7 +309,7 @@ export default function ChannelRoadmapManageScreen() {
     try {
       parsedEventAt = parseEventAt(eventAtInput);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.message || 'Некорректная дата');
+      Alert.alert(t('common.error'), error?.message || t('portal.channelRoadmapManage.alerts.invalidDate'));
       return;
     }
 
@@ -334,25 +334,25 @@ export default function ChannelRoadmapManageScreen() {
       resetForm();
       await loadData();
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить точку');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelRoadmapManage.alerts.saveFailed'));
     } finally {
       if (mountedRef.current) {
         setSaving(false);
       }
     }
-  }, [address, canManage, channelId, city, editingPointId, eventAtInput, latitude, loadData, longitude, note, parseEventAt, resetForm, saving, status, title]);
+  }, [address, canManage, channelId, city, editingPointId, eventAtInput, latitude, loadData, longitude, note, parseEventAt, resetForm, saving, status, t, title]);
 
   const handleDeletePoint = useCallback(async (point: ChannelRoadmapPoint) => {
     if (!channelId || !canManage || busyPointId !== null) {
       return;
     }
     Alert.alert(
-      'Удалить точку',
-      `Удалить "${point.title}" из дорожной карты?`,
+      t('portal.channelRoadmapManage.alerts.deleteTitle'),
+      t('portal.channelRoadmapManage.alerts.deleteText', { title: point.title }),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             setBusyPointId(point.id);
@@ -363,7 +363,7 @@ export default function ChannelRoadmapManageScreen() {
               }
               await loadData();
             } catch (error: any) {
-              Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось удалить точку');
+              Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelRoadmapManage.alerts.deleteFailed'));
             } finally {
               if (mountedRef.current) {
                 setBusyPointId(null);
@@ -373,7 +373,7 @@ export default function ChannelRoadmapManageScreen() {
         },
       ],
     );
-  }, [busyPointId, canManage, channelId, editingPointId, loadData, resetForm]);
+  }, [busyPointId, canManage, channelId, editingPointId, loadData, resetForm, t]);
 
   const handleSetCurrent = useCallback(async (point: ChannelRoadmapPoint) => {
     if (!channelId || !canManage || busyPointId !== null) {
@@ -384,13 +384,13 @@ export default function ChannelRoadmapManageScreen() {
       await channelService.setCurrentRoadmapPoint(channelId, point.id);
       await loadData();
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить текущую точку');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelRoadmapManage.alerts.setCurrentFailed'));
     } finally {
       if (mountedRef.current) {
         setBusyPointId(null);
       }
     }
-  }, [busyPointId, canManage, channelId, loadData]);
+  }, [busyPointId, canManage, channelId, loadData, t]);
 
   const movePoint = useCallback(async (index: number, direction: -1 | 1) => {
     if (!channelId || !canManage || busyPointId !== null) {
@@ -412,13 +412,13 @@ export default function ChannelRoadmapManageScreen() {
       await loadData();
     } catch (error: any) {
       setOrderedPoints(orderedPoints);
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось переставить точку');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelRoadmapManage.alerts.reorderFailed'));
     } finally {
       if (mountedRef.current) {
         setBusyPointId(null);
       }
     }
-  }, [busyPointId, canManage, channelId, loadData, orderedPoints]);
+  }, [busyPointId, canManage, channelId, loadData, orderedPoints, t]);
 
   if (loading) {
     return (
@@ -438,8 +438,8 @@ export default function ChannelRoadmapManageScreen() {
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Дорожная карта</Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>{channel?.title || 'Канал'}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('portal.channelRoadmapManage.headerTitle')}</Text>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>{channel?.title || t('portal.channelRoadmapManage.channelFallback')}</Text>
           </View>
           <View style={styles.headerButton} />
         </View>
@@ -451,23 +451,23 @@ export default function ChannelRoadmapManageScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.block}>
-            <Text style={styles.blockTitle}>Точки маршрута</Text>
+            <Text style={styles.blockTitle}>{t('portal.channelRoadmapManage.pointsTitle')}</Text>
             {orderedPoints.length === 0 ? (
-              <Text style={styles.emptyText}>Маршрут пока пуст. Добавьте первую точку ниже.</Text>
+              <Text style={styles.emptyText}>{t('portal.channelRoadmapManage.empty')}</Text>
             ) : (
               <View style={styles.pointsList}>
                 {orderedPoints.map((point, index) => (
                   <View key={`manage-roadmap-${point.id}`} style={styles.pointCard}>
                     <View style={styles.pointTopRow}>
                       <Text style={styles.pointTitle} numberOfLines={1}>{point.title}</Text>
-                      <Text style={styles.pointStatus}>{statusLabel(point.status)}</Text>
+                      <Text style={styles.pointStatus}>{t(statusLabelKey(point.status))}</Text>
                     </View>
                     <Text style={styles.pointLocation} numberOfLines={2}>
-                      {[point.city, point.address].filter(Boolean).join(', ') || 'Локация не указана'}
+                      {[point.city, point.address].filter(Boolean).join(', ') || t('portal.channelRoadmapManage.locationMissing')}
                     </Text>
                     {point.eventAt ? (
                       <Text style={styles.pointDate}>
-                        {new Date(point.eventAt).toLocaleString('ru-RU', {
+                        {new Date(point.eventAt).toLocaleString(locale, {
                           day: '2-digit',
                           month: 'short',
                           hour: '2-digit',
@@ -480,7 +480,7 @@ export default function ChannelRoadmapManageScreen() {
                         style={styles.pointActionBtn}
                         onPress={() => applyPointToForm(point)}
                       >
-                        <Text style={styles.pointActionText}>Редактировать</Text>
+                        <Text style={styles.pointActionText}>{t('common.edit')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.pointActionBtn}
@@ -502,7 +502,7 @@ export default function ChannelRoadmapManageScreen() {
                           onPress={() => void handleSetCurrent(point)}
                           disabled={busyPointId === point.id}
                         >
-                          <Text style={styles.pointActionTextAccent}>Сделать текущей</Text>
+                          <Text style={styles.pointActionTextAccent}>{t('portal.channelRoadmapManage.setCurrent')}</Text>
                         </TouchableOpacity>
                       ) : null}
                       <TouchableOpacity
@@ -520,11 +520,15 @@ export default function ChannelRoadmapManageScreen() {
           </View>
 
           <View style={styles.block}>
-            <Text style={styles.blockTitle}>{editingPointId ? 'Редактировать точку' : 'Новая точка'}</Text>
+            <Text style={styles.blockTitle}>
+              {editingPointId
+                ? t('portal.channelRoadmapManage.editPointTitle')
+                : t('portal.channelRoadmapManage.newPointTitle')}
+            </Text>
             <TextInput
               value={title}
               onChangeText={setTitle}
-              placeholder="Название точки"
+              placeholder={t('portal.channelRoadmapManage.placeholders.title')}
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
             />
@@ -536,7 +540,7 @@ export default function ChannelRoadmapManageScreen() {
                   onPress={() => setStatus(item)}
                 >
                   <Text style={[styles.statusButtonText, status === item && styles.statusButtonTextActive]}>
-                    {statusLabel(item)}
+                    {t(statusLabelKey(item))}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -544,7 +548,7 @@ export default function ChannelRoadmapManageScreen() {
             <TextInput
               value={city}
               onChangeText={setCity}
-              placeholder="Город"
+              placeholder={t('portal.channelRoadmapManage.placeholders.city')}
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
             />
@@ -554,7 +558,7 @@ export default function ChannelRoadmapManageScreen() {
                 setAddress(value);
                 setLocationQuery(value);
               }}
-              placeholder="Адрес или локация"
+              placeholder={t('portal.channelRoadmapManage.placeholders.address')}
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
             />
@@ -578,14 +582,14 @@ export default function ChannelRoadmapManageScreen() {
             <TextInput
               value={eventAtInput}
               onChangeText={setEventAtInput}
-              placeholder="Дата/время ISO (например 2026-03-05T18:00:00+03:00)"
+              placeholder={t('portal.channelRoadmapManage.placeholders.eventAt')}
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
             />
             <TextInput
               value={note}
               onChangeText={setNote}
-              placeholder="Комментарий"
+              placeholder={t('portal.channelRoadmapManage.placeholders.note')}
               placeholderTextColor={colors.textSecondary}
               style={[styles.input, styles.textArea]}
               multiline
@@ -601,13 +605,17 @@ export default function ChannelRoadmapManageScreen() {
                 ) : (
                   <>
                     <Save size={14} color={colors.textPrimary} />
-                    <Text style={styles.saveButtonText}>{editingPointId ? 'Сохранить изменения' : 'Добавить точку'}</Text>
+                    <Text style={styles.saveButtonText}>
+                      {editingPointId
+                        ? t('portal.channelRoadmapManage.saveChanges')
+                        : t('portal.channelRoadmapManage.addPoint')}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
               {editingPointId ? (
                 <TouchableOpacity style={styles.resetButton} onPress={resetForm}>
-                  <Text style={styles.resetButtonText}>Отменить редактирование</Text>
+                  <Text style={styles.resetButtonText}>{t('portal.channelRoadmapManage.cancelEdit')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>

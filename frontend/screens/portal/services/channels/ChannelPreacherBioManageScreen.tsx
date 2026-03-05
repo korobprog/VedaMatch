@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import DatePicker from 'react-native-date-picker';
@@ -65,16 +66,17 @@ const toIsoDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDateForUi = (value: string): string => {
+const formatDateForUi = (value: string, locale: string, fallback: string): string => {
   const date = parseIsoDate(value);
   if (!date) {
-    return 'Выбрать дату';
+    return fallback;
   }
-  return date.toLocaleDateString('ru-RU');
+  return date.toLocaleDateString(locale);
 };
 
 export default function ChannelPreacherBioManageScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const route = useRoute<RouteProp<RouteParams, 'ChannelPreacherBioManage'>>();
   const channelId = route.params?.channelId;
 
@@ -82,6 +84,7 @@ export default function ChannelPreacherBioManageScreen() {
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
   const screenGradient = useMemo<[string, string, string]>(
     () => (isDarkMode
       ? roleTheme.gradient
@@ -124,7 +127,7 @@ export default function ChannelPreacherBioManageScreen() {
 
       const resolvedRole = channelResponse.viewerRole || (channelResponse.channel.ownerId === user?.ID ? 'owner' : undefined);
       if (!canManageBioByRole(resolvedRole)) {
-        Alert.alert('Доступ ограничен', 'Только owner/admin/editor могут редактировать био.');
+        Alert.alert(t('portal.channelPreacherBioManage.alerts.accessDeniedTitle'), t('portal.channelPreacherBioManage.alerts.accessDeniedText'));
         navigation.goBack();
         return;
       }
@@ -175,7 +178,7 @@ export default function ChannelPreacherBioManageScreen() {
         if (rankB >= 0) {
           return 1;
         }
-        return a.localeCompare(b, 'ru');
+        return a.localeCompare(b, locale);
       });
 
       setBio(String(profileResponse.bio || ''));
@@ -195,14 +198,14 @@ export default function ChannelPreacherBioManageScreen() {
       if (!mountedRef.current) {
         return;
       }
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить био');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelPreacherBioManage.alerts.loadFailed'));
       navigation.goBack();
     } finally {
       if (mountedRef.current) {
         setLoading(false);
       }
     }
-  }, [channelId, navigation, user?.ID]);
+  }, [channelId, locale, navigation, t, user?.ID]);
 
   useFocusEffect(
     useCallback(() => {
@@ -258,10 +261,10 @@ export default function ChannelPreacherBioManageScreen() {
     }
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(normalized)) {
-      throw new Error('Используйте формат даты YYYY-MM-DD');
+      throw new Error(t('portal.channelPreacherBioManage.alerts.dateFormat'));
     }
     return normalized;
-  }, []);
+  }, [t]);
 
   const save = useCallback(async () => {
     if (!channelId || saving) {
@@ -285,7 +288,7 @@ export default function ChannelPreacherBioManageScreen() {
         })
         .filter((item): item is PreacherProfileEventUpsertRequest => Boolean(item));
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.message || 'Проверьте формат дат в событиях');
+      Alert.alert(t('common.error'), error?.message || t('portal.channelPreacherBioManage.alerts.checkEventDates'));
       return;
     }
 
@@ -295,7 +298,7 @@ export default function ChannelPreacherBioManageScreen() {
       normalizedBirthDate = validateDate(birthDate);
       normalizedDepartureDate = validateDate(departureDate);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.message || 'Проверьте формат дат');
+      Alert.alert(t('common.error'), error?.message || t('portal.channelPreacherBioManage.alerts.checkDates'));
       return;
     }
 
@@ -311,23 +314,26 @@ export default function ChannelPreacherBioManageScreen() {
         mathKey: normalizedOrganizationMath || undefined,
         events: payloadEvents,
       });
-      Alert.alert('Сохранено', 'Биография обновлена.');
+      Alert.alert(t('portal.channelPreacherBioManage.alerts.savedTitle'), t('portal.channelPreacherBioManage.alerts.savedText'));
       navigation.goBack();
     } catch (error: any) {
       const status = Number(error?.response?.status || 0);
       const message = String(error?.response?.data?.error || error?.message || '');
       const isNotImplementedYet = status === 404 || message.includes('Cannot PUT') || message.includes('Cannot GET');
       if (isNotImplementedYet) {
-        Alert.alert('Бэкенд не обновлен', 'Эндпоинт bio пока недоступен на текущем сервере. Обновите backend и повторите.');
+        Alert.alert(
+          t('portal.channelPreacherBioManage.alerts.backendNotUpdatedTitle'),
+          t('portal.channelPreacherBioManage.alerts.backendNotUpdatedText'),
+        );
       } else {
-        Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить био');
+        Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelPreacherBioManage.alerts.saveFailed'));
       }
     } finally {
       if (mountedRef.current) {
         setSaving(false);
       }
     }
-  }, [bio, birthDate, birthPlace, channelId, departureDate, events, hasDepartureDate, navigation, organizationMath, saving, validateDate]);
+  }, [bio, birthDate, birthPlace, channelId, departureDate, events, hasDepartureDate, navigation, organizationMath, saving, t, validateDate]);
 
   const filteredMathOptions = useMemo(() => {
     const query = mathSearch.trim().toLowerCase();
@@ -353,7 +359,7 @@ export default function ChannelPreacherBioManageScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft size={20} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Биография проповедника</Text>
+        <Text style={styles.headerTitle}>{t('portal.channelPreacherBioManage.headerTitle')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -364,17 +370,17 @@ export default function ChannelPreacherBioManageScreen() {
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Text style={styles.label}>Био</Text>
+            <Text style={styles.label}>{t('portal.channelPreacherBioManage.fields.bio')}</Text>
             <TextInput
               value={bio}
               onChangeText={setBio}
               style={[styles.input, styles.textArea]}
-              placeholder="Кратко о служении и пути"
+              placeholder={t('portal.channelPreacherBioManage.placeholders.bio')}
               placeholderTextColor={colors.textSecondary}
               multiline
             />
 
-            <Text style={styles.label}>Дата рождения</Text>
+            <Text style={styles.label}>{t('portal.channelPreacherBioManage.fields.birthDate')}</Text>
             <TouchableOpacity
               style={styles.selectInput}
               onPress={() => setOpenBirthDatePicker(true)}
@@ -383,29 +389,31 @@ export default function ChannelPreacherBioManageScreen() {
               <View style={styles.selectInputLeft}>
                 <Calendar size={16} color={colors.textSecondary} />
                 <Text style={[styles.selectInputText, !birthDate && styles.selectInputPlaceholder]}>
-                  {formatDateForUi(birthDate)}
+                  {formatDateForUi(birthDate, locale, t('portal.channelPreacherBioManage.placeholders.selectDate'))}
                 </Text>
               </View>
               <ChevronDown size={16} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            <Text style={styles.label}>Место рождения</Text>
+            <Text style={styles.label}>{t('portal.channelPreacherBioManage.fields.birthPlace')}</Text>
             <TextInput
               value={birthPlace}
               onChangeText={setBirthPlace}
               style={styles.input}
-              placeholder="Город, страна"
+              placeholder={t('portal.channelPreacherBioManage.placeholders.birthPlace')}
               placeholderTextColor={colors.textSecondary}
             />
 
             <View style={styles.rowBetween}>
-              <Text style={styles.label}>Дата ухода</Text>
+              <Text style={styles.label}>{t('portal.channelPreacherBioManage.fields.departureDate')}</Text>
               <View style={styles.toggleGroup}>
                 <TouchableOpacity
                   style={[styles.toggleChip, hasDepartureDate && styles.toggleChipActive]}
                   onPress={() => setHasDepartureDate(true)}
                 >
-                  <Text style={[styles.toggleChipText, hasDepartureDate && styles.toggleChipTextActive]}>Указать</Text>
+                  <Text style={[styles.toggleChipText, hasDepartureDate && styles.toggleChipTextActive]}>
+                    {t('portal.channelPreacherBioManage.toggle.specify')}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.toggleChip, !hasDepartureDate && styles.toggleChipActive]}
@@ -414,7 +422,9 @@ export default function ChannelPreacherBioManageScreen() {
                     setDepartureDate('');
                   }}
                 >
-                  <Text style={[styles.toggleChipText, !hasDepartureDate && styles.toggleChipTextActive]}>Не указывать</Text>
+                  <Text style={[styles.toggleChipText, !hasDepartureDate && styles.toggleChipTextActive]}>
+                    {t('portal.channelPreacherBioManage.toggle.notSpecify')}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -428,21 +438,21 @@ export default function ChannelPreacherBioManageScreen() {
                 <View style={styles.selectInputLeft}>
                   <Calendar size={16} color={colors.textSecondary} />
                   <Text style={[styles.selectInputText, !departureDate && styles.selectInputPlaceholder]}>
-                    {formatDateForUi(departureDate)}
+                    {formatDateForUi(departureDate, locale, t('portal.channelPreacherBioManage.placeholders.selectDate'))}
                   </Text>
                 </View>
                 <ChevronDown size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             ) : null}
 
-            <Text style={styles.label}>Организация / Матх</Text>
+            <Text style={styles.label}>{t('portal.channelPreacherBioManage.fields.organizationMath')}</Text>
             <TouchableOpacity
               style={styles.selectInput}
               onPress={() => setShowMathPicker(true)}
               activeOpacity={0.8}
             >
               <Text style={[styles.selectInputText, !organizationMath && styles.selectInputPlaceholder]}>
-                {organizationMath || 'Выберите из списка'}
+                {organizationMath || t('portal.channelPreacherBioManage.placeholders.selectFromList')}
               </Text>
               <ChevronDown size={16} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -450,20 +460,20 @@ export default function ChannelPreacherBioManageScreen() {
 
           <View style={styles.card}>
             <View style={styles.eventsHeader}>
-              <Text style={styles.eventsTitle}>Знаковые события</Text>
+              <Text style={styles.eventsTitle}>{t('portal.channelPreacherBioManage.events.title')}</Text>
               <TouchableOpacity style={styles.addEventButton} onPress={addEvent}>
                 <PlusCircle size={16} color={colors.textPrimary} />
-                <Text style={styles.addEventButtonText}>Добавить</Text>
+                <Text style={styles.addEventButtonText}>{t('common.add')}</Text>
               </TouchableOpacity>
             </View>
 
             {events.length === 0 ? (
-              <Text style={styles.emptyText}>Пока нет событий</Text>
+              <Text style={styles.emptyText}>{t('portal.channelPreacherBioManage.events.empty')}</Text>
             ) : (
               events.map((event, index) => (
                 <View key={event.id} style={styles.eventCard}>
                   <View style={styles.eventToolbar}>
-                    <Text style={styles.eventIndex}>Событие #{index + 1}</Text>
+                    <Text style={styles.eventIndex}>{t('portal.channelPreacherBioManage.events.eventIndex', { index: index + 1 })}</Text>
                     <View style={styles.eventToolbarButtons}>
                       <TouchableOpacity style={styles.eventIconButton} onPress={() => moveEvent(event.id, -1)} disabled={index === 0}>
                         <ArrowUp size={14} color={index === 0 ? colors.textSecondary : colors.textPrimary} />
@@ -481,7 +491,7 @@ export default function ChannelPreacherBioManageScreen() {
                     value={event.title}
                     onChangeText={(value) => updateEvent(event.id, { title: value })}
                     style={styles.input}
-                    placeholder="Название события"
+                    placeholder={t('portal.channelPreacherBioManage.placeholders.eventTitle')}
                     placeholderTextColor={colors.textSecondary}
                   />
                   <TouchableOpacity
@@ -492,7 +502,9 @@ export default function ChannelPreacherBioManageScreen() {
                     <View style={styles.selectInputLeft}>
                       <Calendar size={16} color={colors.textSecondary} />
                       <Text style={[styles.selectInputText, !event.eventDate && styles.selectInputPlaceholder]}>
-                        {event.eventDate ? formatDateForUi(event.eventDate) : 'Дата события'}
+                        {event.eventDate
+                          ? formatDateForUi(event.eventDate, locale, t('portal.channelPreacherBioManage.placeholders.selectDate'))
+                          : t('portal.channelPreacherBioManage.placeholders.eventDate')}
                       </Text>
                     </View>
                     <ChevronDown size={16} color={colors.textSecondary} />
@@ -501,7 +513,7 @@ export default function ChannelPreacherBioManageScreen() {
                     value={event.description}
                     onChangeText={(value) => updateEvent(event.id, { description: value })}
                     style={[styles.input, styles.eventDescriptionInput]}
-                    placeholder="Описание"
+                    placeholder={t('portal.channelPreacherBioManage.placeholders.description')}
                     placeholderTextColor={colors.textSecondary}
                     multiline
                   />
@@ -520,7 +532,7 @@ export default function ChannelPreacherBioManageScreen() {
             ) : (
               <>
                 <Save size={16} color={colors.textPrimary} />
-                <Text style={styles.saveButtonText}>Сохранить</Text>
+                <Text style={styles.saveButtonText}>{t('common.save')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -574,12 +586,12 @@ export default function ChannelPreacherBioManageScreen() {
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setShowMathPicker(false)}>
           <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
-            <Text style={styles.modalTitle}>Выберите организацию/матх</Text>
+            <Text style={styles.modalTitle}>{t('portal.channelPreacherBioManage.modal.title')}</Text>
             <TextInput
               value={mathSearch}
               onChangeText={setMathSearch}
               style={styles.input}
-              placeholder="Поиск по списку"
+              placeholder={t('portal.channelPreacherBioManage.modal.searchPlaceholder')}
               placeholderTextColor={colors.textSecondary}
             />
             <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
@@ -591,7 +603,7 @@ export default function ChannelPreacherBioManageScreen() {
                   setMathSearch('');
                 }}
               >
-                <Text style={styles.modalOptionText}>Не выбрано</Text>
+                <Text style={styles.modalOptionText}>{t('portal.channelPreacherBioManage.modal.notSelected')}</Text>
               </TouchableOpacity>
               {filteredMathOptions.map((option) => (
                 <TouchableOpacity

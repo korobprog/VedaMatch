@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowDown, ArrowLeft, Eye, MapPin, MessageCircle, MoreHorizontal, Pin, PlusCircle, Settings2, Share2, Smile, ThumbsUp, Users, Video } from 'lucide-react-native';
@@ -64,18 +65,18 @@ const MAX_SHOWCASE_PREVIEW_ITEMS = 4;
 const CHANNEL_PROMPT_KEY = 'channels_channel_details_tip_v1';
 const POST_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const LIVE_BROADCAST_LANGUAGES: Array<{ code: string; label: string }> = [
-  { code: 'ru', label: 'Русский' },
+  { code: 'ru', label: 'Russian' },
   { code: 'en', label: 'English' },
   { code: 'hi', label: 'Hindi' },
   { code: 'es', label: 'Español' },
 ];
 const SADHU_SECTIONS: Array<{ key: SadhuSection; label: string }> = [
-  { key: 'overview', label: 'Обзор' },
-  { key: 'live', label: 'Эфиры' },
-  { key: 'seminars', label: 'Семинары' },
-  { key: 'questions', label: 'Вопросы' },
-  { key: 'roadmap', label: 'Маршрут' },
-  { key: 'posts', label: 'Посты' },
+  { key: 'overview', label: 'Overview' },
+  { key: 'live', label: 'Live' },
+  { key: 'seminars', label: 'Seminars' },
+  { key: 'questions', label: 'Questions' },
+  { key: 'roadmap', label: 'Roadmap' },
+  { key: 'posts', label: 'Posts' },
 ];
 
 type ParsedPostMedia = {
@@ -112,12 +113,12 @@ const buildSeminarRouteUrl = (service: Service): string => {
 
 const roadmapStatusLabel = (status: ChannelRoadmapPoint['status']): string => {
   if (status === 'current') {
-    return 'Сейчас';
+    return 'Now';
   }
   if (status === 'past') {
-    return 'Был';
+    return 'Past';
   }
-  return 'Будет';
+  return 'Upcoming';
 };
 
 const getRoadmapPointMapUrl = (point: ChannelRoadmapPoint): string => {
@@ -289,6 +290,7 @@ const isAuthorEditAllowed = (post: ChannelPost): boolean => {
 export default function ChannelDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RouteParams, 'ChannelDetails'>>();
+  const { i18n } = useTranslation();
   const channelId = route.params?.channelId;
   const isSadhuSangaMode = route.params?.source === 'sadhu_sanga';
   const focusSection = route.params?.focusSection;
@@ -297,6 +299,7 @@ export default function ChannelDetailsScreen() {
   const { isDarkMode } = useSettings();
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
   const screenGradient = useMemo<[string, string, string]>(
     () => (isDarkMode
       ? roleTheme.gradient
@@ -415,10 +418,10 @@ export default function ChannelDetailsScreen() {
         return {
           service,
           nextAt,
-          formatLabel: service.channel === 'offline' ? 'Оффлайн' : 'Онлайн',
+          formatLabel: service.channel === 'offline' ? 'Offline' : 'Online',
           venueLabel: service.channel === 'offline'
-            ? (service.offlineAddress || 'Адрес уточняется')
-            : (service.channelLink || 'Ссылка после записи'),
+            ? (service.offlineAddress || 'Address pending')
+            : (service.channelLink || 'Link after booking'),
         } as SeminarPreview;
       }));
 
@@ -435,7 +438,7 @@ export default function ChannelDetailsScreen() {
       }
     } catch (error: any) {
       const status = error?.response?.status ?? 'n/a';
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить семинары';
+      const message = error?.response?.data?.error || error?.message || 'Failed to load seminars';
       console.warn(`[ChannelDetails] Failed to load preacher seminars (status=${status}): ${message}`);
       if (mountedRef.current) {
         setPreacherSeminars([]);
@@ -459,7 +462,7 @@ export default function ChannelDetailsScreen() {
         setPreacherQuestions(sortPreacherQuestions(response.questions || []));
       }
     } catch (error: any) {
-      const message = error?.message || 'Не удалось загрузить вопросы';
+      const message = error?.message || 'Failed to load questions';
       console.warn(`[ChannelDetails] Failed to load preacher questions: ${message}`);
       if (mountedRef.current) {
         setPreacherQuestions([]);
@@ -483,7 +486,7 @@ export default function ChannelDetailsScreen() {
         setPreacherAnalytics(response);
       }
     } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить аналитику';
+      const message = error?.response?.data?.error || error?.message || 'Failed to load analytics';
       console.warn(`[ChannelDetails] Failed to load preacher analytics: ${message}`);
       if (mountedRef.current) {
         setPreacherAnalytics(null);
@@ -511,7 +514,7 @@ export default function ChannelDetailsScreen() {
       if (!mountedRef.current || reqId !== latestLoadRef.current) {
         return;
       }
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить дорожную карту';
+      const message = error?.response?.data?.error || error?.message || 'Failed to load roadmap';
       console.warn(`[ChannelDetails] Failed to load roadmap: ${message}`);
       setRoadmap(null);
     } finally {
@@ -537,7 +540,7 @@ export default function ChannelDetailsScreen() {
       if (!mountedRef.current || reqId !== latestLoadRef.current) {
         return;
       }
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить профиль';
+      const message = error?.response?.data?.error || error?.message || 'Failed to load profile';
       console.warn(`[ChannelDetails] Failed to load preacher profile: ${message}`);
       setPreacherProfile(null);
     } finally {
@@ -640,7 +643,7 @@ export default function ChannelDetailsScreen() {
       const message = error?.response?.data?.error || error?.message || 'unknown';
       console.warn(`[ChannelDetails] Failed to load channel (status=${status}): ${message}`);
       if (mountedRef.current && reqId === latestLoadRef.current) {
-        Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось загрузить канал');
+        Alert.alert('Error', error?.response?.data?.error || 'Failed to load channel');
       }
     } finally {
       if (mountedRef.current && reqId === latestLoadRef.current) {
@@ -794,7 +797,7 @@ export default function ChannelDetailsScreen() {
       ))));
     } catch (error: any) {
       if (mountedRef.current) {
-        Alert.alert('Ошибка', error?.message || 'Не удалось обновить голос');
+        Alert.alert('Error', error?.message || 'Failed to update vote');
       }
     } finally {
       if (mountedRef.current) {
@@ -805,23 +808,23 @@ export default function ChannelDetailsScreen() {
 
   const handleOpenSeminarRoute = useCallback(async (service: Service) => {
     if (service.channel !== 'offline') {
-      Alert.alert('Маршрут', 'Маршрут доступен только для офлайн-семинаров.');
+      Alert.alert('Route', 'Route is available only for offline seminars.');
       return;
     }
     const routeUrl = buildSeminarRouteUrl(service);
     if (!routeUrl) {
-      Alert.alert('Маршрут', 'Адрес семинара пока не указан.');
+      Alert.alert('Route', 'Seminar address is not specified yet.');
       return;
     }
     try {
       const supported = await Linking.canOpenURL(routeUrl);
       if (!supported) {
-        Alert.alert('Маршрут', 'Не удалось открыть карту на устройстве.');
+        Alert.alert('Route', 'Failed to open map on this device.');
         return;
       }
       await Linking.openURL(routeUrl);
     } catch {
-      Alert.alert('Маршрут', 'Не удалось открыть маршрут.');
+      Alert.alert('Route', 'Failed to open route.');
     }
   }, []);
 
@@ -844,30 +847,30 @@ export default function ChannelDetailsScreen() {
   }, [roadmap]);
   const liveLanguageLabel = resolveLiveLanguageLabel(liveSession?.broadcastLanguage);
   const liveStatusLabel = liveSession?.status === 'live'
-    ? 'В эфире'
+    ? 'Live now'
     : liveSession?.status === 'scheduled'
-      ? 'Запланировано'
+      ? 'Scheduled'
       : liveSession?.status === 'ended'
-        ? 'Завершено'
+        ? 'Completed'
         : liveSession?.status === 'cancelled'
-          ? 'Отменено'
-          : 'Эфир не активен';
+          ? 'Cancelled'
+          : 'Live is not active';
 
   const openRoadmapPointOnMap = useCallback(async (point: ChannelRoadmapPoint) => {
     const mapUrl = getRoadmapPointMapUrl(point);
     if (!mapUrl) {
-      Alert.alert('Локация', 'Для этой точки не указаны координаты или адрес.');
+      Alert.alert('Location', 'Coordinates or address are missing for this point.');
       return;
     }
     try {
       const supported = await Linking.canOpenURL(mapUrl);
       if (!supported) {
-        Alert.alert('Локация', 'Не удалось открыть карту на устройстве.');
+        Alert.alert('Location', 'Failed to open map on this device.');
         return;
       }
       await Linking.openURL(mapUrl);
     } catch {
-      Alert.alert('Локация', 'Не удалось открыть маршрут.');
+      Alert.alert('Location', 'Failed to open route.');
     }
   }, []);
 
@@ -879,16 +882,16 @@ export default function ChannelDetailsScreen() {
     try {
       const scheduled = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const created = await channelService.createChannelLive(channelId, {
-        title: `${channel?.title || 'Канал'} — прямой эфир`,
-        description: 'Анонс эфира',
+        title: `${channel?.title || 'Channel'} — live stream`,
+        description: 'Live announcement',
         broadcastLanguage: String(user?.language || 'ru').trim().toLowerCase() || 'ru',
         scheduledAt: scheduled,
         accessPolicy: 'followers',
       });
       setLiveSession(created);
-      Alert.alert('Готово', 'Эфир запланирован.');
+      Alert.alert('Done', 'Live stream scheduled.');
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось создать эфир');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to create live stream');
     } finally {
       if (mountedRef.current) {
         setLiveBusy(false);
@@ -910,9 +913,9 @@ export default function ChannelDetailsScreen() {
         broadcastLanguage: normalized,
       });
       setLiveSession(updated);
-      Alert.alert('Язык эфира', `Установлен язык: ${resolveLiveLanguageLabel(normalized)}.`);
+      Alert.alert('Live language', `Selected language: ${resolveLiveLanguageLabel(normalized)}.`);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить язык эфира');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to update live language');
     } finally {
       if (mountedRef.current) {
         setLiveBusy(false);
@@ -930,8 +933,8 @@ export default function ChannelDetailsScreen() {
         void handleSetLiveLanguage(item.code);
       },
     }));
-    buttons.push({ text: 'Отмена', style: 'cancel' as const });
-    Alert.alert('Язык трансляции', 'Выберите язык текущего эфира', buttons);
+    buttons.push({ text: 'Cancel', style: 'cancel' as const });
+    Alert.alert('Broadcast language', 'Choose language for current live stream', buttons);
   }, [canManageLive, handleSetLiveLanguage, liveBusy, liveSession?.broadcastLanguage, liveSession?.id]);
 
   const handleStartLive = useCallback(async () => {
@@ -942,9 +945,9 @@ export default function ChannelDetailsScreen() {
     try {
       const started = await channelService.startChannelLive(channelId, liveSession.id);
       setLiveSession(started);
-      Alert.alert('Эфир запущен', 'Подписчики получили уведомление о старте.');
+      Alert.alert('Live started', 'Subscribers have been notified about the start.');
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось запустить эфир');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to start live stream');
     } finally {
       if (mountedRef.current) {
         setLiveBusy(false);
@@ -960,9 +963,9 @@ export default function ChannelDetailsScreen() {
     try {
       const ended = await channelService.endChannelLive(channelId, liveSession.id);
       setLiveSession(ended);
-      Alert.alert('Эфир завершен', 'Сессия остановлена.');
+      Alert.alert('Live ended', 'Session has been stopped.');
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось завершить эфир');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to end live stream');
     } finally {
       if (mountedRef.current) {
         setLiveBusy(false);
@@ -978,9 +981,9 @@ export default function ChannelDetailsScreen() {
     try {
       const cancelled = await channelService.cancelChannelLive(channelId, liveSession.id);
       setLiveSession(cancelled);
-      Alert.alert('Анонс отменен', 'Эфир отменен.');
+      Alert.alert('Announcement cancelled', 'Live stream cancelled.');
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось отменить эфир');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to cancel live stream');
     } finally {
       if (mountedRef.current) {
         setLiveBusy(false);
@@ -1000,13 +1003,13 @@ export default function ChannelDetailsScreen() {
       });
       navigation.navigate('RoomChat', {
         roomId: join.roomId,
-        roomName: `${channel?.title || 'Эфир'} · Live`,
+        roomName: `${channel?.title || 'Live'} · Live`,
         autoStartCall: true,
         liveChannelId: channelId,
         liveId: liveSession.id,
       });
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось подключиться к эфиру');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to join live stream');
       void loadData(true);
     } finally {
       if (mountedRef.current) {
@@ -1031,7 +1034,7 @@ export default function ChannelDetailsScreen() {
       if (mountedRef.current) {
         setLiveParticipants([]);
       }
-      const message = error?.response?.data?.error || error?.message || 'Не удалось загрузить участников эфира';
+      const message = error?.response?.data?.error || error?.message || 'Failed to load live participants';
       console.warn(`[ChannelDetails] Failed to load live participants: ${message}`);
     } finally {
       if (mountedRef.current) {
@@ -1063,7 +1066,7 @@ export default function ChannelDetailsScreen() {
         setLiveParticipants(response.participants || []);
       }
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось выполнить действие модерации');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to run moderation action');
     } finally {
       if (mountedRef.current) {
         setLiveModerationBusyUserId(null);
@@ -1077,30 +1080,30 @@ export default function ChannelDetailsScreen() {
     }
     const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
     Alert.alert(
-      'Модерация эфира',
+      'Live moderation',
       displayName,
       [
         {
-          text: participant.isMuted ? 'Снять mute' : 'Mute',
+          text: participant.isMuted ? 'Unmute' : 'Mute',
           onPress: () => void applyLiveModeration(
             participant.userId,
             participant.isMuted ? 'unmute' : 'mute',
           ),
         },
         {
-          text: participant.isBlocked ? 'Разблокировать' : 'Заблокировать',
+          text: participant.isBlocked ? 'Unblock' : 'Block',
           onPress: () => void applyLiveModeration(
             participant.userId,
             participant.isBlocked ? 'unblock' : 'block',
           ),
         },
         {
-          text: 'Кик из эфира',
+          text: 'Kick from live',
           onPress: () => void applyLiveModeration(participant.userId, 'kick'),
           style: 'destructive',
         },
         {
-          text: 'Отмена',
+          text: 'Cancel',
           style: 'cancel',
         },
       ],
@@ -1122,7 +1125,7 @@ export default function ChannelDetailsScreen() {
       }
       await loadData(true);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить закреп');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to update pin');
     } finally {
       if (mountedRef.current) {
         setBusyPostId(null);
@@ -1139,7 +1142,7 @@ export default function ChannelDetailsScreen() {
       await channelService.publishPost(channelId, post.ID);
       await loadData(true);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось опубликовать пост');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to publish post');
     } finally {
       if (mountedRef.current) {
         setBusyPostId(null);
@@ -1192,7 +1195,7 @@ export default function ChannelDetailsScreen() {
 
     try {
       await Share.share({
-        message: `${post.content || 'Пост в канале'}\n\nКанал: ${channel?.title || `#${post.channelId}`}`,
+        message: `${post.content || 'Channel post'}\n\nChannel: ${channel?.title || `#${post.channelId}`}`,
       });
       patchPostInState(post.ID, current => {
         const stats = getPostStats(current);
@@ -1218,7 +1221,7 @@ export default function ChannelDetailsScreen() {
       if (!append) {
         setCommentsSheetItems([]);
       }
-      Alert.alert('Ошибка', 'Не удалось загрузить комментарии');
+      Alert.alert('Error', 'Failed to load comments');
     } finally {
       setCommentsSheetLoading(false);
     }
@@ -1282,7 +1285,7 @@ export default function ChannelDetailsScreen() {
         const stats = getPostStats(current);
         return { ...current, commentCount: Math.max(0, stats.comments - 1) };
       });
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось отправить комментарий');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to send comment');
     } finally {
       setCommentsSheetSubmitting(false);
     }
@@ -1297,12 +1300,12 @@ export default function ChannelDetailsScreen() {
 
   const openPostMenu = useCallback((post: ChannelPost) => {
     const editable = isAuthorEditAllowed(post);
-    Alert.alert('Пост', editable ? 'Действия с постом' : 'Редактирование опубликованного поста доступно только в первые 24 часа', [
+    Alert.alert('Post', editable ? 'Post actions' : 'Editing published post is available only in the first 24 hours', [
       {
-        text: 'Редактировать',
+        text: 'Edit',
         onPress: () => {
           if (!editable) {
-            Alert.alert('Недоступно', 'Окно редактирования этого поста уже закрыто.');
+            Alert.alert('Unavailable', 'Edit window for this post is already closed.');
             return;
           }
           navigation.navigate('ChannelPostComposer', {
@@ -1313,7 +1316,7 @@ export default function ChannelDetailsScreen() {
           });
         },
       },
-      { text: 'Отмена', style: 'cancel' },
+      { text: 'Cancel', style: 'cancel' },
     ]);
   }, [navigation]);
 
@@ -1350,7 +1353,7 @@ export default function ChannelDetailsScreen() {
                 style={styles.circleCard}
                 onPress={() =>
                   navigation.navigate('VideoPlayer', {
-                    video: { uri: item.mediaUrl, title: `Кружок #${item.id}` },
+                    video: { uri: item.mediaUrl, title: `Circle #${item.id}` },
                     source: 'video_circles',
                     circle: {
                       id: item.id,
@@ -1374,7 +1377,7 @@ export default function ChannelDetailsScreen() {
                     <Video size={15} color={colors.textSecondary} />
                   </View>
                 )}
-                <Text style={styles.circleLabel}>Кружок #{item.id}</Text>
+                <Text style={styles.circleLabel}>Circle #{item.id}</Text>
               </TouchableOpacity>
             )}
           />
@@ -1385,7 +1388,7 @@ export default function ChannelDetailsScreen() {
 
   const roleLabel = useMemo(() => {
     if (!viewerRole) {
-      return 'Читатель';
+      return 'Reader';
     }
     if (viewerRole === 'owner') {
       return 'Owner';
@@ -1396,13 +1399,13 @@ export default function ChannelDetailsScreen() {
     if (viewerRole === 'editor') {
       return 'Editor';
     }
-    return 'Подписчик';
+    return 'Subscriber';
   }, [viewerRole]);
   const channelNameLabel = useMemo(() => {
     const title = String(channel?.title || '').trim();
-    return title.length > 0 ? title : 'канала';
+    return title.length > 0 ? title : 'channel';
   }, [channel?.title]);
-  const preacherBioHeading = useMemo(() => `О ${channelNameLabel}`, [channelNameLabel]);
+  const preacherBioHeading = useMemo(() => `About ${channelNameLabel}`, [channelNameLabel]);
   const canManagePreacherBio = canEditPosts(viewerRole);
   const showSadhuLive = !isSadhuSangaMode || activeSadhuSection === 'live';
   const showSadhuRoadmap = !isSadhuSangaMode || activeSadhuSection === 'roadmap';
@@ -1454,7 +1457,7 @@ export default function ChannelDetailsScreen() {
       return roadmap?.past?.[0] || null;
     }
     return null;
-  }, [roadmap?.current, roadmap?.future, roadmap?.past]);
+  }, [roadmap]);
   const visiblePreacherEvents = useMemo(() => {
     if (!preacherProfile?.events?.length) {
       return [];
@@ -1498,10 +1501,10 @@ export default function ChannelDetailsScreen() {
       return '';
     }
     if (liveSession?.status === 'live') {
-      return `LIVE сейчас • ${resolveLiveLanguageLabel(liveSession.broadcastLanguage)}`;
+      return `LIVE now • ${resolveLiveLanguageLabel(liveSession.broadcastLanguage)}`;
     }
     if (liveSession?.status === 'scheduled' && liveSession.scheduledAt) {
-      return `Эфир запланирован: ${new Date(liveSession.scheduledAt).toLocaleString('ru-RU', {
+      return `Live scheduled: ${new Date(liveSession.scheduledAt).toLocaleString(locale, {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
@@ -1509,15 +1512,15 @@ export default function ChannelDetailsScreen() {
       })}`;
     }
     if (nextSeminarPreview?.nextAt) {
-      return `Ближайший семинар: ${nextSeminarPreview.nextAt.toLocaleString('ru-RU', {
+      return `Next seminar: ${nextSeminarPreview.nextAt.toLocaleString(locale, {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
       })}`;
     }
-    return 'Подпишитесь, чтобы получать анонсы эфиров и семинаров';
-  }, [isSadhuSangaMode, liveSession?.broadcastLanguage, liveSession?.scheduledAt, liveSession?.status, nextSeminarPreview]);
+    return 'Subscribe to receive live and seminar announcements';
+  }, [isSadhuSangaMode, liveSession?.broadcastLanguage, liveSession?.scheduledAt, liveSession?.status, nextSeminarPreview, locale]);
 
   const canFollow = useMemo(() => {
     if (!channel || !user?.ID) {
@@ -1577,7 +1580,7 @@ export default function ChannelDetailsScreen() {
       } else {
         setViewerRole(prev => (prev === 'subscriber' ? undefined : prev));
       }
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось обновить подписку');
+      Alert.alert('Error', error?.response?.data?.error || 'Failed to update subscription');
     } finally {
       if (mountedRef.current) {
         setFollowLoading(false);
@@ -1622,7 +1625,7 @@ export default function ChannelDetailsScreen() {
             {item.isPinned ? (
               <View style={styles.pinTag}>
                 <Pin size={12} color={colors.accent} />
-                <Text style={styles.pinTagText}>Закреп</Text>
+                <Text style={styles.pinTagText}>Pinned</Text>
               </View>
             ) : null}
             <Text style={styles.postStatus}>{item.status}</Text>
@@ -1641,7 +1644,7 @@ export default function ChannelDetailsScreen() {
           </View>
         </View>
 
-        <Text style={styles.postContent}>{item.content || 'Без текста'}</Text>
+        <Text style={styles.postContent}>{item.content || 'No text'}</Text>
         {renderMediaBlock(item)}
 
         <View style={styles.postActions}>
@@ -1656,12 +1659,12 @@ export default function ChannelDetailsScreen() {
           <View style={styles.moderationActions}>
             {isModerator && item.status === 'published' ? (
               <TouchableOpacity style={styles.secondaryAction} onPress={() => togglePin(item)}>
-                <Text style={styles.secondaryActionText}>{item.isPinned ? 'Открепить' : 'Закрепить'}</Text>
+                <Text style={styles.secondaryActionText}>{item.isPinned ? 'Unpin' : 'Pin'}</Text>
               </TouchableOpacity>
             ) : null}
             {isModerator && item.status !== 'published' ? (
               <TouchableOpacity style={styles.secondaryAction} onPress={() => publishPost(item)}>
-                <Text style={styles.secondaryActionText}>Опубликовать</Text>
+                <Text style={styles.secondaryActionText}>Publish</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1707,7 +1710,7 @@ export default function ChannelDetailsScreen() {
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{channel?.title || 'Канал'}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{channel?.title || 'Channel'}</Text>
             <Text style={styles.headerSubtitle}>{roleLabel}</Text>
           </View>
           {isEditor ? (
@@ -1754,7 +1757,7 @@ export default function ChannelDetailsScreen() {
               disabled={followLoading}
             >
               <Text style={styles.followButtonText}>
-                {channel?.isFollowing ? 'Вы подписаны' : 'Подписаться'}
+                {channel?.isFollowing ? 'Subscribed' : 'Follow'}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -1779,11 +1782,11 @@ export default function ChannelDetailsScreen() {
           keyboardShouldPersistTaps="handled"
         >
         <View style={styles.channelIntro}>
-          <Text style={styles.channelDescription}>{channel?.description || 'Описание канала не заполнено'}</Text>
+          <Text style={styles.channelDescription}>{channel?.description || 'Channel description is empty'}</Text>
           <View style={styles.channelStatsRow}>
             <Text style={styles.channelMeta}>@{channel?.slug || 'channel'}</Text>
             <Text style={styles.channelMetaSecondary}>
-              Подписчиков: {Math.max(0, Number(channel?.followersCount) || 0)}
+              Followers: {Math.max(0, Number(channel?.followersCount) || 0)}
             </Text>
           </View>
           {isSadhuSangaMode ? (
@@ -1792,11 +1795,11 @@ export default function ChannelDetailsScreen() {
               <View style={styles.sadhuHeroActionsRow}>
                 <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickLive}>
                   <Text style={styles.sadhuHeroActionText}>
-                    {liveSession?.status === 'live' ? 'Смотреть эфир' : 'Эфиры'}
+                    {liveSession?.status === 'live' ? 'Watch live' : 'Live'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickSeminars}>
-                  <Text style={styles.sadhuHeroActionText}>Семинары</Text>
+                  <Text style={styles.sadhuHeroActionText}>Seminars</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -1806,7 +1809,7 @@ export default function ChannelDetailsScreen() {
                   onPress={openSadhuQuestionForm}
                   disabled={!(channel?.ownerId && channel.ownerId > 0)}
                 >
-                  <Text style={styles.sadhuHeroActionText}>Вопрос</Text>
+                  <Text style={styles.sadhuHeroActionText}>Question</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1821,7 +1824,7 @@ export default function ChannelDetailsScreen() {
                 })
               }
             >
-              <Text style={styles.crmButtonText}>Открыть CRM-заказы канала</Text>
+              <Text style={styles.crmButtonText}>Open channel CRM orders</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1829,10 +1832,10 @@ export default function ChannelDetailsScreen() {
         {showGuidePrompt && !isSadhuSangaMode ? (
           <View style={styles.promptBanner}>
             <Text style={styles.promptBannerText}>
-              Подсказка: закрепите ключевой пост и добавьте CTA "Купить" или "Записаться", чтобы вести человека до заказа.
+              Tip: pin a key post and add a CTA like "Buy" or "Book" to guide users to checkout.
             </Text>
             <TouchableOpacity style={styles.promptBannerAction} onPress={dismissGuidePrompt}>
-              <Text style={styles.promptBannerActionText}>Скрыть</Text>
+              <Text style={styles.promptBannerActionText}>Hide</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1868,52 +1871,52 @@ export default function ChannelDetailsScreen() {
 
         {isSadhuSangaMode && activeSadhuSection === 'overview' ? (
           <View style={styles.overviewGridSection}>
-            <Text style={styles.overviewGridTitle}>Быстрый доступ</Text>
+            <Text style={styles.overviewGridTitle}>Quick access</Text>
             <View style={styles.overviewGrid}>
               <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickLive}>
-                <Text style={styles.overviewCardTitle}>Эфир</Text>
+                <Text style={styles.overviewCardTitle}>Live</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {liveSession?.status === 'live'
-                    ? 'Сейчас в эфире'
+                    ? 'Live now'
                     : liveSession?.status === 'scheduled'
-                      ? 'Запланирован'
-                      : 'Пока не активен'}
+                      ? 'Scheduled'
+                      : 'Inactive'}
                 </Text>
                 <Text style={styles.overviewCardHint}>
-                  {liveSession?.status === 'live' ? 'Открыть трансляцию' : 'Открыть раздел'}
+                  {liveSession?.status === 'live' ? 'Open stream' : 'Open section'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickSeminars}>
-                <Text style={styles.overviewCardTitle}>Семинары</Text>
+                <Text style={styles.overviewCardTitle}>Seminars</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {nextSeminarPreview?.nextAt
-                    ? nextSeminarPreview.nextAt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
-                    : 'Пока нет дат'}
+                    ? nextSeminarPreview.nextAt.toLocaleDateString(locale, { day: '2-digit', month: 'short' })
+                    : 'No dates yet'}
                 </Text>
-                <Text style={styles.overviewCardHint}>Открыть список</Text>
+                <Text style={styles.overviewCardHint}>Open list</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('questions')}>
-                <Text style={styles.overviewCardTitle}>Вопросы</Text>
+                <Text style={styles.overviewCardTitle}>Questions</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {preacherQuestions.length > 0
-                    ? `Голосов: ${Math.max(0, Number(overviewQuestionTop?.voteCount) || 0)}`
-                    : 'Пока нет вопросов'}
+                    ? `Votes: ${Math.max(0, Number(overviewQuestionTop?.voteCount) || 0)}`
+                    : 'No questions yet'}
                 </Text>
                 <Text style={styles.overviewCardHint}>
-                  {preacherQuestions.length > 0 ? 'Открыть раздел' : 'Задать вопрос'}
+                  {preacherQuestions.length > 0 ? 'Open section' : 'Ask question'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('roadmap')}>
-                <Text style={styles.overviewCardTitle}>Маршрут</Text>
+                <Text style={styles.overviewCardTitle}>Route</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {overviewRoadmapPoint
-                    ? [overviewRoadmapPoint.city, overviewRoadmapPoint.address].filter(Boolean).join(', ') || 'Локация есть'
-                    : 'Пока не заполнен'}
+                    ? [overviewRoadmapPoint.city, overviewRoadmapPoint.address].filter(Boolean).join(', ') || 'Location available'
+                    : 'Not filled yet'}
                 </Text>
-                <Text style={styles.overviewCardHint}>Открыть карту</Text>
+                <Text style={styles.overviewCardHint}>Open map</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1943,34 +1946,34 @@ export default function ChannelDetailsScreen() {
                 <View style={styles.preacherBioMetaList}>
                   {preacherProfile?.birthDate || preacherProfile?.birthPlace ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Рождение: ${
+                      {`Birth: ${
                         preacherProfile.birthDate
-                          ? new Date(preacherProfile.birthDate).toLocaleDateString('ru-RU')
-                          : 'дата не указана'
+                          ? new Date(preacherProfile.birthDate).toLocaleDateString(locale)
+                          : 'date not specified'
                       }${preacherProfile.birthPlace ? ` • ${preacherProfile.birthPlace}` : ''}`}
                     </Text>
                   ) : null}
                   {preacherProfile?.departureDate ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Дата ухода: ${new Date(preacherProfile.departureDate).toLocaleDateString('ru-RU')}`}
+                      {`Departure date: ${new Date(preacherProfile.departureDate).toLocaleDateString(locale)}`}
                     </Text>
                   ) : null}
                   {String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim() ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Организация / Матх: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
+                      {`Organization / Math: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
                     </Text>
                   ) : null}
                 </View>
 
                 {visiblePreacherEvents.length > 0 ? (
                   <View style={styles.preacherBioEventsWrap}>
-                    <Text style={styles.preacherBioEventsTitle}>Знаковые события</Text>
+                    <Text style={styles.preacherBioEventsTitle}>Key events</Text>
                     {visiblePreacherEvents.map((event) => (
                       <View key={`preacher-event-${event.id}`} style={styles.preacherBioEventRow}>
                         <Text style={styles.preacherBioEventTitle} numberOfLines={2}>{event.title}</Text>
                         {event.eventDate ? (
                           <Text style={styles.preacherBioEventDate}>
-                            {new Date(event.eventDate).toLocaleDateString('ru-RU')}
+                            {new Date(event.eventDate).toLocaleDateString(locale)}
                           </Text>
                         ) : null}
                         {event.description ? (
@@ -1982,7 +1985,7 @@ export default function ChannelDetailsScreen() {
                 ) : null}
               </>
             ) : (
-              <Text style={styles.preacherBioEmpty}>Биография пока не заполнена</Text>
+              <Text style={styles.preacherBioEmpty}>Biography is not filled yet</Text>
             )}
 
             {canManagePreacherBio ? (
@@ -1990,7 +1993,7 @@ export default function ChannelDetailsScreen() {
                 style={styles.preacherBioManageButton}
                 onPress={() => navigation.navigate('ChannelPreacherBioManage', { channelId, source: 'sadhu_sanga' })}
               >
-                <Text style={styles.preacherBioManageButtonText}>Редактировать био</Text>
+                <Text style={styles.preacherBioManageButtonText}>Edit bio</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -1999,7 +2002,7 @@ export default function ChannelDetailsScreen() {
         {isSadhuSangaMode && showSadhuLive ? (
           <View style={styles.liveSection}>
             <View style={styles.liveHeaderRow}>
-              <Text style={styles.liveTitle}>Прямой эфир</Text>
+              <Text style={styles.liveTitle}>Live stream</Text>
               {liveBusy ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             <Text style={[
@@ -2009,11 +2012,11 @@ export default function ChannelDetailsScreen() {
               {liveStatusLabel}
             </Text>
             {liveSession ? (
-              <Text style={styles.liveLanguageCaption}>Язык трансляции: {liveLanguageLabel}</Text>
+              <Text style={styles.liveLanguageCaption}>Broadcast language: {liveLanguageLabel}</Text>
             ) : null}
             {liveSession ? (
               <View style={styles.liveCard}>
-                <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || 'Эфир канала'}</Text>
+                <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || 'Channel live stream'}</Text>
                 <View style={styles.liveLanguageRow}>
                   <View style={styles.liveLanguageChip}>
                     <Text style={styles.liveLanguageChipText}>{(liveSession.broadcastLanguage || 'ru').toUpperCase()}</Text>
@@ -2021,13 +2024,13 @@ export default function ChannelDetailsScreen() {
                   <Text style={styles.liveCardMeta}>{liveLanguageLabel}</Text>
                   {canManageLive ? (
                     <TouchableOpacity style={styles.liveLanguageAction} onPress={openLiveLanguagePicker} disabled={liveBusy}>
-                      <Text style={styles.liveLanguageActionText}>Изменить язык</Text>
+                      <Text style={styles.liveLanguageActionText}>Change language</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
                 {liveSession.scheduledAt ? (
                   <Text style={styles.liveCardMeta}>
-                    План: {new Date(liveSession.scheduledAt).toLocaleString('ru-RU', {
+                    Planned: {new Date(liveSession.scheduledAt).toLocaleString(locale, {
                       day: '2-digit',
                       month: 'short',
                       hour: '2-digit',
@@ -2037,7 +2040,7 @@ export default function ChannelDetailsScreen() {
                 ) : null}
                 {liveSession.startedAt ? (
                   <Text style={styles.liveCardMeta}>
-                    Старт: {new Date(liveSession.startedAt).toLocaleString('ru-RU', {
+                    Started: {new Date(liveSession.startedAt).toLocaleString(locale, {
                       day: '2-digit',
                       month: 'short',
                       hour: '2-digit',
@@ -2048,32 +2051,32 @@ export default function ChannelDetailsScreen() {
                 <View style={styles.liveActionsRow}>
                   {liveSession.status === 'live' && canJoinLive ? (
                     <TouchableOpacity style={styles.liveJoinButton} onPress={() => void handleJoinLive()} disabled={liveBusy}>
-                      <Text style={styles.liveJoinButtonText}>Войти в эфир</Text>
+                      <Text style={styles.liveJoinButtonText}>Join live</Text>
                     </TouchableOpacity>
                   ) : null}
                   {liveSession.status === 'live' && canManageLive ? (
                     <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleEndLive()} disabled={liveBusy}>
-                      <Text style={styles.liveSecondaryButtonText}>Завершить</Text>
+                      <Text style={styles.liveSecondaryButtonText}>End</Text>
                     </TouchableOpacity>
                   ) : null}
                   {liveSession.status === 'scheduled' && canManageLive ? (
                     <>
                       <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleStartLive()} disabled={liveBusy}>
-                        <Text style={styles.livePrimaryButtonText}>Старт</Text>
+                        <Text style={styles.livePrimaryButtonText}>Start</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleCancelLive()} disabled={liveBusy}>
-                        <Text style={styles.liveSecondaryButtonText}>Отменить</Text>
+                        <Text style={styles.liveSecondaryButtonText}>Cancel</Text>
                       </TouchableOpacity>
                     </>
                   ) : null}
                 </View>
                 {!canJoinLive ? (
-                  <Text style={styles.liveHint}>Подпишитесь на канал, чтобы смотреть эфир.</Text>
+                  <Text style={styles.liveHint}>Follow the channel to watch live streams.</Text>
                 ) : null}
                 {canManageLive && liveSession.status === 'live' ? (
                   <View style={styles.liveParticipantsSection}>
                     <View style={styles.liveParticipantsHeader}>
-                      <Text style={styles.liveParticipantsTitle}>Участники эфира</Text>
+                      <Text style={styles.liveParticipantsTitle}>Live participants</Text>
                       {liveParticipantsLoading ? (
                         <ActivityIndicator size="small" color={colors.accent} />
                       ) : (
@@ -2082,20 +2085,20 @@ export default function ChannelDetailsScreen() {
                           onPress={() => void loadLiveParticipants()}
                           disabled={liveParticipantsLoading}
                         >
-                          <Text style={styles.liveParticipantsRefreshText}>Обновить</Text>
+                          <Text style={styles.liveParticipantsRefreshText}>Refresh</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                     {(liveParticipants || []).length === 0 ? (
-                      <Text style={styles.liveHintSecondary}>Пока нет подключенных участников.</Text>
+                      <Text style={styles.liveHintSecondary}>No connected participants yet.</Text>
                     ) : (
                       (liveParticipants || []).slice(0, 20).map((participant) => {
                         const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
                         const metaParts = [
-                          participant.isActive ? 'онлайн' : 'офлайн',
+                          participant.isActive ? 'online' : 'offline',
                           participant.isMuted ? 'mute' : null,
                           participant.isBlocked ? 'blocked' : null,
-                          `входов: ${Math.max(0, Number(participant.joinCount) || 0)}`,
+                          `joins: ${Math.max(0, Number(participant.joinCount) || 0)}`,
                         ].filter(Boolean);
                         const busy = liveModerationBusyUserId === participant.userId;
                         return (
@@ -2119,13 +2122,13 @@ export default function ChannelDetailsScreen() {
               </View>
             ) : (
               <View style={styles.liveCard}>
-                <Text style={styles.liveHint}>Сейчас нет активного эфира</Text>
+                <Text style={styles.liveHint}>No active live stream now</Text>
                 {canManageLive ? (
                   <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleCreateLive()} disabled={liveBusy}>
-                    <Text style={styles.livePrimaryButtonText}>Анонсировать эфир</Text>
+                    <Text style={styles.livePrimaryButtonText}>Schedule live</Text>
                   </TouchableOpacity>
                 ) : (
-                  <Text style={styles.liveHintSecondary}>Скоро здесь появятся анонсы эфиров</Text>
+                  <Text style={styles.liveHintSecondary}>Live announcements will appear here soon</Text>
                 )}
               </View>
             )}
@@ -2136,21 +2139,21 @@ export default function ChannelDetailsScreen() {
           <View style={styles.roadmapSection}>
             <View style={styles.roadmapHeader}>
               <View style={styles.roadmapHeaderTextWrap}>
-                <Text style={styles.roadmapTitle}>Дорожная карта</Text>
-                <Text style={styles.roadmapSubtitle}>Где был, где сейчас, куда направляется дальше</Text>
+                <Text style={styles.roadmapTitle}>Roadmap</Text>
+                <Text style={styles.roadmapSubtitle}>Where they were, where they are now, and where they go next</Text>
               </View>
               {roadmapLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
 
             {visibleRoadmapTimeline.length === 0 ? (
               <View style={styles.roadmapEmptyWrap}>
-                <Text style={styles.roadmapEmptyText}>Маршрут пока не заполнен</Text>
+                <Text style={styles.roadmapEmptyText}>Route is not filled yet</Text>
                 {canManageRoadmap ? (
                   <TouchableOpacity
                     style={styles.roadmapManageButton}
                     onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
                   >
-                    <Text style={styles.roadmapManageButtonText}>Добавить первую точку</Text>
+                    <Text style={styles.roadmapManageButtonText}>Add first point</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -2190,7 +2193,7 @@ export default function ChannelDetailsScreen() {
                         </View>
                       </View>
                       <Text style={styles.roadmapLocationText} numberOfLines={2}>
-                        {[point.city, point.address].filter(Boolean).join(', ') || 'Локация уточняется'}
+                        {[point.city, point.address].filter(Boolean).join(', ') || 'Location pending'}
                       </Text>
                       {point.eventAt ? (
                         <Text style={styles.roadmapEventText}>
@@ -2210,14 +2213,14 @@ export default function ChannelDetailsScreen() {
                           style={styles.roadmapOpenMapButton}
                           onPress={() => void openRoadmapPointOnMap(point)}
                         >
-                          <Text style={styles.roadmapOpenMapButtonText}>Открыть на карте</Text>
+                          <Text style={styles.roadmapOpenMapButtonText}>Open on map</Text>
                         </TouchableOpacity>
                         {canManageRoadmap ? (
                           <TouchableOpacity
                             style={styles.roadmapEditInlineButton}
                             onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga', pointId: point.id })}
                           >
-                            <Text style={styles.roadmapEditInlineButtonText}>Редактировать</Text>
+                            <Text style={styles.roadmapEditInlineButtonText}>Edit</Text>
                           </TouchableOpacity>
                         ) : null}
                       </View>
@@ -2232,7 +2235,7 @@ export default function ChannelDetailsScreen() {
                 style={styles.roadmapManageButton}
                 onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
               >
-                <Text style={styles.roadmapManageButtonText}>Редактировать маршрут</Text>
+                <Text style={styles.roadmapManageButtonText}>Edit route</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -2241,47 +2244,47 @@ export default function ChannelDetailsScreen() {
         {canViewPreacherAnalytics && (!isSadhuSangaMode || activeSadhuSection === 'overview') ? (
           <View style={styles.preacherAnalyticsSection}>
             <View style={styles.preacherAnalyticsHeader}>
-              <Text style={styles.preacherAnalyticsTitle}>Аналитика</Text>
+              <Text style={styles.preacherAnalyticsTitle}>Analytics</Text>
               {preacherAnalyticsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             <View style={styles.preacherAnalyticsStatsGrid}>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
-                  {Math.max(0, Number(preacherAnalytics?.totalLectureViews) || 0).toLocaleString('ru-RU')}
+                  {Math.max(0, Number(preacherAnalytics?.totalLectureViews) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Просмотры лекций</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Lecture views</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
-                  {Math.max(0, Number(preacherAnalytics?.seminarRegistrations) || 0).toLocaleString('ru-RU')}
+                  {Math.max(0, Number(preacherAnalytics?.seminarRegistrations) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Регистрации на семинары</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Seminar registrations</Text>
               </View>
             </View>
             <View style={styles.preacherAnalyticsStatsGrid}>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
-                  {Math.max(0, Number(preacherAnalytics?.liveSessionsTotal) || 0).toLocaleString('ru-RU')}
+                  {Math.max(0, Number(preacherAnalytics?.liveSessionsTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Live-сессии</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Live sessions</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
-                  {Math.max(0, Number(preacherAnalytics?.liveUniqueViewersTotal) || 0).toLocaleString('ru-RU')}
+                  {Math.max(0, Number(preacherAnalytics?.liveUniqueViewersTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Уникальные зрители</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Unique viewers</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
-                  {Math.max(0, Number(preacherAnalytics?.liveWatchMinutesTotal) || 0).toLocaleString('ru-RU')}
+                  {Math.max(0, Number(preacherAnalytics?.liveWatchMinutesTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Минуты просмотра</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>Watch minutes</Text>
               </View>
             </View>
             <View style={styles.preacherAnalyticsCitiesWrap}>
-              <Text style={styles.preacherAnalyticsCitiesTitle}>Активные города</Text>
+              <Text style={styles.preacherAnalyticsCitiesTitle}>Active cities</Text>
               {(preacherAnalytics?.activeCities || []).length === 0 ? (
-                <Text style={styles.preacherAnalyticsCitiesEmpty}>Пока недостаточно данных по городам</Text>
+                <Text style={styles.preacherAnalyticsCitiesEmpty}>Not enough city data yet</Text>
               ) : (
                 <View style={styles.preacherAnalyticsCitiesList}>
                   {(preacherAnalytics?.activeCities || []).map((city) => (
@@ -2299,19 +2302,19 @@ export default function ChannelDetailsScreen() {
         {isSadhuSangaMode && showSadhuQuestions ? (
           <View style={styles.preacherQuestionsSection}>
             <View style={styles.preacherQuestionsHeader}>
-              <Text style={styles.preacherQuestionsTitle}>Вопросы</Text>
+              <Text style={styles.preacherQuestionsTitle}>Questions</Text>
               {preacherQuestionsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             {visibleQuestions.length === 0 ? (
-              <Text style={styles.preacherQuestionsEmpty}>Пока нет вопросов для голосования</Text>
+              <Text style={styles.preacherQuestionsEmpty}>No questions for voting yet</Text>
             ) : (
               <View style={styles.preacherQuestionsList}>
                 {visibleQuestions.map((question) => (
                   <View key={`preacher-question-${question.id}`} style={styles.preacherQuestionCard}>
-                    <Text style={styles.preacherQuestionSubject} numberOfLines={1}>{question.subject || 'Вопрос к проповеднику'}</Text>
-                    <Text style={styles.preacherQuestionExcerpt} numberOfLines={2}>{question.excerpt || 'Описание вопроса недоступно'}</Text>
+                    <Text style={styles.preacherQuestionSubject} numberOfLines={1}>{question.subject || 'Question to preacher'}</Text>
+                    <Text style={styles.preacherQuestionExcerpt} numberOfLines={2}>{question.excerpt || 'Question description is unavailable'}</Text>
                     <View style={styles.preacherQuestionBottomRow}>
-                      <Text style={styles.preacherQuestionVotes}>Голосов: {Math.max(0, Number(question.voteCount) || 0)}</Text>
+                      <Text style={styles.preacherQuestionVotes}>Votes: {Math.max(0, Number(question.voteCount) || 0)}</Text>
                       <TouchableOpacity
                         style={[
                           styles.preacherQuestionVoteButton,
@@ -2328,7 +2331,7 @@ export default function ChannelDetailsScreen() {
                             question.myVote && styles.preacherQuestionVoteTextActive,
                           ]}
                         >
-                          {question.myVote ? 'Вы поддержали' : 'Поддержать'}
+                          {question.myVote ? 'You supported' : 'Support'}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -2347,11 +2350,11 @@ export default function ChannelDetailsScreen() {
             }}
           >
             <View style={styles.preacherSeminarsHeader}>
-              <Text style={styles.preacherSeminarsTitle}>Семинары</Text>
+              <Text style={styles.preacherSeminarsTitle}>Seminars</Text>
               {preacherSeminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             {visibleSeminars.length === 0 ? (
-              <Text style={styles.preacherSeminarsEmpty}>Пока нет анонсированных семинаров</Text>
+              <Text style={styles.preacherSeminarsEmpty}>No announced seminars yet</Text>
             ) : (
               <View style={styles.preacherSeminarsList}>
                 {visibleSeminars.map((item) => (
@@ -2362,13 +2365,13 @@ export default function ChannelDetailsScreen() {
                     </View>
                     <Text style={styles.preacherSeminarDate}>
                       {item.nextAt
-                        ? item.nextAt.toLocaleString('ru-RU', {
+                        ? item.nextAt.toLocaleString(locale, {
                           day: '2-digit',
                           month: 'short',
                           hour: '2-digit',
                           minute: '2-digit',
                         })
-                        : 'Дата уточняется'}
+                        : 'Date pending'}
                     </Text>
                     <Text style={styles.preacherSeminarVenue} numberOfLines={1}>{item.venueLabel}</Text>
                     <View style={styles.preacherSeminarActionsRow}>
@@ -2376,14 +2379,14 @@ export default function ChannelDetailsScreen() {
                         style={styles.preacherSeminarBookButton}
                         onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
                       >
-                        <Text style={styles.preacherSeminarBookButtonText}>Записаться</Text>
+                        <Text style={styles.preacherSeminarBookButtonText}>Book</Text>
                       </TouchableOpacity>
                       {item.service.channel === 'offline' ? (
                         <TouchableOpacity
                           style={styles.preacherSeminarRouteButton}
                           onPress={() => void handleOpenSeminarRoute(item.service)}
                         >
-                          <Text style={styles.preacherSeminarRouteButtonText}>Маршрут</Text>
+                          <Text style={styles.preacherSeminarRouteButtonText}>Route</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -2397,7 +2400,7 @@ export default function ChannelDetailsScreen() {
         {!isSadhuSangaMode ? (
         <View style={styles.storiesSection}>
           <View style={styles.storiesHeaderRow}>
-            <Text style={styles.storiesTitle}>Кружки канала</Text>
+            <Text style={styles.storiesTitle}>Channel circles</Text>
             {storiesLoading ? (
               <ActivityIndicator size="small" color={colors.accent} />
             ) : (
@@ -2427,14 +2430,14 @@ export default function ChannelDetailsScreen() {
               ))}
             </View>
           ) : (
-            <Text style={styles.storiesEmpty}>Пока нет активных кружков</Text>
+            <Text style={styles.storiesEmpty}>No active circles yet</Text>
           )}
 
           <TouchableOpacity
             style={styles.storiesAction}
             onPress={() => navigation.navigate('VideoCirclesScreen', { channelId })}
           >
-            <Text style={styles.storiesActionText}>Открыть все кружки канала</Text>
+            <Text style={styles.storiesActionText}>Open all channel circles</Text>
           </TouchableOpacity>
         </View>
         ) : null}
@@ -2445,7 +2448,7 @@ export default function ChannelDetailsScreen() {
             onPress={() => setIncludeDraft(prev => !prev)}
           >
             <Text style={styles.draftsToggleText}>
-              {includeDraft ? 'Показываются черновики' : 'Показывать только опубликованные'}
+              {includeDraft ? 'Drafts are shown' : 'Show only published'}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -2453,7 +2456,7 @@ export default function ChannelDetailsScreen() {
         {!isSadhuSangaMode && showcases.length > 0 ? (
           <View style={styles.showcasesSection}>
             <View style={styles.showcasesHeaderRow}>
-              <Text style={styles.showcasesTitle}>Витрины</Text>
+              <Text style={styles.showcasesTitle}>Showcases</Text>
               {showcaseLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
 
@@ -2485,7 +2488,7 @@ export default function ChannelDetailsScreen() {
                         ))}
                       </View>
                     ) : (
-                      <Text style={styles.showcaseEmptyText}>Пока нет доступных услуг в этой витрине</Text>
+                      <Text style={styles.showcaseEmptyText}>No available services in this showcase yet</Text>
                     )}
                   </View>
                 );
@@ -2517,7 +2520,7 @@ export default function ChannelDetailsScreen() {
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.showcaseEmptyText}>Пока нет доступных товаров в этой витрине</Text>
+                    <Text style={styles.showcaseEmptyText}>No available products in this showcase yet</Text>
                   )}
                 </View>
               );
@@ -2535,8 +2538,8 @@ export default function ChannelDetailsScreen() {
         <View style={styles.listContent}>
           {visiblePosts.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Постов пока нет</Text>
-              <Text style={styles.emptySubtitle}>Создайте первую публикацию в канале</Text>
+              <Text style={styles.emptyTitle}>No posts yet</Text>
+              <Text style={styles.emptySubtitle}>Create the first channel post</Text>
             </View>
           ) : (
             visiblePosts.map((item) => (
@@ -2550,7 +2553,7 @@ export default function ChannelDetailsScreen() {
               style={styles.preacherSeminarMoreButton}
               onPress={() => setActiveSadhuSection('posts')}
             >
-              <Text style={styles.preacherSeminarMoreText}>Показать все посты</Text>
+              <Text style={styles.preacherSeminarMoreText}>Show all posts</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -2570,13 +2573,13 @@ export default function ChannelDetailsScreen() {
             >
               <View style={styles.commentsSheet}>
               <View style={styles.commentsHeader}>
-                <Text style={styles.commentsTitle}>Комментарии</Text>
+                <Text style={styles.commentsTitle}>Comments</Text>
                 <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
-                  <Text style={styles.commentsCloseText}>Закрыть</Text>
+                  <Text style={styles.commentsCloseText}>Close</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.commentsSubtitle}>
-                {commentsSheetPost?.channel?.title || `Канал #${commentsSheetPost?.channelId || ''}`}
+                {commentsSheetPost?.channel?.title || `Channel #${commentsSheetPost?.channelId || ''}`}
               </Text>
 
               {commentsSheetLoading && commentsSheetItems.length === 0 ? (
@@ -2598,11 +2601,11 @@ export default function ChannelDetailsScreen() {
                       <Text style={styles.commentBody}>{item.body}</Text>
                     </View>
                   )}
-                  ListEmptyComponent={<Text style={styles.commentsEmpty}>Комментариев пока нет</Text>}
+                  ListEmptyComponent={<Text style={styles.commentsEmpty}>No comments yet</Text>}
                   ListFooterComponent={
                     commentsSheetCursor ? (
                       <TouchableOpacity style={styles.moreCommentsBtn} onPress={loadMoreComments}>
-                        <Text style={styles.moreCommentsText}>Загрузить еще</Text>
+                        <Text style={styles.moreCommentsText}>Load more</Text>
                       </TouchableOpacity>
                     ) : null
                   }
@@ -2613,7 +2616,7 @@ export default function ChannelDetailsScreen() {
                 <TextInput
                   value={commentsSheetText}
                   onChangeText={setCommentsSheetText}
-                  placeholder="Написать комментарий..."
+                  placeholder="Write a comment..."
                   placeholderTextColor={colors.textSecondary}
                   style={styles.commentInput}
                   editable={!commentsSheetSubmitting}
@@ -2623,7 +2626,7 @@ export default function ChannelDetailsScreen() {
                   onPress={() => void submitComment()}
                   disabled={commentsSheetSubmitting}
                 >
-                  {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
+                  {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Send</Text>}
                 </TouchableOpacity>
               </View>
               </View>

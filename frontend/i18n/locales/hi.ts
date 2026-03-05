@@ -1749,6 +1749,359 @@ export default {
                 "createFailed": "चैनल नहीं बन सका"
             }
         },
+        "channelPostComposer": {
+            "header": {
+                "editTitle": "पोस्ट संपादित करें",
+                "createTitle": "नई पोस्ट"
+            },
+            "ctaTypes": {
+                "none": "CTA नहीं",
+                "order_products": "उत्पाद ऑर्डर",
+                "book_service": "सेवा बुकिंग"
+            },
+            "ctaPlaceholders": {
+                "bookService": "{\"serviceId\": 123}",
+                "orderProducts": "{\"shopId\": 10, \"items\": [{\"productId\": 1, \"quantity\": 1}], \"buyerNote\": \"यज्ञ के नाम\"}"
+            },
+            "form": {
+                "postText": "पोस्ट टेक्स्ट",
+                "postTextPlaceholder": "पोस्ट का टेक्स्ट लिखें...",
+                "photos": "फ़ोटो {{current}}/{{max}}",
+                "photosHint": "अधिकतम {{count}} फ़ोटो जोड़ें। सर्वर उन्हें 4:5 फ़ॉर्मेट में बदल देगा।",
+                "circles": "सर्कल {{current}}/{{max}}",
+                "circlesHint": "आप अपने चैनल के अधिकतम {{count}} सर्कल संलग्न कर सकते हैं।",
+                "choose": "चुनें",
+                "cta": "CTA",
+                "ctaPayload": "CTA payload (JSON)",
+                "deliverPersonallyTitle": "पेड सब्सक्राइबरों को व्यक्तिगत रूप से भेजें",
+                "deliverPersonallySubtitle": "पोस्ट चैनल + push + हर सदस्य को निजी संदेश में जाएगी",
+                "scheduleLabel": "शेड्यूल (ISO तारीख/समय)",
+                "schedulePreviewTitle": "निर्धारित प्रकाशन:",
+                "draftButton": "ड्राफ्ट",
+                "scheduleButton": "शेड्यूल करें",
+                "publishButton": "प्रकाशित करें",
+                "saveChangesButton": "परिवर्तन सहेजें",
+                "presets": {
+                    "plus1h": "+1 घंटा",
+                    "plus3h": "+3 घंटे",
+                    "tomorrow0900": "कल 09:00",
+                    "tomorrow1800": "कल 18:00"
+                }
+            },
+            "sheet": {
+                "title": "सर्कल चुनें",
+                "circleLabel": "सर्कल #{{id}}",
+                "empty": "इस चैनल में कोई सक्रिय सर्कल नहीं है।",
+                "createCircle": "सर्कल बनाएं"
+            },
+            "alerts": {
+                "channelNotFound": "चैनल नहीं मिला",
+                "postEditNotFound": "संपादन के लिए पोस्ट नहीं मिली",
+                "postNotFound": "पोस्ट नहीं मिली",
+                "loadPostFailed": "पोस्ट लोड नहीं हो सकी",
+                "invalidDate": "अमान्य तारीख",
+                "limitTitle": "सीमा",
+                "circlesLimit": "अधिकतम {{count}} सर्कल संलग्न किए जा सकते हैं",
+                "imagesLimit": "अधिकतम {{count}} फ़ोटो जोड़ी जा सकती हैं",
+                "uploadPhotoFailed": "फ़ोटो अपलोड नहीं हो सकी",
+                "addContentOrMedia": "टेक्स्ट या मीडिया जोड़ें",
+                "invalidScheduledDate": "निर्धारित प्रकाशन की तारीख अमान्य है",
+                "changesSaved": "परिवर्तन सहेज दिए गए",
+                "draftSaved": "ड्राफ्ट सहेज दिया गया",
+                "postPublished": "पोस्ट प्रकाशित हो गई",
+                "postScheduled": "पोस्ट शेड्यूल कर दी गई",
+                "savePostFailed": "पोस्ट सहेजी नहीं जा सकी"
+            }
+        },
+        "channelRoadmapManage": {
+            "headerTitle": "रोडमैप",
+            "channelFallback": "चैनल",
+            "pointsTitle": "मार्ग बिंदु",
+            "empty": "मार्ग अभी खाली है। नीचे पहला बिंदु जोड़ें।",
+            "locationMissing": "स्थान निर्दिष्ट नहीं है",
+            "setCurrent": "वर्तमान बनाएं",
+            "editPointTitle": "बिंदु संपादित करें",
+            "newPointTitle": "नया बिंदु",
+            "saveChanges": "परिवर्तन सहेजें",
+            "addPoint": "बिंदु जोड़ें",
+            "cancelEdit": "संपादन रद्द करें",
+            "status": {
+                "current": "अभी",
+                "past": "बीता",
+                "future": "आगामी"
+            },
+            "placeholders": {
+                "title": "बिंदु का नाम",
+                "city": "शहर",
+                "address": "पता या लोकेशन",
+                "eventAt": "ISO तारीख/समय (उदाहरण 2026-03-05T18:00:00+03:00)",
+                "note": "टिप्पणी"
+            },
+            "alerts": {
+                "accessDeniedTitle": "पहुंच सीमित",
+                "accessDeniedText": "केवल owner/admin/editor मार्ग संपादित कर सकते हैं।",
+                "loadFailed": "रोडमैप लोड नहीं हो सका",
+                "invalidDateDetailed": "अमान्य तारीख। ISO फ़ॉर्मेट का उपयोग करें (उदाहरण: 2026-03-05T18:00:00+03:00)",
+                "invalidTitle": "बिंदु का नाम दर्ज करें (कम से कम 2 अक्षर)।",
+                "invalidDate": "अमान्य तारीख",
+                "saveFailed": "बिंदु सहेजा नहीं जा सका",
+                "deleteTitle": "बिंदु हटाएं",
+                "deleteText": "रोडमैप से \"{{title}}\" हटाएं?",
+                "deleteFailed": "बिंदु हटाया नहीं जा सका",
+                "setCurrentFailed": "वर्तमान बिंदु अपडेट नहीं हो सका",
+                "reorderFailed": "बिंदु का क्रम बदलना विफल रहा"
+            }
+        },
+        "channelPreacherBioManage": {
+            "headerTitle": "प्रवचक की जीवनी",
+            "fields": {
+                "bio": "बायो",
+                "birthDate": "जन्म तिथि",
+                "birthPlace": "जन्म स्थान",
+                "departureDate": "प्रस्थान तिथि",
+                "organizationMath": "संगठन / मठ"
+            },
+            "toggle": {
+                "specify": "निर्दिष्ट करें",
+                "notSpecify": "निर्दिष्ट न करें"
+            },
+            "events": {
+                "title": "महत्वपूर्ण घटनाएँ",
+                "empty": "अभी कोई घटना नहीं है",
+                "eventIndex": "घटना #{{index}}"
+            },
+            "placeholders": {
+                "bio": "सेवा और मार्ग के बारे में संक्षेप में",
+                "birthPlace": "शहर, देश",
+                "selectDate": "तारीख चुनें",
+                "selectFromList": "सूची से चुनें",
+                "eventTitle": "घटना का शीर्षक",
+                "eventDate": "घटना की तारीख",
+                "description": "विवरण"
+            },
+            "modal": {
+                "title": "संगठन/मठ चुनें",
+                "searchPlaceholder": "सूची में खोजें",
+                "notSelected": "चयनित नहीं"
+            },
+            "alerts": {
+                "accessDeniedTitle": "पहुंच सीमित",
+                "accessDeniedText": "केवल owner/admin/editor बायो संपादित कर सकते हैं।",
+                "loadFailed": "बायो लोड नहीं हो सकी",
+                "dateFormat": "तारीख फ़ॉर्मेट YYYY-MM-DD का उपयोग करें",
+                "checkEventDates": "घटनाओं में तारीख फ़ॉर्मेट जांचें",
+                "checkDates": "तारीख फ़ॉर्मेट जांचें",
+                "savedTitle": "सहेजा गया",
+                "savedText": "जीवनी अपडेट हो गई है।",
+                "backendNotUpdatedTitle": "बैकएंड अपडेट नहीं है",
+                "backendNotUpdatedText": "वर्तमान सर्वर पर bio endpoint अभी उपलब्ध नहीं है। बैकएंड अपडेट करें और फिर प्रयास करें।",
+                "saveFailed": "बायो सहेजी नहीं जा सकी"
+            }
+        },
+        "channelManage": {
+            "headerTitle": "चैनल प्रबंधन",
+            "sections": {
+                "branding": "ब्रांडिंग",
+                "channelAccess": "चैनल एक्सेस",
+                "members": "चैनल सदस्य",
+                "showcases": "चैनल शोकेस"
+            },
+            "fields": {
+                "publicChannel": "सार्वजनिक चैनल",
+                "visibleForAll": "सभी को दिखाई देता है",
+                "membersOnly": "केवल सदस्य",
+                "showcaseType": "शोकेस प्रकार",
+                "filterMode": "फ़िल्टर मोड",
+                "builder": "बिल्डर",
+                "builtFilterJson": "बना हुआ filterJson"
+            },
+            "placeholders": {
+                "channelDescription": "चैनल विवरण",
+                "memberUserId": "जोड़ने के लिए User ID",
+                "memberSearch": "नाम, email या ID से खोजें",
+                "showcaseTitle": "शोकेस शीर्षक",
+                "customShowcaseKind": "या अपना kind (उदाहरण custom_window)",
+                "filterCategory": "category (उदाहरण books / yagya)",
+                "filterShopId": "shopId (वैकल्पिक)",
+                "filterServiceIds": "serviceIds कॉमा से, उदाहरण 10,11,12",
+                "filterProductIds": "productIds कॉमा से, उदाहरण 1,2,3",
+                "filterLimit": "limit (वैकल्पिक)",
+                "filterJson": "filterJson, उदाहरण {\"category\":\"books\"}",
+                "position": "स्थिति"
+            },
+            "coverPreview": {
+                "failed": "कवर लोड नहीं हुआ। फिर से अपलोड करें।",
+                "empty": "कवर अभी अपलोड नहीं है"
+            },
+            "actions": {
+                "uploadCover": "कवर अपलोड करें (16:9)",
+                "saveBranding": "ब्रांडिंग सहेजें",
+                "saveChannelSettings": "चैनल सेटिंग्स सहेजें",
+                "addMember": "सदस्य जोड़ें",
+                "toEditor": "editor बनाएं",
+                "toAdmin": "admin बनाएं",
+                "saveShowcase": "शोकेस सहेजें",
+                "addShowcase": "शोकेस जोड़ें"
+            },
+            "member": {
+                "idLabel": "ID {{id}}",
+                "noEmail": "कोई email नहीं",
+                "empty": "अभी कोई सदस्य नहीं"
+            },
+            "showcases": {
+                "editMode": "शोकेस संपादन मोड #{{id}}",
+                "active": "सक्रिय",
+                "hidden": "छिपा"
+            },
+            "showcaseKinds": {
+                "manual_products": "उत्पादों की मैनुअल सूची",
+                "products_by_category": "श्रेणी के अनुसार उत्पाद",
+                "manual_services": "सेवाओं की मैनुअल सूची",
+                "services_by_category": "श्रेणी के अनुसार सेवाएँ"
+            },
+            "readOnly": "चैनल शोकेस प्रबंधन के लिए पर्याप्त अनुमति नहीं है",
+            "alerts": {
+                "loadFailed": "चैनल सेटिंग्स लोड नहीं हो सकीं",
+                "brandingSaved": "चैनल ब्रांडिंग अपडेट हो गई",
+                "brandingSaveFailed": "ब्रांडिंग सहेजी नहीं जा सकी",
+                "imagePathMissing": "इमेज पाथ प्राप्त नहीं हो सका",
+                "coverUploaded": "कवर अपलोड हुआ और 16:9 में अपने आप फिट किया गया",
+                "coverUploadFailed": "कवर अपलोड नहीं हो सका",
+                "settingsSaved": "चैनल सेटिंग्स अपडेट हो गईं",
+                "settingsSaveFailed": "सेटिंग्स सहेजी नहीं जा सकीं",
+                "showcaseTitleRequired": "शोकेस का शीर्षक दर्ज करें",
+                "showcaseCategoryRequired": "श्रेणी वाले शोकेस के लिए category बताएं",
+                "showcaseProductIdsRequired": "manual_products के लिए productIds बताएं",
+                "showcaseServiceIdsRequired": "manual_services के लिए serviceIds बताएं",
+                "showcaseInvalidFilterJson": "filterJson मान्य JSON होना चाहिए",
+                "showcaseUpdated": "शोकेस अपडेट हो गई",
+                "showcaseAdded": "शोकेस जोड़ दी गई",
+                "showcaseSaveFailed": "शोकेस सहेजी नहीं जा सकी",
+                "showcaseReorderFailed": "शोकेस क्रम बदलना विफल रहा",
+                "showcaseUpdateFailed": "शोकेस अपडेट नहीं हो सकी",
+                "deleteShowcaseTitle": "शोकेस हटाएं?",
+                "showcaseDeleteFailed": "शोकेस हटाई नहीं जा सकी",
+                "memberRoleUpdateFailed": "भूमिका अपडेट नहीं हो सकी",
+                "deleteMemberTitle": "सदस्य हटाएं?",
+                "memberDeleteFailed": "सदस्य हटाया नहीं जा सका",
+                "memberInvalidUserId": "मान्य userId दर्ज करें",
+                "memberOwnerAssignForbidden": "सदस्य जोड़ते समय owner भूमिका असाइन नहीं की जा सकती",
+                "memberAddFailed": "सदस्य जोड़ना विफल रहा"
+            }
+        },
+        "createService": {
+            "header": {
+                "editTitle": "सेवा संपादित करें",
+                "createTitle": "नई रचना",
+                "editSubtitle": "अपनी सेवा का विवरण अपडेट करें",
+                "createSubtitle": "एक अनोखा प्रस्ताव बनाएं"
+            },
+            "sections": {
+                "mainInfo": "मुख्य जानकारी",
+                "tariffs": "टैरिफ ग्रिड"
+            },
+            "cover": {
+                "addCover": "कवर जोड़ें",
+                "recommended": "सुझाव: 1200x800px"
+            },
+            "fields": {
+                "serviceTitle": "आपकी सेवा का नाम",
+                "description": "विस्तृत विवरण",
+                "category": "उद्देश्य",
+                "channel": "संपर्क चैनल",
+                "accessType": "एक्सेस स्तर",
+                "channelLink": "चैनल लिंक",
+                "offlineAddress": "स्थान का पता"
+            },
+            "placeholders": {
+                "serviceTitle": "उदाहरण: ज्योतिष परामर्श",
+                "description": "अपने प्रस्ताव का सार बताएं...",
+                "offlineAddress": "शहर, सड़क, कक्ष...",
+                "tariffName": "टैरिफ नाम"
+            },
+            "accessTypes": {
+                "paid": "सशुल्क",
+                "free": "निःशुल्क",
+                "subscription": "सदस्यता",
+                "invite": "केवल आमंत्रण"
+            },
+            "tariffs": {
+                "defaultName": "स्टैंडर्ड",
+                "newTariffName": "टैरिफ {{index}}",
+                "priceLabel": "कीमत (₵)",
+                "durationLabel": "समय (मिनट)",
+                "sessionsLabel": "सेशन"
+            },
+            "alerts": {
+                "loadFailed": "सेवा लोड नहीं हो सकी",
+                "limitTitle": "सीमा",
+                "maxTariffs": "अधिकतम 5 टैरिफ",
+                "needOneTariff": "कम से कम एक टैरिफ आवश्यक है",
+                "enterTitle": "शीर्षक दर्ज करें",
+                "enterDescription": "विवरण दर्ज करें",
+                "enterAddress": "पता दर्ज करें",
+                "enterChannelLink": "चयनित चैनल के लिए लिंक दर्ज करें",
+                "enterTariffName": "टैरिफ #{{index}} का नाम दर्ज करें",
+                "enterTariffPrice": "टैरिफ #{{index}} की सही कीमत दर्ज करें",
+                "enterTariffDuration": "टैरिफ #{{index}} की अवधि दर्ज करें",
+                "enterTariffSessions": "टैरिफ #{{index}} के सेशन की संख्या दर्ज करें",
+                "savedTitle": "सहेजा गया!",
+                "createdTitle": "बन गया! 🎉",
+                "savedText": "परिवर्तन सफलतापूर्वक सहेजे गए",
+                "createdText": "अब शेड्यूल और स्लॉट सेट करें",
+                "saveFailed": "सहेजा नहीं जा सका"
+            }
+        },
+        "channelsHub": {
+            "headerTitle": "चैनल और फ़ीड",
+            "tabs": {
+                "feed": "फ़ीड",
+                "my": "मेरे चैनल"
+            },
+            "alerts": {
+                "updateSubscriptionFailed": "सदस्यता अपडेट नहीं हो सकी",
+                "loadCommentsFailed": "टिप्पणियाँ लोड नहीं हो सकीं",
+                "sendCommentFailed": "टिप्पणी भेजी नहीं जा सकी"
+            },
+            "share": {
+                "postFallback": "चैनल पोस्ट",
+                "channelLabel": "चैनल"
+            },
+            "postMenu": {
+                "title": "पोस्ट",
+                "actionsTitle": "पोस्ट कार्रवाइयाँ",
+                "editWindowClosed": "प्रकाशित पोस्ट का संपादन केवल पहले 24 घंटों में उपलब्ध है",
+                "unavailableTitle": "उपलब्ध नहीं",
+                "editWindowClosedForAuthor": "इस प्रकाशित पोस्ट के लिए लेखक का संपादन समय समाप्त हो चुका है।"
+            },
+            "circleLabel": "सर्कल #{{id}}",
+            "channelFallback": "चैनल #{{id}}",
+            "subscribed": "सदस्यता ली गई",
+            "subscribe": "सदस्यता लें",
+            "pinned": "पिन किया हुआ",
+            "postNoText": "कोई टेक्स्ट नहीं",
+            "followers": "अनुयायी: {{count}}",
+            "free": "मुफ़्त",
+            "promoted": "प्रोमो",
+            "visibility": {
+                "public": "सार्वजनिक",
+                "private": "निजी"
+            },
+            "channelDescriptionEmpty": "चैनल विवरण भरा नहीं गया है",
+            "empty": {
+                "feedTitle": "अभी कोई प्रकाशन नहीं",
+                "feedSubtitle": "पहली पोस्ट प्रकाशित होने के बाद फ़ीड दिखाई देगी",
+                "myTitle": "अभी आपके कोई चैनल नहीं हैं",
+                "mySubtitle": "चैनल बनाएं और पोस्ट प्रकाशित करना शुरू करें"
+            },
+            "comments": {
+                "title": "टिप्पणियाँ",
+                "empty": "अभी कोई टिप्पणी नहीं",
+                "loadMore": "और लोड करें",
+                "placeholder": "टिप्पणी लिखें...",
+                "send": "भेजें"
+            }
+        },
         "sadhuSangaProfile": {
             "subtitle": "अनुयायी प्रोफ़ाइल",
             "fallbackName": "साधक",
@@ -1768,6 +2121,121 @@ export default {
                 "button": "सेवा का समर्थन करें",
                 "alertTitle": "समर्थन",
                 "alertText": "दान सेक्शन अगले चरण में जोड़ा जाएगा।"
+            }
+        },
+        "sadhuSangaHub": {
+            "subtitle": "हर दिन प्रवचन, लाइव प्रसारण और जीवंत संग",
+            "searchPlaceholder": "प्रवचक खोजें",
+            "languageLabels": {
+                "ru": "रूसी",
+                "en": "अंग्रेज़ी",
+                "hi": "हिंदी"
+            },
+            "tags": {
+                "offline": "ऑफ़लाइन",
+                "online": "ऑनलाइन"
+            },
+            "addressPending": "पता अपडेट होना बाकी है",
+            "linkAfterBooking": "बुकिंग के बाद लिंक",
+            "alerts": {
+                "loadListFailed": "सूची लोड नहीं हो सकी",
+                "loadFacetsFailed": "फ़िल्टर लोड नहीं हो सके",
+                "loadSeminarsFailed": "सेमिनार लोड नहीं हो सके",
+                "updateSubscriptionFailed": "सदस्यता अपडेट नहीं हो सकी",
+                "joinLiveFailed": "लाइव से कनेक्ट नहीं हो सका"
+            },
+            "route": {
+                "title": "रूट",
+                "offlineOnly": "रूट केवल ऑफ़लाइन सेमिनारों के लिए उपलब्ध है।",
+                "addressMissing": "सेमिनार का पता अभी उपलब्ध नहीं है।",
+                "mapOpenFailed": "इस डिवाइस पर मैप नहीं खुल सका।",
+                "routeOpenFailed": "रूट नहीं खुल सका।"
+            },
+            "hero": {
+                "badge": "नई सेवा",
+                "title": "संवाद का स्थान",
+                "subtitle": "हर दिन प्रवचकों, प्रवचनों और जीवंत संवाद के और करीब रहें।",
+                "moreInfo": "और जानें",
+                "moreInfoText": "नीचे स्क्रॉल करें: लाइव, सेमिनार, प्रश्न और सदस्यताएं पहले से उपलब्ध हैं।"
+            },
+            "features": {
+                "title": "साधु संग की विशेषताएं",
+                "liveTitle": "लाइव प्रसारण",
+                "liveSub": "लाइव और रिकॉर्डिंग में देखें",
+                "seminarsTitle": "सेमिनार",
+                "seminarsSub": "आपके शहर में ऑनलाइन और ऑफ़लाइन",
+                "qaTitle": "प्रश्न-उत्तर",
+                "qaSub": "प्रवचक से अपना प्रश्न पूछें",
+                "scheduleTitle": "शेड्यूल",
+                "scheduleSub": "आपके फ़िल्टर के अनुसार नोटिफिकेशन",
+                "liveEmpty": "अभी कोई सक्रिय लाइव नहीं है। नीचे निर्धारित प्रसारण देखें।",
+                "seminarsEmpty": "निकटतम सेमिनार जल्द यहाँ दिखेंगे।",
+                "qaEmpty": "पहले कैटलॉग में कोई प्रवचक चुनें।"
+            },
+            "inlineFilters": {
+                "city": "शहर",
+                "language": "भाषा",
+                "topic": "विषय"
+            },
+            "live": {
+                "title": "लाइव प्रसारण",
+                "empty": "जल्द ही यहाँ प्रवचकों के लाइव प्रसारण दिखेंगे",
+                "watch": "लाइव देखें",
+                "fallback": "लाइव",
+                "alertTitle": "लाइव प्रसारण",
+                "notActive": "अभी लाइव सक्रिय नहीं है।",
+                "subscriptionRequiredTitle": "सदस्यता आवश्यक",
+                "subscriptionRequiredText": "लाइव देखने के लिए प्रवचक को फॉलो करें।",
+                "badges": {
+                    "live": "लाइव • {{code}}",
+                    "scheduled": "निर्धारित • {{code}}"
+                }
+            },
+            "seminars": {
+                "title": "निकटतम सेमिनार",
+                "onlyWithDate": "केवल तारीख वाले",
+                "empty": "फिलहाल कोई निकटतम सेमिनार नहीं",
+                "datePending": "तारीख अपडेट होना बाकी है",
+                "book": "बुक करें",
+                "route": "रूट"
+            },
+            "recommended": {
+                "title": "आपके लिए सुझाव",
+                "subtitle": "व्यक्तिगत चयन",
+                "descriptionFallback": "लाइव और सेमिनार देखने के लिए चैनल से जुड़ें।",
+                "open": "खोलें"
+            },
+            "channelCard": {
+                "subscribed": "सदस्यता ली गई",
+                "subscribe": "सदस्यता लें",
+                "descriptionFallback": "विवरण अभी भरा नहीं गया है",
+                "followers": "अनुयायी: {{count}}",
+                "question": "प्रश्न",
+                "seminars": "सेमिनार"
+            },
+            "preachers": {
+                "searchResults": "खोज परिणाम",
+                "title": "प्रवचक",
+                "found": "मिले · {{count}}",
+                "all": "सभी · {{count}}"
+            },
+            "mathHint": {
+                "title": "प्रोफ़ाइल में अपना मठ सेट करें",
+                "subtitle": "अपनी परंपरा के अनुशंसित प्रवचक देखने के लिए प्रोफ़ाइल में “मेरा मठ” भरें।"
+            },
+            "empty": {
+                "listEmpty": "सूची अभी खाली है",
+                "notFound": "प्रवचक नहीं मिले",
+                "fillMath": "प्रोफ़ाइल में “मेरा मठ” भरें या उन्नत मोड चालू करें।",
+                "tryFilters": "खोज फ़िल्टर बदलकर देखें"
+            },
+            "facetPicker": {
+                "selectCity": "शहर चुनें",
+                "selectLanguage": "भाषा चुनें",
+                "selectTopic": "विषय चुनें",
+                "all": "सभी",
+                "myCity": "मेरा शहर: {{city}}",
+                "empty": "अभी कोई उपलब्ध मान नहीं है"
             }
         },
         "sadhuSangaSchedule": {
@@ -1805,6 +2273,60 @@ export default {
             },
             "alerts": {
                 "loadFailed": "शेड्यूल लोड नहीं हो सका"
+            }
+        },
+        "sadhuSangaSmartPush": {
+            "headerTitle": "स्मार्ट पुश",
+            "headerSubtitle": "शहर, विषय और समय के अनुसार नोटिफिकेशन सेट करें",
+            "languageLabels": {
+                "ru": "रूसी",
+                "en": "अंग्रेज़ी",
+                "hi": "हिंदी"
+            },
+            "common": {
+                "enabled": "चालू",
+                "disabled": "बंद"
+            },
+            "notificationsMode": {
+                "title": "नोटिफिकेशन मोड",
+                "hint": "बंद करने पर प्रवचन और लाइव प्रसारण की सूचनाएं नहीं आएंगी।"
+            },
+            "audienceFilters": {
+                "title": "ऑडियंस फ़िल्टर",
+                "city": "शहर",
+                "language": "भाषा",
+                "topics": "विषय",
+                "topicsSelected": "चुने गए विषय: {{count}}"
+            },
+            "reminders": {
+                "title": "रिमाइंडर",
+                "oneHour": "1 घंटा पहले",
+                "tenMinutes": "10 मिनट पहले",
+                "hint": "सेवा केवल आपके चुने हुए फ़िल्टर के लिए रिमाइंडर भेजेगी।"
+            },
+            "timeWindow": {
+                "title": "समय विंडो",
+                "to": "से",
+                "timezonePlaceholder": "टाइमज़ोन (उदाहरण Europe/Moscow)"
+            },
+            "cta": {
+                "save": "सेटिंग्स सहेजें",
+                "saving": "सहेजा जा रहा है..."
+            },
+            "facetPicker": {
+                "selectCity": "शहर चुनें",
+                "selectLanguage": "भाषा चुनें",
+                "selectTopics": "विषय चुनें",
+                "search": "खोजें",
+                "all": "सभी",
+                "allTopics": "सभी विषय",
+                "myCity": "मेरा शहर: {{city}}",
+                "empty": "अभी कोई उपलब्ध मान नहीं है"
+            },
+            "alerts": {
+                "loadFailed": "पुश सेटिंग्स लोड नहीं हो सकीं",
+                "saved": "नोटिफिकेशन सेटिंग्स सहेज दी गई हैं।",
+                "saveFailed": "पुश सेटिंग्स सहेजी नहीं जा सकीं"
             }
         },
         "sadhuSangaLive": {

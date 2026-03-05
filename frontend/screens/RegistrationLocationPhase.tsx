@@ -40,7 +40,7 @@ export const RegistrationLocationPhase: React.FC<Props> = ({ navigation, route }
         try {
             setLoading(true);
 
-            // Получаем текущего пользователя
+            // Read current user from local storage
             const userStr = await AsyncStorage.getItem('user');
             if (!userStr) {
                 Alert.alert('Error', 'User not found. Please login first.');
@@ -53,7 +53,7 @@ export const RegistrationLocationPhase: React.FC<Props> = ({ navigation, route }
                 return;
             }
 
-            // Обновляем только локацию
+            // Update only location fields
             const locationData: LocationData = {
                 country,
                 city,
@@ -68,7 +68,7 @@ export const RegistrationLocationPhase: React.FC<Props> = ({ navigation, route }
 
             await AsyncStorage.setItem('user', JSON.stringify(response.user));
 
-            // Переходим к следующему этапу (profile или в приложение)
+            // Move to the next step (profile or app)
             Alert.alert(
                 'Location Saved',
                 'Your location has been saved successfully!',

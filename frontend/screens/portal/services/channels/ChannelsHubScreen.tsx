@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import {
@@ -111,9 +112,11 @@ const isAuthorEditAllowed = (post: ChannelPost): boolean => {
 
 export default function ChannelsHubScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const { colors, roleTheme } = useRoleTheme(user?.role, true);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
   const [activeTab, setActiveTab] = useState<HubTab>('feed');
 
@@ -340,9 +343,9 @@ export default function ChannelsHubScreen() {
         return;
       }
       setFollowStateByChannel(prev => ({ ...prev, [channelId]: current }));
-      Alert.alert('Ошибка', 'Не удалось обновить подписку');
+      Alert.alert(t('common.error'), t('portal.channelsHub.alerts.updateSubscriptionFailed'));
     }
-  }, [user?.ID]);
+  }, [t, user?.ID]);
 
   const getPostStats = useCallback((post: ChannelPost) => {
     const stats = post.stats;
@@ -410,11 +413,11 @@ export default function ChannelsHubScreen() {
       if (!append) {
         setCommentsSheetItems([]);
       }
-      Alert.alert('Ошибка', 'Не удалось загрузить комментарии');
+      Alert.alert(t('common.error'), t('portal.channelsHub.alerts.loadCommentsFailed'));
     } finally {
       setCommentsSheetLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const openComments = useCallback((post: ChannelPost) => {
     setCommentsSheetPost(post);
@@ -474,11 +477,11 @@ export default function ChannelsHubScreen() {
         const stats = getPostStats(current);
         return { ...current, commentCount: Math.max(0, stats.comments - 1) };
       });
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось отправить комментарий');
+      Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.channelsHub.alerts.sendCommentFailed'));
     } finally {
       setCommentsSheetSubmitting(false);
     }
-  }, [commentsSheetPost, commentsSheetSubmitting, commentsSheetText, getPostStats, patchFeedPost, user]);
+  }, [commentsSheetPost, commentsSheetSubmitting, commentsSheetText, getPostStats, patchFeedPost, t, user]);
 
   const loadMoreComments = useCallback(() => {
     if (!commentsSheetPost || !commentsSheetCursor || commentsSheetLoading) {
@@ -490,7 +493,7 @@ export default function ChannelsHubScreen() {
   const sharePost = useCallback(async (post: ChannelPost) => {
     try {
       await Share.share({
-        message: `${post.content || 'Пост в канале'}\n\nКанал: ${post.channel?.title || `#${post.channelId}`}`,
+        message: `${post.content || t('portal.channelsHub.share.postFallback')}\n\n${t('portal.channelsHub.share.channelLabel')}: ${post.channel?.title || `#${post.channelId}`}`,
       });
       patchFeedPost(post.ID, current => {
         const stats = getPostStats(current);
@@ -498,18 +501,23 @@ export default function ChannelsHubScreen() {
       });
       await channelService.trackShare(post.channelId, post.ID);
     } catch {
-      // no-op: пользователь мог отменить share sheet
+      // no-op: user may cancel share sheet
     }
-  }, [getPostStats, patchFeedPost]);
+  }, [getPostStats, patchFeedPost, t]);
 
   const openPostMenu = useCallback((post: ChannelPost) => {
     const editable = isAuthorEditAllowed(post);
-    Alert.alert('Пост', editable ? 'Действия с постом' : 'Редактирование опубликованного поста доступно только в первые 24 часа', [
+    Alert.alert(
+      t('portal.channelsHub.postMenu.title'),
+      editable
+        ? t('portal.channelsHub.postMenu.actionsTitle')
+        : t('portal.channelsHub.postMenu.editWindowClosed'),
+      [
       {
-        text: 'Редактировать',
+        text: t('common.edit'),
         onPress: () => {
           if (!editable) {
-            Alert.alert('Недоступно', 'Для автора окно редактирования опубликованного поста уже закрыто.');
+            Alert.alert(t('portal.channelsHub.postMenu.unavailableTitle'), t('portal.channelsHub.postMenu.editWindowClosedForAuthor'));
             return;
           }
           navigation.navigate('ChannelPostComposer', {
@@ -521,11 +529,11 @@ export default function ChannelsHubScreen() {
         },
       },
       {
-        text: 'Отмена',
+        text: t('common.cancel'),
         style: 'cancel',
       },
     ]);
-  }, [navigation]);
+  }, [navigation, t]);
 
   const renderMediaBlock = useCallback((post: ChannelPost) => {
     const media = parsePostMedia(post.mediaJson);
@@ -560,7 +568,7 @@ export default function ChannelsHubScreen() {
                 style={styles.circleCard}
                 onPress={() =>
                   navigation.navigate('VideoPlayer', {
-                    video: { uri: item.mediaUrl, title: `Кружок #${item.id}` },
+                    video: { uri: item.mediaUrl, title: t('portal.channelsHub.circleLabel', { id: item.id }) },
                     source: 'video_circles',
                     circle: {
                       id: item.id,
@@ -584,14 +592,14 @@ export default function ChannelsHubScreen() {
                     <Video size={15} color={colors.textSecondary} />
                   </View>
                 )}
-                <Text style={styles.circleLabel}>Кружок #{item.id}</Text>
+                <Text style={styles.circleLabel}>{t('portal.channelsHub.circleLabel', { id: item.id })}</Text>
               </TouchableOpacity>
             )}
           />
         ) : null}
       </View>
     );
-  }, [colors.textSecondary, navigation, styles.circleCard, styles.circleLabel, styles.circleThumb, styles.circleThumbFallback, styles.mediaBlock, styles.mediaRow, styles.postImage]);
+  }, [colors.textSecondary, navigation, styles.circleCard, styles.circleLabel, styles.circleThumb, styles.circleThumbFallback, styles.mediaBlock, styles.mediaRow, styles.postImage, t]);
 
   const renderFeedPost = (item: ChannelPost) => {
     const ctaLabel = getChannelPostCtaLabel(item);
@@ -618,7 +626,7 @@ export default function ChannelsHubScreen() {
           <View style={styles.postHeaderLeft}>
             <Radio size={16} color={colors.accent} />
             <Text style={styles.postChannelName} numberOfLines={1}>
-              {item.channel?.title || `Канал #${item.channelId}`}
+              {item.channel?.title || t('portal.channelsHub.channelFallback', { id: item.channelId })}
             </Text>
           </View>
           <View style={styles.postHeaderRight}>
@@ -628,14 +636,14 @@ export default function ChannelsHubScreen() {
                 onPress={() => void toggleFollow(channelId, followState)}
               >
                 <Text style={[styles.followButtonText, followState.isFollowing && styles.followButtonTextActive]}>
-                  {followState.isFollowing ? 'Подписан' : 'Подписаться'}
+                  {followState.isFollowing ? t('portal.channelsHub.subscribed') : t('portal.channelsHub.subscribe')}
                 </Text>
               </TouchableOpacity>
             ) : null}
             {item.isPinned ? (
               <View style={styles.pinnedBadge}>
                 <Pin size={12} color={colors.accent} />
-                <Text style={styles.pinnedText}>Закреп</Text>
+                <Text style={styles.pinnedText}>{t('portal.channelsHub.pinned')}</Text>
               </View>
             ) : null}
             {isAuthor ? (
@@ -652,11 +660,11 @@ export default function ChannelsHubScreen() {
         </View>
 
         <Text style={styles.postContent} numberOfLines={4}>
-          {item.content || 'Без текста'}
+          {item.content || t('portal.channelsHub.postNoText')}
         </Text>
         {canFollow ? (
           <Text style={styles.followersHint} onPress={() => void hydrateFollowStatus(channelId)}>
-            Подписчиков: {followState.followersCount}
+            {t('portal.channelsHub.followers', { count: followState.followersCount })}
           </Text>
         ) : null}
 
@@ -664,7 +672,7 @@ export default function ChannelsHubScreen() {
 
         <View style={styles.postFooter}>
           <Text style={styles.postDate}>
-            {new Date(publishedAt).toLocaleString('ru-RU')}
+            {new Date(publishedAt).toLocaleString(locale)}
           </Text>
           {ctaLabel ? (
             <TouchableOpacity
@@ -700,7 +708,7 @@ export default function ChannelsHubScreen() {
 
   const formatAdPrice = (ad: ChannelPromotedAd) => {
     if (ad.isFree) {
-      return 'Бесплатно';
+      return t('portal.channelsHub.free');
     }
     if (typeof ad.price === 'number') {
       return `${ad.price} ${ad.currency || 'RUB'}`;
@@ -719,7 +727,7 @@ export default function ChannelsHubScreen() {
         }}
       >
         <View style={styles.promotedHeader}>
-          <Text style={styles.promotedBadge}>Промо</Text>
+          <Text style={styles.promotedBadge}>{t('portal.channelsHub.promoted')}</Text>
           <Text style={styles.promotedCity}>{ad.city}</Text>
         </View>
         <Text style={styles.promotedCardTitle} numberOfLines={2}>{ad.title}</Text>
@@ -788,14 +796,16 @@ export default function ChannelsHubScreen() {
           {item.title}
         </Text>
         <View style={[styles.visibilityBadge, item.isPublic ? styles.publicBadge : styles.privateBadge]}>
-          <Text style={styles.visibilityText}>{item.isPublic ? 'Публичный' : 'Приватный'}</Text>
+          <Text style={styles.visibilityText}>
+            {item.isPublic ? t('portal.channelsHub.visibility.public') : t('portal.channelsHub.visibility.private')}
+          </Text>
         </View>
       </View>
       <Text style={styles.channelDescription} numberOfLines={2}>
-        {item.description || 'Описание канала не заполнено'}
+        {item.description || t('portal.channelsHub.channelDescriptionEmpty')}
       </Text>
       <Text style={styles.channelMeta}>@{item.slug}</Text>
-      <Text style={styles.channelFollowers}>Подписчиков: {item.followersCount || 0}</Text>
+      <Text style={styles.channelFollowers}>{t('portal.channelsHub.followers', { count: item.followersCount || 0 })}</Text>
     </TouchableOpacity>
   );
 
@@ -805,8 +815,8 @@ export default function ChannelsHubScreen() {
     }
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>Пока нет публикаций</Text>
-        <Text style={styles.emptySubtitle}>Лента появится после публикации первых постов</Text>
+        <Text style={styles.emptyTitle}>{t('portal.channelsHub.empty.feedTitle')}</Text>
+        <Text style={styles.emptySubtitle}>{t('portal.channelsHub.empty.feedSubtitle')}</Text>
       </View>
     );
   };
@@ -817,8 +827,8 @@ export default function ChannelsHubScreen() {
     }
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>У вас пока нет каналов</Text>
-        <Text style={styles.emptySubtitle}>Создайте канал и начните публиковать посты</Text>
+        <Text style={styles.emptyTitle}>{t('portal.channelsHub.empty.myTitle')}</Text>
+        <Text style={styles.emptySubtitle}>{t('portal.channelsHub.empty.mySubtitle')}</Text>
       </View>
     );
   };
@@ -830,7 +840,7 @@ export default function ChannelsHubScreen() {
           <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Каналы и лента</Text>
+          <Text style={styles.headerTitle}>{t('portal.channelsHub.headerTitle')}</Text>
           <View style={styles.headerActions}>
             <AssistantChatButton size={36} />
             <BalancePill size="small" lightMode={true} />
@@ -850,13 +860,13 @@ export default function ChannelsHubScreen() {
             style={[styles.tabButton, activeTab === 'feed' && styles.activeTabButton]}
             onPress={() => setActiveTab('feed')}
           >
-            <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>Лента</Text>
+            <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>{t('portal.channelsHub.tabs.feed')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'my' && styles.activeTabButton]}
             onPress={() => setActiveTab('my')}
           >
-            <Text style={[styles.tabText, activeTab === 'my' && styles.activeTabText]}>Мои каналы</Text>
+            <Text style={[styles.tabText, activeTab === 'my' && styles.activeTabText]}>{t('portal.channelsHub.tabs.my')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -928,13 +938,13 @@ export default function ChannelsHubScreen() {
             >
               <View style={styles.commentsSheet}>
                 <View style={styles.commentsHeader}>
-                  <Text style={styles.commentsTitle}>Комментарии</Text>
+                  <Text style={styles.commentsTitle}>{t('portal.channelsHub.comments.title')}</Text>
                   <TouchableOpacity style={styles.commentsCloseBtn} onPress={closeComments}>
-                    <Text style={styles.commentsCloseText}>Закрыть</Text>
+                    <Text style={styles.commentsCloseText}>{t('common.close')}</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.commentsSubtitle}>
-                  {commentsSheetPost?.channel?.title || `Канал #${commentsSheetPost?.channelId || ''}`}
+                  {commentsSheetPost?.channel?.title || t('portal.channelsHub.channelFallback', { id: commentsSheetPost?.channelId || '' })}
                 </Text>
 
                 {commentsSheetLoading && commentsSheetItems.length === 0 ? (
@@ -956,11 +966,11 @@ export default function ChannelsHubScreen() {
                         <Text style={styles.commentBody}>{item.body}</Text>
                       </View>
                     )}
-                    ListEmptyComponent={<Text style={styles.commentsEmpty}>Комментариев пока нет</Text>}
+                    ListEmptyComponent={<Text style={styles.commentsEmpty}>{t('portal.channelsHub.comments.empty')}</Text>}
                     ListFooterComponent={
                       commentsSheetCursor ? (
                         <TouchableOpacity style={styles.moreCommentsBtn} onPress={loadMoreComments}>
-                          <Text style={styles.moreCommentsText}>Загрузить еще</Text>
+                          <Text style={styles.moreCommentsText}>{t('portal.channelsHub.comments.loadMore')}</Text>
                         </TouchableOpacity>
                       ) : null
                     }
@@ -971,7 +981,7 @@ export default function ChannelsHubScreen() {
                   <TextInput
                     value={commentsSheetText}
                     onChangeText={setCommentsSheetText}
-                    placeholder="Написать комментарий..."
+                    placeholder={t('portal.channelsHub.comments.placeholder')}
                     placeholderTextColor={colors.textSecondary}
                     style={styles.commentInput}
                     editable={!commentsSheetSubmitting}
@@ -981,7 +991,9 @@ export default function ChannelsHubScreen() {
                     onPress={() => void submitComment()}
                     disabled={commentsSheetSubmitting}
                   >
-                    {commentsSheetSubmitting ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Text style={styles.sendCommentText}>Отправить</Text>}
+                    {commentsSheetSubmitting
+                      ? <ActivityIndicator size="small" color={colors.textPrimary} />
+                      : <Text style={styles.sendCommentText}>{t('portal.channelsHub.comments.send')}</Text>}
                   </TouchableOpacity>
                 </View>
               </View>

@@ -52,17 +52,17 @@ export const PlaylistDetailScreen: React.FC = () => {
   };
 
   const removeTrack = (trackId: number) => {
-    Alert.alert('Удалить трек?', '', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert('Delete track?', '', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Удалить',
+        text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
             await multimediaService.removeTrackFromPlaylist(playlistId, trackId);
             await loadData();
           } catch {
-            Alert.alert('Ошибка', 'Не удалось удалить трек');
+            Alert.alert('Error', 'Failed to remove track');
           }
         },
       },
@@ -76,7 +76,7 @@ export const PlaylistDetailScreen: React.FC = () => {
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
-          {data?.playlist?.name || route.params.playlistName || 'Плейлист'}
+          {data?.playlist?.name || route.params.playlistName || 'Playlist'}
         </Text>
         <View style={styles.iconButton} />
       </View>
@@ -104,7 +104,7 @@ export const PlaylistDetailScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Music2 size={34} color={colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>В плейлисте пока нет треков</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tracks in this playlist yet</Text>
           </View>
         }
       />
@@ -128,4 +128,3 @@ const styles = StyleSheet.create({
 });
 
 export default PlaylistDetailScreen;
-

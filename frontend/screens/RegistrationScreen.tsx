@@ -64,7 +64,7 @@ const REG_LANGUAGES = [
 ] as const;
 const REG_LEGAL_LANGUAGES: Array<{ code: LegalLanguage; label: string }> = [
     { code: 'en', label: 'English' },
-    { code: 'ru', label: 'Русский' },
+    { code: 'ru', label: 'Russian' },
     { code: 'hi', label: 'हिंदी' },
 ];
 

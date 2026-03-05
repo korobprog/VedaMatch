@@ -24,9 +24,9 @@ interface KnowledgeItem {
 const MOCK_KNOWLEDGE: KnowledgeItem[] = [
     {
         id: '1',
-        title: 'Библиотека',
-        category: 'Священные Писания',
-        summary: 'Основополагающее философское произведение ведической мудрости, беседа Кришны и Арджуны.',
+        title: 'Library',
+        category: 'Sacred Scriptures',
+        summary: 'A foundational philosophical text of Vedic wisdom, the dialogue between Krishna and Arjuna.',
         icon: 'book'
     }
 ];
@@ -60,9 +60,9 @@ export const KnowledgeBaseScreen = () => {
                 contentContainerStyle={styles.list}
                 ListHeaderComponent={() => (
                     <View style={styles.header}>
-                        <Text style={[styles.headerTitle, { color: theme.text }]}>Библиотека мудрости</Text>
+                        <Text style={[styles.headerTitle, { color: theme.text }]}>Wisdom Library</Text>
                         <Text style={[styles.headerSubtitle, { color: theme.subText }]}>
-                            Изучайте священные тексты и философию
+                            Study sacred texts and philosophy
                         </Text>
                     </View>
                 )}

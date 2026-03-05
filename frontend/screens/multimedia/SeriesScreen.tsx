@@ -102,7 +102,7 @@ export const SeriesScreen: React.FC = () => {
                     <View style={styles.badgeContainer}>
                         {item.isFeatured && (
                             <View style={[styles.featuredBadge, { backgroundColor: roleColors.accent }]}>
-                                <Text style={styles.featuredText}>★ ТОП</Text>
+                                <Text style={styles.featuredText}>★ TOP</Text>
                             </View>
                         )}
                     </View>
@@ -123,7 +123,7 @@ export const SeriesScreen: React.FC = () => {
                         <View style={styles.metaItem}>
                             <Layers size={12} color={roleColors.textSecondary} />
                             <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
-                                {seasonsCount} сез.
+                                {seasonsCount} seasons
                             </Text>
                         </View>
                     </View>
@@ -145,7 +145,7 @@ export const SeriesScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Сериалы</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Series</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -154,7 +154,7 @@ export const SeriesScreen: React.FC = () => {
                 <Search size={20} color={roleColors.textSecondary} />
                 <TextInput
                     style={[styles.searchInput, { color: roleColors.textPrimary }]}
-                    placeholder="Поиск сериалов..."
+                    placeholder="Search series..."
                     placeholderTextColor={roleColors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
@@ -165,7 +165,7 @@ export const SeriesScreen: React.FC = () => {
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка сериалов...</Text>
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Loading series...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -186,7 +186,7 @@ export const SeriesScreen: React.FC = () => {
                         <View style={styles.center}>
                             <Film size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
                             <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>
-                                Сериалы пока не добавлены
+                                Series are not added yet
                             </Text>
                         </View>
                     }

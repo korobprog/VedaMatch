@@ -174,7 +174,7 @@ export const ProductDetailsScreen: React.FC = () => {
         if (Platform.OS !== 'ios') {
             Alert.alert(
                 t('market.addReview'),
-                t('market.addReviewPromptFallback') || 'Добавление отзыва сейчас доступно на iOS.',
+                t('market.addReviewPromptFallback') || 'Review submission is currently available on iOS.',
             );
             return;
         }
@@ -362,7 +362,7 @@ export const ProductDetailsScreen: React.FC = () => {
     const handleContactSeller = () => {
         Alert.alert(
             t('common.info') || 'Info',
-            t('market.contactViaShop') || 'Откройте магазин и свяжитесь с продавцом через его профиль.',
+            t('market.contactViaShop') || 'Open the shop and contact the seller through their profile.',
             [{ text: t('common.ok') || 'OK', onPress: handleShopPress }]
         );
     };

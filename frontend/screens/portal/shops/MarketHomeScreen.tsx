@@ -279,7 +279,7 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    data={[{ id: '', emoji: '🏷️', label: { ru: 'Все', en: 'All' } }, ...categories]}
+                    data={[{ id: '', emoji: '🏷️', label: { ru: 'All', en: 'All' } }, ...categories]}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                         const isActive = selectedCategory === item.id;

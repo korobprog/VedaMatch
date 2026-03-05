@@ -30,7 +30,7 @@ import type { RootStackParamList } from '../../types/navigation';
 type Props = NativeStackScreenProps<RootStackParamList, 'LegalDocument'>;
 
 const languageLabel = (language: 'en' | 'ru' | 'hi'): string => {
-  if (language === 'ru') return 'Русский';
+  if (language === 'ru') return 'Russian';
   if (language === 'hi') return 'हिंदी';
   return 'English';
 };

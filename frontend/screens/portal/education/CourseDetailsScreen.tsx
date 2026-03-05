@@ -72,7 +72,7 @@ export const CourseDetailsScreen: React.FC = () => {
             <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
                 <Text style={{ color: vTheme.colors.text, marginBottom: 12 }}>{error || t('education.courseNotFound')}</Text>
                 <TouchableOpacity style={[styles.bookButton, { backgroundColor: roleColors.accentSoft, borderColor: roleColors.border }]} onPress={loadDetails}>
-                    <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>{t('common.retry') || 'Повторить'}</Text>
+                    <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>{t('common.retry') || 'Retry'}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -113,7 +113,7 @@ export const CourseDetailsScreen: React.FC = () => {
                             }}
                         >
                             <BookOpen size={20} color={roleColors.accent} />
-                            <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>Читать оригинал</Text>
+                            <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>Read original</Text>
                         </TouchableOpacity>
                     )}
                 </View>

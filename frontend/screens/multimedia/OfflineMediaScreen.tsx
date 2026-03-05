@@ -58,10 +58,10 @@ export const OfflineMediaScreen: React.FC = () => {
   };
 
   const removeTrack = (item: OfflineMediaTrack) => {
-    Alert.alert('Удалить файл?', item.title, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert('Delete file?', item.title, [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Удалить',
+        text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           await multimediaOfflineService.removeOfflineTrack(item.trackId);
@@ -77,7 +77,7 @@ export const OfflineMediaScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Оффлайн медиа</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Offline media</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -105,7 +105,7 @@ export const OfflineMediaScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Download size={36} color={colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Скачанных файлов пока нет</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No downloaded files yet</Text>
           </View>
         }
       />
@@ -129,4 +129,3 @@ const styles = StyleSheet.create({
 });
 
 export default OfflineMediaScreen;
-

@@ -153,7 +153,7 @@ export const ShopsScreen: React.FC = () => {
                     <Text style={styles.headerTitle} numberOfLines={1}>
                         {t('market.shops')}
                     </Text>
-                    <Text style={styles.headerSubtitle}>{t('market.shops_list') || 'Список магазинов'}</Text>
+                    <Text style={styles.headerSubtitle}>{t('market.shops_list') || 'Shops list'}</Text>
                 </View>
 
                 <View style={styles.headerActions}>
@@ -177,7 +177,7 @@ export const ShopsScreen: React.FC = () => {
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.shop.create')}</Text>
-                            <Text style={styles.featuredCardSub}>{t('market.become_seller') || 'Стать продавцом'}</Text>
+                            <Text style={styles.featuredCardSub}>{t('market.become_seller') || 'Become a seller'}</Text>
                         </View>
                     </TouchableOpacity>
 
@@ -190,7 +190,7 @@ export const ShopsScreen: React.FC = () => {
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.map.title')}</Text>
-                            <Text style={styles.featuredCardSub}>{t('market.view_on_map') || 'На карте'}</Text>
+                            <Text style={styles.featuredCardSub}>{t('market.view_on_map') || 'On map'}</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -220,7 +220,7 @@ export const ShopsScreen: React.FC = () => {
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    data={[{ id: '', emoji: '🏷️', label: { ru: 'Все', en: 'All' } }, ...categories]}
+                    data={[{ id: '', emoji: '🏷️', label: { ru: 'All', en: 'All' } }, ...categories]}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                         const isActive = selectedCategory === item.id;

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowLeft, BellRing, Clock3, Globe2, Languages, MapPin, Sparkles } from 'lucide-react-native';
@@ -22,26 +23,18 @@ import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 
 type FacetType = 'city' | 'language' | 'topic';
 
-const languageLabels: Record<string, string> = {
-  ru: 'Русский',
-  en: 'English',
-  hi: 'Hindi',
-};
-
-const facetTitleByType: Record<FacetType, string> = {
-  city: 'Выберите город',
-  language: 'Выберите язык',
-  topic: 'Выберите темы',
-};
-
-const formatFacetLabel = (value: string, type: FacetType): string => {
+const formatFacetLabel = (
+  value: string,
+  type: FacetType,
+  getLanguageLabel: (code: string) => string,
+): string => {
   const clean = String(value || '').trim();
   if (!clean) {
     return '';
   }
   const normalized = clean.toLowerCase();
   if (type === 'language') {
-    return languageLabels[normalized] || normalized.toUpperCase();
+    return getLanguageLabel(normalized);
   }
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
@@ -65,6 +58,7 @@ const clampHour = (value: string, fallback: number): number => {
 
 export default function SadhuSangaSmartPushScreen() {
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -96,13 +90,29 @@ export default function SadhuSangaSmartPushScreen() {
   const [timezone, setTimezone] = useState(detectDeviceTimezone());
 
   const mountedRef = useRef(true);
+  const sortingLocale = i18n.language === 'ru' ? 'ru' : i18n.language === 'hi' ? 'hi' : 'en';
+  const getLanguageLabel = useCallback((code: string) => {
+    const normalized = String(code || '').trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+    if (normalized === 'ru' || normalized === 'en' || normalized === 'hi') {
+      return t(`portal.sadhuSangaSmartPush.languageLabels.${normalized}`);
+    }
+    return normalized.toUpperCase();
+  }, [t]);
+  const facetTitleByType = useMemo<Record<FacetType, string>>(() => ({
+    city: t('portal.sadhuSangaSmartPush.facetPicker.selectCity'),
+    language: t('portal.sadhuSangaSmartPush.facetPicker.selectLanguage'),
+    topic: t('portal.sadhuSangaSmartPush.facetPicker.selectTopics'),
+  }), [t]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [t]);
 
   const loadPreference = useCallback(async () => {
     setLoading(true);
@@ -133,7 +143,10 @@ export default function SadhuSangaSmartPushScreen() {
       setTimezone(preference.timezone || detectDeviceTimezone());
     } catch (error: any) {
       if (mountedRef.current) {
-        Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось загрузить настройки пушей');
+        Alert.alert(
+          t('common.error'),
+          error?.response?.data?.error || error?.message || t('portal.sadhuSangaSmartPush.alerts.loadFailed'),
+        );
       }
     } finally {
       if (mountedRef.current) {
@@ -141,7 +154,7 @@ export default function SadhuSangaSmartPushScreen() {
         setFacetsLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadPreference();
@@ -207,21 +220,21 @@ export default function SadhuSangaSmartPushScreen() {
       ? activeFacetOptions
       : activeFacetOptions.filter((option) => {
         const raw = String(option.value || '').toLowerCase();
-        const pretty = formatFacetLabel(option.value, activeFacetPicker || 'city').toLowerCase();
+        const pretty = formatFacetLabel(option.value, activeFacetPicker || 'city', getLanguageLabel).toLowerCase();
         return raw.includes(needle) || pretty.includes(needle);
       });
     if (activeFacetPicker !== 'topic') {
       return base;
     }
-    return [...base].sort((a, b) => {
-      const aSelected = selectedTopicsSet.has(a.value) ? 1 : 0;
-      const bSelected = selectedTopicsSet.has(b.value) ? 1 : 0;
-      if (aSelected !== bSelected) {
-        return bSelected - aSelected;
-      }
-      return a.value.localeCompare(b.value, 'ru');
-    });
-  }, [activeFacetOptions, activeFacetPicker, facetSearch, selectedTopicsSet]);
+      return [...base].sort((a, b) => {
+        const aSelected = selectedTopicsSet.has(a.value) ? 1 : 0;
+        const bSelected = selectedTopicsSet.has(b.value) ? 1 : 0;
+        if (aSelected !== bSelected) {
+          return bSelected - aSelected;
+        }
+        return a.value.localeCompare(b.value, sortingLocale);
+      });
+  }, [activeFacetOptions, activeFacetPicker, facetSearch, getLanguageLabel, selectedTopicsSet, sortingLocale]);
 
   const setFacetValue = useCallback((facet: Exclude<FacetType, 'topic'>, value: string) => {
     if (facet === 'city') {
@@ -283,17 +296,36 @@ export default function SadhuSangaSmartPushScreen() {
       setEndHour(String(updated.endHour ?? normalizedEnd));
       setTimezone(updated.timezone || detectDeviceTimezone());
 
-      Alert.alert('Готово', 'Настройки уведомлений сохранены.');
+      Alert.alert(
+        t('common.done'),
+        t('portal.sadhuSangaSmartPush.alerts.saved'),
+      );
     } catch (error: any) {
       if (mountedRef.current) {
-        Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось сохранить настройки пушей');
+        Alert.alert(
+          t('common.error'),
+          error?.response?.data?.error || error?.message || t('portal.sadhuSangaSmartPush.alerts.saveFailed'),
+        );
       }
     } finally {
       if (mountedRef.current) {
         setSaving(false);
       }
     }
-  }, [city, enabled, endHour, language, reminder10m, reminder1h, saving, startHour, timezone, topics, useTimeWindow]);
+  }, [
+    city,
+    enabled,
+    endHour,
+    language,
+    reminder10m,
+    reminder1h,
+    saving,
+    startHour,
+    t,
+    timezone,
+    topics,
+    useTimeWindow,
+  ]);
 
   return (
     <LinearGradient colors={screenGradient} style={styles.gradient}>
@@ -303,8 +335,8 @@ export default function SadhuSangaSmartPushScreen() {
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Умные пуши</Text>
-            <Text style={styles.headerSubtitle}>Настройте уведомления по городу, теме и времени</Text>
+            <Text style={styles.headerTitle}>{t('portal.sadhuSangaSmartPush.headerTitle')}</Text>
+            <Text style={styles.headerSubtitle}>{t('portal.sadhuSangaSmartPush.headerSubtitle')}</Text>
           </View>
           <View style={styles.headerIconWrap}>
             <BellRing size={18} color={colors.accent} />
@@ -324,21 +356,23 @@ export default function SadhuSangaSmartPushScreen() {
           >
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Режим уведомлений</Text>
+                <Text style={styles.cardTitle}>{t('portal.sadhuSangaSmartPush.notificationsMode.title')}</Text>
                 <TouchableOpacity
                   style={[styles.pillButton, enabled ? styles.pillButtonActive : styles.pillButtonInactive]}
                   onPress={() => setEnabled((prev) => !prev)}
                 >
                   <Text style={[styles.pillButtonText, enabled ? styles.pillButtonTextActive : styles.pillButtonTextInactive]}>
-                    {enabled ? 'Включено' : 'Выключено'}
+                    {enabled
+                      ? t('portal.sadhuSangaSmartPush.common.enabled')
+                      : t('portal.sadhuSangaSmartPush.common.disabled')}
                   </Text>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.cardHint}>Если выключить, уведомления о лекциях и эфирах не будут приходить.</Text>
+              <Text style={styles.cardHint}>{t('portal.sadhuSangaSmartPush.notificationsMode.hint')}</Text>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Фильтры аудитории</Text>
+              <Text style={styles.cardTitle}>{t('portal.sadhuSangaSmartPush.audienceFilters.title')}</Text>
               <TouchableOpacity
                 style={styles.inputRow}
                 onPress={() => {
@@ -349,7 +383,9 @@ export default function SadhuSangaSmartPushScreen() {
               >
                 <MapPin size={16} color={colors.textSecondary} />
                 <Text style={[styles.inputValue, !city && styles.inputPlaceholder]}>
-                  {city ? formatFacetLabel(city, 'city') : 'Город'}
+                  {city
+                    ? formatFacetLabel(city, 'city', getLanguageLabel)
+                    : t('portal.sadhuSangaSmartPush.audienceFilters.city')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -362,7 +398,9 @@ export default function SadhuSangaSmartPushScreen() {
               >
                 <Languages size={16} color={colors.textSecondary} />
                 <Text style={[styles.inputValue, !language && styles.inputPlaceholder]}>
-                  {language ? formatFacetLabel(language, 'language') : 'Язык'}
+                  {language
+                    ? formatFacetLabel(language, 'language', getLanguageLabel)
+                    : t('portal.sadhuSangaSmartPush.audienceFilters.language')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -375,14 +413,16 @@ export default function SadhuSangaSmartPushScreen() {
               >
                 <Sparkles size={16} color={colors.textSecondary} />
                 <Text style={[styles.inputValue, topics.length === 0 && styles.inputPlaceholder]}>
-                  {topics.length > 0 ? `Темы выбраны: ${topics.length}` : 'Темы'}
+                  {topics.length > 0
+                    ? t('portal.sadhuSangaSmartPush.audienceFilters.topicsSelected', { count: topics.length })
+                    : t('portal.sadhuSangaSmartPush.audienceFilters.topics')}
                 </Text>
               </TouchableOpacity>
               {topics.length > 0 ? (
                 <View style={styles.topicChipsRow}>
                   {topics.slice(0, 6).map((topic) => (
                     <View key={`topic-chip-${topic}`} style={styles.topicChip}>
-                      <Text style={styles.topicChipText}>{formatFacetLabel(topic, 'topic')}</Text>
+                      <Text style={styles.topicChipText}>{formatFacetLabel(topic, 'topic', getLanguageLabel)}</Text>
                     </View>
                   ))}
                   {topics.length > 6 ? (
@@ -396,14 +436,14 @@ export default function SadhuSangaSmartPushScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Напоминания</Text>
+              <Text style={styles.cardTitle}>{t('portal.sadhuSangaSmartPush.reminders.title')}</Text>
               <View style={styles.toggleRow}>
                 <TouchableOpacity
                   style={[styles.toggleButton, reminder1h ? styles.toggleButtonActive : styles.toggleButtonInactive]}
                   onPress={() => setReminder1h((prev) => !prev)}
                 >
                   <Text style={[styles.toggleButtonText, reminder1h ? styles.toggleButtonTextActive : styles.toggleButtonTextInactive]}>
-                    За 1 час
+                    {t('portal.sadhuSangaSmartPush.reminders.oneHour')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -411,22 +451,24 @@ export default function SadhuSangaSmartPushScreen() {
                   onPress={() => setReminder10m((prev) => !prev)}
                 >
                   <Text style={[styles.toggleButtonText, reminder10m ? styles.toggleButtonTextActive : styles.toggleButtonTextInactive]}>
-                    За 10 минут
+                    {t('portal.sadhuSangaSmartPush.reminders.tenMinutes')}
                   </Text>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.cardHint}>Сервис отправит напоминания только по выбранным вами фильтрам.</Text>
+              <Text style={styles.cardHint}>{t('portal.sadhuSangaSmartPush.reminders.hint')}</Text>
             </View>
 
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Временное окно</Text>
+                <Text style={styles.cardTitle}>{t('portal.sadhuSangaSmartPush.timeWindow.title')}</Text>
                 <TouchableOpacity
                   style={[styles.pillButton, useTimeWindow ? styles.pillButtonActive : styles.pillButtonInactive]}
                   onPress={() => setUseTimeWindow((prev) => !prev)}
                 >
                   <Text style={[styles.pillButtonText, useTimeWindow ? styles.pillButtonTextActive : styles.pillButtonTextInactive]}>
-                    {useTimeWindow ? 'Включено' : 'Выключено'}
+                    {useTimeWindow
+                      ? t('portal.sadhuSangaSmartPush.common.enabled')
+                      : t('portal.sadhuSangaSmartPush.common.disabled')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -443,7 +485,7 @@ export default function SadhuSangaSmartPushScreen() {
                     style={styles.hourInput}
                   />
                 </View>
-                <Text style={styles.timeDash}>до</Text>
+                <Text style={styles.timeDash}>{t('portal.sadhuSangaSmartPush.timeWindow.to')}</Text>
                 <View style={styles.hourInputWrap}>
                   <Clock3 size={14} color={colors.textSecondary} />
                   <TextInput
@@ -462,7 +504,7 @@ export default function SadhuSangaSmartPushScreen() {
                 <TextInput
                   value={timezone}
                   onChangeText={setTimezone}
-                  placeholder="Timezone (например Europe/Moscow)"
+                  placeholder={t('portal.sadhuSangaSmartPush.timeWindow.timezonePlaceholder')}
                   placeholderTextColor={colors.textSecondary}
                   style={styles.input}
                 />
@@ -474,7 +516,11 @@ export default function SadhuSangaSmartPushScreen() {
               onPress={() => void savePreference()}
               disabled={saving}
             >
-              <Text style={styles.saveButtonText}>{saving ? 'Сохраняем...' : 'Сохранить настройки'}</Text>
+              <Text style={styles.saveButtonText}>
+                {saving
+                  ? t('portal.sadhuSangaSmartPush.cta.saving')
+                  : t('portal.sadhuSangaSmartPush.cta.save')}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         )}
@@ -504,7 +550,7 @@ export default function SadhuSangaSmartPushScreen() {
                 <TextInput
                   value={facetSearch}
                   onChangeText={setFacetSearch}
-                  placeholder="Поиск"
+                  placeholder={t('portal.sadhuSangaSmartPush.facetPicker.search')}
                   placeholderTextColor={colors.textSecondary}
                   style={styles.input}
                 />
@@ -524,7 +570,7 @@ export default function SadhuSangaSmartPushScreen() {
                         !activeFacetValue && styles.filterOptionTextActive,
                       ]}
                     >
-                      Все
+                      {t('portal.sadhuSangaSmartPush.facetPicker.all')}
                     </Text>
                   </TouchableOpacity>
                 ) : (
@@ -541,7 +587,7 @@ export default function SadhuSangaSmartPushScreen() {
                         topics.length === 0 && styles.filterOptionTextActive,
                       ]}
                     >
-                      Все темы
+                      {t('portal.sadhuSangaSmartPush.facetPicker.allTopics')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -559,7 +605,9 @@ export default function SadhuSangaSmartPushScreen() {
                         activeFacetValue === String(user.city || '').trim().toLowerCase() && styles.filterOptionTextActive,
                       ]}
                     >
-                      Мой город: {formatFacetLabel(String(user.city || ''), 'city')}
+                      {t('portal.sadhuSangaSmartPush.facetPicker.myCity', {
+                        city: formatFacetLabel(String(user.city || ''), 'city', getLanguageLabel),
+                      })}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -590,14 +638,14 @@ export default function SadhuSangaSmartPushScreen() {
                           selected && styles.filterOptionTextActive,
                         ]}
                       >
-                        {formatFacetLabel(option.value, activeFacetPicker || 'city')}
+                        {formatFacetLabel(option.value, activeFacetPicker || 'city', getLanguageLabel)}
                       </Text>
                       <Text style={styles.filterOptionCount}>{option.count}</Text>
                     </TouchableOpacity>
                   );
                 })}
                 {filteredFacetOptions.length === 0 ? (
-                  <Text style={styles.filterOptionEmpty}>Пока нет доступных значений</Text>
+                  <Text style={styles.filterOptionEmpty}>{t('portal.sadhuSangaSmartPush.facetPicker.empty')}</Text>
                 ) : null}
               </ScrollView>
               {activeFacetPicker === 'topic' ? (
@@ -608,7 +656,7 @@ export default function SadhuSangaSmartPushScreen() {
                     setActiveFacetPicker(null);
                   }}
                 >
-                  <Text style={styles.modalDoneButtonText}>Готово</Text>
+                  <Text style={styles.modalDoneButtonText}>{t('common.done')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
