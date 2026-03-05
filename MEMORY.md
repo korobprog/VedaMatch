@@ -4,6 +4,78 @@
 - Обрабатывать задачи без фоновых процессов и без нескольких агентов.
 - Работать с файлами по одному и отчитываться после каждого шага.
 
+## Auth / Login Localization
+- Stage-1 rollout для login выполнен как `i18n + language switch + Google auth + VK auth`, Telegram оставлен подготовленным entry point.
+- Login экран (`frontend/screens/LoginScreen.tsx`) теперь использует единый namespace `auth.loginScreen.*` вместо хардкодных строк.
+- Login экран визуально обновлен в портал-стиле:
+  - фон в светлой шафран/крем палитре портала;
+  - заголовок `VedaMatch` переведен в более контрастный бренд-вид (`ink + gold glow`);
+  - карточка формы и social-кнопки приведены к `surface + warm border`.
+- Текущий слоган login обновлен:
+  - `ru`: `Соединяй сердца • Создавай союз осознанно`
+  - `en`: `Connect hearts • Build a conscious union`
+  - `hi`: `दिलों को जोड़ो • सजग संबंध बनाओ`
+- Глобальный переключатель языка добавлен в правый верхний угол login (`RU | EN | हिंदी`) и вызывает `i18n.changeLanguage(...)` без перезапуска экрана.
+- Соц-кнопки login:
+  - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
+  - `VK` — реальный вход через OAuth authorize + backend callback/deep link (`signInWithVK` -> `GET /api/auth/vk/callback` -> `POST /auth/vk/login`).
+  - `Telegram` — `coming soon` alert + telemetry log (`[AuthSocialClick]`), miniapp flow остается отдельным.
+- Локали login добавлены/синхронизированы в:
+  - `frontend/i18n/locales/ru.ts`
+  - `frontend/i18n/locales/en.ts`
+  - `frontend/i18n/locales/hi.ts` (закрыт пробел неполной Hindi-локализации для login).
+- Backend stage-1 Google auth:
+  - feature flag `AUTH_GOOGLE_ENABLED` (`server/internal/config/feature_flags.go`);
+  - endpoint `POST /api/auth/google/login` (`server/cmd/api/main.go`);
+  - linkage поля пользователя: `GoogleSub`, `GoogleEmail`, `GoogleLinkedAt` (`server/internal/models/user.go`);
+  - метрики: `auth_google_attempt_total`, `auth_google_success_total`, `auth_google_fail_total` (`server/internal/services/metrics_service.go`).
+- Для stage-1 добавлен тест `frontend/__tests__/screens/LoginScreen.localization.test.tsx`:
+  - проверяет вызов `i18n.changeLanguage` из switch языка;
+  - проверяет Google social handler (`signInWithGoogle` -> `login(...)`);
+  - проверяет локализованные `coming soon` alerts для VK/Telegram.
+- `frontend/package-lock.json` синхронизирован после установки `@react-native-google-signin/google-signin`; npm может выводить peer warnings (`@firebase/auth` vs async-storage), но установка проходит успешно.
+- Для backend Google auth добавлена testability-точка:
+  - `server/internal/handlers/auth_handler.go`: `googleIDTokenVerifier` (по умолчанию `verifyGoogleIDToken`) для deterministic тестов без внешнего HTTP.
+- Добавлен integration test suite `server/internal/handlers/auth_google_integration_test.go`:
+  - `TestGoogleLogin_Disabled_ReturnsNotFound`,
+  - `TestGoogleLogin_InvalidToken_ReturnsUnauthorized`,
+  - `TestGoogleLogin_ExistingUserBySub_Success`.
+- В frontend env-профили (`.env`, `.env.production`, `.env.ios`, `.env.emulator`, `.env.usb`) добавлены OAuth client IDs:
+  - `GOOGLE_WEB_CLIENT_ID`
+  - `GOOGLE_IOS_CLIENT_ID`
+  - `GOOGLE_ANDROID_CLIENT_ID_DEBUG`
+  - `GOOGLE_ANDROID_CLIENT_ID_RELEASE`
+- Для VK stage-2 добавлена конфигурационная заготовка:
+  - frontend env ключи: `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
+  - backend env example ключи: `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`;
+  - создан гайд `docs/VK_AUTH_SETUP.md` с точными полями для VK ID Console и env.
+- Применены рабочие VK credentials в окружениях:
+  - `VK_CLIENT_ID` установлен во все `frontend/.env*`;
+  - `server/.env` обновлен `AUTH_VK_ENABLED=on` + `VK_CLIENT_ID`/`VK_CLIENT_SECRET`/`VK_REDIRECT_URI`;
+  - `VK_REDIRECT_URI` стандартизирован как HTTPS callback (`https://api.vedamatch.ru/auth/vk/callback`), deep link не используется в VK Console redirect поле.
+- Реализован backend endpoint `POST /api/auth/vk/login`:
+  - feature flag: `AUTH_VK_ENABLED`;
+  - валидация VK access token через `users.get`;
+  - linkage/создание пользователя с полями `VKUserID`, `VKEmail`, `VKLinkedAt`;
+  - выдается стандартный auth ответ совместимый с текущим `login(user, authPayload)` flow.
+- Добавлен backend endpoint `GET /api/auth/vk/callback`:
+  - принимает `code/state/error` от VK OAuth;
+  - обменивает `code` на `access_token` через VK OAuth API;
+  - редиректит в app deep link `vedamatch://auth/vk/callback?...` для завершения mobile login.
+- Добавлен alias route `GET /auth/vk/callback` (без `/api`), чтобы совпасть с `VK_REDIRECT_URI=https://api.vedamatch.ru/auth/vk/callback` и настройкой в VK Console.
+- Добавлены integration-тесты `server/internal/handlers/auth_vk_integration_test.go`:
+  - `TestVKLogin_Disabled_ReturnsNotFound`,
+  - `TestVKLogin_InvalidToken_ReturnsUnauthorized`,
+  - `TestVKLogin_ExistingUserByVKUserID_Success`,
+  - `TestVKCallback_Success_RedirectsToDeepLink`,
+  - `TestVKCallback_Error_RedirectsToDeepLinkWithError`.
+- В backend env добавлены ключи Telegram auth:
+  - `TELEGRAM_AUTH_ENABLED`,
+  - `TELEGRAM_AUTH_BOT_TOKEN`,
+  - `TELEGRAM_AUTH_MAX_AGE_SEC`,
+  - `TELEGRAM_AUTH_CIS_LANG_CODES`;
+  - `.env.example` синхронизирован тем же набором.
+
 ## Backend Observability
 - Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.
 - Причина: при частичной ошибке одного collector дефолтный режим может отдавать `500` на весь scrape; `ContinueOnError` сохраняет доступность `/metrics` и публикует ошибки в payload без полного падения endpoint.

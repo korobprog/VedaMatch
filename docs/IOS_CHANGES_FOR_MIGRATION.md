@@ -9195,3 +9195,386 @@ assistantType === 'smiley' ? "Колобок дас" : "Перо дас"
 
 ### Validation
 - `pnpm -C frontend exec tsc --noEmit` — success.
+
+## 2026-03-05 (Login i18n + global language switch + Google social auth stage-1)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/services/socialAuthService.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `frontend/package.json`
+- `server/internal/config/feature_flags.go`
+- `server/internal/models/user.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/services/metrics_service.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на Login оставались хардкод-строки и частичное смешение языков;
+  - глобального переключателя языка прямо на login-экране не было;
+  - Google/VK/Telegram quick social auth на login не были подготовлены в stage-1 UX;
+  - backend не имел `POST /api/auth/google/login` и social linkage по Google в `User`.
+- Стало:
+  - Login переведен на namespace `auth.loginScreen.*` для `ru/en/hi`;
+  - добавлен глобальный switch `RU | EN | हिंदी` в правом верхнем углу login (через `i18n.changeLanguage`);
+  - добавлены social buttons: Google (реальный flow), VK/Telegram (coming soon + telemetry log);
+  - backend добавил feature-flagged Google login endpoint, верификацию idToken, linkage/creation пользователя, и метрики `auth_google_*`.
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+const { t, i18n } = useTranslation();
+const handleLanguageChange = useCallback(async (languageCode: 'ru' | 'en' | 'hi') => {
+  if (normalizeLanguageCode(i18n.language) === languageCode) return;
+  await i18n.changeLanguage(languageCode);
+}, [i18n]);
+
+<TouchableOpacity onPress={handleGoogleSignIn}>
+  <Text>{t('auth.loginScreen.social.google')}</Text>
+</TouchableOpacity>
+```
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const response = await apiClient.post('/auth/google/login', {
+  idToken,
+  deviceId,
+}, {
+  ...({ __skipAuthSession: true } as any),
+});
+```
+
+`server/cmd/api/main.go`:
+```go
+api.Post("/auth/google/login", middleware.RateLimitByIP("auth_google_login", 60, 10*time.Minute), authHandler.GoogleLogin)
+```
+
+`server/internal/models/user.go`:
+```go
+GoogleSub      string     `json:"googleSub,omitempty" gorm:"index;uniqueIndex"`
+GoogleEmail    string     `json:"googleEmail,omitempty"`
+GoogleLinkedAt *time.Time `json:"googleLinkedAt,omitempty"`
+```
+
+## 2026-03-05 (Login stage-1 continuation: test coverage + lockfile sync)
+
+### Измененные файлы
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `frontend/package-lock.json`
+
+### Суть правки (от старого к новому)
+- Было:
+  - для login stage-1 не было отдельного теста на language switch/social auth fallback;
+  - зависимость Google Sign-In была добавлена только в `package.json` без lockfile.
+- Стало:
+  - добавлен RTL тест `LoginScreen.localization.test.tsx` с проверками:
+    - вызов `i18n.changeLanguage('en')` из глобального switch,
+    - вызов Google handler и `login(user, authPayload)`,
+    - локализованные fallback alerts для VK/Telegram;
+  - синхронизирован `package-lock.json` после установки `@react-native-google-signin/google-signin`.
+
+### Сниппеты кода
+
+`frontend/__tests__/screens/LoginScreen.localization.test.tsx`:
+```tsx
+fireEvent.press(screen.getByText('EN'));
+await waitFor(() => expect(mockChangeLanguage).toHaveBeenCalledWith('en'));
+
+fireEvent.press(screen.getByText('Google'));
+await waitFor(() => expect(mockLogin).toHaveBeenCalledWith({ ID: 7, email: 'g@example.com' }, { accessToken: 'token' }));
+```
+
+## 2026-03-05 (Google auth backend tests + verifier injection for deterministic CI)
+
+### Измененные файлы
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_google_integration_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `GoogleLogin` всегда вызывал конкретную функцию `verifyGoogleIDToken`, что затрудняло deterministic-тесты без внешнего запроса к Google;
+  - отсутствовал отдельный integration test набор для Google login endpoint.
+- Стало:
+  - добавлена подменяемая переменная `googleIDTokenVerifier` (по умолчанию указывает на `verifyGoogleIDToken`), которую тесты могут override;
+  - добавлены backend-тесты `TestGoogleLogin*`:
+    - disabled flag -> `404`,
+    - invalid token -> `401`,
+    - existing user by `google_sub` -> `200` + auth payload.
+
+### Сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+var googleIDTokenVerifier = verifyGoogleIDToken
+...
+tokenInfo, err := googleIDTokenVerifier(req.IDToken)
+```
+
+`server/internal/handlers/auth_google_integration_test.go`:
+```go
+googleIDTokenVerifier = func(_ string) (*googleTokenInfo, error) {
+  return nil, errors.New("invalid token")
+}
+...
+require.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+```
+
+## 2026-03-05 (Google OAuth client IDs wired into frontend envs)
+
+### Измененные файлы
+- `frontend/.env`
+- `frontend/.env.production`
+- `frontend/.env.ios`
+- `frontend/.env.emulator`
+- `frontend/.env.usb`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в frontend env отсутствовали Google OAuth client IDs для login stage-1;
+  - social auth service не получал `GOOGLE_WEB_CLIENT_ID`/`GOOGLE_IOS_CLIENT_ID` из env.
+- Стало:
+  - добавлены client IDs:
+    - `GOOGLE_WEB_CLIENT_ID`
+    - `GOOGLE_IOS_CLIENT_ID`
+    - `GOOGLE_ANDROID_CLIENT_ID_DEBUG`
+    - `GOOGLE_ANDROID_CLIENT_ID_RELEASE`
+  - конфигурация синхронизирована по всем основным frontend env-профилям (prod/ios/emulator/usb/default).
+
+### Сниппеты кода
+
+`frontend/.env*`:
+```env
+GOOGLE_WEB_CLIENT_ID=425899875420-vq5outurmmfmh7i5u65ameefqh1241j6.apps.googleusercontent.com
+GOOGLE_IOS_CLIENT_ID=425899875420-k6h5hi1siqhk8qcsoa4gpfp9mqu3u7f2.apps.googleusercontent.com
+GOOGLE_ANDROID_CLIENT_ID_DEBUG=425899875420-d6hlum6bqiq67ih8ua12k8p8i2dl6b48.apps.googleusercontent.com
+GOOGLE_ANDROID_CLIENT_ID_RELEASE=425899875420-tvuno27jvdnefh3lm6h6vsurp49ab47t.apps.googleusercontent.com
+```
+
+## 2026-03-05 (VK auth configuration scaffolding for mobile stage-2)
+
+### Измененные файлы
+- `frontend/.env`
+- `frontend/.env.production`
+- `frontend/.env.ios`
+- `frontend/.env.emulator`
+- `frontend/.env.usb`
+- `server/.env.example`
+- `docs/VK_AUTH_SETUP.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в env-профилях отсутствовали VK OAuth конфиги;
+  - не было отдельной инструкции, какие поля VK ID Console и env должны быть заполнены.
+- Стало:
+  - в frontend env добавлены ключи:
+    - `VK_CLIENT_ID`
+    - `VK_REDIRECT_URI`
+    - `VK_SCOPE`
+  - в backend env example добавлены stage-2 ключи:
+    - `AUTH_VK_ENABLED`
+    - `VK_CLIENT_ID`
+    - `VK_CLIENT_SECRET`
+    - `VK_REDIRECT_URI`
+  - добавлен `docs/VK_AUTH_SETUP.md` с чек-листом настройки VK ID и привязкой к текущему rollout.
+
+### Сниппеты кода
+
+`frontend/.env*`:
+```env
+VK_CLIENT_ID=
+VK_REDIRECT_URI=vedamatch://auth/vk/callback
+VK_SCOPE=email
+```
+
+`server/.env.example`:
+```env
+AUTH_VK_ENABLED=off
+VK_CLIENT_ID=
+VK_CLIENT_SECRET=
+VK_REDIRECT_URI=vedamatch://auth/vk/callback
+```
+
+## 2026-03-05 (VK auth credentials applied to env profiles)
+
+### Измененные файлы
+- `frontend/.env`
+- `frontend/.env.production`
+- `frontend/.env.ios`
+- `frontend/.env.emulator`
+- `frontend/.env.usb`
+- `server/.env`
+- `server/.env.example`
+- `docs/VK_AUTH_SETUP.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - VK конфиги в frontend env были пустыми;
+  - redirect в шаблонах был deep link, невалидный для поля VK Console redirect URI;
+  - backend env не содержал фактических VK credentials.
+- Стало:
+  - применен `VK_CLIENT_ID` во все frontend env профили;
+  - `VK_REDIRECT_URI` в env/доках приведен к `https://api.vedamatch.ru/auth/vk/callback` (требование VK Console);
+  - в `server/.env` добавлены `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`.
+
+### Сниппеты кода
+
+`frontend/.env*`:
+```env
+VK_CLIENT_ID=54418465
+VK_REDIRECT_URI=https://api.vedamatch.ru/auth/vk/callback
+VK_SCOPE=email
+```
+
+`server/.env`:
+```env
+AUTH_VK_ENABLED=on
+VK_CLIENT_ID=54418465
+VK_CLIENT_SECRET=<configured>
+VK_REDIRECT_URI=https://api.vedamatch.ru/auth/vk/callback
+```
+
+## 2026-03-05 (VK auth stage-2 backend endpoint implemented)
+
+### Измененные файлы
+- `server/internal/models/user.go`
+- `server/internal/config/feature_flags.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/cmd/api/main.go`
+- `server/internal/handlers/auth_vk_integration_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - backend не имел реального VK auth endpoint;
+  - в `User` не было linkage полей для VK;
+  - login-кнопка VK на frontend могла быть только prepared entry point.
+- Стало:
+  - добавлен endpoint `POST /api/auth/vk/login` с rate limit;
+  - добавлен feature flag `AUTH_VK_ENABLED`;
+  - добавлены поля пользователя: `VKUserID`, `VKEmail`, `VKLinkedAt`;
+  - реализован flow в `VKLogin`:
+    - проверка feature flag,
+    - верификация `accessToken` через VK `users.get`,
+    - поиск пользователя по `vk_user_id`,
+    - fallback-link по email (если передан),
+    - создание нового пользователя при отсутствии,
+    - возврат стандартного auth payload (`accessToken`, `refreshToken`, `sessionId`, `user`).
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+api.Post("/auth/vk/login", middleware.RateLimitByIP("auth_vk_login", 60, 10*time.Minute), authHandler.VKLogin)
+```
+
+`server/internal/models/user.go`:
+```go
+VKUserID   *int64     `json:"vkUserId,omitempty" gorm:"uniqueIndex"`
+VKEmail    string     `json:"vkEmail,omitempty"`
+VKLinkedAt *time.Time `json:"vkLinkedAt,omitempty"`
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if !config.AuthVKEnabled() {
+  return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "VK auth is disabled"})
+}
+
+vkUser, err := vkAccessTokenVerifier(req.AccessToken)
+...
+return issueAuthResponse(c, fiber.StatusOK, "VK login successful", user, req.DeviceID)
+```
+
+## 2026-03-05 (Telegram auth token configuration applied)
+
+### Измененные файлы
+- `server/.env`
+- `server/.env.example`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в backend env отсутствовали явные параметры Telegram auth (`TELEGRAM_AUTH_*`).
+- Стало:
+  - добавлены и активированы:
+    - `TELEGRAM_AUTH_ENABLED`
+    - `TELEGRAM_AUTH_BOT_TOKEN`
+    - `TELEGRAM_AUTH_MAX_AGE_SEC`
+    - `TELEGRAM_AUTH_CIS_LANG_CODES`
+  - `.env.example` синхронизирован под тот же набор ключей.
+
+### Сниппеты кода
+
+`server/.env`:
+```env
+TELEGRAM_AUTH_ENABLED=true
+TELEGRAM_AUTH_BOT_TOKEN=<configured>
+TELEGRAM_AUTH_MAX_AGE_SEC=300
+TELEGRAM_AUTH_CIS_LANG_CODES=ru,uk,be,kk
+```
+
+## 2026-03-05 (VK callback route alias for mobile OAuth)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - backend принимал VK OAuth callback только по `GET /api/auth/vk/callback`.
+  - при `VK_REDIRECT_URI=https://api.vedamatch.ru/auth/vk/callback` callback мог не попадать в endpoint.
+- Стало:
+  - добавлен alias route `GET /auth/vk/callback` (без `/api`) на тот же `authHandler.VKCallback`.
+  - текущая конфигурация VK Console и server env совпадает с рабочим callback path.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+app.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback_alias", 120, 10*time.Minute), authHandler.VKCallback)
+api.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback", 120, 10*time.Minute), authHandler.VKCallback)
+```
+
+## 2026-03-05 (Login visual refresh to portal style + new slogan)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - login имел более оранжевый акцентный заголовок с устаревшим визуалом;
+  - фон/карточка/соц-кнопки отличались от актуального портального стиля;
+  - слоган использовал старую формулировку.
+- Стало:
+  - заголовок `VedaMatch` обновлен в бренд-стиле (`ink` цвет + мягкий gold glow);
+  - фон login заменен на светлый портал-градиент (`#FAF7F0 -> #FFFDF8 -> #FDF4E3`);
+  - form card, language switch и social buttons приведены к портальной палитре (`surface + warm border`);
+  - слоган обновлен во всех 3 локалях (ru/en/hi).
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+<LinearGradient
+  colors={['#FAF7F0', '#FFFDF8', '#FDF4E3']}
+  start={{ x: 0.05, y: 0 }}
+  end={{ x: 0.95, y: 1 }}
+/>
+```
+
+```tsx
+title: {
+  fontSize: 40,
+  color: '#2A241A',
+  textShadowColor: 'rgba(244, 197, 66, 0.32)',
+}
+```
+
+`frontend/i18n/locales/ru.ts`:
+```ts
+subtitle: 'Соединяй сердца • Создавай союз осознанно'
+```

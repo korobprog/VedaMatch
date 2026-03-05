@@ -41,7 +41,6 @@ import DeviceInfo from 'react-native-device-info';
 import { getAccessToken, saveAuthTokens } from '../services/authSessionService';
 import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
 import { PortalRole } from '../types/portalBlueprint';
-import { useSettings as usePortalSettings } from '../context/SettingsContext';
 import { useRoleTheme } from '../hooks/useRoleTheme';
 import apiClient from '../lib/apiClient';
 
@@ -58,6 +57,23 @@ import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer'
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
 const GENDER_OPTIONS = ['Male', 'Female'];
 type CountryData = { name: { common: string }; capital?: string[] };
+const REG_LANGUAGES = [
+    { code: 'en', label: 'EN' },
+    { code: 'ru', label: 'RU' },
+    { code: 'hi', label: 'हिंदी' },
+] as const;
+const REG_LEGAL_LANGUAGES: Array<{ code: LegalLanguage; label: string }> = [
+    { code: 'en', label: 'English' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'hi', label: 'हिंदी' },
+];
+
+const normalizeUILanguageCode = (value?: string): 'ru' | 'en' | 'hi' => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized.startsWith('hi')) return 'hi';
+    if (normalized.startsWith('en')) return 'en';
+    return 'ru';
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
@@ -66,9 +82,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { login } = useUser();
     const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
     const { phase = 'initial', inviteCode: paramInviteCode } = params;
-    const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
     const theme = COLORS.dark; // Registration/Profile phase always uses dark glass aesthetic
-    // const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<Asset | null>(null);
     const [email, setEmail] = useState('');
@@ -118,6 +132,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const isMountedRef = useRef(true);
     const latestSubmitRequestRef = useRef(0);
     const latestDetectRequestRef = useRef(0);
+    const activeLanguage = normalizeUILanguageCode(i18n.language);
     const submitInProgressRef = useRef(false);
     const skipInProgressRef = useRef(false);
     const { colors: roleColors, roleTheme } = useRoleTheme(role, true); // Force dark theme colors for text on dark background
@@ -165,6 +180,15 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             language: legalLanguage,
         });
     }, [legalLanguage, navigation]);
+
+    const handleAppLanguageChange = useCallback(async (languageCode: 'ru' | 'en' | 'hi') => {
+        if (normalizeUILanguageCode(i18n.language) === languageCode) return;
+        try {
+            await i18n.changeLanguage(languageCode);
+        } catch (error) {
+            console.warn('Registration language switch failed:', error);
+        }
+    }, [i18n]);
 
     const handleCountrySelect = async (cData: CountryData) => {
         setCountry(cData.name.common);
@@ -386,12 +410,12 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         (error as { message?: string }).message)
                     : '';
             Alert.alert(
-                'Error',
-                errorMessage || 'Operation failed. Please try again.',
+                t('common.error'),
+                errorMessage || t('registration.operationFailed'),
                 [
-                    { text: 'Close', style: 'cancel' },
+                    { text: t('common.close'), style: 'cancel' },
                     {
-                        text: 'Support',
+                        text: t('registration.supportCta'),
                         onPress: () => navigation.navigate('SupportHome', { entryPoint: 'register' }),
                     },
                 ]
@@ -406,12 +430,12 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const handleSkip = () => {
         Alert.alert(
-            'Incomplete Profile',
-            'If you skip this, some Portal services will be locked until you complete your profile. Continue?',
+            t('registration.incompleteProfileTitle'),
+            t('registration.incompleteProfileMessage'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Skip',
+                    text: t('registration.skip'),
                     onPress: async () => {
                         if (skipInProgressRef.current) {
                             return;
@@ -425,7 +449,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         } catch (error) {
                             console.error('Skip flow failed:', error);
                             if (isMountedRef.current) {
-                                Alert.alert('Error', 'Operation failed. Please try again.');
+                                Alert.alert(t('common.error'), t('registration.operationFailed'));
                             }
                         } finally {
                             skipInProgressRef.current = false;
@@ -440,9 +464,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {portalBackgroundType === 'image' && !!portalBackground && (
-                <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            )}
+            <ImageBackground
+                source={require('../assets/services_banner_bg.png')}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+            />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
@@ -453,14 +479,34 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 >
                     <View style={{ flex: 1 }}>
                         <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
-                            {portalBackgroundType === 'image' && (
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="dark"
-                                    blurAmount={15}
-                                    reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
-                                />
-                            )}
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="dark"
+                                blurAmount={15}
+                                reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
+                            />
+                            <View style={styles.languageSwitchContainer}>
+                                {REG_LANGUAGES.map((option, index) => {
+                                    const isActive = activeLanguage === option.code;
+                                    return (
+                                        <TouchableOpacity
+                                            key={option.code}
+                                            style={[
+                                                styles.languageOption,
+                                                isActive && styles.languageOptionActive,
+                                                index !== REG_LANGUAGES.length - 1 && styles.languageOptionGap,
+                                            ]}
+                                            onPress={() => handleAppLanguageChange(option.code)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={option.label}
+                                        >
+                                            <Text style={[styles.languageOptionText, isActive && styles.languageOptionTextActive]}>
+                                                {option.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
                             <TouchableOpacity
                                 onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
                                 style={styles.backButton}
@@ -468,11 +514,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 <Text style={[styles.backText, { color: roleColors.textPrimary }]}>← {t('registration.back')}</Text>
                             </TouchableOpacity>
                             <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>
-                                {phase === 'initial' ? 'Sign Up' : t('registration.title')}
+                                {phase === 'initial' ? t('registration.signUp') : t('registration.title')}
                             </Text>
                             {phase === 'profile' ? (
                                 <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                                    <Text style={[styles.skipText, { color: roleColors.accent }]}>Skip</Text>
+                                    <Text style={[styles.skipText, { color: roleColors.accent }]}>{t('registration.skip')}</Text>
                                 </TouchableOpacity>
                             ) : (
                                 <View style={{ width: 60 }} />
@@ -496,7 +542,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 </View>
                                 {phase === 'profile' && !!registeredNickname ? (
                                     <Text style={[styles.nicknameChip, { color: roleColors.accent }]}>
-                                        Ваш ID: {registeredNickname}
+                                        {t('registration.idLabel')}: {registeredNickname}
                                     </Text>
                                 ) : null}
                             </View>
@@ -504,7 +550,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             {phase === 'initial' ? (
                                 <>
                                     <FormInput
-                                        label="Email"
+                                        label={t('registration.email')}
                                         theme={theme}
                                         value={email}
                                         onChangeText={setEmail}
@@ -513,7 +559,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         placeholder={t('registration.emailPlaceholder')}
                                     />
                                     <FormInput
-                                        label="Password"
+                                        label={t('registration.password')}
                                         theme={theme}
                                         value={password}
                                         onChangeText={setPassword}
@@ -521,7 +567,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         placeholder={t('registration.passwordPlaceholder')}
                                     />
                                     <FormInput
-                                        label="Confirm Password"
+                                        label={t('registration.confirmPassword')}
                                         theme={theme}
                                         value={confirmPassword}
                                         onChangeText={setConfirmPassword}
@@ -529,7 +575,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         placeholder={t('registration.passwordPlaceholder')}
                                     />
                                     <FormInput
-                                        label={t('registration.inviteCode') + " (Optional)"}
+                                        label={`${t('registration.inviteCode')} (${t('registration.optional')})`}
                                         theme={theme}
                                         value={inviteCode}
                                         onChangeText={setInviteCode}
@@ -627,11 +673,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         onPress={() => {
                                             Keyboard.dismiss();
                                             if (loadingCountries) {
-                                                Alert.alert('Loading', 'Please wait, countries are being loaded...');
+                                                Alert.alert(t('common.loading'), t('registration.loadingCountriesWait'));
                                                 return;
                                             }
                                             if (countriesData.length === 0) {
-                                                Alert.alert('Error', 'No countries available. Please check your internet connection.');
+                                                Alert.alert(t('common.error'), t('registration.noCountriesAvailable'));
                                                 fetchCountries(); // Retry
                                                 return;
                                             }
@@ -670,7 +716,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     )}
                                     {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
                                         <PickerContainer theme={theme}>
-                                            <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
+                                            <Text style={{ color: theme.subText, padding: 12 }}>{t('registration.noCountriesTapRetry')}</Text>
                                         </PickerContainer>
                                     )}
 
@@ -721,7 +767,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                             )}
                                             {showCityPicker && citiesData.length === 0 && country && (
                                                 <PickerContainer theme={theme}>
-                                                    <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
+                                                    <Text style={{ color: theme.subText, padding: 12 }}>{t('registration.loadingCities')}</Text>
                                                 </PickerContainer>
                                             )}
                                         </>
@@ -863,20 +909,19 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         {t('registration.legalLanguage') || 'Legal document language'}
                                     </Text>
                                     <View style={styles.legalLanguageRow}>
-                                        {(['en', 'ru', 'hi'] as LegalLanguage[]).map((lang) => {
-                                            const isActive = legalLanguage === lang;
-                                            const label = lang === 'ru' ? 'Русский' : (lang === 'hi' ? 'हिंदी' : 'English');
+                                        {REG_LEGAL_LANGUAGES.map((langOption) => {
+                                            const isActive = legalLanguage === langOption.code;
                                             return (
                                                 <TouchableOpacity
-                                                    key={lang}
+                                                    key={langOption.code}
                                                     style={[
                                                         styles.legalLanguageButton,
                                                         isActive && styles.legalLanguageButtonActive,
                                                     ]}
-                                                    onPress={() => setLegalLanguage(lang)}
+                                                    onPress={() => setLegalLanguage(langOption.code)}
                                                 >
                                                     <Text style={isActive ? styles.legalLanguageTextActive : styles.legalLanguageText}>
-                                                        {label}
+                                                        {langOption.label}
                                                     </Text>
                                                 </TouchableOpacity>
                                             );
@@ -924,7 +969,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     colors={[roleTheme.accent, roleTheme.accentStrong]}
                                     style={[styles.submitButton, { opacity: loading ? 0.7 : 1 }]}
                                 >
-                                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
+                                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? t('registration.next') : (phase === 'profile' ? t('registration.updateProfile') : t('registration.submit'))}</Text>}
                                 </LinearGradient>
                             </TouchableOpacity>
 
@@ -935,7 +980,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         onPress={() => navigation.navigate('Login')}
                                     >
                                         <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
-                                            Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
+                                            {t('registration.alreadyHaveAccount')}{' '}
+                                            <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>{t('registration.loginCta')}</Text>
                                         </Text>
                                     </TouchableOpacity>
 
@@ -944,7 +990,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         onPress={() => navigation.navigate('SupportHome', { entryPoint: 'register' })}
                                     >
                                         <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
-                                            Нужна помощь с регистрацией? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Поддержка</Text>
+                                            {t('registration.supportPrompt')}{' '}
+                                            <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>{t('registration.supportCta')}</Text>
                                         </Text>
                                     </TouchableOpacity>
                                 </>
@@ -969,6 +1016,39 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44,
         zIndex: 10,
+    },
+    languageSwitchContainer: {
+        position: 'absolute',
+        top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 6 : 50,
+        right: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(18, 20, 38, 0.55)',
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        zIndex: 20,
+    },
+    languageOption: {
+        paddingHorizontal: 7,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    languageOptionActive: {
+        backgroundColor: 'rgba(255, 209, 102, 0.2)',
+    },
+    languageOptionGap: {
+        marginRight: 2,
+    },
+    languageOptionText: {
+        color: 'rgba(248,250,252,0.82)',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    languageOptionTextActive: {
+        color: '#FFD166',
     },
     backButton: {
         padding: 8,

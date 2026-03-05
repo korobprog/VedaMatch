@@ -316,11 +316,17 @@ func main() {
 	multimediaHandler.RestoreRadioScheduler()
 
 	// Routes
+	// VK OAuth callback alias without /api (matches provider console redirect URI constraints in current rollout)
+	app.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback_alias", 120, 10*time.Minute), authHandler.VKCallback)
+
 	api := app.Group("/api")
 
 	// Auth Routes (Public)
 	api.Post("/register", middleware.RateLimitByIP("auth_register", 15, 10*time.Minute), authHandler.Register)
 	api.Post("/login", middleware.RateLimitByIP("auth_login", 30, 10*time.Minute), authHandler.Login)
+	api.Post("/auth/google/login", middleware.RateLimitByIP("auth_google_login", 60, 10*time.Minute), authHandler.GoogleLogin)
+	api.Post("/auth/vk/login", middleware.RateLimitByIP("auth_vk_login", 60, 10*time.Minute), authHandler.VKLogin)
+	api.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback", 120, 10*time.Minute), authHandler.VKCallback)
 	api.Post("/auth/telegram/miniapp/login", middleware.RateLimitByIP("auth_telegram_miniapp_login", 60, 10*time.Minute), authHandler.TelegramMiniAppLogin)
 	api.Post("/auth/telegram/miniapp/link", middleware.RateLimitByIP("auth_telegram_miniapp_link", 60, 10*time.Minute), authHandler.TelegramMiniAppLink)
 	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)

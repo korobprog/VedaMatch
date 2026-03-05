@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -34,31 +34,58 @@ import DeviceInfo from 'react-native-device-info';
 import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
 import apiClient from '../lib/apiClient';
 import { ScreenScaffold } from '../components/theme/ScreenScaffold';
+import { signInWithGoogle, signInWithVK } from '../services/socialAuthService';
 
 const { width, height } = Dimensions.get('window');
+const SLOGAN_ROTATION_MS = 4200;
+const SLOGAN_FADE_MS = 280;
+const ROTATING_SLOGAN_COUNT = 10;
+const LOGIN_LANGUAGES = [
+    { code: 'en', label: 'EN' },
+    { code: 'ru', label: 'RU' },
+    { code: 'hi', label: 'हिंदी' },
+] as const;
+
+const normalizeLanguageCode = (value?: string): string => {
+    const normalized = (value || '').trim().toLowerCase();
+    if (!normalized) return 'ru';
+    if (normalized.startsWith('hi')) return 'hi';
+    if (normalized.startsWith('en')) return 'en';
+    return 'ru';
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [socialLoadingProvider, setSocialLoadingProvider] = useState<'google' | 'vk' | null>(null);
     const [emailFocused, setEmailFocused] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
+    const [sloganIndex, setSloganIndex] = useState(0);
 
     // Animation values
     const glowValue = useSharedValue(0);
     const floatValue = useSharedValue(0);
     const formOpacity = useSharedValue(0);
     const formTranslateY = useSharedValue(20);
+    const sloganOpacity = useSharedValue(1);
 
     // Input focus animations
     const emailFocusValue = useSharedValue(0);
     const passwordFocusValue = useSharedValue(0);
 
     const { login } = useUser();
+    const activeLanguage = normalizeLanguageCode(i18n.language);
+    const rotatingSlogans = useMemo(() => {
+        const values = Array.from({ length: ROTATING_SLOGAN_COUNT }, (_, idx) => (
+            t(`auth.loginScreen.rotatingSlogans.${idx}`)
+        )).map((item) => item.trim()).filter(Boolean);
+        return Array.from(new Set(values));
+    }, [t, i18n.language]);
 
     useEffect(() => {
         // Initial entrance
@@ -81,15 +108,36 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             -1,
             true
         );
-    }, []);
+    }, [floatValue, formOpacity, formTranslateY, glowValue]);
 
     useEffect(() => {
         emailFocusValue.value = withTiming(emailFocused ? 1 : 0, { duration: 200 });
-    }, [emailFocused]);
+    }, [emailFocused, emailFocusValue]);
 
     useEffect(() => {
         passwordFocusValue.value = withTiming(passwordFocused ? 1 : 0, { duration: 200 });
-    }, [passwordFocused]);
+    }, [passwordFocused, passwordFocusValue]);
+
+    useEffect(() => {
+        setSloganIndex(0);
+        sloganOpacity.value = 1;
+
+        if (rotatingSlogans.length <= 1) return;
+
+        let swapTimer: ReturnType<typeof setTimeout> | null = null;
+        const intervalId = setInterval(() => {
+            sloganOpacity.value = withTiming(0, { duration: SLOGAN_FADE_MS });
+            swapTimer = setTimeout(() => {
+                setSloganIndex((prev) => (prev + 1) % rotatingSlogans.length);
+                sloganOpacity.value = withTiming(1, { duration: SLOGAN_FADE_MS });
+            }, SLOGAN_FADE_MS + 40);
+        }, SLOGAN_ROTATION_MS);
+
+        return () => {
+            clearInterval(intervalId);
+            if (swapTimer) clearTimeout(swapTimer);
+        };
+    }, [rotatingSlogans.length, sloganOpacity]);
 
     const animatedGlowStyle = useAnimatedStyle(() => {
         const opacity = interpolate(glowValue.value, [0, 1], [0.3, 0.6]);
@@ -110,6 +158,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const animatedFormStyle = useAnimatedStyle(() => ({
         opacity: formOpacity.value,
         transform: [{ translateY: formTranslateY.value }],
+    }));
+
+    const animatedSloganStyle = useAnimatedStyle(() => ({
+        opacity: sloganOpacity.value,
+        transform: [{ translateY: interpolate(sloganOpacity.value, [0, 1], [4, 0]) }],
     }));
 
     const emailInputStyle = useAnimatedStyle(() => ({
@@ -141,7 +194,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const handleLogin = async () => {
         const normalizedEmail = email.trim().toLowerCase();
         if (!normalizedEmail || !password) {
-            Alert.alert(t('error'), t('fill_all_fields'));
+            Alert.alert(t('common.error'), t('auth.loginScreen.errors.fillRequired'));
             return;
         }
 
@@ -160,14 +213,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             await login(user, response.data);
         } catch (error: any) {
             console.warn('Login failure:', error.message);
-            const msg = error.response?.data?.error || t('login_failed');
+            const msg = error.response?.data?.error || t('auth.loginScreen.errors.loginFailed');
             Alert.alert(
-                t('error'),
+                t('common.error'),
                 msg,
                 [
                     { text: t('common.close') || 'Закрыть', style: 'cancel' },
                     {
-                        text: 'Поддержка',
+                        text: t('auth.loginScreen.supportCta'),
                         onPress: () => navigation.navigate('SupportHome', { entryPoint: 'login' }),
                     },
                 ]
@@ -176,6 +229,64 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             setLoading(false);
         }
     };
+
+    const handleLanguageChange = useCallback(async (languageCode: 'ru' | 'en' | 'hi') => {
+        if (normalizeLanguageCode(i18n.language) === languageCode) return;
+        try {
+            await i18n.changeLanguage(languageCode);
+        } catch (error) {
+            console.warn('Failed to change language:', error);
+        }
+    }, [i18n]);
+
+    const trackSocialClick = useCallback((provider: 'vk' | 'telegram' | 'google') => {
+        console.log('[AuthSocialClick]', {
+            event: 'auth_social_click_total',
+            provider,
+            screen: 'login',
+            ts: new Date().toISOString(),
+        });
+    }, []);
+
+    const handleComingSoonSocial = useCallback((provider: 'telegram') => {
+        trackSocialClick(provider);
+        const detailsKey = 'auth.loginScreen.social.telegramHint';
+        Alert.alert(
+            t('auth.loginScreen.social.comingSoonTitle'),
+            t(detailsKey),
+            [{ text: t('common.close') }],
+        );
+    }, [t, trackSocialClick]);
+
+    const handleGoogleSignIn = useCallback(async () => {
+        trackSocialClick('google');
+        setSocialLoadingProvider('google');
+        try {
+            const response = await signInWithGoogle();
+            await login(response.user, response.authPayload);
+        } catch (_error: any) {
+            const backendMessage = _error?.response?.data?.error;
+            const fallbackMessage = t('auth.loginScreen.errors.googleFailed');
+            Alert.alert(t('common.error'), backendMessage || fallbackMessage);
+        } finally {
+            setSocialLoadingProvider(null);
+        }
+    }, [login, t, trackSocialClick]);
+
+    const handleVKSignIn = useCallback(async () => {
+        trackSocialClick('vk');
+        setSocialLoadingProvider('vk');
+        try {
+            const response = await signInWithVK();
+            await login(response.user, response.authPayload);
+        } catch (_error: any) {
+            const backendMessage = _error?.response?.data?.error;
+            const fallbackMessage = t('auth.loginScreen.errors.vkFailed');
+            Alert.alert(t('common.error'), backendMessage || fallbackMessage);
+        } finally {
+            setSocialLoadingProvider(null);
+        }
+    }, [login, t, trackSocialClick]);
 
     const handleDevLogin = useCallback(async () => {
         const devEmail = 'dev_admin_yatra@example.com';
@@ -322,7 +433,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             }
 
             await login(user, response);
-        } catch (error: any) {
+        } catch {
             // 2. If Login fails, try register static dev user, then fallback to unique email
             try {
                 const deviceId = await DeviceInfo.getUniqueId();
@@ -379,10 +490,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             {/* Background Layers */}
             <View style={StyleSheet.absoluteFill}>
                 <LinearGradient
-                    colors={[ModernVedicTheme.colors.background, '#FFE8D6', '#FFF8F0']}
+                    colors={['#FAF7F0', '#FFFDF8', '#FDF4E3']}
                     style={StyleSheet.absoluteFill}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                    start={{ x: 0.05, y: 0 }}
+                    end={{ x: 0.95, y: 1 }}
                 />
             </View>
 
@@ -408,6 +519,29 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     showsVerticalScrollIndicator={false}
                 >
                     <Animated.View style={[styles.content, animatedFormStyle]}>
+                        <View style={styles.languageSwitchContainer}>
+                            {LOGIN_LANGUAGES.map((option, index) => {
+                                const isActive = activeLanguage === option.code;
+                                return (
+                                    <TouchableOpacity
+                                        key={option.code}
+                                        style={[
+                                            styles.languageOption,
+                                            isActive && styles.languageOptionActive,
+                                            index !== LOGIN_LANGUAGES.length - 1 && styles.languageOptionGap,
+                                        ]}
+                                        onPress={() => handleLanguageChange(option.code)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={option.label}
+                                    >
+                                        <Text style={[styles.languageOptionText, isActive && styles.languageOptionTextActive]}>
+                                            {option.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
                         <Animated.View style={[styles.headerContainer, animatedFloatStyle]}>
                             <View style={styles.logoWrapper}>
                                 <Image
@@ -417,7 +551,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                 />
                             </View>
                             <Text style={styles.title}>VedaMatch</Text>
-                            <Text style={styles.subtitle}>Connect Your Soul • Discover Your Match</Text>
+                            <View style={styles.subtitleSlot}>
+                                <Animated.Text
+                                    style={[styles.subtitle, animatedSloganStyle]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.8}
+                                >
+                                    {rotatingSlogans[sloganIndex] || t('auth.loginScreen.subtitle')}
+                                </Animated.Text>
+                            </View>
                         </Animated.View>
 
                         <View style={styles.formCard}>
@@ -483,10 +626,50 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                     {loading ? (
                                         <ActivityIndicator color="#FFF" />
                                     ) : (
-                                        <Text style={styles.loginButtonText}>Login with Saffron</Text>
+                                        <Text style={styles.loginButtonText}>{t('auth.loginScreen.loginButton')}</Text>
                                     )}
                                 </LinearGradient>
                             </TouchableOpacity>
+
+                            <View style={styles.socialSection}>
+                                <Text style={styles.socialTitle}>{t('auth.loginScreen.orContinueWith')}</Text>
+                                <View style={styles.socialButtonsRow}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={styles.socialButton}
+                                        onPress={handleGoogleSignIn}
+                                        disabled={loading || socialLoadingProvider === 'google'}
+                                    >
+                                        {socialLoadingProvider === 'google' ? (
+                                            <ActivityIndicator color={ModernVedicTheme.colors.primary} />
+                                        ) : (
+                                            <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.google')}</Text>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={styles.socialButton}
+                                        onPress={handleVKSignIn}
+                                        disabled={loading || socialLoadingProvider !== null}
+                                    >
+                                        {socialLoadingProvider === 'vk' ? (
+                                            <ActivityIndicator color={ModernVedicTheme.colors.primary} />
+                                        ) : (
+                                            <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.vk')}</Text>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={styles.socialButton}
+                                        onPress={() => handleComingSoonSocial('telegram')}
+                                        disabled={loading || socialLoadingProvider !== null}
+                                    >
+                                        <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.telegram')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
 
                             {APP_ENV !== 'production' && (
                                 <TouchableOpacity
@@ -495,7 +678,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                     onPress={handleDevLogin}
                                     disabled={loading}
                                 >
-                                    <Text style={styles.devButtonText}>Быстрый вход (DEV)</Text>
+                                    <Text style={styles.devButtonText}>{t('auth.devLogin')}</Text>
                                 </TouchableOpacity>
                             )}
 
@@ -504,7 +687,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                 onPress={() => navigation.navigate('Registration', { isDarkMode: false, phase: 'initial' })}
                             >
                                 <Text style={styles.registerLinkText}>
-                                    New to VedaMatch? <Text style={styles.registerBold}>Create Account</Text>
+                                    {t('auth.loginScreen.createAccountPrefix')}{' '}
+                                    <Text style={styles.registerBold}>{t('auth.loginScreen.createAccountCta')}</Text>
                                 </Text>
                             </TouchableOpacity>
 
@@ -513,7 +697,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                 onPress={() => navigation.navigate('SupportHome', { entryPoint: 'login' })}
                             >
                                 <Text style={styles.supportLinkText}>
-                                    Не получается войти? Связаться с поддержкой
+                                    {t('auth.loginScreen.supportPrompt')} <Text style={styles.supportLinkBold}>{t('auth.loginScreen.supportCta')}</Text>
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -537,6 +721,40 @@ const styles = StyleSheet.create({
         paddingHorizontal: 28,
         paddingTop: height * 0.10,
         paddingBottom: 40,
+    },
+    languageSwitchContainer: {
+        position: 'absolute',
+        top: 4,
+        right: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.border,
+        backgroundColor: 'rgba(255, 253, 248, 0.96)',
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        zIndex: 40,
+        elevation: 6,
+    },
+    languageOption: {
+        paddingHorizontal: 7,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    languageOptionActive: {
+        backgroundColor: 'rgba(255, 153, 51, 0.18)',
+    },
+    languageOptionGap: {
+        marginRight: 2,
+    },
+    languageOptionText: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    languageOptionTextActive: {
+        color: ModernVedicTheme.colors.primary,
     },
     scrollContent: {
         flexGrow: 1,
@@ -566,60 +784,72 @@ const styles = StyleSheet.create({
     },
     headerContainer: {
         alignItems: 'center',
-        marginBottom: 32,
+        marginBottom: 30,
     },
     logoWrapper: {
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.8)',
+        borderColor: ModernVedicTheme.colors.glassBorder,
         ...ModernVedicTheme.shadows.soft,
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.16,
     },
     logoImage: {
         width: 85,
         height: 85,
     },
     title: {
-        fontSize: 36,
+        fontSize: 40,
         fontWeight: '700',
-        color: ModernVedicTheme.colors.primary,
+        color: '#2A241A',
         fontFamily: Platform.OS === 'ios' ? 'Playfair Display' : 'serif',
-        letterSpacing: 1.5,
-        textShadowColor: '#8B0000',
-        textShadowOffset: { width: 0, height: 0 },
-        textShadowRadius: 3,
+        letterSpacing: 1.1,
+        textShadowColor: 'rgba(244, 197, 66, 0.32)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
     },
     subtitle: {
-        fontSize: 14,
+        fontSize: 15,
         color: ModernVedicTheme.colors.textSecondary,
-        marginTop: 6,
         fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'sans-serif',
-        opacity: 0.8,
-        letterSpacing: 0.5,
+        opacity: 0.92,
+        letterSpacing: 0.35,
+        textAlign: 'center',
+        width: '100%',
+        maxWidth: 360,
+        alignSelf: 'center',
+        lineHeight: 20,
+    },
+    subtitleSlot: {
+        marginTop: 7,
+        height: 24,
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     formCard: {
         width: '100%',
-        backgroundColor: 'rgba(255, 255, 255, 0.35)',
-        borderRadius: 40,
+        backgroundColor: 'rgba(255, 253, 248, 0.84)',
+        borderRadius: 32,
         padding: 24,
-        borderWidth: 0,
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.border,
         ...ModernVedicTheme.shadows.medium,
         shadowColor: ModernVedicTheme.colors.primary,
-        shadowOpacity: 0.08,
-        shadowRadius: 25,
-        elevation: 0,
+        shadowOpacity: 0.12,
+        shadowRadius: 18,
+        elevation: 2,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: 24,
-        borderWidth: 0.8,
+        borderWidth: 1,
         marginBottom: 16,
         height: 60,
         paddingHorizontal: 24,
@@ -631,7 +861,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     loginButtonContainer: {
-        borderRadius: 24,
+        borderRadius: 20,
         overflow: 'hidden',
         marginTop: 12,
         ...ModernVedicTheme.shadows.soft,
@@ -639,7 +869,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
     },
     loginButton: {
-        height: 60,
+        height: 58,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -664,6 +894,38 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 0.3,
     },
+    socialSection: {
+        marginTop: 16,
+    },
+    socialTitle: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 13,
+        textAlign: 'center',
+        marginBottom: 10,
+        opacity: 0.85,
+    },
+    socialButtonsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        rowGap: 10,
+    },
+    socialButton: {
+        width: '31%',
+        minWidth: 84,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255, 253, 248, 0.95)',
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.border,
+    },
+    socialButtonText: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 13,
+        fontWeight: '700',
+    },
     registerLink: {
         marginTop: 28,
         alignItems: 'center',
@@ -685,6 +947,11 @@ const styles = StyleSheet.create({
         color: ModernVedicTheme.colors.textSecondary,
         fontSize: 13,
         opacity: 0.85,
+        textAlign: 'center',
+    },
+    supportLinkBold: {
+        color: ModernVedicTheme.colors.primary,
+        fontWeight: '700',
     },
     eyeButton: {
         padding: 4,

@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime"
+	"net/http"
 	"net/mail"
+	"net/url"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/config"
@@ -271,6 +275,206 @@ func validateAuthCredentials(email, password string) bool {
 	return strings.TrimSpace(email) != "" && strings.TrimSpace(password) != ""
 }
 
+type googleTokenInfo struct {
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Locale        string `json:"locale"`
+}
+
+var googleIDTokenVerifier = verifyGoogleIDToken
+
+type vkUserInfo struct {
+	UserID     int64
+	Email      string
+	FirstName  string
+	LastName   string
+	ScreenName string
+}
+
+var vkAccessTokenVerifier = verifyVKAccessToken
+var vkCodeExchanger = exchangeVKCode
+
+func parseGoogleEmailVerified(raw string) bool {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	return value == "true" || value == "1" || value == "yes"
+}
+
+func normalizeGoogleLocale(locale string) string {
+	normalized := strings.TrimSpace(strings.ToLower(locale))
+	switch {
+	case strings.HasPrefix(normalized, "ru"):
+		return "ru"
+	case strings.HasPrefix(normalized, "hi"):
+		return "hi"
+	default:
+		return "en"
+	}
+}
+
+func verifyGoogleIDToken(idToken string) (*googleTokenInfo, error) {
+	token := strings.TrimSpace(idToken)
+	if token == "" {
+		return nil, errors.New("idToken is required")
+	}
+
+	endpoint := "https://oauth2.googleapis.com/tokeninfo?id_token=" + url.QueryEscape(token)
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create google tokeninfo request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("google token verification request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google token verification failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload googleTokenInfo
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse google tokeninfo response: %w", err)
+	}
+	if strings.TrimSpace(payload.Sub) == "" {
+		return nil, errors.New("google token payload missing sub")
+	}
+
+	return &payload, nil
+}
+
+func buildGoogleFallbackEmail(sub string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(sub))
+	if trimmed == "" {
+		trimmed = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	}
+	return fmt.Sprintf("google_%s@oauth.vedamatch.local", trimmed)
+}
+
+func verifyVKAccessToken(accessToken string) (*vkUserInfo, error) {
+	token := strings.TrimSpace(accessToken)
+	if token == "" {
+		return nil, errors.New("accessToken is required")
+	}
+
+	endpoint := "https://api.vk.com/method/users.get?access_token=" + url.QueryEscape(token) + "&v=5.199&fields=screen_name"
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vk users.get request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("vk users.get request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("vk users.get failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Response []struct {
+			ID         int64  `json:"id"`
+			FirstName  string `json:"first_name"`
+			LastName   string `json:"last_name"`
+			ScreenName string `json:"screen_name"`
+		} `json:"response"`
+		Error *struct {
+			Code int    `json:"error_code"`
+			Msg  string `json:"error_msg"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse vk users.get response: %w", err)
+	}
+	if payload.Error != nil {
+		return nil, fmt.Errorf("vk users.get error %d: %s", payload.Error.Code, payload.Error.Msg)
+	}
+	if len(payload.Response) == 0 || payload.Response[0].ID == 0 {
+		return nil, errors.New("vk users.get returned empty user")
+	}
+
+	user := payload.Response[0]
+	return &vkUserInfo{
+		UserID:     user.ID,
+		FirstName:  strings.TrimSpace(user.FirstName),
+		LastName:   strings.TrimSpace(user.LastName),
+		ScreenName: strings.TrimSpace(user.ScreenName),
+	}, nil
+}
+
+func buildVKFallbackEmail(userID int64) string {
+	if userID <= 0 {
+		return fmt.Sprintf("vk_%d@oauth.vedamatch.local", time.Now().UTC().UnixNano())
+	}
+	return fmt.Sprintf("vk_%d@oauth.vedamatch.local", userID)
+}
+
+func exchangeVKCode(code string) (accessToken string, email string, userID int64, err error) {
+	clientID := strings.TrimSpace(os.Getenv("VK_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("VK_CLIENT_SECRET"))
+	redirectURI := strings.TrimSpace(os.Getenv("VK_REDIRECT_URI"))
+	if clientID == "" || clientSecret == "" || redirectURI == "" {
+		return "", "", 0, errors.New("VK env config is incomplete")
+	}
+
+	query := url.Values{}
+	query.Set("client_id", clientID)
+	query.Set("client_secret", clientSecret)
+	query.Set("redirect_uri", redirectURI)
+	query.Set("code", strings.TrimSpace(code))
+
+	endpoint := "https://oauth.vk.com/access_token?" + query.Encode()
+	req, reqErr := http.NewRequest(http.MethodGet, endpoint, nil)
+	if reqErr != nil {
+		return "", "", 0, fmt.Errorf("failed to create vk access_token request: %w", reqErr)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		return "", "", 0, fmt.Errorf("vk access_token request failed: %w", doErr)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != http.StatusOK {
+		return "", "", 0, fmt.Errorf("vk access_token failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		AccessToken string `json:"access_token"`
+		Email       string `json:"email"`
+		UserID      int64  `json:"user_id"`
+		Error       string `json:"error"`
+		ErrorDesc   string `json:"error_description"`
+	}
+	if unmarshalErr := json.Unmarshal(body, &payload); unmarshalErr != nil {
+		return "", "", 0, fmt.Errorf("failed to parse vk access_token response: %w", unmarshalErr)
+	}
+	if payload.Error != "" {
+		if payload.ErrorDesc != "" {
+			return "", "", 0, fmt.Errorf("vk access_token error %s: %s", payload.Error, payload.ErrorDesc)
+		}
+		return "", "", 0, fmt.Errorf("vk access_token error: %s", payload.Error)
+	}
+	if strings.TrimSpace(payload.AccessToken) == "" {
+		return "", "", 0, errors.New("vk access_token is empty")
+	}
+
+	return strings.TrimSpace(payload.AccessToken), strings.TrimSpace(payload.Email), payload.UserID, nil
+}
+
 func updateUserDeviceID(user *models.User, deviceID string) {
 	if user == nil {
 		return
@@ -469,6 +673,376 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
+}
+
+func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
+	_ = services.GetMetricsService().Increment(services.MetricAuthGoogleAttemptTotal, 1)
+	if !config.AuthGoogleEnabled() {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Google auth is disabled",
+		})
+	}
+
+	var req struct {
+		IDToken  string `json:"idToken"`
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	tokenInfo, err := googleIDTokenVerifier(req.IDToken)
+	if err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		log.Printf("[AUTH] Google token verification failed: %v", err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid Google token",
+		})
+	}
+
+	now := time.Now().UTC()
+	googleSub := strings.TrimSpace(tokenInfo.Sub)
+	googleEmail := strings.TrimSpace(strings.ToLower(tokenInfo.Email))
+	emailVerified := parseGoogleEmailVerified(tokenInfo.EmailVerified)
+	if googleEmail == "" {
+		googleEmail = buildGoogleFallbackEmail(googleSub)
+	}
+
+	var user models.User
+	foundBySub := false
+
+	if err := database.DB.Where("google_sub = ?", googleSub).First(&user).Error; err == nil {
+		foundBySub = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		log.Printf("[AUTH] Google login lookup by sub failed sub=%s: %v", googleSub, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not resolve Google account",
+		})
+	}
+
+	if !foundBySub && emailVerified {
+		if err := database.DB.Where("email = ?", googleEmail).First(&user).Error; err == nil {
+			if strings.TrimSpace(user.GoogleSub) != "" && user.GoogleSub != googleSub {
+				_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					"error": "Google account is already linked to another user",
+				})
+			}
+			updates := map[string]interface{}{
+				"google_sub":       googleSub,
+				"google_email":     googleEmail,
+				"google_linked_at": now,
+			}
+			if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+				_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+				log.Printf("[AUTH] Google login link existing user failed user=%d sub=%s: %v", user.ID, googleSub, err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not link Google account",
+				})
+			}
+			user.GoogleSub = googleSub
+			user.GoogleEmail = googleEmail
+			user.GoogleLinkedAt = &now
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+			log.Printf("[AUTH] Google login lookup by email failed email=%s: %v", googleEmail, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not resolve Google account by email",
+			})
+		}
+	}
+
+	if user.ID == 0 {
+		passwordRaw := fmt.Sprintf("google:%s:%d", googleSub, now.UnixNano())
+		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(passwordRaw), bcrypt.DefaultCost)
+		if hashErr != nil {
+			_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+			log.Printf("[AUTH] Google login hash password failed: %v", hashErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create Google user",
+			})
+		}
+
+		karmicName := strings.TrimSpace(tokenInfo.Name)
+		if karmicName == "" {
+			karmicName = "Google User"
+		}
+		spiritualName := strings.TrimSpace(strings.TrimSpace(tokenInfo.GivenName + " " + tokenInfo.FamilyName))
+		if spiritualName == "" {
+			spiritualName = "Guest"
+		}
+
+		newUser := models.User{
+			Email:          googleEmail,
+			Password:       string(hashedPassword),
+			KarmicName:     karmicName,
+			SpiritualName:  spiritualName,
+			Role:           models.RoleUser,
+			GoogleSub:      googleSub,
+			GoogleEmail:    googleEmail,
+			GoogleLinkedAt: &now,
+			Language:       normalizeGoogleLocale(tokenInfo.Locale),
+		}
+
+		nicknameService := services.NewNicknameService(database.DB)
+		nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration("", newUser.Email, newUser.KarmicName)
+		if nicknameErr != nil {
+			_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+			log.Printf("[AUTH] Google login assign nickname failed email=%s: %v", newUser.Email, nicknameErr)
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"error": "Could not assign nickname",
+			})
+		}
+		newUser.Nickname = nickname
+		newUser.NicknameSetManually = nicknameSetManually
+
+		if req.DeviceID != "" {
+			newUser.DeviceID = strings.TrimSpace(req.DeviceID)
+		}
+
+		if err := database.DB.Create(&newUser).Error; err != nil {
+			_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+			log.Printf("[AUTH] Google login create user failed email=%s sub=%s: %v", newUser.Email, googleSub, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create Google user",
+			})
+		}
+
+		if _, walletErr := h.walletService.GetOrCreateWallet(newUser.ID); walletErr != nil {
+			log.Printf("[AUTH] Failed to create wallet for Google user %d: %v", newUser.ID, walletErr)
+		}
+
+		user = newUser
+	}
+
+	if user.IsBlocked {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User is blocked",
+		})
+	}
+
+	updateUserDeviceID(&user, req.DeviceID)
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[AUTH] Failed to sync PRO entitlement for google login user=%d err=%v", user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
+	}
+
+	sanitizeUser(&user)
+	_ = services.GetMetricsService().Increment(services.MetricAuthGoogleSuccessTotal, 1)
+	return issueAuthResponse(c, fiber.StatusOK, "Google login successful", user, req.DeviceID)
+}
+
+func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
+	if !config.AuthVKEnabled() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "VK auth is disabled",
+		})
+	}
+
+	var req struct {
+		AccessToken string `json:"accessToken"`
+		DeviceID    string `json:"deviceId"`
+		Email       string `json:"email"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	if req.AccessToken == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "accessToken is required",
+		})
+	}
+
+	vkUser, err := vkAccessTokenVerifier(req.AccessToken)
+	if err != nil {
+		log.Printf("[AUTH] VK token verification failed: %v", err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid VK token",
+		})
+	}
+
+	now := time.Now().UTC()
+	var user models.User
+	foundByVK := false
+	if err := database.DB.Where("vk_user_id = ?", vkUser.UserID).First(&user).Error; err == nil {
+		foundByVK = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[AUTH] VK login lookup by vk_user_id failed vk=%d: %v", vkUser.UserID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not resolve VK account",
+		})
+	}
+
+	candidateEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	if candidateEmail == "" {
+		candidateEmail = strings.TrimSpace(strings.ToLower(vkUser.Email))
+	}
+
+	if !foundByVK && candidateEmail != "" {
+		if err := database.DB.Where("email = ?", candidateEmail).First(&user).Error; err == nil {
+			if user.VKUserID != nil && *user.VKUserID != vkUser.UserID {
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					"error": "VK account is already linked to another user",
+				})
+			}
+			updates := map[string]interface{}{
+				"vk_user_id":   vkUser.UserID,
+				"vk_email":     candidateEmail,
+				"vk_linked_at": now,
+			}
+			if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+				log.Printf("[AUTH] VK login link existing user failed user=%d vk=%d: %v", user.ID, vkUser.UserID, err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not link VK account",
+				})
+			}
+			user.VKUserID = &vkUser.UserID
+			user.VKEmail = candidateEmail
+			user.VKLinkedAt = &now
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[AUTH] VK login lookup by email failed email=%s: %v", candidateEmail, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not resolve VK account by email",
+			})
+		}
+	}
+
+	if user.ID == 0 {
+		passwordRaw := fmt.Sprintf("vk:%d:%d", vkUser.UserID, now.UnixNano())
+		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(passwordRaw), bcrypt.DefaultCost)
+		if hashErr != nil {
+			log.Printf("[AUTH] VK login hash password failed: %v", hashErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create VK user",
+			})
+		}
+
+		email := candidateEmail
+		if email == "" {
+			email = buildVKFallbackEmail(vkUser.UserID)
+		}
+		karmicName := strings.TrimSpace(strings.TrimSpace(vkUser.FirstName + " " + vkUser.LastName))
+		if karmicName == "" {
+			if strings.TrimSpace(vkUser.ScreenName) != "" {
+				karmicName = vkUser.ScreenName
+			} else {
+				karmicName = "VK User"
+			}
+		}
+		spiritualName := strings.TrimSpace(vkUser.FirstName)
+		if spiritualName == "" {
+			spiritualName = "Guest"
+		}
+
+		newUser := models.User{
+			Email:         email,
+			Password:      string(hashedPassword),
+			KarmicName:    karmicName,
+			SpiritualName: spiritualName,
+			Role:          models.RoleUser,
+			VKUserID:      &vkUser.UserID,
+			VKEmail:       email,
+			VKLinkedAt:    &now,
+			Language:      "ru",
+		}
+
+		nicknameService := services.NewNicknameService(database.DB)
+		nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration("", newUser.Email, newUser.KarmicName)
+		if nicknameErr != nil {
+			log.Printf("[AUTH] VK login assign nickname failed email=%s: %v", newUser.Email, nicknameErr)
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"error": "Could not assign nickname",
+			})
+		}
+		newUser.Nickname = nickname
+		newUser.NicknameSetManually = nicknameSetManually
+
+		if strings.TrimSpace(req.DeviceID) != "" {
+			newUser.DeviceID = strings.TrimSpace(req.DeviceID)
+		}
+
+		if err := database.DB.Create(&newUser).Error; err != nil {
+			log.Printf("[AUTH] VK login create user failed email=%s vk=%d: %v", newUser.Email, vkUser.UserID, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create VK user",
+			})
+		}
+
+		if _, walletErr := h.walletService.GetOrCreateWallet(newUser.ID); walletErr != nil {
+			log.Printf("[AUTH] Failed to create wallet for VK user %d: %v", newUser.ID, walletErr)
+		}
+
+		user = newUser
+	}
+
+	if user.IsBlocked {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User is blocked",
+		})
+	}
+
+	updateUserDeviceID(&user, req.DeviceID)
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[AUTH] Failed to sync PRO entitlement for vk login user=%d err=%v", user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
+	}
+
+	sanitizeUser(&user)
+	return issueAuthResponse(c, fiber.StatusOK, "VK login successful", user, req.DeviceID)
+}
+
+func (h *AuthHandler) VKCallback(c *fiber.Ctx) error {
+	state := strings.TrimSpace(c.Query("state"))
+	authCode := strings.TrimSpace(c.Query("code"))
+	authErr := strings.TrimSpace(c.Query("error"))
+
+	deepLinkQuery := url.Values{}
+	if state != "" {
+		deepLinkQuery.Set("state", state)
+	}
+
+	if authErr != "" {
+		deepLinkQuery.Set("error", authErr)
+		deepLink := "vedamatch://auth/vk/callback?" + deepLinkQuery.Encode()
+		return c.Redirect(deepLink, fiber.StatusFound)
+	}
+
+	if authCode == "" {
+		deepLinkQuery.Set("error", "missing_code")
+		deepLink := "vedamatch://auth/vk/callback?" + deepLinkQuery.Encode()
+		return c.Redirect(deepLink, fiber.StatusFound)
+	}
+
+	accessToken, email, _, err := vkCodeExchanger(authCode)
+	if err != nil {
+		log.Printf("[AUTH] VK callback exchange failed: %v", err)
+		deepLinkQuery.Set("error", "exchange_failed")
+		deepLink := "vedamatch://auth/vk/callback?" + deepLinkQuery.Encode()
+		return c.Redirect(deepLink, fiber.StatusFound)
+	}
+
+	deepLinkQuery.Set("access_token", accessToken)
+	if email != "" {
+		deepLinkQuery.Set("email", email)
+	}
+
+	deepLink := "vedamatch://auth/vk/callback?" + deepLinkQuery.Encode()
+	return c.Redirect(deepLink, fiber.StatusFound)
 }
 
 func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {

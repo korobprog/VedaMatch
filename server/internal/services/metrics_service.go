@@ -41,6 +41,9 @@ const (
 
 	MetricAuthRefreshSuccess                 = "auth_refresh_success"
 	MetricAuthRefreshFail                    = "auth_refresh_fail"
+	MetricAuthGoogleAttemptTotal             = "auth_google_attempt_total"
+	MetricAuthGoogleSuccessTotal             = "auth_google_success_total"
+	MetricAuthGoogleFailTotal                = "auth_google_fail_total"
 	MetricHTTP4xxTotal                       = "http_4xx_total"
 	MetricHTTP5xxTotal                       = "http_5xx_total"
 	MetricRateLimitedTotal                   = "http_429_total"

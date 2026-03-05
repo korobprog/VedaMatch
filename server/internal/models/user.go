@@ -70,6 +70,12 @@ type User struct {
 	TelegramFirstName     string     `json:"telegramFirstName,omitempty"`
 	TelegramLastName      string     `json:"telegramLastName,omitempty"`
 	TelegramLinkedAt      *time.Time `json:"telegramLinkedAt,omitempty"`
+	GoogleSub             string     `json:"googleSub,omitempty" gorm:"uniqueIndex"`
+	GoogleEmail           string     `json:"googleEmail,omitempty"`
+	GoogleLinkedAt        *time.Time `json:"googleLinkedAt,omitempty"`
+	VKUserID              *int64     `json:"vkUserId,omitempty" gorm:"uniqueIndex"`
+	VKEmail               string     `json:"vkEmail,omitempty"`
+	VKLinkedAt            *time.Time `json:"vkLinkedAt,omitempty"`
 	Photos                []Media    `json:"photos" gorm:"foreignKey:UserID"`
 
 	// Referral System Fields

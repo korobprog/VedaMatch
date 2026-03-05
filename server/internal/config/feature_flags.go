@@ -25,6 +25,14 @@ func AuthRefreshV1Enabled() bool {
 	return FlagEnabled("AUTH_REFRESH_V1", true)
 }
 
+func AuthGoogleEnabled() bool {
+	return FlagEnabled("AUTH_GOOGLE_ENABLED", false)
+}
+
+func AuthVKEnabled() bool {
+	return FlagEnabled("AUTH_VK_ENABLED", false)
+}
+
 func ChatHistoryV2Enabled() bool {
 	return FlagEnabled("CHAT_HISTORY_V2", true)
 }
