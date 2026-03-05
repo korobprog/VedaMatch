@@ -71,10 +71,21 @@ func main() {
 	if err := videoCircleService.EnsureDefaultTariffs(); err != nil {
 		log.Printf("[VideoCircles] failed to ensure default tariffs: %v", err)
 	}
+	shopPlanService := services.NewShopPlanService(nil)
+	if err := shopPlanService.EnsureDefaultTariffs(); err != nil {
+		log.Printf("[ShopPlans] failed to ensure default tariffs: %v", err)
+	}
+	shopPromotionService := services.NewShopPromotionService(nil)
+	if err := shopPromotionService.EnsureDefaultTariffs(); err != nil {
+		log.Printf("[ShopPromotions] failed to ensure default tariffs: %v", err)
+	}
 	services.StartVideoCircleExpiryScheduler()
+	services.StartChatVideoCircleCleanupScheduler()
 	services.StartChannelPostScheduler()
 	services.StartSadhuLiveArchiveScheduler()
 	services.StartProSubscriptionScheduler(nil)
+	services.StartShopSubscriptionScheduler(nil)
+	services.StartShopPromotionExpiryScheduler(nil)
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
@@ -353,6 +364,8 @@ func main() {
 	api.Get("/shops/my", middleware.Protected(), shopHandler.GetMyShop)
 	api.Get("/shops", shopHandler.GetShops)
 	api.Get("/shops/categories", shopHandler.GetShopCategories) // Must come before /shops/:id
+	api.Get("/shops/plans", shopHandler.GetShopPlans)
+	api.Get("/shops/promotion-tariffs", shopHandler.GetPromotionTariffs)
 	api.Get("/shops/:id", shopHandler.GetShop)
 	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
 
@@ -764,6 +777,15 @@ func main() {
 	// Other Protected Routes
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/history", messageHandler.GetMessagesHistory)
+	protected.Get("/messages/media-index", messageHandler.GetMessageMediaIndex)
+	protected.Get("/messages/search", messageHandler.SearchMessages)
+	protected.Put("/messages/preferences/:peerUserId", messageHandler.UpdateChatPreference)
+	protected.Post("/messages/share-contact", messageHandler.ShareContact)
+	protected.Get("/messages/:id/transcribe/quote", messageHandler.GetTranscribeQuote)
+	protected.Post("/messages/:id/transcribe", messageHandler.TranscribeMessage)
+	// Backward-compatible transcription alias for old clients.
+	protected.Post("/messages/transcribe/:id", messageHandler.TranscribeMessage)
+	// Keep generic parametric route last to avoid shadowing specific message routes.
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 
 	// Education Routes (Protected)
@@ -908,6 +930,8 @@ func main() {
 
 	// Message Media Routes
 	protected.Post("/messages/media", mediaHandler.UploadMessageMedia)
+	protected.Post("/messages/media/presign", mediaHandler.PresignMessageMedia)
+	protected.Post("/messages/media/finalize", mediaHandler.FinalizeMessageMedia)
 
 	// Dating Routes
 	protected.Get("/dating/stats", datingHandler.GetDatingStats)
@@ -986,6 +1010,10 @@ func main() {
 	protected.Post("/shops", shopHandler.CreateShop)
 	protected.Put("/shops/:id", shopHandler.UpdateShop)
 	protected.Get("/shops/seller/stats", shopHandler.GetSellerStats)
+	protected.Get("/shops/my/plan-status", shopHandler.GetMyPlanStatus)
+	protected.Post("/shops/my/subscribe", shopHandler.SubscribeShopPlan)
+	protected.Post("/shops/my/cancel-subscription", shopHandler.CancelShopSubscription)
+	protected.Post("/shops/:id/geo-boost", shopHandler.ApplyGeoBoost)
 
 	// Product Routes (Sattva Market - Seller)
 	protected.Post("/products/upload-photo", productHandler.UploadProductPhoto)
@@ -995,6 +1023,7 @@ func main() {
 	protected.Put("/products/:id/stock", productHandler.UpdateStock)
 	protected.Post("/products/:id/favorite", productHandler.ToggleFavorite)
 	protected.Post("/products/:id/reviews", productHandler.AddReview)
+	protected.Post("/products/:id/promote", productHandler.PromoteProduct)
 
 	// Order Routes (Sattva Market - Buyer)
 	protected.Post("/orders", orderHandler.CreateOrder)

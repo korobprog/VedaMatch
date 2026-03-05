@@ -74,6 +74,7 @@ const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
     fileSize: m.fileSize,
     mimeType: m.mimeType,
     duration: m.duration,
+    mapData: m.mapData || undefined,
     createdAt: m.createdAt || m.CreatedAt,
 });
 
@@ -156,7 +157,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
         };
         init();
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         let isMounted = true;
@@ -262,7 +263,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
         const timer = setTimeout(saveMessages, 1000);
         return () => clearTimeout(timer);
-    }, [messages]);
+    }, [messages, currentChatId, recipientId, t]);
 
     // Load P2P messages when recipient changes
     useEffect(() => {
@@ -305,7 +306,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setIsLoadingOlderMessages(false);
 
         return;
-    }, [recipientId, currentUser?.ID]);
+    }, [recipientId, currentUser?.ID, addListener]);
 
     const loadOlderMessages = async () => {
         const currentUserId = currentUser?.ID;
@@ -357,6 +358,29 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
+            if (msg.type === 'message_transcription_updated') {
+                const eventPayload = msg.mapData || {};
+                const targetId = (eventPayload.messageId || msg.messageId)?.toString();
+                const transcriptPayload = eventPayload.transcript || msg.transcript;
+                if (!targetId || !transcriptPayload) {
+                    return;
+                }
+                setMessages(prev => prev.map(item => {
+                    if (item.id !== targetId) {
+                        return item;
+                    }
+                    const nextMap = {
+                        ...(item.mapData || {}),
+                        transcript: transcriptPayload,
+                    };
+                    return {
+                        ...item,
+                        mapData: nextMap,
+                    };
+                }));
+                return;
+            }
+
             // Handle deletion events
             if (msg.type === 'delete_message') {
                 const deletedId = msg.messageId?.toString();
@@ -398,6 +422,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     fileSize: msg.fileSize,
                     mimeType: msg.mimeType,
                     duration: msg.duration,
+                    mapData: msg.mapData || undefined,
                     createdAt: msg.createdAt || msg.CreatedAt || new Date().toISOString()
                 };
                 setMessages(prev => {
@@ -413,7 +438,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 clearTimeout(typingTimeoutRef.current);
             }
         };
-    }, [recipientId, currentUser?.ID]);
+    }, [recipientId, currentUser?.ID, addListener]);
 
     const setChatRecipient = (user: UserContact | null) => {
         if (!user) {
@@ -621,7 +646,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const handleMenuOption = (option: string, onNavigateToPortal: (tab: ChatNavTab) => void) => {
+    const handleMenuOption = (option: string, _onNavigateToPortal: (tab: ChatNavTab) => void) => {
         setShowMenu(false);
 
         if (option === 'contacts.viewProfile') {
@@ -658,7 +683,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const handleNewChat = () => {
-        const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
+        const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
         const welcomeMessages: Message[] = [{
             id: `welcome_${Date.now()}`,
             text: `${assistantName}. ${t('chat.welcome')}`,
@@ -706,7 +731,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setHistory(updated);
         if (currentChatId === id) {
             // When deleting the active chat, reset UI without re-adding a new history item.
-            const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
+            const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
             setMessages([{
                 id: `welcome_${Date.now()}`,
                 text: `${assistantName}. ${t('chat.welcome')}`,
@@ -732,7 +757,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
         // If current chat is in the deleted list, reset it
         if (currentChatId && ids.includes(currentChatId)) {
-            const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
+            const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
             setMessages([{
                 id: `welcome_${Date.now()}`,
                 text: `${assistantName}. ${t('chat.welcome')}`,
@@ -755,6 +780,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
     const handleSendMedia = async (media: MediaFile) => {
         if (!currentUser?.ID) return;
+        const currentUserId = currentUser.ID;
 
         try {
             console.log('📤 Starting media upload:', media);
@@ -773,6 +799,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 fileName: media.name,
                 fileSize: media.size,
                 mimeType: media.mimeType,
+                duration: media.duration,
                 uploading: true,
                 content: media.uri,
             };
@@ -785,12 +812,18 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             });
 
             console.log('🌐 Uploading media to server...');
-            const savedMessage = await mediaService.uploadMedia(
-                media,
-                currentUser.ID,
-                recipientId || undefined,
-                undefined
-            );
+            const savedMessage = media.type === 'video_circle'
+                ? await mediaService.uploadVideoCircle(
+                    media,
+                    recipientId || undefined,
+                    undefined
+                )
+                : await mediaService.uploadMedia(
+                    media,
+                    currentUserId,
+                    recipientId || undefined,
+                    undefined
+                );
 
             console.log('✅ Server response:', savedMessage);
 
@@ -806,39 +839,57 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 content: savedMessage.content,
                 senderId: savedMessage.senderId,
                 recipientId: savedMessage.recipientId,
+                mapData: savedMessage.mapData || undefined,
                 createdAt: savedMessage.CreatedAt,
             };
 
             // Preserve duration from local media if server didn't return it
-            if (media.type === 'audio' && !finalMessage.duration && media.duration) {
+            if ((media.type === 'audio' || media.type === 'video_circle') && !finalMessage.duration && media.duration) {
                 finalMessage.duration = media.duration;
             }
 
             console.log('🔄 Updating message from temp to final:', finalMessage);
 
             setMessages(prev => {
-                const finalId = savedMessage.ID?.toString() || savedMessage.id || tempId;
+                const finalId = (savedMessage.ID?.toString() || savedMessage.id?.toString() || tempId);
+                const withoutTemp = prev.filter(m => m.id !== tempId);
 
                 console.log('🔍 Current messages count:', prev.length);
                 console.log('🔍 Looking for temp message with ID:', tempId);
 
-                // CRITICAL: Check if this message was already added by WebSocket
-                const alreadyExists = prev.some(m => (m.id === finalId || m.id === tempId) && m.id !== tempId);
-
-                if (alreadyExists) {
-                    console.log('⚠️ Message already added by WebSocket, removing temp');
-                    // Just remove the temporary uploading message
-                    return prev.filter(m => m.id !== tempId);
+                const existingIndex = withoutTemp.findIndex(m => m.id === finalId);
+                if (existingIndex >= 0) {
+                    console.log('⚠️ Message already exists (likely from WebSocket), normalizing final payload');
+                    const updated = [...withoutTemp];
+                    updated[existingIndex] = {
+                        ...updated[existingIndex],
+                        ...finalMessage,
+                        id: finalId,
+                        uploading: false,
+                    };
+                    return updated;
                 }
 
-                console.log('🔄 Replacing temp message with final message');
-                // Otherwise replace temp message with final one
-                const updated = prev.map(m =>
-                    m.id === tempId ? finalMessage : m
-                );
-                console.log('✅ Updated messages count:', updated.length);
-                return updated;
+                console.log('➕ Final message not found, appending to list');
+                return [...withoutTemp, { ...finalMessage, id: finalId, uploading: false }];
             });
+
+            // Hard sync with backend state to avoid rare UI races where media message
+            // is persisted but not rendered in current list due local/WS ordering.
+            if (recipientId) {
+                try {
+                    const refreshedPage = await messageService.getMessagesHistory(recipientId, 30);
+                    const refreshedMessages = refreshedPage.items.map((m) => normalizeP2PMessage(m, currentUserId));
+                    setMessages(prev => dedupeMessagesById([
+                        ...refreshedMessages,
+                        ...prev.filter(m => m.uploading),
+                    ]));
+                    setHasOlderMessages(refreshedPage.hasMore);
+                    setP2PNextBeforeId(refreshedPage.nextBeforeId ?? null);
+                } catch (syncError) {
+                    console.warn('Failed to refresh P2P messages after media upload', syncError);
+                }
+            }
         } catch (error: unknown) {
             console.error('Failed to send media:', error);
             setMessages(prev => prev.filter(m => !m.uploading));

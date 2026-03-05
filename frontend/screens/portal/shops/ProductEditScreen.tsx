@@ -8,7 +8,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { marketService } from '../../../services/marketService';
-import { ProductType, ProductCategory, ProductCategoryConfig, VariantFormData, Product } from '../../../types/market';
+import { ProductType, ProductCategory, ProductCategoryConfig, VariantFormData, Product, ShopPromotionTariff } from '../../../types/market';
 import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
@@ -85,6 +85,7 @@ export const ProductEditScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(isEditing);
     const [categories, setCategories] = useState<ProductCategoryConfig[]>([]);
+    const [promotionTariffs, setPromotionTariffs] = useState<ShopPromotionTariff[]>([]);
 
     // Form state
     const [name, setName] = useState('');
@@ -131,6 +132,14 @@ export const ProductEditScreen: React.FC = () => {
                 return;
             }
             setCategories(Array.isArray(cats) ? cats : []);
+            try {
+                const tariffs = await marketService.getPromotionTariffs();
+                if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                    setPromotionTariffs(Array.isArray(tariffs) ? tariffs : []);
+                }
+            } catch (promoError) {
+                console.warn('Failed to load promotion tariffs', promoError);
+            }
 
             if (isEditing && productId) {
                 if (isMountedRef.current) {
@@ -425,6 +434,28 @@ export const ProductEditScreen: React.FC = () => {
             if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
+        }
+    };
+
+    const handlePromoteProduct = async () => {
+        if (!isEditing || !productId || loading) {
+            return;
+        }
+        try {
+            const preferredTariff =
+                promotionTariffs.find((item) => item.code === 'product_24h') ||
+                promotionTariffs.find((item) => item.scope === 'product');
+            if (!preferredTariff) {
+                Alert.alert(t('error') || 'Error', 'Promotion tariff is unavailable');
+                return;
+            }
+            await marketService.promoteProduct(productId, preferredTariff.code);
+            Alert.alert(t('success') || 'Success', `Promotion activated: ${preferredTariff.code}`);
+        } catch (error: unknown) {
+            Alert.alert(
+                t('error') || 'Error',
+                getErrorMessage(error, 'Failed to promote product')
+            );
         }
     };
 
@@ -737,6 +768,15 @@ export const ProductEditScreen: React.FC = () => {
                     )}
 
                     {/* Submit */}
+                    {isEditing && (
+                        <TouchableOpacity
+                            style={[styles.promoteBtn, { borderColor: accent }]}
+                            onPress={handlePromoteProduct}
+                            disabled={loading}
+                        >
+                            <Text style={[styles.promoteBtnText, { color: accent }]}>Продвинуть товар</Text>
+                        </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                         style={[styles.submitBtn, { backgroundColor: accent }]}
                         onPress={handleSubmit}
@@ -995,6 +1035,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 8,
         elevation: 6,
+    },
+    promoteBtn: {
+        padding: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 8,
+        borderWidth: 1,
+    },
+    promoteBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     submitText: {
         color: 'rgba(255,255,255,1)',

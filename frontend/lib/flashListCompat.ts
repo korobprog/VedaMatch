@@ -1,11 +1,24 @@
-import { FlatList } from 'react-native';
+import { FlatList, NativeModules } from 'react-native';
 import type { ComponentType } from 'react';
 
 type ListComponent = ComponentType<any>;
 
+const isNativeNewArchitectureEnabled = (): boolean => {
+    const platformConstants = (NativeModules as { PlatformConstants?: { isNewArchEnabled?: boolean } }).PlatformConstants;
+    if (typeof platformConstants?.isNewArchEnabled === 'boolean') {
+        return platformConstants.isNewArchEnabled;
+    }
+
+    const runtime = globalThis as unknown as {
+        nativeFabricUIManager?: unknown;
+        __turboModuleProxy?: unknown;
+    };
+    // FlashList v2 is stable only when both Fabric and TurboModules are enabled.
+    return Boolean(runtime.nativeFabricUIManager) && Boolean(runtime.__turboModuleProxy);
+};
+
 const supportsFlashList = (): boolean => {
-    const runtime = globalThis as unknown as { nativeFabricUIManager?: unknown };
-    return Boolean(runtime.nativeFabricUIManager);
+    return isNativeNewArchitectureEnabled();
 };
 
 let ResolvedFlashList: ListComponent = FlatList as unknown as ListComponent;

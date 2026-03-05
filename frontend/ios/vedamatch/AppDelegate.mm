@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 
 #import <Firebase.h>
+#import <RNVoipPushNotification/RNVoipPushNotificationManager.h>
 #import <React/RCTBundleURLProvider.h>
 
 @implementation AppDelegate
@@ -56,6 +57,55 @@
 
   return [super application:application
       didFinishLaunchingWithOptions:launchOptions];
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry
+    didUpdatePushCredentials:(PKPushCredentials *)credentials
+                     forType:(PKPushType)type {
+  [RNVoipPushNotificationManager didUpdatePushCredentials:credentials forType:(NSString *)type];
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry
+    didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
+                              forType:(PKPushType)type {
+  [RNVoipPushNotificationManager didReceiveIncomingPushWithPayload:payload
+                                                           forType:(NSString *)type];
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry
+    didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
+                              forType:(PKPushType)type
+                withCompletionHandler:(void (^)(void))completion {
+  NSString *completionUUID = payload.dictionaryPayload[@"uuid"];
+  if ([completionUUID isKindOfClass:[NSString class]] && completionUUID.length > 0) {
+    [RNVoipPushNotificationManager addCompletionHandler:completionUUID completionHandler:completion];
+  } else if (completion != nil) {
+    completion();
+  }
+
+  [RNVoipPushNotificationManager didReceiveIncomingPushWithPayload:payload
+                                                           forType:(NSString *)type];
+}
+
+// iOS SDK compatibility fallback:
+// Some simulator/runtime combinations may still invoke these legacy selectors.
+// Keep explicit handlers to avoid startup crash (doesNotRecognizeSelector).
+- (void)voipRegistrationSucceededWithDeviceToken:(id)deviceToken {
+  if ([deviceToken isKindOfClass:[NSData class]]) {
+    NSData *tokenData = (NSData *)deviceToken;
+    NSMutableString *hex = [NSMutableString stringWithCapacity:tokenData.length * 2];
+    const unsigned char *bytes = (const unsigned char *)tokenData.bytes;
+    for (NSUInteger i = 0; i < tokenData.length; i++) {
+      [hex appendFormat:@"%02x", bytes[i]];
+    }
+    NSLog(@"[VoIP] Legacy token callback received (%@)", hex);
+  } else {
+    NSLog(@"[VoIP] Legacy token callback received");
+  }
+}
+
+- (void)voipRegistrationFailedWithError:(NSError *)error {
+  NSLog(@"[VoIP] Legacy registration failed callback: %@", error);
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge {

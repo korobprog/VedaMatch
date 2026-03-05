@@ -62,6 +62,7 @@ func Connect() {
 		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.AdminPermissionGrant{},
 		&models.Room{}, &models.RoomMember{}, &models.RoomInviteToken{}, &models.AiModel{}, &models.Media{},
+		&models.ChatPreference{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
@@ -78,6 +79,7 @@ func Connect() {
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
+		&models.ChatTranscribeWeeklyUsage{}, &models.ChatTranscribeJob{},
 		// Ads models
 		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
 		// Library models
@@ -90,6 +92,9 @@ func Connect() {
 		&models.UserNewsSubscription{}, &models.UserNewsFavorite{},
 		// Sattva Market models
 		&models.Shop{}, &models.ShopReview{},
+		&models.ShopPlanTariff{}, &models.ShopSubscription{},
+		&models.ShopPromotionTariff{}, &models.ProductPromotion{},
+		&models.ShopGeoBoost{}, &models.ShopBillingLog{},
 		&models.Product{}, &models.ProductVariant{}, &models.ProductImage{},
 		&models.ProductReview{}, &models.ProductFavorite{},
 		&models.Order{}, &models.OrderItem{},
@@ -213,6 +218,15 @@ func Connect() {
 		ON messages (sender_id, recipient_id, id DESC)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_recipient_sender_id_desc
 		ON messages (recipient_id, sender_id, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_type_id_desc
+		ON messages (sender_id, recipient_id, type, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_type_id_desc
+		ON messages (room_id, type, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_content_trgm
+		ON messages USING GIN (LOWER(content) gin_trgm_ops)
+		WHERE type IN ('text', 'audio')`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_chat_transcribe_job_status_updated
+		ON chat_transcribe_job (status, updated_at DESC)`)
 
 	// Hot-path feed/news/services indexes.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_posts_status_published_created

@@ -20,7 +20,7 @@ import apiClient from '../lib/apiClient';
 
 export interface MediaFile {
 	uri: string;
-	type: 'image' | 'audio' | 'document';
+	type: 'image' | 'audio' | 'document' | 'video_circle';
 	name: string;
 	size: number;
 	mimeType?: string;
@@ -34,17 +34,20 @@ export interface Message {
 	senderId: number;
 	recipientId?: number;
 	roomId?: number;
-	type: 'text' | 'image' | 'audio' | 'document';
+	type: 'text' | 'image' | 'audio' | 'document' | 'video_circle' | 'contact_card';
 	fileName?: string;
 	fileSize?: number;
 	mimeType?: string;
 	duration?: number;
 	thumbnail?: string;
+	mapData?: Record<string, unknown> | null;
 	CreatedAt?: string;
 }
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 let lastDuration = 0;
+const MAX_VIDEO_CIRCLE_DURATION_SEC = 60;
+const MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES = 64 * 1024 * 1024;
 
 function createRecorderConfig() {
 	const isIOS = Platform.OS === 'ios';
@@ -103,8 +106,63 @@ function normalizeMediaMimeType(media: MediaFile): string {
 	}
 
 	if (media.type === 'image') return explicit || 'image/jpeg';
+	if (media.type === 'video_circle') {
+		if (explicit) return explicit;
+		if (name.endsWith('.mp4')) return 'video/mp4';
+		if (name.endsWith('.mov')) return 'video/quicktime';
+		if (name.endsWith('.m4v')) return 'video/x-m4v';
+		return 'video/mp4';
+	}
 	if (media.type === 'document') return explicit || 'application/octet-stream';
 	return explicit || 'application/octet-stream';
+}
+
+function normalizeLocalFilePath(uri: string): string {
+	let path = uri || '';
+	if (path.startsWith('file://')) {
+		path = path.replace('file://', '');
+	}
+	while (path.startsWith('//')) {
+		path = path.slice(1);
+	}
+	if (!path.startsWith('/')) {
+		path = `/${path}`;
+	}
+	return path;
+}
+
+function normalizeVideoDurationSeconds(value?: number | null): number {
+	if (!value || Number.isNaN(value)) {
+		return 0;
+	}
+	if (value > 1000) {
+		return Math.round(value / 1000);
+	}
+	return Math.round(value);
+}
+
+function normalizeVideoCircleAsset(asset: Asset | undefined): MediaFile {
+	if (!asset?.uri) {
+		throw new Error('Видео не найдено');
+	}
+	const size = Number(asset.fileSize || 0);
+	if (size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
+		throw new Error('Файл слишком большой. Максимум 64MB');
+	}
+
+	const duration = normalizeVideoDurationSeconds(asset.duration ?? 0);
+	if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
+		throw new Error('Длительность видеокружка должна быть до 60 секунд');
+	}
+
+	return {
+		uri: asset.uri,
+		type: 'video_circle',
+		name: asset.fileName || `video_circle_${Date.now()}.mp4`,
+		size,
+		mimeType: asset.type || 'video/mp4',
+		duration,
+	};
 }
 
 async function requestAudioPermission(): Promise<boolean> {
@@ -242,6 +300,53 @@ export const mediaService = {
 				throw error;
 			}
 			throw new Error('Failed to pick image');
+		}
+	},
+
+	async pickVideoCircle(): Promise<MediaFile> {
+		try {
+			const result: ImagePickerResponse = await launchImageLibrary({
+				mediaType: 'video',
+				videoQuality: 'medium',
+				selectionLimit: 1,
+			});
+
+			if (result.didCancel || !result.assets || result.assets.length === 0) {
+				throw new Error('Cancelled');
+			}
+
+			return normalizeVideoCircleAsset(result.assets[0]);
+		} catch (error) {
+			if (error instanceof Error && error.message === 'Cancelled') {
+				throw error;
+			}
+			throw error instanceof Error ? error : new Error('Failed to pick video circle');
+		}
+	},
+
+	async recordVideoCircle(): Promise<MediaFile> {
+		try {
+			const hasPermission = await requestCameraPermission();
+			if (!hasPermission) {
+				throw new Error('Camera permission denied');
+			}
+
+			const result: ImagePickerResponse = await launchCamera({
+				mediaType: 'video',
+				videoQuality: 'medium',
+				durationLimit: MAX_VIDEO_CIRCLE_DURATION_SEC,
+			});
+
+			if (result.didCancel || !result.assets || result.assets.length === 0) {
+				throw new Error('Cancelled');
+			}
+
+			return normalizeVideoCircleAsset(result.assets[0]);
+		} catch (error) {
+			if (error instanceof Error && error.message === 'Cancelled') {
+				throw error;
+			}
+			throw error instanceof Error ? error : new Error('Failed to record video circle');
 		}
 	},
 
@@ -422,6 +527,83 @@ export const mediaService = {
 				throw new Error(getUploadError(error, 'Upload failed'));
 			}
 		},
+
+	async uploadVideoCircle(
+		media: MediaFile,
+		recipientId?: number,
+		roomId?: string
+	): Promise<Message> {
+		if (media.type !== 'video_circle') {
+			throw new Error('Invalid media type for video circle upload');
+		}
+
+		const duration = Number(media.duration || 0);
+		if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
+			throw new Error('Длительность видеокружка должна быть до 60 секунд');
+		}
+		if (media.size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
+			throw new Error('Файл слишком большой. Максимум 64MB');
+		}
+
+		const mimeType = normalizeMediaMimeType(media);
+		const presignResponse = await apiClient.post<{
+			uploadUrl: string;
+			finalUrl: string;
+			objectKey: string;
+			expiresInSec: number;
+			requiredHeaders?: Record<string, string>;
+		}>('/messages/media/presign', {
+			recipientId,
+			roomId: roomId ? Number(roomId) : undefined,
+			type: 'video_circle',
+			fileName: media.name,
+			mimeType,
+			fileSize: media.size,
+			durationSec: duration,
+		});
+
+		const { uploadUrl, finalUrl, requiredHeaders } = presignResponse.data;
+		const filePath = normalizeLocalFilePath(media.uri);
+		const fileExists = await RNFS.exists(filePath);
+		if (!fileExists) {
+			throw new Error('Видео файл не найден перед отправкой');
+		}
+
+		const uploadResult = await RNFS.uploadFiles({
+			toUrl: uploadUrl,
+			files: [
+				{
+					name: 'file',
+					filename: media.name,
+					filepath: filePath,
+					filetype: mimeType,
+				},
+			],
+			method: 'PUT',
+			headers: {
+				'Content-Type': mimeType,
+				...(requiredHeaders || {}),
+			},
+			binaryStreamOnly: true,
+		}).promise;
+
+		if (uploadResult.statusCode < 200 || uploadResult.statusCode >= 300) {
+			throw new Error(`CDN upload failed with status ${uploadResult.statusCode}`);
+		}
+
+		const finalizeResponse = await apiClient.post<Message>('/messages/media/finalize', {
+			recipientId,
+			roomId: roomId ? Number(roomId) : undefined,
+			type: 'video_circle',
+			content: finalUrl,
+			fileName: media.name,
+			fileSize: media.size,
+			mimeType,
+			duration,
+		});
+
+		return finalizeResponse.data;
+	},
 
 	getDownloadUrl(url: string): string {
 		if (url.startsWith('http')) {

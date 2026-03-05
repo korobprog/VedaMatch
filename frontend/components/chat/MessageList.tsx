@@ -6,7 +6,6 @@ import {
     Text,
     Image,
     StyleSheet,
-    Dimensions,
     TouchableOpacity,
     Alert,
     AlertButton,
@@ -14,9 +13,9 @@ import {
     Platform,
     Keyboard,
 } from 'react-native';
+import type { AxiosError } from 'axios';
 import { BlurView } from '@react-native-community/blur';
-import LinearGradient from 'react-native-linear-gradient';
-import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin, ExternalLink } from 'lucide-react-native';
+import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin, ExternalLink, PlayCircle, UserRound } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
 import { ChatImage } from '../ChatImage';
@@ -27,6 +26,7 @@ import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { WebView } from 'react-native-webview';
 import { mediaService } from '../../services/mediaService';
+import { messageService, type MessageTranscriptionBilling } from '../../services/messageService';
 import { AudioPlayer } from './AudioPlayer';
 import { ragService } from '../../services/ragService';
 import { getMediaUrl } from '../../utils/url';
@@ -42,7 +42,8 @@ interface MessageListProps {
     onNavigateToMap?: (mapData: Message['mapData']) => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CDN_AUDIO_PREFIX = 'https://cdn.vedamatch.ru/messages/audio/';
+const S3_AUDIO_FALLBACK_PREFIX = 'https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/messages/audio/';
 
 export const MessageList: React.FC<MessageListProps> = ({
     onDownloadImage,
@@ -84,6 +85,8 @@ export const MessageList: React.FC<MessageListProps> = ({
     const autoScrollFrameRef = useRef<number | null>(null);
     const listSnapshotRef = useRef<{ firstId?: string; lastId?: string; length: number }>({ length: 0 });
     const loadingOlderGuardRef = useRef(false);
+    const [transcribingIds, setTranscribingIds] = useState<Record<string, boolean>>({});
+    const [transcriptOverrides, setTranscriptOverrides] = useState<Record<string, { text?: string; language?: string; model?: string; status?: string }>>({});
 
     useEffect(() => {
         return () => {
@@ -268,6 +271,13 @@ export const MessageList: React.FC<MessageListProps> = ({
             normalized.endsWith('.webm');
     };
 
+    const applyAudioHostFallback = (url: string): string => {
+        if (!url.startsWith(CDN_AUDIO_PREFIX)) {
+            return url;
+        }
+        return `${S3_AUDIO_FALLBACK_PREFIX}${url.slice(CDN_AUDIO_PREFIX.length)}`;
+    };
+
     const resolveAudioUrl = (item: Message): string | undefined => {
         const type = (item.type || '').toLowerCase();
         const mimeType = (item.mimeType || '').toLowerCase();
@@ -287,7 +297,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         }
 
         if (content) {
-            return content;
+            return applyAudioHostFallback(content);
         }
 
         if (
@@ -296,7 +306,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             textValue.startsWith('file://') ||
             textValue.startsWith('/uploads/')
         ) {
-            return textValue;
+            return applyAudioHostFallback(textValue);
         }
 
         return undefined;
@@ -359,6 +369,63 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
+    const handleTranscribeAudio = async (item: Message) => {
+        const messageId = Number(item.id);
+        if (!Number.isFinite(messageId) || messageId <= 0) {
+            Alert.alert(t('error'), 'Нельзя расшифровать это сообщение');
+            return;
+        }
+
+        const messageKey = item.id.toString();
+        setTranscribingIds(prev => ({ ...prev, [messageKey]: true }));
+        try {
+            const quote = await messageService.getTranscribeQuote(messageId);
+            const shouldContinue = await confirmTranscribeQuote(quote.billing);
+            if (!shouldContinue) {
+                return;
+            }
+
+            const response = await messageService.transcribeMessage(messageId);
+            setTranscriptOverrides(prev => ({
+                ...prev,
+                [messageKey]: response.transcript || {},
+            }));
+            const chargedLkm = Number(response.billing?.chargedLkm || 0);
+            if (chargedLkm > 0) {
+                Alert.alert('Расшифровка готова', `Списано ${chargedLkm} LKM`);
+            }
+        } catch (error) {
+            console.error('Failed to transcribe message', error);
+            const status = (error as AxiosError)?.response?.status;
+            if (status === 402) {
+                Alert.alert(t('error'), 'Недостаточно LKM');
+            } else {
+                Alert.alert(t('error'), 'Не удалось расшифровать аудио');
+            }
+        } finally {
+            setTranscribingIds(prev => ({ ...prev, [messageKey]: false }));
+        }
+    };
+
+    const confirmTranscribeQuote = async (billing: MessageTranscriptionBilling): Promise<boolean> => {
+        const chargedLkm = Number(billing?.chargedLkm || 0);
+        if (chargedLkm <= 0) {
+            return true;
+        }
+
+        return new Promise(resolve => {
+            Alert.alert(
+                'Расшифровка аудио',
+                `Будет списано ${chargedLkm} LKM.\nОстаток бесплатных минут после запуска: ${billing.weeklyQuotaRemaining} из ${billing.weeklyQuotaTotal}.`,
+                [
+                    { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Продолжить', onPress: () => resolve(true) },
+                ],
+                { cancelable: true, onDismiss: () => resolve(false) }
+            );
+        });
+    };
+
     const renderMessage = ({ item: rawItem }: { item: any }) => {
         if (rawItem.type === 'header') {
             return (
@@ -381,6 +448,20 @@ export const MessageList: React.FC<MessageListProps> = ({
         const recipientInitial = recipientName.trim().charAt(0).toUpperCase() || '?';
         const bubbleTextColor = isUser ? '#F8FAFC' : theme.text;
         const bubbleSubTextColor = isUser ? 'rgba(248,250,252,0.78)' : theme.subText;
+        const messageKey = item.id?.toString?.() || '';
+        const transcriptData = transcriptOverrides[messageKey] || (item.mapData?.transcript as { text?: string; status?: string; language?: string; model?: string } | undefined);
+        const transcriptText = (transcriptData?.text || '').trim();
+        const isTranscribing = Boolean(transcribingIds[messageKey]);
+        const isVideoCircle = (item.type || '').toLowerCase() === 'video_circle';
+        const isVideoCircleExpired = (item.mapData?.mediaStatus || '').toString().toLowerCase() === 'expired';
+        const contactData = item.mapData?.contact as {
+            id?: number;
+            spiritualName?: string;
+            karmicName?: string;
+            nickname?: string;
+            city?: string;
+            country?: string;
+        } | undefined;
         const mdStyles: any = {
             body: { color: bubbleTextColor, fontSize: 16, lineHeight: 22 },
             paragraph: { marginTop: 0, marginBottom: 8 },
@@ -444,8 +525,63 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <TouchableOpacity onPress={() => openImage(item.content!)}>
                             <Image source={{ uri: item.content }} style={styles.messageImage} />
                         </TouchableOpacity>
+                    ) : isVideoCircle && item.content ? (
+                        <TouchableOpacity
+                            style={[styles.videoCircleCard, { borderColor: theme.borderColor, backgroundColor: documentCardBg }]}
+                            onPress={() => Linking.openURL(mediaService.getDownloadUrl(item.content || '')).catch(() => {
+                                Alert.alert(t('error'), 'Не удалось открыть видеокружок');
+                            })}
+                        >
+                            <View style={[styles.videoCircleIconWrap, { backgroundColor: documentIconBg }]}>
+                                <PlayCircle size={26} color={theme.primary} />
+                            </View>
+                            <View style={styles.videoCircleTextWrap}>
+                                <Text style={[styles.videoCircleTitle, { color: bubbleTextColor }]}>
+                                    {isVideoCircleExpired ? 'Кружок удален' : 'Видеокружок'}
+                                </Text>
+                                <Text style={[styles.videoCircleSubTitle, { color: bubbleSubTextColor }]}>
+                                    {isVideoCircleExpired
+                                        ? 'Срок хранения истек'
+                                        : `Длительность: ${item.duration ? mediaService.formatDuration(item.duration) : 'до 60с'}`}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    ) : (item.type === 'contact_card' && contactData) ? (
+                        <View style={[styles.contactCard, { borderColor: theme.borderColor, backgroundColor: documentCardBg }]}>
+                            <View style={[styles.contactIconWrap, { backgroundColor: documentIconBg }]}>
+                                <UserRound size={20} color={theme.primary} />
+                            </View>
+                            <View style={styles.contactMeta}>
+                                <Text style={[styles.contactName, { color: bubbleTextColor }]} numberOfLines={1}>
+                                    {contactData.spiritualName || contactData.karmicName || contactData.nickname || `ID ${contactData.id || ''}`}
+                                </Text>
+                                <Text style={[styles.contactDetails, { color: bubbleSubTextColor }]} numberOfLines={1}>
+                                    {[contactData.city, contactData.country].filter(Boolean).join(', ') || 'Контакт'}
+                                </Text>
+                            </View>
+                        </View>
                     ) : audioUrl ? (
-                        <AudioPlayer url={audioUrl} duration={item.duration} isDarkMode={isDarkMode} />
+                        <View>
+                            <AudioPlayer url={audioUrl} duration={item.duration} isDarkMode={isDarkMode} />
+                            {transcriptText ? (
+                                <View style={[styles.transcriptBox, { borderColor: theme.borderColor }]}>
+                                    <Text style={[styles.transcriptLabel, { color: bubbleSubTextColor }]}>Расшифровка</Text>
+                                    <Text style={[styles.transcriptText, { color: bubbleTextColor }]}>{transcriptText}</Text>
+                                </View>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[styles.transcriptButton, { borderColor: theme.borderColor }]}
+                                    onPress={() => handleTranscribeAudio(item)}
+                                    disabled={isTranscribing}
+                                >
+                                    {isTranscribing ? (
+                                        <ActivityIndicator size="small" color={theme.primary} />
+                                    ) : (
+                                        <Text style={[styles.transcriptButtonText, { color: bubbleTextColor }]}>Расшифровать</Text>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     ) : (item.type === 'document' || item.type === 'file') && item.content ? (
                         <TouchableOpacity
                             onPress={() => openDocument(item.content!, item.fileName)}
@@ -756,6 +892,94 @@ const styles = StyleSheet.create({
     extensionBadge: { marginLeft: 6, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
     extensionText: { fontSize: 8, fontWeight: 'bold' },
     downloadBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    videoCircleCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10,
+        marginVertical: 4,
+        minWidth: 220,
+    },
+    videoCircleIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+    videoCircleTextWrap: {
+        flex: 1,
+    },
+    videoCircleTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    videoCircleSubTitle: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    contactCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10,
+        marginVertical: 4,
+        minWidth: 220,
+    },
+    contactIconWrap: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+    contactMeta: {
+        flex: 1,
+    },
+    contactName: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    contactDetails: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    transcriptBox: {
+        marginTop: 8,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+    },
+    transcriptLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginBottom: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    transcriptText: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    transcriptButton: {
+        marginTop: 8,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        minHeight: 32,
+        justifyContent: 'center',
+    },
+    transcriptButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
     navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
     navButtonText: { fontSize: 13, fontWeight: 'bold' },
     mapButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },

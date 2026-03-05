@@ -228,26 +228,27 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	orderNumber := s.generateOrderNumber()
 
 	order := models.Order{
-		OrderNumber:     orderNumber,
-		BuyerID:         buyerID,
-		ShopID:          req.ShopID,
-		SellerID:        shop.OwnerID,
-		Status:          models.OrderStatusNew,
-		ItemsCount:      len(orderItems),
-		Subtotal:        subtotal,
-		Total:           subtotal, // No delivery fee for now
-		Currency:        "RUB",
-		PaymentMethod:   req.PaymentMethod,
-		DeliveryType:    req.DeliveryType,
-		DeliveryAddress: req.DeliveryAddress,
-		DeliveryNote:    req.DeliveryNote,
-		BuyerName:       req.BuyerName,
-		BuyerPhone:      req.BuyerPhone,
-		BuyerEmail:      req.BuyerEmail,
-		BuyerNote:       req.BuyerNote,
-		Source:          normalizeOrderSource(req.Source),
-		SourcePostID:    req.SourcePostID,
-		SourceChannelID: req.SourceChannelID,
+		OrderNumber:      orderNumber,
+		BuyerID:          buyerID,
+		ShopID:           req.ShopID,
+		SellerID:         shop.OwnerID,
+		Status:           models.OrderStatusNew,
+		ItemsCount:       len(orderItems),
+		Subtotal:         subtotal,
+		Total:            subtotal, // No delivery fee for now
+		Currency:         "RUB",
+		PaymentMethod:    req.PaymentMethod,
+		DeliveryType:     req.DeliveryType,
+		DeliveryAddress:  req.DeliveryAddress,
+		DeliveryNote:     req.DeliveryNote,
+		BuyerName:        req.BuyerName,
+		BuyerPhone:       req.BuyerPhone,
+		BuyerEmail:       req.BuyerEmail,
+		BuyerNote:        req.BuyerNote,
+		Source:           normalizeOrderSource(req.Source),
+		SourcePostID:     req.SourcePostID,
+		SourceChannelID:  req.SourceChannelID,
+		SettlementStatus: models.OrderSettlementStatusSettled,
 	}
 	shouldTriggerReferralActivation := false
 
@@ -291,13 +292,27 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 			bonusCapLKM = totalLKM
 		}
 
+		order.SettlementStatus = models.OrderSettlementStatusPending
+		feeCfg := ResolveMarketFeeConfig()
+		now := time.Now().UTC()
+		order.FeeCalculatedAt = &now
+		order.PlatformFeePercentBps = feeCfg.PercentBps
+		order.PlatformFeeCapSnapshotLkm = feeCfg.CapLkm
+		order.PlatformFeeAmountLkm = 0
+		order.MerchantPayoutLkm = totalLKM
+		if IsMarketFeeEnabledForUserAt(buyerID, now) {
+			feeAmount, payout := CalculateMarketPlatformFee(totalLKM, feeCfg)
+			order.PlatformFeeAmountLkm = feeAmount
+			order.MerchantPayoutLkm = payout
+		}
+
 		paymentAllocation := SpendAllocation{}
 		if totalLKM > 0 {
-			allocation, _, err := s.walletService.spendTxWithOptions(
+			allocation, err := s.walletService.HoldFundsForOrderTxWithOptions(
 				tx,
 				buyerID,
 				totalLKM,
-				fmt.Sprintf("market_order_%d", order.ID),
+				order.ID,
 				"Оплата заказа в магазине "+shop.Name,
 				SpendOptions{
 					AllowBonus:      shop.IsVedaMatch && bonusCapLKM > 0,
@@ -307,18 +322,25 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 			)
 			if err != nil {
 				tx.Rollback()
-				return nil, fmt.Errorf("payment failed: %w", err)
+				return nil, fmt.Errorf("payment hold failed: %w", err)
 			}
-			paymentAllocation = allocation
+			paymentAllocation = *allocation
 			shouldTriggerReferralActivation = true
 		}
 
-		now := time.Now().UTC()
 		paymentUpdates := map[string]interface{}{
-			"is_paid":          true,
-			"paid_at":          now,
-			"regular_lkm_paid": paymentAllocation.RegularAmount,
-			"bonus_lkm_paid":   paymentAllocation.BonusAmount,
+			"is_paid":                       true,
+			"paid_at":                       now,
+			"regular_lkm_paid":              paymentAllocation.RegularAmount,
+			"bonus_lkm_paid":                paymentAllocation.BonusAmount,
+			"regular_lkm_held":              paymentAllocation.RegularAmount,
+			"bonus_lkm_held":                paymentAllocation.BonusAmount,
+			"settlement_status":             models.OrderSettlementStatusPending,
+			"platform_fee_percent_bps":      order.PlatformFeePercentBps,
+			"platform_fee_cap_snapshot_lkm": order.PlatformFeeCapSnapshotLkm,
+			"platform_fee_amount_lkm":       order.PlatformFeeAmountLkm,
+			"merchant_payout_lkm":           order.MerchantPayoutLkm,
+			"fee_calculated_at":             order.FeeCalculatedAt,
 		}
 		if err := tx.Model(&order).Updates(paymentUpdates).Error; err != nil {
 			tx.Rollback()
@@ -329,6 +351,9 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		order.PaidAt = &paidAt
 		order.RegularLkmPaid = paymentAllocation.RegularAmount
 		order.BonusLkmPaid = paymentAllocation.BonusAmount
+		order.RegularLkmHeld = paymentAllocation.RegularAmount
+		order.BonusLkmHeld = paymentAllocation.BonusAmount
+		order.SettlementStatus = models.OrderSettlementStatusPending
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -518,49 +543,101 @@ func (s *OrderService) getOrders(filters models.OrderFilters) (*models.OrderList
 
 // UpdateOrderStatus updates order status (seller only)
 func (s *OrderService) UpdateOrderStatus(orderID uint, sellerID uint, status models.OrderStatus) (*models.Order, error) {
-	order, err := s.GetOrder(orderID)
+	var updated models.Order
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Items").
+			First(&updated, orderID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrOrderNotFound
+			}
+			return err
+		}
+
+		// Verify seller owns the shop
+		if updated.SellerID != sellerID {
+			return ErrUnauthorizedOrder
+		}
+
+		if !s.isValidStatusTransition(updated.Status, status) {
+			return ErrInvalidOrderStatus
+		}
+
+		now := time.Now().UTC()
+		updates := map[string]interface{}{
+			"status": status,
+		}
+
+		switch status {
+		case models.OrderStatusConfirmed:
+			updates["confirmed_at"] = now
+		case models.OrderStatusShipped:
+			updates["shipped_at"] = now
+			for _, item := range updated.Items {
+				if err := s.productService.DeductStock(item.ProductID, item.VariantID, item.Quantity); err != nil {
+					return err
+				}
+			}
+		case models.OrderStatusDelivered:
+			updates["delivered_at"] = now
+		case models.OrderStatusCompleted:
+			updates["completed_at"] = now
+			if updated.PaymentMethod == "lkm" && updated.SettlementStatus == models.OrderSettlementStatusPending {
+				dedupKey := fmt.Sprintf("market_order_settlement_%d", updated.ID)
+				totalHeld := updated.RegularLkmHeld + updated.BonusLkmHeld
+				if totalHeld > 0 {
+					processed, releaseErr := s.walletService.ReleaseOrderHoldWithPlatformFeeTx(
+						tx,
+						updated.BuyerID,
+						updated.RegularLkmHeld,
+						updated.BonusLkmHeld,
+						updated.ID,
+						updated.SellerID,
+						updated.PlatformFeeAmountLkm,
+						dedupKey,
+						"Оплата заказа в магазине "+updated.OrderNumber,
+					)
+					if releaseErr != nil {
+						return releaseErr
+					}
+					if !processed {
+						return errors.New("order settlement already processed")
+					}
+				}
+				settledAt := now
+				updates["settlement_status"] = models.OrderSettlementStatusSettled
+				updates["settled_at"] = settledAt
+				updates["settlement_tx_id"] = dedupKey
+				updates["merchant_payout_lkm"] = totalHeld - updated.PlatformFeeAmountLkm
+
+				if err := tx.Create(&models.ShopBillingLog{
+					EventType:      models.ShopBillingEventOrderSettlementFee,
+					ShopID:         updated.ShopID,
+					OrderID:        &updated.ID,
+					AmountLkm:      totalHeld,
+					PlatformFeeLkm: updated.PlatformFeeAmountLkm,
+					MerchantNetLkm: totalHeld - updated.PlatformFeeAmountLkm,
+					DedupKey:       dedupKey,
+				}).Error; err != nil {
+					return err
+				}
+				if updated.PlatformFeeAmountLkm > 0 {
+					_ = GetMetricsService().Increment(MetricMarketPlatformFeeChargedTotal, int64(updated.PlatformFeeAmountLkm))
+					_ = GetMetricsService().Increment(MetricMarketPlatformFeeOrdersTotal, 1)
+				}
+			}
+		}
+
+		if err := tx.Model(&updated).Updates(updates).Error; err != nil {
+			return err
+		}
+		updated.Status = status
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// Verify seller owns the shop
-	if order.SellerID != sellerID {
-		return nil, ErrUnauthorizedOrder
-	}
-
-	// Validate status transition
-	if !s.isValidStatusTransition(order.Status, status) {
-		return nil, ErrInvalidOrderStatus
-	}
-
-	now := time.Now().UTC()
-	updates := map[string]interface{}{
-		"status": status,
-	}
-
-	switch status {
-	case models.OrderStatusConfirmed:
-		updates["confirmed_at"] = now
-	case models.OrderStatusShipped:
-		updates["shipped_at"] = now
-		// Deduct stock on shipment
-		for _, item := range order.Items {
-			if err := s.productService.DeductStock(item.ProductID, item.VariantID, item.Quantity); err != nil {
-				return nil, err
-			}
-		}
-	case models.OrderStatusDelivered:
-		updates["delivered_at"] = now
-	case models.OrderStatusCompleted:
-		updates["completed_at"] = now
-	}
-
-	if err := database.DB.Model(&order).Updates(updates).Error; err != nil {
-		return nil, err
-	}
-
-	order.Status = status
-	return order, nil
+	return &updated, nil
 }
 
 // CancelOrder cancels an order
@@ -608,16 +685,46 @@ func (s *OrderService) CancelOrder(orderID uint, userID uint, reason string) (*m
 			}
 		}
 
-		if cancelledOrder.PaymentMethod == "lkm" && cancelledOrder.IsPaid && (cancelledOrder.RegularLkmPaid+cancelledOrder.BonusLkmPaid) > 0 {
-			if err := s.walletService.refundTxWithSplit(
-				tx,
-				cancelledOrder.BuyerID,
-				cancelledOrder.RegularLkmPaid,
-				cancelledOrder.BonusLkmPaid,
-				"Возврат за отмену заказа "+cancelledOrder.OrderNumber,
-				nil,
-			); err != nil {
-				return err
+		if cancelledOrder.PaymentMethod == "lkm" && cancelledOrder.IsPaid {
+			if cancelledOrder.SettlementStatus == models.OrderSettlementStatusSettled {
+				return errors.New("settled order requires manual post-settlement refund")
+			}
+			if cancelledOrder.SettlementStatus == models.OrderSettlementStatusPending &&
+				(cancelledOrder.RegularLkmHeld+cancelledOrder.BonusLkmHeld) > 0 {
+				dedupKey := fmt.Sprintf("market_order_refund_%d", cancelledOrder.ID)
+				processed, refundErr := s.walletService.RefundOrderHoldTx(
+					tx,
+					cancelledOrder.BuyerID,
+					cancelledOrder.RegularLkmHeld,
+					cancelledOrder.BonusLkmHeld,
+					cancelledOrder.ID,
+					dedupKey,
+					"Возврат за отмену заказа "+cancelledOrder.OrderNumber,
+				)
+				if refundErr != nil {
+					return refundErr
+				}
+				if !processed {
+					return errors.New("order refund already processed")
+				}
+				updates["settlement_status"] = models.OrderSettlementStatusRefunded
+				updates["settlement_tx_id"] = dedupKey
+				updates["platform_fee_amount_lkm"] = 0
+				updates["merchant_payout_lkm"] = 0
+				updates["regular_lkm_paid"] = 0
+				updates["bonus_lkm_paid"] = 0
+				updates["regular_lkm_held"] = 0
+				updates["bonus_lkm_held"] = 0
+				if err := tx.Create(&models.ShopBillingLog{
+					EventType: models.ShopBillingEventOrderRefund,
+					ShopID:    cancelledOrder.ShopID,
+					OrderID:   &cancelledOrder.ID,
+					AmountLkm: cancelledOrder.RegularLkmHeld + cancelledOrder.BonusLkmHeld,
+					DedupKey:  dedupKey,
+				}).Error; err != nil {
+					return err
+				}
+				_ = GetMetricsService().Increment(MetricMarketSettlementRefundTotal, int64(cancelledOrder.RegularLkmHeld+cancelledOrder.BonusLkmHeld))
 			}
 			updates["is_paid"] = false
 		}

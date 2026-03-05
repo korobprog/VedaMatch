@@ -9,6 +9,8 @@ import (
 // OrderStatus represents the status of an order
 type OrderStatus string
 
+type OrderSettlementStatus string
+
 const (
 	OrderStatusNew       OrderStatus = "new"       // Just created, seller notified
 	OrderStatusConfirmed OrderStatus = "confirmed" // Seller confirmed
@@ -18,6 +20,12 @@ const (
 	OrderStatusCompleted OrderStatus = "completed" // Order finished
 	OrderStatusCancelled OrderStatus = "cancelled" // Cancelled by buyer or seller
 	OrderStatusDispute   OrderStatus = "dispute"   // Issue reported
+)
+
+const (
+	OrderSettlementStatusPending  OrderSettlementStatus = "pending"
+	OrderSettlementStatusSettled  OrderSettlementStatus = "settled"
+	OrderSettlementStatusRefunded OrderSettlementStatus = "refunded"
 )
 
 // DeliveryType represents how the product will be delivered
@@ -58,6 +66,18 @@ type Order struct {
 	PaidAt         *time.Time `json:"paidAt"`
 	RegularLkmPaid int        `json:"regularLkmPaid" gorm:"default:0"`
 	BonusLkmPaid   int        `json:"bonusLkmPaid" gorm:"default:0"`
+	RegularLkmHeld int        `json:"regularLkmHeld" gorm:"default:0"`
+	BonusLkmHeld   int        `json:"bonusLkmHeld" gorm:"default:0"`
+
+	// Settlement snapshots (for LKM marketplace orders)
+	SettlementStatus          OrderSettlementStatus `json:"settlementStatus" gorm:"type:varchar(20);default:'pending';index"`
+	SettledAt                 *time.Time            `json:"settledAt"`
+	SettlementTxID            string                `json:"settlementTxId" gorm:"type:varchar(120)"`
+	PlatformFeePercentBps     int                   `json:"platformFeePercentBps" gorm:"default:0"`
+	PlatformFeeCapSnapshotLkm int                   `json:"platformFeeCapSnapshotLkm" gorm:"default:0"`
+	PlatformFeeAmountLkm      int                   `json:"platformFeeAmountLkm" gorm:"default:0"`
+	MerchantPayoutLkm         int                   `json:"merchantPayoutLkm" gorm:"default:0"`
+	FeeCalculatedAt           *time.Time            `json:"feeCalculatedAt"`
 
 	// Delivery
 	DeliveryType    DeliveryType `json:"deliveryType" gorm:"type:varchar(20);not null"`

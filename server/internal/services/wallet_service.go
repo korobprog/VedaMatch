@@ -862,6 +862,29 @@ func (s *WalletService) SpendWithOptions(userID uint, amount int, dedupKey strin
 	return nil
 }
 
+// SpendTx deducts LKM inside an existing DB transaction.
+// Returns false when the same dedup key is already processed.
+func (s *WalletService) SpendTx(tx *gorm.DB, userID uint, amount int, dedupKey string, description string, opts SpendOptions) (bool, error) {
+	if tx == nil {
+		return false, errors.New("transaction is required")
+	}
+	if amount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Spend"
+	}
+
+	opts = normalizeSpendOptions(opts)
+	_, alreadyProcessed, err := s.spendTxWithOptions(tx, userID, amount, dedupKey, description, opts)
+	if err != nil {
+		return false, err
+	}
+	return !alreadyProcessed, nil
+}
+
 func (s *WalletService) spendTxWithOptions(tx *gorm.DB, userID uint, amount int, dedupKey string, description string, opts SpendOptions) (SpendAllocation, bool, error) {
 	wallet, err := s.getOrCreateLockedWalletTx(tx, userID)
 	if err != nil {

@@ -261,7 +261,7 @@ export const KrishnaAssistant: React.FC = () => {
                                 <Text style={styles.closeBtnText}>✕</Text>
                             </TouchableOpacity>
                             <Text style={styles.bubbleTitle}>
-                                {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас"))}
+                                {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'smiley' ? "Колобок дас" : "Перо дас")}
                             </Text>
                             <Text style={styles.bubbleText}>{getMessage()}</Text>
                             {currentStep >= 0 && (

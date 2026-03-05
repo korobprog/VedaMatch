@@ -119,6 +119,8 @@
 - Ad type UI в пресете фестиваля:
   - при `initialCategory='events'` (новое создание из фестивалей) `CreateAdScreen` принудительно ставит `adType='offering'`;
   - переключатель `Ищу/Предлагаю/Мои` (`AdTabSwitcher`) скрыт, чтобы не показывать нерелевантные варианты для создания фестиваля.
+- TypeScript safety для редактирования объявления:
+  - в `frontend/screens/portal/ads/CreateAdScreen.tsx` перед `adsService.getAd(adId)` обязателен guard `if (!adId) return;`, чтобы не передавать `undefined` в `getAd` и не ломать `tsc --noEmit`.
 
 ## iOS Map Connectivity
 - Для iOS окружения `frontend/.env.ios` больше не использовать `127.0.0.1` как `API_BASE_URL` при проверке сервисов на устройстве/удаленном сервере.
@@ -149,6 +151,8 @@
 - Для iOS video PiP текущий рабочий путь — `react-native-webrtc` (`RTCPIPView` + `startIOSPIP/stopIOSPIP`) в `frontend/screens/calls/CallScreen.tsx`; custom iOS bridge `CallPiPModule` удален из `frontend/ios/vedamatch/AppDelegate.mm`.
 - В `frontend/services/callPiPService.ts` iOS путь intentionally no-op для native `CallPiPModule`; Android PiP через `CallPiPModule` остается активным.
 - В `frontend/ios/vedamatch/AppDelegate.mm` включен `WebRTCModuleOptions.enableMultitaskingCameraAccess = YES` для стабильной камеры в фоне/мультитаскинге.
+- Для iOS Debug/Simulator зафиксирован startup crash в PushKit (`voipRegistrationSucceededWithDeviceToken` -> `doesNotRecognizeSelector`) при раннем вызове `VoipPushNotification.registerVoipToken()`.
+- Рабочий mitigation: в `frontend/App.tsx` вызывать `registerVoipToken()` только вне `__DEV__`; в DEV оставлять только listeners (`notification`, `didLoadWithEvents`). Это убирает падение при старте и белый экран в симуляторе.
 
 ## Android Release
 - Актуальная Android production-версия:
@@ -161,6 +165,24 @@
   - установка: `adb install -r frontend/android/app/build/outputs/apk/release/app-release.apk`
   - проверка версии: `adb shell dumpsys package com.ragagent | rg "versionCode=|versionName="`.
 - Признак release-сборки на устройстве: в `adb shell dumpsys package com.ragagent` отсутствует флаг `DEBUGGABLE`, а `pkgFlags` выглядит как `HAS_CODE ALLOW_CLEAR_USER_DATA`.
+
+## Marketplace (Shops) Service
+- Архитектура сервиса `Магазины` разделена на три блока API:
+  - `shops` (витрина/магазин продавца/модерация),
+  - `products` (каталог, остатки, избранное, отзывы),
+  - `orders` (оформление, buyer/seller списки, смена статусов, отмена).
+- Основные backend-роуты зарегистрированы в `server/cmd/api/main.go`:
+  - public/protected: `/shops*`, `/products*`, `/orders*`;
+  - админка магазинов: `/api/admin/shops`, `/api/admin/shops/stats`, `/api/admin/shops/:id/moderate`.
+- Ограничения по магазинам:
+  - обычный пользователь может создать только 1 магазин (`shop limit reached`);
+  - новые магазины создаются со статусом `pending` и требуют модерации.
+- Текущая монетизация `Магазинов`:
+  - поддерживаются `paymentMethod: external | lkm`;
+  - для `lkm` заказов включен поток `hold -> settlement on completed` с комиссией платформы и `cap`;
+  - при `cancelled` до settlement выполняется `100%` refund hold;
+  - добавлены планы магазина (`Basic/Pro Shop/Plus Shop`), продуктовые промо-пакеты и city geo-boost;
+  - лимиты плана применяются к новым действиям (создание/активация), без авто-деактивации существующих товаров.
 
 ## Chat Realtime Reliability
 - В `server/internal/websocket/hub.go` исправлен race при reconnect одного и того же пользователя:
@@ -192,6 +214,24 @@
     - рендер аудио теперь определяется не только `type==='audio'`, но и по `mimeType`, extension (`fileName/url`) и URL из `text`;
     - если `content` пуст, но аудио-URL есть в `text`, показывается `AudioPlayer`.
   - в `frontend/context/ChatContext.tsx` и `frontend/services/messageService.ts` унифицировано пробрасывание `mimeType` и `content` (`content || text`) для history/ws/local upload.
+  - прод-диагностика от `2026-03-05`: backend успешно сохраняет аудио (`/api/messages/media` -> `200`, `messages.type='audio'` в БД), но `https://cdn.vedamatch.ru/messages/audio/...` возвращает `403`, при этом прямой S3 URL (`https://s3.firstvds.ru/<bucket>/messages/audio/...`) отдает `200`.
+  - временный mitigation в `frontend/components/chat/MessageList.tsx`: fallback `cdn -> direct s3` только для audio-path `messages/audio`, чтобы голосовые воспроизводились до правки CDN.
+  - в `frontend/context/ChatContext.tsx` финализация `handleSendMedia` сделана idempotent:
+    - удаляется `tempId`,
+    - если финальный `messageId` уже есть в списке (WS race) — запись нормализуется,
+    - если финальной записи нет — она принудительно добавляется.
+
+## List Rendering Compatibility
+- `frontend/lib/flashListCompat.ts` должен включать FlashList v2 только при подтвержденной new architecture:
+  - приоритетная проверка: `NativeModules.PlatformConstants.isNewArchEnabled`;
+  - fallback-проверка: одновременно `global.nativeFabricUIManager` и `global.__turboModuleProxy`.
+- Причина: проверка только `nativeFabricUIManager` может давать ложный `true` на iOS runtime и приводить к crash `FlashList v2 is only supported on new architecture`.
+- Если new architecture не подтверждена, всегда использовать `FlatList` через compat-layer.
+  - это устраняет кейс “аудио отправлено, но сообщение не отображается” при гонке state между temp-message и WS.
+  - добавлен post-send hard sync в `frontend/context/ChatContext.tsx`:
+    - после успешной отправки медиа выполняется `getMessagesHistory(recipientId, 30)`;
+    - локальный список перезаполняется серверными сообщениями + текущими `uploading`, с дедупликацией;
+    - это закрывает редкий race, когда upload успешен, но bubble не попадает в видимый список.
 - Для светлых chat backgrounds добавлен отдельный контрастный режим:
   - `frontend/utils/chatBackgroundContrast.ts` определяет светлый/темный цвет и градиент;
   - `frontend/components/chat/ChatHeader.tsx` для светлого фона использует более темные title/subtitle/icon цвета в VedaMatch-теме;
@@ -209,6 +249,30 @@
   - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
   - в `frontend/screens/settings/AppSettingsScreen.tsx` добавлен отдельный блок “Фон чата” (пресеты/галерея/слайдшоу);
   - `frontend/screens/ChatScreen.tsx` рендерит background только из chat-specific настроек.
+
+## Chat CDN / VideoCircle / Transcription
+- Backend:
+  - добавлены chat endpoint-ы: `POST /messages/media/presign`, `POST /messages/media/finalize`, `GET /messages/media-index`, `GET /messages/search`, `PUT /messages/preferences/:peerUserId`, `POST /messages/share-contact`, `GET /messages/:id/transcribe/quote`, `POST /messages/:id/transcribe`.
+  - `video_circle` в чате отправляется через `presign -> PUT(S3) -> finalize`; URL проходит через `message_media_cdn_policy`.
+  - добавлена модель `chat_preferences` (`muted/pinned`) + suppression push в `message_push_service` для muted P2P-диалогов.
+  - добавлен cleanup scheduler `chat_video_circle_cleanup` (каждый час): удаление объектов старше 30 дней и пометка сообщения `mapData.mediaStatus="expired"`.
+  - on-demand транскрибация аудио: default `gpt-4o-mini-transcribe`, fallback `gpt-4o-transcribe`, сохранение в `mapData.transcript`.
+  - монетизация транскрибации v2:
+    - квота бесплатных минут: календарная неделя UTC (ISO week, понедельник 00:00 UTC);
+    - таблицы: `chat_transcribe_weekly_usage` (квота) и `chat_transcribe_job` (idempotency/anti-race);
+    - тарифы: `standard` и `long_audio`, округление минут вверх, min charge;
+    - idempotent charge/refund через wallet dedup keys `transcribe_charge:<userId>:<messageId>` и `transcribe_refund:<userId>:<messageId>`;
+    - повторный `POST` для уже завершенной расшифровки не списывает LKM (`chargedLkm=0`).
+  - после успеха транскрибации backend шлет WS `message_transcription_updated` (payload в `mapData.messageId/mapData.transcript`) для live-обновления сообщения у обоих собеседников.
+- Frontend:
+  - `frontend/services/messageService.ts` расширен API-методами под media-index/search/preferences/share-contact/transcribe/presign/finalize и quote (`getTranscribeQuote`).
+  - `frontend/services/mediaService.ts` поддерживает `video_circle`: запись/выбор, валидация (`<=60s`, `<=64MB`), upload в CDN и finalize.
+  - `frontend/components/chat/MessageList.tsx` рендерит `video_circle`, `contact_card`, блок transcript и кнопку `Расшифровать` для аудио; перед запуском транскрибации запрашивается quote и показывается confirm при платном списании.
+  - `frontend/screens/ChatScreen.tsx` реализует 5 пунктов friend-menu через модальные UI и соответствующие API вызовы.
+  - `frontend/services/messageService.ts` для `transcribeMessage` имеет fallback: при `404/405` на `/messages/:id/transcribe` выполняется retry на `/messages/transcribe/:id`.
+- Routing compatibility:
+  - в `server/cmd/api/main.go` generic route `GET /messages/:userId/:recipientId` должен быть ниже специальных message-routes;
+  - добавлен alias `POST /messages/transcribe/:id`, чтобы исключить `405` на старых клиентах/промежуточных конфигурациях.
 
 ## Profile UI Reliability
 - `frontend/screens/settings/EditProfileScreen.tsx` больше не наследует `portalBackground`-фотообои:
@@ -281,11 +345,27 @@
   - `pro_90d`: `799 LKM`.
 - Пополнение LKM реализовано через `YooKassa/Stripe` с конфигурируемыми лимитами/пакетами и админ-настройками processing-cost.
 - AI монетизация: в AI-room отправка одного сообщения списывает `1 LKM`.
+- Chat audio transcription:
+  - endpoint-ы: `GET /messages/:id/transcribe/quote`, `POST /messages/:id/transcribe`;
+  - используется `chat_transcription_service` с моделями `gpt-4o-mini-transcribe`/`gpt-4o-transcribe`;
+  - биллинг v2:
+    - бесплатная квота `5 мин/неделя` (UTC ISO week),
+    - после квоты `3 LKM/мин`,
+    - long-audio `>5 мин` — `2 LKM/мин`,
+    - округление вверх до целой минуты, min charge `1 LKM`,
+    - при нехватке баланса возвращается `402 INSUFFICIENT_LKM`,
+    - при ошибке после списания выполняется idempotent refund + rollback free minutes.
 - Маркетплейс магазинов (`shops/products/orders`):
-  - есть оплата заказа методом `lkm` (`OrderService.CreateOrder`) и возврат LKM при отмене заказа;
-  - отдельной монетизации платформы в магазинах пока нет: нет полей/логики `platform_fee`, `commission`, `merchant_payout` в `Order` и `OrderService`;
-  - `SellerStats.TotalRevenue` в `shop_handler` пока заглушка (`0`, TODO), поэтому финансовая аналитика магазинов неполная;
-  - `BalancePill` в `MarketHomeScreen` показывает баланс кошелька пользователя, это не отдельный магазинный тариф/комиссия.
+  - комиссии платформы для LKM-заказов активированы через `system_settings`:
+    - `MARKET_PLATFORM_FEE_ENABLED`
+    - `MARKET_PLATFORM_FEE_PERCENT_BPS` (этапно: `800 -> 1000 -> 1200`)
+    - `MARKET_PLATFORM_FEE_CAP_LKM=300`
+    - `MARKET_PLATFORM_FEE_ROLLOUT_PERCENT`
+  - в `Order` добавлены snapshot-поля settlement/fee (`*_held`, `settlement_status`, `platform_fee_*`, `merchant_payout_lkm`), а в `OrderService` реализованы hold/settlement/refund операции;
+  - подписки магазинов: `Basic (0 LKM, 20 товаров)`, `Pro Shop (299 LKM, 200)`, `Plus Shop (699 LKM, unlimited)`;
+  - продвижение: `product_24h=15`, `product_7d=60`, `product_30d=180`, `shop_city_boost_24h=20`;
+  - добавлены billing-сущности: `shop_plan_tariffs`, `shop_subscriptions`, `shop_promotion_tariffs`, `product_promotions`, `shop_geo_boosts`, `shop_billing_logs`;
+  - добавлены метрики: `market_platform_fee_charged_total`, `market_platform_fee_orders_total`, `market_settlement_refund_total`, `shop_subscriptions_purchased_total`, `shop_product_promotions_purchased_total`, `shop_geo_boosts_purchased_total`, `shop_plan_limit_block_total`.
   - `video_circles_upload_s3_fail_total`
   - `video_circles_non_cdn_detected_total`
 
@@ -695,6 +775,34 @@
   - Рекомендуется добавить как фактически используемый в продукте: `43` (temporary accommodation + cafes/restaurants booking/info).
   - `36` оставлять только при реальном запуске финсервиса с отдельным compliance-контуром; не смешивать с мобильной витриной, где LKM описывается как non-monetary internal points.
   - В `42` избегать избыточных формулировок про заказную разработку ПО/B2B-консалтинг, если это не отдельная коммерческая услуга.
+- Финальные подпункты (анти-дубли, под текущий продукт):
+   - `09`: downloadable mobile application software; downloadable software for social networking and messaging; downloadable chatbot software; downloadable image/audio/video files; downloadable electronic publications.
+   - `35`: advertising and promotion of goods/services of others; marketplace services by bringing together goods/services for others via electronic media; business information services; provision of user reviews for commercial purposes.
+   - `38`: providing online chat rooms and online forums; transmission of messages and digital files; audio/video streaming transmission services.
+   - `41`: education and training services; arranging and conducting online classes/webinars; providing online electronic publications not downloadable; providing online videos and audio materials not downloadable.
+   - `42`: software as a service (SaaS); platform as a service (PaaS); artificial intelligence as a service (AIaaS); temporary use of non-downloadable software for social networking/communication/booking services.
+   - `45`: online social networking services; moderation of online content; spiritual mentoring and astrological consultation services.
+   - `39`: travel arrangement services; booking of travel and tours; providing travel route and transport information.
+  - `43`: temporary accommodation reservation services; hotel reservation services; providing information and booking services for cafes/restaurants.
+- Верификация по коду от `2026-03-05` (уточнение статусов):
+  - `09` подтвержден: Android mobile app (`frontend/android/app/build.gradle`) + API/модели для медиа и чат-бота (`/v1/chat/completions`, multimedia модели).
+  - `35` подтвержден: shops/products/ads + product reviews (`server/cmd/api/main.go`, `server/internal/models/product.go`, `server/internal/models/ad.go`).
+  - `38` подтвержден: channels/feed/comments/rooms + multimedia streaming (`server/cmd/api/main.go`, `server/internal/models/multimedia.go`).
+  - `41` подтвержден: education courses/modules/exams + library/public content endpoints (`server/internal/models/education.go`, `server/cmd/api/main.go`).
+  - `42` подтвержден частично: SaaS/AI-функции подтверждены, но формулировки PaaS/консалтинга нужно держать узкими и только под реальный offer.
+  - `45` подтвержден: social networking + moderation/report/block + astrology/spiritual services (`main.go`, `service.go`, `ad.go`, `yatra_report.go`).
+  - `39` подтвержден частично: yatra organization/join + map route; лучше формулировать как организация/координация поездок и инфосервис, без «билетов».
+  - `43` подтвержден частично: shelter/cafe листинги и отзывы есть; table reservation модель есть, но публичных API бронирования проживания не выявлено, поэтому в формулировках лучше избегать избыточного «hotel booking» до релиза такого сценария.
+ - Сравнение с формулировками юриста (практическое решение):
+   - Базовые классы оставить: `09, 35, 38, 41, 42, 45`.
+   - По текущему продукту лучше включить в основной пакет также `39` и `43` (не как «спорные», а как функционально подтвержденные, но в узкой формулировке).
+   - В `09` убрать дубли и рискованные для store формулировки (`кошельки цифровой/виртуальной валюты`) в app-контуре.
+   - В `35` убрать «опт/розница как собственный магазин», если позиционирование сервиса — онлайн-площадка/агрегатор.
+   - В `41` убрать слишком узкую тематику (например, «обучение йоге»), если нет отдельного стабильного продукта под это.
+   - В `42` оставить SaaS/PaaS/AIaaS, но убрать «разработка мобильных приложений для третьих лиц» и «консалтинг», если это не отдельная услуга.
+   - В `39` не заявлять «бронирование билетов/перевозка пассажиров», пока нет ticketing и оператора перевозок; оставить travel arrangement + route/travel info.
+   - В `43` не заявлять, что платформа сама оказывает гостиничные/ресторанные услуги; формулировать как информационно-бронировочный сервис/агрегатор.
+   - `36` не включать в основной app-пакет; при запуске внешнего финсервиса (сайт/бот) подавать отдельным контуром с отдельной compliance-документацией.
 
 ## Store Legal Links (RuStore)
 - Целевой публичный контракт для стора:
@@ -873,6 +981,7 @@
 
 ## AI Assistant (Krishna Das) Runtime
 - Персона «Кришна Дас» в мобильном UI — это режим `assistantType='smiley'`, выбирается в `frontend/screens/settings/AppSettingsScreen.tsx` и сохраняется в `AsyncStorage` ключом `assistant_type` через `frontend/context/SettingsContext.tsx`.
+- Текущие display-имена ассистентов унифицированы: `feather2/feather` => `Перо дас`, `smiley` => `Колобок дас` (профиль + chat welcome + bubble title).
 - Бизнес-логика ответа ассистента находится в `frontend/context/ChatContext.tsx`: перед LLM-запросом вызывается `ragService.queryHybrid('/rag/query-hybrid')`, затем отправка в LLM идет через `sendMessage()` -> `POST /v1/chat/completions`.
 - Источники RAG и метаданные (`retrieverPath`, `confidence`) прикрепляются к сообщению как `assistantContext` и отображаются в `frontend/components/chat/MessageList.tsx`.
 - Текущий дефолт text-stack зафиксирован как `model='auto'`, `provider='PolzaAI'` (`frontend/config/models.config.ts` + фиксация в `SettingsContext.fetchModels`).
@@ -916,12 +1025,18 @@
 - В `frontend/services/notificationService.ts` такие ошибки не должны поднимать RedBox:
   - для `aps-environment` используется `console.warn` + telemetry `token_register_skipped: missing_aps_environment`;
   - recoverable catch-ветки сервиса логируют через `console.warn`, а не `console.error`.
-- В текущей конфигурации RNFirebase для iOS используется auto-registration; ручной вызов `registerDeviceForRemoteMessages()` удален как избыточный (убирает warning `Usage of ... is not required`).
+- В текущей конфигурации RNFirebase для iOS используется auto-registration; ручной вызов `registerDeviceForRemoteMessages()` в клиенте удален, чтобы убрать warning `Usage of ... is not required`.
 - Для iOS добавлен early-skip: если `getAPNSToken()` вернул `null`, `getToken()` не вызывается, и пишется telemetry `token_register_skipped: apns_token_unavailable`.
-- В `frontend/services/notificationService.ts` добавлен defensive iOS flow против `messaging/unregistered`:
-  - перед APNS/FCM запросами вызывается `ensureIosRemoteMessageRegistration()` (через `isDeviceRegisteredForRemoteMessages` + `registerDeviceForRemoteMessages` при необходимости);
-  - APNS читается с коротким retry polling (`waitForIosApnsToken`), чтобы избежать race сразу после выдачи permissions;
-  - при `messaging/unregistered` выполняется один retry регистрации/получения токена и отдельная telemetry `token_register_retry_success`.
+- Warning-и по `missing aps-environment` и `apns token unavailable` ограничены одноразовым выводом за сессию (без повторного спама в dev-консоли).
+- Для `messaging/unregistered` используется мягкий skip (`token_register_skipped: messaging_unregistered`) без ручной re-register попытки.
+- В `frontend/index.js` добавлен DEV-фильтр `LogBox.ignoreLogs` для шумных advisory сообщений:
+  - `"(ADVICE) View #"` (shadow efficiency advisory),
+  - `"Cannot connect to Metro."`,
+  - `"Socket is not connected"`.
+- Для iOS App Store readiness по push в build settings основного target добавлено:
+  - `CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements` (Debug/Release),
+  - `APS_ENVIRONMENT = development` (Debug), `APS_ENVIRONMENT = production` (Release).
+  Это нужно, чтобы `aps-environment` реально попадал в подписанный app и не ломал FCM registration.
 
 ## Profile Runtime Notes
 - `frontend/screens/settings/EditProfileScreen.tsx` не должен предполагать, что `/contacts` всегда возвращает массив: backend может вернуть и paginated-формат `{ items: [...] }`.

@@ -85,6 +85,11 @@ type Shop struct {
 	ReviewsCount  int     `json:"reviewsCount" gorm:"default:0"`
 	ProductsCount int     `json:"productsCount" gorm:"default:0"`
 
+	// Monetization runtime cache fields
+	CurrentPlanCode     string     `json:"currentPlanCode" gorm:"type:varchar(40);default:'basic';index"`
+	PlanPriorityRank    int        `json:"planPriorityRank" gorm:"default:0;index"`
+	GeoBoostActiveUntil *time.Time `json:"geoBoostActiveUntil" gorm:"index"`
+
 	// Relations
 	Products []Product    `json:"products,omitempty" gorm:"foreignKey:ShopID"`
 	Reviews  []ShopReview `json:"reviews,omitempty" gorm:"foreignKey:ShopID"`

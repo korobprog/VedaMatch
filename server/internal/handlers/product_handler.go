@@ -17,8 +17,9 @@ import (
 )
 
 type ProductHandler struct {
-	productService *services.ProductService
-	shopService    *services.ShopService
+	productService   *services.ProductService
+	shopService      *services.ShopService
+	promotionService *services.ShopPromotionService
 }
 
 func parsePositiveIntQuery(c *fiber.Ctx, key string, defaultValue int, maxValue int) int {
@@ -106,8 +107,9 @@ func (h *ProductHandler) UploadProductPhoto(c *fiber.Ctx) error {
 
 func NewProductHandler() *ProductHandler {
 	return &ProductHandler{
-		productService: services.NewProductService(),
-		shopService:    services.NewShopService(),
+		productService:   services.NewProductService(),
+		shopService:      services.NewShopService(),
+		promotionService: services.NewShopPromotionService(nil),
 	}
 }
 
@@ -319,6 +321,11 @@ func (h *ProductHandler) CreateProduct(c *fiber.Ctx) error {
 
 	product, err := h.productService.CreateProduct(shop.ID, req)
 	if err != nil {
+		if errors.Is(err, services.ErrShopProductLimitReached) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Product limit for current shop plan reached. Upgrade plan to add more products.",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not create product",
 		})
@@ -383,6 +390,11 @@ func (h *ProductHandler) UpdateProduct(c *fiber.Ctx) error {
 		if errors.Is(err, services.ErrUnauthorizedProduct) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "You can only edit your own products",
+			})
+		}
+		if errors.Is(err, services.ErrShopProductLimitReached) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Product activation blocked by current shop plan limit. Upgrade plan to publish more products.",
 			})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -553,6 +565,66 @@ func (h *ProductHandler) UpdateStock(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Stock updated successfully",
+	})
+}
+
+// PromoteProduct purchases paid promotion for a product
+func (h *ProductHandler) PromoteProduct(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	id := c.Params("id")
+	productID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid product ID",
+		})
+	}
+
+	var req struct {
+		TariffCode models.ShopPromotionTariffCode `json:"tariffCode"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+	if strings.TrimSpace(string(req.TariffCode)) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "tariffCode is required",
+		})
+	}
+
+	result, err := h.promotionService.PromoteProduct(uint(productID), userID, req.TariffCode)
+	if err != nil {
+		if errors.Is(err, services.ErrShopPromotionForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "You can only promote your own products",
+			})
+		}
+		if errors.Is(err, services.ErrShopPromotionTariffNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Promotion tariff not found",
+			})
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "insufficient") {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": "Insufficient LKM balance",
+				"code":  "INSUFFICIENT_LKM",
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"result":  result,
 	})
 }
 

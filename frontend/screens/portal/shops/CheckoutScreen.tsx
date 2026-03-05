@@ -449,7 +449,7 @@ export const CheckoutScreen: React.FC = () => {
                         <Text style={{ fontSize: 20 }}>💬</Text>
                         <Text style={styles.infoText}>
                             {paymentMethod === 'lkm'
-                                ? 'LKM will be charged immediately after order creation.'
+                                ? 'LKM will be held at order creation, settled on completed, and fully refunded if cancelled before completion.'
                                 : 'Payment and delivery details will be arranged with the seller via messenger after order confirmation.'}
                         </Text>
                     </View>

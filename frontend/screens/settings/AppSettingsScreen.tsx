@@ -74,21 +74,21 @@ const ASSISTANT_OPTIONS: Array<{
 }> = [
         {
             key: 'feather2',
-            label: 'Перо 2',
+            label: 'Перо дас',
             image: require('../../assets/nano_banano.png'),
             activeBorder: '#10B981',
             activeBackground: 'rgba(16,185,129,0.1)',
         },
         {
             key: 'feather',
-            label: 'Перо',
+            label: 'Перо дас',
             image: require('../../assets/peacockAssistant.png'),
             activeBorder: '#00838F',
             activeBackground: 'rgba(0,131,143,0.1)',
         },
         {
             key: 'smiley',
-            label: 'Колобок',
+            label: 'Колобок дас',
             image: require('../../assets/krishnaAssistant.png'),
             activeBorder: '#F59E0B',
             activeBackground: 'rgba(245,158,11,0.1)',

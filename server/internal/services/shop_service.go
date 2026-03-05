@@ -302,6 +302,10 @@ func (s *ShopService) GetShops(filters models.ShopFilters) (*models.ShopListResp
 	offset := (page - 1) * limit
 
 	// Apply sorting
+	if filters.City != "" {
+		query = query.Order("CASE WHEN geo_boost_active_until IS NOT NULL AND geo_boost_active_until > NOW() THEN 1 ELSE 0 END DESC")
+	}
+	query = query.Order("plan_priority_rank DESC")
 	switch filters.Sort {
 	case "rating":
 		query = query.Order("rating DESC")

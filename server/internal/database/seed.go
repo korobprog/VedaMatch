@@ -176,6 +176,82 @@ func SeedSystemSettings() {
 			Value: "0",
 		},
 		{
+			Key:   "MARKET_PLATFORM_FEE_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "MARKET_PLATFORM_FEE_PERCENT_BPS",
+			Value: "800",
+		},
+		{
+			Key:   "MARKET_PLATFORM_FEE_CAP_LKM",
+			Value: "300",
+		},
+		{
+			Key:   "MARKET_PLATFORM_FEE_EFFECTIVE_FROM",
+			Value: "",
+		},
+		{
+			Key:   "MARKET_PLATFORM_FEE_ROLLOUT_PERCENT",
+			Value: "100",
+		},
+		{
+			Key:   "SHOP_PLAN_BASIC_PRICE_LKM",
+			Value: "0",
+		},
+		{
+			Key:   "SHOP_PLAN_BASIC_PRODUCTS_LIMIT",
+			Value: "20",
+		},
+		{
+			Key:   "SHOP_PLAN_PRO_PRICE_LKM",
+			Value: "299",
+		},
+		{
+			Key:   "SHOP_PLAN_PRO_PRODUCTS_LIMIT",
+			Value: "200",
+		},
+		{
+			Key:   "SHOP_PLAN_PLUS_PRICE_LKM",
+			Value: "699",
+		},
+		{
+			Key:   "SHOP_PLAN_PLUS_PRODUCTS_LIMIT",
+			Value: "0",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_24H_PRICE_LKM",
+			Value: "15",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_24H_DURATION_MIN",
+			Value: "1440",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_7D_PRICE_LKM",
+			Value: "60",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_7D_DURATION_MIN",
+			Value: "10080",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_30D_PRICE_LKM",
+			Value: "180",
+		},
+		{
+			Key:   "SHOP_PRODUCT_PROMO_30D_DURATION_MIN",
+			Value: "43200",
+		},
+		{
+			Key:   "SHOP_GEO_BOOST_24H_PRICE_LKM",
+			Value: "20",
+		},
+		{
+			Key:   "SHOP_GEO_BOOST_24H_DURATION_MIN",
+			Value: "1440",
+		},
+		{
 			Key:   "SADHU_SANGA_LANGUAGE_LABELS_ENABLED",
 			Value: "true",
 		},
@@ -558,6 +634,30 @@ func SeedSystemSettings() {
 		{
 			Key:   "YATRA_DAILY_FEE_LKM",
 			Value: "10",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_BILLING_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_FREE_MIN_PER_WEEK",
+			Value: "5",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_PRICE_PER_MIN_LKM",
+			Value: "3",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_LONG_AUDIO_THRESHOLD_MIN",
+			Value: "5",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_LONG_AUDIO_PRICE_PER_MIN_LKM",
+			Value: "2",
+		},
+		{
+			Key:   "CHAT_TRANSCRIBE_MIN_CHARGE_LKM",
+			Value: "1",
 		},
 	}
 

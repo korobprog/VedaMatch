@@ -362,3 +362,41 @@ export interface ProductCategoryConfig {
         en: string;
     };
 }
+
+export interface ShopPlanTariff {
+    ID: number;
+    code: 'basic' | 'pro_shop' | 'plus_shop' | string;
+    priceLkm: number;
+    productsLimit: number;
+    priorityRank: number;
+    promoSlots: number;
+    isActive: boolean;
+}
+
+export interface ShopPlanStatus {
+    planCode: string;
+    planTitle: string;
+    productsLimit: number;
+    currentProducts: number;
+    canCreateProducts: boolean;
+    subscription?: {
+        ID: number;
+        shopId: number;
+        ownerId: number;
+        planCode: string;
+        status: string;
+        startsAt: string;
+        endsAt: string;
+        autoRenew: boolean;
+        chargedLkm: number;
+    };
+}
+
+export interface ShopPromotionTariff {
+    ID: number;
+    code: 'product_24h' | 'product_7d' | 'product_30d' | 'shop_city_boost_24h' | string;
+    scope: 'product' | 'shop_city' | string;
+    priceLkm: number;
+    durationMinutes: number;
+    isActive: boolean;
+}

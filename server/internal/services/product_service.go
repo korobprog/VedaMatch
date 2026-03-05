@@ -204,6 +204,13 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 		}
 		return nil, ErrShopRequired
 	}
+	shopPlanService := NewShopPlanService(nil)
+	if err := shopPlanService.EnsureProductLimitBeforeCreate(shopID); err != nil {
+		if errors.Is(err, ErrShopProductLimitReached) {
+			return nil, ErrShopProductLimitReached
+		}
+		return nil, err
+	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	req.ShortDescription = strings.TrimSpace(req.ShortDescription)
@@ -420,6 +427,15 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		if !isValidProductStatus(nextStatus) {
 			return nil, errors.New("invalid product status")
 		}
+		if nextStatus == models.ProductStatusActive && product.Status != models.ProductStatusActive {
+			shopPlanService := NewShopPlanService(nil)
+			if err := shopPlanService.EnsureProductLimitBeforeActivate(product.ShopID, product.ID); err != nil {
+				if errors.Is(err, ErrShopProductLimitReached) {
+					return nil, ErrShopProductLimitReached
+				}
+				return nil, err
+			}
+		}
 		product.Status = nextStatus
 	}
 	if req.MainImageURL != nil {
@@ -514,7 +530,9 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 	filters = normalizeProductFiltersForQuery(filters)
 
 	query := database.DB.Model(&models.Product{}).
+		Select("products.*").
 		Joins("JOIN shops ON shops.id = products.shop_id").
+		Joins("LEFT JOIN product_promotions pp ON pp.product_id = products.id AND pp.status = ? AND pp.ends_at > NOW()", models.ShopPromotionStatusActive).
 		Where("products.status = ?", models.ProductStatusActive).
 		Where("shops.status = ?", models.ShopStatusActive)
 
@@ -566,6 +584,11 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 	offset := calculateProductPaginationOffset(page, limit)
 
 	// Sorting
+	if filters.City != "" {
+		query = query.Order("CASE WHEN shops.geo_boost_active_until IS NOT NULL AND shops.geo_boost_active_until > NOW() THEN 1 ELSE 0 END DESC")
+	}
+	query = query.Order("CASE WHEN pp.id IS NULL THEN 0 ELSE 1 END DESC")
+	query = query.Order("shops.plan_priority_rank DESC")
 	switch filters.Sort {
 	case "price_asc":
 		query = query.Order("products.base_price ASC")

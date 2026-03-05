@@ -37,6 +37,18 @@ func PushP2PEnabled() bool {
 	return FlagEnabled("PUSH_P2P", true)
 }
 
+func ChatVideoCircleEnabled() bool {
+	return FlagEnabled("CHAT_VIDEO_CIRCLE_ENABLED", false)
+}
+
+func ChatVideoCirclePresignEnabled() bool {
+	return FlagEnabled("CHAT_VIDEO_CIRCLE_PRESIGN_ENABLED", false)
+}
+
+func ChatTranscriptionEnabled() bool {
+	return FlagEnabled("CHAT_TRANSCRIPTION_ENABLED", false)
+}
+
 func RoomSFUEnabled() bool {
 	return FlagEnabled("ROOM_SFU_ENABLED", false)
 }

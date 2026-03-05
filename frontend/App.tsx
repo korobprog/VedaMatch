@@ -404,9 +404,14 @@ const AppContent = () => {
       });
     };
 
+    const shouldRegisterVoipPush = useCallKeepNativeUi && VoipPushNotification && !__DEV__;
     if (useCallKeepNativeUi && VoipPushNotification) {
       try {
-        VoipPushNotification.registerVoipToken();
+        if (shouldRegisterVoipPush) {
+          VoipPushNotification.registerVoipToken();
+        } else {
+          console.log('[VoIP] registerVoipToken skipped in dev runtime');
+        }
         VoipPushNotification.addEventListener('notification', onVoipNotification);
         VoipPushNotification.addEventListener('didLoadWithEvents', onVoipDidLoad);
       } catch (error) {

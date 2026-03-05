@@ -9,13 +9,16 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type ShopHandler struct {
-	service *services.ShopService
+	service          *services.ShopService
+	planService      *services.ShopPlanService
+	promotionService *services.ShopPromotionService
 }
 
 func (h *ShopHandler) UploadShopPhoto(c *fiber.Ctx) error {
@@ -78,7 +81,9 @@ func (h *ShopHandler) UploadShopPhoto(c *fiber.Ctx) error {
 
 func NewShopHandler() *ShopHandler {
 	return &ShopHandler{
-		service: services.NewShopService(),
+		service:          services.NewShopService(),
+		planService:      services.NewShopPlanService(nil),
+		promotionService: services.NewShopPromotionService(nil),
 	}
 }
 
@@ -228,6 +233,32 @@ func (h *ShopHandler) GetShopCategories(c *fiber.Ctx) error {
 		{"id": "other", "emoji": "📦", "label": map[string]string{"ru": "Другое", "en": "Other"}},
 	}
 	return c.JSON(categories)
+}
+
+// GetShopPlans returns available seller subscription plans
+func (h *ShopHandler) GetShopPlans(c *fiber.Ctx) error {
+	plans, err := h.planService.ListTariffs()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch shop plans",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"plans": plans,
+	})
+}
+
+// GetPromotionTariffs returns available product/shop promotion tariffs
+func (h *ShopHandler) GetPromotionTariffs(c *fiber.Ctx) error {
+	tariffs, err := h.promotionService.ListTariffs()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch promotion tariffs",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"tariffs": tariffs,
+	})
 }
 
 // ==================== SELLER ENDPOINTS ====================
@@ -422,6 +453,190 @@ func (h *ShopHandler) GetSellerStats(c *fiber.Ctx) error {
 		TotalProducts:  shop.ProductsCount,
 		ActiveProducts: shop.ProductsCount, // TODO: filter active
 		PendingOrders:  0,                  // TODO: compute
+	})
+}
+
+// GetMyPlanStatus returns current plan and limits for seller shop
+func (h *ShopHandler) GetMyPlanStatus(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	shop, err := h.service.GetMyShop(userID)
+	if err != nil {
+		if errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Shop not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch shop plan status",
+		})
+	}
+
+	status, err := h.planService.GetMyPlanStatus(shop.ID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch shop plan status",
+		})
+	}
+
+	return c.JSON(status)
+}
+
+// SubscribeShopPlan purchases seller plan for current shop
+func (h *ShopHandler) SubscribeShopPlan(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	shop, err := h.service.GetMyShop(userID)
+	if err != nil {
+		if errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Shop not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load shop",
+		})
+	}
+
+	var req struct {
+		PlanCode models.ShopPlanCode `json:"planCode"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+	if req.PlanCode == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "planCode is required",
+		})
+	}
+
+	result, err := h.planService.Purchase(shop.ID, userID, req.PlanCode)
+	if err != nil {
+		if errors.Is(err, services.ErrShopPlanNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Shop plan not found",
+			})
+		}
+		if errors.Is(err, services.ErrShopSubscriptionForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Forbidden",
+			})
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "insufficient") {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": "Insufficient LKM balance",
+				"code":  "INSUFFICIENT_LKM",
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"result":  result,
+	})
+}
+
+// CancelShopSubscription returns not supported in v1
+func (h *ShopHandler) CancelShopSubscription(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	shop, err := h.service.GetMyShop(userID)
+	if err != nil {
+		if errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Shop not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load shop",
+		})
+	}
+
+	if err := h.planService.CancelAutoRenew(shop.ID, userID); err != nil {
+		return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+			"error": "not_supported",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// ApplyGeoBoost purchases city boost for current seller shop
+func (h *ShopHandler) ApplyGeoBoost(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	id := c.Params("id")
+	shopID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid shop ID",
+		})
+	}
+
+	var req struct {
+		TariffCode models.ShopPromotionTariffCode `json:"tariffCode"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+	if req.TariffCode == "" {
+		req.TariffCode = models.ShopPromotionTariffCodeCity24h
+	}
+
+	result, err := h.promotionService.ApplyShopGeoBoost(uint(shopID), userID, req.TariffCode)
+	if err != nil {
+		if errors.Is(err, services.ErrShopPromotionForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "You can only boost your own shop",
+			})
+		}
+		if errors.Is(err, services.ErrShopPromotionTariffNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Promotion tariff not found",
+			})
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "insufficient") {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": "Insufficient LKM balance",
+				"code":  "INSUFFICIENT_LKM",
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"result":  result,
 	})
 }
 

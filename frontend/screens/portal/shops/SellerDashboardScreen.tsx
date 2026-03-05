@@ -6,7 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { marketService } from '../../../services/marketService';
-import { Shop, ShopStats, Product } from '../../../types/market';
+import { Shop, ShopStats, Product, ShopPlanStatus, ShopPlanTariff, ShopPromotionTariff } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
@@ -15,6 +15,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { Alert } from 'react-native';
 
 export const SellerDashboardScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -30,6 +31,9 @@ export const SellerDashboardScreen: React.FC = () => {
     const [shop, setShop] = useState<Shop | null>(null);
     const [stats, setStats] = useState<ShopStats | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
+    const [planStatus, setPlanStatus] = useState<ShopPlanStatus | null>(null);
+    const [plans, setPlans] = useState<ShopPlanTariff[]>([]);
+    const [promoTariffs, setPromoTariffs] = useState<ShopPromotionTariff[]>([]);
 
     useFocusEffect(
         useCallback(() => {
@@ -56,6 +60,14 @@ export const SellerDashboardScreen: React.FC = () => {
 
                 setStats(statsData);
                 setProducts(productsData.products || []);
+                const [planStatusData, plansData, promoTariffsData] = await Promise.all([
+                    marketService.getShopPlanStatus(),
+                    marketService.getShopPlans(),
+                    marketService.getPromotionTariffs(),
+                ]);
+                setPlanStatus(planStatusData);
+                setPlans(plansData);
+                setPromoTariffs(promoTariffsData);
             }
         } catch (error) {
             console.error('Error loading seller data:', error);
@@ -92,6 +104,28 @@ export const SellerDashboardScreen: React.FC = () => {
 
     const handleProductPress = (product: Product) => {
         navigation.navigate('EditProduct', { productId: product.ID });
+    };
+
+    const handleUpgradePlan = async (planCode: string) => {
+        try {
+            await marketService.subscribeShopPlan(planCode);
+            Alert.alert('Успешно', 'Тариф магазина обновлен');
+            loadData();
+        } catch (error: any) {
+            Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось обновить тариф');
+        }
+    };
+
+    const handleApplyGeoBoost = async () => {
+        if (!shop?.ID) return;
+        try {
+            const cityBoostTariff = promoTariffs.find((item) => item.code === 'shop_city_boost_24h');
+            await marketService.applyShopGeoBoost(shop.ID, cityBoostTariff?.code || 'shop_city_boost_24h');
+            Alert.alert('Успешно', 'Гео-буст активирован');
+            loadData();
+        } catch (error: any) {
+            Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось активировать буст');
+        }
     };
 
     if (loading) {
@@ -207,6 +241,24 @@ export const SellerDashboardScreen: React.FC = () => {
                     </TouchableOpacity>
                 </View>
 
+                <View style={styles.planCard}>
+                    <Text style={styles.planTitle}>Тариф витрины: {planStatus?.planTitle || 'Basic'}</Text>
+                    <Text style={styles.planDesc}>
+                        Лимит товаров: {planStatus?.productsLimit === 0 ? 'Без лимита' : planStatus?.productsLimit ?? 20}
+                        {' • '}Сейчас: {planStatus?.currentProducts ?? 0}
+                    </Text>
+                    <View style={styles.planActions}>
+                        {plans.filter((p) => p.code !== planStatus?.planCode).map((plan) => (
+                            <TouchableOpacity key={plan.code} style={styles.planActionBtn} onPress={() => handleUpgradePlan(plan.code)}>
+                                <Text style={styles.planActionText}>{plan.code === 'pro_shop' ? 'Pro 299' : plan.code === 'plus_shop' ? 'Plus 699' : 'Basic'}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity style={styles.geoBoostBtn} onPress={handleApplyGeoBoost}>
+                            <Text style={styles.geoBoostText}>Гео-буст 20 LKM / 24ч</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
                     <View style={styles.statCard}>
@@ -252,9 +304,10 @@ export const SellerDashboardScreen: React.FC = () => {
                     <TouchableOpacity
                         style={styles.actionBtn}
                         onPress={handleAddProduct}
+                        disabled={planStatus ? !planStatus.canCreateProducts : false}
                     >
                         <Text style={styles.actionIcon}>➕</Text>
-                        <Text style={styles.actionText}>{t('market.product.add')}</Text>
+                        <Text style={styles.actionText}>{planStatus && !planStatus.canCreateProducts ? 'Лимит тарифа' : t('market.product.add')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionBtn}
@@ -432,6 +485,51 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         position: 'absolute',
         top: 16,
         right: 16,
+    },
+    planCard: {
+        marginHorizontal: 16,
+        marginBottom: 8,
+        borderRadius: 14,
+        padding: 14,
+        backgroundColor: colors.surface,
+    },
+    planTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: colors.textPrimary,
+    },
+    planDesc: {
+        fontSize: 13,
+        marginTop: 4,
+        color: colors.textSecondary,
+    },
+    planActions: {
+        marginTop: 10,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    planActionBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 10,
+        backgroundColor: colors.accentSoft,
+    },
+    planActionText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.textPrimary,
+    },
+    geoBoostBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 10,
+        backgroundColor: colors.accent,
+    },
+    geoBoostText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.textPrimary,
     },
     statsGrid: {
         flexDirection: 'row',

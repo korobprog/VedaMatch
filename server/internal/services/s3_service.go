@@ -283,6 +283,39 @@ func (s *S3Service) GeneratePresignedURL(ctx context.Context, key string, lifeti
 	return request.URL, nil
 }
 
+// GeneratePresignedPutURL generates a presigned URL for direct upload to S3.
+func (s *S3Service) GeneratePresignedPutURL(
+	ctx context.Context,
+	key string,
+	contentType string,
+	contentLength int64,
+	lifetime time.Duration,
+) (string, error) {
+	if s == nil || s.presignClient == nil {
+		return "", fmt.Errorf("S3 service not initialized")
+	}
+
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(key),
+		ACL:    types.ObjectCannedACLPublicRead,
+	}
+	if strings.TrimSpace(contentType) != "" {
+		input.ContentType = aws.String(contentType)
+	}
+	if contentLength > 0 {
+		input.ContentLength = aws.Int64(contentLength)
+	}
+
+	request, err := s.presignClient.PresignPutObject(ctx, input, func(opts *s3.PresignOptions) {
+		opts.Expires = lifetime
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned put URL: %w", err)
+	}
+	return request.URL, nil
+}
+
 // SetFileACL sets the ACL for a file in S3
 func (s *S3Service) SetFileACL(ctx context.Context, key string, acl types.ObjectCannedACL) error {
 	if s == nil || s.client == nil {

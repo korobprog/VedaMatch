@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -19,6 +21,29 @@ import (
 
 type MediaHandler struct {
 	hub *websocket.Hub
+}
+
+type MessageMediaPresignRequest struct {
+	Type        string `json:"type"`
+	RecipientID uint   `json:"recipientId"`
+	RoomID      uint   `json:"roomId"`
+	FileName    string `json:"fileName"`
+	MimeType    string `json:"mimeType"`
+	FileSize    int64  `json:"fileSize"`
+	DurationSec int    `json:"durationSec"`
+}
+
+type MessageMediaFinalizeRequest struct {
+	Type        string                 `json:"type"`
+	RecipientID uint                   `json:"recipientId"`
+	RoomID      uint                   `json:"roomId"`
+	Content     string                 `json:"content"`
+	FileName    string                 `json:"fileName"`
+	FileSize    int64                  `json:"fileSize"`
+	MimeType    string                 `json:"mimeType"`
+	Duration    int                    `json:"duration"`
+	Thumbnail   string                 `json:"thumbnail"`
+	MapData     map[string]interface{} `json:"mapData"`
 }
 
 func NewMediaHandler(hub *websocket.Hub) *MediaHandler {
@@ -365,6 +390,249 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(msg)
+}
+
+// PresignMessageMedia returns a presigned PUT URL for chat media upload (video_circle only).
+func (h *MediaHandler) PresignMessageMedia(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	if !config.ChatVideoCircleEnabled() || !config.ChatVideoCirclePresignEnabled() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint disabled"})
+	}
+
+	var req MessageMediaPresignRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	req.Type = strings.TrimSpace(strings.ToLower(req.Type))
+	if req.Type != "video_circle" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Only type=video_circle is supported"})
+	}
+
+	roomName, roomMemberIDs, err := h.resolveMessageTarget(actorID, req.RecipientID, req.RoomID)
+	if err != nil {
+		return err
+	}
+	_ = roomName
+	_ = roomMemberIDs
+
+	if req.DurationSec <= 0 || req.DurationSec > 60 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "durationSec must be between 1 and 60"})
+	}
+	if req.FileSize <= 0 || req.FileSize > 64*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "fileSize exceeds 64MB limit"})
+	}
+
+	mimeType := strings.TrimSpace(strings.ToLower(req.MimeType))
+	if !isAllowedVideoCircleMimeType(mimeType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid mimeType for video_circle"})
+	}
+
+	if !services.IsMessageMediaCDNReady() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "CDN is not configured for chat media",
+			"code":  "CDN_NOT_CONFIGURED",
+		})
+	}
+
+	s3Service := services.GetS3Service()
+	if s3Service == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "S3 is not configured",
+			"code":  "S3_NOT_CONFIGURED",
+		})
+	}
+
+	ext := inferVideoCircleExtension(req.FileName, mimeType)
+	objectKey := fmt.Sprintf("messages/video_circle/u%d_%d%s", actorID, time.Now().UnixNano(), ext)
+	uploadURL, presignErr := s3Service.GeneratePresignedPutURL(
+		c.UserContext(),
+		objectKey,
+		mimeType,
+		req.FileSize,
+		15*time.Minute,
+	)
+	if presignErr != nil {
+		log.Printf("[MessageMedia] presign_failed actor=%d key=%s error=%v", actorID, objectKey, presignErr)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate upload URL"})
+	}
+
+	cdnBaseURL, _ := services.MessageMediaCDNConfig()
+	finalURL := cdnBaseURL + "/" + objectKey
+
+	return c.JSON(fiber.Map{
+		"uploadUrl":     uploadURL,
+		"finalUrl":      finalURL,
+		"objectKey":     objectKey,
+		"expiresInSec":  900,
+		"requiredHeaders": fiber.Map{
+			"Content-Type": mimeType,
+		},
+	})
+}
+
+// FinalizeMessageMedia creates a message after a successful direct upload.
+func (h *MediaHandler) FinalizeMessageMedia(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	if !config.ChatVideoCircleEnabled() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint disabled"})
+	}
+
+	var req MessageMediaFinalizeRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	req.Type = strings.TrimSpace(strings.ToLower(req.Type))
+	if req.Type != "video_circle" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Only type=video_circle is supported"})
+	}
+
+	roomName, roomMemberIDs, targetErr := h.resolveMessageTarget(actorID, req.RecipientID, req.RoomID)
+	if targetErr != nil {
+		return targetErr
+	}
+
+	if req.Duration <= 0 || req.Duration > 60 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "duration must be between 1 and 60"})
+	}
+	if req.FileSize <= 0 || req.FileSize > 64*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "fileSize exceeds 64MB limit"})
+	}
+
+	mimeType := strings.TrimSpace(strings.ToLower(req.MimeType))
+	if !isAllowedVideoCircleMimeType(mimeType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid mimeType for video_circle"})
+	}
+
+	normalizedContent, err := services.NormalizeChatVideoCircleMediaURL(req.Content)
+	if err != nil {
+		status := fiber.StatusBadRequest
+		if err == services.ErrMessageMediaCDNNotConfigured {
+			status = fiber.StatusServiceUnavailable
+		}
+		return c.Status(status).JSON(fiber.Map{
+			"error": "Invalid media URL",
+			"code":  "MEDIA_URL_NOT_ALLOWED",
+		})
+	}
+
+	thumbnail := strings.TrimSpace(req.Thumbnail)
+	if thumbnail != "" {
+		normalizedThumb, thumbErr := services.NormalizeChatVideoCircleMediaURL(thumbnail)
+		if thumbErr != nil {
+			thumbnail = ""
+		} else {
+			thumbnail = normalizedThumb
+		}
+	}
+
+	msg := models.Message{
+		SenderID:    actorID,
+		RecipientID: req.RecipientID,
+		RoomID:      req.RoomID,
+		Content:     normalizedContent,
+		Type:        req.Type,
+		FileName:    strings.TrimSpace(req.FileName),
+		FileSize:    req.FileSize,
+		MimeType:    mimeType,
+		Duration:    req.Duration,
+		Thumbnail:   thumbnail,
+		MapData:     req.MapData,
+	}
+
+	if err := database.DB.Create(&msg).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not save message"})
+	}
+
+	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
+		RoomName:      roomName,
+		RoomMemberIDs: roomMemberIDs,
+	})
+
+	if h.hub != nil {
+		if msg.RoomID != 0 {
+			h.hub.Broadcast(msg, roomMemberIDs...)
+			if len(roomMemberIDs) > 0 {
+				_ = services.GetMetricsService().Increment(services.MetricRoomWSDeliveryTotal, int64(len(roomMemberIDs)))
+			}
+		} else {
+			h.hub.Broadcast(msg)
+		}
+	}
+
+	return c.JSON(msg)
+}
+
+func (h *MediaHandler) resolveMessageTarget(actorID uint, recipientID uint, roomID uint) (string, []uint, error) {
+	if recipientID == 0 && roomID == 0 {
+		return "", nil, fiber.NewError(fiber.StatusBadRequest, "recipientId or roomId is required")
+	}
+	if recipientID != 0 && roomID != 0 {
+		return "", nil, fiber.NewError(fiber.StatusBadRequest, "recipientId and roomId are mutually exclusive")
+	}
+
+	if roomID == 0 {
+		return "", nil, nil
+	}
+
+	room, roomErr := loadRoomByID(roomID)
+	if roomErr != nil {
+		if errors.Is(roomErr, errRoomNotFound) {
+			return "", nil, fiber.NewError(fiber.StatusNotFound, "Room not found")
+		}
+		return "", nil, fiber.NewError(fiber.StatusInternalServerError, "Could not load room")
+	}
+
+	if _, accessErr := ensureRoomAccess(room, actorID, true); accessErr != nil {
+		switch {
+		case errors.Is(accessErr, errRoomForbidden):
+			return "", nil, fiber.NewError(fiber.StatusForbidden, "Forbidden")
+		default:
+			return "", nil, fiber.NewError(fiber.StatusInternalServerError, "Could not validate room access")
+		}
+	}
+
+	roomMemberIDs, membersErr := getRoomMemberUserIDs(roomID)
+	if membersErr != nil {
+		return "", nil, fiber.NewError(fiber.StatusInternalServerError, "Could not resolve room members")
+	}
+
+	return room.Name, roomMemberIDs, nil
+}
+
+func isAllowedVideoCircleMimeType(mimeType string) bool {
+	switch strings.TrimSpace(strings.ToLower(mimeType)) {
+	case "video/mp4", "video/quicktime", "video/webm", "video/x-m4v":
+		return true
+	default:
+		return false
+	}
+}
+
+func inferVideoCircleExtension(fileName string, mimeType string) string {
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(fileName)))
+	switch ext {
+	case ".mp4", ".mov", ".webm", ".m4v":
+		return ext
+	}
+
+	switch strings.TrimSpace(strings.ToLower(mimeType)) {
+	case "video/quicktime":
+		return ".mov"
+	case "video/webm":
+		return ".webm"
+	case "video/x-m4v":
+		return ".m4v"
+	default:
+		return ".mp4"
+	}
 }
 
 func contains(slice []string, item string) bool {

@@ -70,7 +70,7 @@ export type Message = {
     id: string;
     text: string;
     sender: 'user' | 'bot' | 'other';
-    type?: 'text' | 'image' | 'audio' | 'video' | 'file' | 'document';
+    type?: 'text' | 'image' | 'audio' | 'video' | 'file' | 'document' | 'video_circle' | 'contact_card';
     fileName?: string;
     fileSize?: number;
     mimeType?: string;
@@ -102,6 +102,24 @@ export type Message = {
             longitude: number;
             zoom?: number;
         };
+        transcript?: {
+            status?: string;
+            text?: string;
+            model?: string;
+            language?: string;
+            updatedAt?: string;
+        };
+        mediaStatus?: string;
+        contact?: {
+            id?: number;
+            nickname?: string;
+            spiritualName?: string;
+            karmicName?: string;
+            avatarUrl?: string;
+            city?: string;
+            country?: string;
+        };
+        [key: string]: unknown;
     };
     assistantContext?: AssistantContext;
 };

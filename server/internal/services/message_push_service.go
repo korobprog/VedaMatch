@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"rag-agent-server/internal/config"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strings"
 	"sync"
@@ -49,6 +50,9 @@ func (s *MessagePushService) sendP2PPush(message models.Message) {
 	if message.RecipientID == 0 || message.RecipientID == message.SenderID {
 		return
 	}
+	if isP2PMutedForRecipient(message.RecipientID, message.SenderID) {
+		return
+	}
 
 	body := strings.TrimSpace(message.Content)
 	if strings.ToLower(strings.TrimSpace(message.Type)) != "text" {
@@ -79,6 +83,18 @@ func (s *MessagePushService) sendP2PPush(message models.Message) {
 		_ = GetMetricsService().Increment(MetricPushSendFail, 1)
 		log.Printf("[MessagePush] p2p_push_failed message_id=%d recipient_id=%d error=%v", message.ID, message.RecipientID, err)
 	}
+}
+
+func isP2PMutedForRecipient(recipientID uint, senderID uint) bool {
+	var pref models.ChatPreference
+	err := database.DB.
+		Select("id, muted").
+		Where("user_id = ? AND peer_user_id = ?", recipientID, senderID).
+		First(&pref).Error
+	if err != nil {
+		return false
+	}
+	return pref.Muted
 }
 
 func (s *MessagePushService) sendRoomPush(message models.Message, opts MessagePushOptions) {

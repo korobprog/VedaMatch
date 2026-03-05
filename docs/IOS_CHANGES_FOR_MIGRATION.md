@@ -1,5 +1,361 @@
 # IOS Changes For Migration
 
+## 2026-03-05 (iOS startup crash fix: PushKit VoIP registration guarded in DEV runtime)
+
+### Измененные файлы
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на iOS в `useEffect` всегда вызывался `VoipPushNotification.registerVoipToken()` при наличии модуля;
+  - в Debug/Simulator рантайме это приводило к падению на старте в цепочке PushKit (`doesNotRecognizeSelector` внутри `voipRegistrationSucceededWithDeviceToken`).
+- Стало:
+  - регистрация VoIP-токена выполняется только вне `__DEV__` (`shouldRegisterVoipPush`);
+  - в DEV оставлены listeners (`notification`, `didLoadWithEvents`), но сам `registerVoipToken()` пропускается;
+  - итог: приложение стабильно запускается в симуляторе/Debug без белого экрана и native crash на старте.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+const shouldRegisterVoipPush = useCallKeepNativeUi && VoipPushNotification && !__DEV__;
+if (useCallKeepNativeUi && VoipPushNotification) {
+  if (shouldRegisterVoipPush) {
+    VoipPushNotification.registerVoipToken();
+  } else {
+    console.log('[VoIP] registerVoipToken skipped in dev runtime');
+  }
+}
+```
+
+## 2026-03-05 (iOS crash fix: FlashList v2 fallback on old architecture)
+
+### Измененные файлы
+- `frontend/lib/flashListCompat.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - проверка поддержки FlashList опиралась только на `global.nativeFabricUIManager`;
+  - в части iOS рантаймов это давало ложный `true`, модуль FlashList v2 подключался и падал с ошибкой `FlashList v2 is only supported on new architecture`.
+- Стало:
+  - детектор переведен на `NativeModules.PlatformConstants.isNewArchEnabled` (если доступен);
+  - fallback-ветка проверяет сразу два признака (`nativeFabricUIManager` и `__turboModuleProxy`);
+  - при несоответствии архитектуры используется `FlatList`, без краша.
+
+### Сниппеты кода
+
+`frontend/lib/flashListCompat.ts`:
+```ts
+const platformConstants = (NativeModules as { PlatformConstants?: { isNewArchEnabled?: boolean } }).PlatformConstants;
+if (typeof platformConstants?.isNewArchEnabled === 'boolean') {
+  return platformConstants.isNewArchEnabled;
+}
+return Boolean(runtime.nativeFabricUIManager) && Boolean(runtime.__turboModuleProxy);
+```
+
+## 2026-03-05 (Chat transcription billing v2: weekly quota + LKM charging + quote API)
+
+### Измененные файлы
+- `server/internal/models/chat_transcribe_weekly_usage.go`
+- `server/internal/models/chat_transcribe_job.go`
+- `server/internal/database/database.go`
+- `server/internal/database/seed.go`
+- `server/internal/services/chat_transcribe_billing_config_service.go`
+- `server/internal/services/chat_transcribe_billing_service.go`
+- `server/internal/services/chat_transcription_service.go`
+- `server/internal/services/wallet_service.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/handlers/message_chat_features.go`
+- `server/cmd/api/main.go`
+- `frontend/services/messageService.ts`
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `POST /messages/:id/transcribe` выполнял только транскрибацию и сохранение transcript без тарифа/квоты/LKM;
+  - отсутствовал endpoint предпросмотра цены;
+  - не было anti-race state для транскрибации одного и того же сообщения.
+- Стало:
+  - добавлен `GET /messages/:id/transcribe/quote` для расчета стоимости до запуска;
+  - `POST /messages/:id/transcribe` теперь включает billing flow:
+    - UTC ISO week квота бесплатных минут,
+    - расчет минут с округлением вверх,
+    - тариф `standard` / `long_audio`,
+    - `402 INSUFFICIENT_LKM`,
+    - `409 TRANSCRIBE_IN_PROGRESS`,
+    - idempotent refund + rollback free quota при ошибке после списания;
+  - результат `POST` расширен полем `billing` без ломки `transcript`;
+  - на фронте перед `POST` запрашивается quote, при платном запросе показывается confirm, обработка `402` вынесена в отдельный UX.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Get("/messages/:id/transcribe/quote", messageHandler.GetTranscribeQuote)
+protected.Post("/messages/:id/transcribe", messageHandler.TranscribeMessage)
+protected.Post("/messages/transcribe/:id", messageHandler.TranscribeMessage)
+```
+
+`server/internal/handlers/message_chat_features.go`:
+```go
+if errors.Is(txErr, services.ErrChatTranscribeInsufficientLKM) {
+  return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+    "error": "Недостаточно LKM для расшифровки",
+    "code":  "INSUFFICIENT_LKM",
+  })
+}
+if errors.Is(txErr, errTranscribeInProgress) {
+  return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+    "error": "Расшифровка уже выполняется",
+    "code":  "TRANSCRIBE_IN_PROGRESS",
+  })
+}
+```
+
+`server/internal/services/chat_transcribe_billing_service.go`:
+```go
+audioMinutes := ComputeChatTranscribeAudioMinutes(durationSec)
+quote := CalculateChatTranscribeBillingQuote(cfg, audioMinutes, usedThisWeek)
+chargeDedup, refundDedup := BuildChatTranscribeDedupKeys(userID, messageID)
+processed, spendErr := s.walletService.SpendTx(tx, userID, quote.ChargedLkm, chargeDedup, "Chat transcription", SpendOptions{
+  AllowBonus: true, MaxBonusPercent: 100,
+})
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const quote = await messageService.getTranscribeQuote(messageId);
+const shouldContinue = await confirmTranscribeQuote(quote.billing);
+if (!shouldContinue) return;
+
+const response = await messageService.transcribeMessage(messageId);
+if (Number(response.billing?.chargedLkm || 0) > 0) {
+  Alert.alert('Расшифровка готова', `Списано ${response.billing?.chargedLkm} LKM`);
+}
+```
+
+## 2026-03-05 (Audio transcription 405 fix: route precedence + fallback endpoint)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+- `frontend/services/messageService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при вызове `POST /messages/:id/transcribe` часть клиентов получала `405 Method Not Allowed`;
+  - причина: общий маршрут `GET /messages/:userId/:recipientId` мог перехватывать path с двумя сегментами и отдавать метод-конфликт.
+- Стало:
+  - в backend маршрут `GET /messages/:userId/:recipientId` перенесен вниз блока сообщений;
+  - добавлен alias `POST /messages/transcribe/:id` для обратной совместимости;
+  - на клиенте `messageService.transcribeMessage()` при `404/405` автоматически делает retry на alias endpoint.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+protected.Post("/messages/:id/transcribe", messageHandler.TranscribeMessage)
+protected.Post("/messages/transcribe/:id", messageHandler.TranscribeMessage)
+protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages) // last
+```
+
+`frontend/services/messageService.ts`:
+```ts
+try {
+  return (await apiClient.post(`/messages/${messageId}/transcribe`, payload)).data;
+} catch (error) {
+  if (status === 404 || status === 405) {
+    return (await apiClient.post(`/messages/transcribe/${messageId}`, payload)).data;
+  }
+  throw error;
+}
+```
+
+## 2026-03-05 (Chat audio visibility fix after upload finalization)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после успешной отправки медиа (включая аудио) финальное сообщение заменяло временное только через `map` по `tempId`;
+  - если временное сообщение уже отсутствовало в state (из-за race с WS/перерендерами), финальное сообщение могло не попасть в список и визуально “пропадало”.
+- Стало:
+  - post-upload merge сделан idempotent:
+    - удаляется `tempId`,
+    - если финальный `id` уже есть — нормализуется существующий item,
+    - если финального `id` нет — сообщение принудительно добавляется в список;
+  - итог: аудио/медиа сообщение всегда отображается в чате после успешного upload.
+
+### Сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```tsx
+const withoutTemp = prev.filter(m => m.id !== tempId);
+const existingIndex = withoutTemp.findIndex(m => m.id === finalId);
+if (existingIndex >= 0) {
+  updated[existingIndex] = { ...updated[existingIndex], ...finalMessage, id: finalId, uploading: false };
+  return updated;
+}
+return [...withoutTemp, { ...finalMessage, id: finalId, uploading: false }];
+```
+
+## 2026-03-05 (Chat media post-send hard sync to eliminate UI race)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после успешной отправки медиа UI опирался на локальный merge (`temp -> final`) и WS;
+  - в редких гонках список сообщений мог остаться без только что отправленного аудио, хотя backend уже сохранил сообщение.
+- Стало:
+  - после успешного upload/merge добавлен принудительный refresh истории текущего P2P-чата через `/messages/history`;
+  - список синхронизируется с серверным состоянием и дедуплицируется по `id`;
+  - обновляются `hasOlderMessages` и `nextBeforeId`.
+
+### Сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```tsx
+const refreshedPage = await messageService.getMessagesHistory(recipientId, 30);
+const refreshedMessages = refreshedPage.items.map((m) => normalizeP2PMessage(m, currentUserId));
+setMessages(prev => dedupeMessagesById([
+  ...refreshedMessages,
+  ...prev.filter(m => m.uploading),
+]));
+setHasOlderMessages(refreshedPage.hasMore);
+setP2PNextBeforeId(refreshedPage.nextBeforeId ?? null);
+```
+
+## 2026-03-05 (Chat CDN flow + video_circle + chat menu features + audio transcription)
+
+### Измененные файлы
+- `server/internal/models/chat_preference.go`
+- `server/internal/database/database.go`
+- `server/internal/config/feature_flags.go`
+- `server/internal/services/message_media_cdn_policy.go`
+- `server/internal/services/s3_service.go`
+- `server/internal/handlers/media_handler.go`
+- `server/internal/handlers/message_chat_features.go`
+- `server/internal/services/chat_video_circle_cleanup_service.go`
+- `server/internal/services/chat_transcription_service.go`
+- `server/internal/services/message_push_service.go`
+- `server/cmd/api/main.go`
+- `frontend/services/messageService.ts`
+- `frontend/services/mediaService.ts`
+- `frontend/context/ChatContext.tsx`
+- `frontend/components/chat/ChatConstants.ts`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/components/chat/ChatInput.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/screens/portal/ads/CreateAdScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - media upload в чате шел только через `/messages/media` (multipart), без прямого `presign -> PUT -> finalize` для `video_circle`;
+  - отсутствовали endpoint-ы чата для меню (`media-index`, `search`, `mute/pin`, `share-contact`, `transcribe`);
+  - не было `chat_preferences` и suppression push при mute;
+  - в RN меню чата пункты `Медиа и файлы`, `Поиск`, `Убрать звук`, `Закрепить чат`, `Поделиться контактом` были не реализованы/disabled;
+  - отсутствовал UI/flow для `video_circle` (до 60с) и отображение транскрибации под аудио.
+- Стало:
+  - добавлен backend CDN-контур для `video_circle`: `POST /messages/media/presign` + `POST /messages/media/finalize` c проверкой URL-политики и feature flags;
+  - добавлены backend endpoint-ы:
+    - `GET /messages/media-index`
+    - `GET /messages/search`
+    - `PUT /messages/preferences/:peerUserId`
+    - `POST /messages/share-contact`
+    - `POST /messages/:id/transcribe`;
+  - введен cleanup scheduler для удаления `video_circle` старше 30 дней и пометки `mapData.mediaStatus="expired"`;
+  - добавлена on-demand транскрибация аудио через OpenAI (`gpt-4o-mini-transcribe` -> fallback `gpt-4o-transcribe`);
+  - после успешной транскрибации backend отправляет WS-событие `type=message_transcription_updated` с `mapData.messageId/mapData.transcript` для live-обновления bubble;
+  - в RN:
+    - `messageService` расширен новыми API;
+    - `mediaService` получил `video_circle` flow (`pick/record <=60s`, `presign -> PUT -> finalize`);
+    - меню в `ChatScreen` реализовано модалками для media/search/share и toggle mute/pin;
+    - `MessageList` рендерит `video_circle`, `contact_card`, кнопку `Расшифровать` и блок transcript.
+  - доп. стабилизация сборки:
+    - в `CreateAdScreen` добавлен guard `if (!adId) return` перед `getAd(adId)`, чтобы убрать TS-ошибку `number | undefined` и не делать лишний запрос в режиме create.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+messages.Post("/media/presign", messageHandler.PresignMessageMedia)
+messages.Post("/media/finalize", messageHandler.FinalizeMessageMedia)
+messages.Get("/media-index", messageHandler.GetMessageMediaIndex)
+messages.Get("/search", messageHandler.SearchMessages)
+messages.Put("/preferences/:peerUserId", messageHandler.UpdateChatPreference)
+messages.Post("/share-contact", messageHandler.ShareContact)
+messages.Post("/:id/transcribe", messageHandler.TranscribeMessage)
+```
+
+`server/internal/services/chat_transcription_service.go`:
+```go
+result, err := TranscribeChatAudio(ctx, audioURL, language)
+// default model: gpt-4o-mini-transcribe, fallback: gpt-4o-transcribe
+```
+
+`server/internal/handlers/message_chat_features.go`:
+```go
+eventMessage := models.Message{
+  Type: "message_transcription_updated",
+  MapData: map[string]interface{}{
+    "messageId": msg.ID,
+    "transcript": transcript,
+  },
+}
+h.hub.Broadcast(eventMessage)
+```
+
+`frontend/services/mediaService.ts`:
+```ts
+const presignResponse = await apiClient.post('/messages/media/presign', { type: 'video_circle', ... });
+await RNFS.uploadFiles({ toUrl: uploadUrl, method: 'PUT', binaryStreamOnly: true, ... }).promise;
+const finalizeResponse = await apiClient.post('/messages/media/finalize', { type: 'video_circle', content: finalUrl, ... });
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+<TouchableOpacity onPress={() => handleTranscribeAudio(item)}>
+  <Text>Расшифровать</Text>
+</TouchableOpacity>
+```
+
+`frontend/screens/portal/ads/CreateAdScreen.tsx`:
+```tsx
+const loadExistingAd = React.useCallback(async () => {
+  if (!adId) return;
+  const ad = await adsService.getAd(adId);
+  ...
+}, [adId]);
+```
+
+## 2026-03-05 (Chat audio playback: CDN 403 fallback to direct S3 URL)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - голосовые сообщения в чате использовали URL `https://cdn.vedamatch.ru/messages/audio/...`;
+  - на проде CDN для этих объектов сейчас отвечает `HTTP 403`, из-за чего голосовые не воспроизводились.
+- Стало:
+  - для аудио URL добавлен runtime-fallback: если URL начинается с `cdn.vedamatch.ru/messages/audio/`, клиент подменяет хост на прямой S3 URL и воспроизводит файл оттуда;
+  - это временный mitigation до исправления CDN-конфигурации.
+
+### Сниппеты кода
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const CDN_AUDIO_PREFIX = 'https://cdn.vedamatch.ru/messages/audio/';
+const S3_AUDIO_FALLBACK_PREFIX = 'https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/messages/audio/';
+
+const applyAudioHostFallback = (url: string): string => {
+  if (!url.startsWith(CDN_AUDIO_PREFIX)) return url;
+  return `${S3_AUDIO_FALLBACK_PREFIX}${url.slice(CDN_AUDIO_PREFIX.length)}`;
+};
+```
+
 ## 2026-03-05 (Grafana dashboard: `Total 5xx Responses` no-data fallback fix)
 
 ### Измененные файлы
@@ -8658,6 +9014,90 @@ const shouldRenderIconShadow = (roleHighlight || portalIconStyle === 'vedamatch'
   && (Platform.OS !== 'ios' || iconSurfaceHasEfficientShadow);
 ```
 
+## 2026-03-05 (Shops monetization v1: backend contracts + minimal seller UI)
+
+### Измененные файлы
+- `frontend/screens/portal/shops/SellerDashboardScreen.tsx`
+- `frontend/screens/portal/shops/ProductEditScreen.tsx`
+- `frontend/screens/portal/shops/CheckoutScreen.tsx`
+- `frontend/services/marketService.ts`
+- `frontend/types/market.ts`
+- `server/cmd/api/main.go`
+- `server/internal/handlers/shop_handler.go`
+- `server/internal/handlers/product_handler.go`
+- `server/internal/services/order_service.go`
+- `server/internal/services/shop_service.go`
+- `server/internal/services/product_service.go`
+- `server/internal/services/shop_plan_service.go`
+- `server/internal/services/shop_promotion_service.go`
+- `server/internal/services/market_fee_config_service.go`
+- `server/internal/services/metrics_service.go`
+- `server/internal/models/order.go`
+- `server/internal/models/shop.go`
+- `server/internal/models/shop_monetization.go`
+- `server/internal/database/database.go`
+- `server/internal/database/seed.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в `shops` для `paymentMethod='lkm'` средства списывались сразу при создании заказа;
+  - не было платформенной комиссии с `cap` для магазинов, планов подписки, товарных промо и geo-boost;
+  - seller UI не показывал управление тарифом/покупку продвижения и пояснение hold/settlement в checkout.
+- Стало:
+  - для `lkm`-заказов в магазинах включен поток `hold -> settlement on completed` с комиссией платформы `min(total * bps / 10000, cap)` и полным refund при `cancelled` до settlement;
+  - добавлены тарифные сущности/endpoint'ы подписок, product promotions и city geo-boost;
+  - seller UI получил минимальные элементы монетизации: статус плана, покупка upgrade, покупка product promo и geo-boost, а также обновленный checkout-текст про удержание/возврат.
+
+### Сниппеты кода
+
+`server/internal/models/order.go`:
+```go
+RegularLKMHeld              float64               `json:"regularLkmHeld" gorm:"type:decimal(12,2);default:0"`
+SettlementStatus            OrderSettlementStatus `json:"settlementStatus" gorm:"type:varchar(20);default:'pending';index"`
+PlatformFeePercentBps       int                   `json:"platformFeePercentBps" gorm:"default:0"`
+PlatformFeeCapSnapshotLKM   float64               `json:"platformFeeCapSnapshotLkm" gorm:"type:decimal(12,2);default:0"`
+PlatformFeeAmountLKM        float64               `json:"platformFeeAmountLkm" gorm:"type:decimal(12,2);default:0"`
+MerchantPayoutLKM           float64               `json:"merchantPayoutLkm" gorm:"type:decimal(12,2);default:0"`
+```
+
+`server/internal/services/order_service.go`:
+```go
+releaseTxID, err := s.walletService.ReleaseOrderHoldWithPlatformFeeTx(
+    tx,
+    order.UserID,
+    order.ShopID,
+    order.ID,
+    order.RegularLKMHeld,
+    order.BonusLKMHeld,
+    order.MerchantPayoutLKM,
+    order.PlatformFeeAmountLKM,
+    settlementDedup,
+)
+```
+
+`frontend/screens/portal/shops/CheckoutScreen.tsx`:
+```tsx
+{paymentMethod === 'lkm' && (
+  <Text style={styles.paymentNote}>
+    При оплате LKM средства сначала удерживаются и списываются окончательно только после завершения заказа.
+    Если заказ отменен до завершения, удержание возвращается полностью.
+  </Text>
+)}
+```
+
+`frontend/services/marketService.ts`:
+```ts
+async getShopPlanStatus(): Promise<ShopPlanStatus> {
+  const response = await api.get('/shops/my/plan-status');
+  return response.data;
+}
+
+async promoteProduct(productId: string, tariffCode: string): Promise<{ success: boolean; message?: string }> {
+  const response = await api.post(`/products/${productId}/promote`, { tariffCode });
+  return response.data;
+}
+```
+
 ```ts
 ...(shouldRenderIconShadow ? {
   shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
@@ -8667,3 +9107,91 @@ const shouldRenderIconShadow = (roleHighlight || portalIconStyle === 'vedamatch'
   elevation: 6,
 } : {}),
 ```
+
+## 2026-03-05 (DEV console noise reduction: LogBox filter for repeated iOS simulator advisories)
+
+### Измененные файлы
+- `frontend/index.js`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в DEV-консоль массово сыпались повторяющиеся advisory-предупреждения iOS (`RCTView shadow set but cannot calculate shadow efficiently`) и временные metro socket предупреждения.
+- Стало:
+  - в `__DEV__` добавлен `LogBox.ignoreLogs` для повторяющихся шумных сообщений, не влияющих на runtime функционал.
+
+### Сниппеты кода
+
+`frontend/index.js`:
+```js
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    '(ADVICE) View #',
+    'Cannot connect to Metro.',
+    'Socket is not connected',
+  ]);
+}
+```
+
+## 2026-03-05 (iOS Push entitlements wiring for App Store readiness)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в build settings основного iOS target не был подключен `CODE_SIGN_ENTITLEMENTS`;
+  - переменная `APS_ENVIRONMENT` не была задана для Debug/Release;
+  - из-за этого `aps-environment` entitlement мог отсутствовать в подписанном app/profile и FCM токен пропускался (`missing aps-environment`).
+- Стало:
+  - для Debug включен `CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements` и `APS_ENVIRONMENT = development`;
+  - для Release включен `CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements` и `APS_ENVIRONMENT = production`.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+APS_ENVIRONMENT = development;
+CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
+```
+
+```pbxproj
+APS_ENVIRONMENT = production;
+CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
+```
+
+## 2026-03-05 (Assistant display names updated in profile and chat UI)
+
+### Измененные файлы
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/context/ChatContext.tsx`
+- `frontend/components/KrishnaAssistant.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в профиле ассистенты назывались `Перо 2`, `Перо`, `Колобок`;
+  - в чат-приветствии и bubble title использовались старые имена (`Перо 2`, `Мудрое Перо`, `Кришна Дас`).
+- Стало:
+  - в профиле названия изменены на `Перо дас`, `Перо дас`, `Колобок дас`;
+  - в чат-приветствии и заголовке ассистента имена синхронизированы: для `feather/feather2` — `Перо дас`, для `smiley` — `Колобок дас`.
+
+### Сниппеты кода
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```ts
+{ key: 'feather2', label: 'Перо дас', ... }
+{ key: 'feather', label: 'Перо дас', ... }
+{ key: 'smiley', label: 'Колобок дас', ... }
+```
+
+`frontend/context/ChatContext.tsx`:
+```ts
+const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
+```
+
+`frontend/components/KrishnaAssistant.tsx`:
+```ts
+assistantType === 'smiley' ? "Колобок дас" : "Перо дас"
+```
+
+### Validation
+- `pnpm -C frontend exec tsc --noEmit` — success.

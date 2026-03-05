@@ -6,12 +6,20 @@ globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
 import 'react-native-gesture-handler';
 // Firebase App MUST be imported first as a side-effect before any Firebase service
 import '@react-native-firebase/app';
-import { AppRegistry } from 'react-native';
+import { AppRegistry, LogBox } from 'react-native';
 import App from './App';
 import './i18n';
 import { name as appName } from './app.json';
 import TrackPlayer from 'react-native-track-player';
 import { PlaybackService } from './services/audioPlayerService';
+
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    '(ADVICE) View #',
+    'Cannot connect to Metro.',
+    'Socket is not connected',
+  ]);
+}
 
 // Background message handler — use dynamic require() so Firebase App is
 // guaranteed to be initialized before we call getMessaging().

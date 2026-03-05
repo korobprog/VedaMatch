@@ -71,15 +71,63 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const [isFocused, setIsFocused] = useState(false);
 
     const handleTakePhoto = async () => {
-        try {
-            const media = await mediaService.takePhoto();
-            await handleSendMedia(media);
-        } catch (e: any) {
-            console.error('ChatInput takePhoto error:', e);
-            if (e.message !== 'Cancelled') {
-                Alert.alert('Ошибка', `Не удалось сделать фото: ${e.message || 'Unknown error'}`);
+        const sendPhoto = async () => {
+            try {
+                const media = await mediaService.takePhoto();
+                await handleSendMedia(media);
+            } catch (e: any) {
+                console.error('ChatInput takePhoto error:', e);
+                if (e.message !== 'Cancelled') {
+                    Alert.alert('Ошибка', `Не удалось сделать фото: ${e.message || 'Unknown error'}`);
+                }
             }
+        };
+
+        const recordCircle = async () => {
+            try {
+                const media = await mediaService.recordVideoCircle();
+                await handleSendMedia(media);
+            } catch (e: any) {
+                if (e.message !== 'Cancelled') {
+                    Alert.alert('Ошибка', e.message || 'Не удалось записать видеокружок');
+                }
+            }
+        };
+
+        const pickCircle = async () => {
+            try {
+                const media = await mediaService.pickVideoCircle();
+                await handleSendMedia(media);
+            } catch (e: any) {
+                if (e.message !== 'Cancelled') {
+                    Alert.alert('Ошибка', e.message || 'Не удалось выбрать видеокружок');
+                }
+            }
+        };
+
+        if (Platform.OS === 'android') {
+            Alert.alert(
+                'Отправка медиа',
+                'Выберите тип',
+                [
+                    { text: 'Отмена', style: 'cancel' },
+                    { text: 'Фото', onPress: () => { void sendPhoto(); } },
+                    { text: 'Видеокружок', onPress: () => { void recordCircle(); } },
+                ]
+            );
+            return;
         }
+
+        Alert.alert(
+            'Отправка медиа',
+            'Выберите тип',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                { text: 'Фото', onPress: () => { void sendPhoto(); } },
+                { text: 'Видеокружок', onPress: () => { void recordCircle(); } },
+                { text: 'Выбрать видео', onPress: () => { void pickCircle(); } },
+            ]
+        );
     };
 
     const handlePickDocument = async () => {
@@ -226,7 +274,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             option === 'contacts.report' ||
                             option === 'contacts.takePhoto' ||
                             option === 'contacts.attachFile' ||
-                            option === 'contacts.clearHistory';
+                            option === 'contacts.clearHistory' ||
+                            option === 'contacts.media' ||
+                            option === 'contacts.search' ||
+                            option === 'contacts.mute' ||
+                            option === 'contacts.pin' ||
+                            option === 'contacts.share';
 
                         const isDestructive = option.includes('block') || option.includes('report') || option.includes('clearHistory');
                         const itemColor = isDestructive

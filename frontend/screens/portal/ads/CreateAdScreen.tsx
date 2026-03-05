@@ -65,6 +65,9 @@ export const CreateAdScreen: React.FC = () => {
     const [festivalRefsLoading, setFestivalRefsLoading] = useState(false);
 
     const loadExistingAd = React.useCallback(async () => {
+        if (!adId) {
+            return;
+        }
         try {
             setLoading(true);
             const ad = await adsService.getAd(adId);

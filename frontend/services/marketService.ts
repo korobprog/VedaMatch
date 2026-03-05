@@ -6,6 +6,9 @@ import {
     ShopFilters,
     ShopStats,
     ShopCategoryConfig,
+    ShopPlanTariff,
+    ShopPlanStatus,
+    ShopPromotionTariff,
     Product,
     ProductFormData,
     ProductFilters,
@@ -160,6 +163,66 @@ class MarketService {
             return response.data;
         } catch (error) {
             console.error('Error fetching seller stats:', error);
+            throw error;
+        }
+    }
+
+    async getShopPlans(): Promise<ShopPlanTariff[]> {
+        try {
+            const response = await apiClient.get('/shops/plans');
+            return response.data?.plans || [];
+        } catch (error) {
+            console.error('Error fetching shop plans:', error);
+            throw error;
+        }
+    }
+
+    async getShopPlanStatus(): Promise<ShopPlanStatus> {
+        try {
+            const response = await apiClient.get('/shops/my/plan-status');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching shop plan status:', error);
+            throw error;
+        }
+    }
+
+    async subscribeShopPlan(planCode: string): Promise<any> {
+        try {
+            const response = await apiClient.post('/shops/my/subscribe', { planCode });
+            return response.data;
+        } catch (error) {
+            console.error('Error subscribing shop plan:', error);
+            throw error;
+        }
+    }
+
+    async getPromotionTariffs(): Promise<ShopPromotionTariff[]> {
+        try {
+            const response = await apiClient.get('/shops/promotion-tariffs');
+            return response.data?.tariffs || [];
+        } catch (error) {
+            console.error('Error fetching promotion tariffs:', error);
+            throw error;
+        }
+    }
+
+    async promoteProduct(productId: number, tariffCode: string): Promise<any> {
+        try {
+            const response = await apiClient.post(`/products/${productId}/promote`, { tariffCode });
+            return response.data;
+        } catch (error) {
+            console.error(`Error promoting product ${productId}:`, error);
+            throw error;
+        }
+    }
+
+    async applyShopGeoBoost(shopId: number, tariffCode: string = 'shop_city_boost_24h'): Promise<any> {
+        try {
+            const response = await apiClient.post(`/shops/${shopId}/geo-boost`, { tariffCode });
+            return response.data;
+        } catch (error) {
+            console.error(`Error applying geo boost for shop ${shopId}:`, error);
             throw error;
         }
     }

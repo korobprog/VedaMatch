@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image, KeyboardAvoidingView, Platform, Modal, Text, TextInput, FlatList, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { useSettings as usePortalSettings } from '../context/SettingsContext';
@@ -16,6 +15,7 @@ import { ChatInput } from '../components/chat/ChatInput';
 import { ProtectedScreen } from '../components/ProtectedScreen';
 import { shareImage, downloadImage } from '../services/fileService';
 import { contactService } from '../services/contactService';
+import { messageService, P2PMessage } from '../services/messageService';
 import LinearGradient from 'react-native-linear-gradient';
 import { isColorLight, isGradientLight } from '../utils/chatBackgroundContrast';
 
@@ -29,6 +29,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const insets = useSafeAreaInsets();
     const overlayOpacity = useRef(new Animated.Value(0)).current;
+    const [mediaModalVisible, setMediaModalVisible] = useState(false);
+    const [mediaLoading, setMediaLoading] = useState(false);
+    const [mediaItems, setMediaItems] = useState<P2PMessage[]>([]);
+    const [searchModalVisible, setSearchModalVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<P2PMessage[]>([]);
+    const [shareModalVisible, setShareModalVisible] = useState(false);
+    const [shareLoading, setShareLoading] = useState(false);
+    const [shareContacts, setShareContacts] = useState<Array<{ id: number; title: string; subtitle: string }>>([]);
+    const [chatPreference, setChatPreference] = useState<{ muted?: boolean; pinned?: boolean }>({});
     const isImageBackground = chatBackgroundType === 'image' && Boolean(chatBackground);
     const isGradientBackground = chatBackgroundType === 'gradient' && typeof chatBackground === 'string' && chatBackground.includes('|');
     const backgroundSource = useMemo(() => {
@@ -63,7 +74,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 useNativeDriver: true,
             }).start();
         }
-    }, [showMenu]);
+    }, [showMenu, overlayOpacity]);
 
     const handleBackNavigation = React.useCallback(() => {
         const state = navigation.getState();
@@ -135,7 +146,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         return () => {
             isActive = false;
         };
-    }, [route.params?.userId, route.params?.name, currentUser?.ID, recipientUser?.ID]);
+    }, [route.params?.userId, route.params?.name, currentUser?.ID, recipientUser?.ID, setChatRecipient]);
 
     const handleBlockUser = () => {
         if (!currentUser?.ID || !recipientUser?.ID) return;
@@ -153,7 +164,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                             await contactService.blockUser(currentUser.ID!, recipientUser.ID);
                             setShowMenu(false);
                             navigation.goBack(); // Close chat after blocking
-                        } catch (error) {
+                        } catch {
                             Alert.alert(t('error'), 'Failed to block user');
                         }
                     }
@@ -181,6 +192,104 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 isIncoming: false,
                 callerName: recipientUser.spiritualName || recipientUser.karmicName || 'User'
             });
+        }
+    };
+
+    const openMediaIndex = async () => {
+        if (!recipientUser?.ID) return;
+        setMediaLoading(true);
+        try {
+            const response = await messageService.getMediaIndex({
+                peerUserId: recipientUser.ID,
+                limit: 100,
+                types: ['image', 'audio', 'document', 'video_circle'],
+            });
+            setMediaItems(response.items || []);
+            setMediaModalVisible(true);
+        } catch (error) {
+            console.error('Failed to load media index', error);
+            Alert.alert(t('error'), 'Не удалось загрузить медиа и файлы');
+        } finally {
+            setMediaLoading(false);
+        }
+    };
+
+    const runChatSearch = async () => {
+        if (!recipientUser?.ID || !searchQuery.trim()) return;
+        setSearchLoading(true);
+        try {
+            const response = await messageService.searchMessages({
+                peerUserId: recipientUser.ID,
+                q: searchQuery.trim(),
+                limit: 50,
+                includeTranscripts: true,
+            });
+            setSearchResults(response.items || []);
+        } catch (error) {
+            console.error('Failed to search messages', error);
+            Alert.alert(t('error'), 'Не удалось выполнить поиск по чату');
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const togglePreference = async (key: 'muted' | 'pinned') => {
+        if (!recipientUser?.ID) return;
+        const currentValue = Boolean(chatPreference[key]);
+        const nextValue = !currentValue;
+        try {
+            const updated = await messageService.updateChatPreference(recipientUser.ID, { [key]: nextValue });
+            setChatPreference({
+                muted: updated.muted,
+                pinned: updated.pinned,
+            });
+            Alert.alert(
+                t('common.success'),
+                key === 'muted'
+                    ? (updated.muted ? 'Чат без звука' : 'Звук чата включен')
+                    : (updated.pinned ? 'Чат закреплен' : 'Чат откреплен'),
+            );
+        } catch (error) {
+            console.error('Failed to update chat preference', error);
+            Alert.alert(t('error'), 'Не удалось обновить настройки чата');
+        }
+    };
+
+    const openShareContactModal = async () => {
+        if (!recipientUser?.ID) return;
+        setShareLoading(true);
+        try {
+            const contacts = await contactService.getContacts();
+            const prepared = contacts
+                .filter((contact) => contact.ID !== recipientUser.ID)
+                .map((contact) => ({
+                    id: contact.ID,
+                    title: contact.spiritualName || contact.karmicName || contact.nickname || `User ${contact.ID}`,
+                    subtitle: [contact.city, contact.country].filter(Boolean).join(', '),
+                }))
+                .slice(0, 50);
+            setShareContacts(prepared);
+            setShareModalVisible(true);
+        } catch (error) {
+            console.error('Failed to load contacts for sharing', error);
+            Alert.alert(t('error'), 'Не удалось загрузить контакты');
+        } finally {
+            setShareLoading(false);
+        }
+    };
+
+    const shareContactCard = async (targetUserId: number) => {
+        if (!recipientUser?.ID) return;
+        try {
+            await messageService.shareContact({
+                recipientId: recipientUser.ID,
+                targetUserId,
+            });
+            setShareModalVisible(false);
+            Alert.alert(t('common.success'), 'Контакт отправлен');
+        } catch (error) {
+            console.error('Failed to share contact', error);
+            Alert.alert(t('error'), 'Не удалось отправить контакт');
         }
     };
 
@@ -261,12 +370,152 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                             handleReportUser();
                             return;
                         }
+                        if (option === 'contacts.media') {
+                            setShowMenu(false);
+                            void openMediaIndex();
+                            return;
+                        }
+                        if (option === 'contacts.search') {
+                            setShowMenu(false);
+                            setSearchModalVisible(true);
+                            return;
+                        }
+                        if (option === 'contacts.mute') {
+                            setShowMenu(false);
+                            void togglePreference('muted');
+                            return;
+                        }
+                        if (option === 'contacts.pin') {
+                            setShowMenu(false);
+                            void togglePreference('pinned');
+                            return;
+                        }
+                        if (option === 'contacts.share') {
+                            setShowMenu(false);
+                            void openShareContactModal();
+                            return;
+                        }
                         handleMenuOption(option,
                             (tab) => navigation.navigate('Portal', { initialTab: tab as any })
                         )
                     }}
                 />
             </View>
+
+            <Modal visible={mediaModalVisible} transparent animationType="fade" onRequestClose={() => setMediaModalVisible(false)}>
+                <View style={styles.modalBackdrop}>
+                    <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Медиа и файлы</Text>
+                        {mediaLoading ? (
+                            <ActivityIndicator size="small" color={colors.accent} />
+                        ) : (
+                            <FlatList
+                                data={mediaItems}
+                                keyExtractor={(item, index) => (item.id || item.ID || `media_${index}`).toString()}
+                                renderItem={({ item }) => {
+                                    const title = item.fileName || item.type || 'Файл';
+                                    const subtitle = item.content || '';
+                                    return (
+                                        <TouchableOpacity
+                                            style={styles.modalListItem}
+                                            onPress={() => {
+                                                if (subtitle.startsWith('http')) {
+                                                    Linking.openURL(subtitle).catch(() => {
+                                                        Alert.alert(t('error'), 'Не удалось открыть файл');
+                                                    });
+                                                }
+                                            }}
+                                        >
+                                            <Text style={[styles.modalItemTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]} numberOfLines={1}>
+                                                {title}
+                                            </Text>
+                                            <Text style={[styles.modalItemSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]} numberOfLines={1}>
+                                                {subtitle || item.type}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Нет медиа</Text>}
+                            />
+                        )}
+                        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setMediaModalVisible(false)}>
+                            <Text style={styles.modalCloseButtonText}>{t('common.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={searchModalVisible} transparent animationType="fade" onRequestClose={() => setSearchModalVisible(false)}>
+                <View style={styles.modalBackdrop}>
+                    <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Поиск в чате</Text>
+                        <View style={styles.searchRow}>
+                            <TextInput
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                placeholder="Введите текст"
+                                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#9CA3AF'}
+                                style={[styles.searchInput, { color: isDarkMode ? '#F9FAFB' : '#111827', borderColor: isDarkMode ? '#374151' : '#D1D5DB' }]}
+                            />
+                            <TouchableOpacity style={styles.searchButton} onPress={() => void runChatSearch()}>
+                                <Text style={styles.searchButtonText}>Найти</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {searchLoading ? (
+                            <ActivityIndicator size="small" color={colors.accent} />
+                        ) : (
+                            <FlatList
+                                data={searchResults}
+                                keyExtractor={(item, index) => (item.id || item.ID || `search_${index}`).toString()}
+                                renderItem={({ item }) => (
+                                    <View style={styles.modalListItem}>
+                                        <Text style={[styles.modalItemTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]} numberOfLines={2}>
+                                            {item.content || '(без текста)'}
+                                        </Text>
+                                        <Text style={[styles.modalItemSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]} numberOfLines={1}>
+                                            {item.type || 'text'}
+                                        </Text>
+                                    </View>
+                                )}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Совпадения не найдены</Text>}
+                            />
+                        )}
+                        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSearchModalVisible(false)}>
+                            <Text style={styles.modalCloseButtonText}>{t('common.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={shareModalVisible} transparent animationType="fade" onRequestClose={() => setShareModalVisible(false)}>
+                <View style={styles.modalBackdrop}>
+                    <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Поделиться контактом</Text>
+                        {shareLoading ? (
+                            <ActivityIndicator size="small" color={colors.accent} />
+                        ) : (
+                            <FlatList
+                                data={shareContacts}
+                                keyExtractor={(item) => item.id.toString()}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity style={styles.modalListItem} onPress={() => void shareContactCard(item.id)}>
+                                        <Text style={[styles.modalItemTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]} numberOfLines={1}>
+                                            {item.title}
+                                        </Text>
+                                        <Text style={[styles.modalItemSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]} numberOfLines={1}>
+                                            {item.subtitle || `ID ${item.id}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Нет доступных контактов</Text>}
+                            />
+                        )}
+                        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShareModalVisible(false)}>
+                            <Text style={styles.modalCloseButtonText}>{t('common.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 
@@ -315,5 +564,76 @@ const styles = StyleSheet.create({
     overlayWrapper: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 5,
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+    },
+    modalCard: {
+        borderRadius: 16,
+        padding: 16,
+        maxHeight: '80%',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 12,
+    },
+    modalListItem: {
+        paddingVertical: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: 'rgba(148,163,184,0.35)',
+    },
+    modalItemTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    modalItemSubtitle: {
+        fontSize: 12,
+        marginTop: 3,
+    },
+    modalEmptyText: {
+        textAlign: 'center',
+        paddingVertical: 20,
+        fontSize: 13,
+    },
+    modalCloseButton: {
+        marginTop: 12,
+        alignSelf: 'flex-end',
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 10,
+        backgroundColor: '#3B82F6',
+    },
+    modalCloseButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    searchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    searchInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+        marginRight: 8,
+    },
+    searchButton: {
+        backgroundColor: '#3B82F6',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    searchButtonText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 13,
     },
 });
