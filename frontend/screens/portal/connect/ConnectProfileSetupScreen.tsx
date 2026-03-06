@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ArrowLeft } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { connectService } from '../../../services/connectService';
 import type { ConnectMatchProfile } from '../../../types/connect';
@@ -28,6 +29,14 @@ const ConnectProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
     const [profile, setProfile] = useState<ConnectMatchProfile>(defaultProfile);
     const [saving, setSaving] = useState(false);
+
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate('Portal');
+    };
 
     useEffect(() => {
         connectService.getProfile()
@@ -64,6 +73,17 @@ const ConnectProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+            <View style={styles.header}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.iconButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+                >
+                    <ArrowLeft size={20} color="#431407" />
+                </TouchableOpacity>
+            </View>
+
             <Text style={styles.title}>{t('portal.connect.profile.title', { defaultValue: 'Shape your Connect profile' })}</Text>
             <Text style={styles.subtitle}>{t('portal.connect.profile.subtitle', { defaultValue: 'Tell Connect how you prefer to join service and community.' })}</Text>
 
@@ -103,6 +123,17 @@ const ConnectProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF7ED' },
     content: { padding: 20, gap: 16, paddingBottom: 36 },
+    header: { flexDirection: 'row', alignItems: 'center' },
+    iconButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
+    },
     title: { fontSize: 28, fontWeight: '800', color: '#7C2D12' },
     subtitle: { color: '#9A3412', lineHeight: 21 },
     input: { backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: '#FDBA74' },

@@ -9,7 +9,7 @@ import {
     View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowRight, Filter, HeartHandshake, MapPin, Plus, Settings2, ShieldCheck, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Filter, HeartHandshake, MapPin, Plus, Settings2, ShieldCheck, Users } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../../context/UserContext';
 import type { ConnectCommunityCard, ConnectFeedFilters, ConnectOpportunityCard } from '../../../types/connect';
@@ -69,12 +69,31 @@ const ConnectHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         navigation.navigate(resolved.screen as any, resolved.params as any);
     }, [navigation]);
 
+    const handleBack = useCallback(() => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate('Portal');
+    }, [navigation]);
+
     return (
         <ScrollView
             style={styles.container}
             contentContainerStyle={styles.content}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
+            <View style={styles.header}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.iconButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+                >
+                    <ArrowLeft size={20} color="#431407" />
+                </TouchableOpacity>
+            </View>
+
             <View style={styles.hero}>
                 <View style={styles.heroBadge}>
                     <HeartHandshake size={16} color="#7C2D12" />
@@ -182,6 +201,17 @@ const ConnectHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF7ED' },
     content: { padding: 20, paddingBottom: 40, gap: 18 },
+    header: { flexDirection: 'row', alignItems: 'center' },
+    iconButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
+    },
     hero: { backgroundColor: '#FED7AA', borderRadius: 24, padding: 20, gap: 12 },
     heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     heroBadgeText: { color: '#7C2D12', fontSize: 13, fontWeight: '700' },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ArrowLeft } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { connectService } from '../../../services/connectService';
 import type { ConnectEntryLevel, ConnectParticipationFormat } from '../../../types/connect';
@@ -20,6 +21,14 @@ const ConnectCreateOpportunityScreen: React.FC<Props> = ({ navigation }) => {
     const [newcomerFriendly, setNewcomerFriendly] = useState(true);
     const [mentorAvailable, setMentorAvailable] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate('Portal');
+    };
 
     const submit = async () => {
         setSaving(true);
@@ -52,6 +61,17 @@ const ConnectCreateOpportunityScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+            <View style={styles.header}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.iconButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+                >
+                    <ArrowLeft size={20} color="#431407" />
+                </TouchableOpacity>
+            </View>
+
             <Text style={styles.title}>{t('portal.connect.create.title', { defaultValue: 'Add a Connect opportunity' })}</Text>
             <Text style={styles.subtitle}>{t('portal.connect.create.subtitle', { defaultValue: 'Use this for real service opportunities, not generic announcements.' })}</Text>
 
@@ -96,6 +116,17 @@ const ConnectCreateOpportunityScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF7ED' },
     content: { padding: 20, gap: 16, paddingBottom: 36 },
+    header: { flexDirection: 'row', alignItems: 'center' },
+    iconButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
+    },
     title: { fontSize: 28, fontWeight: '800', color: '#7C2D12' },
     subtitle: { color: '#9A3412', lineHeight: 21 },
     input: { backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: '#FDBA74' },
