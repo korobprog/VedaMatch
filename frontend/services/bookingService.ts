@@ -2,6 +2,7 @@
  * Booking Service - API для работы с бронированиями
  */
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 import { Service, ServiceTariff, ServiceOwner } from './serviceService';
 
 // ==================== TYPES ====================
@@ -89,13 +90,45 @@ export interface BookingActionRequest {
 
 // ==================== STATUS HELPERS ====================
 
-export const STATUS_LABELS: Record<BookingStatus, string> = {
-    pending: 'Ожидает подтверждения',
-    confirmed: 'Подтверждено',
-    cancelled: 'Отменено',
-    completed: 'Завершено',
-    no_show: 'Неявка',
+const STATUS_LABELS_BY_LANGUAGE: Record<'ru' | 'en' | 'hi', Record<BookingStatus, string>> = {
+    ru: {
+        pending: 'Ожидает подтверждения',
+        confirmed: 'Подтверждено',
+        cancelled: 'Отменено',
+        completed: 'Завершено',
+        no_show: 'Неявка',
+    },
+    en: {
+        pending: 'Pending confirmation',
+        confirmed: 'Confirmed',
+        cancelled: 'Cancelled',
+        completed: 'Completed',
+        no_show: 'No-show',
+    },
+    hi: {
+        pending: 'पुष्टि की प्रतीक्षा में',
+        confirmed: 'पुष्ट',
+        cancelled: 'रद्द',
+        completed: 'पूर्ण',
+        no_show: 'उपस्थित नहीं',
+    },
 };
+
+const normalizeBookingLanguage = (language?: string): 'ru' | 'en' | 'hi' => {
+    const lower = String(language || '').trim().toLowerCase();
+    if (lower.startsWith('ru')) {
+        return 'ru';
+    }
+    if (lower.startsWith('hi')) {
+        return 'hi';
+    }
+    return 'en';
+};
+
+export const getBookingStatusLabel = (status: BookingStatus, language: string = i18n.language): string =>
+    STATUS_LABELS_BY_LANGUAGE[normalizeBookingLanguage(language)][status];
+
+export const STATUS_LABELS: Record<BookingStatus, string> = STATUS_LABELS_BY_LANGUAGE.en;
 
 export const STATUS_COLORS: Record<BookingStatus, string> = {
     pending: '#FFA500',    // Orange
@@ -242,7 +275,7 @@ export async function exportBookingCalendarIcs(bookingId: number): Promise<strin
 /**
  * Format booking date/time for display
  */
-export function formatBookingTime(booking: ServiceBooking): string {
+export function formatBookingTime(booking: ServiceBooking, language: string = i18n.language): string {
     const date = new Date(booking.scheduledAt);
     const options: Intl.DateTimeFormatOptions = {
         day: 'numeric',
@@ -250,17 +283,35 @@ export function formatBookingTime(booking: ServiceBooking): string {
         hour: '2-digit',
         minute: '2-digit',
     };
-    return date.toLocaleDateString('ru-RU', options);
+    const locale = normalizeBookingLanguage(language) === 'ru'
+        ? 'ru-RU'
+        : normalizeBookingLanguage(language) === 'hi'
+            ? 'hi-IN'
+            : 'en-US';
+    return date.toLocaleDateString(locale, options);
 }
 
 /**
  * Format booking duration
  */
-export function formatDuration(minutes: number): string {
-    if (minutes < 60) return `${minutes} мин`;
+export function formatDuration(minutes: number, language: string = i18n.language): string {
+    const normalizedLanguage = normalizeBookingLanguage(language);
+    if (minutes < 60) {
+        return normalizedLanguage === 'ru'
+            ? `${minutes} мин`
+            : normalizedLanguage === 'hi'
+                ? `${minutes} मि॰`
+                : `${minutes} min`;
+    }
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`;
+    if (normalizedLanguage === 'ru') {
+        return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`;
+    }
+    if (normalizedLanguage === 'hi') {
+        return mins > 0 ? `${hours} घं॰ ${mins} मि॰` : `${hours} घं॰`;
+    }
+    return mins > 0 ? `${hours} hr ${mins} min` : `${hours} hr`;
 }
 
 /**

@@ -1,11 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import apiClient from '../lib/apiClient';
-
-interface LocationCoords {
-	latitude: number;
-	longitude: number;
-}
+import i18n from '../i18n';
 
 interface LocationData {
 	country: string;
@@ -14,11 +10,46 @@ interface LocationData {
 	longitude: number;
 }
 
+const getGeoCopy = () => {
+	const language = String(i18n.language || '').trim().toLowerCase();
+	if (language.startsWith('ru')) {
+		return {
+			locationPermissionDenied: 'Доступ к геолокации запрещён',
+			locationPermissionTitle: 'Разрешение на геолокацию',
+			locationPermissionMessage: 'Приложению нужен доступ к вашей геолокации, чтобы находить людей и места рядом.',
+			askLater: 'Позже',
+			cancel: 'Отмена',
+			ok: 'OK',
+			unknownLocation: 'Неизвестное место',
+		};
+	}
+	if (language.startsWith('hi')) {
+		return {
+			locationPermissionDenied: 'लोकेशन की अनुमति अस्वीकृत है',
+			locationPermissionTitle: 'लोकेशन अनुमति',
+			locationPermissionMessage: 'नज़दीकी लोगों और स्थानों को खोजने के लिए ऐप को आपकी लोकेशन चाहिए।',
+			askLater: 'बाद में पूछें',
+			cancel: 'रद्द करें',
+			ok: 'ठीक है',
+			unknownLocation: 'अज्ञात स्थान',
+		};
+	}
+	return {
+		locationPermissionDenied: 'Location permission denied',
+		locationPermissionTitle: 'Location Permission',
+		locationPermissionMessage: 'The app needs access to your location to find nearby users and places.',
+		askLater: 'Ask Me Later',
+		cancel: 'Cancel',
+		ok: 'OK',
+		unknownLocation: 'Unknown location',
+	};
+};
+
 export const geoLocationService = {
 	async detectLocation(): Promise<LocationData | null> {
 		const hasPermission = await this.requestLocationPermission();
 		if (!hasPermission) {
-			throw new Error('Location permission denied');
+			throw new Error(getGeoCopy().locationPermissionDenied);
 		}
 
 		return new Promise((resolve, reject) => {
@@ -54,14 +85,15 @@ export const geoLocationService = {
 		}
 
 		try {
+			const copy = getGeoCopy();
 			const granted = await PermissionsAndroid.request(
 				PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
 				{
-					title: 'Location Permission',
-					message: 'App needs access to your location to find nearby users and places.',
-					buttonNeutral: 'Ask Me Later',
-					buttonNegative: 'Cancel',
-					buttonPositive: 'OK',
+					title: copy.locationPermissionTitle,
+					message: copy.locationPermissionMessage,
+					buttonNeutral: copy.askLater,
+					buttonNegative: copy.cancel,
+					buttonPositive: copy.ok,
 				}
 			);
 			return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -110,7 +142,7 @@ export const geoLocationService = {
 	async getNearbyUsers(
 		userLat: number,
 		userLon: number,
-		radiusKm: number = 50
+		_radiusKm: number = 50
 	): Promise<number[]> {
 		// Базовый фильтр по координатам
 		// На сервере будет более точный расчет
@@ -157,7 +189,7 @@ export const geoLocationService = {
 
 	formatLocation(location: LocationData): string {
 		if (!location.city && !location.country) {
-			return 'Unknown location';
+			return getGeoCopy().unknownLocation;
 		}
 		if (!location.city) {
 			return location.country;

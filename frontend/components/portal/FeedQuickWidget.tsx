@@ -3,10 +3,17 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Newspaper } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
+import { useTranslation } from 'react-i18next';
 
 export const FeedQuickWidget: React.FC = () => {
   const navigation = useNavigation<any>();
   const { vTheme } = useSettings();
+  const { i18n } = useTranslation();
+  const copy = i18n.language?.startsWith('ru')
+    ? { title: 'Лента', subtitle: 'Открыть' }
+    : i18n.language?.startsWith('hi')
+      ? { title: 'फ़ीड', subtitle: 'खोलें' }
+      : { title: 'Feed', subtitle: 'Open' };
 
   return (
     <TouchableOpacity
@@ -17,8 +24,8 @@ export const FeedQuickWidget: React.FC = () => {
       <View style={[styles.iconWrap, { backgroundColor: '#0EA5A4' }]}>
         <Newspaper size={18} color="#fff" />
       </View>
-      <Text style={[styles.title, { color: vTheme.colors.text }]}>Лента</Text>
-      <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>Открыть</Text>
+      <Text style={[styles.title, { color: vTheme.colors.text }]}>{copy.title}</Text>
+      <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>{copy.subtitle}</Text>
     </TouchableOpacity>
   );
 };

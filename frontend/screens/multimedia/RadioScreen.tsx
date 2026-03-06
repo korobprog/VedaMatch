@@ -67,7 +67,7 @@ export const RadioScreen: React.FC = () => {
             <View style={styles.info}>
                 <Text style={[styles.name, { color: roleColors.textPrimary }]}>{item.name}</Text>
                 <Text style={[styles.description, { color: roleColors.textSecondary }]} numberOfLines={2}>
-                    {item.description || 'Духовное радио вещание'}
+                    {item.description || 'Spiritual radio broadcast'}
                 </Text>
                 <View style={styles.meta}>
                     <View style={[
@@ -82,7 +82,7 @@ export const RadioScreen: React.FC = () => {
                             styles.liveText,
                             { color: item.status === 'online' ? roleColors.success : roleColors.danger }
                         ]}>
-                            {item.status === 'online' ? 'В СЕТИ' : 'ОФФЛАЙН'}
+                            {item.status === 'online' ? 'ONLINE' : 'OFFLINE'}
                         </Text>
                     </View>
                     {item.viewerCount > 0 && (
@@ -102,7 +102,7 @@ export const RadioScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Онлайн-радио</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Online radio</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -118,7 +118,7 @@ export const RadioScreen: React.FC = () => {
                             ]}
                             onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>All traditions</Text>
                         </TouchableOpacity>
                         {MULTIMEDIA_MADH_OPTIONS.map((m) => (
                             <TouchableOpacity
@@ -142,16 +142,16 @@ export const RadioScreen: React.FC = () => {
                 <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
                     {userMadh ? (
                         <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                            Режим доступа: ваша организация и общий контент.
+                            Access mode: your organization and shared content.
                         </Text>
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                                Сейчас доступен только общий эфир. Добавьте организацию в профиль или включите PRO.
+                                Only the shared stream is available right now. Add an organization to your profile or enable PRO.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
-                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                    <Text style={{ color: roleColors.textPrimary }}>Profile</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
                                     <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
@@ -165,7 +165,7 @@ export const RadioScreen: React.FC = () => {
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка станций...</Text>
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Loading stations...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -179,7 +179,7 @@ export const RadioScreen: React.FC = () => {
                     ListEmptyComponent={
                         <View style={styles.center}>
                             <RadioIcon size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Радиостанции пока не добавлены</Text>
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Radio stations are not added yet</Text>
                         </View>
                     }
                 />

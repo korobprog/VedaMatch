@@ -21,6 +21,7 @@ import Animated, {
     cancelAnimation,
 } from 'react-native-reanimated';
 import { X, Check, Palette } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
 import { PortalIcon } from './PortalIcon';
 import { useSettings } from '../../context/SettingsContext';
@@ -45,6 +46,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     onItemPress,
     onRemoveItem,
 }) => {
+    const { i18n } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(folder.name);
@@ -54,6 +56,21 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowModalBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
     const [showColorPicker, setShowColorPicker] = useState(false);
+    const copy =
+        i18n.language === 'ru'
+            ? {
+                  empty: 'Папка пуста',
+                  hint: 'Перетащите сервисы сюда',
+              }
+            : i18n.language === 'hi'
+              ? {
+                    empty: 'फ़ोल्डर खाली है',
+                    hint: 'सेवाएँ यहाँ खींचें',
+                }
+              : {
+                    empty: 'Folder is empty',
+                    hint: 'Drag services here',
+                };
 
     const scale = useSharedValue(0.8);
     const opacity = useSharedValue(0);
@@ -223,10 +240,10 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                 ) : (
                                     <View style={styles.emptyState}>
                                         <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
-                                            Папка пуста
+                                            {copy.empty}
                                         </Text>
                                         <Text style={[styles.emptyHint, { color: isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary }]}>
-                                            Перетащите сервисы сюда
+                                            {copy.hint}
                                         </Text>
                                     </View>
                                 )}

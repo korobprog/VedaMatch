@@ -51,7 +51,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
     const overviewQuery = useReferralOverviewQuery(50);
     const loading = overviewQuery.isLoading;
     const refreshing = overviewQuery.isRefetching && !overviewQuery.isLoading;
-    const error = overviewQuery.error ? 'Ошибка загрузки данных' : null;
+    const error = overviewQuery.error ? 'Failed to load data' : null;
     const inviteData: InviteData | null = overviewQuery.data?.invite || null;
     const stats: ReferralStats | null = overviewQuery.data?.stats || null;
     const referrals: ReferralInfo[] = overviewQuery.data?.referrals || [];
@@ -84,13 +84,13 @@ export default function InviteFriendsScreen({ navigation }: any) {
         if (!inviteData) return;
         try {
             const safeShareMessage = [
-                'Присоединяйся к VedaMatch по моему коду приглашения.',
-                `Код: ${inviteData.inviteCode}`,
-                'Получи бонусные LKM за активность в приложении.',
+                'Join VedaMatch with my invite code.',
+                `Code: ${inviteData.inviteCode}`,
+                'Get bonus LKM for activity in the app.',
             ].join('\n');
 
             await Share.open({
-                title: 'Приглашение в VedaMatch',
+                title: 'Invite to VedaMatch',
                 message: safeShareMessage,
                 url: inviteData.webLink,
             });
@@ -113,7 +113,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
             });
 
             await Share.open({
-                title: 'Моя Сангха',
+                title: 'My Sangha',
                 url: uri,
                 type: 'image/png',
             });
@@ -137,7 +137,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 </View>
                 <View style={styles.referralInfo}>
                     <Text style={styles.referralName}>{item.name}</Text>
-                    <Text style={styles.referralDate}>Присоединился: {item.joinedAt}</Text>
+                    <Text style={styles.referralDate}>Joined: {item.joinedAt}</Text>
                 </View>
                 <View style={[styles.statusBadge, isActive ? styles.activeBadge : styles.pendingBadge]}>
                     {isActive ? (
@@ -146,7 +146,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                         <Clock size={12} color="#9CA3AF" />
                     )}
                     <Text style={[styles.statusText, isActive ? styles.activeText : styles.pendingText]}>
-                        {isActive ? '+100' : 'Ожидание'}
+                        {isActive ? '+100' : 'Pending'}
                     </Text>
                 </View>
             </View>
@@ -171,7 +171,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     }}
                     style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
                 >
-                    <Text style={{ color: '#FFF' }}>Повторить</Text>
+                    <Text style={{ color: '#FFF' }}>Retry</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -192,7 +192,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 >
                     <ArrowLeft color="#FFF" size={24} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Сангха</Text>
+                <Text style={styles.headerTitle}>Sangha</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -211,16 +211,16 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 >
                     <View style={styles.heroContent}>
                         <Gift size={32} color="#FFF" />
-                        <Text style={styles.heroTitle}>Приглашай друзей</Text>
+                        <Text style={styles.heroTitle}>Invite friends</Text>
                         <Text style={styles.heroSubtitle}>
-                            Получайте бонусные LKM за каждого активного друга!
+                            Get bonus LKM for every active friend!
                         </Text>
                     </View>
                 </LinearGradient>
 
                 {/* QR Code Card */}
                 <View style={styles.qrCard}>
-                    <Text style={styles.sectionTitle}>Твой QR-код</Text>
+                    <Text style={styles.sectionTitle}>Your QR code</Text>
                     <View style={styles.qrContainer}>
                         {inviteData && (
                             <QRCode
@@ -231,12 +231,12 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             />
                         )}
                     </View>
-                    <Text style={styles.qrHint}>Покажи друзьям для сканирования</Text>
+                    <Text style={styles.qrHint}>Show it to friends to scan</Text>
                 </View>
 
                 {/* Invite Code */}
                 <View style={styles.codeCard}>
-                    <Text style={styles.codeLabel}>Твой код приглашения</Text>
+                    <Text style={styles.codeLabel}>Your invite code</Text>
                     <View style={styles.codeRow}>
                         <Text style={styles.codeText}>{inviteData?.inviteCode || '...'}</Text>
                         <TouchableOpacity onPress={handleCopyCode} style={styles.copyButton}>
@@ -258,7 +258,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             style={styles.shareGradient}
                         >
                             <Share2 size={20} color="#FFF" />
-                            <Text style={styles.shareButtonText}>Ссылка</Text>
+                            <Text style={styles.shareButtonText}>Link</Text>
                         </LinearGradient>
                     </TouchableOpacity>
 
@@ -280,24 +280,24 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     onPress={() => setShowRules(true)}
                     style={styles.rulesLink}
                 >
-                    <Text style={styles.rulesLinkText}>Условия реферальной программы</Text>
+                    <Text style={styles.rulesLinkText}>Referral program terms</Text>
                 </TouchableOpacity>
 
                 {/* Stats */}
                 {stats && (
                     <View style={styles.statsCard}>
-                        <Text style={styles.sectionTitle}>Моя Сангха</Text>
+                        <Text style={styles.sectionTitle}>My Sangha</Text>
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
                                 <Users size={24} color="#9CA3AF" />
                                 <Text style={styles.statValue}>{stats.totalInvited}</Text>
-                                <Text style={styles.statLabel}>Приглашено</Text>
+                                <Text style={styles.statLabel}>Invited</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
                                 <UserPlus size={24} color="#10B981" />
                                 <Text style={styles.statValue}>{stats.activeInvited}</Text>
-                                <Text style={styles.statLabel}>Активных</Text>
+                                <Text style={styles.statLabel}>Active</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
@@ -305,7 +305,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                                 <Text style={[styles.statValue, styles.earnedValue]}>
                                     {stats.totalEarned}
                                 </Text>
-                                <Text style={styles.statLabel}>Начислено</Text>
+                                <Text style={styles.statLabel}>Earned</Text>
                             </View>
                         </View>
                     </View>
@@ -314,7 +314,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 {/* Referrals List */}
                 {referrals.length > 0 && (
                     <View style={styles.listCard}>
-                        <Text style={styles.sectionTitle}>Друзья ({referrals.length})</Text>
+                        <Text style={styles.sectionTitle}>Friends ({referrals.length})</Text>
                         {referrals.map((item) => (
                             <View key={item.id}>
                                 {renderReferralItem({ item })}
@@ -325,23 +325,23 @@ export default function InviteFriendsScreen({ navigation }: any) {
 
                 {/* Rules Summary */}
                 <View style={styles.rulesCard}>
-                    <Text style={styles.rulesTitle}>Как это работает?</Text>
+                    <Text style={styles.rulesTitle}>How does it work?</Text>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>1</Text>
                         <Text style={styles.ruleText}>
-                            Поделись своим кодом или QR с другом
+                            Share your code or QR with a friend
                         </Text>
                     </View>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>2</Text>
                         <Text style={styles.ruleText}>
-                            Друг регистрируется и получает 50 LKM
+                            Your friend signs up and gets 50 LKM
                         </Text>
                     </View>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>3</Text>
                         <Text style={styles.ruleText}>
-                            Когда друг проявляет первую активность, вы получаете бонусные 100 LKM.
+                            When your friend becomes active for the first time, you get 100 bonus LKM.
                         </Text>
                     </View>
                 </View>
@@ -378,7 +378,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             </View>
 
                             <View style={styles.cardMain}>
-                                <Text style={styles.cardTitle}>Стань частью моей Сангхи!</Text>
+                                <Text style={styles.cardTitle}>Become part of my Sangha!</Text>
                                 <View style={styles.cardUserBadge}>
                                     <Text style={styles.cardUserName}>{currentUser?.spiritualName || currentUser?.karmicName}</Text>
                                 </View>
@@ -397,12 +397,12 @@ export default function InviteFriendsScreen({ navigation }: any) {
 
                                 <View style={styles.cardBonus}>
                                     <Gift size={24} color="#F59E0B" />
-                                    <Text style={styles.cardBonusText}>+50 LKM приветственный бонус</Text>
+                                    <Text style={styles.cardBonusText}>+50 LKM welcome bonus</Text>
                                 </View>
                             </View>
 
                             <View style={styles.cardFooter}>
-                                <Text style={styles.cardTagline}>Соединяя Души • Находя Своих</Text>
+                                <Text style={styles.cardTagline}>Connecting Souls • Finding Your People</Text>
                                 <Text style={styles.cardUrl}>vedamatch.ru</Text>
                             </View>
                         </ImageBackground>

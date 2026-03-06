@@ -91,9 +91,10 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Description:    "Максимальный духовный профиль с акцентом на севу, ятры и общину.",
 		HighlightColor: "#F97316",
 		QuickAccess:    []string{"contacts", "calls", "services"},
-		HeroServices:   []string{"path_tracker", "seva", "travel", "news"},
+		HeroServices:   []string{"path_tracker", "ekadashi_calendar", "seva", "travel", "news"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "path_tracker", Title: "Путь дня", Filters: []string{"service_focus", "community"}},
+			{ServiceID: "ekadashi_calendar", Title: "Экадаши", Filters: []string{"fasting", "parana", "vaishnava_calendar"}},
 			{ServiceID: "seva", Title: "Сева", Filters: []string{"projects", "donation_flow"}},
 			{ServiceID: "charity", Title: "Благотворительность", Filters: []string{"verified_orgs", "math_projects"}},
 			{ServiceID: "travel", Title: "Yatra", Filters: []string{"holy_places", "group_tours"}},

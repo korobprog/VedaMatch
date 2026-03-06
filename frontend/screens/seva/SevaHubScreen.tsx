@@ -39,7 +39,7 @@ const SevaHubScreen: React.FC = () => {
         } catch (e) {
             console.warn('Failed to load projects:', e);
             setProjects([]);
-            setScreenError('Не удалось загрузить проекты Севы.');
+            setScreenError('Failed to load Seva projects.');
         }
     }, []);
 
@@ -53,7 +53,7 @@ const SevaHubScreen: React.FC = () => {
             ]);
         } catch (e) {
             console.warn('Failed to load initial data:', e);
-            setScreenError('Не удалось загрузить раздел Сева. Проверьте интернет и попробуйте снова.');
+            setScreenError('Failed to load the Seva section. Check your internet and try again.');
         } finally {
             setLoading(false);
         }
@@ -126,7 +126,7 @@ const SevaHubScreen: React.FC = () => {
         const progress = goalAmount > 0
             ? Math.min(raisedAmount / goalAmount, 1)
             : 0;
-        const projectTitle = item?.title || 'Проект без названия';
+        const projectTitle = item?.title || 'Untitled project';
         const organizationName = item?.organization?.name || 'Vedic Charity';
         const coverUri = typeof item?.coverUrl === 'string' && item.coverUrl.trim().length > 0
             ? item.coverUrl
@@ -224,20 +224,20 @@ const SevaHubScreen: React.FC = () => {
                                 onPress={() => navigation.navigate('MyDonations')}
                                 style={styles.historyButton}
                             >
-                                <Text style={styles.historyButtonText}>История</Text>
+                                <Text style={styles.historyButtonText}>History</Text>
                             </TouchableOpacity>
                         </View>
 
                         <View style={styles.balanceRow}>
                             <PointsIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
-                            <Text style={styles.balanceText}>Итого: {totalBalance.toLocaleString()} LKM</Text>
+                            <Text style={styles.balanceText}>Total: {totalBalance.toLocaleString()} LKM</Text>
                         </View>
                         <View style={styles.balanceSplitRow}>
                             <View style={styles.balanceSplitBadge}>
-                                <Text style={styles.balanceSplitText}>Основной: {regularBalance.toLocaleString()}</Text>
+                                <Text style={styles.balanceSplitText}>Regular: {regularBalance.toLocaleString()}</Text>
                             </View>
                             <View style={[styles.balanceSplitBadge, styles.balanceBonusBadge]}>
-                                <Text style={[styles.balanceSplitText, styles.balanceBonusText]}>Бонусный: {bonusBalance.toLocaleString()}</Text>
+                                <Text style={[styles.balanceSplitText, styles.balanceBonusText]}>Bonus: {bonusBalance.toLocaleString()}</Text>
                             </View>
                         </View>
 
@@ -260,10 +260,10 @@ const SevaHubScreen: React.FC = () => {
                 ListHeaderComponent={
                     screenError ? (
                         <View style={styles.errorCard}>
-                            <Text style={styles.errorTitle}>Временная ошибка</Text>
+                            <Text style={styles.errorTitle}>Temporary error</Text>
                             <Text style={styles.errorText}>{screenError}</Text>
                             <TouchableOpacity style={styles.errorRetryButton} onPress={loadData}>
-                                <Text style={styles.errorRetryButtonText}>Повторить</Text>
+                                <Text style={styles.errorRetryButtonText}>Retry</Text>
                             </TouchableOpacity>
                         </View>
                     ) : null
@@ -272,7 +272,7 @@ const SevaHubScreen: React.FC = () => {
                     loading ? (
                         <View style={{ padding: 40, alignItems: 'center' }}>
                             <ActivityIndicator color="#FFD700" />
-                            <Text style={{ color: '#AAA', marginTop: 10 }}>Загружаем проекты...</Text>
+                            <Text style={{ color: '#AAA', marginTop: 10 }}>Loading projects...</Text>
                         </View>
                     ) : !screenError ? (
                         <View style={{ padding: 40, alignItems: 'center' }}>
@@ -282,7 +282,7 @@ const SevaHubScreen: React.FC = () => {
                         </View>
                     ) : (
                         <View style={{ padding: 40, alignItems: 'center' }}>
-                            <Text style={{ color: '#888' }}>Потяните вниз, чтобы обновить</Text>
+                            <Text style={{ color: '#888' }}>Pull down to refresh</Text>
                         </View>
                     )
                 }

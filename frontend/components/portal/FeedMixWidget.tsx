@@ -3,10 +3,17 @@ import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } fr
 import { useNavigation } from '@react-navigation/native';
 import { feedService, FeedV2Item } from '../../services/feedService';
 import { useSettings } from '../../context/SettingsContext';
+import { useTranslation } from 'react-i18next';
 
 export const FeedMixWidget: React.FC = () => {
   const navigation = useNavigation<any>();
   const { vTheme } = useSettings();
+  const { i18n } = useTranslation();
+  const copy = i18n.language?.startsWith('ru')
+    ? { title: 'Лента', empty: 'Пусто' }
+    : i18n.language?.startsWith('hi')
+      ? { title: 'फ़ीड', empty: 'खाली' }
+      : { title: 'Feed', empty: 'Empty' };
   const [items, setItems] = useState<FeedV2Item[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,13 +47,13 @@ export const FeedMixWidget: React.FC = () => {
       activeOpacity={0.9}
       onPress={() => navigation.navigate('ChannelsHub')}
     >
-      <Text style={[styles.title, { color: vTheme.colors.text }]}>Лента</Text>
+      <Text style={[styles.title, { color: vTheme.colors.text }]}>{copy.title}</Text>
       {loading ? (
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="small" color={vTheme.colors.primary} />
         </View>
       ) : items.length === 0 ? (
-        <Text style={[styles.empty, { color: vTheme.colors.textSecondary }]}>Пусто</Text>
+        <Text style={[styles.empty, { color: vTheme.colors.textSecondary }]}>{copy.empty}</Text>
       ) : (
         <View style={styles.itemsWrap}>
           {items.map((item) => {

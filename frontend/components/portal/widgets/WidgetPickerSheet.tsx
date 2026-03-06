@@ -9,6 +9,7 @@ import {
     View,
 } from 'react-native';
 import { X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { PortalWidget } from '../../../types/portal';
 import { useSettings } from '../../../context/SettingsContext';
 import { WIDGET_CATALOG, canAddWidget, getWidgetKey } from './widgetCatalog';
@@ -27,6 +28,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
     onClose,
     onAddWidget,
 }) => {
+    const { t } = useTranslation();
     const { vTheme, portalBackgroundType } = useSettings();
     const isPhotoBg = portalBackgroundType === 'image';
 
@@ -46,7 +48,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                     ]}
                 >
                     <View style={styles.header}>
-                        <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>Добавить виджет</Text>
+                        <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>{t('portal.widgets.addWidget')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.85}>
                             <X size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
@@ -77,9 +79,9 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                                 >
                                     <View style={styles.cardHeader}>
                                         <View style={styles.cardTitleWrap}>
-                                            <Text style={[styles.cardTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>{entry.title}</Text>
+                                            <Text style={[styles.cardTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>{t(entry.titleKey)}</Text>
                                             <Text style={[styles.cardMeta, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : vTheme.colors.textSecondary }]}>
-                                                {entry.size} · {entry.description}
+                                                {entry.size} · {t(entry.descriptionKey)}
                                             </Text>
                                         </View>
                                         <TouchableOpacity
@@ -96,7 +98,7 @@ export const WidgetPickerSheet: React.FC<WidgetPickerSheetProps> = ({
                                             ]}
                                             activeOpacity={0.85}
                                         >
-                                            <Text style={styles.addButtonText}>{isActive ? 'Добавлен' : 'Добавить'}</Text>
+                                            <Text style={styles.addButtonText}>{isActive ? t('portal.widgets.added') : t('portal.widgets.add')}</Text>
                                         </TouchableOpacity>
                                     </View>
 

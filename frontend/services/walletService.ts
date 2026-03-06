@@ -2,6 +2,7 @@
  * Wallet Service - API для работы с кошельком Лакшми
  */
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 // ==================== TYPES ====================
 
@@ -74,20 +75,69 @@ export interface TransferRequest {
 export const CURRENCY_SYMBOL = '₿';
 export const CURRENCY_CODE = 'LKM';
 
+const normalizeWalletLanguage = (language?: string): 'ru' | 'en' | 'hi' => {
+    const lower = String(language || '').trim().toLowerCase();
+    if (lower.startsWith('ru')) {
+        return 'ru';
+    }
+    if (lower.startsWith('hi')) {
+        return 'hi';
+    }
+    return 'en';
+};
+
+const TRANSACTION_TYPE_LABELS_BY_LANGUAGE: Record<'ru' | 'en' | 'hi', Record<TransactionType, string>> = {
+    ru: {
+        credit: 'Пополнение',
+        debit: 'Списание',
+        bonus: 'Бонус',
+        refund: 'Возврат',
+        hold: 'Заморозка',
+        release: 'Списание из холда',
+        admin_charge: 'Начисление (Админ)',
+        admin_seize: 'Списание (Админ)',
+    },
+    en: {
+        credit: 'Credit',
+        debit: 'Debit',
+        bonus: 'Bonus',
+        refund: 'Refund',
+        hold: 'Hold',
+        release: 'Release from hold',
+        admin_charge: 'Admin credit',
+        admin_seize: 'Admin debit',
+    },
+    hi: {
+        credit: 'जमा',
+        debit: 'कटौती',
+        bonus: 'बोनस',
+        refund: 'रिफंड',
+        hold: 'होल्ड',
+        release: 'होल्ड से कटौती',
+        admin_charge: 'एडमिन जमा',
+        admin_seize: 'एडमिन कटौती',
+    },
+};
+
+const getWalletLocale = (language?: string): string => {
+    const normalized = normalizeWalletLanguage(language);
+    if (normalized === 'ru') return 'ru-RU';
+    if (normalized === 'hi') return 'hi-IN';
+    return 'en-US';
+};
+
 export function getCurrencyName(language: string = 'ru'): string {
-    return language === 'ru' ? 'Лакшмани' : 'LakshMoney';
+    const normalized = normalizeWalletLanguage(language);
+    if (normalized === 'ru') return 'Лакшмани';
+    if (normalized === 'hi') return 'लक्ष्ममनी';
+    return 'LakshMoney';
 }
 
-export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
-    credit: 'Пополнение',
-    debit: 'Списание',
-    bonus: 'Бонус',
-    refund: 'Возврат',
-    hold: 'Заморозка',
-    release: 'Списание из холда',
-    admin_charge: 'Начисление (Админ)',
-    admin_seize: 'Списание (Админ)',
-};
+export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = TRANSACTION_TYPE_LABELS_BY_LANGUAGE.ru;
+
+export function getTransactionTypeLabel(type: TransactionType, language: string = 'ru'): string {
+    return TRANSACTION_TYPE_LABELS_BY_LANGUAGE[normalizeWalletLanguage(language)][type];
+}
 
 export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
     credit: '#4CAF50',       // Green
@@ -138,7 +188,13 @@ export async function transferLakshmi(
         const response = await apiClient.post('/wallet/transfer', data);
         return response.data;
     } catch (error: any) {
-        throw new Error(error?.response?.data?.error || 'Failed to transfer');
+        const normalized = normalizeWalletLanguage(i18n.language);
+        const fallback = normalized === 'ru'
+            ? 'Не удалось выполнить перевод'
+            : normalized === 'hi'
+                ? 'ट्रांसफ़र पूरा नहीं हो सका'
+                : 'Failed to transfer';
+        throw new Error(error?.response?.data?.error || fallback);
     }
 }
 
@@ -147,15 +203,15 @@ export async function transferLakshmi(
 /**
  * Format balance for display
  */
-export function formatBalance(amount: number): string {
-    return `${amount.toLocaleString('ru-RU')} ${CURRENCY_CODE}`;
+export function formatBalance(amount: number, language: string = 'ru'): string {
+    return `${amount.toLocaleString(getWalletLocale(language))} ${CURRENCY_CODE}`;
 }
 
 /**
  * Format balance with symbol
  */
-export function formatBalanceWithSymbol(amount: number): string {
-    return `${amount.toLocaleString('ru-RU')} ${CURRENCY_SYMBOL}`;
+export function formatBalanceWithSymbol(amount: number, language: string = 'ru'): string {
+    return `${amount.toLocaleString(getWalletLocale(language))} ${CURRENCY_SYMBOL}`;
 }
 
 export interface TransactionAmountParts {
@@ -195,17 +251,17 @@ export function getTransactionSign(type: TransactionType): '+' | '-' | '⎔' {
 /**
  * Format transaction amount with sign
  */
-export function formatTransactionAmount(type: TransactionType, amount: number): string {
+export function formatTransactionAmount(type: TransactionType, amount: number, language: string = 'ru'): string {
     const sign = getTransactionSign(type);
-    return `${sign}${amount.toLocaleString('ru-RU')} ${CURRENCY_CODE}`;
+    return `${sign}${amount.toLocaleString(getWalletLocale(language))} ${CURRENCY_CODE}`;
 }
 
 /**
  * Format transaction date
  */
-export function formatTransactionDate(dateString: string): string {
+export function formatTransactionDate(dateString: string, language: string = 'ru'): string {
     const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
+    return date.toLocaleDateString(getWalletLocale(language), {
         day: 'numeric',
         month: 'short',
         hour: '2-digit',

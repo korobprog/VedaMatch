@@ -32,7 +32,7 @@ interface ChatInputProps {
 export const ChatInput: React.FC<ChatInputProps> = ({
     onMenuOption,
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const {
         handleSendMessage,
         handleStopRequest,
@@ -65,6 +65,50 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         stopRecording,
         cancelRecording,
     } = useChat();
+    const chatInputCopy = useMemo(() => {
+        const lang = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
+        return {
+            en: {
+                error: 'Error',
+                mediaTitle: 'Send media',
+                mediaType: 'Select type',
+                cancel: 'Cancel',
+                photo: 'Photo',
+                videoCircle: 'Video circle',
+                chooseVideo: 'Choose video',
+                takePhotoFailed: 'Failed to take a photo',
+                recordVideoFailed: 'Failed to record a video circle',
+                pickVideoFailed: 'Failed to choose a video circle',
+                pickDocumentFailed: 'Failed to choose a document',
+            },
+            ru: {
+                error: 'Ошибка',
+                mediaTitle: 'Отправка медиа',
+                mediaType: 'Выберите тип',
+                cancel: 'Отмена',
+                photo: 'Фото',
+                videoCircle: 'Видеокружок',
+                chooseVideo: 'Выбрать видео',
+                takePhotoFailed: 'Не удалось сделать фото',
+                recordVideoFailed: 'Не удалось записать видеокружок',
+                pickVideoFailed: 'Не удалось выбрать видеокружок',
+                pickDocumentFailed: 'Не удалось выбрать документ',
+            },
+            hi: {
+                error: 'त्रुटि',
+                mediaTitle: 'मीडिया भेजें',
+                mediaType: 'प्रकार चुनें',
+                cancel: 'रद्द करें',
+                photo: 'फ़ोटो',
+                videoCircle: 'वीडियो सर्कल',
+                chooseVideo: 'वीडियो चुनें',
+                takePhotoFailed: 'फ़ोटो लेना संभव नहीं हुआ',
+                recordVideoFailed: 'वीडियो सर्कल रिकॉर्ड नहीं हो सका',
+                pickVideoFailed: 'वीडियो सर्कल चुना नहीं जा सका',
+                pickDocumentFailed: 'दस्तावेज़ चुना नहीं जा सका',
+            },
+        }[lang];
+    }, [i18n.language]);
 
     // Local states for new logic
     const [draftText, setDraftText] = useState('');
@@ -78,7 +122,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             } catch (e: any) {
                 console.error('ChatInput takePhoto error:', e);
                 if (e.message !== 'Cancelled') {
-                    Alert.alert('Ошибка', `Не удалось сделать фото: ${e.message || 'Unknown error'}`);
+                    Alert.alert(chatInputCopy.error, `${chatInputCopy.takePhotoFailed}: ${e.message || 'Unknown error'}`);
                 }
             }
         };
@@ -89,7 +133,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 await handleSendMedia(media);
             } catch (e: any) {
                 if (e.message !== 'Cancelled') {
-                    Alert.alert('Ошибка', e.message || 'Не удалось записать видеокружок');
+                    Alert.alert(chatInputCopy.error, e.message || chatInputCopy.recordVideoFailed);
                 }
             }
         };
@@ -100,32 +144,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 await handleSendMedia(media);
             } catch (e: any) {
                 if (e.message !== 'Cancelled') {
-                    Alert.alert('Ошибка', e.message || 'Не удалось выбрать видеокружок');
+                    Alert.alert(chatInputCopy.error, e.message || chatInputCopy.pickVideoFailed);
                 }
             }
         };
 
         if (Platform.OS === 'android') {
             Alert.alert(
-                'Отправка медиа',
-                'Выберите тип',
+                chatInputCopy.mediaTitle,
+                chatInputCopy.mediaType,
                 [
-                    { text: 'Отмена', style: 'cancel' },
-                    { text: 'Фото', onPress: () => { void sendPhoto(); } },
-                    { text: 'Видеокружок', onPress: () => { void recordCircle(); } },
+                    { text: chatInputCopy.cancel, style: 'cancel' },
+                    { text: chatInputCopy.photo, onPress: () => { void sendPhoto(); } },
+                    { text: chatInputCopy.videoCircle, onPress: () => { void recordCircle(); } },
                 ]
             );
             return;
         }
 
         Alert.alert(
-            'Отправка медиа',
-            'Выберите тип',
+            chatInputCopy.mediaTitle,
+            chatInputCopy.mediaType,
             [
-                { text: 'Отмена', style: 'cancel' },
-                { text: 'Фото', onPress: () => { void sendPhoto(); } },
-                { text: 'Видеокружок', onPress: () => { void recordCircle(); } },
-                { text: 'Выбрать видео', onPress: () => { void pickCircle(); } },
+                { text: chatInputCopy.cancel, style: 'cancel' },
+                { text: chatInputCopy.photo, onPress: () => { void sendPhoto(); } },
+                { text: chatInputCopy.videoCircle, onPress: () => { void recordCircle(); } },
+                { text: chatInputCopy.chooseVideo, onPress: () => { void pickCircle(); } },
             ]
         );
     };
@@ -136,7 +180,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             await handleSendMedia(media);
         } catch (e: any) {
             if (e.message !== 'Cancelled') {
-                Alert.alert('Ошибка', 'Не удалось выбрать документ');
+                Alert.alert(chatInputCopy.error, chatInputCopy.pickDocumentFailed);
             }
         }
     };

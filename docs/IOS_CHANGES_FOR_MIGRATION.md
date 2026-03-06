@@ -1,5 +1,124 @@
 # IOS Changes For Migration
 
+## 2026-03-06 (Ekadashi provider fallback notice in mobile UI)
+
+### Измененные файлы
+- `frontend/types/ekadashi.ts`
+- `frontend/utils/ekadashiCalendar.ts`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile UI показывал только сами дни Экадаши и заметки дня;
+  - пользователь не видел, пришли ли данные из live provider или backend уже перешел на fallback;
+  - при отсутствии `city` для `ISKCON` или недоступности upstream интерфейс не объяснял причину приблизительных данных.
+- Стало:
+  - типы Ekadashi синхронизированы с backend-полем `providerDecision`;
+  - экран `EkadashiCalendarScreen` показывает notice о причине fallback;
+  - `CalendarWidget` в режиме Экадаши показывает компактную подсказку под переключателем организации;
+  - в деталях дня появился отдельный блок `Data source` при fallback.
+
+### Сниппеты кода
+
+`frontend/utils/ekadashiCalendar.ts`:
+```ts
+export const getEkadashiProviderNoticeKey = (providerDecision?: EkadashiProviderDecision | null): string | null => {
+  if (!providerDecision || providerDecision.mode !== 'fallback') return null;
+  switch (providerDecision.reason) {
+    case 'city_required_for_iskcon_live_provider':
+      return 'portal.ekadashiCalendar.providerNotices.cityRequiredForLive';
+    case 'no_live_source_configured':
+      return 'portal.ekadashiCalendar.providerNotices.noLiveSource';
+    default:
+      return providerDecision.reason?.includes('_live_fetch_failed')
+        ? 'portal.ekadashiCalendar.providerNotices.liveUnavailable'
+        : 'portal.ekadashiCalendar.providerNotices.fallbackActive';
+  }
+};
+```
+
+`frontend/screens/portal/services/EkadashiCalendarScreen.tsx`:
+```tsx
+{providerNoticeKey ? (
+  <View style={[styles.noticeBox, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
+    <Text style={[styles.noticeText, { color: colors.textPrimary }]}>{t(providerNoticeKey)}</Text>
+  </View>
+) : null}
+```
+
+## 2026-03-06 (Ekadashi calendar service + widget mode for devotees)
+
+### Измененные файлы
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/services/ekadashiService.ts`
+- `frontend/utils/ekadashiCalendar.ts`
+- `frontend/types/navigation.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/types/portal.ts`
+- `frontend/constants/portalRoles.ts`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - календарный виджет показывал только обычный gregorian month-view;
+  - отдельного сервиса Экадаши в мобильной навигации не было;
+  - role gating не скрывал ekadashi-функции для non-devotee;
+  - выбранная организация и push-предпочтения Экадаши в mobile flow не поддерживались.
+- Стало:
+  - `CalendarWidget` получил два режима: `gregorian` и `ekadashi`, с выделением дней экадаши/махадвадаши и карточкой деталей по тапу;
+  - добавлен `EkadashiCalendarScreen` с month-view, выбором организации, city/timezone и настройками уведомлений;
+  - добавлен typed mobile client для `/ekadashi/*` endpoints и локальное сохранение выбранной организации через `AsyncStorage`;
+  - portal layout и service catalog теперь показывают `ekadashi_calendar` только роли `devotee`;
+  - в root navigation добавлен новый экран `EkadashiCalendar`.
+
+### Сниппеты кода
+
+`frontend/components/portal/CalendarWidget.tsx`:
+```tsx
+const [mode, setMode] = useState<'gregorian' | 'ekadashi'>('gregorian');
+
+{canUseEkadashi ? (
+  <TouchableOpacity onPress={() => setMode('ekadashi')}>
+    <Text>{t('portal.widgets.calendar.modes.ekadashi')}</Text>
+  </TouchableOpacity>
+) : null}
+```
+
+```tsx
+const response = await ekadashiService.getCalendar({
+  month: monthKey,
+  organizationId: resolvedOrganizationId,
+  timezone,
+  city: user?.city || '',
+  country: '',
+});
+```
+
+`frontend/screens/portal/services/EkadashiCalendarScreen.tsx`:
+```tsx
+<Stack.Screen
+  name="EkadashiCalendar"
+  component={EkadashiCalendarScreen}
+  options={{ headerShown: false }}
+/>
+```
+
+```tsx
+const saved = await ekadashiService.updatePushPreference({
+  ...preferences,
+  organizationId,
+  city,
+  country,
+  timezone,
+});
+```
+
 ## 2026-03-06 (Chat open-at-bottom stabilization + large history virtualization)
 
 ### Измененные файлы
@@ -9476,6 +9595,57 @@ CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
 ```pbxproj
 APS_ENVIRONMENT = production;
 CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
+```
+
+## 2026-03-06 (Connect MVP: new aggregator service with matching + portal entry)
+
+- Измененные файлы:
+  - `frontend/App.tsx`
+  - `frontend/types/navigation.ts`
+  - `frontend/types/portal.ts`
+  - `frontend/services/connectService.ts`
+  - `frontend/types/connect.ts`
+  - `frontend/screens/portal/connect/*`
+  - `frontend/screens/portal/serviceLaunchResolver.ts`
+  - `frontend/screens/portal/PortalMainScreen.tsx`
+  - `frontend/screens/portal/WidgetSelectionScreen.tsx`
+  - `frontend/i18n/locales/en.ts`
+  - `frontend/i18n/locales/ru.ts`
+  - `frontend/i18n/locales/hi.ts`
+
+- Что было -> что стало:
+  - Было: в мобильном приложении не было отдельного сервиса `Connect` для подбора служения и локального сообщества.
+  - Стало: добавлен новый мобильный flow `Connect` с экранами home / filters / opportunity details / community details / profile setup / create opportunity.
+  - Было: портал не умел запускать отдельный `connect` serviceId.
+  - Стало: `connect` добавлен в portal service catalog и route resolver, с навигацией в `ConnectHome`.
+  - Было: агрегированные карточки не имели общего mobile-layer для перехода к исходным сервисам.
+  - Стало: `Connect` карточки получили `sourceLink` и mobile deeplink mapping в `YatraDetail`, `SevaHub`, `ServiceDetail`.
+
+- Короткие сниппеты:
+
+```ts
+if (serviceId === 'connect') {
+  return { kind: 'navigate', screen: 'ConnectHome' };
+}
+```
+
+```ts
+<Stack.Screen name="ConnectHome" component={ConnectHomeScreen} options={{ headerShown: false }} />
+<Stack.Screen name="ConnectOpportunityDetails" component={ConnectOpportunityDetailsScreen} options={{ headerShown: false }} />
+```
+
+```ts
+export const resolveConnectSourceRoute = (sourceLink?: ConnectSourceLink | null) => {
+  switch (sourceLink?.type) {
+    case 'yatra':
+      return { screen: 'YatraDetail', params: { yatraId: sourceLink.id } };
+    case 'seva':
+      return { screen: 'SevaHub' };
+    case 'service':
+      return { screen: 'ServiceDetail', params: { serviceId: sourceLink.id } };
+  }
+  return null;
+};
 ```
 
 ## 2026-03-05 (Assistant display names updated in profile and chat UI)

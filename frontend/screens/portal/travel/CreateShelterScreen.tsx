@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
 import { ArrowLeft, Camera, Home, Wifi, Coffee, MapPin, Phone } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
-import { SHELTER_TYPE_LABELS, AMENITY_LABELS, ShelterType } from '../../../types/yatra';
+import { getAmenityLabel, getShelterTypeLabel, ShelterType } from '../../../types/yatra';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -27,25 +28,30 @@ import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareCont
 
 type CreateShelterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateShelter'>;
 
-const TYPES = Object.keys(SHELTER_TYPE_LABELS).map(key => ({
-    key,
-    label: SHELTER_TYPE_LABELS[key as keyof typeof SHELTER_TYPE_LABELS]
-}));
-
-const AMENITIES = Object.keys(AMENITY_LABELS).map(key => ({
-    key,
-    label: AMENITY_LABELS[key as keyof typeof AMENITY_LABELS]
-}));
-
 const CreateShelterScreen = () => {
     const navigation = useNavigation<CreateShelterScreenNavigationProp>();
     const route = useRoute<any>();
     const shelterId = route.params?.shelterId;
     const isEditing = !!shelterId;
     const { user } = useUser();
+    const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
+    const types = React.useMemo(
+        () => (['ashram', 'guesthouse', 'homestay', 'room', 'apartment', 'dharamsala'] as ShelterType[]).map((key) => ({
+            key,
+            label: getShelterTypeLabel(key, i18n.language),
+        })),
+        [i18n.language],
+    );
+    const amenities = React.useMemo(
+        () => ['wifi', 'ac', 'hot_water', 'prasadam', 'kitchen', 'laundry', 'parking', 'temple_near'].map((key) => ({
+            key,
+            label: getAmenityLabel(key, i18n.language),
+        })),
+        [i18n.language],
+    );
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -96,7 +102,7 @@ const CreateShelterScreen = () => {
                 }
             }
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось загрузить данные жилья');
+            Alert.alert('Error', 'Failed to load stay data');
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -114,7 +120,7 @@ const CreateShelterScreen = () => {
         launchImageLibrary(options, async (response) => {
             if (response.didCancel) return;
             if (response.errorMessage) {
-                Alert.alert('Ошибка', response.errorMessage);
+                Alert.alert('Error', response.errorMessage);
                 return;
             }
 
@@ -124,7 +130,7 @@ const CreateShelterScreen = () => {
                     const url = await yatraService.uploadPhoto(asset, 'shelter');
                     setCoverImage(url);
                 } catch (error) {
-                    Alert.alert('Ошибка', 'Не удалось загрузить фото');
+                    Alert.alert('Error', 'Failed to upload the photo');
                 }
             }
         });
@@ -140,7 +146,7 @@ const CreateShelterScreen = () => {
 
     const handleSubmit = async () => {
         if (!title || !city || !pricePerNight) {
-            Alert.alert('Ошибка', 'Заполните название, город и цену');
+            Alert.alert('Error', 'Fill in the title, city, and price');
             return;
         }
 
@@ -165,14 +171,14 @@ const CreateShelterScreen = () => {
         try {
             if (isEditing) {
                 await yatraService.updateShelter(shelterId, data);
-                Alert.alert('Успех', 'Жилье обновлено');
+                Alert.alert('Success', 'Stay updated');
             } else {
                 await yatraService.createShelter(data);
-                Alert.alert('Успех', 'Жилье добавлено');
+                Alert.alert('Success', 'Stay added');
             }
             navigation.goBack();
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось сохранить жилье');
+            Alert.alert('Error', 'Failed to save the stay');
         } finally {
             setSubmitting(false);
         }
@@ -192,7 +198,7 @@ const CreateShelterScreen = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Жилье' : 'Добавить Жилье'}</Text>
+                <Text style={styles.headerTitle}>{isEditing ? 'Edit stay' : 'Add stay'}</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -206,16 +212,16 @@ const CreateShelterScreen = () => {
                     ) : (
                         <View style={styles.uploadPlaceholder}>
                             <Camera size={40} color={colors.textSecondary} />
-                            <Text style={styles.uploadText}>Фото жилья</Text>
+                            <Text style={styles.uploadText}>Stay photo</Text>
                         </View>
                     )}
                 </TouchableOpacity>
 
                 {/* Type Selection */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Тип Жилья</Text>
+                    <Text style={styles.sectionTitle}>Stay type</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.themeScroll}>
-                        {TYPES.map((t) => (
+                        {types.map((t) => (
                             <TouchableOpacity
                                 key={t.key}
                                 style={[styles.typeChip, type === t.key && styles.typeChipActive, type === t.key && { borderColor: colors.accent }]}
@@ -231,16 +237,16 @@ const CreateShelterScreen = () => {
 
                 {/* Basic Info */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Основное</Text>
+                    <Text style={styles.sectionTitle}>Basics</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Название (например, Radha House)"
+                        placeholder="Title (for example, Radha House)"
                         value={title}
                         onChangeText={setTitle}
                     />
                     <TextInput
                         style={[styles.input, styles.textArea]}
-                        placeholder="Описание условий, атмосферы..."
+                        placeholder="Describe the conditions and atmosphere..."
                         value={description}
                         onChangeText={setDescription}
                         multiline
@@ -250,23 +256,23 @@ const CreateShelterScreen = () => {
 
                 {/* Location & Price */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Локация и Условия</Text>
+                    <Text style={styles.sectionTitle}>Location and conditions</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Город (Vrindavan)"
+                        placeholder="City (Vrindavan)"
                         value={city}
                         onChangeText={setCity}
                     />
                     <TextInput
                         style={styles.input}
-                        placeholder="Точный адрес"
+                        placeholder="Exact address"
                         value={address}
                         onChangeText={setAddress}
                     />
 
                     <View style={styles.row}>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Цена за ночь</Text>
+                            <Text style={styles.label}>Price per night</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="500 rub"
@@ -275,10 +281,10 @@ const CreateShelterScreen = () => {
                             />
                         </View>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Вместимость</Text>
+                            <Text style={styles.label}>Capacity</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="2 чел."
+                                placeholder="2 guests"
                                 value={capacity}
                                 onChangeText={setCapacity}
                                 keyboardType="numeric"
@@ -289,9 +295,9 @@ const CreateShelterScreen = () => {
 
                 {/* Amenities */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Удобства</Text>
+                    <Text style={styles.sectionTitle}>Amenities</Text>
                     <View style={styles.amenitiesGrid}>
-                        {AMENITIES.map((a) => (
+                        {amenities.map((a) => (
                             <TouchableOpacity
                                 key={a.key}
                                 style={[styles.amenityChip, selectedAmenities.includes(a.key) && styles.amenityChipActive, selectedAmenities.includes(a.key) && { borderColor: colors.accent }]}
@@ -308,7 +314,7 @@ const CreateShelterScreen = () => {
                 {/* Seva Option */}
                 <View style={styles.section}>
                     <View style={styles.rowCenter}>
-                        <Text style={styles.sectionTitle}>Доступно за Севу (Служение)</Text>
+                        <Text style={styles.sectionTitle}>Available for seva (service)</Text>
                         <Switch
                             value={isSevaAvailable}
                             onValueChange={setIsSevaAvailable}
@@ -318,7 +324,7 @@ const CreateShelterScreen = () => {
                     {isSevaAvailable && (
                         <TextInput
                             style={[styles.input, { marginTop: 8 }]}
-                            placeholder="Какое служение требуется? (уборка, готовка...)"
+                            placeholder="What service is required? (cleaning, cooking...)"
                             value={sevaDesc}
                             onChangeText={setSevaDesc}
                         />
@@ -327,12 +333,12 @@ const CreateShelterScreen = () => {
 
                 {/* Contacts & Rules */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Контакты и Правила</Text>
+                    <Text style={styles.sectionTitle}>Contacts and rules</Text>
                     <View style={styles.inputContainer}>
                         <Phone size={18} color={colors.textSecondary} style={styles.inputIcon} />
                         <TextInput
                             style={styles.inputWithIcon}
-                            placeholder="WhatsApp / Телефон"
+                            placeholder="WhatsApp / Phone"
                             value={phone}
                             onChangeText={setPhone}
                             keyboardType="phone-pad"
@@ -340,7 +346,7 @@ const CreateShelterScreen = () => {
                     </View>
                     <TextInput
                         style={[styles.input, styles.textArea, { marginTop: 12 }]}
-                        placeholder="Правила дома (не курить, вегетарианство...)"
+                        placeholder="House rules (no smoking, vegetarian, etc.)"
                         value={houseRules}
                         onChangeText={setHouseRules}
                         multiline
@@ -356,7 +362,7 @@ const CreateShelterScreen = () => {
                         <ActivityIndicator color={colors.textPrimary} />
                     ) : (
                         <Text style={styles.submitButtonText}>
-                            {isEditing ? 'Сохранить Изменения' : 'Опубликовать Жилье'}
+                            {isEditing ? 'Save changes' : 'Publish stay'}
                         </Text>
                     )}
                 </TouchableOpacity>

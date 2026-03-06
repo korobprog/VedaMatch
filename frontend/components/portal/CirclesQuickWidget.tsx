@@ -5,9 +5,11 @@ import { Camera, Film } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
+import { useTranslation } from 'react-i18next';
 
 export const CirclesQuickWidget: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { i18n } = useTranslation();
   const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
@@ -15,6 +17,11 @@ export const CirclesQuickWidget: React.FC = () => {
   const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
   const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
   const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
+  const copy = i18n.language?.startsWith('ru')
+    ? { title: 'Кружки', footer: 'Запись' }
+    : i18n.language?.startsWith('hi')
+      ? { title: 'सर्कल', footer: 'रिकॉर्ड' }
+      : { title: 'Circles', footer: 'Record' };
 
   const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
   const secondaryTextStyle = { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
@@ -67,13 +74,13 @@ export const CirclesQuickWidget: React.FC = () => {
       </View>
 
       <View style={styles.titleContainer}>
-        <Text style={[styles.title, primaryTextStyle]}>Кружки</Text>
+        <Text style={[styles.title, primaryTextStyle]}>{copy.title}</Text>
       </View>
 
       <View style={styles.footer}>
         <Camera size={11} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary} />
         <Text style={[styles.footerText, secondaryTextStyle]} numberOfLines={1}>
-          Запись
+          {copy.footer}
         </Text>
       </View>
     </TouchableOpacity>

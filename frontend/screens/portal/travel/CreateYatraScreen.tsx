@@ -13,11 +13,12 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
 import { ArrowLeft, Camera, MapPin, Plus, Trash, Calendar, DollarSign } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
-import { YATRA_THEME_LABELS, YatraTheme } from '../../../types/yatra';
+import { getYatraThemeLabel, YatraTheme } from '../../../types/yatra';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -26,20 +27,23 @@ import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareCont
 
 type CreateYatraScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateYatra'>;
 
-const THEMES = Object.keys(YATRA_THEME_LABELS).map(key => ({
-    key,
-    label: YATRA_THEME_LABELS[key as keyof typeof YATRA_THEME_LABELS]
-}));
-
 const CreateYatraScreen = () => {
     const navigation = useNavigation<CreateYatraScreenNavigationProp>();
     const route = useRoute<any>();
     const yatraId = route.params?.yatraId;
     const isEditing = !!yatraId;
     const { user } = useUser();
+    const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
+    const themes = React.useMemo(
+        () => (['vrindavan', 'mayapur', 'jagannath_puri', 'tirupati', 'varanasi', 'haridwar', 'rishikesh', 'navadhama', 'char_dham', 'other'] as YatraTheme[]).map((key) => ({
+            key,
+            label: getYatraThemeLabel(key, i18n.language),
+        })),
+        [i18n.language],
+    );
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -94,7 +98,7 @@ const CreateYatraScreen = () => {
                 }
             }
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось загрузить данные тура');
+            Alert.alert('Error', 'Failed to load trip data');
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -112,7 +116,7 @@ const CreateYatraScreen = () => {
         launchImageLibrary(options, async (response) => {
             if (response.didCancel) return;
             if (response.errorMessage) {
-                Alert.alert('Ошибка', response.errorMessage);
+                Alert.alert('Error', response.errorMessage);
                 return;
             }
 
@@ -122,7 +126,7 @@ const CreateYatraScreen = () => {
                     const url = await yatraService.uploadPhoto(asset, 'yatra');
                     setCoverImage(url);
                 } catch (error) {
-                    Alert.alert('Ошибка', 'Не удалось загрузить фото');
+                    Alert.alert('Error', 'Failed to upload the photo');
                 }
             }
         });
@@ -144,7 +148,7 @@ const CreateYatraScreen = () => {
 
     const handleSubmit = async () => {
         if (!title || !startDate || !endDate || !description) {
-            Alert.alert('Ошибка', 'Пожалуйста, заполните обязательные поля');
+            Alert.alert('Error', 'Please fill in the required fields');
             return;
         }
 
@@ -166,28 +170,28 @@ const CreateYatraScreen = () => {
         try {
             if (isEditing) {
                 await yatraService.updateYatra(yatraId, data);
-                Alert.alert('Успех', 'Тур обновлен');
+                Alert.alert('Success', 'Trip updated');
                 navigation.goBack();
             } else {
                 const created = await yatraService.createYatra(data);
                 Alert.alert(
-                    'Успех',
-                    'Тур создан. Перейти к публикации?',
+                    'Success',
+                    'Trip created. Go to publishing?',
                     [
                         {
-                            text: 'Позже',
+                            text: 'Later',
                             onPress: () => navigation.goBack(),
                             style: 'cancel',
                         },
                         {
-                            text: 'К публикации',
+                            text: 'Go to publish',
                             onPress: () => navigation.replace('YatraPublish', { yatraId: created.id }),
                         },
                     ]
                 );
             }
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось сохранить тур');
+            Alert.alert('Error', 'Failed to save the trip');
         } finally {
             setSubmitting(false);
         }
@@ -207,7 +211,7 @@ const CreateYatraScreen = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Тур' : 'Создать Новый Тур'}</Text>
+                <Text style={styles.headerTitle}>{isEditing ? 'Edit Trip' : 'Create New Trip'}</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -221,17 +225,17 @@ const CreateYatraScreen = () => {
                     ) : (
                         <View style={styles.uploadPlaceholder}>
                             <Camera size={40} color={colors.textSecondary} />
-                            <Text style={styles.uploadText}>Добавить обложку</Text>
+                            <Text style={styles.uploadText}>Add cover image</Text>
                         </View>
                     )}
                 </TouchableOpacity>
 
                 {/* Title */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Название Тура</Text>
+                    <Text style={styles.sectionTitle}>Trip title</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Например: Вриндаван - Путешествие к сердцу"
+                        placeholder="For example: Vrindavan - Journey to the heart"
                         value={title}
                         onChangeText={setTitle}
                     />
@@ -239,9 +243,9 @@ const CreateYatraScreen = () => {
 
                 {/* Theme Selection */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Направление (Дхама)</Text>
+                    <Text style={styles.sectionTitle}>Destination (Dhama)</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.themeScroll}>
-                        {THEMES.map((t) => (
+                        {themes.map((t) => (
                             <TouchableOpacity
                                 key={t.key}
                                 style={[styles.themeChip, theme === t.key && styles.themeChipActive, theme === t.key && { borderColor: colors.accent }]}
@@ -257,10 +261,10 @@ const CreateYatraScreen = () => {
 
                 {/* Dates & Capacity */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Детали Поездки</Text>
+                    <Text style={styles.sectionTitle}>Trip details</Text>
                     <View style={styles.row}>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Начало (YYYY-MM-DD)</Text>
+                            <Text style={styles.label}>Start (YYYY-MM-DD)</Text>
                             <View style={styles.inputContainer}>
                                 <Calendar size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
@@ -272,7 +276,7 @@ const CreateYatraScreen = () => {
                             </View>
                         </View>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Окончание</Text>
+                            <Text style={styles.label}>End</Text>
                             <View style={styles.inputContainer}>
                                 <Calendar size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
@@ -287,7 +291,7 @@ const CreateYatraScreen = () => {
 
                     <View style={styles.row}>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Макс. участников</Text>
+                            <Text style={styles.label}>Max participants</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="15"
@@ -297,7 +301,7 @@ const CreateYatraScreen = () => {
                             />
                         </View>
                         <View style={styles.halfInput}>
-                            <Text style={styles.label}>Стоимость (примерно)</Text>
+                            <Text style={styles.label}>Estimated cost</Text>
                             <View style={styles.inputContainer}>
                                 <DollarSign size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
@@ -313,10 +317,10 @@ const CreateYatraScreen = () => {
 
                 {/* Description */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Описание и Требования</Text>
+                    <Text style={styles.sectionTitle}>Description and requirements</Text>
                     <TextInput
                         style={[styles.input, styles.textArea]}
-                        placeholder="Опишите программу тура, ключевые точки, атмосферу..."
+                        placeholder="Describe the trip program, key stops, and atmosphere..."
                         value={description}
                         onChangeText={setDescription}
                         multiline
@@ -324,7 +328,7 @@ const CreateYatraScreen = () => {
                     />
                     <TextInput
                         style={[styles.input, styles.textArea, { marginTop: 12 }]}
-                        placeholder="Требования к участникам (опыт, здоровье, стандарты)..."
+                        placeholder="Participant requirements (experience, health, standards)..."
                         value={requirements}
                         onChangeText={setRequirements}
                         multiline
@@ -335,10 +339,10 @@ const CreateYatraScreen = () => {
                 {/* Route Points */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Маршрут</Text>
+                        <Text style={styles.sectionTitle}>Route</Text>
                         <TouchableOpacity onPress={handleAddPoint} style={[styles.addButton, { backgroundColor: colors.accent }]}>
                             <Plus size={16} color={colors.textPrimary} />
-                            <Text style={styles.addButtonText}>Добавить</Text>
+                            <Text style={styles.addButtonText}>Add</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -350,7 +354,7 @@ const CreateYatraScreen = () => {
                                 </View>
                                 <TextInput
                                     style={styles.pointNameInput}
-                                    placeholder="Название места (Vrindavan)"
+                                    placeholder="Place name (Vrindavan)"
                                     value={point.name}
                                     onChangeText={(text) => handlePointChange(point.id, 'name', text)}
                                 />
@@ -362,7 +366,7 @@ const CreateYatraScreen = () => {
                             </View>
                             <TextInput
                                 style={styles.pointDescInput}
-                                placeholder="Что мы будем здесь делать?"
+                                placeholder="What will we do here?"
                                 value={point.description}
                                 onChangeText={(text) => handlePointChange(point.id, 'description', text)}
                                 multiline
@@ -380,7 +384,7 @@ const CreateYatraScreen = () => {
                         <ActivityIndicator color={colors.textPrimary} />
                     ) : (
                         <Text style={styles.submitButtonText}>
-                            {isEditing ? 'Сохранить Изменения' : 'Создать Тур'}
+                            {isEditing ? 'Save changes' : 'Create trip'}
                         </Text>
                     )}
                 </TouchableOpacity>

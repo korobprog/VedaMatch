@@ -6,6 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { marketService } from '../../../services/marketService';
+import { mapService } from '../../../services/mapService';
 import { Shop, ShopFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
@@ -36,15 +37,9 @@ export const ShopsMapScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [shops, setShops] = useState<Shop[]>([]);
-    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const [userLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-    useFocusEffect(
-        useCallback(() => {
-            loadShops();
-        }, [])
-    );
-
-    const loadShops = async () => {
+    const loadShops = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -69,7 +64,13 @@ export const ShopsMapScreen: React.FC = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [userLocation]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadShops();
+        }, [loadShops])
+    );
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -178,10 +179,7 @@ export const ShopsMapScreen: React.FC = () => {
                         )}
                         {item.distance && (
                             <Text style={[styles.distance, { color: colors.accent }]}>
-                                {item.distance < 1
-                                    ? `${Math.round(item.distance * 1000)} m`
-                                    : `${item.distance.toFixed(1)} km`
-                                }
+                                {mapService.formatDistance(item.distance)}
                             </Text>
                         )}
                         <Text style={[styles.productsCount, { color: colors.textSecondary }]}>

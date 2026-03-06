@@ -22,7 +22,7 @@ import { Plus, X } from 'lucide-react-native';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 export const CreateAdScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation();
     const route = useRoute<RouteProp<RootStackParamList, 'CreateAd'>>();
     const adId = route.params?.adId;
@@ -348,7 +348,7 @@ export const CreateAdScreen: React.FC = () => {
                                 onPress={() => setStartPickerOpen(true)}
                             >
                                 <Text style={{ color: isDarkMode ? '#fff' : colors.text }}>
-                                    {t('ads.festivals.startAt')}: {festivalStartAt.toLocaleString('ru-RU')}
+                                    {t('ads.festivals.startAt')}: {festivalStartAt.toLocaleString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US')}
                                 </Text>
                             </TouchableOpacity>
 
@@ -367,7 +367,7 @@ export const CreateAdScreen: React.FC = () => {
                                     onPress={() => setEndPickerOpen(true)}
                                 >
                                     <Text style={{ color: isDarkMode ? '#fff' : colors.text }}>
-                                        {t('ads.festivals.endAt')}: {festivalEndAt.toLocaleString('ru-RU')}
+                                        {t('ads.festivals.endAt')}: {festivalEndAt.toLocaleString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US')}
                                     </Text>
                                 </TouchableOpacity>
                             )}

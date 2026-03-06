@@ -20,10 +20,12 @@ import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { multimediaOfflineService } from '../../services/multimediaOfflineService';
+import { useTranslation } from 'react-i18next';
 
 type VideoPlayerRouteProp = RouteProp<RootStackParamList, 'VideoPlayer'>;
 
 export const VideoPlayerScreen: React.FC = () => {
+    const { i18n } = useTranslation();
     const route = useRoute<VideoPlayerRouteProp>();
     const navigation = useNavigation<any>();
     const { isDarkMode } = useSettings();
@@ -50,6 +52,62 @@ export const VideoPlayerScreen: React.FC = () => {
     const [commentSending, setCommentSending] = useState(false);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
+    const copy = i18n.language?.startsWith('ru')
+        ? {
+            error: 'Ошибка',
+            sendCommentFailed: 'Не удалось отправить комментарий',
+            videoCircle: 'Видеокружок',
+            openShareFailed: 'Не удалось открыть меню отправки',
+            youtubeError: 'Ошибка YouTube',
+            playbackError: 'Ошибка',
+            invalidVideoLink: 'Некорректная ссылка на видео',
+            video: 'Видео',
+            offline: 'Офлайн',
+            videoSavedOffline: 'Видео сохранено офлайн',
+            downloadVideoFailed: 'Не удалось скачать видео',
+            share: 'Поделиться',
+            unknownAuthor: 'Неизвестный автор',
+            noDescription: 'Нет описания',
+            views: 'просмотров',
+            likes: 'лайков',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                error: 'त्रुटि',
+                sendCommentFailed: 'टिप्पणी भेजी नहीं जा सकी',
+                videoCircle: 'वीडियो सर्कल',
+                openShareFailed: 'शेयर मेनू नहीं खुल सका',
+                youtubeError: 'YouTube त्रुटि',
+                playbackError: 'त्रुटि',
+                invalidVideoLink: 'अमान्य वीडियो लिंक',
+                video: 'वीडियो',
+                offline: 'ऑफ़लाइन',
+                videoSavedOffline: 'वीडियो ऑफ़लाइन सहेजा गया',
+                downloadVideoFailed: 'वीडियो डाउनलोड नहीं हो सका',
+                share: 'शेयर करें',
+                unknownAuthor: 'अज्ञात लेखक',
+                noDescription: 'कोई विवरण नहीं',
+                views: 'व्यू',
+                likes: 'लाइक',
+            }
+            : {
+                error: 'Error',
+                sendCommentFailed: 'Failed to send comment',
+                videoCircle: 'Video circle',
+                openShareFailed: 'Failed to open share menu',
+                youtubeError: 'YouTube Error',
+                playbackError: 'Error',
+                invalidVideoLink: 'Invalid video link',
+                video: 'Video',
+                offline: 'Offline',
+                videoSavedOffline: 'Video saved offline',
+                downloadVideoFailed: 'Failed to download video',
+                share: 'Share',
+                unknownAuthor: 'Unknown author',
+                noDescription: 'No description',
+                views: 'views',
+                likes: 'likes',
+            };
 
     const isYouTube = useMemo(
         () => mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be'),
@@ -90,24 +148,24 @@ export const VideoPlayerScreen: React.FC = () => {
             }
         } catch (interactionError) {
             console.error('Failed to add circle comment interaction:', interactionError);
-            Alert.alert('Ошибка', 'Не удалось отправить комментарий');
+            Alert.alert(copy.error, copy.sendCommentFailed);
         } finally {
             setCommentSending(false);
         }
-    }, [circle?.id, commentSending]);
+    }, [circle?.id, commentSending, copy.error, copy.sendCommentFailed]);
 
     const handleCircleShare = useCallback(async () => {
         try {
             await Share.share({
-                title: media.title || 'Видео кружок',
+                title: media.title || copy.videoCircle,
                 message: mediaUrl,
                 url: mediaUrl,
             });
         } catch (shareError) {
             console.error('Failed to share video circle:', shareError);
-            Alert.alert('Ошибка', 'Не удалось открыть меню "Поделиться"');
+            Alert.alert(copy.error, copy.openShareFailed);
         }
-    }, [media.title, mediaUrl]);
+    }, [copy.error, copy.openShareFailed, copy.videoCircle, media.title, mediaUrl]);
 
     const renderDefaultPlayer = () => {
         if (isYouTube) {
@@ -121,7 +179,7 @@ export const VideoPlayerScreen: React.FC = () => {
                     onLoadEnd={() => setLoading(false)}
                     onError={(event) => {
                         setLoading(false);
-                        setError(`YouTube Error: ${event.nativeEvent.description}`);
+                        setError(`${copy.youtubeError}: ${event.nativeEvent.description}`);
                     }}
                 />
             );
@@ -145,7 +203,7 @@ export const VideoPlayerScreen: React.FC = () => {
                     onError={(event) => {
                         setLoading(false);
                         console.log('Video Playback Error:', event);
-                        setError(`Error: ${event.error?.errorString || JSON.stringify(event.error)}`);
+                        setError(`${copy.playbackError}: ${event.error?.errorString || JSON.stringify(event.error)}`);
                     }}
                 />
 
@@ -176,7 +234,7 @@ export const VideoPlayerScreen: React.FC = () => {
                     </TouchableOpacity>
                 </SafeAreaView>
                 <View style={styles.errorContainer}>
-                    <Text style={[styles.errorText, { color: colors.danger }]}>Некорректная ссылка на видео</Text>
+                    <Text style={[styles.errorText, { color: colors.danger }]}>{copy.invalidVideoLink}</Text>
                 </View>
             </View>
         );
@@ -194,7 +252,7 @@ export const VideoPlayerScreen: React.FC = () => {
             await multimediaOfflineService.downloadTrack(
                 {
                     ID: Number(media?.ID || 0),
-                    title: media?.title || 'Video',
+                    title: media?.title || copy.video,
                     artist: media?.artist || '',
                     mediaType: 'video',
                     url: mediaUrl,
@@ -208,10 +266,10 @@ export const VideoPlayerScreen: React.FC = () => {
                 (p) => setOfflineProgress(p),
             );
             setOfflineProgress(null);
-            Alert.alert('Оффлайн', 'Видео сохранено оффлайн');
-        } catch (error: any) {
+            Alert.alert(copy.offline, copy.videoSavedOffline);
+        } catch (downloadError: any) {
             setOfflineProgress(null);
-            Alert.alert('Оффлайн', error?.message || 'Не удалось скачать видео');
+            Alert.alert(copy.offline, downloadError?.message || copy.downloadVideoFailed);
         }
     };
 
@@ -236,7 +294,7 @@ export const VideoPlayerScreen: React.FC = () => {
                         onError={(event) => {
                             setLoading(false);
                             console.log('Video circle playback error:', event);
-                            setError('Не удалось воспроизвести видео');
+                            setError(copy.downloadVideoFailed);
                         }}
                     />
                 </TouchableOpacity>
@@ -266,13 +324,13 @@ export const VideoPlayerScreen: React.FC = () => {
                         testID="video-player-circles-share-btn"
                     >
                         <Share2 size={24} color="#fff" />
-                        <Text style={styles.circleActionText}>Share</Text>
+                        <Text style={styles.circleActionText}>{copy.share}</Text>
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.circleBottomOverlay}>
                     <Text style={styles.circleTitle} numberOfLines={1}>
-                        {media.title || 'Видео кружок'}
+                        {media.title || copy.videoCircle}
                     </Text>
                     <Text style={styles.circleMeta} numberOfLines={2}>
                         {[circle.city, circle.matha].filter(Boolean).join(' • ')}
@@ -311,7 +369,7 @@ export const VideoPlayerScreen: React.FC = () => {
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
                     <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{media.title}</Text>
-                    <Text style={[styles.artist, { color: colors.textSecondary }]}>{media.artist || 'Неизвестный автор'}</Text>
+                    <Text style={[styles.artist, { color: colors.textSecondary }]}>{media.artist || copy.unknownAuthor}</Text>
                 </View>
             </SafeAreaView>
 
@@ -332,13 +390,13 @@ export const VideoPlayerScreen: React.FC = () => {
             </View>
 
             <View style={[styles.details, { backgroundColor: colors.surfaceElevated }]}>
-                <Text style={[styles.description, { color: colors.textPrimary }]}>{media.description || 'Нет описания'}</Text>
+                <Text style={[styles.description, { color: colors.textPrimary }]}>{media.description || copy.noDescription}</Text>
                 {!isYouTube && (
                     <View style={styles.utilityRow}>
                         <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={downloadOffline}>
                             <Download size={16} color={colors.textPrimary} />
                             <Text style={[styles.utilityText, { color: colors.textPrimary }]}>
-                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : 'Оффлайн'}
+                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : copy.offline}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={changeRate}>
@@ -348,8 +406,8 @@ export const VideoPlayerScreen: React.FC = () => {
                     </View>
                 )}
                 <View style={styles.statsRow}>
-                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {media.viewCount || 0} просмотров</Text>
-                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {media.likeCount || 0} отметок</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {media.viewCount || 0} {copy.views}</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {media.likeCount || 0} {copy.likes}</Text>
                 </View>
             </View>
         </View>

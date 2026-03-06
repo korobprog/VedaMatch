@@ -10,6 +10,7 @@ import { WebSocketService } from './websocketService';
 import InCallManager from 'react-native-incall-manager';
 import { getAccessToken } from './authSessionService';
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 let configuration: any = {
     iceServers: [
@@ -20,6 +21,29 @@ let configuration: any = {
         { urls: 'stun:stun.mipt.ru:3478' },
         { urls: 'stun:global.stun.twilio.com:3478' },
     ],
+};
+
+const getWebRtcCopy = () => {
+    const language = String(i18n.language || '').trim().toLowerCase();
+    if (language.startsWith('ru')) {
+        return {
+            missingMediaPermissions: 'Не хватает разрешений на камеру и микрофон',
+            localMediaInitFailed: 'Не удалось инициализировать локальный медиапоток',
+            cameraTrackUnavailable: 'Видеодорожка камеры недоступна',
+        };
+    }
+    if (language.startsWith('hi')) {
+        return {
+            missingMediaPermissions: 'कैमरा और माइक्रोफ़ोन की अनुमति नहीं मिली',
+            localMediaInitFailed: 'लोकल मीडिया स्ट्रीम प्रारंभ नहीं हो सकी',
+            cameraTrackUnavailable: 'कैमरा वीडियो ट्रैक उपलब्ध नहीं है',
+        };
+    }
+    return {
+        missingMediaPermissions: 'Missing camera or microphone permissions',
+        localMediaInitFailed: 'Failed to initialize local media stream',
+        cameraTrackUnavailable: 'Camera track is unavailable',
+    };
 };
 
 class WebRTCService {
@@ -86,7 +110,7 @@ class WebRTCService {
         );
 
         if (deniedPermissions.length > 0) {
-            throw new Error(`Missing media permissions: ${deniedPermissions.join(', ')}`);
+            throw new Error(`${getWebRtcCopy().missingMediaPermissions}: ${deniedPermissions.join(', ')}`);
         }
     }
 
@@ -159,12 +183,12 @@ class WebRTCService {
         }
 
         if (!stream) {
-            throw lastError ?? new Error('Failed to initialize local media stream');
+            throw lastError ?? new Error(getWebRtcCopy().localMediaInitFailed);
         }
 
         if (isVideo && stream.getVideoTracks().length === 0) {
             stream.getTracks().forEach(track => track.stop());
-            throw new Error('Camera track is unavailable');
+            throw new Error(getWebRtcCopy().cameraTrackUnavailable);
         }
 
         return stream;

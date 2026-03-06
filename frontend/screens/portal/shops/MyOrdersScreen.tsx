@@ -28,7 +28,7 @@ const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; tone: 'accent' |
 };
 
 export const MyOrdersScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
@@ -98,7 +98,8 @@ export const MyOrdersScreen: React.FC = () => {
 
     const formatDate = (dateString: string): string => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
     const renderSkeleton = () => (

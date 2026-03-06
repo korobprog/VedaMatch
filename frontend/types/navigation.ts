@@ -1,5 +1,6 @@
 import { CartItem } from './market';
 import type { ChannelPost } from './channel';
+import type { ConnectFeedFilters } from './connect';
 
 export type PortalInitialTab =
     | 'contacts'
@@ -20,8 +21,10 @@ export type PortalInitialTab =
     | 'travel'
     | 'services'
     | 'services_catalog'
+    | 'connect'
     | 'path_tracker'
-    | 'channels';
+    | 'channels'
+    | 'ekadashi_calendar';
 
 export type VideoCirclePlayerPayload = {
     id: number;
@@ -190,6 +193,7 @@ export type RootStackParamList = {
     SadhuSangaLive: undefined;
     SadhuSangaProfile: undefined;
     SadhuSangaSmartPush: undefined;
+    EkadashiCalendar: undefined;
     ChannelDetails: { channelId: number; source?: 'sadhu_sanga'; focusSection?: 'seminars' };
     CreateChannel: undefined;
     ChannelPostComposer: { channelId: number; mode?: 'create' | 'edit'; postId?: number; initialPost?: ChannelPost };
@@ -197,6 +201,12 @@ export type RootStackParamList = {
     ChannelTeam: { channelId: number; source?: 'sadhu_sanga' };
     ChannelRoadmapManage: { channelId: number; source?: 'sadhu_sanga'; pointId?: number };
     ChannelPreacherBioManage: { channelId: number; source?: 'sadhu_sanga' };
+    ConnectHome: { filters?: ConnectFeedFilters } | undefined;
+    ConnectFilters: { filters?: ConnectFeedFilters } | undefined;
+    ConnectOpportunityDetails: { opportunityId: number };
+    ConnectCommunityDetails: { communityId: number };
+    ConnectProfileSetup: undefined;
+    ConnectCreateOpportunity: undefined;
 
     // Wallet Routes
     Wallet: undefined;

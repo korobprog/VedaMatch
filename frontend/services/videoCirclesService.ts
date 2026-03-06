@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios';
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 export type VideoCircleStatus = 'active' | 'expired' | 'deleted';
 export type VideoInteractionType = 'like' | 'comment' | 'chat';
@@ -99,6 +100,69 @@ export interface VideoCircleFilters {
   sort?: 'newest' | 'oldest' | 'expires_soon';
 }
 
+const getVideoCirclesFallback = (
+  key:
+    | 'fetchCircles'
+    | 'createCircle'
+    | 'fetchMyCircles'
+    | 'updateInteraction'
+    | 'fetchTariffs'
+    | 'createTariff'
+    | 'updateTariff'
+    | 'boostCircle'
+    | 'uploadAndCreate'
+    | 'deleteCircle'
+    | 'updateCircle'
+    | 'republishCircle'
+): string => {
+  const language = String(i18n.language || '').trim().toLowerCase();
+  const copy = language.startsWith('ru')
+    ? {
+        fetchCircles: 'Не удалось загрузить видеокружки',
+        createCircle: 'Не удалось создать видеокружок',
+        fetchMyCircles: 'Не удалось загрузить мои видеокружки',
+        updateInteraction: 'Не удалось обновить взаимодействие',
+        fetchTariffs: 'Не удалось загрузить тарифы видеокружков',
+        createTariff: 'Не удалось создать тариф',
+        updateTariff: 'Не удалось обновить тариф',
+        boostCircle: 'Не удалось продвинуть кружок',
+        uploadAndCreate: 'Не удалось загрузить и создать видеокружок',
+        deleteCircle: 'Не удалось удалить видеокружок',
+        updateCircle: 'Не удалось обновить видеокружок',
+        republishCircle: 'Не удалось переопубликовать видеокружок',
+      }
+    : language.startsWith('hi')
+      ? {
+          fetchCircles: 'वीडियो सर्कल लोड नहीं हो सके',
+          createCircle: 'वीडियो सर्कल बनाना संभव नहीं हुआ',
+          fetchMyCircles: 'मेरे वीडियो सर्कल लोड नहीं हो सके',
+          updateInteraction: 'इंटरैक्शन अपडेट नहीं हो सका',
+          fetchTariffs: 'वीडियो सर्कल टैरिफ लोड नहीं हो सके',
+          createTariff: 'टैरिफ बनाना संभव नहीं हुआ',
+          updateTariff: 'टैरिफ अपडेट नहीं हो सका',
+          boostCircle: 'सर्कल को बूस्ट नहीं किया जा सका',
+          uploadAndCreate: 'वीडियो सर्कल अपलोड और बनाना संभव नहीं हुआ',
+          deleteCircle: 'वीडियो सर्कल हटाया नहीं जा सका',
+          updateCircle: 'वीडियो सर्कल अपडेट नहीं हो सका',
+          republishCircle: 'वीडियो सर्कल दोबारा प्रकाशित नहीं हो सका',
+        }
+      : {
+          fetchCircles: 'Failed to fetch video circles',
+          createCircle: 'Failed to create video circle',
+          fetchMyCircles: 'Failed to fetch my video circles',
+          updateInteraction: 'Failed to update interaction',
+          fetchTariffs: 'Failed to fetch video tariffs',
+          createTariff: 'Failed to create tariff',
+          updateTariff: 'Failed to update tariff',
+          boostCircle: 'Failed to boost circle',
+          uploadAndCreate: 'Failed to upload and create video circle',
+          deleteCircle: 'Failed to delete video circle',
+          updateCircle: 'Failed to update video circle',
+          republishCircle: 'Failed to republish video circle',
+        };
+  return copy[key];
+};
+
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
   const axiosError = error as AxiosError<any>;
   const payload = axiosError?.response?.data;
@@ -170,7 +234,7 @@ class VideoCirclesService {
       }
       return data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to fetch video circles'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('fetchCircles')));
     }
   }
 
@@ -179,7 +243,7 @@ class VideoCirclesService {
       const response = await apiClient.post<VideoCircle>('/video-circles', payload);
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to create video circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('createCircle')));
     }
   }
 
@@ -199,7 +263,7 @@ class VideoCirclesService {
       });
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to fetch my video circles'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('fetchMyCircles')));
     }
   }
 
@@ -208,7 +272,7 @@ class VideoCirclesService {
       const response = await apiClient.post(`/video-circles/${circleId}/interactions`, { type, action });
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to update interaction'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('updateInteraction')));
     }
   }
 
@@ -225,7 +289,7 @@ class VideoCirclesService {
         updatedAt: t.UpdatedAt || t.updatedAt,
       }));
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to fetch video tariffs'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('fetchTariffs')));
     }
   }
 
@@ -234,7 +298,7 @@ class VideoCirclesService {
       const response = await apiClient.post<VideoTariff>('/admin/video-tariffs', payload);
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to create tariff'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('createTariff')));
     }
   }
 
@@ -243,7 +307,7 @@ class VideoCirclesService {
       const response = await apiClient.put<VideoTariff>(`/admin/video-tariffs/${id}`, payload);
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to update tariff'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('updateTariff')));
     }
   }
 
@@ -252,7 +316,7 @@ class VideoCirclesService {
       const response = await apiClient.post(`/video-circles/${circleId}/boost`, { boostType });
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to boost circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('boostCircle')));
     }
   }
 
@@ -304,7 +368,7 @@ class VideoCirclesService {
       if (isUploadAbort(error)) {
         throw new Error('UPLOAD_TIMEOUT');
       }
-      throw new Error(getApiErrorMessage(error, 'Failed to upload and create video circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('uploadAndCreate')));
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -316,7 +380,7 @@ class VideoCirclesService {
     try {
       await apiClient.delete(`/video-circles/${circleId}`);
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to delete video circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('deleteCircle')));
     }
   }
 
@@ -325,7 +389,7 @@ class VideoCirclesService {
       const response = await apiClient.patch<VideoCircle>(`/video-circles/${circleId}`, payload);
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to update video circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('updateCircle')));
     }
   }
 
@@ -336,7 +400,7 @@ class VideoCirclesService {
       });
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'Failed to republish video circle'));
+      throw new Error(getApiErrorMessage(error, getVideoCirclesFallback('republishCircle')));
     }
   }
 }

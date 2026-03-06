@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -14,7 +14,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -27,9 +26,8 @@ interface InviteFriendModalProps {
 }
 
 export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, onClose, roomId }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { isDarkMode, vTheme } = useSettings();
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
 
     const [friends, setFriends] = useState<any[]>([]);
@@ -39,8 +37,57 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const [invitingId, setInvitingId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [creatingInviteLink, setCreatingInviteLink] = useState(false);
+    const copy = useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                userAlreadyMember: 'उपयोगकर्ता पहले से सदस्य है',
+                failedToInvite: 'आमंत्रित नहीं किया जा सका',
+                removedFromGroup: 'समूह से हटा दिया गया',
+                failedToRemove: 'हटाया नहीं जा सका',
+                userPromotedToAdmin: 'उपयोगकर्ता को एडमिन बनाया गया',
+                failedToUpdateRole: 'भूमिका अपडेट नहीं की जा सकी',
+                inviteLinkUnavailable: 'आमंत्रण लिंक उपलब्ध नहीं है',
+                inviteLinkCopied: 'आमंत्रण लिंक क्लिपबोर्ड पर कॉपी किया गया',
+                failedToCreateInviteLink: 'आमंत्रण लिंक बनाया नहीं जा सका',
+                member: 'सदस्य',
+                searchFriends: 'मित्र खोजें...',
+                noMatchingFriends: 'मिलते-जुलते मित्र नहीं मिले',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                userAlreadyMember: 'User is already a member',
+                failedToInvite: 'Failed to invite',
+                removedFromGroup: 'Removed from group',
+                failedToRemove: 'Failed to remove',
+                userPromotedToAdmin: 'User promoted to Admin',
+                failedToUpdateRole: 'Failed to update role',
+                inviteLinkUnavailable: 'Invite link is unavailable',
+                inviteLinkCopied: 'Invite link copied to clipboard',
+                failedToCreateInviteLink: 'Failed to create invite link',
+                member: 'Member',
+                searchFriends: 'Search friends...',
+                noMatchingFriends: 'No matching friends found',
+            };
+        }
+        return {
+            userAlreadyMember: 'Пользователь уже состоит в комнате',
+            failedToInvite: 'Не удалось пригласить',
+            removedFromGroup: 'Удалён из группы',
+            failedToRemove: 'Не удалось удалить',
+            userPromotedToAdmin: 'Пользователь назначен администратором',
+            failedToUpdateRole: 'Не удалось обновить роль',
+            inviteLinkUnavailable: 'Ссылка-приглашение недоступна',
+            inviteLinkCopied: 'Ссылка-приглашение скопирована',
+            failedToCreateInviteLink: 'Не удалось создать ссылку-приглашение',
+            member: 'Участник',
+            searchFriends: 'Искать друзей...',
+            noMatchingFriends: 'Подходящие друзья не найдены',
+        };
+    }, [i18n.language]);
 
-    const fetchFriends = async () => {
+    const fetchFriends = useCallback(async () => {
         if (!user) return;
         try {
             const [friendsResponse, membersResponse] = await Promise.all([
@@ -63,14 +110,14 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         } finally {
             setLoading(false);
         }
-    };
+    }, [roomId, user]);
 
     useEffect(() => {
         if (visible && user) {
             setLoading(true);
-            fetchFriends();
+            void fetchFriends();
         }
-    }, [roomId, visible, user]);
+    }, [fetchFriends, visible, user]);
 
     const handleInvite = async (friendId: number) => {
         setInvitingId(friendId);
@@ -86,9 +133,9 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             setRoomMembers(Array.isArray(members) ? members : []);
         } catch (error: any) {
             if (error?.response?.status === 409) {
-                Alert.alert(t('common.info'), t('chat.alreadyMember') || 'User is already a member');
+                Alert.alert(t('common.info'), t('chat.alreadyMember') || copy.userAlreadyMember);
             } else {
-                Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to invite');
+                Alert.alert(t('common.error'), error?.response?.data?.error || copy.failedToInvite);
             }
         } finally {
             setInvitingId(null);
@@ -102,10 +149,10 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                 roomId,
                 userId: friendId,
             });
-            Alert.alert(t('common.success'), 'Removed from group');
+            Alert.alert(t('common.success'), copy.removedFromGroup);
             setRoomMembers(prev => prev.filter(m => m.user?.ID !== friendId));
         } catch (error: any) {
-            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to remove');
+            Alert.alert(t('common.error'), error?.response?.data?.error || copy.failedToRemove);
         } finally {
             setInvitingId(null);
         }
@@ -119,12 +166,12 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                 userId: friendId,
                 role: 'admin',
             });
-            Alert.alert(t('common.success'), 'User promoted to Admin');
+            Alert.alert(t('common.success'), copy.userPromotedToAdmin);
             setRoomMembers(prev => prev.map(m =>
                 m.user.ID === friendId ? { ...m, role: 'admin' } : m
             ));
         } catch (error: any) {
-            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to update role');
+            Alert.alert(t('common.error'), error?.response?.data?.error || copy.failedToUpdateRole);
         } finally {
             setInvitingId(null);
         }
@@ -142,20 +189,20 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                     ? `vedamatch://rooms/join/${data.inviteToken.trim()}`
                     : '');
             if (!inviteLink) {
-                Alert.alert(t('common.error'), 'Invite link is unavailable');
+                Alert.alert(t('common.error'), copy.inviteLinkUnavailable);
                 return;
             }
             Clipboard.setString(inviteLink);
-            Alert.alert(t('common.success'), 'Invite link copied to clipboard');
+            Alert.alert(t('common.success'), copy.inviteLinkCopied);
         } catch (error: any) {
-            Alert.alert(t('common.error'), error?.response?.data?.error || 'Failed to create invite link');
+            Alert.alert(t('common.error'), error?.response?.data?.error || copy.failedToCreateInviteLink);
         } finally {
             setCreatingInviteLink(false);
         }
     };
 
     const filteredFriends = friends
-        .filter((v, i, a) => a.findIndex(t => t.ID === v.ID) === i) // Ensure unique IDs
+        .filter((v, i, a) => a.findIndex((friendItem) => friendItem.ID === v.ID) === i) // Ensure unique IDs
         .filter(friend =>
             friend.karmicName.toLowerCase().includes(searchQuery.toLowerCase()) ||
             friend.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -216,7 +263,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                                     <UserPlus size={16} color="#fff" />
                                 )}
                                 <Text style={styles.inviteButtonText}>
-                                    {isMember ? (canRemoveThisMember ? t('common.remove') || 'Remove' : 'Member') : t('chat.invite')}
+                                    {isMember ? (canRemoveThisMember ? t('common.remove') || 'Remove' : copy.member) : t('chat.invite')}
                                 </Text>
                             </View>
                         )}
@@ -267,7 +314,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                             <Search size={18} color={vTheme.colors.textSecondary} style={{ marginLeft: 12 }} />
                             <TextInput
                                 style={[styles.searchInput, { color: vTheme.colors.text }]}
-                                placeholder={t('common.search') || "Search friends..."}
+                                placeholder={t('common.search') || copy.searchFriends}
                                 placeholderTextColor={vTheme.colors.textSecondary}
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
@@ -285,7 +332,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                                 ListEmptyComponent={
                                     <View style={styles.emptyContainer}>
                                         <Text style={{ color: vTheme.colors.textSecondary, fontSize: 15 }}>
-                                            {friends.length === 0 ? t('chat.noHistory') : 'No matching friends found'}
+                                            {friends.length === 0 ? t('chat.noHistory') : copy.noMatchingFriends}
                                         </Text>
                                     </View>
                                 }

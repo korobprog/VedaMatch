@@ -45,7 +45,7 @@ export const PlaylistsScreen: React.FC = () => {
 
   const createPlaylist = async () => {
     if (!name.trim()) {
-      Alert.alert('Ошибка', 'Введите название плейлиста');
+      Alert.alert('Error', 'Enter playlist name');
       return;
     }
     try {
@@ -58,7 +58,7 @@ export const PlaylistsScreen: React.FC = () => {
       setDescription('');
       await loadPlaylists();
     } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось создать плейлист');
+      Alert.alert('Error', 'Failed to create playlist');
     }
   };
 
@@ -68,7 +68,7 @@ export const PlaylistsScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Плейлисты</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Playlists</Text>
         <TouchableOpacity onPress={() => setModalOpen(true)} style={styles.iconButton}>
           <Plus size={22} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -87,14 +87,14 @@ export const PlaylistsScreen: React.FC = () => {
             <ListMusic size={18} color={colors.accent} />
             <View style={styles.info}>
               <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
-              <Text style={[styles.itemDesc, { color: colors.textSecondary }]} numberOfLines={1}>{item.description || 'Без описания'}</Text>
+              <Text style={[styles.itemDesc, { color: colors.textSecondary }]} numberOfLines={1}>{item.description || 'No description'}</Text>
             </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <ListMusic size={36} color={colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Создайте первый плейлист</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Create your first playlist</Text>
           </View>
         }
       />
@@ -102,27 +102,27 @@ export const PlaylistsScreen: React.FC = () => {
       <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Новый плейлист</Text>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>New playlist</Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Название"
+              placeholder="Name"
               placeholderTextColor={colors.textSecondary}
               style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
             />
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Описание (опционально)"
+              placeholder="Description (optional)"
               placeholderTextColor={colors.textSecondary}
               style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setModalOpen(false)} style={[styles.modalBtn, { borderColor: colors.border }]}>
-                <Text style={{ color: colors.textSecondary }}>Отмена</Text>
+                <Text style={{ color: colors.textSecondary }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={createPlaylist} style={[styles.modalBtn, { backgroundColor: colors.accent, borderColor: colors.accent }]}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Создать</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Create</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -154,4 +154,3 @@ const styles = StyleSheet.create({
 });
 
 export default PlaylistsScreen;
-

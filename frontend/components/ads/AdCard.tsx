@@ -1,8 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import LinearGradient from 'react-native-linear-gradient';
-import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { useSettings } from '../../context/SettingsContext';
 import { Ad } from '../../types/ads';
 import { getMediaUrl } from '../../utils/url';
@@ -16,17 +14,6 @@ import {
     MapPin
 } from 'lucide-react-native';
 
-// Fallback if expo-linear-gradient is not available
-const Gradient = ({ children, colors, style }: any) => {
-    return (
-        <View style={[style, { backgroundColor: colors[0] }]}>
-            {children}
-        </View>
-    );
-};
-// Try import dynamically or assume it exists in project as per typical RN setups. 
-// Given the environment, I'll use View as fallback if LinearGradient crashes, but usually better to assume standard dependencies.
-
 interface AdCardProps {
     ad: Ad;
     onPress: () => void;
@@ -35,12 +22,17 @@ interface AdCardProps {
 }
 
 export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode, vTheme } = useSettings();
     const colors = vTheme.colors;
 
     const isOwner = user && user.ID === ad.userId;
+    const adCardCopy = i18n.language?.startsWith('ru')
+        ? { hoursAgo: (count: number) => `${count}ч назад`, daysAgo: (count: number) => `${count}д назад`, center: 'Центр' }
+        : i18n.language?.startsWith('hi')
+            ? { hoursAgo: (count: number) => `${count}घं पहले`, daysAgo: (count: number) => `${count}दिन पहले`, center: 'केंद्र' }
+            : { hoursAgo: (count: number) => `${count}h ago`, daysAgo: (count: number) => `${count}d ago`, center: 'Center' };
 
     const rawPhotoUrl = ad.photos && ad.photos.length > 0 ? ad.photos[0].photoUrl : null;
     const imageUrl = rawPhotoUrl ? getMediaUrl(rawPhotoUrl) : null;
@@ -61,8 +53,10 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
         const now = new Date();
         const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
 
-        if (diffInHours < 24) return `${diffInHours}h ago`;
-        return `${Math.floor(diffInHours / 24)}d ago`;
+        if (diffInHours < 24) {
+            return adCardCopy.hoursAgo(diffInHours);
+        }
+        return adCardCopy.daysAgo(Math.floor(diffInHours / 24));
     };
 
     return (
@@ -144,7 +138,7 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                     <View style={styles.locationContainer}>
                         <MapPin size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
                         <Text style={[styles.locationText, { color: colors.textSecondary }]} numberOfLines={1}>
-                            {ad.city}, {ad.district || 'Center'}
+                            {ad.city}, {ad.district || adCardCopy.center}
                         </Text>
                     </View>
 

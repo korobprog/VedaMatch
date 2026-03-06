@@ -102,15 +102,15 @@ export const AudioPlayerScreen: React.FC = () => {
         }
         if (minutes <= 0) {
             setSleepTimer(null);
-            Alert.alert('Sleep timer', 'Таймер выключен');
+            Alert.alert('Sleep timer', 'Timer disabled');
             return;
         }
         const timer = setTimeout(async () => {
             await audioPlayerService.pause();
-            Alert.alert('Sleep timer', 'Воспроизведение остановлено по таймеру');
+            Alert.alert('Sleep timer', 'Playback stopped by timer');
         }, minutes * 60 * 1000);
         setSleepTimer(timer);
-        Alert.alert('Sleep timer', `Таймер установлен на ${minutes} мин`);
+        Alert.alert('Sleep timer', `Timer set for ${minutes} min`);
     };
 
     const downloadOffline = async () => {
@@ -118,10 +118,10 @@ export const AudioPlayerScreen: React.FC = () => {
             setOfflineProgress(0);
             await multimediaOfflineService.downloadTrack(track, (p) => setOfflineProgress(p));
             setOfflineProgress(null);
-            Alert.alert('Оффлайн', 'Трек сохранён для оффлайн-прослушивания');
+            Alert.alert('Offline', 'Track saved for offline listening');
         } catch (e: any) {
             setOfflineProgress(null);
-            Alert.alert('Оффлайн', e?.message || 'Не удалось скачать трек');
+            Alert.alert('Offline', e?.message || 'Failed to download track');
         }
     };
 
@@ -148,7 +148,7 @@ export const AudioPlayerScreen: React.FC = () => {
                     >
                         <ChevronDown size={28} color={colors.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Сейчас играет</Text>
+                    <Text style={styles.headerTitle}>Now playing</Text>
                     <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}>
                         <MoreHorizontal size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
@@ -175,7 +175,7 @@ export const AudioPlayerScreen: React.FC = () => {
                     <View style={styles.titleRow}>
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{track.title}</Text>
-                            <Text style={[styles.artist, { color: colors.textSecondary }]}>{track.artist || 'Неизвестный исполнитель'}</Text>
+                            <Text style={[styles.artist, { color: colors.textSecondary }]}>{track.artist || 'Unknown artist'}</Text>
                         </View>
                         <TouchableOpacity style={styles.favButton}>
                             <Heart size={28} color={colors.textPrimary} />
@@ -185,7 +185,7 @@ export const AudioPlayerScreen: React.FC = () => {
                         <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={downloadOffline}>
                             <Download size={16} color={colors.textPrimary} />
                             <Text style={[styles.utilityText, { color: colors.textPrimary }]}>
-                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : 'Оффлайн'}
+                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : 'Offline'}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={changeRate}>

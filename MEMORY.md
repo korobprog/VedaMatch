@@ -1,8 +1,47 @@
 # MEMORY
 
 ## Collaboration Rules
-- Обрабатывать задачи без фоновых процессов и без нескольких агентов.
-- Работать с файлами по одному и отчитываться после каждого шага.
+- Многоагентный режим допустим, если он реально ускоряет задачу без конфликтов по файлам и shared-коду.
+- Перед параллельной работой разбивать задачу на непересекающиеся блоки и явно фиксировать зоны ответственности.
+- Не назначать один и тот же файл нескольким агентам.
+- Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
+- После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
+
+## Connect MVP
+- `Connect` введен как отдельный агрегатор поверх существующих `Yatra`, `Seva` и `Services`, а не как замена этих модулей.
+- Источники данных в `v1`:
+  - native `connect_opportunities` / `connect_communities`,
+  - агрегированные `yatras`,
+  - агрегированные `charity_projects`,
+  - агрегированные `services`.
+- `Connect` хранит только свои community/opportunity/profile/application сущности и metadata для матчинга; source modules остаются source-of-truth.
+- MVP matching rules-based:
+  - базовые сигналы: город, интересы, entry level, participation format, participation modes;
+  - дополнительные сигналы: `newcomerFriendly`, `mentorAvailable`, `needsMentor`, `wantsCompany`, `quietServicePreferred`.
+- Пользовательские возможности в `Connect` создаются сразу в статусе `moderation`; публичная лента показывает только `active`.
+- Deep-link contract для агрегированных карточек:
+  - `yatra` -> `YatraDetail`,
+  - `seva` -> `SevaHub` / `SevaProjectDetails` source metadata,
+  - `service` -> `ServiceDetail`.
+- `LKM` не является условием доступа к `Connect`, отклику или матчингу в `v1`; экономическая часть пока только soft-support outside core gating.
+
+## Ekadashi Calendar
+- Новый сервис `ekadashi_calendar` предназначен только для роли `devotee`.
+- Обычный portal calendar widget не удаляется: для `devotee` он получает переключение `gregorian / ekadashi`, для остальных остается обычным календарем.
+- Backend-контракт экадаши должен скрывать различия источников и организаций за единым DTO дня и отдельным списком организаций.
+- `v1` организаций: `iskcon`, `sri_chaitanya_math`, `pure_bhakti`, `default_vaishnava`.
+- `v1` подписки: только напоминание о начале поста и напоминание о паране; точные времена клиент не вычисляет самостоятельно.
+- Если источник не дает точное окно времени, backend возвращает `null` во временных полях и текст в `observanceNotes`.
+- Выбор организации хранится отдельно от общих `mathFilters`; интеграция с math filters пока подготовительная, без объединения состояний.
+- Реальная backend-доставка напоминаний Экадаши заведена через отдельный scheduler, который использует существующий `PushNotificationService`, уважает `quiet hours` и пишет idempotency-лог в `ekadashi_reminder_deliveries`.
+- Для `ISKCON` добавлен live provider через официальный upstream `vaishnavacalendar.org` с безопасным fallback обратно на генератор, если upstream не дал данных или формат изменился.
+- Для операционной диагностики добавлен admin endpoint `/api/admin/push/health/ekadashi`, который показывает push health summary, последние delivery rows, snapshot live-provider cache и параметры scheduler.
+- Для `ISKCON` live-provider теперь пишет последний success/error status в `SystemSetting` (`EKADASHI_PROVIDER_STATUS_ISKCON`), а admin endpoint `/api/admin/ekadashi/refresh` позволяет вручную прогнать refresh по `month/city/timezone/organizationId`.
+- Для `Sri Chaitanya Math` и `Pure Bhakti` добавлен live provider через `gosai.com/calendar`; diagnostics теперь показывают статусы по нескольким provider keys (`ISKCON`, `SRI_CHAITANYA_MATH`, `PURE_BHAKTI`).
+- `default_vaishnava` пока остаётся на fallback-агрегаторе: для него в diagnostics явно пишется provider status `no_live_source_configured`, потому что стабильный публичный server-side формат `gcal.app` пока не найден.
+- Ответы ekadashi backend теперь возвращают `providerDecision` c `mode/source/reason`: это позволяет сразу видеть, был ли использован live provider или fallback, и почему произошла деградация (`city_required_for_iskcon_live_provider`, `*_live_fetch_failed`, `no_live_source_configured`).
+- Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
+- `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.
 
 ## Support (Telegram + In-App + Multilingual)
 - Ссылка поддержки в клиентской конфигурации нормализуется и форсируется на `https://t.me/vedamatch_bot`:
@@ -221,9 +260,30 @@
   - добавлены ключи `portal.channelsHub` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
   - после этого шага в `frontend/screens/portal/services` остался 1 TSX-файл с кириллицей (`ChannelDetailsScreen.tsx`).
 - Финальный шаг по кириллице в services:
-  - `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx` очищен от оставшихся русских строк в UI/alerts и fallback-текстах (заменены на English);
-  - все форматирования дат/чисел на экране переведены с фиксированного `ru-RU` на runtime-locale (`ru-RU` / `en-US` / `hi-IN`) через `i18n.language`;
-  - после шага `rg -l "[А-Яа-яЁё]" frontend/screens/portal/services -g '*.tsx'` возвращает пустой результат (кириллица в services TSX отсутствует).
+- `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx` очищен от оставшихся русских строк в UI/alerts и fallback-текстах (заменены на English);
+- Дополнительный runtime-i18n этап для `frontend/screens/portal/services/channels/ChannelDetailsScreen.tsx`:
+  - экран Sadhu Sanga detail переведен с английских hardcoded fallback-строк на i18n-ключи `portal.channelDetailsSadhu.*`;
+  - ключи добавлены в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`;
+  - вкладки, quick access, bio, live, roadmap, analytics, questions, seminars, followers/follow CTA и empty-state теперь переключаются между `ru/en/hi`.
+- все форматирования дат/чисел на экране переведены с фиксированного `ru-RU` на runtime-locale (`ru-RU` / `en-US` / `hi-IN`) через `i18n.language`;
+- после шага `rg -l "[А-Яа-яЁё]" frontend/screens/portal/services -g '*.tsx'` возвращает пустой результат (кириллица в services TSX отсутствует).
+- Этап post-services cleanup:
+  - `frontend/screens/multimedia/*.tsx` очищены от остаточных русских UI/fallback строк; по `rg -l "[А-Яа-яЁё]" frontend/screens/multimedia -g '*.tsx'` кириллицы в TSX не осталось.
+  - `frontend/screens/portal/**/*.tsx` очищены от остаточных русских UI/fallback строк вне `services`: закрыты `chat`, `map`, `travel`, `news`, `referral`, `shops`, `education`, `knowledge_base`, `cafe`.
+  - Для `portal` итоговый аудит: `rg -l "[А-Яа-яЁё]" frontend/screens/portal -g '*.tsx'` возвращает пустой результат.
+  - Финальный cleanup остатка:
+    - `frontend/screens/library/ReaderScreen.tsx`
+    - `frontend/screens/library/LibraryHomeScreen.tsx`
+    - `frontend/screens/support/SupportTicketFormScreen.tsx`
+    - `frontend/screens/support/SupportHomeScreen.tsx`
+    - `frontend/screens/support/SupportInboxScreen.tsx`
+    - `frontend/screens/support/SupportConversationScreen.tsx`
+    - `frontend/screens/seva/MyDonationsScreen.tsx`
+    - `frontend/screens/seva/SevaHubScreen.tsx`
+    - `frontend/screens/settings/EditProfileScreen.tsx`
+    - `frontend/screens/settings/ProPlansScreen.tsx`
+    - `frontend/screens/calls/CallScreen.tsx`
+  - Финальный аудит экранов: `rg -l "[А-Яа-яЁё]" frontend/screens -g '*.tsx'` возвращает пустой результат; пользовательские строки с кириллицей из `frontend/screens/**/*.tsx` убраны.
 - Следующий этап вне services (chat):
   - `frontend/screens/ChatScreen.tsx` очищен от оставшихся русских UI/alert/placeholder строк в media/search/share модалках и preference-уведомлениях;
   - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/ChatScreen.tsx` не находит совпадений;
@@ -341,6 +401,14 @@
   - в `frontend/screens/portal/shops/SellerOrdersScreen.tsx` заменены русские fallback/баннер строки на English (orders load errors, channel source banner, `Reset`);
   - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/portal/shops/SellerOrdersScreen.tsx` пустой;
   - `npx eslint screens/portal/shops/SellerOrdersScreen.tsx` показывает существующие техдолг-ошибки (`unused-vars`, `react-hooks/exhaustive-deps`), не связанные с этой текстовой заменой.
+- Быстрый шаг по playlists screen:
+  - в `frontend/screens/multimedia/PlaylistsScreen.tsx` заменены 10 русских строк (alerts, header, empty-state, modal title/placeholders/actions) на English;
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/PlaylistsScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/PlaylistsScreen.tsx` показывает существующую техдолг-ошибку `unused-vars` (`error`) и 1 warning `react-native/no-inline-styles`, не связанные с этой текстовой заменой.
+- Быстрый шаг по tv screen:
+  - в `frontend/screens/multimedia/TVScreen.tsx` заменены русские UI/fallback строки на English (stream type, statuses, header, access card, `Profile`, loading, empty-state, `All traditions`);
+  - после правки `rg -n "[А-Яа-яЁё]" frontend/screens/multimedia/TVScreen.tsx` пустой;
+  - `npx eslint screens/multimedia/TVScreen.tsx` показывает существующую hook-ошибку (`react-hooks/exhaustive-deps`) и warnings, не связанные с этой текстовой заменой.
 
 ## Backend Observability
 - Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.
@@ -516,6 +584,10 @@
 - В существующем кабинете должна быть явная навигация на `/tariffs`.
 
 ## Localization Coverage Audit
+- `PortalGrid` переведен на i18n через `portal.grid.*` для alert toolbar и create-folder flow (`newPageTitle`, `newPageMessage`, `folder`, `widget`, `done`, `folderNamePlaceholder`, `create`, `cancel`).
+
+- Portal shared widgets: `NotificationPanel`, `FeedQuickWidget`, `FeedMixWidget`, `CirclesQuickWidget`, `CirclesPanelWidget`, `BellButton`, `AssistantChatButton` now use runtime `en/ru/hi` copy instead of Russian-only visible UI or accessibility labels.
+
 - Базовый язык для сравнения: `frontend/i18n/locales/en.ts` (`1263` ключа).
 - Русский (`frontend/i18n/locales/ru.ts`):
   - покрытие ключей: `100%` (`1263/1263`);
@@ -1967,3 +2039,49 @@
   - применен fallback-запрос:
     - `sum(increase(http_requests_total{job=~"$app_name",status_class="5xx",route!="/metrics"}[24h])) or vector(0)`
   - результат: панель показывает `0`, когда ошибок 5xx нет.
+2026-03-06 10:49 +10 | PortalIcon.tsx checked: only comments in Russian, no UI changes needed
+- Navigation titles in `App.tsx` for library/education/travel now use i18n keys (`portal.appNavigation.*`, `education.courseTitle`, `education.examTrainerTitle`) instead of Russian hardcode.
+- Role cards in `components/roles/RoleSelectionSection.tsx` no longer depend on Russian `roleOptions` copy; titles, subtitles, descriptions, and service hints are runtime-localized for `en/ru/hi`.
+- Shared runtime locale fixes applied in services: `callHistoryService` (`Today/Yesterday`), `audioPlayerService` (`Unknown artist`), `pathTrackerService` offline reply, `notificationService` push fallback titles and video-circle publish copy.
+- Shared content widgets/modals localized for `en/ru/hi`: `WalletInfoModal`, `ReferralRulesModal`, `DonateModal`, `KrishnaAssistant`, `ChatImage`, `KarmaFeed`, `MiniPlayer`.
+
+- Localization cleanup
+  - mapService.formatDistance now uses runtime locale for m/km labels.
+  - bookingService defaults now use current i18n language; English is the neutral fallback for static STATUS_LABELS.
+  - fileService localized the browser-open fallback message.
+  - proService localized the purchase fallback error.
+  - mediaService localized video-circle validation, upload fallback, and Android permission prompts for en/ru/hi.
+
+- Localization cleanup
+  - geoLocationService permission prompt and unknown-location fallback are runtime-localized.
+  - supportService fallback errors are runtime-localized for en/ru/hi.
+  - wallet/account/videoCircles/multimediaOffline service fallback errors are runtime-localized.
+
+- Localization cleanup
+  - webRTCService call-init errors now use runtime en/ru/hi copy.
+  - cafeService upload-asset validation errors now use runtime en/ru/hi copy.
+
+- Localization cleanup
+  - YatraReviewsSection review flow is runtime-localized.
+  - ChatContext delete-message and load-history alerts use localized runtime copy.
+  - LocationPicker labels/placeholders/modals are runtime-localized.
+  - AdCard relative time and Center fallback are runtime-localized.
+
+- Localization cleanup
+  - AutoLocationButton, NearbyUsers, and ShopsMapScreen now use runtime-localized location copy and shared distance formatting.
+
+- Localization cleanup
+  - AvatarUploader and VideoPlayerScreen now use runtime-localized action, alert, and fallback copy.
+
+- Localization cleanup
+  - MessageList document fallback file label is runtime-localized.
+  - NewsWidget runtime copy is stabilized and Hindi CTA is improved.
+
+- Localization cleanup
+  - CheckoutScreen, ProductDetailsScreen, and CreateShopScreen now use runtime-localized shop flow alerts and fallback copy.
+
+- Auth/chat screens now localize remaining runtime alerts and DEV-mode fallback strings in ChatScreen, LoginScreen, and RegistrationScreen.
+
+- SupportConversationScreen, InviteFriendModal, RoomInviteEntryScreen, and PortalChatScreen now use runtime-localized support/chat invite flow copy and locale-aware date formatting.
+
+- EditProfileScreen and PlansScreen now use runtime-localized validation, fallback success/error copy, and plan feature labels for en/ru/hi.

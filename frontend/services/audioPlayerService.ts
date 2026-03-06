@@ -9,6 +9,7 @@ import TrackPlayer, {
     AppKilledPlaybackBehavior,
     TrackType,
 } from 'react-native-track-player';
+import i18n from '../i18n';
 import { MediaTrack } from './multimediaService';
 
 class AudioPlayerService {
@@ -73,7 +74,7 @@ class AudioPlayerService {
                 id: 'track-' + track.ID,
                 url: track.url,
                 title: track.title,
-                artist: track.artist || 'Неизвестный исполнитель',
+                artist: track.artist || (i18n.language?.startsWith('ru') ? 'Неизвестный исполнитель' : i18n.language?.startsWith('hi') ? 'अज्ञात कलाकार' : 'Unknown artist'),
                 artwork: track.thumbnailUrl || 'https://via.placeholder.com/150',
                 duration: track.duration,
                 type: TrackType.Default,

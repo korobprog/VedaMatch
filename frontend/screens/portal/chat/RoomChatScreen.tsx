@@ -291,15 +291,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handleJoinCallPress = useCallback(() => {
         if (listenerMode) {
             Alert.alert(
-                t('chat.listenerMode') || 'Режим слушателя',
-                t('chat.listenerVoiceVideoDisabled') || 'Аудио и видео отключены для этого входа'
+                t('chat.listenerMode') || 'Listener mode',
+                t('chat.listenerVoiceVideoDisabled') || 'Audio and video are disabled for this entry'
             );
             return;
         }
         if (!roomSfuEnabled) {
             Alert.alert(
                 t('common.error'),
-                t('chat.videoUnavailable') || 'Видеосвязь временно недоступна'
+                t('chat.videoUnavailable') || 'Video calling is temporarily unavailable'
             );
             return;
         }
@@ -558,7 +558,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handleSupportDonate = useCallback(async () => {
         if (!supportConfig || !supportChecked || supportSubmitting) return;
         if (supportAmount <= 0) {
-            Alert.alert(t('common.error'), 'Введите корректную сумму');
+            Alert.alert(t('common.error'), 'Enter a valid amount');
             return;
         }
         setSupportSubmitting(true);
@@ -567,14 +567,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 supportConfig.projectId,
                 supportAmount,
                 false,
-                'Поддержка развития сервиса Комнаты',
+                'Support the growth of the Rooms service',
                 Number(roomId),
             );
             await markSupportPromptCooldown();
             setSupportPromptVisible(false);
-            Alert.alert(t('common.success'), t('chat.roomsSupportThanks') || 'Спасибо за поддержку!');
+            Alert.alert(t('common.success'), t('chat.roomsSupportThanks') || 'Thanks for your support!');
         } catch (error: any) {
-            Alert.alert(t('common.error'), error?.message || 'Не удалось выполнить пожертвование');
+            Alert.alert(t('common.error'), error?.message || 'Failed to complete the donation');
         } finally {
             if (isMountedRef.current) {
                 setSupportSubmitting(false);
@@ -657,12 +657,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             if (status === 402) {
                 // Insufficient LKM balance - show modal to top up
                 Alert.alert(
-                    t('wallet.insufficientBalance') || 'Недостаточно LKM',
-                    error?.response?.data?.message || t('wallet.topUpToChat') || 'Пополните баланс для использования AI Chat',
+                    t('wallet.insufficientBalance') || 'Not enough LKM',
+                    error?.response?.data?.message || t('wallet.topUpToChat') || 'Top up your balance to use AI Chat',
                     [
-                        { text: t('common.cancel') || 'Отмена', style: 'cancel' },
+                        { text: t('common.cancel') || 'Cancel', style: 'cancel' },
                         {
-                            text: t('wallet.goToWallet') || 'Пополнить',
+                            text: t('wallet.goToWallet') || 'Top up',
                             onPress: () => navigation.navigate('Wallet'),
                         },
                     ]
@@ -674,7 +674,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 setInputText((prev) => (prev.trim() ? prev : newMessage.content));
                 Alert.alert(
                     t('common.error'),
-                    t('chat.sendError') || 'Не удалось отправить сообщение'
+                    t('chat.sendError') || 'Failed to send message'
                 );
             }
         } finally {
@@ -829,9 +829,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
                 {listenerMode && (
                     <View style={styles.listenerModeBanner}>
-                        <Text style={styles.listenerModeBannerTitle}>{t('chat.listenerMode') || 'Режим слушателя'}</Text>
+                        <Text style={styles.listenerModeBannerTitle}>{t('chat.listenerMode') || 'Listener mode'}</Text>
                         <Text style={styles.listenerModeBannerText}>
-                            {t('chat.listenerVoiceVideoDisabled') || 'Аудио и видео отключены, чат доступен'}
+                            {t('chat.listenerVoiceVideoDisabled') || 'Audio and video are disabled, chat is available'}
                         </Text>
                     </View>
                 )}
@@ -886,7 +886,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 >
                                     <Video size={18} color={tokens.accentTextOnPrimary} />
                                     <Text style={styles.joinCallButtonText}>
-                                        {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Видеосвязь недоступна')}
+                                        {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Video calling is unavailable')}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -977,7 +977,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             lineHeight: (readerFontSize * 1.2) * 1.4
                                         }
                                     ]}>
-                                        {verseText.primary || (t('reader.translationOnly') || 'Санскрит недоступен')}
+                                        {verseText.primary || (t('reader.translationOnly') || 'Sanskrit is unavailable')}
                                     </Text>
                                     <Text style={[
                                         styles.translationText,
@@ -987,7 +987,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             lineHeight: readerFontSize * 1.5
                                         }
                                     ]}>
-                                        {verseText.translation || (t('reader.translationMissing') || 'Перевод временно недоступен')}
+                                        {verseText.translation || (t('reader.translationMissing') || 'Translation is temporarily unavailable')}
                                     </Text>
 
                                     {roomDetails?.showPurport && verseText.purport && (
@@ -1077,7 +1077,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             >
                                 <Video size={18} color={tokens.accentTextOnPrimary} />
                                 <Text style={styles.joinCallButtonText}>
-                                    {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Видеосвязь недоступна')}
+                                    {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Video calling is unavailable')}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -1108,7 +1108,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             {t('chat.noHistory')}
                                         </Text>
                                         <Text style={styles.emptySub}>
-                                            Начните диалог в этой комнате
+                                            Start the conversation in this room
                                         </Text>
                                     </View>
                                 }
@@ -1203,13 +1203,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 <View style={styles.supportOverlay}>
                     <View style={styles.supportCard}>
                         <Animated.Text style={[styles.supportBlink, { transform: [{ scale: supportPulse }] }]}>😉</Animated.Text>
-                        <Text style={styles.supportTitle}>{t('chat.roomsSupportTitle') || 'Поддержка Комнат'}</Text>
-                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit1') || 'Поддержка серверов звонков и стабильности комнат.'}</Text>
-                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit2') || 'Развитие совместного чтения и новых функций.'}</Text>
-                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit3') || 'Ваш вклад ускоряет улучшения для всех участников.'}</Text>
+                        <Text style={styles.supportTitle}>{t('chat.roomsSupportTitle') || 'Support Rooms'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit1') || 'Supports call servers and room stability.'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit2') || 'Helps build shared reading and new features.'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit3') || 'Your contribution speeds up improvements for everyone.'}</Text>
 
                         <View style={styles.supportCheckRow}>
-                            <Text style={styles.supportCheckLabel}>{t('chat.roomsSupportCheckbox') || 'Поддержать сейчас'}</Text>
+                            <Text style={styles.supportCheckLabel}>{t('chat.roomsSupportCheckbox') || 'Support now'}</Text>
                             <Switch
                                 value={supportChecked}
                                 onValueChange={setSupportChecked}
@@ -1278,7 +1278,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 activeOpacity={0.85}
                                 disabled={supportSubmitting}
                             >
-                                <Text style={styles.supportLaterButtonText}>{t('chat.roomsSupportLater') || 'Позже'}</Text>
+                                <Text style={styles.supportLaterButtonText}>{t('chat.roomsSupportLater') || 'Later'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[
@@ -1294,7 +1294,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 {supportSubmitting ? (
                                     <ActivityIndicator size="small" color={tokens.accentTextOnPrimary} />
                                 ) : (
-                                    <Text style={styles.supportConfirmButtonText}>{t('chat.roomsSupportConfirm') || 'Поддержать'}</Text>
+                                    <Text style={styles.supportConfirmButtonText}>{t('chat.roomsSupportConfirm') || 'Support'}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>

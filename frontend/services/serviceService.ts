@@ -174,14 +174,14 @@ export interface CreateScheduleRequest {
 // ==================== CATEGORY HELPERS ====================
 
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
-    astrology: 'Астрология',
-    psychology: 'Психология',
-    coaching: 'Коучинг',
-    spirituality: 'Духовные практики',
-    yagya: 'Ягьи и ритуалы',
-    education: 'Обучение',
-    health: 'Здоровье/Аюрведа',
-    other: 'Другое',
+    astrology: 'Astrology',
+    psychology: 'Psychology',
+    coaching: 'Coaching',
+    spirituality: 'Spiritual Practices',
+    yagya: 'Yagyas and Rituals',
+    education: 'Education',
+    health: 'Health / Ayurveda',
+    other: 'Other',
 };
 
 export const CATEGORY_ICONS: Record<ServiceCategory, string> = {
@@ -208,27 +208,27 @@ export const CATEGORY_ICON_NAMES: Record<ServiceCategory, string> = {
 };
 
 export const FORMAT_LABELS: Record<ServiceFormat, string> = {
-    individual: 'Индивидуально',
-    group: 'Группа',
-    subscription: 'Подписка',
-    event: 'Мероприятие',
-    donation: 'Донейшн',
+    individual: 'Individual',
+    group: 'Group',
+    subscription: 'Subscription',
+    event: 'Event',
+    donation: 'Donation',
 };
 
 export const CHANNEL_LABELS: Record<ServiceChannel, string> = {
-    video: 'Видеочат',
+    video: 'Video chat',
     zoom: 'Zoom',
     youtube: 'YouTube',
     telegram: 'Telegram',
-    offline: 'Оффлайн',
-    file: 'Запись/Файл',
+    offline: 'Offline',
+    file: 'Recording / File',
 };
 
 export const ACCESS_LABELS: Record<ServiceAccessType, string> = {
-    free: 'Бесплатно',
-    paid: 'Платно',
-    subscription: 'По подписке',
-    invite: 'По приглашению',
+    free: 'Free',
+    paid: 'Paid',
+    subscription: 'Subscription',
+    invite: 'Invite only',
 };
 
 // ==================== API FUNCTIONS ====================

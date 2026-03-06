@@ -93,7 +93,7 @@ export const SeriesDetailScreen: React.FC = () => {
         navigation.navigate('VideoPlayer', {
             video: {
                 ID: episode.id,
-                title: `${series.title} - ${episode.title || `Серия ${episode.number}`}`,
+                title: `${series.title} - ${episode.title || `Episode ${episode.number}`}`,
                 url: episode.videoURL,
                 thumbnailUrl: episode.thumbnailURL || series.coverImageURL,
                 duration: episode.duration,
@@ -104,9 +104,9 @@ export const SeriesDetailScreen: React.FC = () => {
     const cleanTitle = (title: string, episodeNum: number) => {
         // If title is just a long number (likely a timestamp/id), show generic name
         if (/^\d{10,}$/.test(title)) {
-            return `Серия ${episodeNum}`;
+            return `Episode ${episodeNum}`;
         }
-        return title || `Серия ${episodeNum}`;
+        return title || `Episode ${episodeNum}`;
     };
 
     const renderEpisode = ({ item, index }: { item: Episode; index: number }) => (
@@ -212,7 +212,7 @@ export const SeriesDetailScreen: React.FC = () => {
                             <View style={styles.metaItem}>
                                 <Layers size={14} color={colors.textSecondary} />
                                 <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                                    {series.seasons.length} сезонов
+                                    {series.seasons.length} seasons
                                 </Text>
                             </View>
                         )}
@@ -240,7 +240,7 @@ export const SeriesDetailScreen: React.FC = () => {
                         {series.description.length > 150 && (
                             <View style={styles.expandRow}>
                                 <Text style={[styles.expandText, { color: colors.accent }]}>
-                                    {expandedDescription ? 'Свернуть' : 'Развернуть'}
+                                    {expandedDescription ? 'Collapse' : 'Expand'}
                                 </Text>
                                 {expandedDescription ? (
                                     <ChevronUp size={16} color={colors.accent} />
@@ -280,7 +280,7 @@ export const SeriesDetailScreen: React.FC = () => {
                                     styles.seasonTabText,
                                     { color: selectedSeason === season.number ? 'white' : colors.textPrimary }
                                 ]}>
-                                    Сезон {season.number}
+                                    Season {season.number}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -290,10 +290,10 @@ export const SeriesDetailScreen: React.FC = () => {
                 {/* Episodes Header */}
                 <View style={styles.episodesHeader}>
                     <Text style={[styles.episodesTitle, { color: colors.textPrimary }]}>
-                        Серии
+                        Episodes
                     </Text>
                     <Text style={[styles.episodesCount, { color: colors.textSecondary }]}>
-                        {episodes.length} эпизодов
+                        {episodes.length} episodes
                     </Text>
                 </View>
 
@@ -308,7 +308,7 @@ export const SeriesDetailScreen: React.FC = () => {
                     {episodes.length === 0 && (
                         <View style={styles.emptyEpisodes}>
                             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                                Серии ещё не добавлены
+                                Episodes have not been added yet
                             </Text>
                         </View>
                     )}

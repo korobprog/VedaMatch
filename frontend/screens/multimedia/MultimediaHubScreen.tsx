@@ -120,15 +120,15 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
     };
 
     const menuItems = [
-        { id: 'radio', title: 'Радио', icon: Radio, color: roleColors.accent, screen: 'RadioScreen' },
-        { id: 'audio', title: 'Аудио', icon: Music, color: roleColors.accent, screen: 'AudioScreen' },
-        { id: 'video', title: 'Видео', icon: Film, color: roleColors.warning, screen: 'VideoScreen' },
-        { id: 'circles', title: 'Кружки', icon: MonitorPlay, color: roleColors.warning, screen: 'VideoCirclesScreen' },
-        { id: 'series', title: 'Сериалы', icon: Clapperboard, color: roleColors.accent, screen: 'SeriesScreen' },
-        { id: 'tv', title: 'ТВ', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
-        { id: 'favorites', title: 'Избранное', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },
-        { id: 'playlists', title: 'Плейлисты', icon: ListMusic, color: roleColors.success, screen: 'PlaylistsScreen' },
-        { id: 'offline', title: 'Оффлайн', icon: Download, color: roleColors.accent, screen: 'OfflineMedia' },
+        { id: 'radio', title: 'Radio', icon: Radio, color: roleColors.accent, screen: 'RadioScreen' },
+        { id: 'audio', title: 'Audio', icon: Music, color: roleColors.accent, screen: 'AudioScreen' },
+        { id: 'video', title: 'Video', icon: Film, color: roleColors.warning, screen: 'VideoScreen' },
+        { id: 'circles', title: 'Circles', icon: MonitorPlay, color: roleColors.warning, screen: 'VideoCirclesScreen' },
+        { id: 'series', title: 'Series', icon: Clapperboard, color: roleColors.accent, screen: 'SeriesScreen' },
+        { id: 'tv', title: 'TV', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
+        { id: 'favorites', title: 'Favorites', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },
+        { id: 'playlists', title: 'Playlists', icon: ListMusic, color: roleColors.success, screen: 'PlaylistsScreen' },
+        { id: 'offline', title: 'Offline', icon: Download, color: roleColors.accent, screen: 'OfflineMedia' },
     ];
 
     const onSupportLater = async () => {
@@ -147,16 +147,16 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                 supportConfig.projectId,
                 Math.max(1, supportConfig.defaultAmount || 20),
                 false,
-                'Поддержка развития Sattva Media',
+                'Support Sattva Media growth',
                 'support_prompt',
                 'MultimediaHubScreen',
             );
             await multimediaSupportService.setPromptCooldown(user.ID);
             await multimediaSupportService.resetInteractions(user.ID);
             setShowSupportPrompt(false);
-            Alert.alert('Спасибо', 'Ваш донат поддерживает развитие Sattva Media');
+            Alert.alert('Thank you', 'Your donation supports Sattva Media growth');
         } catch (error: any) {
-            Alert.alert('Ошибка', error?.message || 'Не удалось выполнить донат');
+            Alert.alert('Error', error?.message || 'Failed to complete donation');
         } finally {
             setSupportSubmitting(false);
         }
@@ -167,7 +167,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
             <ScreenScaffold variant="media" enableAura>
                 <View style={[styles.loadingContainer, { backgroundColor: 'transparent' }]}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: textColorSecondary }]}>Загрузка...</Text>
+                    <Text style={[styles.loadingText, { color: textColorSecondary }]}>Loading...</Text>
                 </View>
             </ScreenScaffold>
         );
@@ -195,27 +195,27 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                     </TouchableOpacity>
                     <View style={styles.headerTitleScroll}>
                         <Text style={[styles.headerTitleScrollText, { color: '#FFFFFF' }]}>Sattva Media</Text>
-                        <Text style={[styles.headerSubtitleScrollText, { color: 'rgba(255,255,255,0.9)' }]}>Духовный мультимедиа-хаб</Text>
+                        <Text style={[styles.headerSubtitleScrollText, { color: 'rgba(255,255,255,0.9)' }]}>Spiritual multimedia hub</Text>
                     </View>
                 </View>
             </ImageBackground>
 
             {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
                 <View style={[styles.supportCard, { backgroundColor: cardBgColor, borderColor: roleColors.border }]}>
-                    <Text style={[styles.supportTitle, { color: textColorPrimary }]}>Поддержать Sattva Media</Text>
+                    <Text style={[styles.supportTitle, { color: textColorPrimary }]}>Support Sattva Media</Text>
                     <Text style={[styles.supportText, { color: textColorSecondary }]}>
-                        Мы сохраняем контент бесплатным. Добровольный донат: {Math.max(1, supportConfig.defaultAmount || 20)} LKM.
+                        We keep the content free. Voluntary donation: {Math.max(1, supportConfig.defaultAmount || 20)} LKM.
                     </Text>
                     <View style={styles.supportActions}>
                         <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={onSupportLater}>
-                            <Text style={{ color: textColorSecondary }}>Позже</Text>
+                            <Text style={{ color: textColorSecondary }}>Later</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]}
                             onPress={onSupportDonate}
                             disabled={supportSubmitting}
                         >
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Support'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -233,7 +233,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             ]}
                             onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: textColorSecondary }]}>Все Традиции</Text>
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: textColorSecondary }]}>All traditions</Text>
                         </TouchableOpacity>
                         {MULTIMEDIA_MADH_OPTIONS.map((m) => (
                             <TouchableOpacity
@@ -257,16 +257,16 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                 <View style={[styles.scopeCard, { backgroundColor: cardBgColor, borderColor: roleColors.border }]}>
                     {userMadh ? (
                         <Text style={[styles.scopeText, { color: textColorSecondary }]}>
-                            Режим доступа: ваша организация и общий контент.
+                            Access mode: your organization and shared content.
                         </Text>
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: textColorSecondary }]}>
-                                Сейчас доступен только общий контент. Укажите организацию в профиле или активируйте PRO.
+                                Only shared content is available now. Add an organization in your profile or activate PRO.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
-                                    <Text style={{ color: textColorPrimary }}>Профиль</Text>
+                                    <Text style={{ color: textColorPrimary }}>Profile</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
                                     <Text style={{ color: roleColors.accent, fontWeight: '700' }}>PRO</Text>
@@ -303,11 +303,11 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                 <Radio size={18} color={roleColors.accent} />
                             </View>
                             <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
-                                Онлайн-радио
+                                Online radio
                             </Text>
                         </View>
                         <TouchableOpacity onPress={() => navigation.navigate('RadioScreen')} style={styles.seeAllContainer}>
-                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>Все</Text>
+                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>All</Text>
                             <ChevronRight size={16} color={roleColors.accent} />
                         </TouchableOpacity>
                     </View>
@@ -334,7 +334,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                         styles.liveBadgeText,
                                         { color: station.status === 'online' ? roleColors.success : roleColors.danger }
                                     ]}>
-                                        {station.status === 'online' ? 'В СЕТИ' : 'ОФФЛАЙН'}
+                                        {station.status === 'online' ? 'ONLINE' : 'OFFLINE'}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -352,11 +352,11 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                 <Music size={18} color={roleColors.accent} />
                             </View>
                             <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
-                                Рекомендуем
+                                Recommended
                             </Text>
                         </View>
                         <TouchableOpacity onPress={() => navigation.navigate('AudioScreen')} style={styles.seeAllContainer}>
-                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>Все</Text>
+                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>All</Text>
                             <ChevronRight size={16} color={roleColors.accent} />
                         </TouchableOpacity>
                     </View>
@@ -375,7 +375,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             )}
                             <View style={styles.trackInfo}>
                                 <Text style={[styles.trackTitle, { color: textColorPrimary }]} numberOfLines={1}>{track.title}</Text>
-                                <Text style={[styles.trackArtist, { color: textColorSecondary }]} numberOfLines={1}>{track.artist || 'Неизвестный исполнитель'}</Text>
+                                <Text style={[styles.trackArtist, { color: textColorSecondary }]} numberOfLines={1}>{track.artist || 'Unknown artist'}</Text>
                             </View>
                             <PlayCircle size={28} color={roleColors.accent} />
                         </TouchableOpacity>
@@ -392,11 +392,11 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                 <TvIcon size={18} color={roleColors.accent} />
                             </View>
                             <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
-                                Духовное ТВ
+                                Spiritual TV
                             </Text>
                         </View>
                         <TouchableOpacity onPress={() => navigation.navigate('TVScreen')} style={styles.seeAllContainer}>
-                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>Все</Text>
+                            <Text style={[styles.seeAll, { color: roleColors.accent }]}>All</Text>
                             <ChevronRight size={16} color={roleColors.accent} />
                         </TouchableOpacity>
                     </View>

@@ -35,20 +35,20 @@ const MyDonationsScreen: React.FC = () => {
 
     const handleRefund = async (donationId: number) => {
         Alert.alert(
-            "Вернуть пожертвование?",
-            "Вы уверены, что хотите вернуть средства? Эта операция необратима.",
+            "Refund donation?",
+            "Are you sure you want to refund the funds? This action cannot be undone.",
             [
-                { text: "Отмена", style: "cancel" },
+                { text: "Cancel", style: "cancel" },
                 {
-                    text: "Вернуть",
+                    text: "Refund",
                     style: "destructive",
                     onPress: async () => {
                         try {
                             await charityService.refundDonation(undefined, donationId);
-                            Alert.alert("Успешно", "Средства возвращены на ваш кошелек");
+                            Alert.alert("Success", "Funds have been returned to your wallet");
                             loadDonations(); // Refresh list
                         } catch (error: any) {
-                            Alert.alert("Ошибка", error.message || "Не удалось вернуть средства");
+                            Alert.alert("Error", error.message || "Failed to refund the funds");
                         }
                     }
                 }
@@ -67,9 +67,9 @@ const MyDonationsScreen: React.FC = () => {
         const deadline = new Date(canRefundUntil);
         const now = new Date();
         const hoursLeft = Math.floor((deadline.getTime() - now.getTime()) / (1000 * 60 * 60));
-        if (hoursLeft < 0) return 'Истек срок';
-        if (hoursLeft < 1) return 'Менее часа';
-        return `${hoursLeft}ч осталось`;
+        if (hoursLeft < 0) return 'Expired';
+        if (hoursLeft < 1) return 'Less than an hour';
+        return `${hoursLeft}h left`;
     };
 
     const renderDonation = ({ item }: { item: CharityDonation }) => {
@@ -92,23 +92,23 @@ const MyDonationsScreen: React.FC = () => {
                     </Text>
                 </View>
 
-                <Text style={styles.projectTitle}>{item.project?.title || 'Проект'}</Text>
+                <Text style={styles.projectTitle}>{item.project?.title || 'Project'}</Text>
                 <Text style={styles.orgName}>{item.project?.organization?.name}</Text>
 
                 <View style={styles.amountRow}>
-                    <Text style={styles.label}>Пожертвовано:</Text>
+                    <Text style={styles.label}>Donated:</Text>
                     <Text style={styles.amount}>{item.amount} LKM</Text>
                 </View>
 
                 {item.tipsAmount > 0 && (
                     <View style={styles.amountRow}>
-                        <Text style={styles.labelSmall}>Чаевые платформе:</Text>
+                        <Text style={styles.labelSmall}>Platform tip:</Text>
                         <Text style={styles.amountSmall}>{item.tipsAmount} LKM</Text>
                     </View>
                 )}
 
                 <View style={styles.amountRow}>
-                    <Text style={styles.labelTotal}>Всего:</Text>
+                    <Text style={styles.labelTotal}>Total:</Text>
                     <Text style={styles.amountTotal}>{item.totalPaid} LKM</Text>
                 </View>
 
@@ -119,14 +119,14 @@ const MyDonationsScreen: React.FC = () => {
                             style={styles.refundButton}
                             onPress={() => handleRefund(item.id)}
                         >
-                            <Text style={styles.refundButtonText}>Вернуть средства</Text>
+                            <Text style={styles.refundButtonText}>Refund funds</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
                 {item.karmaMessage && (
                     <View style={styles.messageBox}>
-                        <Text style={styles.messageLabel}>Сообщение:</Text>
+                        <Text style={styles.messageLabel}>Message:</Text>
                         <Text style={styles.messageText}>{item.karmaMessage}</Text>
                     </View>
                 )}
@@ -145,9 +145,9 @@ const MyDonationsScreen: React.FC = () => {
 
     const getStatusLabel = (status: string) => {
         switch (status) {
-            case 'pending': return 'Ожидает';
-            case 'confirmed': return 'Подтверждено';
-            case 'refunded': return 'Возвращено';
+            case 'pending': return 'Pending';
+            case 'confirmed': return 'Confirmed';
+            case 'refunded': return 'Refunded';
             default: return status;
         }
     };
@@ -163,7 +163,7 @@ const MyDonationsScreen: React.FC = () => {
                         <ChevronLeft color="#FFF" size={28} />
                     </TouchableOpacity>
 
-                    <Text style={styles.headerTitle}>Мои пожертвования</Text>
+                    <Text style={styles.headerTitle}>My donations</Text>
                     <View style={{ width: 28 }} />
                 </View>
             </SafeAreaView>
@@ -180,7 +180,7 @@ const MyDonationsScreen: React.FC = () => {
                     !loading ? (
                         <View style={styles.emptyState}>
                             <CalendarDays size={64} color="#666" />
-                            <Text style={styles.emptyText}>У вас пока нет пожертвований</Text>
+                            <Text style={styles.emptyText}>You have no donations yet</Text>
                         </View>
                     ) : null
                 }

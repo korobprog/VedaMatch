@@ -34,7 +34,7 @@ const YatraPublishScreen: React.FC = () => {
 
     const loadYatra = useCallback(async () => {
         if (!yatraId) {
-            Alert.alert('Ошибка', 'Тур не найден');
+            Alert.alert('Error', 'Trip not found');
             navigation.goBack();
             return;
         }
@@ -43,7 +43,7 @@ const YatraPublishScreen: React.FC = () => {
             const data = await yatraService.getYatra(yatraId);
             setYatra(data);
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось загрузить тур');
+            Alert.alert('Error', 'Failed to load the trip');
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -60,33 +60,33 @@ const YatraPublishScreen: React.FC = () => {
 
     const handlePublish = async () => {
         if (!yatra || !isOrganizer) {
-            Alert.alert('Недоступно', 'Публикация доступна только организатору.');
+            Alert.alert('Unavailable', 'Publishing is available only to the organizer.');
             return;
         }
         if (!isDraft) {
-            Alert.alert('Недоступно', 'Этот тур уже опубликован.');
+            Alert.alert('Unavailable', 'This trip has already been published.');
             return;
         }
         if (!consent) {
-            Alert.alert('Требуется согласие', 'Подтвердите согласие на ежедневное списание LKM.');
+            Alert.alert('Consent required', 'Confirm your consent to the daily LKM charge.');
             return;
         }
         try {
             setPublishing(true);
             await yatraService.publishYatra(yatra.id, { billingConsent: true });
-            Alert.alert('Успех', 'Тур опубликован');
+            Alert.alert('Success', 'Trip published');
             navigation.replace('YatraDetail', { yatraId: yatra.id });
         } catch (error: any) {
             const code = error?.response?.data?.code;
             if (code === 'INSUFFICIENT_LKM') {
-                Alert.alert('Недостаточно LKM', 'Для публикации не хватает активного LKM баланса.');
+                Alert.alert('Not enough LKM', 'There is not enough active LKM balance to publish.');
                 return;
             }
             if (code === 'BILLING_CONSENT_REQUIRED') {
-                Alert.alert('Требуется согласие', 'Подтвердите согласие на ежедневное списание LKM.');
+                Alert.alert('Consent required', 'Confirm your consent to the daily LKM charge.');
                 return;
             }
-            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось опубликовать тур');
+            Alert.alert('Error', error?.response?.data?.error || 'Failed to publish the trip');
         } finally {
             setPublishing(false);
         }
@@ -106,7 +106,7 @@ const YatraPublishScreen: React.FC = () => {
                 <TouchableOpacity style={[styles.backButton, { backgroundColor: colors.surface }]} onPress={() => navigation.goBack()}>
                     <ChevronLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Публикация Ятры</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Publish Yatra</Text>
                 <View style={styles.headerSpacer} />
             </View>
 
@@ -116,17 +116,17 @@ const YatraPublishScreen: React.FC = () => {
                     <Text style={[styles.title, { color: colors.textPrimary }]}>{yatra.title}</Text>
                 </View>
                 <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                    Ежедневная ставка: {yatra.dailyFeeLkm || 0} LKM
+                    Daily rate: {yatra.dailyFeeLkm || 0} LKM
                 </Text>
                 <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                    Статус: {yatra.status}
+                    Status: {yatra.status}
                 </Text>
             </View>
 
             <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Согласие на списание</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Charge consent</Text>
                 <Text style={[styles.text, { color: colors.textSecondary }]}>
-                    При публикации будет выполнено первое списание. Далее списание происходит ежедневно, пока тур активен.
+                    The first charge will be made on publish. After that, charges happen daily while the trip is active.
                 </Text>
                 <View style={styles.consentRow}>
                     <Switch
@@ -136,7 +136,7 @@ const YatraPublishScreen: React.FC = () => {
                         trackColor={{ false: colors.border, true: colors.surface }}
                     />
                     <Text style={[styles.consentText, { color: colors.textPrimary }]}>
-                        Подтверждаю ежедневное списание LKM за использование Ятры
+                        I confirm the daily LKM charge for using Yatra
                     </Text>
                 </View>
             </View>
@@ -153,7 +153,7 @@ const YatraPublishScreen: React.FC = () => {
                 {publishing ? (
                     <ActivityIndicator color={colors.background} />
                 ) : (
-                    <Text style={[styles.publishText, { color: colors.background }]}>Опубликовать тур</Text>
+                    <Text style={[styles.publishText, { color: colors.background }]}>Publish trip</Text>
                 )}
             </TouchableOpacity>
         </View>

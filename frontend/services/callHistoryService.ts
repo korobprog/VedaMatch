@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '../i18n';
 
 export type CallHistoryType = 'incoming' | 'outgoing' | 'missed';
 
@@ -126,9 +127,13 @@ export const formatCallHistoryTime = (timestamp: string, locale = 'ru-RU'): stri
 
     const callDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-    const isRussianLocale = locale.toLowerCase().startsWith('ru');
-    const todayLabel = isRussianLocale ? 'Сегодня' : 'Today';
-    const yesterdayLabel = isRussianLocale ? 'Вчера' : 'Yesterday';
+    const language = i18n.language?.toLowerCase().startsWith('hi')
+        ? 'hi'
+        : locale.toLowerCase().startsWith('ru')
+          ? 'ru'
+          : 'en';
+    const todayLabel = language === 'ru' ? 'Сегодня' : language === 'hi' ? 'आज' : 'Today';
+    const yesterdayLabel = language === 'ru' ? 'Вчера' : language === 'hi' ? 'कल' : 'Yesterday';
 
     if (callDay.getTime() === startToday.getTime()) {
         return `${todayLabel}, ${time}`;

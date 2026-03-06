@@ -54,8 +54,8 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
         } catch (error) {
             console.warn('[SupportInbox] failed to load tickets:', error);
             setTickets([]);
-            const message = error instanceof Error ? error.message : 'Не удалось загрузить обращения.';
-            setLoadError(message || 'Не удалось загрузить обращения.');
+            const message = error instanceof Error ? error.message : 'Failed to load tickets.';
+            setLoadError(message || 'Failed to load tickets.');
         } finally {
             if (!silent) {
                 setLoading(false);
@@ -75,12 +75,12 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
         return (
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.center}>
-                    <Text style={styles.blockedTitle}>Войдите в аккаунт</Text>
+                    <Text style={styles.blockedTitle}>Sign in to your account</Text>
                     <Text style={styles.blockedSubtitle}>
-                        История обращений доступна только авторизованным пользователям.
+                        Ticket history is available only to authorized users.
                     </Text>
                     <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('Login')}>
-                        <Text style={styles.primaryButtonText}>Открыть вход</Text>
+                        <Text style={styles.primaryButtonText}>Open sign-in</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -91,12 +91,12 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Мои обращения</Text>
+                    <Text style={styles.title}>My tickets</Text>
                     <TouchableOpacity
                         style={styles.newButton}
                         onPress={() => navigation.navigate('SupportTicketForm', { entryPoint: 'inbox' })}
                     >
-                        <Text style={styles.newButtonText}>Новое</Text>
+                        <Text style={styles.newButtonText}>New</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -105,7 +105,7 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.errorText}>{loadError}</Text>
                         {loadError.toLowerCase().includes('unauthorized') || loadError.toLowerCase().includes('auth') ? (
                             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.errorAction} activeOpacity={0.85}>
-                                <Text style={styles.errorActionText}>Войти заново</Text>
+                                <Text style={styles.errorActionText}>Sign in again</Text>
                             </TouchableOpacity>
                         ) : null}
                     </View>
@@ -122,8 +122,8 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
                         ListEmptyComponent={
                             <View style={styles.emptyWrap}>
-                                <Text style={styles.emptyTitle}>Пока нет обращений</Text>
-                                <Text style={styles.emptySubtitle}>Создайте первое обращение, если нужна помощь.</Text>
+                                <Text style={styles.emptyTitle}>No tickets yet</Text>
+                                <Text style={styles.emptySubtitle}>Create your first ticket if you need help.</Text>
                             </View>
                         }
                         renderItem={({ item }) => {
@@ -147,7 +147,7 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
                                         {item.subject || 'Support request'}
                                     </Text>
                                     <Text style={styles.ticketPreview} numberOfLines={2}>
-                                        {item.lastMessagePreview || 'Без текста'}
+                                        {item.lastMessagePreview || 'No text'}
                                     </Text>
                                     <View style={styles.ticketBottom}>
                                         <Text style={styles.ticketTime}>{formatDate(item.lastMessageAt || item.UpdatedAt)}</Text>

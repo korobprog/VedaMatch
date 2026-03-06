@@ -172,3 +172,20 @@ func TestGetPushHealthStatus(t *testing.T) {
 		t.Fatalf("expected critical when high alert is present, got %q", got)
 	}
 }
+
+func TestGetPushHealthStatusEkadashiSummaryShape(t *testing.T) {
+	summary := services.PushHealthSummary{
+		WindowHours:         24,
+		TotalEvents:         8,
+		SuccessEvents:       7,
+		FailedEvents:        1,
+		DeliverySuccessRate: 87.5,
+		RetryRate:           0,
+		InvalidTokenRate:    0,
+	}
+	alerts := buildPushHealthAlerts(summary, false)
+	status := getPushHealthStatus(alerts)
+	if status == "" {
+		t.Fatalf("expected non-empty health status")
+	}
+}

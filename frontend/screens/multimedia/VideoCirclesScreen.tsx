@@ -464,7 +464,7 @@ export const VideoCirclesScreen: React.FC = () => {
       }
       const asset = result.assets[0];
       if ((asset.fileSize || 0) > 250 * 1024 * 1024) {
-        Alert.alert('Слишком большой файл', 'Максимальный размер видео для кружка — 250MB');
+        Alert.alert('File too large', 'Maximum video size for a circle is 250MB');
         return;
       }
       if (!isMountedRef.current) {
@@ -530,13 +530,13 @@ export const VideoCirclesScreen: React.FC = () => {
       return t('videoCircles.requiredMatha');
     }
     if (normalizedError.includes('media_service_unavailable')) {
-      return 'Сервис медиа временно недоступен, попробуйте позже';
+      return 'Media service is temporarily unavailable, try again later';
     }
     if (normalizedError.includes('media_url_not_allowed')) {
-      return 'Некорректный источник медиа. Используйте видео через CDN';
+      return 'Invalid media source. Use video delivered through the CDN';
     }
     if (normalizedError.includes('media service is temporarily unavailable')) {
-      return 'Сервис медиа временно недоступен, попробуйте позже';
+      return 'Media service is temporarily unavailable, try again later';
     }
     return t('videoCircles.errorPublish');
   }, [t]);
@@ -708,7 +708,7 @@ export const VideoCirclesScreen: React.FC = () => {
   const submitComment = async () => {
     if (!commentTarget) return;
     if (!commentText.trim()) {
-      Alert.alert(t('common.error'), t('videoCircles.commentPlaceholder') || 'Введите комментарий');
+      Alert.alert(t('common.error'), t('videoCircles.commentPlaceholder') || 'Enter a comment');
       return;
     }
 
@@ -885,7 +885,7 @@ export const VideoCirclesScreen: React.FC = () => {
                 onPress={() => navigation.navigate('MyVideoCirclesScreen')}
                 style={[styles.glassBtnWrap, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER, paddingHorizontal: 16 }]}
               >
-                <Text style={{ fontWeight: '700', fontSize: 13, color: isDarkMode ? '#fff' : roleColors.textPrimary }}>Мои</Text>
+                <Text style={{ fontWeight: '700', fontSize: 13, color: isDarkMode ? '#fff' : roleColors.textPrimary }}>Mine</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setFiltersOpen(true)} style={[styles.glassBtnWrap, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER }]}>
                 <SlidersHorizontal size={18} color={isDarkMode ? '#ffffff' : roleColors.textPrimary} />
@@ -923,7 +923,7 @@ export const VideoCirclesScreen: React.FC = () => {
                         fontWeight: active ? '800' : '600'
                       }
                     ]}>
-                      {scope === 'all' ? t('videoCircles.feed') || 'Лента' : t('videoCircles.friendsCircles') || 'Кружки друзей'}
+                      {scope === 'all' ? t('videoCircles.feed') || 'Feed' : t('videoCircles.friendsCircles') || 'Friends circles'}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1013,7 +1013,7 @@ export const VideoCirclesScreen: React.FC = () => {
             </View>
             <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.noCircles')}</Text>
             <Text style={[styles.emptyHint, { color: roleColors.textSecondary }]}>
-              {t('videoCircles.noCirclesHint') || 'Запишите первый видео-кружок!'}
+              {t('videoCircles.noCirclesHint') || 'Record your first video circle!'}
             </Text>
           </View>
         }

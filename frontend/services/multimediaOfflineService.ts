@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
+import i18n from '../i18n';
 import { MediaTrack } from './multimediaService';
 
 const OFFLINE_MEDIA_KEY = 'offline_media_tracks';
@@ -16,6 +17,26 @@ export interface OfflineMediaTrack {
   downloadedAt: string;
   size: number;
 }
+
+const getOfflineMediaCopy = () => {
+  const language = String(i18n.language || '').trim().toLowerCase();
+  if (language.startsWith('ru')) {
+    return {
+      directMediaOnly: 'Офлайн-загрузка доступна только для прямых медиа-ссылок',
+      downloadFailed: 'Не удалось скачать медиа',
+    };
+  }
+  if (language.startsWith('hi')) {
+    return {
+      directMediaOnly: 'ऑफ़लाइन डाउनलोड केवल सीधी медиа लिंक के लिए उपलब्ध है',
+      downloadFailed: 'मीडिया डाउनलोड नहीं हो सका',
+    };
+  }
+  return {
+    directMediaOnly: 'Offline download is available only for direct media URLs',
+    downloadFailed: 'Failed to download media',
+  };
+};
 
 class MultimediaOfflineService {
   private initialized = false;
@@ -45,7 +66,7 @@ class MultimediaOfflineService {
 
   async downloadTrack(track: MediaTrack, onProgress?: (progress: number) => void): Promise<OfflineMediaTrack> {
     if (!track?.url || track.url.includes('youtube.com') || track.url.includes('youtu.be')) {
-      throw new Error('Offline download is available only for direct media URLs');
+      throw new Error(getOfflineMediaCopy().directMediaOnly);
     }
 
     await this.ensureDir();
@@ -63,7 +84,7 @@ class MultimediaOfflineService {
     });
     const response = await result.promise;
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw new Error(`Failed to download media (${response.statusCode})`);
+      throw new Error(`${getOfflineMediaCopy().downloadFailed} (${response.statusCode})`);
     }
 
     const stat = await RNFS.stat(targetPath);
@@ -98,4 +119,3 @@ class MultimediaOfflineService {
 }
 
 export const multimediaOfflineService = new MultimediaOfflineService();
-

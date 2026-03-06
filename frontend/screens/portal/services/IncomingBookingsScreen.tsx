@@ -383,7 +383,7 @@ export default function IncomingBookingsScreen() {
 
                 <View style={styles.tariffRow}>
                     <Text style={[styles.tariffText, { color: colors.textSecondary }]}>
-                        {booking.tariff?.name || t('portal.incomingBookings.tariffFallback')} • {formatDuration(booking.durationMinutes)}
+                        {booking.tariff?.name || t('portal.incomingBookings.tariffFallback')} • {formatDuration(booking.durationMinutes, i18n.language)}
                     </Text>
                 </View>
 

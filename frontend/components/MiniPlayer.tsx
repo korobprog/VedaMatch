@@ -15,12 +15,14 @@ import TrackPlayer, {
 } from 'react-native-track-player';
 import { Play, Pause, X, Music, ChevronUp } from 'lucide-react-native';
 import { useNavigation, useNavigationState } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
 export const MiniPlayer: React.FC = () => {
     const navigation = useNavigation<any>();
+    const { i18n } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
     const playbackState = usePlaybackState();
     const activeTrack = useActiveTrack();
@@ -33,6 +35,12 @@ export const MiniPlayer: React.FC = () => {
     const isPaused = playbackState.state === State.Paused;
     const isBuffering = playbackState.state === State.Buffering || playbackState.state === State.Loading;
     const isVisible = !!activeTrack && !isPlayerScreen;
+    const trackFallback =
+        i18n.language === 'ru'
+            ? 'Нет трека'
+            : i18n.language === 'hi'
+              ? 'कोई ट्रैक नहीं'
+              : 'No track';
 
     useEffect(() => {
         const anim = Animated.spring(translateY, {
@@ -90,7 +98,7 @@ export const MiniPlayer: React.FC = () => {
 
                 <View style={styles.trackInfo}>
                     <Text style={[styles.title, { color: vTheme.colors.text }]} numberOfLines={1}>
-                        {activeTrack?.title || 'Нет трека'}
+                        {activeTrack?.title || trackFallback}
                     </Text>
                     <Text style={[styles.artist, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
                         {activeTrack?.artist || '—'}

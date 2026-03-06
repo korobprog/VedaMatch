@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useWallet } from '../../context/WalletContext';
+import { useTranslation } from 'react-i18next';
 
 interface PortalLkmCircleButtonProps {
     onPress: () => void;
@@ -14,7 +15,7 @@ interface PortalLkmCircleButtonProps {
     blurAmount?: number;
 }
 
-const formatCompactLkm = (value: number): string => {
+const formatCompactLkm = (value: number, locale: string): string => {
     const abs = Math.abs(value);
     if (abs >= 1_000_000) {
         const shortened = (value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1);
@@ -24,7 +25,7 @@ const formatCompactLkm = (value: number): string => {
         const shortened = (value / 1_000).toFixed(abs >= 10_000 ? 0 : 1);
         return `${shortened.replace(/\.0$/, '')}K`;
     }
-    return value.toLocaleString('ru-RU');
+    return value.toLocaleString(locale);
 };
 
 export const PortalLkmCircleButton: React.FC<PortalLkmCircleButtonProps> = ({
@@ -37,8 +38,10 @@ export const PortalLkmCircleButton: React.FC<PortalLkmCircleButtonProps> = ({
     showBlur = false,
     blurAmount = 10,
 }) => {
+    const { i18n } = useTranslation();
     const { regularBalance } = useWallet();
-    const balanceLabel = useMemo(() => formatCompactLkm(regularBalance), [regularBalance]);
+    const locale = i18n.language?.startsWith('ru') ? 'ru-RU' : i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-US';
+    const balanceLabel = useMemo(() => formatCompactLkm(regularBalance, locale), [locale, regularBalance]);
     const isCompact = size <= 36;
 
     return (

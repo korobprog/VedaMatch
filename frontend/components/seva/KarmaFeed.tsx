@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
 import { Heart, User } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { charityService, KarmaFeedItem } from '../../services/charityService';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const KarmaFeed: React.FC<Props> = ({ projectId, autoScroll = true }) => {
+    const { i18n } = useTranslation();
     const [feed, setFeed] = useState<KarmaFeedItem[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -59,10 +61,10 @@ export const KarmaFeed: React.FC<Props> = ({ projectId, autoScroll = true }) => 
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
 
-        if (diffMins < 1) return 'только что';
-        if (diffMins < 60) return `${diffMins} мин назад`;
-        if (diffHours < 24) return `${diffHours}ч назад`;
-        return `${diffDays}д назад`;
+        if (diffMins < 1) return i18n.language === 'ru' ? 'только что' : i18n.language === 'hi' ? 'अभी' : 'just now';
+        if (diffMins < 60) return i18n.language === 'ru' ? `${diffMins} мин назад` : i18n.language === 'hi' ? `${diffMins} मि॰ पहले` : `${diffMins} min ago`;
+        if (diffHours < 24) return i18n.language === 'ru' ? `${diffHours}ч назад` : i18n.language === 'hi' ? `${diffHours} घं॰ पहले` : `${diffHours} hr ago`;
+        return i18n.language === 'ru' ? `${diffDays}д назад` : i18n.language === 'hi' ? `${diffDays} दिन पहले` : `${diffDays} d ago`;
     };
 
     if (feed.length === 0) {
@@ -91,12 +93,12 @@ export const KarmaFeed: React.FC<Props> = ({ projectId, autoScroll = true }) => 
 
                 <View style={styles.textContainer}>
                     <View style={styles.nameRow}>
-                        <Text style={styles.donorName}>{item.donorName || 'Аноним'}</Text>
+                        <Text style={styles.donorName}>{item.donorName || (i18n.language === 'ru' ? 'Аноним' : i18n.language === 'hi' ? 'गुमनाम' : 'Anonymous')}</Text>
                         <Text style={styles.timeAgo}>{formatTimeAgo(item.createdAt)}</Text>
                     </View>
 
                     <Text style={styles.donationText}>
-                        пожертвовал <Text style={styles.amount}>{item.amount} LKM</Text>
+                        {i18n.language === 'ru' ? 'пожертвовал ' : i18n.language === 'hi' ? 'दान किया ' : 'donated '}<Text style={styles.amount}>{item.amount} LKM</Text>
                     </Text>
 
                     {item.message && (

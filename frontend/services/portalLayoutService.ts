@@ -1,7 +1,7 @@
 // Portal Layout Service - Hybrid storage (AsyncStorage + Server)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
-import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS } from '../types/portal';
+import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS, isServiceAllowedForRole } from '../types/portal';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
@@ -121,6 +121,32 @@ const hasServiceInLayout = (layout: PortalLayout, serviceId: string): boolean =>
     }))
 );
 
+const filterLayoutByRole = (layout: PortalLayout, role?: string): PortalLayout => {
+    const normalizedRole = (role || 'user').toLowerCase();
+    return {
+        ...layout,
+        pages: layout.pages.map((page) => ({
+            ...page,
+            items: page.items
+                .map((item) => {
+                    if (item.type === 'service') return item;
+                    return {
+                        ...item,
+                        items: item.items.filter((folderItem) => isServiceAllowedForRole(folderItem.serviceId, normalizedRole)),
+                    };
+                })
+                .filter((item) => {
+                    if (item.type === 'service') return isServiceAllowedForRole(item.serviceId, normalizedRole);
+                    return item.items.length > 0;
+                })
+                .map((item, index) => ({ ...item, position: index })),
+        })),
+        quickAccess: layout.quickAccess
+            .filter((item) => isServiceAllowedForRole(item.serviceId, normalizedRole))
+            .map((item, index) => ({ ...item, position: index })),
+    };
+};
+
 export const fetchPortalBlueprint = async (role?: string): Promise<PortalBlueprint> => {
     const normalizedRole = (role || 'user').toLowerCase();
     try {
@@ -214,7 +240,7 @@ export const fetchServerLayout = async (): Promise<PortalLayout | null> => {
 };
 
 // Ensure all default services are present in the layout
-const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
+const ensureDefaultServices = (layout: PortalLayout, role?: string): PortalLayout => {
     const existingServiceIds = new Set<string>();
 
     layout.pages.forEach(page => {
@@ -241,6 +267,9 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
 
     DEFAULT_SERVICES.forEach((service: any) => {
         if (service.id === 'services_catalog') {
+            return;
+        }
+        if (!isServiceAllowedForRole(service.id, role)) {
             return;
         }
         if (!existingServiceIds.has(service.id)) {
@@ -358,10 +387,11 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
             // Server has newer data
             if (serverLayout.lastModified > localLayout.lastModified) {
                 let updatedServer = ensureQuickAccess(serverLayout);
-                updatedServer = ensureDefaultServices(updatedServer);
+                updatedServer = ensureDefaultServices(updatedServer, role);
                 updatedServer = ensureFeedShortcut(updatedServer);
                 updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
+                updatedServer = filterLayoutByRole(updatedServer, role);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
             }
@@ -375,13 +405,14 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
     }
 
     let updatedLocal = ensureQuickAccess(localLayout);
-    updatedLocal = ensureDefaultServices(updatedLocal);
+    updatedLocal = ensureDefaultServices(updatedLocal, role);
     updatedLocal = ensureFeedShortcut(updatedLocal);
     updatedLocal = ensureServicesCatalogShortcut(updatedLocal);
     if (!blueprint && role) {
         blueprint = await fetchPortalBlueprint(role);
     }
     updatedLocal = applyRoleBlueprint(updatedLocal, blueprint);
+    updatedLocal = filterLayoutByRole(updatedLocal, role);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);
     }

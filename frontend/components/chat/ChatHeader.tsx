@@ -17,6 +17,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
+import { useTranslation } from 'react-i18next';
 
 interface ChatHeaderProps {
     title: string;
@@ -33,6 +34,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     onBackPress,
     topInset = 0,
 }) => {
+    const { t } = useTranslation();
     const navigation = useNavigation<any>();
     const { recipientUser } = useChat();
     const { user } = useUser();
@@ -74,7 +76,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     if (recipientUser?.city) locationParts.push(recipientUser.city);
     const subTitle = recipientUser
         ? locationParts.join(', ')
-        : 'AI-ассистент VedaMatch';
+        : t('chat.aiAssistantDesc');
 
     return (
         <View style={[styles.shell, { paddingTop: headerTopInset }]}>
@@ -163,7 +165,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                 ]}
                             >
                                 <Sparkles size={12} color={isVedaMatch ? '#FFDF00' : isImageBg ? '#FFB74D' : colors.accent} />
-                                <Text style={[styles.aiTitle, { color: titleColor }]}>AI-чат</Text>
+                                <Text style={[styles.aiTitle, { color: titleColor }]}>{t('chat.aiAssistant')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>

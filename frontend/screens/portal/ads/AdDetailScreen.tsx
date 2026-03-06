@@ -24,7 +24,7 @@ type AdDetailRouteProp = RouteProp<RootStackParamList, 'AdDetail'>;
 const { width } = Dimensions.get('window');
 
 export const AdDetailScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const route = useRoute<AdDetailRouteProp>();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const isDarkMode = useColorScheme() === 'dark';
@@ -128,7 +128,8 @@ export const AdDetailScreen: React.FC = () => {
             return '';
         }
         try {
-            return new Date(iso).toLocaleString('ru-RU', {
+            const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+            return new Date(iso).toLocaleString(locale, {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric',

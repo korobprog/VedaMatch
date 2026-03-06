@@ -17,10 +17,16 @@ export const BookListScreen = () => {
     const { category } = route.params;
     const { isDarkMode, portalBackgroundType } = useSettings();
     const { user } = useUser();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [books, setBooks] = useState<ScriptureBook[]>([]);
     const isPhotoBg = portalBackgroundType === 'image';
+    const getBookTitle = React.useCallback((item: ScriptureBook) => (
+        i18n.language?.startsWith('ru') ? (item.name_ru || item.name_en) : (item.name_en || item.name_ru)
+    ), [i18n.language]);
+    const getBookDescription = React.useCallback((item: ScriptureBook) => (
+        i18n.language?.startsWith('ru') ? (item.description_ru || item.description_en) : (item.description_en || item.description_ru)
+    ), [i18n.language]);
 
     useEffect(() => {
         loadBooks();
@@ -71,7 +77,7 @@ export const BookListScreen = () => {
             <Animated.View style={{ transform: [{ translateY }], opacity }}>
                 <TouchableOpacity
                     style={[styles.item, { backgroundColor: cardBackground, borderColor: cardBorder }]}
-                    onPress={() => navigation.navigate('Reader', { bookCode: item.code, title: item.name_ru || item.name_en })}
+                    onPress={() => navigation.navigate('Reader', { bookCode: item.code, title: getBookTitle(item) })}
                     activeOpacity={0.8}
                 >
                     {(isPhotoBg || isDarkMode) && (
@@ -96,10 +102,10 @@ export const BookListScreen = () => {
 
                     <View style={styles.textWrap}>
                         <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>
-                            {item.name_ru || item.name_en}
+                            {getBookTitle(item)}
                         </Text>
                         <Text style={[styles.subtitle, { color: subColor }]} numberOfLines={2}>
-                            {item.description_ru || item.description_en}
+                            {getBookDescription(item)}
                         </Text>
                     </View>
 

@@ -51,12 +51,11 @@ const INTENTION_OPTIONS = [
 ];
 
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
     const { user, login } = useUser();
     const { fetchCountries, fetchCities } = useLocation();
 
-    const isDarkMode = true; // Edit Profile always uses dark glass aesthetic
     const theme = COLORS.dark;
     const screenBackgroundColor = '#0E1525';
     // const isDarkMode = isPortalDarkMode;
@@ -119,6 +118,43 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const effectiveProEnabled = proStatus?.isProEffective ?? godModeEnabled;
     const isSeekerRole = role === 'user';
     const showSpiritualFields = !isSeekerRole;
+    const editProfileCopy = React.useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                chooseCity: 'एक शहर चुनें।',
+                specifyNickname: 'एक Nickname (unique ID) दर्ज करें।',
+                fillAboutMe: '"About me" फ़ील्ड भरें।',
+                fillInterests: '"Interests" फ़ील्ड भरें।',
+                spiritualFieldRequired: 'चयनित भूमिका के लिए कम से कम एक आध्यात्मिक फ़ील्ड भरें: Yatra, Timezone, Tradition, Yoga style या Guna।',
+                failedToUpdateNickname: 'Nickname अपडेट नहीं किया जा सका',
+                profileUpdated: 'प्रोफ़ाइल सफलतापूर्वक अपडेट हुई!',
+                failedToUpdateProfile: 'प्रोफ़ाइल अपडेट नहीं की जा सकी',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                chooseCity: 'Choose a city.',
+                specifyNickname: 'Specify a Nickname (unique ID).',
+                fillAboutMe: 'Fill in the "About me" field.',
+                fillInterests: 'Fill in the "Interests" field.',
+                spiritualFieldRequired: 'For the selected role, specify at least one spiritual field: Yatra, Timezone, Tradition, Yoga style, or Guna.',
+                failedToUpdateNickname: 'Failed to update nickname',
+                profileUpdated: 'Profile updated successfully!',
+                failedToUpdateProfile: 'Failed to update profile',
+            };
+        }
+        return {
+            chooseCity: 'Выберите город.',
+            specifyNickname: 'Укажите Nickname (уникальный ID).',
+            fillAboutMe: 'Заполните поле "О себе".',
+            fillInterests: 'Заполните поле "Интересы".',
+            spiritualFieldRequired: 'Для выбранной роли укажите хотя бы одно духовное поле: Yatra, Timezone, Tradition, Yoga style или Guna.',
+            failedToUpdateNickname: 'Не удалось обновить nickname',
+            profileUpdated: 'Профиль успешно обновлён!',
+            failedToUpdateProfile: 'Не удалось обновить профиль',
+        };
+    }, [i18n.language]);
 
     useEffect(() => {
         loadProfile();
@@ -257,22 +293,22 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         const hasSpiritualContext = [yatra, timezone, madh, yogaStyle, guna].some(value => value.trim().length > 0);
 
         if (!city.trim()) {
-            return 'Выберите город.';
+            return editProfileCopy.chooseCity;
         }
 
         if (!normalizedNickname) {
-            return 'Укажите Nickname (уникальный ID).';
+            return editProfileCopy.specifyNickname;
         }
 
         if (datingEnabled && !isSeekerRole) {
             if (!bio.trim()) {
-                return 'Заполните поле "О себе".';
+                return editProfileCopy.fillAboutMe;
             }
             if (!interests.trim()) {
-                return 'Заполните поле "Интересы".';
+                return editProfileCopy.fillInterests;
             }
             if (!hasSpiritualContext) {
-                return 'Для выбранной роли укажите минимум одно духовное поле: Ятра, Таймзона, Традиция, Стиль йоги или Гуна.';
+                return editProfileCopy.spiritualFieldRequired;
             }
         }
 
@@ -347,7 +383,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     }
                     setInitialNickname(`@${updatedUser.nickname || normalizedNickname}`);
                 } catch (nicknameError: any) {
-                    const nicknameMessage = getRequestErrorMessage(nicknameError, 'Failed to update nickname');
+                    const nicknameMessage = getRequestErrorMessage(nicknameError, editProfileCopy.failedToUpdateNickname);
                     const statusTag = getRequestStatusTag(nicknameError);
                     const urlTag = typeof nicknameError?.config?.url === 'string' ? nicknameError.config.url : '/profile/nickname';
                     nicknameWarning = nicknameMessage;
@@ -364,13 +400,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             Alert.alert(
                 t('common.success'),
                 nicknameWarning
-                    ? `${t('profile.updateSuccess') || 'Profile updated successfully!'}\n${nicknameWarning}`
-                    : (t('profile.updateSuccess') || 'Profile updated successfully!'),
+                    ? `${t('profile.updateSuccess') || editProfileCopy.profileUpdated}\n${nicknameWarning}`
+                    : (t('profile.updateSuccess') || editProfileCopy.profileUpdated),
                 [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
             );
         } catch (error: any) {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
-                const message = getRequestErrorMessage(error, 'Failed to update profile');
+                const message = getRequestErrorMessage(error, editProfileCopy.failedToUpdateProfile);
                 const statusTag = getRequestStatusTag(error);
                 const urlTag = typeof error?.config?.url === 'string' ? error.config.url : '/update-profile';
                 console.warn(`[EditProfile] Error saving profile status=${statusTag} url=${urlTag} user=${user?.ID}: ${message}`);
@@ -510,12 +546,12 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     <Text style={styles.label}>{t('settings.proMode')}</Text>
                                     <Text style={styles.helperText}>
                                         {proStatusLoading
-                                            ? 'Проверяем статус PRO...'
+                                            ? 'Checking PRO status...'
                                             : (canManageProMode
-                                                ? 'Доступ включен по роли (бесплатно)'
+                                                ? 'Access is enabled by role (free)'
                                                 : (effectiveProEnabled
-                                                    ? `Активен${proStatus?.currentSubscription?.endsAt ? ` до ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString('ru-RU')}` : ''}`
-                                                    : 'Откройте весь контент и фильтры организаций'))}
+                                                    ? `Active${proStatus?.currentSubscription?.endsAt ? ` until ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString('en-US')}` : ''}`
+                                                    : 'Unlock all content and organization filters'))}
                                     </Text>
                                 </View>
                                 {!canManageProMode && (
@@ -523,7 +559,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                         style={styles.proManageBtn}
                                         onPress={() => navigation.navigate('ProPlans')}
                                     >
-                                        <Text style={styles.proManageBtnText}>Управлять PRO</Text>
+                                        <Text style={styles.proManageBtnText}>Manage PRO</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -534,7 +570,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     <Text style={styles.label}>
                                         {t('dating.enableProfile') || 'Enable Union Profile'}
                                     </Text>
-                                    <Text style={styles.helperText}>Видимость вашего профиля в Союзе</Text>
+                                    <Text style={styles.helperText}>Visibility of your profile in Union</Text>
                                 </View>
                                 <Switch
                                     value={datingEnabled}
@@ -549,7 +585,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 <>
                                     <View style={styles.tipBox}>
                                         <Text style={styles.tipText}>
-                                            💡 {t('profile.photoTip') || 'Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.'}
+                                            💡 {t('profile.photoTip') || 'Upload your best photos to the gallery so other users can view them in a slideshow.'}
                                         </Text>
                                     </View>
 
@@ -590,7 +626,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     )}
                                 </View>
 
-                                <Text style={styles.label}>Nickname (уникальный ID)</Text>
+                                <Text style={styles.label}>Nickname (unique ID)</Text>
                                 <TextInput
                                     style={styles.input}
                                     value={nickname}

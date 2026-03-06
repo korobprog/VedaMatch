@@ -80,12 +80,39 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     const { login } = useUser();
     const activeLanguage = normalizeLanguageCode(i18n.language);
+    const loginCopy = useMemo(() => {
+        if (activeLanguage === 'hi') {
+            return {
+                devModeTitle: 'DEV मोड',
+                serverUnavailableSignedIn: 'सर्वर उपलब्ध नहीं है। स्थानीय DEV मोड से साइन इन किया गया।',
+                devErrorTitle: 'DEV त्रुटि',
+                failedToCreateDevUser: 'DEV उपयोगकर्ता बनाना/लॉगिन करना विफल रहा',
+                networkError: 'नेटवर्क त्रुटि',
+            };
+        }
+        if (activeLanguage === 'en') {
+            return {
+                devModeTitle: 'DEV Mode',
+                serverUnavailableSignedIn: 'Server unavailable. Signed in with local DEV mode.',
+                devErrorTitle: 'Dev Error',
+                failedToCreateDevUser: 'Failed to create/login dev user',
+                networkError: 'Network Error',
+            };
+        }
+        return {
+            devModeTitle: 'DEV-режим',
+            serverUnavailableSignedIn: 'Сервер недоступен. Выполнен вход в локальном DEV-режиме.',
+            devErrorTitle: 'DEV-ошибка',
+            failedToCreateDevUser: 'Не удалось создать DEV-пользователя или выполнить вход',
+            networkError: 'Ошибка сети',
+        };
+    }, [activeLanguage]);
     const rotatingSlogans = useMemo(() => {
         const values = Array.from({ length: ROTATING_SLOGAN_COUNT }, (_, idx) => (
             t(`auth.loginScreen.rotatingSlogans.${idx}`)
         )).map((item) => item.trim()).filter(Boolean);
         return Array.from(new Set(values));
-    }, [t, i18n.language]);
+    }, [t]);
 
     useEffect(() => {
         // Initial entrance
@@ -263,7 +290,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         setSocialLoadingProvider('google');
         try {
             const response = await signInWithGoogle();
-            await login(response.user, response.authPayload);
+            await login(response.user as Parameters<typeof login>[0], response.authPayload);
         } catch (_error: any) {
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.googleFailed');
@@ -278,7 +305,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         setSocialLoadingProvider('vk');
         try {
             const response = await signInWithVK();
-            await login(response.user, response.authPayload);
+            await login(response.user as Parameters<typeof login>[0], response.authPayload);
         } catch (_error: any) {
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.vkFailed');
@@ -333,7 +360,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 token: 'dev-offline-access-token',
             });
 
-            Alert.alert('DEV Mode', 'Server unavailable. Signed in with local DEV mode.');
+            Alert.alert(loginCopy.devModeTitle, loginCopy.serverUnavailableSignedIn);
         };
 
         const devRequest = async <T,>(
@@ -383,7 +410,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 }
             }
 
-            throw lastError || new Error('Network Error');
+            throw lastError || new Error(loginCopy.networkError);
         };
 
         const devUser = {
@@ -474,13 +501,13 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     const failedUrl = fallbackError?.url || regError?.url;
                     const attemptedBases = devAuthBases.join('\n');
                     const debugSuffix = `${failedUrl ? `\nURL: ${failedUrl}` : ''}\nBases:\n${attemptedBases}`;
-                    Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}${debugSuffix}`);
+                    Alert.alert(loginCopy.devErrorTitle, `${loginCopy.failedToCreateDevUser}: ${errorMsg}${debugSuffix}`);
                 }
             }
         } finally {
             setLoading(false);
         }
-    }, [login]);
+    }, [login, loginCopy]);
 
     return (
         <ScreenScaffold variant="settings" enableAura>

@@ -52,7 +52,7 @@ const ORDER_STEPS: CafeOrderStatus[] = ['new', 'confirmed', 'preparing', 'ready'
 const OrderTrackingScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'OrderTracking'>>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -302,6 +302,7 @@ const OrderTrackingScreen: React.FC = () => {
     const isCompleted = order.status === 'completed';
     const canCancel = ['new', 'confirmed'].includes(order.status);
     const statusColor = getOrderStatusColor(order.status);
+    const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
     const progressWidth = progressAnim.interpolate({
         inputRange: [0, 1],
@@ -334,7 +335,7 @@ const OrderTrackingScreen: React.FC = () => {
                             <View style={styles.timeTag}>
                                 <Clock size={12} color={colors.textSecondary} />
                                 <Text style={styles.estimatedTime}>
-                                    {new Date(order.estimatedReadyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(order.estimatedReadyAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                                 </Text>
                             </View>
                         )}
@@ -395,7 +396,7 @@ const OrderTrackingScreen: React.FC = () => {
                         <View style={styles.infoItem}>
                             <Clock size={18} color={colors.textSecondary} />
                             <Text style={styles.infoTextSub}>
-                                {new Date(order.createdAt).toLocaleString()}
+                                {new Date(order.createdAt).toLocaleString(locale)}
                             </Text>
                         </View>
                     </View>

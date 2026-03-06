@@ -70,7 +70,7 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
 
 const CafeCartScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -142,8 +142,9 @@ const CafeCartScreen: React.FC = () => {
 
     const handleSelectTable = (table: CafeTable) => {
         if (table.upcomingReservation) {
+            const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
             Alert.alert(t('cafe.qr.tableReservedTitle'), t('cafe.qr.tableReservedMessage', {
-                time: new Date(table.upcomingReservation.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: new Date(table.upcomingReservation.startTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
             }));
             return;
         }
@@ -588,7 +589,10 @@ const CafeCartScreen: React.FC = () => {
                                         {item.upcomingReservation && (
                                             <View style={styles.resBadge}>
                                                 <Text style={styles.resTime}>
-                                                    {new Date(item.upcomingReservation.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(item.upcomingReservation.startTime).toLocaleTimeString(
+                                                        i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US',
+                                                        { hour: '2-digit', minute: '2-digit' }
+                                                    )}
                                                 </Text>
                                             </View>
                                         )}

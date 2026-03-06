@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 type AccountDeletionStatus = 'scheduled' | 'deleted';
 
@@ -12,6 +13,30 @@ export interface AccountNicknameUpdateResponse {
   message: string;
   user: any;
 }
+
+const getAccountFallback = (
+  key: 'requestDeletion' | 'deleteNow' | 'updateNickname'
+): string => {
+  const language = String(i18n.language || '').trim().toLowerCase();
+  const copy = language.startsWith('ru')
+    ? {
+        requestDeletion: 'Не удалось запросить удаление аккаунта',
+        deleteNow: 'Не удалось удалить аккаунт',
+        updateNickname: 'Не удалось обновить никнейм',
+      }
+    : language.startsWith('hi')
+      ? {
+          requestDeletion: 'खाता हटाने का अनुरोध भेजा नहीं जा सका',
+          deleteNow: 'खाता हटाया नहीं जा सका',
+          updateNickname: 'निकनेम अपडेट नहीं हो सका',
+        }
+      : {
+          requestDeletion: 'Failed to request account deletion',
+          deleteNow: 'Failed to delete account',
+          updateNickname: 'Failed to update nickname',
+        };
+  return copy[key];
+};
 
 const getApiError = (error: any, fallback: string): Error => {
   const payload = error?.response?.data;
@@ -27,7 +52,7 @@ export const accountService = {
       const response = await apiClient.post('/account/deletion-request', {});
       return response.data;
     } catch (error) {
-      throw getApiError(error, 'Failed to request account deletion');
+      throw getApiError(error, getAccountFallback('requestDeletion'));
     }
   },
 
@@ -36,7 +61,7 @@ export const accountService = {
       const response = await apiClient.delete('/account');
       return response.data;
     } catch (error) {
-      throw getApiError(error, 'Failed to delete account');
+      throw getApiError(error, getAccountFallback('deleteNow'));
     }
   },
 
@@ -45,7 +70,7 @@ export const accountService = {
       const response = await apiClient.patch('/profile/nickname', { nickname });
       return response.data;
     } catch (error) {
-      throw getApiError(error, 'Failed to update nickname');
+      throw getApiError(error, getAccountFallback('updateNickname'));
     }
   },
 };

@@ -173,11 +173,12 @@ class NewsService {
     /**
      * Format date for display
      */
-    formatDate(dateString: string | null): string {
+    formatDate(dateString: string | null, language: string = 'ru'): string {
         if (!dateString) return '';
         try {
             const date = new Date(dateString);
-            return date.toLocaleDateString('ru-RU', {
+            const locale = language === 'ru' ? 'ru-RU' : language === 'hi' ? 'hi-IN' : 'en-US';
+            return date.toLocaleDateString(locale, {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric'

@@ -36,20 +36,19 @@ const languageDetector: LanguageDetectorAsyncModule = {
     type: 'languageDetector',
     async: true,
     init: () => {},
-    detect: async (callback) => {
+    detect: async () => {
         try {
             const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
             const normalizedSavedLanguage = normalizeLanguageCode(savedLanguage);
             if (normalizedSavedLanguage) {
-                callback(normalizedSavedLanguage);
-                return;
+                return normalizedSavedLanguage;
             }
         } catch (error) {
             console.warn('Failed to read saved app language:', error);
         }
 
         const deviceLocale = Intl.DateTimeFormat().resolvedOptions().locale;
-        callback(normalizeLanguageCode(deviceLocale) ?? 'ru');
+        return normalizeLanguageCode(deviceLocale) ?? 'ru';
     },
     cacheUserLanguage: async (language) => {
         const normalizedLanguage = normalizeLanguageCode(language);

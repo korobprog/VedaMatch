@@ -139,6 +139,36 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
     const isLiteProfileRole = isSeekerRole || isInGoodnessRole;
+    const registrationCopy = useCallback(() => {
+        if (activeLanguage === 'hi') {
+            return {
+                emailAndPasswordRequired: 'ईमेल और पासवर्ड आवश्यक हैं',
+                passwordsDoNotMatch: 'पासवर्ड मेल नहीं खाते',
+                openTermsBeforeRegistering: 'रजिस्टर करने से पहले उपयोग की शर्तें खोलें',
+                openPrivacyBeforeRegistering: 'रजिस्टर करने से पहले गोपनीयता नीति खोलें',
+                selectCountryFirstTitle: 'पहले देश चुनें',
+                selectCountryFirstMessage: 'शहर चुनने से पहले देश चुनें',
+            };
+        }
+        if (activeLanguage === 'en') {
+            return {
+                emailAndPasswordRequired: 'Email and password are required',
+                passwordsDoNotMatch: 'Passwords do not match',
+                openTermsBeforeRegistering: 'Please open Terms of Use before registering',
+                openPrivacyBeforeRegistering: 'Please open Privacy Policy before registering',
+                selectCountryFirstTitle: 'Select Country First',
+                selectCountryFirstMessage: 'Please select a country before choosing a city.',
+            };
+        }
+        return {
+            emailAndPasswordRequired: 'Требуются email и пароль',
+            passwordsDoNotMatch: 'Пароли не совпадают',
+            openTermsBeforeRegistering: 'Откройте Условия использования перед регистрацией',
+            openPrivacyBeforeRegistering: 'Откройте Политику конфиденциальности перед регистрацией',
+            selectCountryFirstTitle: 'Сначала выберите страну',
+            selectCountryFirstMessage: 'Пожалуйста, сначала выберите страну, а затем город.',
+        };
+    }, [activeLanguage]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -274,11 +304,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         if (phase === 'initial') {
             if (!email || !password) {
-                Alert.alert(t('error'), 'Email and password are required');
+                Alert.alert(t('error'), registrationCopy().emailAndPasswordRequired);
                 return;
             }
             if (password !== confirmPassword) {
-                Alert.alert(t('error'), 'Passwords do not match');
+                Alert.alert(t('error'), registrationCopy().passwordsDoNotMatch);
                 return;
             }
         } else {
@@ -296,11 +326,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             return;
         }
         if (phase === 'initial' && !hasOpenedTerms) {
-            Alert.alert(t('registration.required'), t('registration.legalReadTermsRequired') || 'Please open Terms of Use before registering');
+            Alert.alert(t('registration.required'), t('registration.legalReadTermsRequired') || registrationCopy().openTermsBeforeRegistering);
             return;
         }
         if (phase === 'initial' && !hasOpenedPrivacy) {
-            Alert.alert(t('registration.required'), t('registration.legalReadPrivacyRequired') || 'Please open Privacy Policy before registering');
+            Alert.alert(t('registration.required'), t('registration.legalReadPrivacyRequired') || registrationCopy().openPrivacyBeforeRegistering);
             return;
         }
         const requestId = ++latestSubmitRequestRef.current;
@@ -732,7 +762,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                                         if (country) {
                                                             setShowCityPicker(!showCityPicker);
                                                         } else {
-                                                            Alert.alert('Select Country First', 'Please select a country before choosing a city.');
+                                                            Alert.alert(registrationCopy().selectCountryFirstTitle, registrationCopy().selectCountryFirstMessage);
                                                         }
                                                     }}
                                                     disabled={!country}

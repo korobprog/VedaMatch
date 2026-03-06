@@ -14,6 +14,7 @@ import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 import { VideoCircle, videoCirclesService } from '../../services/videoCirclesService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
+import { useTranslation } from 'react-i18next';
 
 type CirclesScope = 'all' | 'friends';
 type CirclesCacheEntry = {
@@ -103,6 +104,7 @@ export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
   cacheTtlMs = DEFAULT_CACHE_TTL_MS,
 }) => {
   const navigation = useNavigation<any>();
+  const { i18n } = useTranslation();
   const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
   const [circles, setCircles] = useState<VideoCircle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +121,29 @@ export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
   );
   const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
   const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
+  const copy = i18n.language?.startsWith('ru')
+    ? {
+        feed: 'Кружки: Лента',
+        friends: 'Кружки: Друзья',
+        record: 'Снять',
+        circle: 'Кружок',
+        empty: 'Нет кружков',
+      }
+    : i18n.language?.startsWith('hi')
+      ? {
+          feed: 'सर्कल: फ़ीड',
+          friends: 'सर्कल: मित्र',
+          record: 'रिकॉर्ड',
+          circle: 'सर्कल',
+          empty: 'कोई सर्कल नहीं',
+        }
+      : {
+          feed: 'Circles: Feed',
+          friends: 'Circles: Friends',
+          record: 'Record',
+          circle: 'Circle',
+          empty: 'No circles',
+        };
 
   useEffect(() => {
     if (!isVisible) {
@@ -197,7 +222,7 @@ export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
           <ChevronLeft size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[styles.titleText, primaryTextStyle]}>
-          {filter === 'all' ? 'Кружки: Лента' : 'Кружки: Друзья'}
+          {filter === 'all' ? copy.feed : copy.friends}
         </Text>
         <TouchableOpacity onPress={toggleFilter} style={styles.navButton}>
           <ChevronRight size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
@@ -217,7 +242,7 @@ export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
           }]}>
             <Camera size={18} color={isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : '#EA580C'} />
           </View>
-          <Text style={[styles.slotLabel, secondaryTextStyle]}>Снять</Text>
+          <Text style={[styles.slotLabel, secondaryTextStyle]}>{copy.record}</Text>
         </TouchableOpacity>
 
         {loading ? (
@@ -244,13 +269,13 @@ export const CirclesPanelWidget: React.FC<CirclesPanelWidgetProps> = ({
                 )}
               </View>
               <Text style={[styles.slotLabel, secondaryTextStyle]} numberOfLines={1}>
-                {circle.matha || 'Кружок'}
+                {circle.matha || copy.circle}
               </Text>
             </TouchableOpacity>
           ))
         ) : (
           <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, secondaryTextStyle]}>Нет кружков</Text>
+            <Text style={[styles.emptyText, secondaryTextStyle]}>{copy.empty}</Text>
           </View>
         )}
       </View>

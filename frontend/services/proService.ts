@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 export type ProSource = 'role' | 'subscription' | 'none';
 
@@ -35,6 +36,17 @@ export interface ProPurchaseResponse {
     pendingBalance?: number;
   };
 }
+
+const getProCopy = (): { purchaseFailed: string } => {
+  const language = String(i18n.language || '').trim().toLowerCase();
+  if (language.startsWith('ru')) {
+    return { purchaseFailed: 'Не удалось купить PRO' };
+  }
+  if (language.startsWith('hi')) {
+    return { purchaseFailed: 'PRO खरीदना संभव नहीं हुआ' };
+  }
+  return { purchaseFailed: 'Failed to buy PRO' };
+};
 
 const getErrorCode = (error: any): string | undefined => {
   const raw = error?.response?.data?.errorCode;
@@ -73,7 +85,7 @@ export const proService = {
       return response.data;
     } catch (error: any) {
       const code = getErrorCode(error);
-      const message = getErrorMessage(error, 'Не удалось купить PRO');
+      const message = getErrorMessage(error, getProCopy().purchaseFailed);
       const e = new Error(code ? `${message} [${code}]` : message);
       (e as any).code = code;
       (e as any).status = error?.response?.status;

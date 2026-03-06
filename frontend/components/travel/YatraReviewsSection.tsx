@@ -16,6 +16,7 @@ import {
     Alert
 } from 'react-native';
 import { Star, ThumbsUp, ThumbsDown, X, MessageSquare } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { yatraService } from '../../services/yatraService';
 import { YatraReview, YatraReviewCreateData } from '../../types/yatra';
 
@@ -30,6 +31,78 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
     yatraStatus,
     isParticipant
 }) => {
+    const { i18n } = useTranslation();
+    const reviewCopy = i18n.language?.startsWith('ru')
+        ? {
+            error: 'Ошибка',
+            writeReviewMessage: 'Напишите текст отзыва',
+            thankYouTitle: 'Спасибо!',
+            reviewPublished: 'Ваш отзыв опубликован',
+            submitFailed: 'Не удалось отправить отзыв',
+            participant: 'Участник',
+            recommends: 'Рекомендует',
+            reviews: 'Отзывы',
+            reviewsCount: 'отзывов',
+            write: 'Написать',
+            noReviewsYet: 'Отзывов пока нет. Будьте первым!',
+            reviewsAfterTrip: 'Отзывы появятся после завершения поездки',
+            rateTrip: 'Оцените поездку',
+            overallRating: 'Общая оценка',
+            organizer: 'Организация',
+            route: 'Маршрут',
+            experiencePlaceholder: 'Расскажите о своих впечатлениях...',
+            wouldRecommend: 'Порекомендовали бы вы эту поездку?',
+            yes: 'Да',
+            no: 'Нет',
+            publish: 'Опубликовать',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                error: 'त्रुटि',
+                writeReviewMessage: 'कृपया समीक्षा लिखें',
+                thankYouTitle: 'धन्यवाद!',
+                reviewPublished: 'आपकी समीक्षा प्रकाशित हो गई है',
+                submitFailed: 'समीक्षा भेजी नहीं जा सकी',
+                participant: 'प्रतिभागी',
+                recommends: 'सिफारिश करता है',
+                reviews: 'समीक्षाएँ',
+                reviewsCount: 'समीक्षाएँ',
+                write: 'लिखें',
+                noReviewsYet: 'अभी तक कोई समीक्षा नहीं। पहले बनें!',
+                reviewsAfterTrip: 'यात्रा पूरी होने के बाद समीक्षाएँ उपलब्ध होंगी',
+                rateTrip: 'यात्रा को रेट करें',
+                overallRating: 'कुल रेटिंग',
+                organizer: 'आयोजन',
+                route: 'मार्ग',
+                experiencePlaceholder: 'अपने अनुभव के बारे में बताइए...',
+                wouldRecommend: 'क्या आप इस यात्रा की सिफारिश करेंगे?',
+                yes: 'हाँ',
+                no: 'नहीं',
+                publish: 'प्रकाशित करें',
+            }
+            : {
+                error: 'Error',
+                writeReviewMessage: 'Write a review message',
+                thankYouTitle: 'Thank you!',
+                reviewPublished: 'Your review has been published',
+                submitFailed: 'Failed to submit the review',
+                participant: 'Participant',
+                recommends: 'Recommends',
+                reviews: 'Reviews',
+                reviewsCount: 'reviews',
+                write: 'Write',
+                noReviewsYet: 'No reviews yet. Be the first!',
+                reviewsAfterTrip: 'Reviews will be available after the trip is completed',
+                rateTrip: 'Rate the trip',
+                overallRating: 'Overall rating',
+                organizer: 'Organizer',
+                route: 'Route',
+                experiencePlaceholder: 'Tell about your experience...',
+                wouldRecommend: 'Would you recommend this trip?',
+                yes: 'Yes',
+                no: 'No',
+                publish: 'Publish',
+            };
     const [reviews, setReviews] = useState<YatraReview[]>([]);
     const [loading, setLoading] = useState(true);
     const [averageRating, setAverageRating] = useState(0);
@@ -64,7 +137,7 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
 
     const handleSubmitReview = async () => {
         if (!comment.trim()) {
-            Alert.alert('Ошибка', 'Напишите текст отзыва');
+            Alert.alert(reviewCopy.error, reviewCopy.writeReviewMessage);
             return;
         }
 
@@ -78,13 +151,13 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                 recommendation,
             };
             await yatraService.createYatraReview(yatraId, data);
-            Alert.alert('Спасибо!', 'Ваш отзыв опубликован');
+            Alert.alert(reviewCopy.thankYouTitle, reviewCopy.reviewPublished);
             setModalVisible(false);
             setComment('');
             setRating(5);
             loadReviews();
         } catch (error: any) {
-            Alert.alert('Ошибка', error.response?.data?.error || 'Не удалось отправить отзыв');
+            Alert.alert(reviewCopy.error, error.response?.data?.error || reviewCopy.submitFailed);
         } finally {
             setSubmitting(false);
         }
@@ -125,7 +198,7 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                         style={styles.reviewAvatar}
                     />
                     <Text style={styles.reviewName}>
-                        {item.author?.spiritualName || item.author?.karmicName || 'Участник'}
+                        {item.author?.spiritualName || item.author?.karmicName || reviewCopy.participant}
                     </Text>
                 </View>
                 <View style={styles.reviewRating}>
@@ -138,11 +211,11 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                 {item.recommendation ? (
                     <View style={styles.recommendBadge}>
                         <ThumbsUp size={12} color="#34C759" />
-                        <Text style={styles.recommendText}>Рекомендует</Text>
+                        <Text style={styles.recommendText}>{reviewCopy.recommends}</Text>
                     </View>
                 ) : null}
                 <Text style={styles.reviewDate}>
-                    {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                    {new Date(item.createdAt).toLocaleDateString(i18n.language?.startsWith('ru') ? 'ru-RU' : i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-US')}
                 </Text>
             </View>
         </View>
@@ -160,12 +233,12 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
         <View style={styles.container}>
             <View style={styles.sectionHeader}>
                 <View>
-                    <Text style={styles.sectionTitle}>Отзывы</Text>
+                    <Text style={styles.sectionTitle}>{reviewCopy.reviews}</Text>
                     {total > 0 && (
                         <View style={styles.ratingOverview}>
                             <Star size={16} color="#FFD700" fill="#FFD700" />
                             <Text style={styles.avgRating}>{averageRating.toFixed(1)}</Text>
-                            <Text style={styles.totalReviews}>({total} отзывов)</Text>
+                            <Text style={styles.totalReviews}>({total} {reviewCopy.reviewsCount})</Text>
                         </View>
                     )}
                 </View>
@@ -175,7 +248,7 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                         onPress={() => setModalVisible(true)}
                     >
                         <MessageSquare size={16} color="#FFFFFF" />
-                        <Text style={styles.writeButtonText}>Написать</Text>
+                        <Text style={styles.writeButtonText}>{reviewCopy.write}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -183,8 +256,8 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
             {reviews.length === 0 ? (
                 <Text style={styles.emptyText}>
                     {yatraStatus === 'completed'
-                        ? 'Пока нет отзывов. Будьте первым!'
-                        : 'Отзывы будут доступны после завершения тура'}
+                        ? reviewCopy.noReviewsYet
+                        : reviewCopy.reviewsAfterTrip}
                 </Text>
             ) : (
                 <FlatList
@@ -210,7 +283,7 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                             style={styles.modalContent}
                         >
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Оценить тур</Text>
+                                <Text style={styles.modalTitle}>{reviewCopy.rateTrip}</Text>
                                 <TouchableOpacity onPress={() => setModalVisible(false)}>
                                     <X size={24} color="#8E8E93" />
                                 </TouchableOpacity>
@@ -218,25 +291,25 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
 
                             {/* Overall Rating */}
                             <View style={styles.ratingSection}>
-                                <Text style={styles.ratingLabel}>Общая оценка</Text>
+                                <Text style={styles.ratingLabel}>{reviewCopy.overallRating}</Text>
                                 <RatingStars value={rating} onChange={setRating} size={32} />
                             </View>
 
                             {/* Sub Ratings */}
                             <View style={styles.subRatings}>
                                 <View style={styles.subRatingItem}>
-                                    <Text style={styles.subRatingLabel}>Организатор</Text>
+                                    <Text style={styles.subRatingLabel}>{reviewCopy.organizer}</Text>
                                     <RatingStars value={organizerRating} onChange={setOrganizerRating} size={20} />
                                 </View>
                                 <View style={styles.subRatingItem}>
-                                    <Text style={styles.subRatingLabel}>Маршрут</Text>
+                                    <Text style={styles.subRatingLabel}>{reviewCopy.route}</Text>
                                     <RatingStars value={routeRating} onChange={setRouteRating} size={20} />
                                 </View>
                             </View>
 
                             <TextInput
                                 style={styles.input}
-                                placeholder="Расскажите о своём опыте..."
+                                placeholder={reviewCopy.experiencePlaceholder}
                                 placeholderTextColor="#666"
                                 multiline
                                 numberOfLines={4}
@@ -246,21 +319,21 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
 
                             {/* Recommendation Toggle */}
                             <View style={styles.recommendToggle}>
-                                <Text style={styles.recommendLabel}>Рекомендуете этот тур?</Text>
+                                <Text style={styles.recommendLabel}>{reviewCopy.wouldRecommend}</Text>
                                 <View style={styles.toggleButtons}>
                                     <TouchableOpacity
                                         style={[styles.toggleBtn, recommendation && styles.toggleActive]}
                                         onPress={() => setRecommendation(true)}
                                     >
                                         <ThumbsUp size={16} color={recommendation ? '#FFFFFF' : '#34C759'} />
-                                        <Text style={[styles.toggleText, recommendation && styles.toggleTextActive]}>Да</Text>
+                                        <Text style={[styles.toggleText, recommendation && styles.toggleTextActive]}>{reviewCopy.yes}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.toggleBtn, !recommendation && styles.toggleActiveNo]}
                                         onPress={() => setRecommendation(false)}
                                     >
                                         <ThumbsDown size={16} color={!recommendation ? '#FFFFFF' : '#FF3B30'} />
-                                        <Text style={[styles.toggleText, !recommendation && styles.toggleTextActive]}>Нет</Text>
+                                        <Text style={[styles.toggleText, !recommendation && styles.toggleTextActive]}>{reviewCopy.no}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -271,7 +344,7 @@ const YatraReviewsSection: React.FC<YatraReviewsSectionProps> = ({
                                 disabled={submitting}
                             >
                                 <Text style={styles.submitButtonText}>
-                                    {submitting ? 'Отправка...' : 'Опубликовать отзыв'}
+                                    {submitting ? 'Submitting...' : 'Publish review'}
                                 </Text>
                             </TouchableOpacity>
                         </KeyboardAvoidingView>

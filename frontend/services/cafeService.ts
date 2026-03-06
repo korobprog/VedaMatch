@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 import { API_PATH } from '../config/api.config';
 import {
     Cafe, CafeFilters, CafeCategory, Dish, DishFilters,
@@ -14,6 +15,17 @@ interface UploadAsset {
     type?: string;
     fileName?: string;
 }
+
+const getCafeUploadCopy = () => {
+    const language = String(i18n.language || '').trim().toLowerCase();
+    if (language.startsWith('ru')) {
+        return { invalidUploadAsset: 'Некорректный файл для загрузки: отсутствует URI' };
+    }
+    if (language.startsWith('hi')) {
+        return { invalidUploadAsset: 'अपलोड फ़ाइल अमान्य है: URI उपलब्ध नहीं है' };
+    }
+    return { invalidUploadAsset: 'Invalid upload asset: missing URI' };
+};
 
 class CafeService {
     private normalizeCafe(cafe: any, fallbackId = 0): Cafe {
@@ -144,7 +156,7 @@ class CafeService {
 
     async uploadLogo(asset: UploadAsset): Promise<string> {
         try {
-            if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
+            if (!asset.uri) throw new Error(getCafeUploadCopy().invalidUploadAsset);
             const formData = new FormData();
             formData.append('file', {
                 uri: asset.uri,
@@ -166,7 +178,7 @@ class CafeService {
 
     async uploadCover(asset: UploadAsset): Promise<string> {
         try {
-            if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
+            if (!asset.uri) throw new Error(getCafeUploadCopy().invalidUploadAsset);
             const formData = new FormData();
             formData.append('file', {
                 uri: asset.uri,

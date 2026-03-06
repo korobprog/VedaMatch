@@ -70,15 +70,6 @@ const LIVE_BROADCAST_LANGUAGES: Array<{ code: string; label: string }> = [
   { code: 'hi', label: 'Hindi' },
   { code: 'es', label: 'Español' },
 ];
-const SADHU_SECTIONS: Array<{ key: SadhuSection; label: string }> = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'live', label: 'Live' },
-  { key: 'seminars', label: 'Seminars' },
-  { key: 'questions', label: 'Questions' },
-  { key: 'roadmap', label: 'Roadmap' },
-  { key: 'posts', label: 'Posts' },
-];
-
 type ParsedPostMedia = {
   images: ChannelPostMediaImage[];
   circles: ChannelPostMediaCircle[];
@@ -109,16 +100,6 @@ const buildSeminarRouteUrl = (service: Service): string => {
     return '';
   }
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-};
-
-const roadmapStatusLabel = (status: ChannelRoadmapPoint['status']): string => {
-  if (status === 'current') {
-    return 'Now';
-  }
-  if (status === 'past') {
-    return 'Past';
-  }
-  return 'Upcoming';
 };
 
 const getRoadmapPointMapUrl = (point: ChannelRoadmapPoint): string => {
@@ -239,15 +220,6 @@ const resolvePreviewLimit = (filter: ShowcaseFilterPayload): number => {
   return MAX_SHOWCASE_PREVIEW_ITEMS;
 };
 
-const resolveLiveLanguageLabel = (code?: string): string => {
-  const normalized = String(code || 'ru').trim().toLowerCase() || 'ru';
-  const found = LIVE_BROADCAST_LANGUAGES.find(item => item.code === normalized);
-  if (found) {
-    return found.label;
-  }
-  return normalized.toUpperCase();
-};
-
 const parsePostMedia = (raw: string): ParsedPostMedia => {
   const fallback: ParsedPostMedia = { images: [], circles: [] };
   const trimmed = String(raw || '').trim();
@@ -290,7 +262,7 @@ const isAuthorEditAllowed = (post: ChannelPost): boolean => {
 export default function ChannelDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RouteParams, 'ChannelDetails'>>();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const channelId = route.params?.channelId;
   const isSadhuSangaMode = route.params?.source === 'sadhu_sanga';
   const focusSection = route.params?.focusSection;
@@ -300,6 +272,14 @@ export default function ChannelDetailsScreen() {
   const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+  const sadhuSections = useMemo<Array<{ key: SadhuSection; label: string }>>(() => ([
+    { key: 'overview', label: t('portal.channelDetailsSadhu.tabs.overview') },
+    { key: 'live', label: t('portal.channelDetailsSadhu.tabs.live') },
+    { key: 'seminars', label: t('portal.channelDetailsSadhu.tabs.seminars') },
+    { key: 'questions', label: t('portal.channelDetailsSadhu.tabs.questions') },
+    { key: 'roadmap', label: t('portal.channelDetailsSadhu.tabs.roadmap') },
+    { key: 'posts', label: t('portal.channelDetailsSadhu.tabs.posts') },
+  ]), [t]);
   const screenGradient = useMemo<[string, string, string]>(
     () => (isDarkMode
       ? roleTheme.gradient
@@ -808,25 +788,25 @@ export default function ChannelDetailsScreen() {
 
   const handleOpenSeminarRoute = useCallback(async (service: Service) => {
     if (service.channel !== 'offline') {
-      Alert.alert('Route', 'Route is available only for offline seminars.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.routeTitle'), t('portal.channelDetailsSadhu.alerts.routeOfflineOnly'));
       return;
     }
     const routeUrl = buildSeminarRouteUrl(service);
     if (!routeUrl) {
-      Alert.alert('Route', 'Seminar address is not specified yet.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.routeTitle'), t('portal.channelDetailsSadhu.alerts.routeAddressMissing'));
       return;
     }
     try {
       const supported = await Linking.canOpenURL(routeUrl);
       if (!supported) {
-        Alert.alert('Route', 'Failed to open map on this device.');
+        Alert.alert(t('portal.channelDetailsSadhu.alerts.routeTitle'), t('portal.channelDetailsSadhu.alerts.routeOpenMapFailed'));
         return;
       }
       await Linking.openURL(routeUrl);
     } catch {
-      Alert.alert('Route', 'Failed to open route.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.routeTitle'), t('portal.channelDetailsSadhu.alerts.routeOpenFailed'));
     }
-  }, []);
+  }, [t]);
 
   const dismissGuidePrompt = useCallback(() => {
     setShowGuidePrompt(false);
@@ -838,6 +818,23 @@ export default function ChannelDetailsScreen() {
   const canManageLive = isSadhuSangaMode && isEditor;
   const canManageRoadmap = isSadhuSangaMode && isEditor;
   const canJoinLive = isSadhuSangaMode && (viewerRole === 'subscriber' || viewerRole === 'editor' || viewerRole === 'admin' || viewerRole === 'owner');
+  const roadmapStatusLabel = useCallback((status: ChannelRoadmapPoint['status']): string => {
+    if (status === 'current') {
+      return t('portal.channelDetailsSadhu.roadmap.status.current');
+    }
+    if (status === 'past') {
+      return t('portal.channelDetailsSadhu.roadmap.status.past');
+    }
+    return t('portal.channelDetailsSadhu.roadmap.status.upcoming');
+  }, [t]);
+  const resolveLiveLanguageLabelUi = useCallback((code?: string): string => {
+    const normalized = String(code || '').trim().toLowerCase();
+    if (normalized === 'ru') return t('portal.sadhuSangaHub.languageLabels.ru');
+    if (normalized === 'en') return t('portal.sadhuSangaHub.languageLabels.en');
+    if (normalized === 'hi') return t('portal.sadhuSangaHub.languageLabels.hi');
+    if (normalized === 'es') return 'Español';
+    return normalized ? normalized.toUpperCase() : t('portal.sadhuSangaHub.languageLabels.ru');
+  }, [t]);
   const roadmapTimeline = useMemo<ChannelRoadmapPoint[]>(() => {
     if (!roadmap) {
       return [];
@@ -845,16 +842,16 @@ export default function ChannelDetailsScreen() {
     const current = roadmap.current ? [roadmap.current] : [];
     return [...current, ...(roadmap.future || []), ...(roadmap.past || [])];
   }, [roadmap]);
-  const liveLanguageLabel = resolveLiveLanguageLabel(liveSession?.broadcastLanguage);
+  const liveLanguageLabel = resolveLiveLanguageLabelUi(liveSession?.broadcastLanguage);
   const liveStatusLabel = liveSession?.status === 'live'
-    ? 'Live now'
+    ? t('portal.channelDetailsSadhu.live.status.live')
     : liveSession?.status === 'scheduled'
-      ? 'Scheduled'
+      ? t('portal.channelDetailsSadhu.live.status.scheduled')
       : liveSession?.status === 'ended'
-        ? 'Completed'
+        ? t('portal.channelDetailsSadhu.live.status.completed')
         : liveSession?.status === 'cancelled'
-          ? 'Cancelled'
-          : 'Live is not active';
+          ? t('portal.channelDetailsSadhu.live.status.cancelled')
+          : t('portal.channelDetailsSadhu.live.status.inactive');
 
   const openRoadmapPointOnMap = useCallback(async (point: ChannelRoadmapPoint) => {
     const mapUrl = getRoadmapPointMapUrl(point);
@@ -889,7 +886,7 @@ export default function ChannelDetailsScreen() {
         accessPolicy: 'followers',
       });
       setLiveSession(created);
-      Alert.alert('Done', 'Live stream scheduled.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.liveCreatedTitle'), t('portal.channelDetailsSadhu.alerts.liveCreatedText'));
     } catch (error: any) {
       Alert.alert('Error', error?.response?.data?.error || 'Failed to create live stream');
     } finally {
@@ -897,7 +894,7 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channel?.title, channelId, liveBusy, user?.language]);
+  }, [canManageLive, channel?.title, channelId, liveBusy, t, user?.language]);
 
   const handleSetLiveLanguage = useCallback(async (languageCode: string) => {
     if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
@@ -913,7 +910,7 @@ export default function ChannelDetailsScreen() {
         broadcastLanguage: normalized,
       });
       setLiveSession(updated);
-      Alert.alert('Live language', `Selected language: ${resolveLiveLanguageLabel(normalized)}.`);
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.liveLanguageTitle'), t('portal.channelDetailsSadhu.alerts.liveLanguageText', { language: resolveLiveLanguageLabelUi(normalized) }));
     } catch (error: any) {
       Alert.alert('Error', error?.response?.data?.error || 'Failed to update live language');
     } finally {
@@ -921,21 +918,21 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channelId, liveBusy, liveSession?.broadcastLanguage, liveSession?.id]);
+  }, [canManageLive, channelId, liveBusy, liveSession?.broadcastLanguage, liveSession?.id, resolveLiveLanguageLabelUi, t]);
 
   const openLiveLanguagePicker = useCallback(() => {
     if (!canManageLive || !liveSession?.id || liveBusy) {
       return;
     }
     const buttons: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }> = LIVE_BROADCAST_LANGUAGES.map(item => ({
-      text: item.label + (item.code === String(liveSession.broadcastLanguage || 'ru').trim().toLowerCase() ? ' ✓' : ''),
+      text: resolveLiveLanguageLabelUi(item.code) + (item.code === String(liveSession.broadcastLanguage || 'ru').trim().toLowerCase() ? ' ✓' : ''),
       onPress: () => {
         void handleSetLiveLanguage(item.code);
       },
     }));
-    buttons.push({ text: 'Cancel', style: 'cancel' as const });
-    Alert.alert('Broadcast language', 'Choose language for current live stream', buttons);
-  }, [canManageLive, handleSetLiveLanguage, liveBusy, liveSession?.broadcastLanguage, liveSession?.id]);
+    buttons.push({ text: t('common.cancel'), style: 'cancel' as const });
+    Alert.alert(t('portal.channelDetailsSadhu.live.broadcastLanguage'), t('portal.channelDetailsSadhu.live.changeLanguage'), buttons);
+  }, [canManageLive, handleSetLiveLanguage, liveBusy, liveSession?.broadcastLanguage, liveSession?.id, resolveLiveLanguageLabelUi, t]);
 
   const handleStartLive = useCallback(async () => {
     if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
@@ -945,7 +942,7 @@ export default function ChannelDetailsScreen() {
     try {
       const started = await channelService.startChannelLive(channelId, liveSession.id);
       setLiveSession(started);
-      Alert.alert('Live started', 'Subscribers have been notified about the start.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.liveStartedTitle'), t('portal.channelDetailsSadhu.alerts.liveStartedText'));
     } catch (error: any) {
       Alert.alert('Error', error?.response?.data?.error || 'Failed to start live stream');
     } finally {
@@ -953,7 +950,7 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+  }, [canManageLive, channelId, liveBusy, liveSession?.id, t]);
 
   const handleEndLive = useCallback(async () => {
     if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
@@ -963,7 +960,7 @@ export default function ChannelDetailsScreen() {
     try {
       const ended = await channelService.endChannelLive(channelId, liveSession.id);
       setLiveSession(ended);
-      Alert.alert('Live ended', 'Session has been stopped.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.liveEndedTitle'), t('portal.channelDetailsSadhu.alerts.liveEndedText'));
     } catch (error: any) {
       Alert.alert('Error', error?.response?.data?.error || 'Failed to end live stream');
     } finally {
@@ -971,7 +968,7 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+  }, [canManageLive, channelId, liveBusy, liveSession?.id, t]);
 
   const handleCancelLive = useCallback(async () => {
     if (!channelId || !liveSession?.id || !canManageLive || liveBusy) {
@@ -981,7 +978,7 @@ export default function ChannelDetailsScreen() {
     try {
       const cancelled = await channelService.cancelChannelLive(channelId, liveSession.id);
       setLiveSession(cancelled);
-      Alert.alert('Announcement cancelled', 'Live stream cancelled.');
+      Alert.alert(t('portal.channelDetailsSadhu.alerts.liveCancelledTitle'), t('portal.channelDetailsSadhu.alerts.liveCancelledText'));
     } catch (error: any) {
       Alert.alert('Error', error?.response?.data?.error || 'Failed to cancel live stream');
     } finally {
@@ -989,7 +986,7 @@ export default function ChannelDetailsScreen() {
         setLiveBusy(false);
       }
     }
-  }, [canManageLive, channelId, liveBusy, liveSession?.id]);
+  }, [canManageLive, channelId, liveBusy, liveSession?.id, t]);
 
   const handleJoinLive = useCallback(async () => {
     if (!channelId || !liveSession?.id || liveBusy) {
@@ -1080,35 +1077,35 @@ export default function ChannelDetailsScreen() {
     }
     const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
     Alert.alert(
-      'Live moderation',
+      t('portal.channelDetailsSadhu.live.moderationTitle'),
       displayName,
       [
         {
-          text: participant.isMuted ? 'Unmute' : 'Mute',
+          text: participant.isMuted ? t('portal.channelDetailsSadhu.live.moderation.unmute') : t('portal.channelDetailsSadhu.live.moderation.mute'),
           onPress: () => void applyLiveModeration(
             participant.userId,
             participant.isMuted ? 'unmute' : 'mute',
           ),
         },
         {
-          text: participant.isBlocked ? 'Unblock' : 'Block',
+          text: participant.isBlocked ? t('portal.channelDetailsSadhu.live.moderation.unblock') : t('portal.channelDetailsSadhu.live.moderation.block'),
           onPress: () => void applyLiveModeration(
             participant.userId,
             participant.isBlocked ? 'unblock' : 'block',
           ),
         },
         {
-          text: 'Kick from live',
+          text: t('portal.channelDetailsSadhu.live.moderation.kick'),
           onPress: () => void applyLiveModeration(participant.userId, 'kick'),
           style: 'destructive',
         },
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           style: 'cancel',
         },
       ],
     );
-  }, [applyLiveModeration, canManageLive]);
+  }, [applyLiveModeration, canManageLive, t]);
 
   const canViewPreacherAnalytics = isSadhuSangaMode && (viewerRole === 'owner' || viewerRole === 'admin');
 
@@ -1388,24 +1385,24 @@ export default function ChannelDetailsScreen() {
 
   const roleLabel = useMemo(() => {
     if (!viewerRole) {
-      return 'Reader';
+      return t('portal.channelDetailsSadhu.roles.reader');
     }
     if (viewerRole === 'owner') {
-      return 'Owner';
+      return t('portal.channelDetailsSadhu.roles.owner');
     }
     if (viewerRole === 'admin') {
-      return 'Admin';
+      return t('portal.channelDetailsSadhu.roles.admin');
     }
     if (viewerRole === 'editor') {
-      return 'Editor';
+      return t('portal.channelDetailsSadhu.roles.editor');
     }
-    return 'Subscriber';
-  }, [viewerRole]);
+    return t('portal.channelDetailsSadhu.roles.subscriber');
+  }, [t, viewerRole]);
   const channelNameLabel = useMemo(() => {
     const title = String(channel?.title || '').trim();
     return title.length > 0 ? title : 'channel';
   }, [channel?.title]);
-  const preacherBioHeading = useMemo(() => `About ${channelNameLabel}`, [channelNameLabel]);
+  const preacherBioHeading = useMemo(() => t('portal.channelDetailsSadhu.bio.about', { name: channelNameLabel }), [channelNameLabel, t]);
   const canManagePreacherBio = canEditPosts(viewerRole);
   const showSadhuLive = !isSadhuSangaMode || activeSadhuSection === 'live';
   const showSadhuRoadmap = !isSadhuSangaMode || activeSadhuSection === 'roadmap';
@@ -1501,10 +1498,10 @@ export default function ChannelDetailsScreen() {
       return '';
     }
     if (liveSession?.status === 'live') {
-      return `LIVE now • ${resolveLiveLanguageLabel(liveSession.broadcastLanguage)}`;
+      return `${t('portal.channelDetailsSadhu.hero.liveNow')} • ${resolveLiveLanguageLabelUi(liveSession.broadcastLanguage)}`;
     }
     if (liveSession?.status === 'scheduled' && liveSession.scheduledAt) {
-      return `Live scheduled: ${new Date(liveSession.scheduledAt).toLocaleString(locale, {
+      return `${t('portal.channelDetailsSadhu.hero.liveScheduled')}: ${new Date(liveSession.scheduledAt).toLocaleString(locale, {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
@@ -1512,15 +1509,15 @@ export default function ChannelDetailsScreen() {
       })}`;
     }
     if (nextSeminarPreview?.nextAt) {
-      return `Next seminar: ${nextSeminarPreview.nextAt.toLocaleString(locale, {
+      return `${t('portal.channelDetailsSadhu.hero.nextSeminar')}: ${nextSeminarPreview.nextAt.toLocaleString(locale, {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
       })}`;
     }
-    return 'Subscribe to receive live and seminar announcements';
-  }, [isSadhuSangaMode, liveSession?.broadcastLanguage, liveSession?.scheduledAt, liveSession?.status, nextSeminarPreview, locale]);
+    return t('portal.channelDetailsSadhu.hero.subscribeHint');
+  }, [isSadhuSangaMode, liveSession?.broadcastLanguage, liveSession?.scheduledAt, liveSession?.status, nextSeminarPreview, locale, resolveLiveLanguageLabelUi, t]);
 
   const canFollow = useMemo(() => {
     if (!channel || !user?.ID) {
@@ -1631,7 +1628,7 @@ export default function ChannelDetailsScreen() {
             <Text style={styles.postStatus}>{item.status}</Text>
           </View>
           <View style={styles.postHeaderRight}>
-            <Text style={styles.postDate}>{new Date(postDate).toLocaleString('ru-RU')}</Text>
+            <Text style={styles.postDate}>{new Date(postDate).toLocaleString(locale)}</Text>
             {isAuthor ? (
               <TouchableOpacity
                 style={styles.menuButton}
@@ -1757,7 +1754,7 @@ export default function ChannelDetailsScreen() {
               disabled={followLoading}
             >
               <Text style={styles.followButtonText}>
-                {channel?.isFollowing ? 'Subscribed' : 'Follow'}
+                {channel?.isFollowing ? t('portal.channelDetailsSadhu.subscribed') : t('portal.channelDetailsSadhu.follow')}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -1782,11 +1779,11 @@ export default function ChannelDetailsScreen() {
           keyboardShouldPersistTaps="handled"
         >
         <View style={styles.channelIntro}>
-          <Text style={styles.channelDescription}>{channel?.description || 'Channel description is empty'}</Text>
+          <Text style={styles.channelDescription}>{channel?.description || t('portal.channelDetailsSadhu.channelDescriptionEmpty')}</Text>
           <View style={styles.channelStatsRow}>
             <Text style={styles.channelMeta}>@{channel?.slug || 'channel'}</Text>
             <Text style={styles.channelMetaSecondary}>
-              Followers: {Math.max(0, Number(channel?.followersCount) || 0)}
+              {t('portal.channelDetailsSadhu.followers', { count: Math.max(0, Number(channel?.followersCount) || 0) })}
             </Text>
           </View>
           {isSadhuSangaMode ? (
@@ -1795,11 +1792,11 @@ export default function ChannelDetailsScreen() {
               <View style={styles.sadhuHeroActionsRow}>
                 <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickLive}>
                   <Text style={styles.sadhuHeroActionText}>
-                    {liveSession?.status === 'live' ? 'Watch live' : 'Live'}
+                    {liveSession?.status === 'live' ? t('portal.channelDetailsSadhu.hero.watchLive') : t('portal.channelDetailsSadhu.tabs.live')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sadhuHeroActionButton} onPress={handleSadhuQuickSeminars}>
-                  <Text style={styles.sadhuHeroActionText}>Seminars</Text>
+                  <Text style={styles.sadhuHeroActionText}>{t('portal.channelDetailsSadhu.tabs.seminars')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -1809,7 +1806,7 @@ export default function ChannelDetailsScreen() {
                   onPress={openSadhuQuestionForm}
                   disabled={!(channel?.ownerId && channel.ownerId > 0)}
                 >
-                  <Text style={styles.sadhuHeroActionText}>Question</Text>
+                  <Text style={styles.sadhuHeroActionText}>{t('portal.channelDetailsSadhu.hero.question')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1847,7 +1844,7 @@ export default function ChannelDetailsScreen() {
             contentContainerStyle={styles.sadhuSectionsRow}
             style={styles.sadhuSectionsWrap}
           >
-            {SADHU_SECTIONS.map((section) => (
+            {sadhuSections.map((section) => (
               <TouchableOpacity
                 key={section.key}
                 style={[
@@ -1871,52 +1868,52 @@ export default function ChannelDetailsScreen() {
 
         {isSadhuSangaMode && activeSadhuSection === 'overview' ? (
           <View style={styles.overviewGridSection}>
-            <Text style={styles.overviewGridTitle}>Quick access</Text>
+            <Text style={styles.overviewGridTitle}>{t('portal.channelDetailsSadhu.overview.title')}</Text>
             <View style={styles.overviewGrid}>
               <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickLive}>
-                <Text style={styles.overviewCardTitle}>Live</Text>
+                <Text style={styles.overviewCardTitle}>{t('portal.channelDetailsSadhu.overview.liveTitle')}</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {liveSession?.status === 'live'
-                    ? 'Live now'
+                    ? t('portal.channelDetailsSadhu.overview.liveNow')
                     : liveSession?.status === 'scheduled'
-                      ? 'Scheduled'
-                      : 'Inactive'}
+                      ? t('portal.channelDetailsSadhu.live.status.scheduled')
+                      : t('portal.channelDetailsSadhu.overview.inactive')}
                 </Text>
                 <Text style={styles.overviewCardHint}>
-                  {liveSession?.status === 'live' ? 'Open stream' : 'Open section'}
+                  {liveSession?.status === 'live' ? t('portal.channelDetailsSadhu.overview.openStream') : t('portal.channelDetailsSadhu.overview.openSection')}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={handleSadhuQuickSeminars}>
-                <Text style={styles.overviewCardTitle}>Seminars</Text>
+                <Text style={styles.overviewCardTitle}>{t('portal.channelDetailsSadhu.overview.seminarsTitle')}</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {nextSeminarPreview?.nextAt
                     ? nextSeminarPreview.nextAt.toLocaleDateString(locale, { day: '2-digit', month: 'short' })
-                    : 'No dates yet'}
+                    : t('portal.channelDetailsSadhu.overview.noDatesYet')}
                 </Text>
-                <Text style={styles.overviewCardHint}>Open list</Text>
+                <Text style={styles.overviewCardHint}>{t('portal.channelDetailsSadhu.overview.openList')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('questions')}>
-                <Text style={styles.overviewCardTitle}>Questions</Text>
+                <Text style={styles.overviewCardTitle}>{t('portal.channelDetailsSadhu.overview.questionsTitle')}</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {preacherQuestions.length > 0
-                    ? `Votes: ${Math.max(0, Number(overviewQuestionTop?.voteCount) || 0)}`
-                    : 'No questions yet'}
+                    ? t('portal.channelDetailsSadhu.overview.votes', { count: Math.max(0, Number(overviewQuestionTop?.voteCount) || 0) })
+                    : t('portal.channelDetailsSadhu.overview.noQuestionsYet')}
                 </Text>
                 <Text style={styles.overviewCardHint}>
-                  {preacherQuestions.length > 0 ? 'Open section' : 'Ask question'}
+                  {preacherQuestions.length > 0 ? t('portal.channelDetailsSadhu.overview.openSection') : t('portal.channelDetailsSadhu.overview.askQuestion')}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.overviewCard} onPress={() => setActiveSadhuSection('roadmap')}>
-                <Text style={styles.overviewCardTitle}>Route</Text>
+                <Text style={styles.overviewCardTitle}>{t('portal.channelDetailsSadhu.overview.routeTitle')}</Text>
                 <Text style={styles.overviewCardValue} numberOfLines={2}>
                   {overviewRoadmapPoint
-                    ? [overviewRoadmapPoint.city, overviewRoadmapPoint.address].filter(Boolean).join(', ') || 'Location available'
-                    : 'Not filled yet'}
+                    ? [overviewRoadmapPoint.city, overviewRoadmapPoint.address].filter(Boolean).join(', ') || t('portal.channelDetailsSadhu.overview.locationAvailable')
+                    : t('portal.channelDetailsSadhu.overview.notFilledYet')}
                 </Text>
-                <Text style={styles.overviewCardHint}>Open map</Text>
+                <Text style={styles.overviewCardHint}>{t('portal.channelDetailsSadhu.overview.openMap')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1946,28 +1943,28 @@ export default function ChannelDetailsScreen() {
                 <View style={styles.preacherBioMetaList}>
                   {preacherProfile?.birthDate || preacherProfile?.birthPlace ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Birth: ${
+                      {`${t('portal.channelDetailsSadhu.bio.birth')}: ${
                         preacherProfile.birthDate
                           ? new Date(preacherProfile.birthDate).toLocaleDateString(locale)
-                          : 'date not specified'
+                          : t('portal.channelDetailsSadhu.bio.dateNotSpecified')
                       }${preacherProfile.birthPlace ? ` • ${preacherProfile.birthPlace}` : ''}`}
                     </Text>
                   ) : null}
                   {preacherProfile?.departureDate ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Departure date: ${new Date(preacherProfile.departureDate).toLocaleDateString(locale)}`}
+                      {`${t('portal.channelDetailsSadhu.bio.departureDate')}: ${new Date(preacherProfile.departureDate).toLocaleDateString(locale)}`}
                     </Text>
                   ) : null}
                   {String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim() ? (
                     <Text style={styles.preacherBioMetaRow}>
-                      {`Organization / Math: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
+                      {`${t('portal.channelDetailsSadhu.bio.organizationMath')}: ${String(preacherProfile?.organizationName || preacherProfile?.mathKey || '').trim()}`}
                     </Text>
                   ) : null}
                 </View>
 
                 {visiblePreacherEvents.length > 0 ? (
                   <View style={styles.preacherBioEventsWrap}>
-                    <Text style={styles.preacherBioEventsTitle}>Key events</Text>
+                    <Text style={styles.preacherBioEventsTitle}>{t('portal.channelDetailsSadhu.bio.keyEvents')}</Text>
                     {visiblePreacherEvents.map((event) => (
                       <View key={`preacher-event-${event.id}`} style={styles.preacherBioEventRow}>
                         <Text style={styles.preacherBioEventTitle} numberOfLines={2}>{event.title}</Text>
@@ -1985,7 +1982,7 @@ export default function ChannelDetailsScreen() {
                 ) : null}
               </>
             ) : (
-              <Text style={styles.preacherBioEmpty}>Biography is not filled yet</Text>
+              <Text style={styles.preacherBioEmpty}>{t('portal.channelDetailsSadhu.bio.empty')}</Text>
             )}
 
             {canManagePreacherBio ? (
@@ -1993,7 +1990,7 @@ export default function ChannelDetailsScreen() {
                 style={styles.preacherBioManageButton}
                 onPress={() => navigation.navigate('ChannelPreacherBioManage', { channelId, source: 'sadhu_sanga' })}
               >
-                <Text style={styles.preacherBioManageButtonText}>Edit bio</Text>
+                <Text style={styles.preacherBioManageButtonText}>{t('portal.channelDetailsSadhu.bio.edit')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -2002,7 +1999,7 @@ export default function ChannelDetailsScreen() {
         {isSadhuSangaMode && showSadhuLive ? (
           <View style={styles.liveSection}>
             <View style={styles.liveHeaderRow}>
-              <Text style={styles.liveTitle}>Live stream</Text>
+              <Text style={styles.liveTitle}>{t('portal.channelDetailsSadhu.live.title')}</Text>
               {liveBusy ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             <Text style={[
@@ -2012,11 +2009,11 @@ export default function ChannelDetailsScreen() {
               {liveStatusLabel}
             </Text>
             {liveSession ? (
-              <Text style={styles.liveLanguageCaption}>Broadcast language: {liveLanguageLabel}</Text>
+              <Text style={styles.liveLanguageCaption}>{t('portal.channelDetailsSadhu.live.broadcastLanguage')}: {liveLanguageLabel}</Text>
             ) : null}
             {liveSession ? (
               <View style={styles.liveCard}>
-                <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || 'Channel live stream'}</Text>
+                <Text style={styles.liveCardTitle} numberOfLines={1}>{liveSession.title || t('portal.channelDetailsSadhu.live.cardFallbackTitle')}</Text>
                 <View style={styles.liveLanguageRow}>
                   <View style={styles.liveLanguageChip}>
                     <Text style={styles.liveLanguageChipText}>{(liveSession.broadcastLanguage || 'ru').toUpperCase()}</Text>
@@ -2024,13 +2021,13 @@ export default function ChannelDetailsScreen() {
                   <Text style={styles.liveCardMeta}>{liveLanguageLabel}</Text>
                   {canManageLive ? (
                     <TouchableOpacity style={styles.liveLanguageAction} onPress={openLiveLanguagePicker} disabled={liveBusy}>
-                      <Text style={styles.liveLanguageActionText}>Change language</Text>
+                      <Text style={styles.liveLanguageActionText}>{t('portal.channelDetailsSadhu.live.changeLanguage')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
                 {liveSession.scheduledAt ? (
                   <Text style={styles.liveCardMeta}>
-                    Planned: {new Date(liveSession.scheduledAt).toLocaleString(locale, {
+                    {t('portal.channelDetailsSadhu.live.planned')}: {new Date(liveSession.scheduledAt).toLocaleString(locale, {
                       day: '2-digit',
                       month: 'short',
                       hour: '2-digit',
@@ -2040,7 +2037,7 @@ export default function ChannelDetailsScreen() {
                 ) : null}
                 {liveSession.startedAt ? (
                   <Text style={styles.liveCardMeta}>
-                    Started: {new Date(liveSession.startedAt).toLocaleString(locale, {
+                    {t('portal.channelDetailsSadhu.live.started')}: {new Date(liveSession.startedAt).toLocaleString(locale, {
                       day: '2-digit',
                       month: 'short',
                       hour: '2-digit',
@@ -2051,32 +2048,32 @@ export default function ChannelDetailsScreen() {
                 <View style={styles.liveActionsRow}>
                   {liveSession.status === 'live' && canJoinLive ? (
                     <TouchableOpacity style={styles.liveJoinButton} onPress={() => void handleJoinLive()} disabled={liveBusy}>
-                      <Text style={styles.liveJoinButtonText}>Join live</Text>
+                      <Text style={styles.liveJoinButtonText}>{t('portal.channelDetailsSadhu.live.join')}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {liveSession.status === 'live' && canManageLive ? (
                     <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleEndLive()} disabled={liveBusy}>
-                      <Text style={styles.liveSecondaryButtonText}>End</Text>
+                      <Text style={styles.liveSecondaryButtonText}>{t('portal.channelDetailsSadhu.live.end')}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {liveSession.status === 'scheduled' && canManageLive ? (
                     <>
                       <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleStartLive()} disabled={liveBusy}>
-                        <Text style={styles.livePrimaryButtonText}>Start</Text>
+                        <Text style={styles.livePrimaryButtonText}>{t('portal.channelDetailsSadhu.live.start')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.liveSecondaryButton} onPress={() => void handleCancelLive()} disabled={liveBusy}>
-                        <Text style={styles.liveSecondaryButtonText}>Cancel</Text>
+                        <Text style={styles.liveSecondaryButtonText}>{t('portal.channelDetailsSadhu.live.cancel')}</Text>
                       </TouchableOpacity>
                     </>
                   ) : null}
                 </View>
                 {!canJoinLive ? (
-                  <Text style={styles.liveHint}>Follow the channel to watch live streams.</Text>
+                  <Text style={styles.liveHint}>{t('portal.channelDetailsSadhu.live.followToWatch')}</Text>
                 ) : null}
                 {canManageLive && liveSession.status === 'live' ? (
                   <View style={styles.liveParticipantsSection}>
                     <View style={styles.liveParticipantsHeader}>
-                      <Text style={styles.liveParticipantsTitle}>Live participants</Text>
+                      <Text style={styles.liveParticipantsTitle}>{t('portal.channelDetailsSadhu.live.participantsTitle')}</Text>
                       {liveParticipantsLoading ? (
                         <ActivityIndicator size="small" color={colors.accent} />
                       ) : (
@@ -2085,20 +2082,20 @@ export default function ChannelDetailsScreen() {
                           onPress={() => void loadLiveParticipants()}
                           disabled={liveParticipantsLoading}
                         >
-                          <Text style={styles.liveParticipantsRefreshText}>Refresh</Text>
+                          <Text style={styles.liveParticipantsRefreshText}>{t('portal.channelDetailsSadhu.live.refresh')}</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                     {(liveParticipants || []).length === 0 ? (
-                      <Text style={styles.liveHintSecondary}>No connected participants yet.</Text>
+                      <Text style={styles.liveHintSecondary}>{t('portal.channelDetailsSadhu.live.noParticipants')}</Text>
                     ) : (
                       (liveParticipants || []).slice(0, 20).map((participant) => {
                         const displayName = participant.spiritualName || participant.karmicName || `ID ${participant.userId}`;
                         const metaParts = [
-                          participant.isActive ? 'online' : 'offline',
-                          participant.isMuted ? 'mute' : null,
-                          participant.isBlocked ? 'blocked' : null,
-                          `joins: ${Math.max(0, Number(participant.joinCount) || 0)}`,
+                          participant.isActive ? t('portal.channelDetailsSadhu.live.online') : t('portal.channelDetailsSadhu.live.offline'),
+                          participant.isMuted ? t('portal.channelDetailsSadhu.live.muted') : null,
+                          participant.isBlocked ? t('portal.channelDetailsSadhu.live.blocked') : null,
+                          t('portal.channelDetailsSadhu.live.joins', { count: Math.max(0, Number(participant.joinCount) || 0) }),
                         ].filter(Boolean);
                         const busy = liveModerationBusyUserId === participant.userId;
                         return (
@@ -2122,13 +2119,13 @@ export default function ChannelDetailsScreen() {
               </View>
             ) : (
               <View style={styles.liveCard}>
-                <Text style={styles.liveHint}>No active live stream now</Text>
+                <Text style={styles.liveHint}>{t('portal.channelDetailsSadhu.live.noActive')}</Text>
                 {canManageLive ? (
                   <TouchableOpacity style={styles.livePrimaryButton} onPress={() => void handleCreateLive()} disabled={liveBusy}>
-                    <Text style={styles.livePrimaryButtonText}>Schedule live</Text>
+                    <Text style={styles.livePrimaryButtonText}>{t('portal.channelDetailsSadhu.live.schedule')}</Text>
                   </TouchableOpacity>
                 ) : (
-                  <Text style={styles.liveHintSecondary}>Live announcements will appear here soon</Text>
+                  <Text style={styles.liveHintSecondary}>{t('portal.channelDetailsSadhu.live.announcementsSoon')}</Text>
                 )}
               </View>
             )}
@@ -2139,21 +2136,21 @@ export default function ChannelDetailsScreen() {
           <View style={styles.roadmapSection}>
             <View style={styles.roadmapHeader}>
               <View style={styles.roadmapHeaderTextWrap}>
-                <Text style={styles.roadmapTitle}>Roadmap</Text>
-                <Text style={styles.roadmapSubtitle}>Where they were, where they are now, and where they go next</Text>
+                <Text style={styles.roadmapTitle}>{t('portal.channelDetailsSadhu.roadmap.title')}</Text>
+                <Text style={styles.roadmapSubtitle}>{t('portal.channelDetailsSadhu.roadmap.subtitle')}</Text>
               </View>
               {roadmapLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
 
             {visibleRoadmapTimeline.length === 0 ? (
               <View style={styles.roadmapEmptyWrap}>
-                <Text style={styles.roadmapEmptyText}>Route is not filled yet</Text>
+                <Text style={styles.roadmapEmptyText}>{t('portal.channelDetailsSadhu.roadmap.empty')}</Text>
                 {canManageRoadmap ? (
                   <TouchableOpacity
                     style={styles.roadmapManageButton}
                     onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
                   >
-                    <Text style={styles.roadmapManageButtonText}>Add first point</Text>
+                    <Text style={styles.roadmapManageButtonText}>{t('portal.channelDetailsSadhu.roadmap.addFirstPoint')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -2193,11 +2190,11 @@ export default function ChannelDetailsScreen() {
                         </View>
                       </View>
                       <Text style={styles.roadmapLocationText} numberOfLines={2}>
-                        {[point.city, point.address].filter(Boolean).join(', ') || 'Location pending'}
+                        {[point.city, point.address].filter(Boolean).join(', ') || t('portal.channelDetailsSadhu.roadmap.locationPending')}
                       </Text>
                       {point.eventAt ? (
                         <Text style={styles.roadmapEventText}>
-                          {new Date(point.eventAt).toLocaleString('ru-RU', {
+                          {new Date(point.eventAt).toLocaleString(locale, {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
@@ -2213,14 +2210,14 @@ export default function ChannelDetailsScreen() {
                           style={styles.roadmapOpenMapButton}
                           onPress={() => void openRoadmapPointOnMap(point)}
                         >
-                          <Text style={styles.roadmapOpenMapButtonText}>Open on map</Text>
+                          <Text style={styles.roadmapOpenMapButtonText}>{t('portal.channelDetailsSadhu.roadmap.openOnMap')}</Text>
                         </TouchableOpacity>
                         {canManageRoadmap ? (
                           <TouchableOpacity
                             style={styles.roadmapEditInlineButton}
                             onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga', pointId: point.id })}
                           >
-                            <Text style={styles.roadmapEditInlineButtonText}>Edit</Text>
+                            <Text style={styles.roadmapEditInlineButtonText}>{t('portal.channelDetailsSadhu.roadmap.edit')}</Text>
                           </TouchableOpacity>
                         ) : null}
                       </View>
@@ -2235,7 +2232,7 @@ export default function ChannelDetailsScreen() {
                 style={styles.roadmapManageButton}
                 onPress={() => navigation.navigate('ChannelRoadmapManage', { channelId, source: 'sadhu_sanga' })}
               >
-                <Text style={styles.roadmapManageButtonText}>Edit route</Text>
+                <Text style={styles.roadmapManageButtonText}>{t('portal.channelDetailsSadhu.roadmap.editRoute')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -2244,7 +2241,7 @@ export default function ChannelDetailsScreen() {
         {canViewPreacherAnalytics && (!isSadhuSangaMode || activeSadhuSection === 'overview') ? (
           <View style={styles.preacherAnalyticsSection}>
             <View style={styles.preacherAnalyticsHeader}>
-              <Text style={styles.preacherAnalyticsTitle}>Analytics</Text>
+              <Text style={styles.preacherAnalyticsTitle}>{t('portal.channelDetailsSadhu.analytics.title')}</Text>
               {preacherAnalyticsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             <View style={styles.preacherAnalyticsStatsGrid}>
@@ -2252,13 +2249,13 @@ export default function ChannelDetailsScreen() {
                 <Text style={styles.preacherAnalyticsStatValue}>
                   {Math.max(0, Number(preacherAnalytics?.totalLectureViews) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Lecture views</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>{t('portal.channelDetailsSadhu.analytics.lectureViews')}</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
                   {Math.max(0, Number(preacherAnalytics?.seminarRegistrations) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Seminar registrations</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>{t('portal.channelDetailsSadhu.analytics.seminarRegistrations')}</Text>
               </View>
             </View>
             <View style={styles.preacherAnalyticsStatsGrid}>
@@ -2266,25 +2263,25 @@ export default function ChannelDetailsScreen() {
                 <Text style={styles.preacherAnalyticsStatValue}>
                   {Math.max(0, Number(preacherAnalytics?.liveSessionsTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Live sessions</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>{t('portal.channelDetailsSadhu.analytics.liveSessions')}</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
                   {Math.max(0, Number(preacherAnalytics?.liveUniqueViewersTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Unique viewers</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>{t('portal.channelDetailsSadhu.analytics.uniqueViewers')}</Text>
               </View>
               <View style={styles.preacherAnalyticsStatCard}>
                 <Text style={styles.preacherAnalyticsStatValue}>
                   {Math.max(0, Number(preacherAnalytics?.liveWatchMinutesTotal) || 0).toLocaleString(locale)}
                 </Text>
-                <Text style={styles.preacherAnalyticsStatLabel}>Watch minutes</Text>
+                <Text style={styles.preacherAnalyticsStatLabel}>{t('portal.channelDetailsSadhu.analytics.watchMinutes')}</Text>
               </View>
             </View>
             <View style={styles.preacherAnalyticsCitiesWrap}>
-              <Text style={styles.preacherAnalyticsCitiesTitle}>Active cities</Text>
+              <Text style={styles.preacherAnalyticsCitiesTitle}>{t('portal.channelDetailsSadhu.analytics.activeCities')}</Text>
               {(preacherAnalytics?.activeCities || []).length === 0 ? (
-                <Text style={styles.preacherAnalyticsCitiesEmpty}>Not enough city data yet</Text>
+                <Text style={styles.preacherAnalyticsCitiesEmpty}>{t('portal.channelDetailsSadhu.analytics.citiesEmpty')}</Text>
               ) : (
                 <View style={styles.preacherAnalyticsCitiesList}>
                   {(preacherAnalytics?.activeCities || []).map((city) => (
@@ -2302,19 +2299,19 @@ export default function ChannelDetailsScreen() {
         {isSadhuSangaMode && showSadhuQuestions ? (
           <View style={styles.preacherQuestionsSection}>
             <View style={styles.preacherQuestionsHeader}>
-              <Text style={styles.preacherQuestionsTitle}>Questions</Text>
+              <Text style={styles.preacherQuestionsTitle}>{t('portal.channelDetailsSadhu.questions.title')}</Text>
               {preacherQuestionsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             {visibleQuestions.length === 0 ? (
-              <Text style={styles.preacherQuestionsEmpty}>No questions for voting yet</Text>
+              <Text style={styles.preacherQuestionsEmpty}>{t('portal.channelDetailsSadhu.questions.empty')}</Text>
             ) : (
               <View style={styles.preacherQuestionsList}>
                 {visibleQuestions.map((question) => (
                   <View key={`preacher-question-${question.id}`} style={styles.preacherQuestionCard}>
-                    <Text style={styles.preacherQuestionSubject} numberOfLines={1}>{question.subject || 'Question to preacher'}</Text>
-                    <Text style={styles.preacherQuestionExcerpt} numberOfLines={2}>{question.excerpt || 'Question description is unavailable'}</Text>
+                    <Text style={styles.preacherQuestionSubject} numberOfLines={1}>{question.subject || t('portal.channelDetailsSadhu.questions.fallbackSubject')}</Text>
+                    <Text style={styles.preacherQuestionExcerpt} numberOfLines={2}>{question.excerpt || t('portal.channelDetailsSadhu.questions.fallbackExcerpt')}</Text>
                     <View style={styles.preacherQuestionBottomRow}>
-                      <Text style={styles.preacherQuestionVotes}>Votes: {Math.max(0, Number(question.voteCount) || 0)}</Text>
+                      <Text style={styles.preacherQuestionVotes}>{t('portal.channelDetailsSadhu.questions.votes', { count: Math.max(0, Number(question.voteCount) || 0) })}</Text>
                       <TouchableOpacity
                         style={[
                           styles.preacherQuestionVoteButton,
@@ -2331,7 +2328,7 @@ export default function ChannelDetailsScreen() {
                             question.myVote && styles.preacherQuestionVoteTextActive,
                           ]}
                         >
-                          {question.myVote ? 'You supported' : 'Support'}
+                          {question.myVote ? t('portal.channelDetailsSadhu.questions.supported') : t('portal.channelDetailsSadhu.questions.support')}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -2350,11 +2347,11 @@ export default function ChannelDetailsScreen() {
             }}
           >
             <View style={styles.preacherSeminarsHeader}>
-              <Text style={styles.preacherSeminarsTitle}>Seminars</Text>
+              <Text style={styles.preacherSeminarsTitle}>{t('portal.channelDetailsSadhu.seminars.title')}</Text>
               {preacherSeminarsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
             </View>
             {visibleSeminars.length === 0 ? (
-              <Text style={styles.preacherSeminarsEmpty}>No announced seminars yet</Text>
+              <Text style={styles.preacherSeminarsEmpty}>{t('portal.channelDetailsSadhu.seminars.empty')}</Text>
             ) : (
               <View style={styles.preacherSeminarsList}>
                 {visibleSeminars.map((item) => (
@@ -2371,7 +2368,7 @@ export default function ChannelDetailsScreen() {
                           hour: '2-digit',
                           minute: '2-digit',
                         })
-                        : 'Date pending'}
+                        : t('portal.channelDetailsSadhu.seminars.datePending')}
                     </Text>
                     <Text style={styles.preacherSeminarVenue} numberOfLines={1}>{item.venueLabel}</Text>
                     <View style={styles.preacherSeminarActionsRow}>
@@ -2379,14 +2376,14 @@ export default function ChannelDetailsScreen() {
                         style={styles.preacherSeminarBookButton}
                         onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.service.id })}
                       >
-                        <Text style={styles.preacherSeminarBookButtonText}>Book</Text>
+                        <Text style={styles.preacherSeminarBookButtonText}>{t('portal.channelDetailsSadhu.seminars.book')}</Text>
                       </TouchableOpacity>
                       {item.service.channel === 'offline' ? (
                         <TouchableOpacity
                           style={styles.preacherSeminarRouteButton}
                           onPress={() => void handleOpenSeminarRoute(item.service)}
                         >
-                          <Text style={styles.preacherSeminarRouteButtonText}>Route</Text>
+                          <Text style={styles.preacherSeminarRouteButtonText}>{t('portal.channelDetailsSadhu.seminars.route')}</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -2538,8 +2535,8 @@ export default function ChannelDetailsScreen() {
         <View style={styles.listContent}>
           {visiblePosts.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No posts yet</Text>
-              <Text style={styles.emptySubtitle}>Create the first channel post</Text>
+              <Text style={styles.emptyTitle}>{t('portal.channelDetailsSadhu.emptyPosts.title')}</Text>
+              <Text style={styles.emptySubtitle}>{t('portal.channelDetailsSadhu.emptyPosts.subtitle')}</Text>
             </View>
           ) : (
             visiblePosts.map((item) => (

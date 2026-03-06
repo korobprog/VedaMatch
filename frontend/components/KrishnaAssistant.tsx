@@ -28,26 +28,16 @@ import { useUser } from '../context/UserContext';
 import { useChat } from '../context/ChatContext';
 import { useSettings } from '../context/SettingsContext';
 import { resolveEffectivePerformanceMode } from '../utils/androidVisualPolicy';
+import { useTranslation } from 'react-i18next';
 import peacockAssistant from '../assets/peacockAssistant.png';
 import krishnaAssistant from '../assets/krishnaAssistant.png';
 import nanoBanano from '../assets/nano_banano.png';
 
 const { width } = Dimensions.get('window');
 
-const TOUR_STEPS = [
-    { title: 'Харе Кришна!', text: 'Я проведу для вас небольшую экскурсию. Это раздел Портал.', tab: 'portal' },
-    { title: 'Контакты', text: 'Здесь вы можете найти преданных и друзей.', tab: 'contacts' },
-    { title: 'Чат', text: 'Общайтесь и задавайте вопросы AI помощнику.', tab: 'chat' },
-    { title: 'Союз', text: 'Для поиска единомышленников.', tab: 'dating' },
-    { title: 'Магазины', text: 'Товары для преданных и вегетарианцев.', tab: 'shops' },
-    { title: 'Объявления', text: 'Услуги и предложения сообщества.', tab: 'ads' },
-    { title: 'Новости', text: 'Будьте в курсе всех событий.', tab: 'news' },
-    { title: 'База знаний', text: 'Изучайте священные писания и духовную мудрость.', tab: 'knowledge_base' },
-    { title: 'Готово!', text: 'Приятного использования! Вы всегда можете позвать меня снова.', tab: 'done' },
-];
-
 export const KrishnaAssistant: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const { i18n } = useTranslation();
     const { user, setTourCompleted } = useUser();
     const { handleNewChat } = useChat();
     const { assistantType, performanceMode, runtimePerformanceState } = useSettings();
@@ -66,6 +56,66 @@ export const KrishnaAssistant: React.FC = () => {
     const shimmerX = useSharedValue(-100);
     const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const copy =
+        i18n.language === 'ru'
+            ? {
+                  steps: [
+                      { title: 'Харе Кришна!', text: 'Я проведу для вас небольшую экскурсию. Это раздел Портал.', tab: 'portal' },
+                      { title: 'Контакты', text: 'Здесь вы можете найти преданных и друзей.', tab: 'contacts' },
+                      { title: 'Чат', text: 'Общайтесь и задавайте вопросы AI помощнику.', tab: 'chat' },
+                      { title: 'Союз', text: 'Для поиска единомышленников.', tab: 'dating' },
+                      { title: 'Магазины', text: 'Товары для преданных и вегетарианцев.', tab: 'shops' },
+                      { title: 'Объявления', text: 'Услуги и предложения сообщества.', tab: 'ads' },
+                      { title: 'Новости', text: 'Будьте в курсе всех событий.', tab: 'news' },
+                      { title: 'База знаний', text: 'Изучайте священные писания и духовную мудрость.', tab: 'knowledge_base' },
+                      { title: 'Готово!', text: 'Приятного использования! Вы всегда можете позвать меня снова.', tab: 'done' },
+                  ],
+                  login: 'Харе Кришна! Чтобы начать наше общение, пожалуйста, войдите в свой профиль или создайте новый.',
+                  registrationInitial: 'Харе Кришна! Регистрация поможет мне лучше понимать ваши потребности и давать более точные советы.',
+                  registrationLater: 'Заполнение профиля откроет вам доступ ко всем сервисам Портала и сделает наши беседы более персонализированными.',
+                  default: 'Харе Кришна! Чем я могу вам служить сегодня?',
+                  smiley: 'Колобок дас',
+                  feather: 'Перо дас',
+              }
+            : i18n.language === 'hi'
+              ? {
+                    steps: [
+                      { title: 'हरे कृष्ण!', text: 'मैं आपको एक छोटी यात्रा कराऊँगा। यह पोर्टल सेक्शन है।', tab: 'portal' },
+                      { title: 'संपर्क', text: 'यहाँ आप भक्तों और मित्रों को खोज सकते हैं।', tab: 'contacts' },
+                      { title: 'चैट', text: 'AI सहायक से बात करें और प्रश्न पूछें।', tab: 'chat' },
+                      { title: 'यूनियन', text: 'समान विचार वाले लोगों को खोजने के लिए।', tab: 'dating' },
+                      { title: 'दुकानें', text: 'भक्तों और शाकाहारियों के लिए वस्तुएँ।', tab: 'shops' },
+                      { title: 'घोषणाएँ', text: 'समुदाय की सेवाएँ और प्रस्ताव।', tab: 'ads' },
+                      { title: 'समाचार', text: 'सभी घटनाओं से अपडेट रहें।', tab: 'news' },
+                      { title: 'ज्ञान आधार', text: 'शास्त्रों और आध्यात्मिक ज्ञान का अध्ययन करें।', tab: 'knowledge_base' },
+                      { title: 'हो गया!', text: 'उपयोग का आनंद लें! आप मुझे फिर कभी भी बुला सकते हैं।', tab: 'done' },
+                  ],
+                  login: 'हरे कृष्ण! बातचीत शुरू करने के लिए कृपया अपने प्रोफाइल में लॉग इन करें या नया प्रोफाइल बनाएं।',
+                  registrationInitial: 'हरे कृष्ण! पंजीकरण से मैं आपकी ज़रूरतों को बेहतर समझ पाऊँगा और अधिक सटीक सलाह दे पाऊँगा।',
+                  registrationLater: 'प्रोफाइल पूरा करने से आपको पोर्टल की सभी सेवाओं तक पहुंच मिलेगी और हमारी बातचीत अधिक व्यक्तिगत हो जाएगी।',
+                  default: 'हरे कृष्ण! आज मैं आपकी किस प्रकार सेवा कर सकता हूँ?',
+                  smiley: 'कोलोबोक दास',
+                  feather: 'पेरो दास',
+                }
+              : {
+                  steps: [
+                      { title: 'Hare Krishna!', text: 'I will give you a short tour. This is the Portal section.', tab: 'portal' },
+                      { title: 'Contacts', text: 'Here you can find devotees and friends.', tab: 'contacts' },
+                      { title: 'Chat', text: 'Talk and ask questions to the AI assistant.', tab: 'chat' },
+                      { title: 'Union', text: 'For finding like-minded people.', tab: 'dating' },
+                      { title: 'Shops', text: 'Goods for devotees and vegetarians.', tab: 'shops' },
+                      { title: 'Ads', text: 'Community services and offers.', tab: 'ads' },
+                      { title: 'News', text: 'Stay up to date with all events.', tab: 'news' },
+                      { title: 'Knowledge Base', text: 'Study sacred scriptures and spiritual wisdom.', tab: 'knowledge_base' },
+                      { title: 'Done!', text: 'Enjoy using the app! You can always call me again.', tab: 'done' },
+                  ],
+                  login: 'Hare Krishna! To start our conversation, please sign in to your profile or create a new one.',
+                  registrationInitial: 'Hare Krishna! Registration will help me understand your needs better and give more accurate advice.',
+                  registrationLater: 'Completing your profile will unlock all Portal services and make our conversations more personalized.',
+                  default: 'Hare Krishna! How may I serve you today?',
+                  smiley: 'Kolobok das',
+                  feather: 'Pero das',
+                };
 
     // Rolling In from right
     const rollIn = useCallback(() => {
@@ -144,31 +194,31 @@ export const KrishnaAssistant: React.FC = () => {
     }));
 
     const getMessage = () => {
-        if (currentStep >= 0 && currentStep < TOUR_STEPS.length) {
-            return TOUR_STEPS[currentStep].text;
+        if (currentStep >= 0 && currentStep < copy.steps.length) {
+            return copy.steps[currentStep].text;
         }
 
         switch (currentRoute) {
             case 'Login':
-                return "Харе Кришна! Чтобы начать наше общение, пожалуйста, войдите в свой профиль или создайте новый.";
+                return copy.login;
             case 'Registration':
                 if (currentParams?.phase === 'initial') {
-                    return "Харе Кришна! Регистрация поможет мне лучше понимать ваши потребности и давать более точные советы.";
+                    return copy.registrationInitial;
                 } else {
-                    return "Заполнение профиля откроет вам доступ ко всем сервисам Портала и сделает наши беседы более персонализированными.";
+                    return copy.registrationLater;
                 }
             default:
-                return "Харе Кришна! Чем я могу вам служить сегодня?";
+                return copy.default;
         }
     }
 
     const handlePress = async () => {
         // Allow interaction on auth screens too
         if (currentStep >= 0) {
-            if (currentStep < TOUR_STEPS.length - 1) {
+            if (currentStep < copy.steps.length - 1) {
                 const nextStep = currentStep + 1;
                 setCurrentStep(nextStep);
-                const tab = TOUR_STEPS[nextStep].tab;
+                const tab = copy.steps[nextStep].tab;
                 if (tab && tab !== 'done' && tab !== 'portal') {
                     navigation.setParams({ initialTab: tab } as any);
                 }
@@ -261,11 +311,11 @@ export const KrishnaAssistant: React.FC = () => {
                                 <Text style={styles.closeBtnText}>✕</Text>
                             </TouchableOpacity>
                             <Text style={styles.bubbleTitle}>
-                                {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'smiley' ? "Колобок дас" : "Перо дас")}
+                                {currentStep >= 0 ? copy.steps[currentStep].title : (assistantType === 'smiley' ? copy.smiley : copy.feather)}
                             </Text>
                             <Text style={styles.bubbleText}>{getMessage()}</Text>
                             {currentStep >= 0 && (
-                                <Text style={styles.stepText}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
+                                <Text style={styles.stepText}>{currentStep + 1} / {copy.steps.length}</Text>
                             )}
                             <View style={styles.bubbleArrow} />
                         </View>

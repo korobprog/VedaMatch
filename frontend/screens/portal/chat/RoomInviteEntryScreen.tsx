@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
 import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
@@ -9,12 +10,48 @@ import { PENDING_ROOM_INVITE_TOKEN_KEY } from './roomInviteStorage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomInviteEntry'>;
 
-const fallbackRoomName = 'Room';
-
 export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) => {
+    const { i18n } = useTranslation();
     const { isLoggedIn } = useUser();
-    const [statusText, setStatusText] = useState('Preparing invite...');
+    const copy = React.useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                preparingInvite: 'आमंत्रण तैयार किया जा रहा है...',
+                signInRequired: 'साइन-इन आवश्यक है...',
+                joiningRoom: 'कमरे से जुड़ रहे हैं...',
+                failedToJoin: 'आमंत्रण लिंक से जुड़ना विफल रहा',
+                error: 'त्रुटि',
+                room: 'कमरा',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                preparingInvite: 'Preparing invite...',
+                signInRequired: 'Sign-in required...',
+                joiningRoom: 'Joining room...',
+                failedToJoin: 'Failed to join via invite link',
+                error: 'Error',
+                room: 'Room',
+            };
+        }
+        return {
+            preparingInvite: 'Подготавливаем приглашение...',
+            signInRequired: 'Требуется вход...',
+            joiningRoom: 'Подключаем к комнате...',
+            failedToJoin: 'Не удалось присоединиться по ссылке-приглашению',
+            error: 'Ошибка',
+            room: 'Комната',
+        };
+    }, [i18n.language]);
+    const [statusText, setStatusText] = useState(copy.preparingInvite);
     const joinAttemptedRef = useRef(false);
+
+    useEffect(() => {
+        if (!joinAttemptedRef.current) {
+            setStatusText(copy.preparingInvite);
+        }
+    }, [copy.preparingInvite]);
 
     useEffect(() => {
         const token = String(route.params?.token || '').trim();
@@ -28,7 +65,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
         }
 
         if (!isLoggedIn) {
-            setStatusText('Sign-in required...');
+            setStatusText(copy.signInRequired);
             AsyncStorage.setItem(PENDING_ROOM_INVITE_TOKEN_KEY, token)
                 .finally(() => {
                     navigation.replace('Login');
@@ -40,7 +77,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
             return;
         }
         joinAttemptedRef.current = true;
-        setStatusText('Joining room...');
+        setStatusText(copy.joiningRoom);
 
         const run = async () => {
             try {
@@ -51,7 +88,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                 const joinedRoomID = Number(payload?.roomId);
                 const joinedRoomName = typeof payload?.roomName === 'string' && payload.roomName.trim()
                     ? payload.roomName.trim()
-                    : fallbackRoomName;
+                    : copy.room;
 
                 if (!Number.isFinite(joinedRoomID) || joinedRoomID <= 0) {
                     navigation.replace('Portal', { initialTab: 'rooms' });
@@ -76,14 +113,14 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                 const responseData = error?.response?.data;
                 const errorMessage = typeof responseData?.error === 'string' && responseData.error.trim()
                     ? responseData.error.trim()
-                    : 'Failed to join via invite link';
-                Alert.alert('Error', errorMessage);
+                    : copy.failedToJoin;
+                Alert.alert(copy.error, errorMessage);
                 navigation.replace('Portal', { initialTab: 'rooms' });
             }
         };
 
         void run();
-    }, [isLoggedIn, navigation, route.params?.token]);
+    }, [copy.error, copy.failedToJoin, copy.joiningRoom, copy.room, copy.signInRequired, isLoggedIn, navigation, route.params?.token]);
 
     return (
         <View style={styles.container}>

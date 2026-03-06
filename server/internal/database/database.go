@@ -67,6 +67,8 @@ func Connect() {
 		&models.ChannelPostReaction{}, &models.ChannelPostComment{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelSmartPushPreference{},
+		&models.EkadashiPushPreference{},
+		&models.EkadashiReminderDelivery{},
 		&models.PreacherProfile{}, &models.PreacherProfileEvent{},
 		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
@@ -78,6 +80,8 @@ func Connect() {
 		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
+		&models.ConnectCommunity{}, &models.ConnectOpportunity{},
+		&models.ConnectMatchProfile{}, &models.ConnectApplication{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
 		&models.ChatTranscribeWeeklyUsage{}, &models.ChatTranscribeJob{},
 		// Ads models

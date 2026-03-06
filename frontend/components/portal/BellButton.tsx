@@ -7,6 +7,7 @@ import {
     View,
 } from 'react-native';
 import { Bell } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../context/NotificationContext';
 
 interface BellButtonProps {
@@ -22,6 +23,7 @@ export const BellButton: React.FC<BellButtonProps> = ({
     circularStyle = false,
     containerStyle,
 }) => {
+    const { i18n } = useTranslation();
     const { unreadCount, setPanelVisible } = useNotifications();
     const shakeAnim = useRef(new Animated.Value(0)).current;
     const prevCount = useRef(unreadCount);
@@ -46,12 +48,27 @@ export const BellButton: React.FC<BellButtonProps> = ({
     });
 
     const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount);
+    const copy =
+        i18n.language === 'ru'
+            ? {
+                  notifications: 'Уведомления',
+                  unread: `${unreadCount} непрочитанных`,
+              }
+            : i18n.language === 'hi'
+              ? {
+                    notifications: 'सूचनाएँ',
+                    unread: `${unreadCount} अपठित`,
+                }
+              : {
+                    notifications: 'Notifications',
+                    unread: `${unreadCount} unread`,
+                };
 
     return (
         <TouchableOpacity
             onPress={() => setPanelVisible(true)}
             style={[circularStyle ? styles.circular : styles.plain, containerStyle]}
-            accessibilityLabel="Уведомления"
+            accessibilityLabel={copy.notifications}
             accessibilityRole="button"
         >
             <Animated.View style={{ transform: [{ rotate: rotation }] }}>
@@ -59,7 +76,7 @@ export const BellButton: React.FC<BellButtonProps> = ({
             </Animated.View>
 
             {unreadCount > 0 && (
-                <View style={styles.badge} accessibilityLabel={`${unreadCount} непрочитанных`}>
+                <View style={styles.badge} accessibilityLabel={copy.unread}>
                     <Text style={styles.badgeText} numberOfLines={1}>
                         {badgeLabel}
                     </Text>

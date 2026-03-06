@@ -177,11 +177,11 @@ export default function ChannelPostComposerScreen() {
     setImages(media.images || []);
     setCircles(media.circles || []);
   }, []);
-  const ctaPlaceholder = useCallback((ctaType: ChannelPostCTAType) => {
-    if (ctaType === 'book_service') {
+  const ctaPlaceholder = useCallback((nextCtaType: ChannelPostCTAType) => {
+    if (nextCtaType === 'book_service') {
       return t('portal.channelPostComposer.ctaPlaceholders.bookService');
     }
-    if (ctaType === 'order_products') {
+    if (nextCtaType === 'order_products') {
       return t('portal.channelPostComposer.ctaPlaceholders.orderProducts');
     }
     return '';
@@ -214,7 +214,7 @@ export default function ChannelPostComposerScreen() {
       }
     };
 
-    void loadChannel();
+    loadChannel().catch(() => undefined);
 
     return () => {
       isActive = false;
@@ -267,7 +267,7 @@ export default function ChannelPostComposerScreen() {
       }
     };
 
-    void loadPost();
+    loadPost().catch(() => undefined);
 
     return () => {
       isActive = false;
@@ -311,7 +311,7 @@ export default function ChannelPostComposerScreen() {
         }
       };
 
-      void attachLatestCircle();
+      attachLatestCircle().catch(() => undefined);
 
       return () => {
         active = false;
@@ -365,7 +365,7 @@ export default function ChannelPostComposerScreen() {
   const openCirclePicker = useCallback(() => {
     setPickerSelectedIDs(circles.map(item => item.id));
     setPickerVisible(true);
-    void loadPickerCircles();
+    loadPickerCircles().catch(() => undefined);
   }, [circles, loadPickerCircles]);
 
   const togglePickerCircle = useCallback((circleID: number) => {
@@ -569,7 +569,7 @@ export default function ChannelPostComposerScreen() {
           <View style={styles.headerPlaceholder} />
         </View>
 
-        <KeyboardAwareContainer style={{ flex: 1 }}>
+        <KeyboardAwareContainer style={styles.flexFill}>
           <ScrollView
             contentContainerStyle={styles.form}
             keyboardShouldPersistTaps="handled"
@@ -590,7 +590,7 @@ export default function ChannelPostComposerScreen() {
               <Text style={styles.label}>
                 {t('portal.channelPostComposer.form.photos', { current: images.length, max: MAX_POST_IMAGES })}
               </Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => void pickAndUploadImages()} disabled={uploadingImages}>
+              <TouchableOpacity style={styles.addBtn} onPress={() => { pickAndUploadImages().catch(() => undefined); }} disabled={uploadingImages}>
                 {uploadingImages ? <ActivityIndicator size="small" color={colors.textPrimary} /> : <Plus size={16} color={colors.textPrimary} />}
                 <Text style={styles.addBtnText}>{t('common.add')}</Text>
               </TouchableOpacity>
@@ -647,9 +647,9 @@ export default function ChannelPostComposerScreen() {
             <View style={styles.segmentedRow}>
               {CTA_TYPES.map(option => (
                 <TouchableOpacity
-                  key={option.value}
-                  style={[styles.segmentedBtn, ctaType === option.value && styles.segmentedBtnActive]}
-                  onPress={() => setCtaType(option.value)}
+                  key={option}
+                  style={[styles.segmentedBtn, ctaType === option && styles.segmentedBtnActive]}
+                  onPress={() => setCtaType(option)}
                 >
                   <Text style={styles.segmentedBtnText}>{t(`portal.channelPostComposer.ctaTypes.${option}`)}</Text>
                 </TouchableOpacity>
@@ -718,20 +718,20 @@ export default function ChannelPostComposerScreen() {
                 </View>
 
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => void savePost('draft')} disabled={submitting}>
+                  <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => { savePost('draft').catch(() => undefined); }} disabled={submitting}>
                     <Text style={styles.secondaryBtnText}>{t('portal.channelPostComposer.form.draftButton')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => void savePost('schedule')} disabled={submitting}>
+                  <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => { savePost('schedule').catch(() => undefined); }} disabled={submitting}>
                     <Text style={styles.secondaryBtnText}>{t('portal.channelPostComposer.form.scheduleButton')}</Text>
                   </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity style={styles.primaryBtn} onPress={() => void savePost('publish')} disabled={submitting}>
+                <TouchableOpacity style={styles.primaryBtn} onPress={() => { savePost('publish').catch(() => undefined); }} disabled={submitting}>
                   {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>{t('portal.channelPostComposer.form.publishButton')}</Text>}
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity style={styles.primaryBtn} onPress={() => void savePost('draft')} disabled={submitting}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => { savePost('draft').catch(() => undefined); }} disabled={submitting}>
                 {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>{t('portal.channelPostComposer.form.saveChangesButton')}</Text>}
               </TouchableOpacity>
             )}
@@ -814,6 +814,9 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       flex: 1,
     },
     container: {
+      flex: 1,
+    },
+    flexFill: {
       flex: 1,
     },
     loaderContainer: {

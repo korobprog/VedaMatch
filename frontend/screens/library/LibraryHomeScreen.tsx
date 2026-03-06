@@ -19,6 +19,7 @@ import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { user } = useUser();
+    const { i18n } = useTranslation();
     const { isDarkMode, portalBackgroundType } = useSettings();
     const { t } = useTranslation();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
@@ -27,6 +28,12 @@ export const LibraryHomeScreen = () => {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [savedBooks, setSavedBooks] = useState<string[]>([]);
     const [bookSizes, setBookSizes] = useState<{ [code: string]: number }>({});
+    const getBookTitle = React.useCallback((book: ScriptureBook) => (
+        i18n.language?.startsWith('ru') ? (book.name_ru || book.name_en) : (book.name_en || book.name_ru)
+    ), [i18n.language]);
+    const getBookDescription = React.useCallback((book: ScriptureBook) => (
+        i18n.language?.startsWith('ru') ? (book.description_ru || book.description_en) : (book.description_en || book.description_ru)
+    ), [i18n.language]);
     const [savingBook, setSavingBook] = useState<string | null>(null);
     const [saveProgress, setSaveProgress] = useState<number>(0);
     const [saveStatus, setSaveStatus] = useState<string>('');
@@ -56,7 +63,7 @@ export const LibraryHomeScreen = () => {
         } catch (error) {
             console.error('Failed to load books', error);
             setBooks([]);
-            setLoadError(t('library.load_error', 'Не удалось загрузить библиотеку. Проверьте интернет и попробуйте снова.'));
+            setLoadError(t('library.load_error', 'Failed to load the library. Check your internet and try again.'));
         } finally {
             setLoading(false);
         }
@@ -79,7 +86,7 @@ export const LibraryHomeScreen = () => {
     };
 
     const handleBookPress = (book: ScriptureBook) => {
-        navigation.navigate('Reader', { bookCode: book.code, title: book.name_ru || book.name_en });
+        navigation.navigate('Reader', { bookCode: book.code, title: getBookTitle(book) });
     };
 
     const handleSaveBook = async (book: ScriptureBook) => {
@@ -87,7 +94,7 @@ export const LibraryHomeScreen = () => {
 
         setSavingBook(book.code);
         setSaveProgress(0);
-        setSaveStatus(t('library.downloading', 'Загрузка...'));
+        setSaveStatus(t('library.downloading', 'Loading...'));
 
         const success = await offlineBookService.saveBookOffline(book, (progress, status) => {
             setSaveProgress(progress);
@@ -98,8 +105,8 @@ export const LibraryHomeScreen = () => {
             await loadSavedBooksInfo();
         } else {
             Alert.alert(
-                t('library.error', 'Ошибка'),
-                t('library.save_error', 'Не удалось сохранить книгу. Попробуйте позже.')
+                t('library.error', 'Error'),
+                t('library.save_error', 'Failed to save the book. Try again later.')
             );
         }
 
@@ -110,12 +117,12 @@ export const LibraryHomeScreen = () => {
 
     const handleRemoveBook = (book: ScriptureBook) => {
         Alert.alert(
-            t('library.delete_title', 'Удалить книгу?'),
-            t('library.delete_message', 'Книга будет удалена из локального хранилища. Вы сможете скачать её снова.'),
+            t('library.delete_title', 'Delete book?'),
+            t('library.delete_message', 'The book will be removed from local storage. You can download it again later.'),
             [
-                { text: t('common.cancel', 'Отмена'), style: 'cancel' },
+                { text: t('common.cancel', 'Cancel'), style: 'cancel' },
                 {
-                    text: t('common.delete', 'Удалить'),
+                    text: t('common.delete', 'Delete'),
                     style: 'destructive',
                     onPress: async () => {
                         await offlineBookService.removeBook(book.code);
@@ -133,24 +140,24 @@ export const LibraryHomeScreen = () => {
 
         if (isSaved) {
             options.push({
-                text: t('library.delete_offline', 'Удалить из загрузок'),
+                text: t('library.delete_offline', 'Remove from downloads'),
                 style: 'destructive' as const,
                 onPress: () => handleRemoveBook(book)
             });
         } else {
             options.push({
-                text: t('library.download', 'Скачать для офлайн'),
+                text: t('library.download', 'Download for offline'),
                 onPress: () => handleSaveBook(book)
             });
         }
 
-        options.push({ text: t('common.cancel', 'Отмена'), style: 'cancel' as const });
+        options.push({ text: t('common.cancel', 'Cancel'), style: 'cancel' as const });
 
         Alert.alert(
-            book.name_ru || book.name_en,
+            getBookTitle(book),
             isSaved
-                ? t('library.saved_info', 'Книга сохранена для офлайн чтения')
-                : t('library.not_saved_info', 'Книга не загружена'),
+                ? t('library.saved_info', 'The book is saved for offline reading')
+                : t('library.not_saved_info', 'The book is not downloaded'),
             options
         );
     };
@@ -206,7 +213,7 @@ export const LibraryHomeScreen = () => {
                                 style={[styles.cardTitle, { color: titleColor }]}
                                 numberOfLines={1}
                             >
-                                {item.name_ru || item.name_en}
+                                {getBookTitle(item)}
                             </Text>
                             {isSaved && <View style={[styles.dot, { backgroundColor: '#10B981' }]} />}
                         </View>
@@ -214,12 +221,12 @@ export const LibraryHomeScreen = () => {
                             style={[styles.cardDescription, { color: subColor }]}
                             numberOfLines={2}
                         >
-                            {item.description_ru || item.description_en || t('library.scripture', 'Священное писание')}
+                            {getBookDescription(item) || t('library.scripture', 'Sacred scripture')}
                         </Text>
 
                         {bookSize && (
                             <Text style={[styles.sizeText, { color: accentColor, opacity: 0.8 }]}>
-                                {formatBytes(bookSize)} • {t('library.saved', 'Сохранено')}
+                                {formatBytes(bookSize)} • {t('library.saved', 'Saved')}
                             </Text>
                         )}
 
@@ -263,14 +270,14 @@ export const LibraryHomeScreen = () => {
                 <View style={[styles.headerChip, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border }]}>
                     <Sparkles size={14} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
                     <Text style={[styles.headerChipText, { color: isPhotoBg ? '#FFFFFF' : roleColors.textSecondary }]}>
-                        {t('library.scripture', 'Священные писания')}
+                        {t('library.scripture', 'Sacred scriptures')}
                     </Text>
                 </View>
             </View>
             {loadError ? (
                 <View style={[styles.emptyState, { paddingHorizontal: 20 }]}>
                     <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
-                        {t('library.unavailable', 'Библиотека временно недоступна')}
+                        {t('library.unavailable', 'Library is temporarily unavailable')}
                     </Text>
                     <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
                         {loadError}
@@ -280,7 +287,7 @@ export const LibraryHomeScreen = () => {
                         style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
                         activeOpacity={0.85}
                     >
-                        <Text style={styles.retryButtonText}>{t('common.retry', 'Повторить')}</Text>
+                        <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -293,10 +300,10 @@ export const LibraryHomeScreen = () => {
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
-                                {t('library.empty_title', 'Пока нет книг')}
+                                {t('library.empty_title', 'No books yet')}
                             </Text>
                             <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
-                                {t('library.empty_message', 'Книги появятся здесь после синхронизации с сервером.')}
+                                {t('library.empty_message', 'Books will appear here after syncing with the server.')}
                             </Text>
                         </View>
                     }

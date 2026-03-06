@@ -56,12 +56,12 @@ export const FavoritesScreen: React.FC = () => {
 
     const handleRemove = async (trackId: number) => {
         Alert.alert(
-            'Удалить из избранного?',
-            'Трек будет удалён из вашего списка избранного',
+            'Remove from favorites?',
+            'The track will be removed from your favorites list',
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Удалить',
+                    text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
                         setRemovingId(trackId);
@@ -71,7 +71,7 @@ export const FavoritesScreen: React.FC = () => {
                             setTotal(prev => prev - 1);
                         } catch (error) {
                             console.error('Failed to remove from favorites:', error);
-                            Alert.alert('Ошибка', 'Не удалось удалить трек');
+                            Alert.alert('Error', 'Failed to remove track');
                         } finally {
                             setRemovingId(null);
                         }
@@ -104,7 +104,7 @@ export const FavoritesScreen: React.FC = () => {
                     {item.title}
                 </Text>
                 <Text style={[styles.artist, { color: roleColors.textSecondary }]} numberOfLines={1}>
-                    {item.artist || 'Неизвестный исполнитель'}
+                    {item.artist || 'Unknown artist'}
                 </Text>
                 <Text style={[styles.duration, { color: roleColors.textSecondary }]}>
                     {multimediaService.formatDuration(item.duration)}
@@ -133,10 +133,10 @@ export const FavoritesScreen: React.FC = () => {
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Избранное</Text>
+                    <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Favorites</Text>
                     {total > 0 && (
                         <Text style={[styles.headerSubtitle, { color: roleColors.textSecondary }]}>
-                            {total} {total === 1 ? 'трек' : total < 5 ? 'трека' : 'треков'}
+                            {total} {total === 1 ? 'track' : 'tracks'}
                         </Text>
                     )}
                 </View>
@@ -147,7 +147,7 @@ export const FavoritesScreen: React.FC = () => {
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
                     <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>
-                        Загрузка избранного...
+                        Loading favorites...
                     </Text>
                 </View>
             ) : tracks.length === 0 ? (
@@ -156,17 +156,17 @@ export const FavoritesScreen: React.FC = () => {
                         <HeartOff size={48} color={roleColors.accent} />
                     </View>
                     <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>
-                        Нет избранных треков
+                        No favorite tracks
                     </Text>
                     <Text style={[styles.emptyDescription, { color: roleColors.textSecondary }]}>
-                        Нажмите на сердечко рядом с треком, чтобы добавить его сюда
+                        Tap the heart next to a track to add it here
                     </Text>
                     <TouchableOpacity
                         style={[styles.exploreButton, { backgroundColor: roleColors.accent }]}
                         onPress={() => navigation.navigate('Audio')}
                     >
                         <Music size={18} color="white" />
-                        <Text style={styles.exploreButtonText}>Перейти к аудио</Text>
+                        <Text style={styles.exploreButtonText}>Go to audio</Text>
                     </TouchableOpacity>
                 </View>
             ) : (

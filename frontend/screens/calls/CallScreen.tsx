@@ -16,11 +16,11 @@ const { width, height } = Dimensions.get('window');
 const FEEDBACK_MIN_DURATION_SEC = 10;
 const QUICK_DONATION_AMOUNTS = [20, 50, 100];
 const FEEDBACK_REASONS: { id: CallFeedbackReason; label: string }[] = [
-    { id: 'audio_quality', label: 'Проблемы со звуком' },
-    { id: 'video_quality', label: 'Проблемы с видео' },
-    { id: 'connection_stability', label: 'Обрывы соединения' },
-    { id: 'latency', label: 'Задержка' },
-    { id: 'echo', label: 'Эхо/шум' },
+    { id: 'audio_quality', label: 'Audio issues' },
+    { id: 'video_quality', label: 'Video issues' },
+    { id: 'connection_stability', label: 'Connection drops' },
+    { id: 'latency', label: 'Latency' },
+    { id: 'echo', label: 'Echo/noise' },
 ];
 
 export const CallScreen = () => {
@@ -50,7 +50,7 @@ export const CallScreen = () => {
     const [streamVersion, setStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [status, setStatus] = useState<string>(isIncoming ? 'Входящий звонок...' : 'Вызов...');
+    const [status, setStatus] = useState<string>(isIncoming ? 'Incoming call...' : 'Calling...');
     const [iceState, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -175,7 +175,7 @@ export const CallScreen = () => {
                     setIsVideoEnabled(streamHasVideo);
                     setLocalVideoAvailable(streamHasVideo);
                     if (!streamHasVideo) {
-                        setStatus('Камера недоступна');
+                        setStatus('Camera unavailable');
                     }
                     const tracks = stream.getTracks().map(t => t.kind[0].toUpperCase()).join('/');
                     console.log(`Local stream ready: ${tracks}`);
@@ -185,7 +185,7 @@ export const CallScreen = () => {
                 if (mounted) {
                     setIsVideoEnabled(false);
                     setLocalVideoAvailable(false);
-                    setStatus('Нет доступа к камере/микрофону');
+                    setStatus('No access to camera/microphone');
                 }
             }
         };
@@ -231,7 +231,7 @@ export const CallScreen = () => {
                         setRemoteVideoAvailable(streamHasVideo);
                         setStreamVersion(v => v + 1);
                         const trackInfo = tracks.map(t => t.kind[0].toUpperCase()).join('/');
-                        setStatus(streamHasVideo ? `Connected (${trackInfo})` : 'Подключение видео...');
+                        setStatus(streamHasVideo ? `Connected (${trackInfo})` : 'Connecting video...');
                     }
                 });
 
@@ -449,7 +449,7 @@ export const CallScreen = () => {
             });
         } catch (error) {
             console.warn('[CallScreen] submitFeedback failed', error);
-            setFeedbackError('Не удалось отправить оценку. Можно продолжить.');
+            setFeedbackError('Failed to submit the rating. You can continue.');
         } finally {
             setFeedbackBusy(false);
             setFeedbackStep('donation');
@@ -469,7 +469,7 @@ export const CallScreen = () => {
         const customParsed = Number.parseInt(customDonationAmount.trim(), 10);
         const amount = selectedDonationAmount ?? (Number.isFinite(customParsed) ? customParsed : 0);
         if (!Number.isFinite(amount) || amount <= 0) {
-            setFeedbackError('Введите корректную сумму.');
+            setFeedbackError('Enter a valid amount.');
             return;
         }
 
@@ -483,7 +483,7 @@ export const CallScreen = () => {
             completeFeedbackFlow();
         } catch (error) {
             console.warn('[CallScreen] submitDonation failed', error);
-            setFeedbackError('Перевод не выполнен. Можно пропустить.');
+            setFeedbackError('Transfer was not completed. You can skip it.');
         } finally {
             setDonationBusy(false);
         }
@@ -537,7 +537,7 @@ export const CallScreen = () => {
             console.error('Failed to accept incoming call', error);
             setIsVideoEnabled(false);
             setLocalVideoAvailable(false);
-            setStatus('Не удалось включить камеру');
+            setStatus('Failed to enable the camera');
         }
     };
 
@@ -563,7 +563,7 @@ export const CallScreen = () => {
                 console.error('Failed to auto-accept incoming call', error);
                 setIsVideoEnabled(false);
                 setLocalVideoAvailable(false);
-                setStatus('Не удалось включить камеру');
+                setStatus('Failed to enable the camera');
             }
         })();
     }, [autoAccept, hasAccepted, isIncoming]);
@@ -579,21 +579,21 @@ export const CallScreen = () => {
     const handleEnterPiP = async () => {
         if (Platform.OS === 'ios') {
             if (!pipViewRef.current) {
-                setStatus('PiP будет доступен после подключения видео');
+                setStatus('PiP will be available after video connects');
                 return;
             }
             try {
                 startIOSPIP(pipViewRef);
             } catch (error) {
                 console.warn('[CallScreen] Failed to start iOS PiP', error);
-                setStatus('PiP недоступен');
+                setStatus('PiP unavailable');
             }
             return;
         }
 
         const entered = await callPiPService.enterPiP(9, 16);
         if (!entered) {
-            setStatus('PiP недоступен');
+            setStatus('PiP unavailable');
         }
     };
 
@@ -614,7 +614,7 @@ export const CallScreen = () => {
             if (!videoTracks.length) {
                 setIsVideoEnabled(false);
                 setLocalVideoAvailable(false);
-                setStatus('Камера недоступна');
+                setStatus('Camera unavailable');
                 return;
             }
             videoTracks.forEach(track => {
@@ -630,9 +630,9 @@ export const CallScreen = () => {
         const result = await webRTCService.switchCamera();
         if (!result.success) {
             if (result.reason === 'no_video_track' || result.reason === 'no_local_stream') {
-                setStatus('Камера недоступна');
+                setStatus('Camera unavailable');
             } else {
-                setStatus('Не удалось переключить камеру');
+                setStatus('Failed to switch the camera');
             }
             return;
         }
@@ -691,12 +691,12 @@ export const CallScreen = () => {
                 <View style={[styles.incomingControls, { bottom: 80 }]}>
                     <TouchableOpacity onPress={handleHangup} style={[styles.actionBtn, styles.declineBtn]}>
                         <PhoneOff color="white" size={32} />
-                        <Text style={styles.btnLabel}>Отклонить</Text>
+                        <Text style={styles.btnLabel}>Decline</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={handleAnswer} style={[styles.actionBtn, styles.acceptBtn]}>
                         <Phone color="white" size={32} />
-                        <Text style={styles.btnLabel}>Принять</Text>
+                        <Text style={styles.btnLabel}>Accept</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -822,12 +822,12 @@ export const CallScreen = () => {
                 <View style={styles.feedbackBackdrop}>
                     <View style={styles.feedbackCard}>
                         <Text style={styles.feedbackTitle}>
-                            {feedbackStep === 'rating' ? 'Оцените качество связи' : 'Поддержать качество связи'}
+                            {feedbackStep === 'rating' ? 'Rate call quality' : 'Support call quality'}
                         </Text>
                         <Text style={styles.feedbackSubtitle}>
                             {feedbackStep === 'rating'
-                                ? 'Помогите улучшить звонки после завершения разговора.'
-                                : 'Быстрый перевод только из регулярного LKM на счет VedaMatch.'}
+                                ? 'Help improve calls after the conversation ends.'
+                                : 'Quick transfer only from regular LKM to the VedaMatch account.'}
                         </Text>
 
                         {feedbackStep === 'rating' ? (
@@ -866,7 +866,7 @@ export const CallScreen = () => {
 
                                 <TextInput
                                     style={styles.feedbackInput}
-                                    placeholder="Комментарий (необязательно)"
+                                    placeholder="Comment (optional)"
                                     placeholderTextColor="rgba(255,255,255,0.45)"
                                     value={feedbackComment}
                                     onChangeText={setFeedbackComment}
@@ -876,14 +876,14 @@ export const CallScreen = () => {
 
                                 <View style={styles.feedbackActions}>
                                     <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={completeFeedbackFlow} disabled={feedbackBusy}>
-                                        <Text style={styles.feedbackSecondaryBtnText}>Пропустить</Text>
+                                        <Text style={styles.feedbackSecondaryBtnText}>Skip</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.feedbackPrimaryBtn, (feedbackRating < 1 || feedbackBusy) && styles.feedbackBtnDisabled]}
                                         onPress={() => { void submitFeedback(); }}
                                         disabled={feedbackRating < 1 || feedbackBusy}
                                     >
-                                        <Text style={styles.feedbackPrimaryBtnText}>{feedbackBusy ? 'Отправка...' : 'Далее'}</Text>
+                                        <Text style={styles.feedbackPrimaryBtnText}>{feedbackBusy ? 'Submitting...' : 'Next'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </>
@@ -909,7 +909,7 @@ export const CallScreen = () => {
 
                                 <TextInput
                                     style={styles.feedbackInput}
-                                    placeholder="Своя сумма LKM"
+                                    placeholder="Custom LKM amount"
                                     placeholderTextColor="rgba(255,255,255,0.45)"
                                     value={customDonationAmount}
                                     onChangeText={(value) => {
@@ -921,14 +921,14 @@ export const CallScreen = () => {
 
                                 <View style={styles.feedbackActions}>
                                     <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={skipDonation} disabled={donationBusy}>
-                                        <Text style={styles.feedbackSecondaryBtnText}>Пропустить</Text>
+                                        <Text style={styles.feedbackSecondaryBtnText}>Skip</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.feedbackPrimaryBtn, donationBusy && styles.feedbackBtnDisabled]}
                                         onPress={() => { void submitDonation(); }}
                                         disabled={donationBusy}
                                     >
-                                        <Text style={styles.feedbackPrimaryBtnText}>{donationBusy ? 'Перевод...' : 'Поддержать'}</Text>
+                                        <Text style={styles.feedbackPrimaryBtnText}>{donationBusy ? 'Transferring...' : 'Support'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </>

@@ -113,26 +113,26 @@ export const VideoScreen: React.FC = () => {
             </View>
             <View style={styles.info}>
                 <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
-                <Text style={[styles.artist, { color: roleColors.textSecondary }]}>{item.artist || 'Неизвестный автор'}</Text>
-                <Text style={[styles.stats, { color: roleColors.textSecondary, opacity: 0.72 }]}>👁️ {item.viewCount} просмотров</Text>
+                <Text style={[styles.artist, { color: roleColors.textSecondary }]}>{item.artist || 'Unknown author'}</Text>
+                <Text style={[styles.stats, { color: roleColors.textSecondary, opacity: 0.72 }]}>👁️ {item.viewCount} views</Text>
                 <TouchableOpacity
                     style={styles.playlistBtn}
                     onPress={async () => {
                         try {
                             const playlists = await multimediaService.getPlaylists(1, 100);
                             if (!playlists.playlists.length) {
-                                Alert.alert('Плейлисты', 'Сначала создайте плейлист в разделе Плейлисты');
+                                Alert.alert('Playlists', 'Create a playlist first in the Playlists section');
                                 return;
                             }
                             await multimediaService.addTrackToPlaylist(playlists.playlists[0].ID, item.ID);
-                            Alert.alert('Плейлисты', `Добавлено в "${playlists.playlists[0].name}"`);
+                            Alert.alert('Playlists', `Added to "${playlists.playlists[0].name}"`);
                         } catch {
-                            Alert.alert('Ошибка', 'Не удалось добавить в плейлист');
+                            Alert.alert('Error', 'Failed to add to playlist');
                         }
                     }}
                 >
                     <ListPlus size={16} color={roleColors.accent} />
-                    <Text style={[styles.playlistBtnText, { color: roleColors.accent }]}>В плейлист</Text>
+                    <Text style={[styles.playlistBtnText, { color: roleColors.accent }]}>Add to playlist</Text>
                 </TouchableOpacity>
             </View>
         </TouchableOpacity>
@@ -151,16 +151,16 @@ export const VideoScreen: React.FC = () => {
                 supportConfig.projectId,
                 Math.max(1, supportConfig.defaultAmount || 20),
                 false,
-                'Поддержка Video',
+                'Video support',
                 'support_prompt',
                 'VideoScreen',
             );
             await multimediaSupportService.setPromptCooldown(user.ID);
             await multimediaSupportService.resetInteractions(user.ID);
             setShowSupportPrompt(false);
-            Alert.alert('Спасибо', 'Ваш донат принят');
+            Alert.alert('Thank you', 'Your donation was received');
         } catch (e: any) {
-            Alert.alert('Ошибка', e?.message || 'Не удалось выполнить донат');
+            Alert.alert('Error', e?.message || 'Failed to complete donation');
         } finally {
             setSupportSubmitting(false);
         }
@@ -172,20 +172,20 @@ export const VideoScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Кинотеатр</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Cinema</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
                 <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
-                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать медиа</Text>
-                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Добровольный донат {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
+                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Support media</Text>
+                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Voluntary donation {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
                     <View style={styles.supportRow}>
                         <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={supportLater}>
-                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                            <Text style={{ color: roleColors.textSecondary }}>Later</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]} onPress={supportDonate}>
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Support'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -195,7 +195,7 @@ export const VideoScreen: React.FC = () => {
                 <Search size={20} color={roleColors.textSecondary} />
                 <TextInput
                     style={[styles.searchInput, { color: roleColors.textPrimary }]}
-                    placeholder="Поиск фильмов, лекций..."
+                    placeholder="Search movies, lectures..."
                     placeholderTextColor={roleColors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
@@ -215,7 +215,7 @@ export const VideoScreen: React.FC = () => {
                             ]}
                             onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>All traditions</Text>
                         </TouchableOpacity>
                         {MULTIMEDIA_MADH_OPTIONS.map((m) => (
                             <TouchableOpacity
@@ -239,16 +239,16 @@ export const VideoScreen: React.FC = () => {
                 <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
                     {userMadh ? (
                         <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                            Режим доступа: ваша организация и общий контент.
+                            Access mode: your organization and shared content.
                         </Text>
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                                Сейчас доступен общий контент. Добавьте организацию в профиль или включите PRO для полного каталога.
+                                Shared content is available. Add an organization to your profile or enable PRO for the full catalog.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
-                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                    <Text style={{ color: roleColors.textPrimary }}>Profile</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
                                     <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
@@ -262,7 +262,7 @@ export const VideoScreen: React.FC = () => {
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка фильмов...</Text>
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Loading movies...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -276,7 +276,7 @@ export const VideoScreen: React.FC = () => {
                     ListEmptyComponent={
                         <View style={styles.center}>
                             <Film size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Видео пока не добавлены</Text>
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Videos are not added yet</Text>
                         </View>
                     }
                 />

@@ -26,7 +26,7 @@ export const CourseDetailsScreen: React.FC = () => {
     const navigation = useNavigation<NavigationProp>();
     const route = useRoute<CourseDetailsRouteProp>();
     const { courseId } = route.params;
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
@@ -88,9 +88,12 @@ export const CourseDetailsScreen: React.FC = () => {
 
     const handleOpenBook = () => {
         if (scriptureBook?.code) {
+            const scriptureTitle = i18n.language?.startsWith('ru')
+                ? (scriptureBook.name_ru || scriptureBook.name_en || course.title)
+                : (scriptureBook.name_en || scriptureBook.name_ru || course.title);
             navigation.navigate('Reader', {
                 bookCode: scriptureBook.code,
-                title: scriptureBook.name_ru || scriptureBook.name_en || course.title,
+                title: scriptureTitle,
             });
         }
     };

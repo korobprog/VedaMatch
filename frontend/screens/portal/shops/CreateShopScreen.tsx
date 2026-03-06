@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
     Image, Alert, ActivityIndicator
@@ -65,12 +65,61 @@ export const CreateShopScreen: React.FC = () => {
     const [existingLogo, setExistingLogo] = useState('');
     const [coverAsset, setCoverAsset] = useState<Asset | null>(null);
     const [existingCover, setExistingCover] = useState('');
+    const copy = i18n.language?.startsWith('ru')
+        ? {
+            youAlreadyHaveShop: 'У вас уже есть магазин',
+            redirectingToShop: 'Переходим к вашему магазину...',
+            ok: 'OK',
+            cannotCreateShop: 'Вы не можете создать магазин',
+            error: 'Ошибка',
+            success: 'Успех',
+            shopUpdated: 'Магазин успешно обновлён',
+            shopCreated: 'Магазин успешно создан. Он будет проверен модераторами.',
+            failedToSaveShop: 'Не удалось сохранить магазин',
+            loading: 'Загрузка...',
+            cannotCreateTitle: 'Нельзя создать магазин',
+            goBack: 'Назад',
+            createYourShop: 'Создайте свой магазин',
+            createSubtitle: 'Начните продавать свои товары сообществу',
+            branding: 'Брендинг',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                youAlreadyHaveShop: 'आपके पास पहले से एक दुकान है',
+                redirectingToShop: 'आपकी दुकान पर ले जाया जा रहा है...',
+                ok: 'ठीक है',
+                cannotCreateShop: 'आप दुकान नहीं बना सकते',
+                error: 'त्रुटि',
+                success: 'सफलता',
+                shopUpdated: 'दुकान सफलतापूर्वक अपडेट हुई',
+                shopCreated: 'दुकान सफलतापूर्वक बन गई। इसे मॉडरेटर जाँचेंगे।',
+                failedToSaveShop: 'दुकान सहेजी नहीं जा सकी',
+                loading: 'लोड हो रहा है...',
+                cannotCreateTitle: 'दुकान नहीं बनाई जा सकती',
+                goBack: 'वापस जाएँ',
+                createYourShop: 'अपनी दुकान बनाएँ',
+                createSubtitle: 'समुदाय को अपने उत्पाद बेचना शुरू करें',
+                branding: 'ब्रांडिंग',
+            }
+            : {
+                youAlreadyHaveShop: 'You already have a shop',
+                redirectingToShop: 'Redirecting to your shop...',
+                ok: 'OK',
+                cannotCreateShop: 'You cannot create a shop',
+                error: 'Error',
+                success: 'Success',
+                shopUpdated: 'Shop updated successfully',
+                shopCreated: 'Shop created successfully! It will be reviewed by moderators.',
+                failedToSaveShop: 'Failed to save shop',
+                loading: 'Loading...',
+                cannotCreateTitle: 'Cannot Create Shop',
+                goBack: 'Go Back',
+                createYourShop: 'Create Your Shop',
+                createSubtitle: 'Start selling your products to the community',
+                branding: 'Branding',
+            };
 
-    useEffect(() => {
-        checkPermissionAndLoadCategories();
-    }, [shopId]);
-
-    const checkPermissionAndLoadCategories = async () => {
+    const checkPermissionAndLoadCategories = useCallback(async () => {
         try {
             setCheckingPermission(true);
 
@@ -80,9 +129,9 @@ export const CreateShopScreen: React.FC = () => {
                 if (myShop.hasShop) {
                     // Redirect to existing shop
                     Alert.alert(
-                        t('market.shop.alreadyHave') || 'You already have a shop',
-                        t('market.shop.redirecting') || 'Redirecting to your shop...',
-                        [{ text: 'OK', onPress: () => navigation.goBack() }]
+                        t('market.shop.alreadyHave') || copy.youAlreadyHaveShop,
+                        t('market.shop.redirecting') || copy.redirectingToShop,
+                        [{ text: copy.ok, onPress: () => navigation.goBack() }]
                     );
                     return;
                 }
@@ -92,7 +141,7 @@ export const CreateShopScreen: React.FC = () => {
             const permission = await marketService.canCreateShop();
             setCanCreate(permission.canCreate);
             if (!permission.canCreate) {
-                setPermissionMessage(permission.message || 'You cannot create a shop');
+                setPermissionMessage(permission.message || copy.cannotCreateShop);
             }
 
             // Load categories
@@ -122,7 +171,11 @@ export const CreateShopScreen: React.FC = () => {
         } finally {
             setCheckingPermission(false);
         }
-    };
+    }, [copy.cannotCreateShop, copy.ok, copy.redirectingToShop, copy.youAlreadyHaveShop, isEditing, navigation, shopId, t]);
+
+    useEffect(() => {
+        void checkPermissionAndLoadCategories();
+    }, [checkPermissionAndLoadCategories]);
 
     const handlePickLogo = async () => {
         const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8 });
@@ -140,10 +193,10 @@ export const CreateShopScreen: React.FC = () => {
 
     const handleSubmit = async () => {
         if (!name.trim() || name.length < 2) {
-            return Alert.alert(t('error') || 'Error', t('market.shop.nameRequired') || 'Shop name must be at least 2 characters');
+            return Alert.alert(t('error') || copy.error, t('market.shop.nameRequired') || 'Shop name must be at least 2 characters');
         }
         if (!city.trim()) {
-            return Alert.alert(t('error') || 'Error', t('market.shop.cityRequired') || 'City is required');
+            return Alert.alert(t('error') || copy.error, t('market.shop.cityRequired') || 'City is required');
         }
 
         setLoading(true);
@@ -177,23 +230,23 @@ export const CreateShopScreen: React.FC = () => {
             if (isEditing && shopId) {
                 await marketService.updateShop(shopId, shopData);
                 Alert.alert(
-                    t('success') || 'Success',
-                    t('market.product.updateSuccess') || 'Shop updated successfully',
-                    [{ text: 'OK', onPress: () => navigation.goBack() }]
+                    t('success') || copy.success,
+                    t('market.product.updateSuccess') || copy.shopUpdated,
+                    [{ text: copy.ok, onPress: () => navigation.goBack() }]
                 );
             } else {
                 await marketService.createShop(shopData);
                 Alert.alert(
-                    t('success') || 'Success',
-                    t('market.shop.createSuccess') || 'Shop created successfully! It will be reviewed by moderators.',
-                    [{ text: 'OK', onPress: () => navigation.goBack() }]
+                    t('success') || copy.success,
+                    t('market.shop.createSuccess') || copy.shopCreated,
+                    [{ text: copy.ok, onPress: () => navigation.goBack() }]
                 );
             }
         } catch (error: any) {
             console.error('Error saving shop:', error);
             Alert.alert(
-                t('error') || 'Error',
-                error.response?.data?.error || t('market.shop.createError') || 'Failed to save shop'
+                t('error') || copy.error,
+                error.response?.data?.error || t('market.shop.createError') || copy.failedToSaveShop
             );
         } finally {
             setLoading(false);
@@ -205,7 +258,7 @@ export const CreateShopScreen: React.FC = () => {
             <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.loadingText}>
-                    {t('loading') || 'Loading...'}
+                    {t('loading') || copy.loading}
                 </Text>
             </View>
         );
@@ -216,7 +269,7 @@ export const CreateShopScreen: React.FC = () => {
             <View style={styles.centerContainer}>
                 <Store size={64} color={colors.textSecondary} opacity={0.5} style={{ marginBottom: 16 }} />
                 <Text style={styles.errorTitle}>
-                    {t('market.shop.cannotCreate') || 'Cannot Create Shop'}
+                    {t('market.shop.cannotCreate') || copy.cannotCreateTitle}
                 </Text>
                 <Text style={styles.errorMessage}>
                     {permissionMessage}
@@ -225,7 +278,7 @@ export const CreateShopScreen: React.FC = () => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <Text style={styles.backButtonText}>{t('back') || 'Go Back'}</Text>
+                    <Text style={styles.backButtonText}>{t('back') || copy.goBack}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -237,16 +290,16 @@ export const CreateShopScreen: React.FC = () => {
                 <KeyboardAwareContainer style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={styles.headerTitle}>
-                        {t('market.shop.create') || 'Create Your Shop'}
+                        {t('market.shop.create') || copy.createYourShop}
                     </Text>
                     <Text style={styles.headerSubtitle}>
-                        {t('market.shop.createSubtitle') || 'Start selling your products to the community'}
+                        {t('market.shop.createSubtitle') || copy.createSubtitle}
                     </Text>
 
                     {/* Logo & Cover */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>
-                            {t('market.shop.branding') || 'Branding'}
+                            {t('market.shop.branding') || copy.branding}
                         </Text>
 
                         <View style={styles.imageRow}>

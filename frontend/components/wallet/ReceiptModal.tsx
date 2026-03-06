@@ -28,7 +28,9 @@ import {
     TransactionType,
     getTransactionAmountParts,
     getTransactionSign,
+    getTransactionTypeLabel,
 } from '../../services/walletService';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -69,23 +71,13 @@ const TRANSACTION_COLORS: Record<TransactionType, string[]> = {
     admin_seize: ['#EF4444', '#DC2626'],
 };
 
-const TRANSACTION_LABELS: Record<TransactionType, string> = {
-    credit: 'Пополнение',
-    debit: 'Списание',
-    bonus: 'Бонус',
-    refund: 'Возврат',
-    hold: 'Заморозка',
-    release: 'Списание из холда',
-    admin_charge: 'Начисление',
-    admin_seize: 'Списание',
-};
-
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     visible,
     onClose,
     transaction,
     currencyName = 'LKM',
 }) => {
+    const { i18n } = useTranslation();
     const receiptRef = useRef<View>(null);
     const [isSharing, setIsSharing] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
@@ -94,14 +86,63 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
     const Icon = TRANSACTION_ICONS[transaction.type] || ArrowDownCircle;
     const colors = TRANSACTION_COLORS[transaction.type] || TRANSACTION_COLORS.credit;
-    const label = TRANSACTION_LABELS[transaction.type] || 'Транзакция';
+    const lang = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
+    const locale = lang === 'ru' ? 'ru-RU' : lang === 'hi' ? 'hi-IN' : 'en-US';
+    const copy = {
+        en: {
+            transaction: 'Transaction',
+            receiptTitle: 'Transaction receipt',
+            wallet: 'Spiritual Wallet',
+            description: 'Description',
+            date: 'Date',
+            regular: 'Regular',
+            bonus: 'Bonus',
+            balanceAfter: 'Balance after',
+            transactionId: 'Transaction ID',
+            completed: 'Completed',
+            share: 'Share',
+            saved: 'Saved',
+            save: 'Save',
+        },
+        ru: {
+            transaction: 'Транзакция',
+            receiptTitle: 'Чек транзакции',
+            wallet: 'Духовный Кошелёк',
+            description: 'Описание',
+            date: 'Дата',
+            regular: 'Обычные',
+            bonus: 'Бонусные',
+            balanceAfter: 'Баланс после',
+            transactionId: 'ID транзакции',
+            completed: 'Выполнено',
+            share: 'Поделиться',
+            saved: 'Сохранено',
+            save: 'Сохранить',
+        },
+        hi: {
+            transaction: 'लेनदेन',
+            receiptTitle: 'लेनदेन रसीद',
+            wallet: 'आध्यात्मिक वॉलेट',
+            description: 'विवरण',
+            date: 'तारीख',
+            regular: 'नियमित',
+            bonus: 'बोनस',
+            balanceAfter: 'बाद का बैलेंस',
+            transactionId: 'लेनदेन ID',
+            completed: 'पूर्ण',
+            share: 'साझा करें',
+            saved: 'सहेजा गया',
+            save: 'सहेजें',
+        },
+    }[lang];
+    const label = getTransactionTypeLabel(transaction.type, i18n.language) || copy.transaction;
     const sign = getTransactionSign(transaction.type);
     const { regularPart, bonusPart } = getTransactionAmountParts(transaction.amount, transaction.bonusAmount);
     const signColor = sign === '+' ? '#10B981' : sign === '⎔' ? '#9CA3AF' : '#EF4444';
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
-        return date.toLocaleDateString('ru-RU', {
+        return date.toLocaleDateString(locale, {
             day: '2-digit',
             month: 'long',
             year: 'numeric',
@@ -161,7 +202,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <View style={styles.container}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Чек транзакции</Text>
+                        <Text style={styles.headerTitle}>{copy.receiptTitle}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <X size={24} color="#6B7280" />
                         </TouchableOpacity>
@@ -180,7 +221,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             {/* App Branding */}
                             <View style={styles.brandingRow}>
                                 <Text style={styles.brandingText}>Veda Match</Text>
-                                <Text style={styles.brandingSubtext}>Духовный Кошелёк</Text>
+                                <Text style={styles.brandingSubtext}>{copy.wallet}</Text>
                             </View>
 
                             {/* Decorative Divider */}
@@ -212,7 +253,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                     {sign}
                                 </Text>
                                 <Text style={styles.amountValue}>
-                                    {transaction.amount.toLocaleString('ru-RU')}
+                                    {transaction.amount.toLocaleString(locale)}
                                 </Text>
                                 <Text style={styles.currencyText}>{currencyName}</Text>
                             </View>
@@ -220,37 +261,37 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             {/* Details */}
                             <View style={styles.detailsContainer}>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>Описание</Text>
+                                    <Text style={styles.detailLabel}>{copy.description}</Text>
                                     <Text style={styles.detailValue} numberOfLines={2}>
                                         {transaction.description || '—'}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>Дата</Text>
+                                    <Text style={styles.detailLabel}>{copy.date}</Text>
                                     <Text style={styles.detailValue}>
                                         {formatDate(transaction.createdAt)}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>Обычные</Text>
+                                    <Text style={styles.detailLabel}>{copy.regular}</Text>
                                     <Text style={styles.detailValue}>
-                                        {regularPart.toLocaleString('ru-RU')} {currencyName}
+                                        {regularPart.toLocaleString(locale)} {currencyName}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>Бонусные</Text>
+                                    <Text style={styles.detailLabel}>{copy.bonus}</Text>
                                     <Text style={styles.detailValue}>
-                                        {bonusPart.toLocaleString('ru-RU')} {currencyName}
+                                        {bonusPart.toLocaleString(locale)} {currencyName}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>Баланс после</Text>
+                                    <Text style={styles.detailLabel}>{copy.balanceAfter}</Text>
                                     <Text style={[styles.detailValue, styles.balanceValue]}>
-                                        {transaction.balanceAfter.toLocaleString('ru-RU')} {currencyName}
+                                        {transaction.balanceAfter.toLocaleString(locale)} {currencyName}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>ID транзакции</Text>
+                                    <Text style={styles.detailLabel}>{copy.transactionId}</Text>
                                     <Text style={styles.detailValueMono}>
                                         #{transaction.id}
                                     </Text>
@@ -261,7 +302,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             <View style={styles.receiptFooter}>
                                 <View style={styles.statusBadge}>
                                     <CheckCircle size={14} color="#10B981" />
-                                    <Text style={styles.statusText}>Выполнено</Text>
+                                    <Text style={styles.statusText}>{copy.completed}</Text>
                                 </View>
                             </View>
 
@@ -285,7 +326,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             ) : (
                                 <>
                                     <Share2 size={20} color="#FFF" />
-                                    <Text style={styles.actionButtonText}>Поделиться</Text>
+                                    <Text style={styles.actionButtonText}>{copy.share}</Text>
                                 </>
                             )}
                         </TouchableOpacity>
@@ -298,12 +339,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             {isSaved ? (
                                 <>
                                     <CheckCircle size={20} color="#10B981" />
-                                    <Text style={[styles.actionButtonText, { color: '#10B981' }]}>Сохранено</Text>
+                                    <Text style={[styles.actionButtonText, { color: '#10B981' }]}>{copy.saved}</Text>
                                 </>
                             ) : (
                                 <>
                                     <Download size={20} color="#6B7280" />
-                                    <Text style={[styles.actionButtonText, { color: '#6B7280' }]}>Сохранить</Text>
+                                    <Text style={[styles.actionButtonText, { color: '#6B7280' }]}>{copy.save}</Text>
                                 </>
                             )}
                         </TouchableOpacity>

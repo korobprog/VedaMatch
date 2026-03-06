@@ -25,7 +25,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const { setIsMenuOpen, isDarkMode, chatBackground, chatBackgroundType } = usePortalSettings();
     const { handleMenuOption, recipientUser, setShowMenu, showMenu, setChatRecipient } = useChat();
     const { user: currentUser } = useUser();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const insets = useSafeAreaInsets();
     const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -40,6 +40,85 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const [shareLoading, setShareLoading] = useState(false);
     const [shareContacts, setShareContacts] = useState<Array<{ id: number; title: string; subtitle: string }>>([]);
     const [chatPreference, setChatPreference] = useState<{ muted?: boolean; pinned?: boolean }>({});
+    const chatScreenCopy = useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                failedToBlockUser: 'उपयोगकर्ता को ब्लॉक नहीं किया जा सका',
+                failedToLoadMedia: 'मीडिया और फ़ाइलें लोड नहीं की जा सकीं',
+                failedToSearch: 'चैट में खोज नहीं की जा सकी',
+                chatMuted: 'चैट म्यूट की गई',
+                chatUnmuted: 'चैट अनम्यूट की गई',
+                chatPinned: 'चैट पिन की गई',
+                chatUnpinned: 'चैट अनपिन की गई',
+                failedToUpdateSettings: 'चैट सेटिंग्स अपडेट नहीं की जा सकीं',
+                failedToLoadContacts: 'कॉन्टैक्ट लोड नहीं किए जा सके',
+                contactSent: 'कॉन्टैक्ट भेज दिया गया',
+                failedToSendContact: 'कॉन्टैक्ट भेजा नहीं जा सका',
+                mediaAndFiles: 'मीडिया और फ़ाइलें',
+                file: 'फ़ाइल',
+                failedToOpenFile: 'फ़ाइल खोली नहीं जा सकी',
+                noMedia: 'कोई मीडिया नहीं',
+                chatSearch: 'चैट खोज',
+                enterText: 'टेक्स्ट दर्ज करें',
+                search: 'खोजें',
+                noText: '(कोई टेक्स्ट नहीं)',
+                noMatchesFound: 'कोई परिणाम नहीं मिला',
+                shareContact: 'कॉन्टैक्ट साझा करें',
+                noAvailableContacts: 'कोई उपलब्ध कॉन्टैक्ट नहीं',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                failedToBlockUser: 'Failed to block user',
+                failedToLoadMedia: 'Failed to load media and files',
+                failedToSearch: 'Failed to search in chat',
+                chatMuted: 'Chat muted',
+                chatUnmuted: 'Chat unmuted',
+                chatPinned: 'Chat pinned',
+                chatUnpinned: 'Chat unpinned',
+                failedToUpdateSettings: 'Failed to update chat settings',
+                failedToLoadContacts: 'Failed to load contacts',
+                contactSent: 'Contact sent',
+                failedToSendContact: 'Failed to send contact',
+                mediaAndFiles: 'Media and files',
+                file: 'File',
+                failedToOpenFile: 'Failed to open file',
+                noMedia: 'No media',
+                chatSearch: 'Chat search',
+                enterText: 'Enter text',
+                search: 'Search',
+                noText: '(no text)',
+                noMatchesFound: 'No matches found',
+                shareContact: 'Share contact',
+                noAvailableContacts: 'No available contacts',
+            };
+        }
+        return {
+            failedToBlockUser: 'Не удалось заблокировать пользователя',
+            failedToLoadMedia: 'Не удалось загрузить медиа и файлы',
+            failedToSearch: 'Не удалось выполнить поиск по чату',
+            chatMuted: 'Чат заглушён',
+            chatUnmuted: 'Чат снова активен',
+            chatPinned: 'Чат закреплён',
+            chatUnpinned: 'Чат откреплён',
+            failedToUpdateSettings: 'Не удалось обновить настройки чата',
+            failedToLoadContacts: 'Не удалось загрузить контакты',
+            contactSent: 'Контакт отправлен',
+            failedToSendContact: 'Не удалось отправить контакт',
+            mediaAndFiles: 'Медиа и файлы',
+            file: 'Файл',
+            failedToOpenFile: 'Не удалось открыть файл',
+            noMedia: 'Нет медиа',
+            chatSearch: 'Поиск по чату',
+            enterText: 'Введите текст',
+            search: 'Найти',
+            noText: '(без текста)',
+            noMatchesFound: 'Ничего не найдено',
+            shareContact: 'Поделиться контактом',
+            noAvailableContacts: 'Нет доступных контактов',
+        };
+    }, [i18n.language]);
     const isImageBackground = chatBackgroundType === 'image' && Boolean(chatBackground);
     const isGradientBackground = chatBackgroundType === 'gradient' && typeof chatBackground === 'string' && chatBackground.includes('|');
     const backgroundSource = useMemo(() => {
@@ -165,7 +244,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                             setShowMenu(false);
                             navigation.goBack(); // Close chat after blocking
                         } catch {
-                            Alert.alert(t('error'), 'Failed to block user');
+                            Alert.alert(t('error'), chatScreenCopy.failedToBlockUser);
                         }
                     }
                 }
@@ -208,7 +287,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setMediaModalVisible(true);
         } catch (error) {
             console.error('Failed to load media index', error);
-            Alert.alert(t('error'), 'Failed to load media and files');
+            Alert.alert(t('error'), chatScreenCopy.failedToLoadMedia);
         } finally {
             setMediaLoading(false);
         }
@@ -227,7 +306,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setSearchResults(response.items || []);
         } catch (error) {
             console.error('Failed to search messages', error);
-            Alert.alert(t('error'), 'Failed to search in chat');
+            Alert.alert(t('error'), chatScreenCopy.failedToSearch);
         } finally {
             setSearchLoading(false);
         }
@@ -246,12 +325,12 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             Alert.alert(
                 t('common.success'),
                 key === 'muted'
-                    ? (updated.muted ? 'Chat muted' : 'Chat unmuted')
-                    : (updated.pinned ? 'Chat pinned' : 'Chat unpinned'),
+                    ? (updated.muted ? chatScreenCopy.chatMuted : chatScreenCopy.chatUnmuted)
+                    : (updated.pinned ? chatScreenCopy.chatPinned : chatScreenCopy.chatUnpinned),
             );
         } catch (error) {
             console.error('Failed to update chat preference', error);
-            Alert.alert(t('error'), 'Failed to update chat settings');
+            Alert.alert(t('error'), chatScreenCopy.failedToUpdateSettings);
         }
     };
 
@@ -272,7 +351,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             setShareModalVisible(true);
         } catch (error) {
             console.error('Failed to load contacts for sharing', error);
-            Alert.alert(t('error'), 'Failed to load contacts');
+            Alert.alert(t('error'), chatScreenCopy.failedToLoadContacts);
         } finally {
             setShareLoading(false);
         }
@@ -286,10 +365,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 targetUserId,
             });
             setShareModalVisible(false);
-            Alert.alert(t('common.success'), 'Contact sent');
+            Alert.alert(t('common.success'), chatScreenCopy.contactSent);
         } catch (error) {
             console.error('Failed to share contact', error);
-            Alert.alert(t('error'), 'Failed to send contact');
+            Alert.alert(t('error'), chatScreenCopy.failedToSendContact);
         }
     };
 
@@ -405,7 +484,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={mediaModalVisible} transparent animationType="fade" onRequestClose={() => setMediaModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Media and files</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>{chatScreenCopy.mediaAndFiles}</Text>
                         {mediaLoading ? (
                             <ActivityIndicator size="small" color={colors.accent} />
                         ) : (
@@ -413,7 +492,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                 data={mediaItems}
                                 keyExtractor={(item, index) => (item.id || item.ID || `media_${index}`).toString()}
                                 renderItem={({ item }) => {
-                                    const title = item.fileName || item.type || 'File';
+                                    const title = item.fileName || item.type || chatScreenCopy.file;
                                     const subtitle = item.content || '';
                                     return (
                                         <TouchableOpacity
@@ -421,7 +500,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                             onPress={() => {
                                                 if (subtitle.startsWith('http')) {
                                                     Linking.openURL(subtitle).catch(() => {
-                                                        Alert.alert(t('error'), 'Failed to open file');
+                                                        Alert.alert(t('error'), chatScreenCopy.failedToOpenFile);
                                                     });
                                                 }
                                             }}
@@ -435,7 +514,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                         </TouchableOpacity>
                                     );
                                 }}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No media</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{chatScreenCopy.noMedia}</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setMediaModalVisible(false)}>
@@ -448,17 +527,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={searchModalVisible} transparent animationType="fade" onRequestClose={() => setSearchModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Chat search</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>{chatScreenCopy.chatSearch}</Text>
                         <View style={styles.searchRow}>
                             <TextInput
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
-                                placeholder="Enter text"
+                                placeholder={chatScreenCopy.enterText}
                                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#9CA3AF'}
                                 style={[styles.searchInput, { color: isDarkMode ? '#F9FAFB' : '#111827', borderColor: isDarkMode ? '#374151' : '#D1D5DB' }]}
                             />
                             <TouchableOpacity style={styles.searchButton} onPress={() => void runChatSearch()}>
-                                <Text style={styles.searchButtonText}>Search</Text>
+                                <Text style={styles.searchButtonText}>{chatScreenCopy.search}</Text>
                             </TouchableOpacity>
                         </View>
                         {searchLoading ? (
@@ -470,14 +549,14 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                 renderItem={({ item }) => (
                                     <View style={styles.modalListItem}>
                                         <Text style={[styles.modalItemTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]} numberOfLines={2}>
-                                            {item.content || '(no text)'}
+                                            {item.content || chatScreenCopy.noText}
                                         </Text>
                                         <Text style={[styles.modalItemSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]} numberOfLines={1}>
                                             {item.type || 'text'}
                                         </Text>
                                     </View>
                                 )}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No matches found</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{chatScreenCopy.noMatchesFound}</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSearchModalVisible(false)}>
@@ -490,7 +569,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             <Modal visible={shareModalVisible} transparent animationType="fade" onRequestClose={() => setShareModalVisible(false)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>Share contact</Text>
+                        <Text style={[styles.modalTitle, { color: isDarkMode ? '#F9FAFB' : '#111827' }]}>{chatScreenCopy.shareContact}</Text>
                         {shareLoading ? (
                             <ActivityIndicator size="small" color={colors.accent} />
                         ) : (
@@ -507,7 +586,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                                         </Text>
                                     </TouchableOpacity>
                                 )}
-                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>No available contacts</Text>}
+                                ListEmptyComponent={<Text style={[styles.modalEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{chatScreenCopy.noAvailableContacts}</Text>}
                             />
                         )}
                         <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShareModalVisible(false)}>

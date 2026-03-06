@@ -148,6 +148,7 @@ import {
   MyServicesScreen,
   IncomingBookingsScreen,
   ServiceScheduleScreen,
+  EkadashiCalendarScreen,
   ChannelsHubScreen,
   SadhuSangaHubScreen,
   SadhuSangaScheduleScreen,
@@ -162,6 +163,14 @@ import {
   ChannelRoadmapManageScreen,
   ChannelPreacherBioManageScreen,
 } from './screens/portal/services';
+import {
+  ConnectHomeScreen,
+  ConnectFiltersScreen,
+  ConnectOpportunityDetailsScreen,
+  ConnectCommunityDetailsScreen,
+  ConnectProfileSetupScreen,
+  ConnectCreateOpportunityScreen,
+} from './screens/portal/connect';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
 import WalletScreen from './screens/wallet/WalletScreen';
@@ -631,8 +640,8 @@ const AppContent = () => {
                   <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
 
                   {/* Library Routes */}
-                  <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: 'Книги' }} />
-                  <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
+                  <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: t('portal.appNavigation.books') }} />
+                  <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: t('portal.appNavigation.reader') }} />
                   <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
 
                   {/* Market Routes */}
@@ -676,9 +685,9 @@ const AppContent = () => {
                   <Stack.Screen name="CafeSettings" component={CafeSettingsScreen} options={{ headerShown: false, title: t('cafe.dashboard.settings') }} />
 
                   {/* Education Routes */}
-                  <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
-                  <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
-                  <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
+                  <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: t('education.title') }} />
+                  <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: t('education.courseTitle') }} />
+                  <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: t('education.examTrainerTitle') }} />
                   <Stack.Screen name="AITutor" component={AITutorScreen} options={{ headerShown: true, title: t('education.aiTutor.title') }} />
 
                   {/* Multimedia Routes */}
@@ -701,8 +710,8 @@ const AppContent = () => {
                   <Stack.Screen name="YatraDetail" component={YatraDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="YatraPublish" component={YatraPublishScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="CreateYatra" component={CreateYatraScreen} options={{ headerShown: true, title: 'Создать тур' }} />
-                  <Stack.Screen name="CreateShelter" component={CreateShelterScreen} options={{ headerShown: true, title: 'Добавить жильё' }} />
+                  <Stack.Screen name="CreateYatra" component={CreateYatraScreen} options={{ headerShown: true, title: t('portal.appNavigation.createTour') }} />
+                  <Stack.Screen name="CreateShelter" component={CreateShelterScreen} options={{ headerShown: true, title: t('portal.appNavigation.addStay') }} />
 
                   {/* Services Routes */}
                   <Stack.Screen name="ServicesHome" component={ServicesHomeScreen} options={{ headerShown: false }} />
@@ -715,6 +724,7 @@ const AppContent = () => {
                   <Stack.Screen name="MyServices" component={MyServicesScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="IncomingBookings" component={IncomingBookingsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ServiceSchedule" component={ServiceScheduleScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="EkadashiCalendar" component={EkadashiCalendarScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelsHub" component={ChannelsHubScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SadhuSangaHub" component={SadhuSangaHubScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SadhuSangaSchedule" component={SadhuSangaScheduleScreen} options={{ headerShown: false }} />
@@ -728,6 +738,12 @@ const AppContent = () => {
                   <Stack.Screen name="ChannelTeam" component={ChannelTeamScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelRoadmapManage" component={ChannelRoadmapManageScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ChannelPreacherBioManage" component={ChannelPreacherBioManageScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectHome" component={ConnectHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectFilters" component={ConnectFiltersScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectOpportunityDetails" component={ConnectOpportunityDetailsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectCommunityDetails" component={ConnectCommunityDetailsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectProfileSetup" component={ConnectProfileSetupScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectCreateOpportunity" component={ConnectCreateOpportunityScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />

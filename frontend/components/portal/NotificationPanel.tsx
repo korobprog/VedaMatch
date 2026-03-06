@@ -25,6 +25,7 @@ import {
     CheckCheck,
     Trash2,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useNotifications, type AppNotification } from '../../context/NotificationContext';
 import { useSettings } from '../../context/SettingsContext';
 import { notificationService } from '../../services/notificationService';
@@ -34,16 +35,17 @@ const PANEL_HEIGHT = SCREEN_HEIGHT * 0.72;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const relativeTime = (timestamp: number): string => {
+const relativeTime = (timestamp: number, language: string): string => {
     const diff = Date.now() - timestamp;
     const min = Math.floor(diff / 60_000);
-    if (min < 1) return 'только что';
-    if (min < 60) return `${min} мин назад`;
+    const locale = language === 'ru' ? 'ru-RU' : language === 'hi' ? 'hi-IN' : 'en-US';
+    if (min < 1) return language === 'ru' ? 'только что' : language === 'hi' ? 'अभी' : 'just now';
+    if (min < 60) return language === 'ru' ? `${min} мин назад` : language === 'hi' ? `${min} मि॰ पहले` : `${min} min ago`;
     const h = Math.floor(min / 60);
-    if (h < 24) return `${h} ч назад`;
+    if (h < 24) return language === 'ru' ? `${h} ч назад` : language === 'hi' ? `${h} घं॰ पहले` : `${h} hr ago`;
     const d = Math.floor(h / 24);
-    if (d < 7) return `${d} д назад`;
-    return new Date(timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    if (d < 7) return language === 'ru' ? `${d} д назад` : language === 'hi' ? `${d} दिन पहले` : `${d} d ago`;
+    return new Date(timestamp).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 };
 
 const typeIcon = (type: string, color: string, size = 20) => {
@@ -86,9 +88,10 @@ interface ItemProps {
     item: AppNotification;
     onPress: (item: AppNotification) => void;
     isDark: boolean;
+    language: string;
 }
 
-const NotificationItem = React.memo(({ item, onPress, isDark }: ItemProps) => {
+const NotificationItem = React.memo(({ item, onPress, isDark, language }: ItemProps) => {
     const accent = typeAccentColor(item.type, isDark);
     const isUnread = !item.isRead;
 
@@ -123,7 +126,7 @@ const NotificationItem = React.memo(({ item, onPress, isDark }: ItemProps) => {
                         {item.title}
                     </Text>
                     <Text style={[styles.itemTime, { color: isDark ? '#636366' : '#8E8E93' }]}>
-                        {relativeTime(item.receivedAt)}
+                        {relativeTime(item.receivedAt, language)}
                     </Text>
                 </View>
                 {!!item.body && (
@@ -146,6 +149,7 @@ const NotificationItem = React.memo(({ item, onPress, isDark }: ItemProps) => {
 // ── NotificationPanel ───────────────────────────────────────────────────────
 
 export const NotificationPanel: React.FC = () => {
+    const { i18n } = useTranslation();
     const {
         notifications,
         unreadCount,
@@ -234,9 +238,9 @@ export const NotificationPanel: React.FC = () => {
 
     const renderItem = useCallback(
         ({ item }: { item: AppNotification }) => (
-            <NotificationItem item={item} onPress={handleItemPress} isDark={isDarkMode} />
+            <NotificationItem item={item} onPress={handleItemPress} isDark={isDarkMode} language={i18n.language} />
         ),
-        [handleItemPress, isDarkMode],
+        [handleItemPress, i18n.language, isDarkMode],
     );
 
     const keyExtractor = useCallback((item: AppNotification) => item.id, []);
@@ -247,6 +251,29 @@ export const NotificationPanel: React.FC = () => {
     const textColor = isDarkMode ? '#F5F5F7' : '#1C1C1E';
     const secondaryText = isDarkMode ? '#98989D' : '#8E8E93';
     const separatorColor = isDarkMode ? '#38383A' : '#E5E5EA';
+    const ui = i18n.language?.startsWith('ru')
+        ? {
+            title: 'Уведомления',
+            readAll: 'Прочитать все',
+            clear: 'Очистить',
+            emptyTitle: 'Нет уведомлений',
+            emptyBody: 'Здесь будет история всех\nвходящих уведомлений',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                title: 'सूचनाएँ',
+                readAll: 'सभी पढ़ें',
+                clear: 'साफ़ करें',
+                emptyTitle: 'कोई सूचना नहीं',
+                emptyBody: 'यहाँ सभी\nआने वाली सूचनाओं का इतिहास होगा',
+            }
+            : {
+                title: 'Notifications',
+                readAll: 'Read all',
+                clear: 'Clear',
+                emptyTitle: 'No notifications',
+                emptyBody: 'History of all\nincoming notifications will appear here',
+            };
 
     return (
         <Modal
@@ -286,7 +313,7 @@ export const NotificationPanel: React.FC = () => {
                 <View style={[styles.header, { borderBottomColor: headerBorder }]}>
                     <View style={styles.headerTitleRow}>
                         <Text style={[styles.headerTitle, { color: textColor }]}>
-                            Уведомления
+                            {ui.title}
                         </Text>
                         {unreadCount > 0 && (
                             <View style={styles.headerBadge}>
@@ -302,7 +329,7 @@ export const NotificationPanel: React.FC = () => {
                                 activeOpacity={0.6}
                             >
                                 <Text style={[styles.headerActionText, { color: '#007AFF' }]}>
-                                    Прочитать все
+                                    {ui.readAll}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -313,7 +340,7 @@ export const NotificationPanel: React.FC = () => {
                                 activeOpacity={0.6}
                             >
                                 <Text style={[styles.headerActionText, { color: '#FF3B30' }]}>
-                                    Очистить
+                                    {ui.clear}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -327,10 +354,10 @@ export const NotificationPanel: React.FC = () => {
                             <BellOff size={36} color={secondaryText} />
                         </View>
                         <Text style={[styles.emptyTitle, { color: textColor }]}>
-                            Нет уведомлений
+                            {ui.emptyTitle}
                         </Text>
                         <Text style={[styles.emptyBody, { color: secondaryText }]}>
-                            Здесь будет история всех{'\n'}входящих уведомлений
+                            {ui.emptyBody}
                         </Text>
                     </View>
                 ) : (

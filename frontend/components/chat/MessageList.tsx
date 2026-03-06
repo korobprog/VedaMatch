@@ -44,6 +44,30 @@ interface MessageListProps {
 
 const CDN_AUDIO_PREFIX = 'https://cdn.vedamatch.ru/messages/audio/';
 const S3_AUDIO_FALLBACK_PREFIX = 'https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/messages/audio/';
+const WEB_AUDIO_CONTAINER_STYLE = {
+    height: 60,
+    width: 220,
+    marginVertical: 5,
+    borderRadius: 12,
+    overflow: 'hidden' as const,
+    backgroundColor: 'transparent',
+};
+const WEB_AUDIO_VIEW_STYLE = {
+    backgroundColor: 'transparent',
+};
+const DATE_LINE_IMAGE_BG_STYLE = {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+};
+const NAV_BUTTON_TEXT_LIGHT_STYLE = {
+    color: '#FFF',
+};
+const MAP_BUTTON_BG_STYLE = {
+    backgroundColor: '#059669',
+};
+const MAP_BUTTON_TEXT_STYLE = {
+    color: '#FFF',
+    marginLeft: 6,
+};
 
 export const MessageList: React.FC<MessageListProps> = ({
     onDownloadImage,
@@ -81,6 +105,77 @@ export const MessageList: React.FC<MessageListProps> = ({
         borderColor: isImageBg ? 'rgba(255,255,255,0.26)' : (isLightChatBackground ? 'rgba(15,23,42,0.16)' : colors.border),
         botBubble: isImageBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
     };
+    const messageListCopy = i18n.language?.startsWith('ru')
+        ? {
+            image: 'Изображение',
+            transcribeUnavailable: 'Нельзя расшифровать это сообщение',
+            transcribeReadyTitle: 'Расшифровка готова',
+            charged: 'Списано {{count}} LKM',
+            insufficientLkm: 'Недостаточно LKM',
+            transcribeFailed: 'Не удалось расшифровать аудио',
+            transcribeAudioTitle: 'Расшифровка аудио',
+            transcribeAudioBody: 'Будет списано {{charged}} LKM.\nОстаток бесплатных минут после запуска: {{remaining}} из {{total}}.',
+            continue: 'Продолжить',
+            openVideoFailed: 'Не удалось открыть видеокружок',
+            videoDeleted: 'Кружок удален',
+            videoCircle: 'Видеокружок',
+            mediaExpired: 'Срок хранения истек',
+            duration: 'Длительность: {{value}}',
+            upTo60: 'до 60с',
+            contact: 'Контакт',
+            transcript: 'Расшифровка',
+            transcribe: 'Расшифровать',
+            loading: 'Загрузка...',
+            sending: 'Отправка...',
+            file: 'Файл',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                image: 'इमेज',
+                transcribeUnavailable: 'इस संदेश का ट्रांसक्रिप्शन उपलब्ध नहीं है',
+                transcribeReadyTitle: 'ट्रांसक्रिप्शन तैयार है',
+                charged: '{{count}} LKM काटे गए',
+                insufficientLkm: 'पर्याप्त LKM नहीं है',
+                transcribeFailed: 'ऑडियो ट्रांसक्राइब नहीं हो सका',
+                transcribeAudioTitle: 'ऑडियो ट्रांसक्रिप्शन',
+                transcribeAudioBody: '{{charged}} LKM काटे जाएंगे।\nशुरू करने के बाद मुफ्त मिनट शेष: {{remaining}} / {{total}}।',
+                continue: 'जारी रखें',
+                openVideoFailed: 'वीडियो सर्कल खुल नहीं सका',
+                videoDeleted: 'सर्कल हटाया गया',
+                videoCircle: 'वीडियो सर्कल',
+                mediaExpired: 'स्टोरेज अवधि समाप्त हो गई',
+                duration: 'अवधि: {{value}}',
+                upTo60: '60 सेकंड तक',
+                contact: 'संपर्क',
+                transcript: 'ट्रांसक्रिप्शन',
+                transcribe: 'ट्रांसक्राइब करें',
+                loading: 'लोड हो रहा है...',
+                sending: 'भेजा जा रहा है...',
+                file: 'फ़ाइल',
+            }
+            : {
+                image: 'Image',
+                transcribeUnavailable: 'This message cannot be transcribed',
+                transcribeReadyTitle: 'Transcription is ready',
+                charged: '{{count}} LKM charged',
+                insufficientLkm: 'Not enough LKM',
+                transcribeFailed: 'Failed to transcribe audio',
+                transcribeAudioTitle: 'Audio transcription',
+                transcribeAudioBody: '{{charged}} LKM will be charged.\nFree minutes remaining after start: {{remaining}} of {{total}}.',
+                continue: 'Continue',
+                openVideoFailed: 'Failed to open video circle',
+                videoDeleted: 'Circle deleted',
+                videoCircle: 'Video circle',
+                mediaExpired: 'Storage period expired',
+                duration: 'Duration: {{value}}',
+                upTo60: 'up to 60s',
+                contact: 'Contact',
+                transcript: 'Transcription',
+                transcribe: 'Transcribe',
+                loading: 'Loading...',
+                sending: 'Sending...',
+                file: 'File',
+            };
     const flatListRef = useRef<FlatList>(null);
     const autoScrollFrameRef = useRef<number | null>(null);
     const settleScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -272,9 +367,9 @@ export const MessageList: React.FC<MessageListProps> = ({
             const previewText = (details.content || source.snippet || '').trim();
             const shortPreview = previewText.length > 700 ? `${previewText.slice(0, 700)}...` : previewText;
             const header = source.domain
-                ? t('chat.sourceDomain', { domain: source.domain, defaultValue: `Домен: ${source.domain}` })
+                ? t('chat.sourceDomain', { domain: source.domain })
                 : '';
-            const alertBody = [header, shortPreview].filter(Boolean).join('\n\n') || t('chat.sourceDetailsUnavailable', 'Детали источника недоступны');
+            const alertBody = [header, shortPreview].filter(Boolean).join('\n\n') || t('chat.sourceDetailsUnavailable');
 
             const buttons: AlertButton[] = [
                 {
@@ -285,14 +380,14 @@ export const MessageList: React.FC<MessageListProps> = ({
 
             if (details.sourceUrl) {
                 buttons.unshift({
-                    text: t('chat.openSource', 'Открыть источник'),
+                    text: t('chat.openSource'),
                     onPress: () => Linking.openURL(details.sourceUrl || '').catch((error) => {
                         console.warn('Failed to open source URL:', error);
                     }),
                 });
             }
 
-            Alert.alert(details.title || source.title || t('chat.sourceTitle', 'Источник'), alertBody, buttons);
+            Alert.alert(details.title || source.title || t('chat.sourceTitle'), alertBody, buttons);
         } catch (error) {
             console.warn('Failed to load source details:', error);
             if (source.sourceUrl) {
@@ -302,15 +397,17 @@ export const MessageList: React.FC<MessageListProps> = ({
                 return;
             }
 
-            const fallbackText = source.snippet || t('chat.sourceDetailsUnavailable', 'Детали источника недоступны');
-            Alert.alert(source.title || t('chat.sourceTitle', 'Источник'), fallbackText);
+            const fallbackText = source.snippet || t('chat.sourceDetailsUnavailable');
+            Alert.alert(source.title || t('chat.sourceTitle'), fallbackText);
         }
     };
 
     const mdRules = {
+        // react-native-markdown-display expects render callbacks in the rules map.
+        // eslint-disable-next-line react/no-unstable-nested-components
         image: (node: any) => {
             const imageUrl = node.attributes?.src || '';
-            const altText = node.attributes?.alt || 'Изображение';
+            const altText = node.attributes?.alt || messageListCopy.image;
             return (
                 <ChatImage
                     key={node.key}
@@ -406,11 +503,11 @@ export const MessageList: React.FC<MessageListProps> = ({
         `;
 
         return (
-            <View key={key} style={{ height: 60, width: 220, marginVertical: 5, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' }}>
+            <View key={key} style={WEB_AUDIO_CONTAINER_STYLE}>
                 <WebView
                     originWhitelist={['*']}
                     source={{ html }}
-                    style={{ backgroundColor: 'transparent' }}
+                    style={WEB_AUDIO_VIEW_STYLE}
                     scrollEnabled={false}
                     showsHorizontalScrollIndicator={false}
                     showsVerticalScrollIndicator={false}
@@ -445,7 +542,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     const handleTranscribeAudio = async (item: Message) => {
         const messageId = Number(item.id);
         if (!Number.isFinite(messageId) || messageId <= 0) {
-            Alert.alert(t('error'), 'Нельзя расшифровать это сообщение');
+            Alert.alert(t('error'), messageListCopy.transcribeUnavailable);
             return;
         }
 
@@ -465,15 +562,18 @@ export const MessageList: React.FC<MessageListProps> = ({
             }));
             const chargedLkm = Number(response.billing?.chargedLkm || 0);
             if (chargedLkm > 0) {
-                Alert.alert('Расшифровка готова', `Списано ${chargedLkm} LKM`);
+                Alert.alert(
+                    messageListCopy.transcribeReadyTitle,
+                    messageListCopy.charged.replace('{{count}}', String(chargedLkm))
+                );
             }
         } catch (error) {
             console.error('Failed to transcribe message', error);
             const status = (error as AxiosError)?.response?.status;
             if (status === 402) {
-                Alert.alert(t('error'), 'Недостаточно LKM');
+                Alert.alert(t('error'), messageListCopy.insufficientLkm);
             } else {
-                Alert.alert(t('error'), 'Не удалось расшифровать аудио');
+                Alert.alert(t('error'), messageListCopy.transcribeFailed);
             }
         } finally {
             setTranscribingIds(prev => ({ ...prev, [messageKey]: false }));
@@ -488,11 +588,14 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         return new Promise(resolve => {
             Alert.alert(
-                'Расшифровка аудио',
-                `Будет списано ${chargedLkm} LKM.\nОстаток бесплатных минут после запуска: ${billing.weeklyQuotaRemaining} из ${billing.weeklyQuotaTotal}.`,
+                messageListCopy.transcribeAudioTitle,
+                messageListCopy.transcribeAudioBody
+                    .replace('{{charged}}', String(chargedLkm))
+                    .replace('{{remaining}}', String(billing.weeklyQuotaRemaining))
+                    .replace('{{total}}', String(billing.weeklyQuotaTotal)),
                 [
                     { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-                    { text: 'Продолжить', onPress: () => resolve(true) },
+                    { text: messageListCopy.continue, onPress: () => resolve(true) },
                 ],
                 { cancelable: true, onDismiss: () => resolve(false) }
             );
@@ -503,9 +606,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (rawItem.type === 'header') {
             return (
                 <View style={styles.dateHeader}>
-                    <View style={[styles.dateLine, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
+                    <View style={[styles.dateLine, isImageBg ? DATE_LINE_IMAGE_BG_STYLE : { backgroundColor: theme.borderColor }]} />
                     <Text style={[styles.dateText, { color: theme.subText }]}>{rawItem.title}</Text>
-                    <View style={[styles.dateLine, { backgroundColor: isImageBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
+                    <View style={[styles.dateLine, isImageBg ? DATE_LINE_IMAGE_BG_STYLE : { backgroundColor: theme.borderColor }]} />
                 </View>
             );
         }
@@ -569,30 +672,12 @@ export const MessageList: React.FC<MessageListProps> = ({
             ? (isImageBg ? 'rgba(15,23,42,0.44)' : (isLightChatBackground ? 'rgba(31,41,55,0.56)' : colors.accentSoft))
             : (isImageBg ? 'rgba(255,255,255,0.09)' : (isLightChatBackground ? 'rgba(255,255,255,0.92)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,255,255,0.45)')));
 
-        const Content = () => {
-            if (item.uploading) {
-                return (
-                    <View style={bubbleShadowStyle}>
-                        <View style={bubbleStyle}>
-                            {shouldUseBubbleBlur && (
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType={isDarkMode ? 'dark' : 'light'}
-                                    blurAmount={20}
-                                    reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
-                                />
-                            )}
-                            <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
-                            <View style={styles.uploadingContainer}>
-                                <ActivityIndicator size="small" color={theme.primary} />
-                                <Text style={[styles.uploadingText, { color: bubbleTextColor }]}>{t('chat.uploading')}</Text>
-                            </View>
-                        </View>
-                    </View>
-                );
-            }
-
-            const innerContent = (
+        const innerContent = item.uploading ? (
+            <View style={styles.uploadingContainer}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.uploadingText, { color: bubbleTextColor }]}>{t('chat.uploading')}</Text>
+            </View>
+        ) : (
                 <>
                     {item.type === 'image' && item.content ? (
                         <TouchableOpacity onPress={() => openImage(item.content!)}>
@@ -602,7 +687,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <TouchableOpacity
                             style={[styles.videoCircleCard, { borderColor: theme.borderColor, backgroundColor: documentCardBg }]}
                             onPress={() => Linking.openURL(mediaService.getDownloadUrl(item.content || '')).catch(() => {
-                                Alert.alert(t('error'), 'Не удалось открыть видеокружок');
+                                Alert.alert(t('error'), messageListCopy.openVideoFailed);
                             })}
                         >
                             <View style={[styles.videoCircleIconWrap, { backgroundColor: documentIconBg }]}>
@@ -610,12 +695,15 @@ export const MessageList: React.FC<MessageListProps> = ({
                             </View>
                             <View style={styles.videoCircleTextWrap}>
                                 <Text style={[styles.videoCircleTitle, { color: bubbleTextColor }]}>
-                                    {isVideoCircleExpired ? 'Кружок удален' : 'Видеокружок'}
+                                    {isVideoCircleExpired ? messageListCopy.videoDeleted : messageListCopy.videoCircle}
                                 </Text>
                                 <Text style={[styles.videoCircleSubTitle, { color: bubbleSubTextColor }]}>
                                     {isVideoCircleExpired
-                                        ? 'Срок хранения истек'
-                                        : `Длительность: ${item.duration ? mediaService.formatDuration(item.duration) : 'до 60с'}`}
+                                        ? messageListCopy.mediaExpired
+                                        : messageListCopy.duration.replace(
+                                            '{{value}}',
+                                            item.duration ? mediaService.formatDuration(item.duration) : messageListCopy.upTo60
+                                        )}
                                 </Text>
                             </View>
                         </TouchableOpacity>
@@ -629,7 +717,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     {contactData.spiritualName || contactData.karmicName || contactData.nickname || `ID ${contactData.id || ''}`}
                                 </Text>
                                 <Text style={[styles.contactDetails, { color: bubbleSubTextColor }]} numberOfLines={1}>
-                                    {[contactData.city, contactData.country].filter(Boolean).join(', ') || 'Контакт'}
+                                    {[contactData.city, contactData.country].filter(Boolean).join(', ') || messageListCopy.contact}
                                 </Text>
                             </View>
                         </View>
@@ -638,7 +726,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                             <AudioPlayer url={audioUrl} duration={item.duration} isDarkMode={isDarkMode} />
                             {transcriptText ? (
                                 <View style={[styles.transcriptBox, { borderColor: theme.borderColor }]}>
-                                    <Text style={[styles.transcriptLabel, { color: bubbleSubTextColor }]}>Расшифровка</Text>
+                                    <Text style={[styles.transcriptLabel, { color: bubbleSubTextColor }]}>{messageListCopy.transcript}</Text>
                                     <Text style={[styles.transcriptText, { color: bubbleTextColor }]}>{transcriptText}</Text>
                                 </View>
                             ) : (
@@ -650,7 +738,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     {isTranscribing ? (
                                         <ActivityIndicator size="small" color={theme.primary} />
                                     ) : (
-                                        <Text style={[styles.transcriptButtonText, { color: bubbleTextColor }]}>Расшифровать</Text>
+                                        <Text style={[styles.transcriptButtonText, { color: bubbleTextColor }]}>{messageListCopy.transcribe}</Text>
                                     )}
                                 </TouchableOpacity>
                             )}
@@ -667,7 +755,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 <Text style={[styles.documentName, { color: bubbleTextColor }]} numberOfLines={1}>{item.fileName || t('chat.document')}</Text>
                                 <View style={styles.documentMeta}>
                                     <Text style={[styles.documentSize, { color: bubbleSubTextColor }]}>
-                                        {item.fileSize ? mediaService.formatFileSize(item.fileSize) : 'File'}
+                                        {item.fileSize ? mediaService.formatFileSize(item.fileSize) : messageListCopy.file}
                                     </Text>
                                     <View style={[styles.extensionBadge, { backgroundColor: extensionBadgeBg }]}>
                                         <Text style={[styles.extensionText, { color: bubbleSubTextColor }]}>
@@ -711,18 +799,18 @@ export const MessageList: React.FC<MessageListProps> = ({
                             style={[styles.navButton, { backgroundColor: theme.primary }]}
                             onPress={() => onNavigateToTab(item.navTab)}
                         >
-                            <Text style={[styles.navButtonText, { color: '#FFF' }]}>{t('chat.goToSection')}</Text>
+                            <Text style={[styles.navButtonText, NAV_BUTTON_TEXT_LIGHT_STYLE]}>{t('chat.goToSection')}</Text>
                         </TouchableOpacity>
                     )}
 
                     {item.mapData && onNavigateToMap && (
                         <TouchableOpacity
-                            style={[styles.mapButton, { backgroundColor: '#059669' }]}
+                            style={[styles.mapButton, MAP_BUTTON_BG_STYLE]}
                             onPress={() => onNavigateToMap(item.mapData)}
                         >
                             <MapPin size={16} color="#FFF" />
-                            <Text style={[styles.navButtonText, { color: '#FFF', marginLeft: 6 }]}>
-                                {t('chat.showOnMap', 'Показать на карте')}
+                            <Text style={[styles.navButtonText, MAP_BUTTON_TEXT_STYLE]}>
+                                {t('chat.showOnMap')}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -732,14 +820,14 @@ export const MessageList: React.FC<MessageListProps> = ({
                             {item.assistantContext.retrieverPath ? (
                                 <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
                                     <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
-                                        {t('chat.retrieverLabel', 'Поиск')}: {item.assistantContext.retrieverPath}
+                                        {t('chat.retrieverLabel')}: {item.assistantContext.retrieverPath}
                                     </Text>
                                 </View>
                             ) : null}
                             {formatConfidencePercent(item.assistantContext.confidence) ? (
                                 <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
                                     <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
-                                        {t('chat.confidenceLabel', 'Уверенность')}: {formatConfidencePercent(item.assistantContext.confidence)}
+                                        {t('chat.confidenceLabel')}: {formatConfidencePercent(item.assistantContext.confidence)}
                                     </Text>
                                 </View>
                             ) : null}
@@ -749,7 +837,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                     {!isUser && item.assistantContext?.sources?.length ? (
                         <View style={[styles.sourcesContainer, { borderTopColor: theme.borderColor }]}>
                             <Text style={[styles.sourcesTitle, { color: bubbleSubTextColor }]}>
-                                {t('chat.sourcesTitle', 'Источники')}
+                                {t('chat.sourcesTitle')}
                             </Text>
                             {item.assistantContext.sources.slice(0, 3).map((source, index) => (
                                 <TouchableOpacity
@@ -760,7 +848,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 >
                                     <View style={styles.sourceHeader}>
                                         <Text style={[styles.sourceTitle, { color: bubbleTextColor }]} numberOfLines={1}>
-                                            {source.title || `${t('chat.sourceTitle', 'Источник')} ${index + 1}`}
+                                            {source.title || `${t('chat.sourceTitle')} ${index + 1}`}
                                         </Text>
                                         {source.sourceUrl ? (
                                             <ExternalLink size={13} color={bubbleSubTextColor} />
@@ -779,24 +867,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ) : null}
                 </>
             );
-
-            return (
-                <View style={bubbleShadowStyle}>
-                    <View style={bubbleStyle}>
-                        {shouldUseBubbleBlur && (
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType={isDarkMode ? 'dark' : 'light'}
-                                blurAmount={20}
-                                reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
-                            />
-                        )}
-                        <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
-                        {innerContent}
-                    </View>
-                </View>
-            );
-        };
 
         return (
             <TouchableOpacity
@@ -821,7 +891,20 @@ export const MessageList: React.FC<MessageListProps> = ({
                         )}
                     </View>
                 )}
-                <Content />
+                <View style={bubbleShadowStyle}>
+                    <View style={bubbleStyle}>
+                        {shouldUseBubbleBlur && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={20}
+                                reducedTransparencyFallbackColor={isImageBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                            />
+                        )}
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
+                        {innerContent}
+                    </View>
+                </View>
             </TouchableOpacity>
         );
     };
@@ -850,7 +933,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         }
 
         loadingOlderGuardRef.current = true;
-        void loadOlderMessages().finally(() => {
+        loadOlderMessages().finally(() => {
             loadingOlderGuardRef.current = false;
         });
     };
@@ -922,7 +1005,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                             <View style={styles.historyLoader}>
                                 <ActivityIndicator size="small" color={theme.primary} />
                                 <Text style={[styles.historyLoaderText, { color: theme.subText }]}>
-                                    {t('common.loading') || 'Загрузка...'}
+                                    {t('common.loading') || messageListCopy.loading}
                                 </Text>
                             </View>
                         ) : null
@@ -931,7 +1014,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 {isLoading && (
                     <View style={styles.statusBox}>
                         <ActivityIndicator size="small" color={theme.primary} />
-                        <Text style={[styles.statusText, { color: theme.subText }]}>Отправка...</Text>
+                        <Text style={[styles.statusText, { color: theme.subText }]}>{messageListCopy.sending}</Text>
                     </View>
                 )}
                 {isTyping && recipientUser && (

@@ -4,6 +4,7 @@ export default {
         "success": "सफल",
         "info": "जानकारी",
         "save": "सहेजें",
+        "done": "पूर्ण",
         "add": "जोड़ें",
         "cancel": "रद्द करें",
         "delete": "हटाएं",
@@ -27,6 +28,8 @@ export default {
         "tryAgain": "कृपया फिर से प्रयास करें",
         "open": "खोलें",
         "retry": "पुनः प्रयास करें",
+        "yes": "हाँ",
+        "no": "नहीं",
         "ranges": {
             "today": "आज",
             "week": "सप्ताह",
@@ -123,7 +126,7 @@ export default {
             "source": {
                 "all": "सभी",
                 "ad": "विज्ञापन",
-                "sadhu": "साधु संग"
+                "sadhu": "साधु-संग"
             },
             "period": {
                 "today": "आज",
@@ -139,7 +142,7 @@ export default {
             "mapNotAvailable": "नक्शा नहीं खोल सके",
             "emptyDay": "चयनित तारीख के लिए कोई उत्सव नहीं मिला",
             "sourceAd": "विज्ञापन",
-            "sourceSadhu": "Sadhu Sanga",
+            "sourceSadhu": "Sadhu-Sanga",
             "eventBlockTitle": "उत्सव विवरण",
             "startAt": "प्रारंभ",
             "hasEndAt": "समाप्ति समय सेट करें",
@@ -151,7 +154,7 @@ export default {
             "pickPreachers": "प्रवचनकर्ता चुनें",
             "pickLinkedServices": "सेवाएँ लिंक करें",
             "autoPreachers": "स्वतः जोड़े गए प्रवचनकर्ता",
-            "preacherPickerTitle": "Sadhu Sanga preachers",
+            "preacherPickerTitle": "Sadhu-Sanga preachers",
             "servicePickerTitle": "Event format services",
             "aboutFestival": "उत्सव के बारे में",
             "preachers": "प्रवचनकर्ता"
@@ -768,7 +771,9 @@ export default {
             "turnError": "AI Tutor उत्तर प्राप्त नहीं हो सका",
             "disabledTitle": "AI Tutor अस्थायी रूप से उपलब्ध नहीं है",
             "disabledSubtitle": "यह फीचर प्रशासक द्वारा अक्षम है। कृपया बाद में प्रयास करें।"
-        }
+        },
+        "courseTitle": "कोर्स",
+        "examTrainerTitle": "ट्रेनर"
     },
     "chat": {
         "welcome": "मैं आपका सहायक हूँ 🙇‍♂️। मैं कैसे मदद कर सकता हूँ?",
@@ -783,6 +788,11 @@ export default {
         "roomOptions": "कक्ष विकल्प",
         "editImage": "इमेज संपादित करें",
         "sendError": "संदेश भेजा नहीं जा सका",
+        "sendFileFailed": "फ़ाइल भेजी नहीं जा सकी",
+        "recordingUnavailable": "रिकॉर्डिंग उपलब्ध नहीं है",
+        "startRecordingFailed": "ऑडियो रिकॉर्डिंग शुरू नहीं हो सकी",
+        "audioError": "ऑडियो त्रुटि",
+        "stopRecordingFailed": "ऑडियो रिकॉर्डिंग पूरी नहीं हो सकी",
         "searchPrompts": {
             "contacts": "Here you can find devotees and friends. Enter a name or interests to search...",
             "chat": "You can find communities and chats by interest. What are you interested in?",
@@ -869,7 +879,7 @@ export default {
         "publicRoom": "सार्वजनिक कक्ष",
         "publicRoomDesc": "कोई भी खोजकर जुड़ सकता है",
         "aiAssistant": "एआई सहायक",
-        "aiAssistantDesc": "AI joins the conversation",
+        "aiAssistantDesc": "एआई बातचीत में शामिल होता है",
         "getSummary": "Get Chat Summary",
         "summary": "Chat Summary",
         "today": "आज",
@@ -1408,6 +1418,7 @@ export default {
             "video_circles": "सर्कल्स",
             "channels": "चैनल्स",
             "sadhu_sanga": "साधु-संग",
+            "ekadashi_calendar": "एकादशी",
             "feed": "फीड",
             "news": "समाचार",
             "map": "मैप",
@@ -1417,7 +1428,98 @@ export default {
             "travel": "यात्रा",
             "services": "सहायक",
             "services_catalog": "सेवाएं",
+            "connect": "Connect",
             "seva": "सेवा"
+        },
+        "connect": {
+            "hero": {
+                "badge": "Connect MVP",
+                "title": "अपने पास सही सेवा और समुदाय खोजें",
+                "subtitle": "Connect लोगों को स्थानीय सेवा, सेवा-सर्कल और सौम्य टीमों से जोड़ता है, बिना कठिन पहले कदम के।"
+            },
+            "actions": {
+                "filters": "फ़िल्टर",
+                "profile": "मेरी पसंद",
+                "create": "अवसर जोड़ें",
+                "open": "विवरण खोलें"
+            },
+            "sections": {
+                "opportunities": "अनुशंसित अवसर",
+                "communities": "समुदाय और सेवा-सर्कल"
+            },
+            "empty": {
+                "title": "अभी कोई मैच नहीं",
+                "subtitle": "फ़िल्टर या प्रोफ़ाइल बदलें ताकि Connect एक सरल अगला कदम सुझा सके।"
+            },
+            "labels": {
+                "online": "ऑनलाइन",
+                "newcomerFriendly": "नए लोगों के लिए अनुकूल",
+                "mentor": "मार्गदर्शक उपलब्ध"
+            },
+            "filters": {
+                "title": "अपनी Connect फ़ीड सेट करें",
+                "subtitle": "सरल फ़िल्टर सेवा और समुदाय के लिए सबसे स्वाभाविक अगला कदम खोजने में मदद करते हैं।",
+                "city": "शहर",
+                "category": "श्रेणी",
+                "entryLevel": "प्रवेश स्तर",
+                "format": "भागीदारी का प्रारूप",
+                "newcomerOnly": "केवल सौम्य शुरुआत",
+                "newcomerOnlyHint": "नए लोगों के लिए सरल और मित्रवत विकल्प चुनें।",
+                "nearbyOnly": "केवल पास के विकल्प",
+                "nearbyOnlyHint": "पहले आपके शहर के विकल्प दिखाएं।",
+                "apply": "फ़िल्टर लागू करें"
+            },
+            "details": {
+                "missing": "अवसर नहीं मिला।",
+                "why": "यह आपके लिए क्यों उपयुक्त है",
+                "source": "मूल मॉड्यूल खोलें"
+            },
+            "apply": {
+                "title": "इस अवसर से जुड़ें",
+                "placeholder": "समन्वयक के लिए छोटा संदेश लिखें",
+                "submit": "अभी आवेदन करें",
+                "loading": "भेजा जा रहा है...",
+                "successTitle": "आवेदन भेजा गया",
+                "successBody": "समन्वयक को आपकी अनुरोध मिल गई है।",
+                "errorTitle": "आवेदन विफल",
+                "errorBody": "कृपया फिर प्रयास करें।"
+            },
+            "community": {
+                "missing": "समुदाय नहीं मिला।",
+                "related": "संबंधित अवसर"
+            },
+            "profile": {
+                "title": "अपना Connect प्रोफ़ाइल बनाएं",
+                "subtitle": "Connect को बताएं कि आप सेवा और समुदाय में कैसे जुड़ना पसंद करते हैं।",
+                "city": "शहर",
+                "interests": "रुचियां: प्रसाद, कीर्तन, परिवहन",
+                "needsMentor": "मुझे मार्गदर्शक सहायता चाहिए",
+                "wantsCompany": "मैं अकेले नहीं जाना चाहता",
+                "quiet": "मुझे शांत सेवा पसंद है",
+                "transport": "मेरे पास परिवहन है",
+                "save": "पसंद सहेजें",
+                "saving": "सहेजा जा रहा है...",
+                "savedTitle": "पसंद सहेजी गई",
+                "savedBody": "Connect अब इन्हें मिलान में उपयोग करेगा।",
+                "errorTitle": "सहेजना विफल",
+                "errorBody": "कृपया फिर प्रयास करें।"
+            },
+            "create": {
+                "title": "Connect में अवसर जोड़ें",
+                "subtitle": "इसे वास्तविक सेवा अवसरों के लिए उपयोग करें, सामान्य घोषणाओं के लिए नहीं।",
+                "titleField": "शीर्षक",
+                "cityField": "शहर",
+                "categoryField": "श्रेणी",
+                "descriptionField": "लोगों को क्या जानना चाहिए?",
+                "newcomerFriendly": "नए लोगों के लिए अनुकूल",
+                "mentorAvailable": "मार्गदर्शक / सहयोगी उपलब्ध",
+                "submit": "मॉडरेशन के लिए भेजें",
+                "saving": "भेजा जा रहा है...",
+                "successTitle": "मॉडरेशन के लिए भेजा गया",
+                "successBody": "समीक्षा के बाद यह अवसर Connect में दिखाई देगा।",
+                "errorTitle": "बनाना विफल",
+                "errorBody": "कृपया फॉर्म जांचें और फिर प्रयास करें।"
+            }
         },
         "servicesHome": {
             "headerTitle": "सेवाएं",
@@ -1713,6 +1815,90 @@ export default {
                 "dec": "दिसंबर"
             }
         },
+        "widgets": {
+            "addWidget": "विजेट जोड़ें",
+            "add": "जोड़ें",
+            "added": "जोड़ा गया",
+            "clockWide": {
+                "title": "बड़ी घड़ी",
+                "description": "चौड़े प्रारूप में समय और तारीख दिखाती है"
+            },
+            "clockCompact": {
+                "title": "कॉम्पैक्ट घड़ी",
+                "description": "सरल 1x1 घड़ी"
+            },
+            "calendar": {
+                "title": "कैलेंडर",
+                "description": "माह का दृश्य, आज की तारीख और भक्तों के लिए एकादशी मोड",
+                "modes": {
+                    "gregorian": "महीना",
+                    "ekadashi": "एकादशी"
+                }
+            },
+            "circlesQuick": {
+                "title": "सर्कल त्वरित",
+                "description": "फ़ीड खोलें और लंबे प्रेस से बनाएँ"
+            },
+            "circlesPanel": {
+                "title": "सर्कल पैनल",
+                "description": "निर्माण, मित्र सर्कल और पूर्वावलोकन"
+            },
+            "feedQuick": {
+                "title": "फ़ीड त्वरित",
+                "description": "फ़ीड पर तेज़ पहुँचना"
+            },
+            "feedMix": {
+                "title": "फ़ीड पैनल",
+                "description": "नए पोस्ट और सर्कल का पूर्वावलोकन"
+            }
+        },
+        "grid": {
+            "newPageTitle": "नया पेज",
+            "newPageMessage": "नया पोर्टल पेज बनाएं?",
+            "folder": "फ़ोल्डर",
+            "widget": "विजेट",
+            "done": "हो गया",
+            "folderNamePlaceholder": "फ़ोल्डर का नाम...",
+            "create": "बनाएं",
+            "cancel": "रद्द करें"
+        },
+        "appNavigation": {
+            "books": "पुस्तकें",
+            "reader": "पठन",
+            "createTour": "टूर बनाएं",
+            "addStay": "आवास जोड़ें"
+        },
+        "ekadashiCalendar": {
+            "title": "एकादशी कैलेंडर",
+            "subtitle": "भक्तों के लिए संगठन-आधारित उपवास कैलेंडर",
+            "onlyForDevotees": "यह कैलेंडर केवल भक्तों के लिए उपलब्ध है।",
+            "organizationLabel": "संस्था",
+            "locationTitle": "स्थान और समय क्षेत्र",
+            "cityPlaceholder": "शहर",
+            "countryPlaceholder": "देश",
+            "timezonePlaceholder": "समय क्षेत्र",
+            "refreshCalendar": "कैलेंडर ताज़ा करें",
+            "notificationTitle": "सूचनाएँ",
+            "subscribe": "सदस्यता लें",
+            "fastStarts": "उपवास प्रारंभ",
+            "parana": "पारण",
+            "paranaWindowEnd": "पारण समाप्ति",
+            "noParanaTime": "पारण समय उपलब्ध नहीं",
+            "notAvailable": "उपलब्ध नहीं",
+            "observanceNotes": "पालन संबंधी टिप्पणियाँ",
+            "dataSourceTitle": "डेटा स्रोत",
+            "providerNotices": {
+                "cityRequiredForLive": "इस संस्था के लिए लाइव एकादशी स्रोत चालू करने हेतु शहर चुनें।",
+                "noLiveSource": "इस संस्था के लिए अभी सर्वर fallback कैलेंडर उपयोग हो रहा है।",
+                "liveUnavailable": "लाइव स्रोत अभी उपलब्ध नहीं है, इसलिए fallback कैलेंडर डेटा दिखाया जा रहा है।",
+                "fallbackActive": "इस महीने के लिए fallback कैलेंडर डेटा दिखाया जा रहा है।"
+            },
+            "alerts": {
+                "loadFailed": "एकादशी कैलेंडर लोड नहीं हो सका",
+                "saveFailed": "एकादशी प्राथमिकताएँ सेव नहीं हो सकीं",
+                "preferencesSaved": "एकादशी प्राथमिकताएँ सेव हो गईं"
+            }
+        },
         "channelCta": {
             "order": "ऑर्डर करें",
             "book": "बुक करें",
@@ -1720,7 +1906,7 @@ export default {
             "invalidServiceData": "पोस्ट में सेवा का डेटा अमान्य है"
         },
         "sadhuSangaLayout": {
-            "title": "साधु संग",
+            "title": "साधु-संग",
             "tabs": {
                 "home": "होम",
                 "schedule": "शेड्यूल",
@@ -1859,7 +2045,7 @@ export default {
                 "birthDate": "जन्म तिथि",
                 "birthPlace": "जन्म स्थान",
                 "departureDate": "प्रस्थान तिथि",
-                "organizationMath": "संगठन / मठ"
+                "organizationMath": "संगठन"
             },
             "toggle": {
                 "specify": "निर्दिष्ट करें",
@@ -1880,7 +2066,7 @@ export default {
                 "description": "विवरण"
             },
             "modal": {
-                "title": "संगठन/मठ चुनें",
+                "title": "संगठन चुनें",
                 "searchPlaceholder": "सूची में खोजें",
                 "notSelected": "चयनित नहीं"
             },
@@ -2113,7 +2299,7 @@ export default {
                 "savedLectures": "सहेजे गए प्रवचन",
                 "myQuestions": "मेरे प्रश्न",
                 "myCity": "मेरा शहर",
-                "myMath": "मेरा मठ"
+                "myMath": "मेरा संगठन"
             },
             "donate": {
                 "title": "प्रोजेक्ट का समर्थन करें",
@@ -2121,6 +2307,140 @@ export default {
                 "button": "सेवा का समर्थन करें",
                 "alertTitle": "समर्थन",
                 "alertText": "दान सेक्शन अगले चरण में जोड़ा जाएगा।"
+            }
+        },
+        "channelDetailsSadhu": {
+            "tabs": { "overview": "अवलोकन", "live": "लाइव", "seminars": "सेमिनार", "questions": "प्रश्न", "roadmap": "मार्ग", "posts": "पोस्ट" },
+            "roles": { "reader": "पाठक", "owner": "मालिक", "admin": "एडमिन", "editor": "संपादक", "subscriber": "सदस्य" },
+            "follow": "फ़ॉलो करें",
+            "subscribed": "सदस्यता ली गई",
+            "followers": "अनुयायी: {{count}}",
+            "channelDescriptionEmpty": "चैनल विवरण खाली है",
+            "hero": {
+                "liveNow": "लाइव अभी",
+                "liveScheduled": "लाइव निर्धारित",
+                "nextSeminar": "अगला सेमिनार",
+                "subscribeHint": "लाइव और सेमिनार घोषणाएँ पाने के लिए सदस्यता लें",
+                "watchLive": "लाइव देखें",
+                "question": "प्रश्न"
+            },
+            "overview": {
+                "title": "त्वरित पहुँच",
+                "liveTitle": "लाइव",
+                "liveNow": "लाइव अभी",
+                "inactive": "निष्क्रिय",
+                "openStream": "स्ट्रीम खोलें",
+                "openSection": "सेक्शन खोलें",
+                "seminarsTitle": "सेमिनार",
+                "noDatesYet": "अभी कोई तिथि नहीं",
+                "openList": "सूची खोलें",
+                "questionsTitle": "प्रश्न",
+                "votes": "मत: {{count}}",
+                "noQuestionsYet": "अभी कोई प्रश्न नहीं",
+                "askQuestion": "प्रश्न पूछें",
+                "routeTitle": "मार्ग",
+                "locationAvailable": "स्थान उपलब्ध",
+                "notFilledYet": "अभी भरा नहीं गया",
+                "openMap": "मानचित्र खोलें"
+            },
+            "bio": {
+                "about": "{{name}} के बारे में",
+                "birth": "जन्म",
+                "dateNotSpecified": "तिथि निर्दिष्ट नहीं",
+                "departureDate": "प्रस्थान तिथि",
+                "organizationMath": "संगठन",
+                "keyEvents": "मुख्य घटनाएँ",
+                "empty": "जीवनी अभी भरी नहीं गई है",
+                "edit": "जीवनी संपादित करें"
+            },
+            "live": {
+                "title": "लाइव स्ट्रीम",
+                "broadcastLanguage": "प्रसारण भाषा",
+                "cardFallbackTitle": "चैनल लाइव स्ट्रीम",
+                "changeLanguage": "भाषा बदलें",
+                "planned": "निर्धारित",
+                "started": "शुरू हुआ",
+                "join": "लाइव में जुड़ें",
+                "end": "समाप्त करें",
+                "start": "शुरू करें",
+                "cancel": "रद्द करें",
+                "followToWatch": "लाइव स्ट्रीम देखने के लिए चैनल को फ़ॉलो करें।",
+                "participantsTitle": "लाइव प्रतिभागी",
+                "refresh": "रिफ्रेश",
+                "noParticipants": "अभी कोई जुड़े हुए प्रतिभागी नहीं हैं।",
+                "online": "ऑनलाइन",
+                "offline": "ऑफ़लाइन",
+                "muted": "म्यूट",
+                "blocked": "ब्लॉक किया गया",
+                "joins": "जॉइन: {{count}}",
+                "noActive": "अभी कोई सक्रिय लाइव स्ट्रीम नहीं है",
+                "schedule": "लाइव निर्धारित करें",
+                "announcementsSoon": "लाइव घोषणाएँ जल्द यहाँ दिखाई देंगी",
+                "moderationTitle": "लाइव मॉडरेशन",
+                "moderation": { "mute": "म्यूट करें", "unmute": "अनम्यूट करें", "block": "ब्लॉक करें", "unblock": "अनब्लॉक करें", "kick": "लाइव से हटाएँ" },
+                "status": { "live": "लाइव अभी", "scheduled": "निर्धारित", "completed": "पूर्ण", "cancelled": "रद्द", "inactive": "लाइव सक्रिय नहीं है" }
+            },
+            "roadmap": {
+                "title": "मार्ग",
+                "subtitle": "वे कहाँ थे, अभी कहाँ हैं और आगे कहाँ जा रहे हैं",
+                "empty": "मार्ग अभी भरा नहीं गया है",
+                "addFirstPoint": "पहला बिंदु जोड़ें",
+                "locationPending": "स्थान लंबित",
+                "openOnMap": "मानचित्र पर खोलें",
+                "edit": "संपादित करें",
+                "editRoute": "मार्ग संपादित करें",
+                "status": { "current": "अभी", "past": "पूर्व", "upcoming": "आगामी" }
+            },
+            "analytics": {
+                "title": "विश्लेषण",
+                "lectureViews": "लेक्चर दृश्य",
+                "seminarRegistrations": "सेमिनार पंजीकरण",
+                "liveSessions": "लाइव सत्र",
+                "uniqueViewers": "अद्वितीय दर्शक",
+                "watchMinutes": "देखने के मिनट",
+                "activeCities": "सक्रिय शहर",
+                "citiesEmpty": "अभी शहरों का पर्याप्त डेटा नहीं है"
+            },
+            "questions": {
+                "title": "प्रश्न",
+                "empty": "मतदान के लिए अभी कोई प्रश्न नहीं है",
+                "fallbackSubject": "प्रवचक के लिए प्रश्न",
+                "fallbackExcerpt": "प्रश्न का विवरण उपलब्ध नहीं है",
+                "votes": "मत: {{count}}",
+                "supported": "आपने समर्थन किया",
+                "support": "समर्थन करें"
+            },
+            "seminars": {
+                "title": "सेमिनार",
+                "empty": "अभी कोई घोषित सेमिनार नहीं है",
+                "datePending": "तिथि लंबित",
+                "book": "बुक करें",
+                "route": "मार्ग"
+            },
+            "emptyPosts": {
+                "title": "अभी कोई पोस्ट नहीं",
+                "subtitle": "पहली चैनल पोस्ट बनाएँ"
+            },
+            "alerts": {
+                "routeTitle": "मार्ग",
+                "routeOfflineOnly": "मार्ग केवल ऑफ़लाइन सेमिनारों के लिए उपलब्ध है।",
+                "routeAddressMissing": "सेमिनार का पता अभी निर्दिष्ट नहीं है।",
+                "routeOpenMapFailed": "इस डिवाइस पर मानचित्र नहीं खुल सका।",
+                "routeOpenFailed": "मार्ग नहीं खुल सका।",
+                "liveCreatedTitle": "तैयार",
+                "liveCreatedText": "लाइव स्ट्रीम निर्धारित कर दी गई है।",
+                "liveLanguageTitle": "लाइव भाषा",
+                "liveLanguageText": "चयनित भाषा: {{language}}।",
+                "liveStartedTitle": "लाइव शुरू हुआ",
+                "liveStartedText": "सदस्यों को शुरुआत की सूचना भेज दी गई है।",
+                "liveEndedTitle": "लाइव समाप्त हुआ",
+                "liveEndedText": "सत्र रोक दिया गया है।",
+                "liveCancelledTitle": "घोषणा रद्द",
+                "liveCancelledText": "लाइव स्ट्रीम रद्द कर दी गई है।",
+                "locationTitle": "स्थान",
+                "locationMissing": "इस बिंदु के लिए निर्देशांक या पता उपलब्ध नहीं है।",
+                "locationOpenFailed": "इस डिवाइस पर मानचित्र नहीं खुल सका।",
+                "routeOpenFailedGeneric": "मार्ग नहीं खुल सका।"
             }
         },
         "sadhuSangaHub": {
@@ -2159,7 +2479,7 @@ export default {
                 "moreInfoText": "नीचे स्क्रॉल करें: लाइव, सेमिनार, प्रश्न और सदस्यताएं पहले से उपलब्ध हैं।"
             },
             "features": {
-                "title": "साधु संग की विशेषताएं",
+                "title": "साधु-संग की विशेषताएं",
                 "liveTitle": "लाइव प्रसारण",
                 "liveSub": "लाइव और रिकॉर्डिंग में देखें",
                 "seminarsTitle": "सेमिनार",
@@ -2220,13 +2540,13 @@ export default {
                 "all": "सभी · {{count}}"
             },
             "mathHint": {
-                "title": "प्रोफ़ाइल में अपना मठ सेट करें",
-                "subtitle": "अपनी परंपरा के अनुशंसित प्रवचक देखने के लिए प्रोफ़ाइल में “मेरा मठ” भरें।"
+                "title": "प्रोफ़ाइल में अपना संगठन सेट करें",
+                "subtitle": "अपनी परंपरा के अनुशंसित प्रवचक देखने के लिए प्रोफ़ाइल में “मेरा संगठन” भरें।"
             },
             "empty": {
                 "listEmpty": "सूची अभी खाली है",
                 "notFound": "प्रवचक नहीं मिले",
-                "fillMath": "प्रोफ़ाइल में “मेरा मठ” भरें या उन्नत मोड चालू करें।",
+                "fillMath": "प्रोफ़ाइल में “मेरा संगठन” भरें या उन्नत मोड चालू करें।",
                 "tryFilters": "खोज फ़िल्टर बदलकर देखें"
             },
             "facetPicker": {
@@ -2256,7 +2576,7 @@ export default {
                 "online": "ऑनलाइन"
             },
             "empty": {
-                "mathMissing": "अपने पथ के सेमिनार देखने के लिए प्रोफ़ाइल में मठ सेट करें।",
+                "mathMissing": "अपने पथ के सेमिनार देखने के लिए प्रोफ़ाइल में अपना संगठन सेट करें।",
                 "noSeminars": "फिलहाल कोई निकटतम सेमिनार नहीं"
             },
             "route": {
@@ -2348,7 +2668,7 @@ export default {
                 "scheduled": "निर्धारित • {{code}}"
             },
             "empty": {
-                "mathMissing": "अपने पथ के लाइव देखने के लिए प्रोफ़ाइल में मठ सेट करें।",
+                "mathMissing": "अपने पथ के लाइव देखने के लिए प्रोफ़ाइल में अपना संगठन सेट करें।",
                 "liveSoon": "जल्द ही यहाँ प्रवचकों के लाइव प्रसारण दिखेंगे",
                 "archiveEmpty": "फिलहाल आर्काइव खाली है"
             },
@@ -2505,6 +2825,7 @@ export default {
             "travel": "Yatra",
             "multimedia": "Media",
             "seva": "Seva",
+            "connect": "Connect",
             "charity": "Charity"
         }
     },

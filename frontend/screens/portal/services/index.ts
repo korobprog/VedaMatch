@@ -12,6 +12,7 @@ export { default as CreateServiceScreen } from './CreateServiceScreen';
 export { default as MyServicesScreen } from './MyServicesScreen';
 export { default as IncomingBookingsScreen } from './IncomingBookingsScreen';
 export { default as ServiceScheduleScreen } from './ServiceScheduleScreen';
+export { default as EkadashiCalendarScreen } from './EkadashiCalendarScreen';
 export {
     ChannelsHubScreen,
     SadhuSangaHubScreen,

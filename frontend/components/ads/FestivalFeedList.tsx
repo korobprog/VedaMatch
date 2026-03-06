@@ -18,12 +18,12 @@ interface FestivalFeedListProps {
     onResetFilters: () => void;
 }
 
-const formatDateTime = (iso: string, timezone?: string): string => {
+const formatDateTime = (iso: string, locale: string, timezone?: string): string => {
     if (!iso) {
         return '';
     }
     try {
-        return new Date(iso).toLocaleString('ru-RU', {
+        return new Date(iso).toLocaleString(locale, {
             day: '2-digit',
             month: '2-digit',
             hour: '2-digit',
@@ -73,9 +73,10 @@ export const FestivalFeedList: React.FC<FestivalFeedListProps> = ({
     onOpenMap,
     onResetFilters,
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { vTheme } = useSettings();
     const colors = vTheme.colors;
+    const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
     return (
         <FlatList
@@ -113,7 +114,7 @@ export const FestivalFeedList: React.FC<FestivalFeedListProps> = ({
                         <View style={styles.metaRow}>
                             <CalendarDays size={14} color={colors.textSecondary} />
                             <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                                {ongoing ? t('ads.festivals.ongoing') : formatDateTime(item.startAt, item.timezone)}
+                                {ongoing ? t('ads.festivals.ongoing') : formatDateTime(item.startAt, locale, item.timezone)}
                             </Text>
                         </View>
 

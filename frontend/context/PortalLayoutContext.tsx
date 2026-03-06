@@ -8,6 +8,7 @@ import {
     createDefaultLayout,
     DEFAULT_SERVICES,
     FOLDER_COLORS,
+    isServiceAllowedForRole,
 } from '../types/portal';
 import {
     saveLocalLayout,
@@ -237,6 +238,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     // Rebuild locked folder from canonical blocked service list for Seeker
     const blockedServiceIds = DEFAULT_SERVICES
         .map((service) => service.id)
+        .filter((serviceId) => isServiceAllowedForRole(serviceId, role))
         .filter((serviceId) => !SEEKER_ALWAYS_ACCESSIBLE.has(serviceId));
     const canonicalLockedItems: PortalItem[] = blockedServiceIds.map((serviceId) => {
         const existing = lockedByServiceId.get(serviceId);

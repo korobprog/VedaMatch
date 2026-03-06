@@ -17,6 +17,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import { AxiosError } from 'axios';
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 export interface MediaFile {
 	uri: string;
@@ -48,6 +49,68 @@ const audioRecorderPlayer = new AudioRecorderPlayer();
 let lastDuration = 0;
 const MAX_VIDEO_CIRCLE_DURATION_SEC = 60;
 const MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES = 64 * 1024 * 1024;
+
+type MediaLanguage = 'ru' | 'en' | 'hi';
+
+function getMediaLanguage(): MediaLanguage {
+	const lower = String(i18n.language || '').trim().toLowerCase();
+	if (lower.startsWith('ru')) return 'ru';
+	if (lower.startsWith('hi')) return 'hi';
+	return 'en';
+}
+
+function getMediaCopy() {
+	const language = getMediaLanguage();
+	if (language === 'ru') {
+		return {
+			videoNotFound: 'Видео не найдено',
+			fileTooLarge: 'Файл слишком большой. Максимум 64 MB',
+			videoCircleTooLong: 'Длительность видеокружка должна быть до 60 секунд',
+			microphonePermissionTitle: 'Разрешение на микрофон',
+			microphonePermissionMessage: 'Приложению нужен доступ к микрофону для записи аудиосообщений.',
+			cameraPermissionTitle: 'Разрешение на камеру',
+			cameraPermissionMessage: 'Приложению нужен доступ к камере, чтобы делать фото.',
+			askLater: 'Позже',
+			cancel: 'Отмена',
+			ok: 'OK',
+			uploadFailed: 'Не удалось загрузить файл',
+			invalidVideoCircleMediaType: 'Неверный тип файла для видеокружка',
+			videoFileMissingBeforeUpload: 'Видео-файл не найден перед отправкой',
+		};
+	}
+	if (language === 'hi') {
+		return {
+			videoNotFound: 'वीडियो नहीं मिला',
+			fileTooLarge: 'फ़ाइल बहुत बड़ी है। अधिकतम 64 MB',
+			videoCircleTooLong: 'वीडियो सर्कल की अवधि 60 सेकंड से कम होनी चाहिए',
+			microphonePermissionTitle: 'माइक्रोफ़ोन अनुमति',
+			microphonePermissionMessage: 'ऑडियो संदेश रिकॉर्ड करने के लिए ऐप को माइक्रोफ़ोन की अनुमति चाहिए।',
+			cameraPermissionTitle: 'कैमरा अनुमति',
+			cameraPermissionMessage: 'फ़ोटो लेने के लिए ऐप को कैमरा अनुमति चाहिए।',
+			askLater: 'बाद में पूछें',
+			cancel: 'रद्द करें',
+			ok: 'ठीक है',
+			uploadFailed: 'फ़ाइल अपलोड नहीं हो सकी',
+			invalidVideoCircleMediaType: 'वीडियो सर्कल के लिए अमान्य फ़ाइल प्रकार',
+			videoFileMissingBeforeUpload: 'भेजने से पहले वीडियो फ़ाइल नहीं मिली',
+		};
+	}
+	return {
+		videoNotFound: 'Video not found',
+		fileTooLarge: 'File is too large. Maximum 64 MB',
+		videoCircleTooLong: 'Video circle must be 60 seconds or less',
+		microphonePermissionTitle: 'Microphone Permission',
+		microphonePermissionMessage: 'This app needs access to your microphone to record audio messages.',
+		cameraPermissionTitle: 'Camera Permission',
+		cameraPermissionMessage: 'This app needs camera access to take photos.',
+		askLater: 'Ask Me Later',
+		cancel: 'Cancel',
+		ok: 'OK',
+		uploadFailed: 'Failed to upload file',
+		invalidVideoCircleMediaType: 'Invalid file type for video circle',
+		videoFileMissingBeforeUpload: 'Video file was not found before sending',
+	};
+}
 
 function createRecorderConfig() {
 	const isIOS = Platform.OS === 'ios';
@@ -142,17 +205,18 @@ function normalizeVideoDurationSeconds(value?: number | null): number {
 }
 
 function normalizeVideoCircleAsset(asset: Asset | undefined): MediaFile {
+	const copy = getMediaCopy();
 	if (!asset?.uri) {
-		throw new Error('Видео не найдено');
+		throw new Error(copy.videoNotFound);
 	}
 	const size = Number(asset.fileSize || 0);
 	if (size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
-		throw new Error('Файл слишком большой. Максимум 64MB');
+		throw new Error(copy.fileTooLarge);
 	}
 
 	const duration = normalizeVideoDurationSeconds(asset.duration ?? 0);
 	if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
-		throw new Error('Длительность видеокружка должна быть до 60 секунд');
+		throw new Error(copy.videoCircleTooLong);
 	}
 
 	return {
@@ -171,6 +235,7 @@ async function requestAudioPermission(): Promise<boolean> {
 	}
 
 	try {
+		const copy = getMediaCopy();
 		const recordAudioStatus = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
 		console.log('Record audio permission status:', recordAudioStatus);
 
@@ -178,11 +243,11 @@ async function requestAudioPermission(): Promise<boolean> {
 			const granted = await PermissionsAndroid.request(
 				PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
 				{
-					title: 'Microphone Permission',
-					message: 'This app needs access to your microphone to record audio messages.',
-					buttonNeutral: 'Ask Me Later',
-					buttonNegative: 'Cancel',
-					buttonPositive: 'OK',
+					title: copy.microphonePermissionTitle,
+					message: copy.microphonePermissionMessage,
+					buttonNeutral: copy.askLater,
+					buttonNegative: copy.cancel,
+					buttonPositive: copy.ok,
 				}
 			);
 			console.log('Record audio permission granted:', granted === PermissionsAndroid.RESULTS.GRANTED);
@@ -202,17 +267,18 @@ async function requestCameraPermission(): Promise<boolean> {
 	}
 
 	try {
+		const copy = getMediaCopy();
 		const result = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
 		if (result) return true;
 
 		const granted = await PermissionsAndroid.request(
 			PermissionsAndroid.PERMISSIONS.CAMERA,
 			{
-				title: 'Camera Permission',
-				message: 'App needs access to your camera to take photos.',
-				buttonNeutral: 'Ask Me Later',
-				buttonNegative: 'Cancel',
-				buttonPositive: 'OK',
+				title: copy.cameraPermissionTitle,
+				message: copy.cameraPermissionMessage,
+				buttonNeutral: copy.askLater,
+				buttonNegative: copy.cancel,
+				buttonPositive: copy.ok,
 			}
 		);
 		return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -524,7 +590,7 @@ export const mediaService = {
 				return response.data;
 			} catch (error) {
 				console.error('Failed to upload media:', error);
-				throw new Error(getUploadError(error, 'Upload failed'));
+				throw new Error(getUploadError(error, getMediaCopy().uploadFailed));
 			}
 		},
 
@@ -533,16 +599,17 @@ export const mediaService = {
 		recipientId?: number,
 		roomId?: string
 	): Promise<Message> {
+		const copy = getMediaCopy();
 		if (media.type !== 'video_circle') {
-			throw new Error('Invalid media type for video circle upload');
+			throw new Error(copy.invalidVideoCircleMediaType);
 		}
 
 		const duration = Number(media.duration || 0);
 		if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
-			throw new Error('Длительность видеокружка должна быть до 60 секунд');
+			throw new Error(copy.videoCircleTooLong);
 		}
 		if (media.size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
-			throw new Error('Файл слишком большой. Максимум 64MB');
+			throw new Error(copy.fileTooLarge);
 		}
 
 		const mimeType = normalizeMediaMimeType(media);
@@ -566,7 +633,7 @@ export const mediaService = {
 		const filePath = normalizeLocalFilePath(media.uri);
 		const fileExists = await RNFS.exists(filePath);
 		if (!fileExists) {
-			throw new Error('Видео файл не найден перед отправкой');
+			throw new Error(copy.videoFileMissingBeforeUpload);
 		}
 
 		const uploadResult = await RNFS.uploadFiles({

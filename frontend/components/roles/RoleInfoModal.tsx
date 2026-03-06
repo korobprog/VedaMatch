@@ -31,7 +31,7 @@ export const RoleInfoModal: React.FC<RoleInfoModalProps> = ({
         <Pressable style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{t(`portal.roles.${title.toLowerCase()}`, title)}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {t('portal.priority_services_hint', 'Этим сервисам вы получите приоритет в портале:')}
+            {t('portal.priority_services_hint', 'You will get priority in the portal for these services:')}
           </Text>
           {servicesHint.map((hint, index) => {
             const labelKey = typeof hint === 'string' ? hint : hint.title;
@@ -55,11 +55,11 @@ export const RoleInfoModal: React.FC<RoleInfoModalProps> = ({
           <View style={styles.footer}>
             {onEditRole && (
               <Pressable onPress={onEditRole} style={styles.editButton}>
-                <Text style={[styles.editButtonText, { color: colors.textPrimary }]}>{t('portal.change_role', 'Изменить роль')}</Text>
+                <Text style={[styles.editButtonText, { color: colors.textPrimary }]}>{t('portal.change_role', 'Change role')}</Text>
               </Pressable>
             )}
             <Pressable onPress={onClose} style={[styles.button, { backgroundColor: colors.accent }]}>
-              <Text style={styles.buttonText}>{t('common.got_it', 'Понятно')}</Text>
+              <Text style={styles.buttonText}>{t('common.got_it', 'Got it')}</Text>
             </Pressable>
           </View>
         </Pressable>

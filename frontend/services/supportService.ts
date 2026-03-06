@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios';
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 import { getAccessToken } from './authSessionService';
 
 export type SupportConversationStatus = 'open' | 'resolved';
@@ -100,7 +101,66 @@ export interface SupportPreacherQuestion {
     myVote: boolean;
 }
 
-const extractErrorMessage = (error: unknown, fallback = 'Request failed'): string => {
+const getSupportFallback = (
+    key:
+        | 'requestFailed'
+        | 'loadConfig'
+        | 'uploadAttachment'
+        | 'createTicket'
+        | 'fetchTickets'
+        | 'fetchMessages'
+        | 'postMessage'
+        | 'markRead'
+        | 'fetchUnread'
+        | 'fetchQuestions'
+        | 'updateVote'
+): string => {
+    const language = String(i18n.language || '').trim().toLowerCase();
+    const copy = language.startsWith('ru')
+        ? {
+            requestFailed: 'Запрос не выполнен',
+            loadConfig: 'Не удалось загрузить настройки поддержки',
+            uploadAttachment: 'Не удалось загрузить вложение',
+            createTicket: 'Не удалось создать тикет',
+            fetchTickets: 'Не удалось загрузить тикеты',
+            fetchMessages: 'Не удалось загрузить сообщения тикета',
+            postMessage: 'Не удалось отправить сообщение',
+            markRead: 'Не удалось отметить тикет как прочитанный',
+            fetchUnread: 'Не удалось загрузить число непрочитанных тикетов',
+            fetchQuestions: 'Не удалось загрузить вопросы проповеднику',
+            updateVote: 'Не удалось обновить голос',
+        }
+        : language.startsWith('hi')
+            ? {
+                requestFailed: 'अनुरोध पूरा नहीं हो सका',
+                loadConfig: 'सपोर्ट कॉन्फ़िगरेशन लोड नहीं हो सकी',
+                uploadAttachment: 'अटैचमेंट अपलोड नहीं हो सका',
+                createTicket: 'टिकट बनाना संभव नहीं हुआ',
+                fetchTickets: 'टिकट लोड नहीं हो सके',
+                fetchMessages: 'टिकट संदेश लोड नहीं हो सके',
+                postMessage: 'संदेश भेजा नहीं जा सका',
+                markRead: 'टिकट को पढ़ा हुआ चिन्हित नहीं किया जा सका',
+                fetchUnread: 'अपठित टिकटों की संख्या लोड नहीं हो सकी',
+                fetchQuestions: 'प्रचारक के प्रश्न लोड नहीं हो सके',
+                updateVote: 'वोट अपडेट नहीं हो सका',
+            }
+            : {
+                requestFailed: 'Request failed',
+                loadConfig: 'Failed to load support config',
+                uploadAttachment: 'Failed to upload attachment',
+                createTicket: 'Failed to create support ticket',
+                fetchTickets: 'Failed to fetch support tickets',
+                fetchMessages: 'Failed to fetch support ticket messages',
+                postMessage: 'Failed to post support message',
+                markRead: 'Failed to mark support ticket as read',
+                fetchUnread: 'Failed to fetch unread support count',
+                fetchQuestions: 'Failed to fetch preacher questions',
+                updateVote: 'Failed to update vote',
+            };
+    return copy[key];
+};
+
+const extractErrorMessage = (error: unknown, fallback = getSupportFallback('requestFailed')): string => {
     const axiosError = error as AxiosError<any>;
     const payload = axiosError?.response?.data;
 
@@ -136,7 +196,7 @@ export const supportService = {
             const response = await apiClient.get<SupportConfig>('/support/config');
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to load support config'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('loadConfig')));
         }
     },
 
@@ -154,7 +214,7 @@ export const supportService = {
             });
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to upload attachment'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('uploadAttachment')));
         }
     },
 
@@ -163,7 +223,7 @@ export const supportService = {
             const response = await apiClient.post('/support/tickets', payload);
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to create support ticket'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('createTicket')));
         }
     },
 
@@ -175,7 +235,7 @@ export const supportService = {
             });
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to fetch support tickets'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('fetchTickets')));
         }
     },
 
@@ -185,7 +245,7 @@ export const supportService = {
             const response = await apiClient.get(`/support/tickets/${conversationId}/messages`);
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to fetch support ticket messages'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('fetchMessages')));
         }
     },
 
@@ -195,7 +255,7 @@ export const supportService = {
             const response = await apiClient.post(`/support/tickets/${conversationId}/messages`, payload);
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to post support message'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('postMessage')));
         }
     },
 
@@ -204,7 +264,7 @@ export const supportService = {
         try {
             await apiClient.post(`/support/tickets/${conversationId}/read`, {});
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to mark support ticket as read'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('markRead')));
         }
     },
 
@@ -214,7 +274,7 @@ export const supportService = {
             const response = await apiClient.get('/support/unread-count');
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to fetch unread support count'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('fetchUnread')));
         }
     },
 
@@ -226,7 +286,7 @@ export const supportService = {
             });
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to fetch preacher questions'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('fetchQuestions')));
         }
     },
 
@@ -237,7 +297,7 @@ export const supportService = {
             const response = await apiClient.post(`/support/tickets/${ticketId}/vote`, payload);
             return response.data;
         } catch (error) {
-            throw new Error(extractErrorMessage(error, 'Failed to update vote'));
+            throw new Error(extractErrorMessage(error, getSupportFallback('updateVote')));
         }
     },
 };

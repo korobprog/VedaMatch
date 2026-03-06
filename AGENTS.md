@@ -1,3 +1,17 @@
+## Project Workflow
+
+- Multi-agent mode is allowed when it materially speeds up the task without reducing quality.
+- Before starting parallel work, split the task into non-overlapping blocks and state which agent handles which block.
+- Never assign the same file to multiple agents.
+- Never edit shared helpers, services, i18n utilities, or shared components in parallel if there is any risk of overlap.
+- If there is a conflict risk, process that area sequentially.
+- After each completed block, report:
+  - which services or areas were checked
+  - which files were changed
+  - whether translation/localization fixes were needed
+  - `rg` and `eslint` status for changed files
+  - any pre-existing warnings or errors not caused by the current changes
+
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.
 

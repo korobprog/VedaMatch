@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
 	View,
 	Text,
@@ -9,6 +9,7 @@ import {
 	ActivityIndicator,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from './ChatConstants';
 import { getMediaUrl } from '../../utils/url';
 import { nearbyService, UserWithDistance } from '../../services/nearbyService';
@@ -22,19 +23,37 @@ interface NearbyUsersProps {
 }
 
 export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, theme }) => {
+	const { i18n } = useTranslation();
+	const copy = i18n.language?.startsWith('ru')
+		? {
+			nearbyDevotees: 'Преданные рядом',
+			found: 'найдено',
+			searchRadius: 'Радиус поиска',
+			findingDevotees: 'Ищем преданных...',
+			noDevotees: 'Рядом никого не найдено. Попробуйте увеличить радиус поиска.',
+		}
+		: i18n.language?.startsWith('hi')
+			? {
+				nearbyDevotees: 'निकटवर्ती भक्त',
+				found: 'मिले',
+				searchRadius: 'खोज का दायरा',
+				findingDevotees: 'भक्तों को खोजा जा रहा है...',
+				noDevotees: 'आसपास कोई भक्त नहीं मिला। खोज का दायरा बढ़ाकर देखें।',
+			}
+			: {
+				nearbyDevotees: 'Nearby Devotees',
+				found: 'found',
+				searchRadius: 'Search Radius',
+				findingDevotees: 'Finding devotees...',
+				noDevotees: 'No devotees found nearby. Try increasing the search radius.',
+			};
 	const [users, setUsers] = useState<UserWithDistance[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [radiusKm, setRadiusKm] = useState(50);
 	const { setChatRecipient } = useChat();
 	const navigation = useNavigation<any>();
 
-	useEffect(() => {
-		if (latitude && longitude) {
-			fetchNearbyUsers();
-		}
-	}, [latitude, longitude, radiusKm]);
-
-	const fetchNearbyUsers = async () => {
+	const fetchNearbyUsers = useCallback(async () => {
 		setLoading(true);
 		try {
 			const result = await nearbyService.getNearbyUsers(latitude, longitude, radiusKm);
@@ -44,7 +63,13 @@ export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, t
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [latitude, longitude, radiusKm]);
+
+	useEffect(() => {
+		if (latitude && longitude) {
+			fetchNearbyUsers();
+		}
+	}, [latitude, longitude, radiusKm, fetchNearbyUsers]);
 
 	const handleUserPress = (user: UserWithDistance) => {
 		setChatRecipient(user as any);
@@ -92,15 +117,15 @@ export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, t
 	return (
 		<View style={styles.container}>
 			<View style={[styles.header, { borderBottomColor: theme.borderColor }]}>
-				<Text style={[styles.headerTitle, { color: theme.text }]}>Nearby Devotees</Text>
+				<Text style={[styles.headerTitle, { color: theme.text }]}>{copy.nearbyDevotees}</Text>
 				<Text style={[styles.headerSubtitle, { color: theme.subText }]}>
-					{users.length} found
+					{users.length} {copy.found}
 				</Text>
 			</View>
 
 			<View style={styles.controls}>
 				<Text style={[styles.label, { color: theme.text }]}>
-					Search Radius: {radiusKm} km
+					{copy.searchRadius}: {radiusKm} km
 				</Text>
 				<Slider
 					style={styles.slider}
@@ -117,12 +142,12 @@ export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, t
 			{loading ? (
 				<View style={styles.center}>
 					<ActivityIndicator size="large" color={theme.accent} />
-					<Text style={[styles.loadingText, { color: theme.subText }]}>Finding devotees...</Text>
+					<Text style={[styles.loadingText, { color: theme.subText }]}>{copy.findingDevotees}</Text>
 				</View>
 			) : users.length === 0 ? (
 				<View style={styles.center}>
 					<Text style={[styles.emptyText, { color: theme.subText }]}>
-						No devotees found nearby. Try increasing the search radius.
+						{copy.noDevotees}
 					</Text>
 				</View>
 			) : (

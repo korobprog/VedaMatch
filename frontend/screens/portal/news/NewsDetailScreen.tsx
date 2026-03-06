@@ -53,7 +53,7 @@ export const NewsDetailScreen = () => {
             setNews(item);
         } catch (err) {
             console.error('[NewsDetail] Error loading news:', err);
-            setError(lang === 'en' ? 'Failed to load news' : 'Не удалось загрузить новость');
+            setError('Failed to load news');
         } finally {
             setLoading(false);
         }
@@ -80,7 +80,7 @@ export const NewsDetailScreen = () => {
             <View style={[styles.container, styles.centered]}>
                 <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.loadingText}>
-                    {lang === 'en' ? 'Loading...' : 'Загрузка...'}
+                    Loading...
                 </Text>
             </View>
         );
@@ -91,22 +91,20 @@ export const NewsDetailScreen = () => {
             <View style={[styles.container, styles.centered]}>
                 <Text style={styles.errorEmoji}>😕</Text>
                 <Text style={styles.errorText}>
-                    {error || (lang === 'en' ? 'News not found' : 'Новость не найдена')}
+                    {error || 'News not found'}
                 </Text>
                 <TouchableOpacity
                     style={[styles.retryButton, { backgroundColor: colors.accent }]}
                     onPress={loadNewsDetail}
                 >
-                    <Text style={styles.retryButtonText}>
-                        {lang === 'en' ? 'Try again' : 'Попробовать снова'}
-                    </Text>
+                    <Text style={styles.retryButtonText}>Try again</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.backButton}
                     onPress={handleGoBack}
                 >
                     <Text style={[styles.backButtonText, { color: colors.accent }]}>
-                        {lang === 'en' ? '← Back' : '← Назад'}
+                        ← Back
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -119,12 +117,12 @@ export const NewsDetailScreen = () => {
             <View style={styles.header}>
                 <TouchableOpacity onPress={handleGoBack} style={styles.headerButton}>
                     <Text style={[styles.headerButtonText, { color: colors.accent }]}>
-                        ← {lang === 'en' ? 'Back' : 'Назад'}
+                        ← Back
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
                     <Text style={[styles.headerButtonText, { color: colors.accent }]}>
-                        {lang === 'en' ? 'Share' : 'Поделиться'} ↗
+                        Share ↗
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -157,12 +155,12 @@ export const NewsDetailScreen = () => {
                         {news.isImportant && (
                             <View style={[styles.importantBadge, { backgroundColor: colors.accent }]}>
                                 <Text style={[styles.importantBadgeText, { color: colors.background }]}>
-                                    ⚡ {lang === 'en' ? 'Important' : 'Важное'}
+                                    ⚡ Important
                                 </Text>
                             </View>
                         )}
                         <Text style={styles.date}>
-                            {newsService.formatDate(news.publishedAt)}
+                            {newsService.formatDate(news.publishedAt, i18n.language)}
                         </Text>
                         {news.category ? (
                             <View style={styles.categoryTag}>
@@ -195,14 +193,14 @@ export const NewsDetailScreen = () => {
                             onPress={() => Linking.openURL(news.originalUrl as string)}
                         >
                             <Text style={[styles.sourceButtonText, { color: colors.accent }]}>
-                                {lang === 'en' ? '📺 View Original (Video/Audio)' : '📺 Перейти к источнику (Видео/Аудио)'}
+                                📺 View Original (Video/Audio)
                             </Text>
                         </TouchableOpacity>
                     )}
 
                     {/* Content */}
                     <Text style={styles.content}>
-                        {newsService.cleanText(news.content || news.summary) || (lang === 'en' ? 'No content available' : 'Содержимое недоступно')}
+                        {newsService.cleanText(news.content || news.summary) || 'No content available'}
                     </Text>
 
                     {/* Tags */}
@@ -228,7 +226,7 @@ export const NewsDetailScreen = () => {
                     {/* Views count */}
                     <View style={styles.statsContainer}>
                         <Text style={styles.statsText}>
-                            👁 {news.viewsCount || 0} {lang === 'en' ? 'views' : 'просмотров'}
+                            👁 {news.viewsCount || 0} views
                         </Text>
                     </View>
                 </View>

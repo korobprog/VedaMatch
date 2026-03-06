@@ -12,6 +12,7 @@ import {
 import { PermissionsAndroid, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
+import i18n from '../i18n';
 import { navigationRef } from '../navigation/navigationRef';
 import { contactService } from './contactService';
 import { serializeAndroidPermissionRequest } from '../utils/permissionRequestQueue';
@@ -103,17 +104,24 @@ const parseNumericId = (...values: any[]): number | undefined => {
 };
 
 const getVideoCirclePublishCopy = (data: any) => {
+    const language = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
     const status = String(data?.status || '').toLowerCase();
     if (status === 'success') {
         return {
-            title: 'Видео опубликовано',
-            body: 'Ваш кружок опубликован и появился в ленте.',
+            title: language === 'ru' ? 'Видео опубликовано' : language === 'hi' ? 'वीडियो प्रकाशित हो गया' : 'Video published',
+            body: language === 'ru' ? 'Ваш кружок опубликован и появился в ленте.' : language === 'hi' ? 'आपका सर्कल प्रकाशित हो गया और फ़ीड में दिखाई दे रहा है।' : 'Your circle has been published and appeared in the feed.',
         };
     }
     return {
-        title: 'Публикация не выполнена',
-        body: 'Видео не опубликовано, попробуйте еще раз.',
+        title: language === 'ru' ? 'Публикация не выполнена' : language === 'hi' ? 'प्रकाशन नहीं हुआ' : 'Publishing failed',
+        body: language === 'ru' ? 'Видео не опубликовано, попробуйте еще раз.' : language === 'hi' ? 'वीडियो प्रकाशित नहीं हुआ, फिर से प्रयास करें।' : 'Video was not published, please try again.',
     };
+};
+
+const getDefaultNotificationTitle = () => {
+    if (i18n.language?.startsWith('ru')) return 'Уведомление';
+    if (i18n.language?.startsWith('hi')) return 'सूचना';
+    return 'Notification';
 };
 
 const registerTokenOnServer = async (token: string) => {
@@ -244,7 +252,7 @@ export const notificationService = {
         const isCirclePublishResult = data?.type === 'video_circle_publish_result';
         const fallback = isCirclePublishResult ? getVideoCirclePublishCopy(data) : null;
 
-        const title = message?.notification?.title || fallback?.title || 'Уведомление';
+        const title = message?.notification?.title || fallback?.title || getDefaultNotificationTitle();
         const body = message?.notification?.body || fallback?.body || '';
 
         // Save to in-app notification history (no Alert)
@@ -412,7 +420,7 @@ export const notificationService = {
             const pending: any[] = raw ? JSON.parse(raw) : [];
             pending.push({
                 type: data?.type || 'general',
-                title: remoteMessage?.notification?.title || 'Уведомление',
+                title: remoteMessage?.notification?.title || getDefaultNotificationTitle(),
                 body: remoteMessage?.notification?.body || '',
                 data,
                 receivedAt: Date.now(),

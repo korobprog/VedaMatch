@@ -309,35 +309,117 @@ export interface MyYatrasResponse {
 
 // ==================== THEME LABELS ====================
 
-export const YATRA_THEME_LABELS: Record<YatraTheme, string> = {
-    vrindavan: 'Вриндаван',
-    mayapur: 'Маяпур',
-    jagannath_puri: 'Джаганнатх Пури',
-    tirupati: 'Тирупати',
-    varanasi: 'Варанаси',
-    haridwar: 'Харидвар',
-    rishikesh: 'Ришикеш',
-    navadhama: 'Нава-дхама',
-    char_dham: 'Чар Дхам',
-    other: 'Другое',
+const YATRA_THEME_LABELS_BY_LANGUAGE: Record<'ru' | 'en' | 'hi', Record<YatraTheme, string>> = {
+    ru: {
+        vrindavan: 'Вриндаван',
+        mayapur: 'Маяпур',
+        jagannath_puri: 'Джаганнатх Пури',
+        tirupati: 'Тирупати',
+        varanasi: 'Варанаси',
+        haridwar: 'Харидвар',
+        rishikesh: 'Ришикеш',
+        navadhama: 'Нава-дхама',
+        char_dham: 'Чар Дхам',
+        other: 'Другое',
+    },
+    en: {
+        vrindavan: 'Vrindavan',
+        mayapur: 'Mayapur',
+        jagannath_puri: 'Jagannath Puri',
+        tirupati: 'Tirupati',
+        varanasi: 'Varanasi',
+        haridwar: 'Haridwar',
+        rishikesh: 'Rishikesh',
+        navadhama: 'Navadhama',
+        char_dham: 'Char Dham',
+        other: 'Other',
+    },
+    hi: {
+        vrindavan: 'वृंदावन',
+        mayapur: 'मायापुर',
+        jagannath_puri: 'जगन्नाथ पुरी',
+        tirupati: 'तिरुपति',
+        varanasi: 'वाराणसी',
+        haridwar: 'हरिद्वार',
+        rishikesh: 'ऋषिकेश',
+        navadhama: 'नवधाम',
+        char_dham: 'चार धाम',
+        other: 'अन्य',
+    },
 };
 
-export const SHELTER_TYPE_LABELS: Record<ShelterType, string> = {
-    ashram: 'Ашрам',
-    guesthouse: 'Гостевой дом',
-    homestay: 'Проживание в семье',
-    room: 'Комната',
-    apartment: 'Квартира',
-    dharamsala: 'Дхарамсала',
+const SHELTER_TYPE_LABELS_BY_LANGUAGE: Record<'ru' | 'en' | 'hi', Record<ShelterType, string>> = {
+    ru: {
+        ashram: 'Ашрам',
+        guesthouse: 'Гостевой дом',
+        homestay: 'Проживание в семье',
+        room: 'Комната',
+        apartment: 'Квартира',
+        dharamsala: 'Дхарамсала',
+    },
+    en: {
+        ashram: 'Ashram',
+        guesthouse: 'Guesthouse',
+        homestay: 'Homestay',
+        room: 'Room',
+        apartment: 'Apartment',
+        dharamsala: 'Dharamsala',
+    },
+    hi: {
+        ashram: 'आश्रम',
+        guesthouse: 'गेस्टहाउस',
+        homestay: 'होमस्टे',
+        room: 'कमरा',
+        apartment: 'अपार्टमेंट',
+        dharamsala: 'धर्मशाला',
+    },
 };
 
-export const AMENITY_LABELS: Record<string, string> = {
-    wifi: 'Wi-Fi',
-    ac: 'Кондиционер',
-    hot_water: 'Горячая вода',
-    prasadam: 'Прасадам включён',
-    kitchen: 'Кухня',
-    laundry: 'Стирка',
-    parking: 'Парковка',
-    temple_near: 'Рядом храм',
+const AMENITY_LABELS_BY_LANGUAGE: Record<'ru' | 'en' | 'hi', Record<string, string>> = {
+    ru: {
+        wifi: 'Wi-Fi',
+        ac: 'Кондиционер',
+        hot_water: 'Горячая вода',
+        prasadam: 'Прасадам включён',
+        kitchen: 'Кухня',
+        laundry: 'Стирка',
+        parking: 'Парковка',
+        temple_near: 'Рядом храм',
+    },
+    en: {
+        wifi: 'Wi-Fi',
+        ac: 'Air conditioning',
+        hot_water: 'Hot water',
+        prasadam: 'Prasadam included',
+        kitchen: 'Kitchen',
+        laundry: 'Laundry',
+        parking: 'Parking',
+        temple_near: 'Temple nearby',
+    },
+    hi: {
+        wifi: 'वाई-फाई',
+        ac: 'एयर कंडीशनिंग',
+        hot_water: 'गरम पानी',
+        prasadam: 'प्रसाद शामिल',
+        kitchen: 'रसोई',
+        laundry: 'धुलाई',
+        parking: 'पार्किंग',
+        temple_near: 'मंदिर पास में',
+    },
 };
+
+const normalizeTravelLanguage = (language?: string): 'ru' | 'en' | 'hi' => {
+    const value = String(language || '').trim().toLowerCase();
+    if (value.startsWith('ru')) return 'ru';
+    if (value.startsWith('hi')) return 'hi';
+    return 'en';
+};
+
+export const getYatraThemeLabel = (theme: YatraTheme, language?: string): string =>
+    YATRA_THEME_LABELS_BY_LANGUAGE[normalizeTravelLanguage(language)][theme] || theme;
+
+export const getShelterTypeLabel = (type: ShelterType, language?: string): string =>
+    SHELTER_TYPE_LABELS_BY_LANGUAGE[normalizeTravelLanguage(language)][type] || type;
+
+export const getAmenityLabel = (key: string, language?: string): string =>
+    AMENITY_LABELS_BY_LANGUAGE[normalizeTravelLanguage(language)][key] || key;

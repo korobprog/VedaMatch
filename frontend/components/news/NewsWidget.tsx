@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,14 +7,11 @@ import {
     Image,
     ActivityIndicator,
     useColorScheme,
-    Dimensions,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { newsService, NewsItem } from '../../services/newsService';
 import { COLORS } from '../chat/ChatConstants';
-
-const { width } = Dimensions.get('window');
 
 interface NewsWidgetProps {
     limit?: number;
@@ -33,20 +30,36 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
     onPressItem,
     style,
 }) => {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const lang = i18n.language === 'en' ? 'en' : 'ru';
+    const lang = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
+    const copy = {
+        en: {
+            loadFailed: 'Failed to load news',
+            title: '📰 Latest News',
+            empty: 'No news yet',
+            seeAll: 'See all',
+        },
+        ru: {
+            loadFailed: 'Ошибка загрузки',
+            title: '📰 Новости',
+            empty: 'Новостей пока нет',
+            seeAll: 'Все',
+        },
+        hi: {
+            loadFailed: 'समाचार लोड नहीं हुए',
+            title: '📰 समाचार',
+            empty: 'अभी कोई समाचार नहीं है',
+            seeAll: 'सब देखें',
+        },
+    }[lang];
 
     const [news, setNews] = useState<NewsItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        loadNews();
-    }, [lang]);
-
-    const loadNews = async () => {
+    const loadNews = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -54,11 +67,15 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
             setNews(items);
         } catch (err) {
             console.error('[NewsWidget] Error:', err);
-            setError(lang === 'en' ? 'Failed to load news' : 'Ошибка загрузки');
+            setError(copy.loadFailed);
         } finally {
             setLoading(false);
         }
-    };
+    }, [copy.loadFailed, lang, limit]);
+
+    useEffect(() => {
+        loadNews();
+    }, [loadNews]);
 
     if (loading) {
         return (
@@ -73,12 +90,12 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
             <View style={[styles.container, style, { backgroundColor: theme.header }]}>
                 <View style={styles.header}>
                     <Text style={[styles.title, { color: theme.text }]}>
-                        {lang === 'en' ? '📰 Latest News' : '📰 Новости'}
+                        {copy.title}
                     </Text>
                 </View>
                 <View style={styles.emptyState}>
                     <Text style={[styles.emptyText, { color: theme.subText }]}>
-                        {error || (lang === 'en' ? 'No news yet' : 'Новостей пока нет')}
+                        {error || copy.empty}
                     </Text>
                 </View>
             </View>
@@ -90,12 +107,12 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
             {/* Header */}
             <View style={styles.header}>
                 <Text style={[styles.title, { color: theme.text }]}>
-                    {lang === 'en' ? '📰 Latest News' : '📰 Новости'}
+                    {copy.title}
                 </Text>
                 {onSeeAll && (
                     <TouchableOpacity onPress={onSeeAll}>
                         <Text style={[styles.seeAll, { color: theme.primary || '#6366f1' }]}>
-                            {lang === 'en' ? 'See all' : 'Все'}
+                            {copy.seeAll}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -134,7 +151,7 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
                         <View style={styles.itemContent}>
                             <View style={styles.itemMeta}>
                                 <Text style={[styles.itemDate, { color: theme.subText }]}>
-                                    {newsService.formatDate(item.publishedAt)}
+                                    {newsService.formatDate(item.publishedAt, i18n.language)}
                                 </Text>
                                 {item.isImportant && (
                                     <View style={styles.importantBadge}>

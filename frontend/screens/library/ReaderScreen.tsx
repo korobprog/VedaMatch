@@ -346,7 +346,7 @@ export const ReaderScreen = () => {
                 versePositions.current = {};
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
                 if (normalized.length === 0) {
-                    setLoadError(t('reader.empty_chapter', 'В этой главе пока нет текста или он не загружен.'));
+                    setLoadError(t('reader.empty_chapter', 'There is no text in this chapter yet, or it has not been loaded.'));
                 }
                 Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             }
@@ -366,7 +366,7 @@ export const ReaderScreen = () => {
                 Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             } else {
                 setVerses([]);
-                setLoadError(t('reader.load_error', 'Не удалось загрузить текст главы. Проверьте интернет и попробуйте снова.'));
+                setLoadError(t('reader.load_error', 'Failed to load the chapter text. Check your internet and try again.'));
             }
         } finally {
             if (requestId === latestVersesRequestRef.current && isMountedRef.current) {
@@ -401,7 +401,7 @@ export const ReaderScreen = () => {
                         style={[styles.headerLangBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
                     >
                         <Text style={[styles.langText, { color: accentColor }]}>
-                            {language === 'ru' ? 'РУ' : 'EN'}
+                            {language === 'ru' ? 'RU' : 'EN'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -561,7 +561,7 @@ export const ReaderScreen = () => {
                             />
                         )}
                         <View style={styles.settingsHeader}>
-                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.settings', 'Настройки чтения')}</Text>
+                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.settings', 'Reading settings')}</Text>
                             <TouchableOpacity onPress={() => setShowSettings(false)} style={[styles.closeBtn, { backgroundColor: glassSurface }]}>
                                 <X size={20} color={roleColors.textPrimary} />
                             </TouchableOpacity>
@@ -570,24 +570,24 @@ export const ReaderScreen = () => {
                         <ScrollView style={styles.settingsScroll} showsVerticalScrollIndicator={false}>
                             <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_sanskrit', 'Санскрит')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_sanskrit', 'Sanskrit')}</Text>
                                     <Switch value={showSanskrit} onValueChange={setShowSanskrit} trackColor={{ true: accentColor }} />
                                 </View>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translit', 'Транслитерация')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translit', 'Transliteration')}</Text>
                                     <Switch value={showTransliteration} onValueChange={setShowTransliteration} trackColor={{ true: accentColor }} />
                                 </View>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translation', 'Перевод')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translation', 'Translation')}</Text>
                                     <Switch value={showTranslation} onValueChange={setShowTranslation} trackColor={{ true: accentColor }} />
                                 </View>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_purport', 'Комментарий')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_purport', 'Purport')}</Text>
                                     <Switch value={showPurport} onValueChange={setShowPurport} trackColor={{ true: accentColor }} />
                                 </View>
                             </View>
 
-                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.font_size', 'Размер шрифта')}</Text>
+                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.font_size', 'Font size')}</Text>
                             <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }]}>
                                 <TouchableOpacity onPress={() => setFontSizeBase(prev => Math.max(12, prev - 2))} style={[styles.fontBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
                                     <Text style={[styles.fontBtnText, { color: accentColor }]}>A-</Text>
@@ -600,16 +600,16 @@ export const ReaderScreen = () => {
 
                             <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder, marginTop: 15 }]}>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_bold', 'Жирный шрифт')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_bold', 'Bold font')}</Text>
                                     <Switch value={fontBold} onValueChange={setFontBold} trackColor={{ true: accentColor }} />
                                 </View>
                                 <View style={styles.settingRow}>
-                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_serif', 'С засечками')}</Text>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_serif', 'Serif')}</Text>
                                     <Switch value={isSerif} onValueChange={setIsSerif} trackColor={{ true: accentColor }} />
                                 </View>
                             </View>
 
-                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.theme', 'Тема оформления')}</Text>
+                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.theme', 'Theme')}</Text>
                             <View style={styles.themeSelector}>
                                 {(['paper', 'sepia', 'ancient', 'dark'] as ReaderTheme[]).map((tName) => (
                                     <TouchableOpacity
@@ -649,7 +649,7 @@ export const ReaderScreen = () => {
                             />
                         )}
                         <View style={styles.settingsHeader}>
-                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.bookmarks', 'Ваши закладки')}</Text>
+                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.bookmarks', 'Your bookmarks')}</Text>
                             <TouchableOpacity onPress={() => setShowBookmarksList(false)} style={[styles.closeBtn, { backgroundColor: glassSurface }]}>
                                 <X size={20} color={roleColors.textPrimary} />
                             </TouchableOpacity>
@@ -658,7 +658,7 @@ export const ReaderScreen = () => {
                             {bookmarks.length === 0 ? (
                                 <View style={styles.emptyWrap}>
                                     <Bookmark size={48} color={roleColors.textSecondary} style={{ opacity: 0.3, marginBottom: 15 }} />
-                                    <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>{t('reader.no_bookmarks', 'Закладок пока нет')}</Text>
+                                    <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>{t('reader.no_bookmarks', 'No bookmarks yet')}</Text>
                                 </View>
                             ) : (
                                 bookmarks.map((bId) => {
@@ -738,7 +738,7 @@ export const ReaderScreen = () => {
                     <TouchableOpacity
                         onPress={() => setShowChapterPicker(true)}
                         style={[styles.chapterListBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
-                        accessibilityLabel={t('reader.choose_chapter', 'Выбрать главу')}
+                        accessibilityLabel={t('reader.choose_chapter', 'Choose chapter')}
                     >
                         <Text style={[styles.chapterListBtnText, { color: readerVisual.textPrimary }]}>#</Text>
                     </TouchableOpacity>
@@ -790,7 +790,7 @@ export const ReaderScreen = () => {
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={accentColor} />
-                    <Text style={[styles.loadingText, { color: readerVisual.textSecondary }]}>{t('common.loading', 'Загрузка...')}</Text>
+                    <Text style={[styles.loadingText, { color: readerVisual.textSecondary }]}>{t('common.loading', 'Loading...')}</Text>
                 </View>
             ) : (
                 <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
@@ -884,16 +884,16 @@ export const ReaderScreen = () => {
                         {verses.length === 0 && (
                             <View style={[styles.emptyChapterCard, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
                                 <Text style={[styles.emptyChapterTitle, { color: readerVisual.textPrimary }]}>
-                                    {t('reader.no_verses_title', 'Текст главы не найден')}
+                                    {t('reader.no_verses_title', 'Chapter text not found')}
                                 </Text>
                                 <Text style={[styles.emptyChapterText, { color: readerVisual.textSecondary }]}>
-                                    {loadError || t('reader.no_verses_hint', 'Попробуйте другую главу или обновите загрузку.')}
+                                    {loadError || t('reader.no_verses_hint', 'Try another chapter or refresh the loading.')}
                                 </Text>
                                 <TouchableOpacity
                                     style={[styles.emptyChapterButton, { backgroundColor: accentColor }]}
                                     onPress={() => loadVerses(currentChapter, currentCanto)}
                                 >
-                                    <Text style={styles.emptyChapterButtonText}>{t('common.retry', 'Повторить')}</Text>
+                                    <Text style={styles.emptyChapterButtonText}>{t('common.retry', 'Retry')}</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
@@ -933,7 +933,7 @@ export const ReaderScreen = () => {
                     <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowChapterPicker(false)} />
                     <View style={[styles.chapterPickerContainer, { backgroundColor: roleColors.background, borderColor: roleColors.border }]}>
                         <Text style={[styles.chapterPickerTitle, { color: readerVisual.textPrimary }]}>
-                            {t('reader.choose_chapter', 'Выберите главу')}
+                            {t('reader.choose_chapter', 'Choose chapter')}
                         </Text>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             <View style={styles.chapterPickerGrid}>

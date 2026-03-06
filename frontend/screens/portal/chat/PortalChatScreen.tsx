@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -56,13 +56,38 @@ export const PortalChatScreen: React.FC = () => {
     const [openJoinRoom, setOpenJoinRoom] = useState<any | null>(null);
     const [joinAsListener, setJoinAsListener] = useState(false);
     const [preJoinLoading, setPreJoinLoading] = useState(false);
+    const copy = useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                failedToJoinRoom: 'कमरे से जुड़ना विफल रहा',
+                rooms: 'कमरे',
+                createFirstRoom: 'अपना पहला कमरा बनाएँ और मित्रों को आमंत्रित करें',
+                newRoom: 'नया कमरा',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                failedToJoinRoom: 'Failed to join room',
+                rooms: 'Rooms',
+                createFirstRoom: 'Create your first room and invite friends',
+                newRoom: 'New room',
+            };
+        }
+        return {
+            failedToJoinRoom: 'Не удалось присоединиться к комнате',
+            rooms: 'Комнаты',
+            createFirstRoom: 'Создайте первую комнату и пригласите друзей',
+            newRoom: 'Новая комната',
+        };
+    }, [i18n.language]);
     const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
     const triggerTapFeedback = usePressFeedback();
     const myRooms = useMemo(() => rooms.filter((room) => room?.isMember === true), [rooms]);
     const openRooms = useMemo(() => rooms.filter((room) => room?.isPublic === true), [rooms]);
     const visibleRooms = activeTab === 'my' ? myRooms : openRooms;
 
-    const fetchRooms = async () => {
+    const fetchRooms = useCallback(async () => {
         if (!user?.ID) {
             setLoading(false);
             setRefreshing(false);
@@ -78,13 +103,13 @@ export const PortalChatScreen: React.FC = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [user?.ID]);
 
     useEffect(() => {
         if (user?.ID) {
-            fetchRooms();
+            void fetchRooms();
         }
-    }, [user?.ID]);
+    }, [fetchRooms, user?.ID]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -102,7 +127,7 @@ export const PortalChatScreen: React.FC = () => {
             try {
                 await apiClient.post(`/rooms/${roomID}/join`, {});
             } catch (error: any) {
-                const message = error?.response?.data?.error || 'Failed to join room';
+                const message = error?.response?.data?.error || copy.failedToJoinRoom;
                 Alert.alert(t('common.error'), message);
                 return;
             } finally {
@@ -273,7 +298,7 @@ export const PortalChatScreen: React.FC = () => {
                     ListHeaderComponent={
                         <View style={styles.headerBlock}>
                             <View>
-                                <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Rooms</Text>
+                            <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{copy.rooms}</Text>
                                 <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                     {visibleRooms.length
                                         ? `${t(activeTab === 'my' ? 'chat.myRoomsTab' : 'chat.openRoomsTab')}: ${visibleRooms.length}`
@@ -328,7 +353,7 @@ export const PortalChatScreen: React.FC = () => {
                             <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.noRooms')}</Text>
                             <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                 {activeTab === 'my'
-                                    ? 'Create your first room and invite friends'
+                                    ? copy.createFirstRoom
                                     : (t('chat.openRoomsEmpty') || 'No open rooms yet')}
                             </Text>
                             {activeTab === 'my' && (
@@ -341,7 +366,7 @@ export const PortalChatScreen: React.FC = () => {
                                     }}
                                 >
                                     <Plus size={16} color="#fff" />
-                                    <Text style={styles.emptyButtonText}>New room</Text>
+                                    <Text style={styles.emptyButtonText}>{copy.newRoom}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -363,7 +388,7 @@ export const PortalChatScreen: React.FC = () => {
                     }}
                 >
                     <Plus size={18} color="#fff" />
-                    <Text style={styles.fabText}>New room</Text>
+                    <Text style={styles.fabText}>{copy.newRoom}</Text>
                 </TouchableOpacity>
 
                 <CreateRoomModal

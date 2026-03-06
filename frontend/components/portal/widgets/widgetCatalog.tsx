@@ -15,8 +15,8 @@ export type WidgetSize = PortalWidget['size'];
 export interface WidgetCatalogEntry {
     type: WidgetType;
     size: WidgetSize;
-    title: string;
-    description: string;
+    titleKey: string;
+    descriptionKey: string;
     icon: LucideIcon;
     maxCount: number;
     render: () => React.ReactNode;
@@ -28,8 +28,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'clock',
         size: '2x1',
-        title: 'Большие часы',
-        description: 'Отображает время и дату в широком формате',
+        titleKey: 'portal.widgets.clockWide.title',
+        descriptionKey: 'portal.widgets.clockWide.description',
         icon: Clock,
         maxCount: 1,
         render: () => <ClockWidget size="2x1" />,
@@ -37,8 +37,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'clock',
         size: '1x1',
-        title: 'Компактные часы',
-        description: 'Минималистичные часы 1x1',
+        titleKey: 'portal.widgets.clockCompact.title',
+        descriptionKey: 'portal.widgets.clockCompact.description',
         icon: Clock,
         maxCount: 1,
         render: () => <ClockWidget size="1x1" />,
@@ -46,8 +46,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'calendar',
         size: '2x2',
-        title: 'Календарь',
-        description: 'Полный обзор месяца с подсветкой текущей даты',
+        titleKey: 'portal.widgets.calendar.title',
+        descriptionKey: 'portal.widgets.calendar.description',
         icon: CalendarIcon,
         maxCount: 1,
         render: () => <CalendarWidget size="2x2" />,
@@ -55,8 +55,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'circles_quick',
         size: '1x1',
-        title: 'Кружки (быстрый)',
-        description: 'Открытие ленты, удержание для быстрого создания',
+        titleKey: 'portal.widgets.circlesQuick.title',
+        descriptionKey: 'portal.widgets.circlesQuick.description',
         icon: Film,
         maxCount: 1,
         render: () => <CirclesQuickWidget />,
@@ -64,8 +64,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'circles_panel',
         size: '2x2',
-        title: 'Панель кружков',
-        description: 'Создание + кружки друзей + мини-превью',
+        titleKey: 'portal.widgets.circlesPanel.title',
+        descriptionKey: 'portal.widgets.circlesPanel.description',
         icon: Film,
         maxCount: 1,
         render: () => <CirclesPanelWidget isVisible />,
@@ -73,8 +73,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'feed_quick',
         size: '1x1',
-        title: 'Лента (быстрый)',
-        description: 'Быстрый переход к ленте',
+        titleKey: 'portal.widgets.feedQuick.title',
+        descriptionKey: 'portal.widgets.feedQuick.description',
         icon: Film,
         maxCount: 1,
         render: () => <FeedQuickWidget />,
@@ -82,8 +82,8 @@ export const WIDGET_CATALOG: WidgetCatalogEntry[] = [
     {
         type: 'feed_mix',
         size: '2x2',
-        title: 'Лента (панель)',
-        description: 'Превью свежих постов и кружков',
+        titleKey: 'portal.widgets.feedMix.title',
+        descriptionKey: 'portal.widgets.feedMix.description',
         icon: Film,
         maxCount: 1,
         render: () => <FeedMixWidget />,

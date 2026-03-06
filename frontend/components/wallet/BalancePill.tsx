@@ -8,6 +8,7 @@ import { Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useWallet } from '../../context/WalletContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useTranslation } from 'react-i18next';
 
 interface BalancePillProps {
     size?: 'small' | 'medium';
@@ -15,9 +16,9 @@ interface BalancePillProps {
     lightMode?: boolean; // For dark backgrounds
 }
 
-function formatPillAmount(value: number, compact: boolean): string {
+function formatPillAmount(value: number, compact: boolean, locale: string): string {
     if (!compact) {
-        return value.toLocaleString('ru-RU');
+        return value.toLocaleString(locale);
     }
 
     const abs = Math.abs(value);
@@ -29,7 +30,7 @@ function formatPillAmount(value: number, compact: boolean): string {
         const shortened = (value / 1_000).toFixed(abs >= 10_000 ? 0 : 1);
         return `${shortened.replace(/\.0$/, '')}K`;
     }
-    return value.toLocaleString('ru-RU');
+    return value.toLocaleString(locale);
 }
 
 export const BalancePill: React.FC<BalancePillProps> = ({
@@ -37,6 +38,7 @@ export const BalancePill: React.FC<BalancePillProps> = ({
     showPending = false,
     lightMode = false,
 }) => {
+    const { i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { wallet, loading, regularBalance, bonusBalance } = useWallet();
     const { portalIconStyle } = useSettings();
@@ -51,9 +53,10 @@ export const BalancePill: React.FC<BalancePillProps> = ({
     const bgColor = isVedaMatch ? '#121212' : lightMode ? 'rgba(255,255,255,0.22)' : 'rgba(255,176,46,0.12)';
     const borderColor = isVedaMatch ? '#D4AF37' : lightMode ? 'rgba(255,255,255,0.4)' : 'rgba(255,176,46,0.25)';
     const pendingBalance = wallet?.pendingBalance ?? 0;
+    const numberLocale = i18n.language?.startsWith('ru') ? 'ru-RU' : i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-US';
 
-    const regularText = formatPillAmount(regularBalance, isSmall);
-    const bonusText = formatPillAmount(bonusBalance, isSmall);
+    const regularText = formatPillAmount(regularBalance, isSmall, numberLocale);
+    const bonusText = formatPillAmount(bonusBalance, isSmall, numberLocale);
 
     return (
         <TouchableOpacity

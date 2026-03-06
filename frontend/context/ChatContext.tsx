@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useRef, ReactNode, useEffec
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { Message } from '../components/chat/ChatConstants';
 import { sendMessage, ChatMessage } from '../services/openaiService';
 import { useSettings } from './SettingsContext';
@@ -130,7 +131,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     if (Array.isArray(parsed)) {
                         // Migrate titles from default "History" to first word of first message
                         const migrated = (parsed as ChatHistory[]).map(item => {
-                            const defaultTitles = [t('chat.history'), 'История чатов', 'Chat History'];
+                            const defaultTitles = [t('chat.history'), 'История чатов', 'Chat History', 'चैट इतिहास'];
                             if (defaultTitles.includes(item.title) || !item.title) {
                                 const firstUserMsg = item.messages.find(m => m.sender === 'user')?.text;
                                 if (firstUserMsg) {
@@ -286,7 +287,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 } catch (e: unknown) {
                     console.error('Failed to load P2P messages', e);
                     if (isActive) {
-                        Alert.alert('Error loading messages', getErrorMessage(e));
+                        Alert.alert(t('common.error', 'Error'), getErrorMessage(e));
                     }
                 } finally {
                     if (isActive) {
@@ -306,7 +307,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setIsLoadingOlderMessages(false);
 
         return;
-    }, [recipientId, currentUser?.ID, addListener]);
+    }, [recipientId, currentUser?.ID, addListener, t]);
 
     const loadOlderMessages = async () => {
         const currentUserId = currentUser?.ID;
@@ -683,7 +684,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const handleNewChat = () => {
-        const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
+        const assistantName = assistantType === 'smiley'
+            ? (i18n.language === 'ru' ? 'Колобок дас' : i18n.language === 'hi' ? 'कोलोबोक दास' : 'Kolobok das')
+            : (i18n.language === 'ru' ? 'Перо дас' : i18n.language === 'hi' ? 'पेरो दास' : 'Pero das');
         const welcomeMessages: Message[] = [{
             id: `welcome_${Date.now()}`,
             text: `${assistantName}. ${t('chat.welcome')}`,
@@ -731,7 +734,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setHistory(updated);
         if (currentChatId === id) {
             // When deleting the active chat, reset UI without re-adding a new history item.
-            const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
+            const assistantName = assistantType === 'smiley'
+                ? (i18n.language === 'ru' ? 'Колобок дас' : i18n.language === 'hi' ? 'कोलोबोक दास' : 'Kolobok das')
+                : (i18n.language === 'ru' ? 'Перо дас' : i18n.language === 'hi' ? 'पेरो दास' : 'Pero das');
             setMessages([{
                 id: `welcome_${Date.now()}`,
                 text: `${assistantName}. ${t('chat.welcome')}`,
@@ -757,7 +762,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
         // If current chat is in the deleted list, reset it
         if (currentChatId && ids.includes(currentChatId)) {
-            const assistantName = assistantType === 'smiley' ? "Колобок дас" : "Перо дас";
+            const assistantName = assistantType === 'smiley'
+                ? (i18n.language === 'ru' ? 'Колобок дас' : i18n.language === 'hi' ? 'कोलोबोक दास' : 'Kolobok das')
+                : (i18n.language === 'ru' ? 'Перо дас' : i18n.language === 'hi' ? 'पेरो दास' : 'Pero das');
             setMessages([{
                 id: `welcome_${Date.now()}`,
                 text: `${assistantName}. ${t('chat.welcome')}`,
@@ -894,8 +901,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to send media:', error);
             setMessages(prev => prev.filter(m => !m.uploading));
             Alert.alert(
-                'Ошибка',
-                getErrorMessage(error) || 'Не удалось отправить файл'
+                t('common.error', 'Error'),
+                getErrorMessage(error) || t('chat.sendFileFailed', 'Failed to send file')
             );
         } finally {
             setIsUploading(false);
@@ -912,8 +919,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         } catch (error: unknown) {
             console.error('Failed to start recording:', error);
             Alert.alert(
-                'Запись недоступна',
-                getErrorMessage(error) || 'Не удалось начать запись аудио'
+                t('chat.recordingUnavailable', 'Recording unavailable'),
+                getErrorMessage(error) || t('chat.startRecordingFailed', 'Failed to start audio recording')
             );
         }
     };
@@ -941,8 +948,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setRecordingDuration(0);
             recordingStartedAtRef.current = null;
             Alert.alert(
-                'Ошибка аудио',
-                getErrorMessage(error) || 'Не удалось завершить запись аудио'
+                t('chat.audioError', 'Audio error'),
+                getErrorMessage(error) || t('chat.stopRecordingFailed', 'Failed to finish audio recording')
             );
         }
     };
@@ -1022,7 +1029,14 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     setMessages(prev => prev.filter(m => m.id !== messageId));
                 } catch (error: unknown) {
                     console.error('Failed to delete message', error);
-                    Alert.alert('Error', 'Could not delete message');
+                    Alert.alert(
+                        t('common.error', 'Error'),
+                        i18n.language === 'ru'
+                            ? 'Не удалось удалить сообщение'
+                            : i18n.language === 'hi'
+                                ? 'संदेश हटाया नहीं जा सका'
+                                : 'Could not delete message'
+                    );
                 }
             },
             deleteChats,

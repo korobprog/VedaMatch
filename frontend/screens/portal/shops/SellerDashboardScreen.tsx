@@ -109,10 +109,10 @@ export const SellerDashboardScreen: React.FC = () => {
     const handleUpgradePlan = async (planCode: string) => {
         try {
             await marketService.subscribeShopPlan(planCode);
-            Alert.alert('Успешно', 'Тариф магазина обновлен');
+            Alert.alert('Success', 'Shop plan updated');
             loadData();
         } catch (error: any) {
-            Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось обновить тариф');
+            Alert.alert('Error', error?.response?.data?.error || error?.message || 'Failed to update shop plan');
         }
     };
 
@@ -121,10 +121,10 @@ export const SellerDashboardScreen: React.FC = () => {
         try {
             const cityBoostTariff = promoTariffs.find((item) => item.code === 'shop_city_boost_24h');
             await marketService.applyShopGeoBoost(shop.ID, cityBoostTariff?.code || 'shop_city_boost_24h');
-            Alert.alert('Успешно', 'Гео-буст активирован');
+            Alert.alert('Success', 'Geo boost activated');
             loadData();
         } catch (error: any) {
-            Alert.alert('Ошибка', error?.response?.data?.error || error?.message || 'Не удалось активировать буст');
+            Alert.alert('Error', error?.response?.data?.error || error?.message || 'Failed to activate boost');
         }
     };
 
@@ -237,15 +237,15 @@ export const SellerDashboardScreen: React.FC = () => {
                         </View>
                     </View>
                     <TouchableOpacity style={styles.editBtn} onPress={handleEditShop}>
-                        <Text style={{ color: colors.accent, fontSize: 14 }}>✏️ {t('common.save').slice(0, 3) /* Ред. */}</Text>
+                        <Text style={{ color: colors.accent, fontSize: 14 }}>✏️ {t('common.save').slice(0, 3)}</Text>
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.planCard}>
-                    <Text style={styles.planTitle}>Тариф витрины: {planStatus?.planTitle || 'Basic'}</Text>
+                    <Text style={styles.planTitle}>Showcase plan: {planStatus?.planTitle || 'Basic'}</Text>
                     <Text style={styles.planDesc}>
-                        Лимит товаров: {planStatus?.productsLimit === 0 ? 'Без лимита' : planStatus?.productsLimit ?? 20}
-                        {' • '}Сейчас: {planStatus?.currentProducts ?? 0}
+                        Product limit: {planStatus?.productsLimit === 0 ? 'Unlimited' : planStatus?.productsLimit ?? 20}
+                        {' • '}Current: {planStatus?.currentProducts ?? 0}
                     </Text>
                     <View style={styles.planActions}>
                         {plans.filter((p) => p.code !== planStatus?.planCode).map((plan) => (
@@ -254,7 +254,7 @@ export const SellerDashboardScreen: React.FC = () => {
                             </TouchableOpacity>
                         ))}
                         <TouchableOpacity style={styles.geoBoostBtn} onPress={handleApplyGeoBoost}>
-                            <Text style={styles.geoBoostText}>Гео-буст 20 LKM / 24ч</Text>
+                            <Text style={styles.geoBoostText}>Geo boost 20 LKM / 24h</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -307,7 +307,7 @@ export const SellerDashboardScreen: React.FC = () => {
                         disabled={planStatus ? !planStatus.canCreateProducts : false}
                     >
                         <Text style={styles.actionIcon}>➕</Text>
-                        <Text style={styles.actionText}>{planStatus && !planStatus.canCreateProducts ? 'Лимит тарифа' : t('market.product.add')}</Text>
+                        <Text style={styles.actionText}>{planStatus && !planStatus.canCreateProducts ? 'Plan limit reached' : t('market.product.add')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionBtn}

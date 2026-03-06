@@ -256,7 +256,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                 styles.bulkActionText,
                                                 { color: historyColors.textPrimary }
                                             ]}>
-                                                {selectedIds.length === history.length ? t('common.deselectAll') || 'Снять все' : t('common.selectAll') || 'Выбрать все'}
+                                                {selectedIds.length === history.length ? t('common.deselectAll', 'Deselect all') : t('common.selectAll', 'Select all')}
                                             </Text>
                                         </TouchableOpacity>
 
@@ -266,7 +266,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                 onPress={() => {
                                                     Alert.alert(
                                                         t('common.confirm'),
-                                                        `${t('chat.deleteMultipleConfirm') || 'Удалить выбранные чаты?'} (${selectedIds.length})`,
+                                                        `${t('chat.deleteMultipleConfirm', 'Delete selected chats?')} (${selectedIds.length})`,
                                                         [
                                                             { text: t('common.cancel'), style: 'cancel' },
                                                             {
@@ -284,7 +284,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                             >
                                                 <Trash2 size={18} color={roleColors.danger} />
                                                 <Text style={[styles.bulkDeleteText, { color: roleColors.danger }]}>
-                                                    {t('common.delete') || 'Удалить'} ({selectedIds.length})
+                                                    {t('common.delete', 'Delete')} ({selectedIds.length})
                                                 </Text>
                                             </TouchableOpacity>
                                         )}

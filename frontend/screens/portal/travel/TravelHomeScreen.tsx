@@ -18,7 +18,7 @@ import {
     Compass, Home, Plus, Star, Heart, Tent, Building2, Footprints
 } from 'lucide-react-native';
 import { yatraService } from '../../../services/yatraService';
-import { Yatra, Shelter, YATRA_THEME_LABELS, SHELTER_TYPE_LABELS } from '../../../types/yatra';
+import { Yatra, Shelter, getShelterTypeLabel, getYatraThemeLabel } from '../../../types/yatra';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -30,7 +30,7 @@ type TabType = 'yatras' | 'shelters';
 
 const TravelHomeScreen: React.FC = () => {
     const navigation = useNavigation<any>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -72,7 +72,7 @@ const TravelHomeScreen: React.FC = () => {
                 />
                 <View style={[styles.cardBadge, { backgroundColor: colors.accent }]}>
                     <Text style={styles.cardBadgeText}>
-                        {YATRA_THEME_LABELS[item.theme] || item.theme}
+                        {getYatraThemeLabel(item.theme, i18n.language)}
                     </Text>
                 </View>
                 <View style={styles.cardContent}>
@@ -88,14 +88,14 @@ const TravelHomeScreen: React.FC = () => {
                     <View style={styles.cardRow}>
                         <Calendar size={14} color={colors.warning} strokeWidth={2} />
                         <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {yatraService.formatDateRange(item.startDate, item.endDate)} ({duration} дн.)
+                            {yatraService.formatDateRange(item.startDate, item.endDate, i18n.language)} ({duration} days)
                         </Text>
                     </View>
 
                     <View style={styles.cardRow}>
                         <Users size={14} color={colors.success} strokeWidth={2} />
                         <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {item.participantCount}/{item.maxParticipants} участников
+                            {item.participantCount}/{item.maxParticipants} participants
                         </Text>
                     </View>
 
@@ -103,16 +103,16 @@ const TravelHomeScreen: React.FC = () => {
                         {daysUntil > 0 ? (
                             <View style={[styles.daysChip, { backgroundColor: colors.surface }]}>
                                 <Text style={[styles.daysChipText, { color: colors.textSecondary }]}>
-                                    Через {daysUntil} дн.
+                                    In {daysUntil} days
                                 </Text>
                             </View>
                         ) : daysUntil === 0 ? (
                             <View style={[styles.daysChip, styles.todayChip, { backgroundColor: colors.success }]}>
-                                <Text style={[styles.daysChipText, { color: colors.background }]}>Сегодня!</Text>
+                                <Text style={[styles.daysChipText, { color: colors.background }]}>Today!</Text>
                             </View>
                         ) : (
                             <View style={[styles.daysChip, styles.activeChip, { backgroundColor: colors.warning }]}>
-                                <Text style={[styles.daysChipText, { color: colors.background }]}>В пути</Text>
+                                <Text style={[styles.daysChipText, { color: colors.background }]}>In progress</Text>
                             </View>
                         )}
                         <ChevronRight size={20} color={colors.textSecondary} />
@@ -147,7 +147,7 @@ const TravelHomeScreen: React.FC = () => {
                 )}
                 <View style={[styles.typeBadge, { backgroundColor: colors.overlay }]}>
                     <Text style={styles.typeBadgeText}>
-                        {SHELTER_TYPE_LABELS[item.type] || item.type}
+                        {getShelterTypeLabel(item.type, i18n.language)}
                     </Text>
                 </View>
                 <View style={styles.cardContent}>
@@ -163,20 +163,20 @@ const TravelHomeScreen: React.FC = () => {
                     <View style={styles.cardRow}>
                         <Star size={14} color={colors.warning} fill={colors.warning} />
                         <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {item.rating.toFixed(1)} ({item.reviewsCount} отзывов)
+                            {item.rating.toFixed(1)} ({item.reviewsCount} reviews)
                         </Text>
                     </View>
 
                     <View style={styles.cardRow}>
                         <Users size={14} color={colors.success} strokeWidth={2} />
                         <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            До {item.capacity} гостей • {item.rooms} комнат
+                            Up to {item.capacity} guests • {item.rooms} rooms
                         </Text>
                     </View>
 
                     <View style={styles.cardFooter}>
                         <Text style={[styles.priceText, { color: colors.success }]}>
-                            {item.pricePerNight || 'Уточняйте'}
+                            {item.pricePerNight || 'Contact for details'}
                         </Text>
                         <ChevronRight size={20} color={colors.textSecondary} />
                     </View>
@@ -193,7 +193,7 @@ const TravelHomeScreen: React.FC = () => {
                             <Footprints size={32} color={colors.accent} />
                             <Text style={[styles.title, { marginBottom: 0, color: colors.textPrimary }]}>Yatra Seva</Text>
                         </View>
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Духовные путешествия вместе</Text>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Spiritual journeys together</Text>
                     </View>
                     <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
@@ -207,7 +207,7 @@ const TravelHomeScreen: React.FC = () => {
                 <Search size={20} color={colors.textSecondary} style={styles.searchIcon} strokeWidth={1.5} />
                 <TextInput
                     style={[styles.searchInput, { color: colors.textPrimary }]}
-                    placeholder={activeTab === 'yatras' ? 'Поиск туров...' : 'Поиск жилья...'}
+                    placeholder={activeTab === 'yatras' ? 'Search trips...' : 'Search stays...'}
                     placeholderTextColor={colors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
@@ -231,7 +231,7 @@ const TravelHomeScreen: React.FC = () => {
                 >
                     <Compass size={18} color={activeTab === 'yatras' ? 'white' : colors.textSecondary} strokeWidth={2} />
                     <Text style={[styles.tabText, activeTab === 'yatras' && styles.tabTextActive]}>
-                        Туры
+                        Trips
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -240,7 +240,7 @@ const TravelHomeScreen: React.FC = () => {
                 >
                     <Home size={18} color={activeTab === 'shelters' ? 'white' : colors.textSecondary} strokeWidth={2} />
                     <Text style={[styles.tabText, activeTab === 'shelters' && styles.tabTextActive]}>
-                        Жильё
+                        Stays
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -260,7 +260,7 @@ const TravelHomeScreen: React.FC = () => {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.accent} />
-                <Text style={[styles.loadingText, { color: colors.textPrimary }]}>Загрузка...</Text>
+                <Text style={[styles.loadingText, { color: colors.textPrimary }]}>Loading...</Text>
             </View>
         );
     }
@@ -284,12 +284,12 @@ const TravelHomeScreen: React.FC = () => {
                 <Building2 size={80} color={colors.border} strokeWidth={1} />
             )}
             <Text style={[styles.emptyText, { color: colors.textPrimary }]}>
-                {activeTab === 'yatras' ? 'Туры не найдены' : 'Жильё не найдено'}
+                {activeTab === 'yatras' ? 'No trips found' : 'No stays found'}
             </Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
                 {activeTab === 'yatras'
-                    ? 'Создайте свой тур или попробуйте другой поиск'
-                    : 'Добавьте своё жильё или попробуйте другой поиск'}
+                    ? 'Create your own trip or try another search'
+                    : 'Add your stay or try another search'}
             </Text>
             <TouchableOpacity
                 style={[styles.emptyButton, { backgroundColor: colors.accent }]}
@@ -297,7 +297,7 @@ const TravelHomeScreen: React.FC = () => {
             >
                 <Plus size={20} color="white" strokeWidth={2} />
                 <Text style={styles.emptyButtonText}>
-                    {activeTab === 'yatras' ? 'Создать тур' : 'Добавить жильё'}
+                    {activeTab === 'yatras' ? 'Create trip' : 'Add stay'}
                 </Text>
             </TouchableOpacity>
         </View>

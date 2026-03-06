@@ -46,7 +46,7 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
       setPlans(planList);
       setStatus(statusData);
     } catch (error: any) {
-      Alert.alert('Ошибка', error?.message || 'Не удалось загрузить PRO данные');
+      Alert.alert('Error', error?.message || 'Failed to load PRO data');
     } finally {
       setLoading(false);
     }
@@ -68,27 +68,27 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
   const handlePurchase = useCallback((plan: ProPlan) => {
     if (processingCode) return;
     Alert.alert(
-      'Покупка PRO',
-      `Купить ${plan.title} за ${plan.priceLkm} LKM?`,
+      'PRO purchase',
+      `Buy ${plan.title} for ${plan.priceLkm} LKM?`,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Купить',
+          text: 'Buy',
           onPress: async () => {
             try {
               setProcessingCode(plan.code);
               const result = await proService.purchase(plan.code);
               setStatus(result.status);
               await applyUserEntitlement(result.status);
-              Alert.alert('Готово', 'PRO активирован');
+              Alert.alert('Done', 'PRO activated');
             } catch (error: any) {
               const code = String(error?.code || '');
               if (code === 'INSUFFICIENT_LKM') {
-                Alert.alert('Недостаточно LKM', 'Пополните баланс LKM и повторите покупку.');
+                Alert.alert('Not enough LKM', 'Top up your LKM balance and try the purchase again.');
               } else if (code === 'PRO_ALREADY_FREE_BY_ROLE') {
-                Alert.alert('PRO уже активен', 'Для вашей роли PRO включен бесплатно.');
+                Alert.alert('PRO is already active', 'PRO is enabled for your role for free.');
               } else {
-                Alert.alert('Ошибка', error?.message || 'Не удалось выполнить покупку');
+                Alert.alert('Error', error?.message || 'Failed to complete the purchase');
               }
             } finally {
               setProcessingCode(null);
@@ -114,25 +114,25 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Управление PRO</Text>
+        <Text style={styles.title}>Manage PRO</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>Статус PRO</Text>
-          <Text style={styles.statusValue}>{status?.isProEffective ? 'Активен' : 'Не активен'}</Text>
+          <Text style={styles.statusTitle}>PRO status</Text>
+          <Text style={styles.statusValue}>{status?.isProEffective ? 'Active' : 'Inactive'}</Text>
           {roleFree ? (
-            <Text style={styles.statusHint}>Доступ включен по роли (бесплатно)</Text>
+            <Text style={styles.statusHint}>Access is enabled by role (free)</Text>
           ) : status?.currentSubscription?.endsAt ? (
-            <Text style={styles.statusHint}>Действует до {formatDate(status.currentSubscription.endsAt)}</Text>
+            <Text style={styles.statusHint}>Active until {formatDate(status.currentSubscription.endsAt)}</Text>
           ) : (
-            <Text style={styles.statusHint}>Откройте все организации и фильтры</Text>
+            <Text style={styles.statusHint}>Unlock all organizations and filters</Text>
           )}
         </View>
 
         {roleFree ? (
           <View style={styles.infoCard}>
-            <Text style={styles.infoText}>Покупка не требуется для вашей роли.</Text>
+            <Text style={styles.infoText}>Purchase is not required for your role.</Text>
           </View>
         ) : (
           plans.map(plan => {
@@ -144,7 +144,7 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
                   {!!plan.badge && <Text style={styles.badge}>{plan.badge}</Text>}
                 </View>
                 <Text style={styles.planPrice}>{plan.priceLkm} LKM</Text>
-                <Text style={styles.planMeta}>{plan.days} дней</Text>
+                <Text style={styles.planMeta}>{plan.days} days</Text>
                 <TouchableOpacity
                   style={[styles.buyBtn, busy ? styles.buyBtnDisabled : null]}
                   disabled={busy}
@@ -153,7 +153,7 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
                   {busy ? (
                     <ActivityIndicator size="small" color="#111827" />
                   ) : (
-                    <Text style={styles.buyText}>Купить</Text>
+                    <Text style={styles.buyText}>Buy</Text>
                   )}
                 </TouchableOpacity>
               </View>

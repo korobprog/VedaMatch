@@ -5,6 +5,7 @@ import { ROLE_OPTIONS } from '../../constants/roleOptions';
 import { PortalBlueprint, PortalRole } from '../../types/portalBlueprint';
 import { RoleInfoModal } from './RoleInfoModal';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { useTranslation } from 'react-i18next';
 
 interface RoleSelectionSectionProps {
   selectedRole: string;
@@ -26,7 +27,48 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   blueprints,
   autoOpenHint = false,
 }) => {
+  const { i18n } = useTranslation();
   const { colors } = useRoleTheme(selectedRole, true);
+  const roleCopy = {
+    ru: {
+      sectionTitle: 'Роль в портале',
+      sectionSubtitle: 'Роль влияет на быстрый доступ, приоритет сервисов и подсказки.',
+      activeRole: 'Активная роль',
+      roles: {
+        user: { title: 'Искатель', subtitle: 'Стартовый профиль', description: 'Для мягкого входа в экосистему сервисов.', servicesHint: ['Медиа', 'Новости', 'Библиотека', 'Обучение'] },
+        in_goodness: { title: 'В благости', subtitle: 'Саттвичный фокус', description: 'Питание, дисциплина, практики и сервисы баланса.', servicesHint: ['Кафе', 'Обучение', 'Услуги'] },
+        yogi: { title: 'Йог', subtitle: 'Практика и ретриты', description: 'Для активной практики и образовательных маршрутов.', servicesHint: ['Услуги', 'Yatra', 'Медиа'] },
+        devotee: { title: 'Преданный', subtitle: 'Сева и община', description: 'Профиль для служения, ятр и глубокого вовлечения.', servicesHint: ['Сева', 'Благотворительность', 'Yatra', 'Новости'] },
+      },
+    },
+    hi: {
+      sectionTitle: 'पोर्टल में भूमिका',
+      sectionSubtitle: 'भूमिका त्वरित पहुँच, सेवा प्राथमिकता और संकेतों को प्रभावित करती है।',
+      activeRole: 'सक्रिय भूमिका',
+      roles: {
+        user: { title: 'साधक', subtitle: 'प्रारंभिक प्रोफ़ाइल', description: 'सेवा इकोसिस्टम में सहज प्रवेश के लिए।', servicesHint: ['मीडिया', 'समाचार', 'लाइब्रेरी', 'शिक्षा'] },
+        in_goodness: { title: 'सत्त्व में', subtitle: 'सात्त्विक फोकस', description: 'आहार, अनुशासन, अभ्यास और संतुलन सेवाओं के लिए।', servicesHint: ['कैफ़े', 'शिक्षा', 'सेवाएँ'] },
+        yogi: { title: 'योगी', subtitle: 'अभ्यास और रिट्रीट', description: 'सक्रिय साधना और शैक्षिक मार्गों के लिए।', servicesHint: ['सेवाएँ', 'Yatra', 'मीडिया'] },
+        devotee: { title: 'भक्त', subtitle: 'सेवा और संग', description: 'सेवा, यात्राओं और गहरे सहभाग के लिए प्रोफ़ाइल।', servicesHint: ['सेवा', 'चैरिटी', 'Yatra', 'समाचार'] },
+      },
+    },
+    en: {
+      sectionTitle: 'Role in portal',
+      sectionSubtitle: 'Role affects quick access, service priority, and hints.',
+      activeRole: 'Active role',
+      roles: {
+        user: { title: 'Seeker', subtitle: 'Starter profile', description: 'For a smooth entry into the service ecosystem.', servicesHint: ['Media', 'News', 'Library', 'Education'] },
+        in_goodness: { title: 'In Goodness', subtitle: 'Sattvic focus', description: 'Nutrition, discipline, practices, and balance services.', servicesHint: ['Cafe', 'Education', 'Services'] },
+        yogi: { title: 'Yogi', subtitle: 'Practice and retreats', description: 'For active practice and educational routes.', servicesHint: ['Services', 'Yatra', 'Media'] },
+        devotee: { title: 'Devotee', subtitle: 'Seva and community', description: 'A profile for service, yatras, and deep involvement.', servicesHint: ['Seva', 'Charity', 'Yatra', 'News'] },
+      },
+    },
+  } as const;
+  const language = i18n.language === 'ru' ? 'ru' : i18n.language === 'hi' ? 'hi' : 'en';
+  const localized = roleCopy[language];
+  const resolveLocalizedRole = (role: string) => (
+    localized.roles[role as keyof typeof localized.roles] || localized.roles.user
+  );
   const [infoRole, setInfoRole] = useState<PortalRole | null>(null);
   const autoOpenedRef = useRef(false);
 
@@ -49,22 +91,23 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   const servicesHint = useMemo(() => {
     if (!infoRole) return [];
     const fromBlueprint = blueprints?.[infoRole]?.servicesHint;
-    if (fromBlueprint && fromBlueprint.length > 0) return fromBlueprint;
-    return ROLE_OPTIONS.find((r) => r.id === infoRole)?.servicesHint || [];
-  }, [blueprints, infoRole]);
+    if (fromBlueprint && fromBlueprint.length > 0) return [...fromBlueprint];
+    return [...(resolveLocalizedRole(infoRole).servicesHint || [])];
+  }, [blueprints, infoRole, localized.roles]);
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Роль в портале</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{localized.sectionTitle}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Роль влияет на быстрый доступ, приоритет сервисов и подсказки.
+          {localized.sectionSubtitle}
         </Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {ROLE_OPTIONS.map((option) => {
           const selected = selectedRole === option.id;
+          const optionCopy = resolveLocalizedRole(option.id);
           return (
             <Pressable
               key={option.id}
@@ -102,18 +145,18 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
               <View style={styles.content}>
                 <View style={styles.titleRow}>
                 <Text style={[styles.cardTitle, { color: colors.textPrimary }, selected && { color: option.highlightColor }]}>
-                  {option.title}
+                  {optionCopy.title}
                 </Text>
                   <View style={[styles.iconBadge, { backgroundColor: `${option.highlightColor}20` }]}>
                     {roleIcon(option.id, option.highlightColor)}
                   </View>
                 </View>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{option.subtitle}</Text>
-                <Text style={[styles.cardDescription, { color: colors.textPrimary }]}>{option.description}</Text>
+                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{optionCopy.subtitle}</Text>
+                <Text style={[styles.cardDescription, { color: colors.textPrimary }]}>{optionCopy.description}</Text>
 
                 {selected && (
                   <View style={[styles.selectedChip, { backgroundColor: option.highlightColor }]}>
-                    <Text style={styles.selectedText}>Активная роль</Text>
+                    <Text style={styles.selectedText}>{localized.activeRole}</Text>
                   </View>
                 )}
               </View>
@@ -124,7 +167,7 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
 
       <RoleInfoModal
         visible={!!infoRole}
-        title={activeOption.title}
+        title={resolveLocalizedRole(activeOption.id).title}
         servicesHint={servicesHint}
         role={infoRole || selectedRole}
         onClose={() => setInfoRole(null)}

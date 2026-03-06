@@ -33,13 +33,13 @@ import {
     getTransactions,
     getWalletStats,
     WalletStatsResponse,
-    TRANSACTION_TYPE_LABELS,
     TRANSACTION_TYPE_COLORS,
     formatTransactionAmount,
     formatTransactionDate,
     getTransactionSign,
     getTransactionAmountParts,
     isBonusTransaction,
+    getTransactionTypeLabel,
 } from '../../services/walletService';
 import ReceiptModal from '../../components/wallet/ReceiptModal';
 import { WalletInfoModal } from '../../components/wallet/WalletInfoModal';
@@ -49,9 +49,10 @@ type WalletTab = 'regular' | 'bonus';
 type HistoryFilter = 'all' | 'bonus';
 
 export default function WalletScreen() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { wallet, refreshWallet, totalBalance, regularBalance, bonusBalance } = useWallet();
+    const numberLocale = i18n.language?.startsWith('ru') ? 'ru-RU' : i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-US';
 
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [stats, setStats] = useState<WalletStatsResponse | null>(null);
@@ -162,10 +163,10 @@ export default function WalletScreen() {
                 </View>
                 <View style={styles.transactionContent}>
                     <Text style={styles.transactionType}>
-                        {TRANSACTION_TYPE_LABELS[item.type]}
+                        {getTransactionTypeLabel(item.type, i18n.language)}
                     </Text>
                     <Text style={styles.transactionDate}>
-                        {formatTransactionDate(item.createdAt)}
+                        {formatTransactionDate(item.createdAt, i18n.language)}
                     </Text>
                     {bonusPart > 0 && (
                         <Text style={styles.transactionSplit}>
@@ -175,7 +176,7 @@ export default function WalletScreen() {
                 </View>
                 <View style={styles.transactionAmountContainer}>
                     <Text style={[styles.transactionAmount, { color }]}>
-                        {formatTransactionAmount(item.type, item.amount)}
+                        {formatTransactionAmount(item.type, item.amount, i18n.language)}
                     </Text>
                 </View>
             </TouchableOpacity>
@@ -295,7 +296,7 @@ export default function WalletScreen() {
                                 <View style={styles.balanceValueContainer}>
                                     <View style={styles.mainBalanceRow}>
                                         <Text style={styles.balanceValue}>
-                                            {(walletTab === 'regular' ? regularBalance : bonusBalance).toLocaleString('ru-RU')}
+                                            {(walletTab === 'regular' ? regularBalance : bonusBalance).toLocaleString(numberLocale)}
                                         </Text>
                                         <Text style={styles.balanceLkmSuffix}>LKM</Text>
                                     </View>
@@ -304,14 +305,14 @@ export default function WalletScreen() {
                                     <View style={styles.breakdownBox}>
                                         <View style={styles.breakdownHeader}>
                                             <Text style={styles.breakdownHeaderTitle}>{t('wallet.composition')}</Text>
-                                            <Text style={styles.breakdownHeaderTotal}>{t('wallet.total')}: {totalBalance.toLocaleString('ru-RU')}</Text>
+                                            <Text style={styles.breakdownHeaderTotal}>{t('wallet.total')}: {totalBalance.toLocaleString(numberLocale)}</Text>
                                         </View>
 
                                         <View style={styles.breakdownItems}>
                                             <View style={[styles.breakdownItem, walletTab === 'regular' && styles.breakdownItemActive]}>
                                                 <View style={[styles.breakdownDot, { backgroundColor: '#1a1a2e' }]} />
                                                 <Text style={styles.breakdownLabel}>{t('wallet.personal')}</Text>
-                                                <Text style={styles.breakdownValue}>{regularBalance.toLocaleString('ru-RU')}</Text>
+                                                <Text style={styles.breakdownValue}>{regularBalance.toLocaleString(numberLocale)}</Text>
                                             </View>
 
                                             <View style={styles.breakdownDivider} />
@@ -319,7 +320,7 @@ export default function WalletScreen() {
                                             <View style={[styles.breakdownItem, walletTab === 'bonus' && styles.breakdownItemActive]}>
                                                 <View style={[styles.breakdownDot, { backgroundColor: '#3B82F6' }]} />
                                                 <Text style={styles.breakdownLabel}>{t('wallet.bonuses')}</Text>
-                                                <Text style={styles.breakdownValue}>{bonusBalance.toLocaleString('ru-RU')}</Text>
+                                                <Text style={styles.breakdownValue}>{bonusBalance.toLocaleString(numberLocale)}</Text>
                                             </View>
                                         </View>
 
@@ -331,13 +332,13 @@ export default function WalletScreen() {
                                                     onPress={() => setShowFrozen(true)}
                                                     activeOpacity={0.7}
                                                 >
-                                                    <Text style={styles.statusLabel}>🔒 {t('wallet.frozen')}: {((wallet?.frozenBalance ?? 0) + (wallet?.frozenBonusBalance ?? 0)).toLocaleString('ru-RU')}</Text>
+                                                    <Text style={styles.statusLabel}>🔒 {t('wallet.frozen')}: {((wallet?.frozenBalance ?? 0) + (wallet?.frozenBonusBalance ?? 0)).toLocaleString(numberLocale)}</Text>
                                                 </TouchableOpacity>
                                             ) : null}
 
                                             {(wallet?.pendingBalance ?? 0) > 0 ? (
                                                 <View style={styles.statusItem}>
-                                                    <Text style={styles.statusLabel}>⏳ {t('wallet.pending')}: {(wallet?.pendingBalance ?? 0).toLocaleString('ru-RU')}</Text>
+                                                    <Text style={styles.statusLabel}>⏳ {t('wallet.pending')}: {(wallet?.pendingBalance ?? 0).toLocaleString(numberLocale)}</Text>
                                                 </View>
                                             ) : null}
                                         </View>
@@ -360,7 +361,7 @@ export default function WalletScreen() {
                                         <View>
                                             <Text style={styles.balanceStatLabel}>{t('wallet.received')}</Text>
                                             <Text style={styles.balanceStatValue}>
-                                                {stats?.totalEarned.toLocaleString('ru-RU') || 0}
+                                                {stats?.totalEarned.toLocaleString(numberLocale) || 0}
                                             </Text>
                                         </View>
                                     </View>
@@ -372,7 +373,7 @@ export default function WalletScreen() {
                                         <View>
                                             <Text style={styles.balanceStatLabel}>{t('wallet.spent')}</Text>
                                             <Text style={styles.balanceStatValue}>
-                                                {stats?.totalSpent.toLocaleString('ru-RU') || 0}
+                                                {stats?.totalSpent.toLocaleString(numberLocale) || 0}
                                             </Text>
                                         </View>
                                     </View>
@@ -397,7 +398,7 @@ export default function WalletScreen() {
                                     </View>
                                     <Text style={styles.statCardLabel}>{t('wallet.income')}</Text>
                                     <Text style={[styles.statCardValue, { color: '#4CAF50' }]}>
-                                        +{stats?.thisMonthIn.toLocaleString('ru-RU') || 0}
+                                        +{stats?.thisMonthIn.toLocaleString(numberLocale) || 0}
                                     </Text>
                                 </View>
                                 <View style={styles.statCard}>
@@ -406,7 +407,7 @@ export default function WalletScreen() {
                                     </View>
                                     <Text style={styles.statCardLabel}>{t('wallet.expense')}</Text>
                                     <Text style={[styles.statCardValue, { color: '#F44336' }]}>
-                                        -{stats?.thisMonthOut.toLocaleString('ru-RU') || 0}
+                                        -{stats?.thisMonthOut.toLocaleString(numberLocale) || 0}
                                     </Text>
                                 </View>
                             </View>

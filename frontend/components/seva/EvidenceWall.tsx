@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, Dimensions, RefreshControl } from 'react-native';
 import { X, Play, FileText, Camera, Video } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { CharityEvidence } from '../../types/charity';
 import { charityService } from '../../services/charityService';
 
@@ -13,6 +14,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ITEM_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
+    const { i18n } = useTranslation();
     const [evidence, setEvidence] = useState<CharityEvidence[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -49,6 +51,40 @@ export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
         }
     };
 
+    const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+    const copy = i18n.language === 'ru'
+        ? {
+            emptyTitle: 'Отчеты еще не загружены',
+            emptySubtitle: 'Организация скоро добавит фото и видео отчеты о расходовании средств',
+            sectionTitle: '📸 Стена доказательств',
+            sectionSubtitle: 'Фото и видео отчеты о расходовании средств',
+            photo: 'Фотоотчет',
+            video: 'Видеоотчет',
+            receipt: 'Чек/Квитанция',
+            report: 'Документ',
+        }
+        : i18n.language === 'hi'
+            ? {
+                emptyTitle: 'रिपोर्ट अभी अपलोड नहीं की गई हैं',
+                emptySubtitle: 'संगठन जल्द ही धन के उपयोग पर फोटो और वीडियो रिपोर्ट जोड़ेगा',
+                sectionTitle: '📸 प्रमाण दीवार',
+                sectionSubtitle: 'धन के उपयोग पर फोटो और वीडियो रिपोर्ट',
+                photo: 'फोटो रिपोर्ट',
+                video: 'वीडियो रिपोर्ट',
+                receipt: 'रसीद',
+                report: 'दस्तावेज़',
+            }
+            : {
+                emptyTitle: 'Reports have not been uploaded yet',
+                emptySubtitle: 'The organization will soon add photo and video reports on how the funds were used',
+                sectionTitle: '📸 Evidence Wall',
+                sectionSubtitle: 'Photo and video reports on how funds were used',
+                photo: 'Photo report',
+                video: 'Video report',
+                receipt: 'Receipt',
+                report: 'Document',
+            };
+
     const renderEvidenceItem = ({ item }: { item: CharityEvidence }) => (
         <TouchableOpacity
             style={styles.gridItem}
@@ -68,7 +104,7 @@ export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
                 <View style={styles.typeRow}>
                     {getTypeIcon(item.type)}
                     <Text style={styles.dateText}>
-                        {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                        {new Date(item.createdAt).toLocaleDateString(locale)}
                     </Text>
                 </View>
                 {item.title && (
@@ -82,9 +118,9 @@ export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
         return (
             <View style={styles.emptyContainer}>
                 <FileText size={40} color="#555" />
-                <Text style={styles.emptyText}>Отчеты еще не загружены</Text>
+                <Text style={styles.emptyText}>{copy.emptyTitle}</Text>
                 <Text style={styles.emptySubtext}>
-                    Организация скоро добавит фото и видео отчеты о расходовании средств
+                    {copy.emptySubtitle}
                 </Text>
             </View>
         );
@@ -92,9 +128,9 @@ export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.sectionTitle}>📸 Стена доказательств</Text>
+            <Text style={styles.sectionTitle}>{copy.sectionTitle}</Text>
             <Text style={styles.sectionSubtitle}>
-                Фото и видео отчеты о расходовании средств
+                {copy.sectionSubtitle}
             </Text>
 
             <FlatList
@@ -136,13 +172,13 @@ export const EvidenceWall: React.FC<Props> = ({ projectId, projectTitle }) => {
                                 <View style={styles.modalTypeRow}>
                                     {getTypeIcon(selectedEvidence.type)}
                                     <Text style={styles.modalType}>
-                                        {selectedEvidence.type === 'photo' && 'Фотоотчет'}
-                                        {selectedEvidence.type === 'video' && 'Видеоотчет'}
-                                        {selectedEvidence.type === 'receipt' && 'Чек/Квитанция'}
-                                        {selectedEvidence.type === 'report' && 'Документ'}
+                                        {selectedEvidence.type === 'photo' && copy.photo}
+                                        {selectedEvidence.type === 'video' && copy.video}
+                                        {selectedEvidence.type === 'receipt' && copy.receipt}
+                                        {selectedEvidence.type === 'report' && copy.report}
                                     </Text>
                                     <Text style={styles.modalDate}>
-                                        {new Date(selectedEvidence.createdAt).toLocaleDateString('ru-RU')}
+                                        {new Date(selectedEvidence.createdAt).toLocaleDateString(locale)}
                                     </Text>
                                 </View>
 

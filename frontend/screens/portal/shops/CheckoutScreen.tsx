@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
     Image, ActivityIndicator, Alert
@@ -27,10 +27,10 @@ type RouteParams = {
 };
 
 export const CheckoutScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'Checkout'>>();
-    const initialItems = route.params?.items || [];
+    const initialItems = useMemo(() => route.params?.items || [], [route.params?.items]);
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -48,15 +48,55 @@ export const CheckoutScreen: React.FC = () => {
     const [buyerEmail, setBuyerEmail] = useState('');
     const [buyerNote, setBuyerNote] = useState(route.params?.prefillBuyerNote || '');
     const [paymentMethod, setPaymentMethod] = useState<MarketPaymentMethod>('external');
-
-    useEffect(() => {
-        // Load products details if not available
-        if (initialItems.length > 0 && !initialItems[0].product) {
-            loadProductDetails();
+    const copy = i18n.language?.startsWith('ru')
+        ? {
+            error: 'Ошибка',
+            loadCartFailed: 'Не удалось загрузить корзину',
+            emptyCart: 'Пустая корзина',
+            cannotRemoveLast: 'Нельзя удалить последний товар',
+            cancel: 'Отмена',
+            goBack: 'Назад',
+            required: 'Обязательно',
+            enterName: 'Пожалуйста, введите ваше имя',
+            enterAddress: 'Пожалуйста, введите адрес доставки',
+            createOrderFailed: 'Не удалось создать заказ',
+            checkout: 'Оформление заказа',
+            yourItems: 'Ваши товары',
+            remove: 'Удалить',
         }
-    }, []);
+        : i18n.language?.startsWith('hi')
+            ? {
+                error: 'त्रुटि',
+                loadCartFailed: 'कार्ट आइटम लोड नहीं हो सके',
+                emptyCart: 'खाली कार्ट',
+                cannotRemoveLast: 'आख़िरी आइटम हटाया नहीं जा सकता',
+                cancel: 'रद्द करें',
+                goBack: 'वापस जाएँ',
+                required: 'आवश्यक',
+                enterName: 'कृपया अपना नाम दर्ज करें',
+                enterAddress: 'कृपया डिलीवरी पता दर्ज करें',
+                createOrderFailed: 'ऑर्डर बनाया नहीं जा सका',
+                checkout: 'चेकआउट',
+                yourItems: 'आपके आइटम',
+                remove: 'हटाएँ',
+            }
+            : {
+                error: 'Error',
+                loadCartFailed: 'Failed to load cart items',
+                emptyCart: 'Empty Cart',
+                cannotRemoveLast: 'Cannot remove last item',
+                cancel: 'Cancel',
+                goBack: 'Go Back',
+                required: 'Required',
+                enterName: 'Please enter your name',
+                enterAddress: 'Please enter delivery address',
+                createOrderFailed: 'Failed to create order',
+                checkout: 'Checkout',
+                yourItems: 'Your Items',
+                remove: 'Remove',
+            };
 
-    const loadProductDetails = async () => {
+    const loadProductDetails = useCallback(async () => {
         setLoading(true);
         try {
             const updatedItems = await Promise.all(
@@ -72,11 +112,17 @@ export const CheckoutScreen: React.FC = () => {
             setCartItems(updatedItems);
         } catch (error) {
             console.error('Error loading products:', error);
-            Alert.alert('Error', 'Failed to load cart items');
+            Alert.alert(copy.error, copy.loadCartFailed);
         } finally {
             setLoading(false);
         }
-    };
+    }, [copy.error, copy.loadCartFailed, initialItems]);
+
+    useEffect(() => {
+        if (initialItems.length > 0 && !initialItems[0].product) {
+            void loadProductDetails();
+        }
+    }, [initialItems, loadProductDetails]);
 
     const getItemPrice = (item: CartItem): number => {
         if (item.variant) {
@@ -108,9 +154,9 @@ export const CheckoutScreen: React.FC = () => {
 
     const handleRemoveItem = (index: number) => {
         if (cartItems.length === 1) {
-            Alert.alert('Empty Cart', 'Cannot remove last item', [
-                { text: 'Cancel' },
-                { text: 'Go Back', onPress: () => navigation.goBack() }
+            Alert.alert(copy.emptyCart, copy.cannotRemoveLast, [
+                { text: copy.cancel },
+                { text: copy.goBack, onPress: () => navigation.goBack() }
             ]);
             return;
         }
@@ -132,10 +178,10 @@ export const CheckoutScreen: React.FC = () => {
     const handleSubmitOrder = async () => {
         // Validation
         if (!buyerName.trim()) {
-            return Alert.alert('Required', 'Please enter your name');
+            return Alert.alert(copy.required, copy.enterName);
         }
         if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
-            return Alert.alert('Required', 'Please enter delivery address');
+            return Alert.alert(copy.required, copy.enterAddress);
         }
 
         setSubmitting(true);
@@ -172,7 +218,7 @@ export const CheckoutScreen: React.FC = () => {
             });
         } catch (error: any) {
             console.error('Error creating order:', error);
-            Alert.alert('Error', error.response?.data?.error || 'Failed to create order');
+            Alert.alert(copy.error, error.response?.data?.error || copy.createOrderFailed);
         } finally {
             setSubmitting(false);
         }
@@ -192,13 +238,13 @@ export const CheckoutScreen: React.FC = () => {
                 <KeyboardAwareContainer style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={styles.headerTitle}>
-                        Checkout
+                        {copy.checkout}
                     </Text>
 
                     {/* Cart Items */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>
-                            Your Items ({cartItems.length})
+                            {copy.yourItems} ({cartItems.length})
                         </Text>
 
                         {cartItems.map((item, index) => (
@@ -252,7 +298,7 @@ export const CheckoutScreen: React.FC = () => {
                                         </TouchableOpacity>
                                     </View>
                                     <TouchableOpacity onPress={() => handleRemoveItem(index)}>
-                                        <Text style={{ color: colors.danger, fontSize: 12 }}>Remove</Text>
+                                        <Text style={{ color: colors.danger, fontSize: 12 }}>{copy.remove}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>

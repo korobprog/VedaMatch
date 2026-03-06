@@ -16,6 +16,7 @@ import {
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../types/navigation';
 import { supportService, SupportConversation, SupportMessage } from '../../services/supportService';
 import { useUser } from '../../context/UserContext';
@@ -24,7 +25,14 @@ import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContain
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupportConversation'>;
 
-const formatTime = (value?: string) => {
+const normalizeLocale = (language?: string) => {
+    const normalized = String(language || '').toLowerCase();
+    if (normalized.startsWith('hi')) return 'hi-IN';
+    if (normalized.startsWith('en')) return 'en-US';
+    return 'ru-RU';
+};
+
+const formatTime = (value?: string, language?: string) => {
     if (!value) {
         return '';
     }
@@ -32,7 +40,7 @@ const formatTime = (value?: string) => {
     if (Number.isNaN(date.getTime())) {
         return '';
     }
-    return date.toLocaleString('ru-RU', {
+    return date.toLocaleString(normalizeLocale(language), {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -54,6 +62,7 @@ const resolveMediaUrl = (raw?: string) => {
 };
 
 export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }) => {
+    const { i18n } = useTranslation();
     const { isLoggedIn } = useUser();
     const conversationId = route.params?.conversationId;
     const [ticket, setTicket] = useState<SupportConversation | null>(null);
@@ -63,6 +72,58 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
     const [draft, setDraft] = useState('');
     const [attachment, setAttachment] = useState<Asset | null>(null);
     const [sending, setSending] = useState(false);
+    const copy = useMemo(() => {
+        const language = String(i18n.language || '').toLowerCase();
+        if (language.startsWith('hi')) {
+            return {
+                support: 'सहायता',
+                failedToSelectImage: 'छवि चुनी नहीं जा सकी।',
+                failedToSendMessage: 'संदेश भेजा नहीं जा सका।',
+                signInTitle: 'अपने खाते में साइन इन करें',
+                signInSubtitle: 'अधिकृत होने के बाद वार्तालाप इतिहास उपलब्ध होगा।',
+                openSignIn: 'साइन-इन खोलें',
+                ticketNotFound: 'टिकट नहीं मिला',
+                supportRequest: 'सहायता अनुरोध',
+                open: 'खुला',
+                resolved: 'समाधान हुआ',
+                remove: 'हटाएँ',
+                writeMessage: 'संदेश लिखें...',
+                send: 'भेजें',
+            };
+        }
+        if (language.startsWith('en')) {
+            return {
+                support: 'Support',
+                failedToSelectImage: 'Failed to select an image.',
+                failedToSendMessage: 'Failed to send the message.',
+                signInTitle: 'Sign in to your account',
+                signInSubtitle: 'Conversation history is available after authorization.',
+                openSignIn: 'Open sign-in',
+                ticketNotFound: 'Ticket not found',
+                supportRequest: 'Support request',
+                open: 'open',
+                resolved: 'resolved',
+                remove: 'Remove',
+                writeMessage: 'Write a message...',
+                send: 'Send',
+            };
+        }
+        return {
+            support: 'Поддержка',
+            failedToSelectImage: 'Не удалось выбрать изображение.',
+            failedToSendMessage: 'Не удалось отправить сообщение.',
+            signInTitle: 'Войдите в аккаунт',
+            signInSubtitle: 'История переписки доступна после авторизации.',
+            openSignIn: 'Открыть вход',
+            ticketNotFound: 'Обращение не найдено',
+            supportRequest: 'Обращение в поддержку',
+            open: 'открыт',
+            resolved: 'решён',
+            remove: 'Удалить',
+            writeMessage: 'Напишите сообщение...',
+            send: 'Отправить',
+        };
+    }, [i18n.language]);
     const clientMeta = useMemo(() => ({
         devicePlatform: Platform.OS,
         deviceOs: Platform.OS,
@@ -101,7 +162,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
         }, [load])
     );
 
-    const pickImage = async () => {
+    const pickImage = useCallback(async () => {
         try {
             const result = await launchImageLibrary({
                 mediaType: 'photo',
@@ -112,7 +173,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                 return;
             }
             if (result.errorCode) {
-                Alert.alert('Поддержка', result.errorMessage || 'Не удалось выбрать изображение.');
+                Alert.alert(copy.support, result.errorMessage || copy.failedToSelectImage);
                 return;
             }
             const image = result.assets?.[0];
@@ -120,11 +181,11 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                 setAttachment(image);
             }
         } catch {
-            Alert.alert('Поддержка', 'Не удалось выбрать изображение.');
+            Alert.alert(copy.support, copy.failedToSelectImage);
         }
-    };
+    }, [copy.failedToSelectImage, copy.support]);
 
-    const send = async () => {
+    const send = useCallback(async () => {
         if (!conversationId) {
             return;
         }
@@ -157,27 +218,27 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
             setAttachment(null);
             await load(true);
         } catch (error: any) {
-            Alert.alert('Поддержка', error?.message || 'Не удалось отправить сообщение.');
+            Alert.alert(copy.support, error?.message || copy.failedToSendMessage);
         } finally {
             setSending(false);
         }
-    };
+    }, [attachment, clientMeta, conversationId, copy.failedToSendMessage, copy.support, draft, load]);
 
     const statusLabel = useMemo(() => {
         if (!ticket) {
             return '';
         }
-        return ticket.status === 'resolved' ? 'resolved' : 'open';
-    }, [ticket]);
+        return ticket.status === 'resolved' ? copy.resolved : copy.open;
+    }, [copy.open, copy.resolved, ticket]);
 
     if (!isLoggedIn) {
         return (
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.center}>
-                    <Text style={styles.blockedTitle}>Войдите в аккаунт</Text>
-                    <Text style={styles.blockedSubtitle}>Просмотр переписки доступен после авторизации.</Text>
+                    <Text style={styles.blockedTitle}>{copy.signInTitle}</Text>
+                    <Text style={styles.blockedSubtitle}>{copy.signInSubtitle}</Text>
                     <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('Login')}>
-                        <Text style={styles.primaryButtonText}>Открыть вход</Text>
+                        <Text style={styles.primaryButtonText}>{copy.openSignIn}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -188,7 +249,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
         return (
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.center}>
-                    <Text style={styles.blockedTitle}>Обращение не найдено</Text>
+                    <Text style={styles.blockedTitle}>{copy.ticketNotFound}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -204,13 +265,13 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.title}>{ticket?.ticketNumber || `#${conversationId}`}</Text>
-                        <Text style={styles.metaText}>{ticket?.subject || 'Support request'}</Text>
+                        <Text style={styles.metaText}>{ticket?.subject || copy.supportRequest}</Text>
                     </View>
                     <View style={styles.metaRight}>
                         <Text style={[styles.status, ticket?.status === 'resolved' ? styles.statusResolved : styles.statusOpen]}>
                             {statusLabel}
                         </Text>
-                        <Text style={styles.timeText}>{formatTime(ticket?.lastMessageAt || ticket?.UpdatedAt)}</Text>
+                        <Text style={styles.timeText}>{formatTime(ticket?.lastMessageAt || ticket?.UpdatedAt, i18n.language)}</Text>
                     </View>
                 </View>
 
@@ -238,7 +299,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                                             <Image source={{ uri: media }} style={styles.mediaPreview} resizeMode="cover" />
                                         ) : null}
                                         <Text style={styles.messageMeta}>
-                                            {item.source} • {formatTime(item.sentAt || item.CreatedAt)}
+                                            {item.source} • {formatTime(item.sentAt || item.CreatedAt, i18n.language)}
                                         </Text>
                                     </View>
                                 </View>
@@ -251,7 +312,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                     <View style={styles.attachmentPreviewWrap}>
                         <Image source={{ uri: attachment.uri }} style={styles.attachmentPreview} resizeMode="cover" />
                         <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachment} activeOpacity={0.85}>
-                            <Text style={styles.removeAttachmentText}>Убрать</Text>
+                            <Text style={styles.removeAttachmentText}>{copy.remove}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : null}
@@ -264,7 +325,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                         style={styles.input}
                         value={draft}
                         onChangeText={setDraft}
-                        placeholder="Напишите сообщение..."
+                        placeholder={copy.writeMessage}
                         placeholderTextColor="#94A3B8"
                         multiline
                     />
@@ -273,7 +334,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                         style={[styles.sendButton, sending && styles.sendButtonDisabled]}
                         disabled={sending}
                     >
-                        {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.sendButtonText}>Отпр.</Text>}
+                        {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.sendButtonText}>{copy.send}</Text>}
                     </TouchableOpacity>
                 </View>
             </KeyboardAwareContainer>

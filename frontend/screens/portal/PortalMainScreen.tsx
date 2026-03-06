@@ -315,6 +315,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
         if (screen === 'SevaHub') {
             navigation.navigate('SevaHub');
+            return;
+        }
+        if (screen === 'ConnectHome') {
+            navigation.navigate('ConnectHome');
         }
     }, [navigation]);
 
@@ -402,6 +406,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             'shops',
             'services',
             'services_catalog',
+            'connect',
             'support',
             'map',
             'news',

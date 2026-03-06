@@ -50,7 +50,7 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export const ProductDetailsScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const route = useRoute<RouteProp<RootStackParamList, 'ProductDetails'>>();
     const productId = route.params.productId;
@@ -79,6 +79,59 @@ export const ProductDetailsScreen: React.FC = () => {
     const latestReviewsRequestRef = useRef(0);
     const reviewSubmittingRef = useRef(false);
     const isMountedRef = useRef(true);
+    const copy = i18n.language?.startsWith('ru')
+        ? {
+            error: 'Ошибка',
+            loadProductFailed: 'Не удалось загрузить товар',
+            addReview: 'Добавить отзыв',
+            reviewRatingPrompt: 'Сколько звёзд вы бы поставили этому товару? (1-5)',
+            cancel: 'Отмена',
+            next: 'Далее',
+            invalidRating: 'Неверная оценка',
+            enterRating: 'Пожалуйста, введите число от 1 до 5',
+            comment: 'Комментарий',
+            reviewCommentPrompt: 'Что вам понравилось или не понравилось?',
+            skip: 'Пропустить',
+            submit: 'Отправить',
+            success: 'Успех',
+            reviewSubmitted: 'Ваш отзыв отправлен',
+            submitReviewFailed: 'Не удалось отправить отзыв',
+        }
+        : i18n.language?.startsWith('hi')
+            ? {
+                error: 'त्रुटि',
+                loadProductFailed: 'प्रोडक्ट लोड नहीं हो सका',
+                addReview: 'समीक्षा जोड़ें',
+                reviewRatingPrompt: 'आप इस प्रोडक्ट को कितने स्टार देंगे? (1-5)',
+                cancel: 'रद्द करें',
+                next: 'आगे',
+                invalidRating: 'अमान्य रेटिंग',
+                enterRating: 'कृपया 1 से 5 के बीच संख्या दर्ज करें',
+                comment: 'टिप्पणी',
+                reviewCommentPrompt: 'आपको क्या पसंद या नापसंद आया?',
+                skip: 'छोड़ें',
+                submit: 'भेजें',
+                success: 'सफलता',
+                reviewSubmitted: 'आपकी समीक्षा भेज दी गई है',
+                submitReviewFailed: 'समीक्षा भेजी नहीं जा सकी',
+            }
+            : {
+                error: 'Error',
+                loadProductFailed: 'Failed to load product',
+                addReview: 'Add Review',
+                reviewRatingPrompt: 'How many stars would you give this product? (1-5)',
+                cancel: 'Cancel',
+                next: 'Next',
+                invalidRating: 'Invalid rating',
+                enterRating: 'Please enter a number between 1 and 5',
+                comment: 'Comment',
+                reviewCommentPrompt: 'What did you like or dislike?',
+                skip: 'Skip',
+                submit: 'Submit',
+                success: 'Success',
+                reviewSubmitted: 'Your review has been submitted',
+                submitReviewFailed: 'Failed to submit review',
+            };
 
     const loadReviews = useCallback(async (page: number) => {
         const requestId = ++latestReviewsRequestRef.current;
@@ -141,14 +194,14 @@ export const ProductDetailsScreen: React.FC = () => {
             console.error('Error loading product:', error);
             if (requestId === latestProductRequestRef.current && isMountedRef.current) {
                 setProduct(null);
-                Alert.alert('Error', 'Failed to load product');
+                Alert.alert(copy.error, copy.loadProductFailed);
             }
         } finally {
             if (requestId === latestProductRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
-    }, [loadReviews, productId]);
+    }, [copy.error, copy.loadProductFailed, loadReviews, productId]);
 
     useEffect(() => {
         loadProduct();
@@ -173,31 +226,31 @@ export const ProductDetailsScreen: React.FC = () => {
     const handleAddReview = () => {
         if (Platform.OS !== 'ios') {
             Alert.alert(
-                t('market.addReview'),
+                t('market.addReview') || copy.addReview,
                 t('market.addReviewPromptFallback') || 'Review submission is currently available on iOS.',
             );
             return;
         }
         Alert.prompt(
-            'Add Review',
-            'How many stars would you give this product? (1-5)',
+            copy.addReview,
+            copy.reviewRatingPrompt,
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: copy.cancel, style: 'cancel' },
                 {
-                    text: 'Next',
+                    text: copy.next,
                     onPress: (ratingStr) => {
                         const rating = parseInt(ratingStr || '5', 10);
                         if (isNaN(rating) || rating < 1 || rating > 5) {
-                            Alert.alert('Invalid rating', 'Please enter a number between 1 and 5');
+                            Alert.alert(copy.invalidRating, copy.enterRating);
                             return;
                         }
 
                         Alert.prompt(
-                            'Comment',
-                            'What did you like or dislike?',
+                            copy.comment,
+                            copy.reviewCommentPrompt,
                             [
-                                { text: 'Skip', onPress: () => submitReview(rating, '') },
-                                { text: 'Submit', onPress: (comment) => submitReview(rating, comment || '') }
+                                { text: copy.skip, onPress: () => submitReview(rating, '') },
+                                { text: copy.submit, onPress: (comment) => submitReview(rating, comment || '') }
                             ]
                         );
                     }
@@ -215,11 +268,11 @@ export const ProductDetailsScreen: React.FC = () => {
         reviewSubmittingRef.current = true;
         try {
             await marketService.addProductReview(productId, { rating, comment });
-            Alert.alert('Success', 'Your review has been submitted');
+            Alert.alert(copy.success, copy.reviewSubmitted);
             void loadProduct(); // Refresh product stats and reviews
         } catch (error: unknown) {
-            const msg = getErrorMessage(error, 'Failed to submit review');
-            Alert.alert('Error', msg);
+            const msg = getErrorMessage(error, copy.submitReviewFailed);
+            Alert.alert(copy.error, msg);
         } finally {
             reviewSubmittingRef.current = false;
         }

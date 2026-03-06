@@ -48,11 +48,11 @@ import {
 
 // Category pills for filtering
 const CATEGORIES = [
-    { id: '', label: 'Все темы', labelEn: 'All Topics' },
-    { id: 'spiritual', label: 'Духовное', labelEn: 'Spiritual' },
-    { id: 'events', label: 'События', labelEn: 'Events' },
-    { id: 'education', label: 'Образование', labelEn: 'Education' },
-    { id: 'wellness', label: 'Здоровье', labelEn: 'Wellness' },
+    { id: '', label: 'All Topics', labelEn: 'All Topics' },
+    { id: 'spiritual', label: 'Spiritual', labelEn: 'Spiritual' },
+    { id: 'events', label: 'Events', labelEn: 'Events' },
+    { id: 'education', label: 'Education', labelEn: 'Education' },
+    { id: 'wellness', label: 'Wellness', labelEn: 'Wellness' },
 ];
 
 export const NewsScreen = () => {
@@ -94,7 +94,7 @@ export const NewsScreen = () => {
     const loadingMore = newsQuery.isFetchingNextPage;
     const hasMore = Boolean(newsQuery.hasNextPage);
     const refreshing = newsQuery.isRefetching && !newsQuery.isFetchingNextPage;
-    const error = newsQuery.error ? 'Не удалось загрузить новости' : null;
+    const error = newsQuery.error ? 'Failed to load news' : null;
 
     useEffect(() => {
         if (!preferencesQuery.data) {
@@ -254,7 +254,7 @@ export const NewsScreen = () => {
                                 {item.isImportant && (
                                     <View style={styles.importantBadge}>
                                         <Zap size={12} color={colors.textPrimary} style={{ marginRight: 4 }} />
-                                        <Text style={styles.importantBadgeText}>{lang === 'en' ? 'Important' : 'Важное'}</Text>
+                                        <Text style={styles.importantBadgeText}>Important</Text>
                                     </View>
                                 )}
                                 <View style={styles.sourceActions}>
@@ -279,7 +279,7 @@ export const NewsScreen = () => {
                             <Text style={styles.heroSummary} numberOfLines={2}>{newsService.cleanText(item.summary)}</Text>
                             <View style={styles.heroMeta}>
                                 <Text style={styles.heroDate}>
-                                    {newsService.formatDate(item.publishedAt)}
+                                    {newsService.formatDate(item.publishedAt, i18n.language)}
                                 </Text>
                                 {item.category && (
                                     <Text style={styles.heroCategory}>{item.category}</Text>
@@ -294,7 +294,7 @@ export const NewsScreen = () => {
                         <View style={styles.cardHeaderRow}>
                             <View style={styles.cardMeta}>
                                 <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
-                                    {newsService.formatDate(item.publishedAt)}
+                                    {newsService.formatDate(item.publishedAt, i18n.language)}
                                 </Text>
                                 {item.isImportant && (
                                     <Zap size={12} color={colors.accent} style={{ marginLeft: 6 }} />
@@ -350,12 +350,10 @@ export const NewsScreen = () => {
             <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
                 <Inbox size={64} color={colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-                    {lang === 'en' ? 'No news yet' : 'Новостей пока нет'}
+                    No news yet
                 </Text>
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    {lang === 'en'
-                        ? 'Check back later for updates'
-                        : 'Загляните позже для обновлений'}
+                    Check back later for updates
                 </Text>
             </View>
         );
@@ -366,7 +364,7 @@ export const NewsScreen = () => {
             <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
                 <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                    {lang === 'en' ? 'Loading news...' : 'Загрузка новостей...'}
+                    Loading news...
                 </Text>
             </View>
         );
@@ -383,9 +381,7 @@ export const NewsScreen = () => {
                         void newsQuery.refetch();
                     }}
                 >
-                    <Text style={styles.retryButtonText}>
-                        {lang === 'en' ? 'Try again' : 'Попробовать снова'}
-                    </Text>
+                    <Text style={styles.retryButtonText}>Try again</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -447,7 +443,7 @@ export const NewsScreen = () => {
                             styles.toggleText,
                             { color: personalized ? colors.textPrimary : colors.textSecondary }
                         ]}>
-                            {lang === 'en' ? 'My Feed' : 'Моя лента'}
+                            My Feed
                         </Text>
                         {personalized && (
                             <View style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 2 }}>
@@ -463,9 +459,7 @@ export const NewsScreen = () => {
                     alignSelf: 'center',
                     opacity: personalized ? 1 : 0.5
                 }}>
-                    {personalized
-                        ? (lang === 'en' ? 'Personalized' : 'Персонально')
-                        : (lang === 'en' ? 'General' : 'Общая')}
+                    {personalized ? 'Personalized' : 'General'}
                 </Text>
             </View>
 

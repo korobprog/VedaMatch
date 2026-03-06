@@ -34,7 +34,7 @@ interface QRScannerScreenProps {
 
 const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
     const navigation = useNavigation<any>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -101,7 +101,8 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
             };
 
             if (result.table?.upcomingReservation) {
-                const startTime = new Date(result.table.upcomingReservation.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+                const startTime = new Date(result.table.upcomingReservation.startTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
                 Alert.alert(
                     t('cafe.qr.tableReservedTitle'),
                     t('cafe.qr.tableReservedMessage', { time: startTime }),
@@ -121,7 +122,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
                 ]
             );
         }
-    }, [scanned, loading, navigation, onScanSuccess, currentCart, setTableInfo, t]);
+    }, [scanned, loading, navigation, onScanSuccess, currentCart, setTableInfo, t, i18n.language]);
 
     const lastScanRef = React.useRef<number>(0);
 

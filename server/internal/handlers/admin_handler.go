@@ -775,6 +775,125 @@ func (h *AdminHandler) GetYatraPushHealth(c *fiber.Ctx) error {
 	return h.GetPushHealth(c)
 }
 
+func (h *AdminHandler) GetEkadashiHealth(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	windowHours := parseAdminQueryInt(c.Query("window_hours"), 24, 1, 24*30)
+	limit := parseAdminQueryInt(c.Query("limit"), 20, 1, 100)
+	pushService := services.GetPushService()
+	summary, err := pushService.GetHealthSummaryByEventPrefix(time.Duration(windowHours)*time.Hour, "ekadashi_")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to calculate ekadashi push health"})
+	}
+
+	recentDeliveries, err := loadRecentEkadashiReminderDeliveries(limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load ekadashi reminder deliveries"})
+	}
+
+	runtimeStatus := pushService.GetFCMRuntimeStatus()
+	return c.JSON(fiber.Map{
+		"status":              getPushHealthStatus(buildPushHealthAlerts(summary, false)),
+		"windowHours":         summary.WindowHours,
+		"summary":             summary,
+		"fcmRuntime":          runtimeStatus,
+		"recentDeliveries":    recentDeliveries,
+		"iskconProviderCache": services.GetISKCONProviderCacheSnapshot(),
+		"providerStatuses": fiber.Map{
+			"ISKCON":             loadEkadashiProviderStatus("ISKCON"),
+			"SRI_CHAITANYA_MATH": loadEkadashiProviderStatus("SRI_CHAITANYA_MATH"),
+			"PURE_BHAKTI":        loadEkadashiProviderStatus("PURE_BHAKTI"),
+			"DEFAULT_VAISHNAVA":  loadEkadashiProviderStatus("DEFAULT_VAISHNAVA"),
+		},
+		"scheduler": fiber.Map{
+			"enabled":            true,
+			"tickMinutes":        5,
+			"lookbackMinutes":    15,
+			"supportedReminders": []string{"fast_start", "parana"},
+		},
+	})
+}
+
+func (h *AdminHandler) RefreshEkadashiCalendar(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	month := strings.TrimSpace(c.Query("month"))
+	if month == "" {
+		month = time.Now().Format("2006-01")
+	}
+	organizationID := strings.TrimSpace(c.Query("organizationId"))
+	if organizationID == "" {
+		organizationID = "iskcon"
+	}
+	city := strings.TrimSpace(c.Query("city"))
+	if city == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "city is required"})
+	}
+	timezone := strings.TrimSpace(c.Query("timezone"))
+	if timezone == "" {
+		timezone = "Asia/Kolkata"
+	}
+	country := strings.TrimSpace(c.Query("country"))
+
+	service := services.NewEkadashiService()
+	result, err := service.GetCalendar(0, models.RoleDevotee, month, organizationID, timezone, city, country)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":          "Failed to refresh ekadashi calendar",
+			"providerStatus": loadEkadashiProviderStatus(strings.ToUpper(strings.TrimSpace(organizationID))),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":          "Ekadashi refresh completed",
+		"month":            result.Month,
+		"generatedFrom":    result.GeneratedFrom,
+		"providerDecision": result.ProviderDecision,
+		"daysCount":        len(result.Days),
+		"organizationId":   organizationID,
+		"city":             city,
+		"timezone":         timezone,
+		"providerStatus":   loadEkadashiProviderStatus(strings.ToUpper(strings.TrimSpace(organizationID))),
+	})
+}
+
+func loadRecentEkadashiReminderDeliveries(limit int) ([]fiber.Map, error) {
+	var rows []models.EkadashiReminderDelivery
+	if err := database.DB.Order("created_at DESC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]fiber.Map, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, fiber.Map{
+			"id":             row.ID,
+			"userId":         row.UserID,
+			"reminderType":   row.ReminderType,
+			"eventDate":      row.EventDate,
+			"organizationId": row.OrganizationID,
+			"deliveredAt":    row.DeliveredAt,
+			"createdAt":      row.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return result, nil
+}
+
+func loadEkadashiProviderStatus(providerKey string) fiber.Map {
+	var setting models.SystemSetting
+	key := "EKADASHI_PROVIDER_STATUS_" + strings.ToUpper(strings.TrimSpace(providerKey))
+	if err := database.DB.Where("key = ?", key).First(&setting).Error; err != nil {
+		return fiber.Map{}
+	}
+	var payload fiber.Map
+	if err := json.Unmarshal([]byte(setting.Value), &payload); err != nil {
+		return fiber.Map{"raw": setting.Value}
+	}
+	return payload
+}
+
 func (h *AdminHandler) GetPlatformHealth(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err

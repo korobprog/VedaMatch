@@ -439,7 +439,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             typeof user?.latitude === 'number' &&
             typeof user?.longitude === 'number';
         if (!marker || !hasUserCoords) {
-            Alert.alert('Ошибка', 'Не удалось определить маршрут');
+            Alert.alert('Error', 'Failed to determine the route');
             return;
         }
 
@@ -447,7 +447,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             const startLat = user?.latitude;
             const startLng = user?.longitude;
             if (typeof startLat !== 'number' || typeof startLng !== 'number') {
-                Alert.alert('Ошибка', 'Не удалось определить маршрут');
+                Alert.alert('Error', 'Failed to determine the route');
                 return;
             }
             const result = await mapService.getRoute({
@@ -467,7 +467,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to build route:', error);
-            Alert.alert('Ошибка', 'Не удалось построить маршрут');
+            Alert.alert('Error', 'Failed to build the route');
         }
     };
 
@@ -956,7 +956,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     <Search size={18} color={colors.textSecondary} style={styles.searchIcon} />
                     <TextInput
                         style={[styles.searchInput, { color: colors.textPrimary }]}
-                        placeholder={t('map.search_placeholder', 'Поиск по адресу...')}
+                        placeholder={t('map.search_placeholder', 'Search by address...')}
                         placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={handleSearch}
@@ -1025,7 +1025,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Users size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Люди
+                            People
                         </Text>
                     </TouchableOpacity>
 
@@ -1039,7 +1039,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Store size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Магазины
+                            Shops
                         </Text>
                     </TouchableOpacity>
 
@@ -1053,7 +1053,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Tag size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Объявления
+                            Ads
                         </Text>
                     </TouchableOpacity>
 
@@ -1067,7 +1067,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Coffee size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Кафе
+                            Cafes
                         </Text>
                     </TouchableOpacity>
                 </ScrollView>
@@ -1122,7 +1122,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                             onPress={() => handleBuildRoute()}
                         >
                             <Route size={16} color={colors.textPrimary} />
-                            <Text style={styles.actionButtonText}>Маршрут</Text>
+                            <Text style={styles.actionButtonText}>Route</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionButton, styles.borderedButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -1138,7 +1138,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                                 }
                             }}
                         >
-                            <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>Подробнее</Text>
+                            <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>Details</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1154,7 +1154,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             >
                 <View style={styles.sheetContainer}>
                     <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
-                        {t('map.near_objects', 'Объекты поблизости')} ({markers.length})
+                        {t('map.near_objects', 'Nearby objects')} ({markers.length})
                     </Text>
                     <BottomSheetFlatList
                         data={markers}
@@ -1206,14 +1206,14 @@ export const MapGeoapifyScreen: React.FC = () => {
                                         }}
                                     >
                                         <Route size={16} color={colors.textPrimary} />
-                                        <Text style={styles.smallActionButtonText}>Маршрут</Text>
+                                        <Text style={styles.smallActionButtonText}>Route</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.smallActionButton, styles.borderedButton, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
                                         onPress={() => handleDetails(item)}
                                     >
                                         <ExternalLink size={16} color={colors.textPrimary} />
-                                        <Text style={[styles.smallActionButtonText, { color: colors.textPrimary }]}>Инфо</Text>
+                                        <Text style={[styles.smallActionButtonText, { color: colors.textPrimary }]}>Info</Text>
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
@@ -1222,7 +1222,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
                                 <Text style={{ color: colors.textSecondary }}>
-                                    {t('map.no_markers_visible', 'В этой области нет объектов')}
+                                    {t('map.no_markers_visible', 'No objects in this area')}
                                 </Text>
                             </View>
                         }
@@ -1233,16 +1233,16 @@ export const MapGeoapifyScreen: React.FC = () => {
             {webViewError && (
                 <View style={styles.mapErrorOverlay}>
                     <Text style={[styles.mapErrorTitle, { color: colors.textPrimary }]}>
-                        Не удалось загрузить карту
+                        Failed to load the map
                     </Text>
                     <Text style={[styles.mapErrorSubtitle, { color: colors.textSecondary }]}>
-                        Проверьте интернет и повторите попытку
+                        Check your internet connection and try again
                     </Text>
                     <TouchableOpacity
                         style={[styles.mapRetryButton, { backgroundColor: colors.accent }]}
                         onPress={handleRetryMap}
                     >
-                        <Text style={styles.mapRetryButtonText}>Повторить</Text>
+                        <Text style={styles.mapRetryButtonText}>Retry</Text>
                     </TouchableOpacity>
                 </View>
             )}

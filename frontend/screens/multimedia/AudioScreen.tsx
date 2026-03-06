@@ -82,7 +82,7 @@ export const AudioScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to toggle favorite:', error);
-            Alert.alert('Ошибка', 'Войдите в аккаунт, чтобы добавлять в избранное');
+            Alert.alert('Error', 'Sign in to add items to favorites');
         } finally {
             setTogglingFavorite(null);
         }
@@ -176,7 +176,7 @@ export const AudioScreen: React.FC = () => {
 
                 <View style={styles.trackInfo}>
                     <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[styles.artist, { color: roleColors.textSecondary }]} numberOfLines={1}>{item.artist || 'Неизвестный исполнитель'}</Text>
+                    <Text style={[styles.artist, { color: roleColors.textSecondary }]} numberOfLines={1}>{item.artist || 'Unknown artist'}</Text>
                     <Text style={[styles.duration, { color: roleColors.textSecondary }]}>{multimediaService.formatDuration(item.duration)}</Text>
                 </View>
 
@@ -187,13 +187,13 @@ export const AudioScreen: React.FC = () => {
                             try {
                                 const playlists = await multimediaService.getPlaylists(1, 100);
                                 if (!playlists.playlists.length) {
-                                    Alert.alert('Плейлисты', 'Сначала создайте плейлист в разделе Плейлисты');
+                                    Alert.alert('Playlists', 'Create a playlist first in the Playlists section');
                                     return;
                                 }
                                 await multimediaService.addTrackToPlaylist(playlists.playlists[0].ID, item.ID);
-                                Alert.alert('Плейлисты', `Добавлено в "${playlists.playlists[0].name}"`);
+                                Alert.alert('Playlists', `Added to "${playlists.playlists[0].name}"`);
                             } catch {
-                                Alert.alert('Ошибка', 'Не удалось добавить в плейлист');
+                                Alert.alert('Error', 'Failed to add to playlist');
                             }
                         }}
                     >
@@ -234,16 +234,16 @@ export const AudioScreen: React.FC = () => {
                 supportConfig.projectId,
                 Math.max(1, supportConfig.defaultAmount || 20),
                 false,
-                'Поддержка Audio',
+                'Audio support',
                 'support_prompt',
                 'AudioScreen',
             );
             await multimediaSupportService.setPromptCooldown(user.ID);
             await multimediaSupportService.resetInteractions(user.ID);
             setShowSupportPrompt(false);
-            Alert.alert('Спасибо', 'Ваш донат принят');
+            Alert.alert('Thank you', 'Your donation was received');
         } catch (e: any) {
-            Alert.alert('Ошибка', e?.message || 'Не удалось выполнить донат');
+            Alert.alert('Error', e?.message || 'Failed to complete donation');
         } finally {
             setSupportSubmitting(false);
         }
@@ -256,7 +256,7 @@ export const AudioScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Аудио Библиотека</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Audio Library</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -266,7 +266,7 @@ export const AudioScreen: React.FC = () => {
                     <Search size={20} color={roleColors.textSecondary} style={styles.searchIcon} />
                     <TextInput
                         style={[styles.searchInput, { color: roleColors.textPrimary }]}
-                        placeholder="Поиск бхаджанов, лекций..."
+                        placeholder="Search bhajans, lectures..."
                         placeholderTextColor={roleColors.textSecondary}
                         value={search}
                         onChangeText={setSearch}
@@ -278,14 +278,14 @@ export const AudioScreen: React.FC = () => {
 
             {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
                 <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
-                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать медиа</Text>
-                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Добровольный донат {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
+                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Support media</Text>
+                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Voluntary donation {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
                     <View style={styles.supportRow}>
                         <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={supportLater}>
-                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                            <Text style={{ color: roleColors.textSecondary }}>Later</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]} onPress={supportDonate}>
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Support'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -303,7 +303,7 @@ export const AudioScreen: React.FC = () => {
                             ]}
                             onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.categoryText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
+                            <Text style={[styles.categoryText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>All traditions</Text>
                         </TouchableOpacity>
                         {MULTIMEDIA_MADH_OPTIONS.map((m) => (
                             <TouchableOpacity
@@ -327,16 +327,16 @@ export const AudioScreen: React.FC = () => {
                 <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
                     {userMadh ? (
                         <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                            Режим доступа: ваша организация и общий контент.
+                            Access mode: your organization and shared content.
                         </Text>
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                                Доступен общий контент. Добавьте организацию в профиль или включите PRO для полного каталога.
+                                Shared content is available. Add an organization to your profile or enable PRO for the full catalog.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
-                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                    <Text style={{ color: roleColors.textPrimary }}>Profile</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
                                     <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
@@ -359,7 +359,7 @@ export const AudioScreen: React.FC = () => {
                         ]}
                         onPress={() => setSelectedCategory(undefined)}
                     >
-                        <Text style={[styles.categoryText, !selectedCategory ? { color: 'white' } : { color: roleColors.textSecondary }]}>Все Категории</Text>
+                        <Text style={[styles.categoryText, !selectedCategory ? { color: 'white' } : { color: roleColors.textSecondary }]}>All categories</Text>
                     </TouchableOpacity>
                     {categories.map((cat) => (
                         <TouchableOpacity
@@ -383,7 +383,7 @@ export const AudioScreen: React.FC = () => {
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка аудио...</Text>
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Loading audio...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -397,7 +397,7 @@ export const AudioScreen: React.FC = () => {
                     ListEmptyComponent={
                         <View style={styles.center}>
                             <Music size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Ничего не найдено</Text>
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Nothing found</Text>
                         </View>
                     }
                 />

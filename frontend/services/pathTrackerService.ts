@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 const TODAY_CACHE_KEY = 'path_tracker_today_cache';
 const PENDING_QUEUE_KEY = 'path_tracker_pending_queue';
@@ -177,7 +178,15 @@ export const pathTrackerService = {
       return data;
     } catch (error) {
       await enqueuePending({ type: 'reflect', payload });
-      return { reply: 'Сохранили локально, отправим при следующем подключении.', queued: true, error };
+      return {
+        reply: i18n.language?.startsWith('ru')
+          ? 'Сохранили локально, отправим при следующем подключении.'
+          : i18n.language?.startsWith('hi')
+            ? 'स्थानीय रूप से सहेजा गया, अगली कनेक्शन पर भेजेंगे।'
+            : 'Saved locally, will send on the next connection.',
+        queued: true,
+        error,
+      };
     }
   },
 

@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import i18n from '../i18n';
 
 // Types for Map Service
 export type MarkerType = 'user' | 'shop' | 'ad' | 'cafe';
@@ -90,6 +91,13 @@ export interface MarkerConfig {
 }
 
 class MapService {
+    private getNormalizedLanguage(): 'ru' | 'en' | 'hi' {
+        const lower = String(i18n.language || '').trim().toLowerCase();
+        if (lower.startsWith('ru')) return 'ru';
+        if (lower.startsWith('hi')) return 'hi';
+        return 'en';
+    }
+
     /**
      * Get markers for the visible map region
      */
@@ -227,10 +235,20 @@ class MapService {
      * Format distance for display
      */
     formatDistance(distanceKm: number): string {
+        const language = this.getNormalizedLanguage();
         if (distanceKm < 1) {
-            return `${Math.round(distanceKm * 1000)} м`;
+            const meters = Math.round(distanceKm * 1000);
+            return language === 'ru'
+                ? `${meters} м`
+                : language === 'hi'
+                    ? `${meters} मी`
+                    : `${meters} m`;
         }
-        return `${distanceKm.toFixed(1)} км`;
+        return language === 'ru'
+            ? `${distanceKm.toFixed(1)} км`
+            : language === 'hi'
+                ? `${distanceKm.toFixed(1)} कि॰मी॰`
+                : `${distanceKm.toFixed(1)} km`;
     }
 
     /**

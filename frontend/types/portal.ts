@@ -53,36 +53,46 @@ export interface ServiceDefinition {
     color: string;
 }
 
+const DEVOTEE_ONLY_SERVICE_IDS = new Set(['ekadashi_calendar']);
+
+export const isServiceAllowedForRole = (serviceId: string, role?: string | null): boolean => {
+    if (!DEVOTEE_ONLY_SERVICE_IDS.has(serviceId)) {
+        return true;
+    }
+    return String(role || '').trim().toLowerCase() === 'devotee';
+};
+
 export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['contacts', 'calls', 'services'] as const;
 
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
-    { id: 'path_tracker', label: 'Путь дня', icon: 'Sun', color: '#0F766E' },
-    { id: 'contacts', label: 'Контакты', icon: 'MessageSquare', color: '#3B82F6' },
-    { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
-    { id: 'rooms', label: 'Комнаты', icon: 'Users', color: '#6366F1' },
-    { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },
-    { id: 'dating', label: 'Союз', icon: 'Sparkles', color: '#EC4899' },
-
-    { id: 'cafe', label: 'Кафе', icon: 'Coffee', color: '#FF6B00' },
-    { id: 'shops', label: 'Магазины', icon: 'ShoppingBag', color: '#D67D3E' },
-    { id: 'ads', label: 'Объявления', icon: 'Megaphone', color: '#EF4444' },
-    { id: 'library', label: 'Библиотека', icon: 'Book', color: '#43A047' },
-    { id: 'education', label: 'Обучение', icon: 'GraduationCap', color: '#8B5CF6' },
-    { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
-    { id: 'video_circles', label: 'Кружки', icon: 'Clapperboard', color: '#EA580C' },
-    { id: 'channels', label: 'Каналы', icon: 'Radio', color: '#0EA5A4' },
-    { id: 'sadhu_sanga', label: 'Садху-санга', icon: 'Flame', color: '#F59E0B' },
-    { id: 'feed', label: 'Лента', icon: 'PlayCircle', color: '#0EA5E9' },
-    { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
-    { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
-    { id: 'support', label: 'Поддержка', icon: 'LifeBuoy', color: '#2563EB' },
-    { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
-    { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
-    { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },
-    { id: 'services', label: 'Ассистент', icon: 'Bot', color: '#6366F1' },
-    { id: 'services_catalog', label: 'Сервисы', icon: 'Briefcase', color: '#2563EB' },
-    { id: 'seva', label: 'Сева', icon: 'Heart', color: '#EF4444' },
+    { id: 'path_tracker', label: 'Daily Path', icon: 'Sun', color: '#0F766E' },
+    { id: 'contacts', label: 'Contacts', icon: 'MessageSquare', color: '#3B82F6' },
+    { id: 'chat', label: 'Chat', icon: 'MessageCircle', color: '#6B5B53' },
+    { id: 'rooms', label: 'Rooms', icon: 'Users', color: '#6366F1' },
+    { id: 'calls', label: 'Calls', icon: 'Phone', color: '#10B981' },
+    { id: 'dating', label: 'Union', icon: 'Sparkles', color: '#EC4899' },
+    { id: 'cafe', label: 'Cafe', icon: 'Coffee', color: '#FF6B00' },
+    { id: 'shops', label: 'Shops', icon: 'ShoppingBag', color: '#D67D3E' },
+    { id: 'ads', label: 'Ads', icon: 'Megaphone', color: '#EF4444' },
+    { id: 'library', label: 'Library', icon: 'Book', color: '#43A047' },
+    { id: 'education', label: 'Education', icon: 'GraduationCap', color: '#8B5CF6' },
+    { id: 'multimedia', label: 'Media', icon: 'Music', color: '#6366F1' },
+    { id: 'video_circles', label: 'Circles', icon: 'Clapperboard', color: '#EA580C' },
+    { id: 'channels', label: 'Channels', icon: 'Radio', color: '#0EA5A4' },
+    { id: 'sadhu_sanga', label: 'Sadhu-Sanga', icon: 'Flame', color: '#F59E0B' },
+    { id: 'ekadashi_calendar', label: 'Ekadashi', icon: 'CalendarDays', color: '#D97706' },
+    { id: 'feed', label: 'Feed', icon: 'PlayCircle', color: '#0EA5E9' },
+    { id: 'news', label: 'News', icon: 'Newspaper', color: '#6B5B53' },
+    { id: 'map', label: 'Map', icon: 'Map', color: '#7C3AED' },
+    { id: 'support', label: 'Support', icon: 'LifeBuoy', color: '#2563EB' },
+    { id: 'history', label: 'History', icon: 'MessageSquare', color: '#6B7280' },
+    { id: 'settings', label: 'Settings', icon: 'Settings', color: '#6B7280' },
+    { id: 'travel', label: 'Travel', icon: 'Compass', color: '#FF9500' },
+    { id: 'services', label: 'Assistant', icon: 'Bot', color: '#6366F1' },
+    { id: 'services_catalog', label: 'Services', icon: 'Briefcase', color: '#2563EB' },
+    { id: 'connect', label: 'Connect', icon: 'HeartHandshake', color: '#C2410C' },
+    { id: 'seva', label: 'Seva', icon: 'Heart', color: '#EF4444' },
 ];
 
 // Folder color options

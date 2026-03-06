@@ -23,8 +23,9 @@ import {
     Wifi, Coffee, Wind, Droplets, Utensils, Warehouse, Car,
     ChevronLeft, Heart, CheckCircle, Clock
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { yatraService } from '../../../services/yatraService';
-import { Shelter, ShelterReview, SHELTER_TYPE_LABELS, AMENITY_LABELS } from '../../../types/yatra';
+import { Shelter, ShelterReview, getAmenityLabel, getShelterTypeLabel } from '../../../types/yatra';
 import LinearGradient from 'react-native-linear-gradient';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -49,6 +50,7 @@ const ShelterDetailScreen: React.FC = () => {
     const latestSubmitReviewRequestRef = useRef(0);
     const isMountedRef = useRef(true);
     const { user } = useUser();
+    const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -57,7 +59,7 @@ const ShelterDetailScreen: React.FC = () => {
         if (!shelterId) {
             if (isMountedRef.current) {
                 setLoading(false);
-                Alert.alert('Ошибка', 'Жильё не найдено');
+                Alert.alert('Error', 'Stay not found');
                 navigation.goBack();
             }
             return;
@@ -79,7 +81,7 @@ const ShelterDetailScreen: React.FC = () => {
         } catch (error) {
             console.error('Error loading shelter details:', error);
             if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось загрузить информацию о жилье');
+                Alert.alert('Error', 'Failed to load stay details');
                 navigation.goBack();
             }
         } finally {
@@ -120,11 +122,11 @@ const ShelterDetailScreen: React.FC = () => {
             return;
         }
         if (!shelterId) {
-            Alert.alert('Ошибка', 'Жильё не найдено');
+            Alert.alert('Error', 'Stay not found');
             return;
         }
         if (!comment.trim()) {
-            Alert.alert('Ошибка', 'Напишите текст отзыва');
+            Alert.alert('Error', 'Write a review message');
             return;
         }
 
@@ -142,14 +144,14 @@ const ShelterDetailScreen: React.FC = () => {
             if (requestId !== latestSubmitReviewRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            Alert.alert('Спасибо!', 'Ваш отзыв опубликован');
+            Alert.alert('Thank you!', 'Your review has been published');
             setReviewModalVisible(false);
             setComment('');
             setRating(5);
             await loadShelter(); // Reload to see new review and avg rating
         } catch {
             if (requestId === latestSubmitReviewRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось отправить отзыв');
+                Alert.alert('Error', 'Failed to submit the review');
             }
         } finally {
             if (requestId === latestSubmitReviewRequestRef.current && isMountedRef.current) {
@@ -166,7 +168,7 @@ const ShelterDetailScreen: React.FC = () => {
         switch (type) {
             case 'whatsapp':
                 if (shelter.whatsapp) {
-                    url = `whatsapp://send?phone=${shelter.whatsapp}&text=Здравствуйте, интересует ваше жилье ${shelter.title}`;
+                    url = `whatsapp://send?phone=${shelter.whatsapp}&text=Hello, I am interested in your stay ${shelter.title}`;
                 }
                 break;
             case 'phone':
@@ -183,14 +185,14 @@ const ShelterDetailScreen: React.FC = () => {
                 if (supported) {
                     await Linking.openURL(url);
                 } else {
-                    Alert.alert('Ошибка', 'Не удалось открыть приложение');
+                    Alert.alert('Error', 'Failed to open the app');
                 }
             } catch (error) {
                 console.error('Failed to open contact URL:', error);
-                Alert.alert('Ошибка', 'Не удалось открыть приложение');
+                Alert.alert('Error', 'Failed to open the app');
             }
         } else {
-            Alert.alert('Информация', 'Контакт не указан');
+            Alert.alert('Info', 'Contact is not specified');
         }
         })();
     };
@@ -256,10 +258,10 @@ const ShelterDetailScreen: React.FC = () => {
                         <View style={styles.ratingRow}>
                             <Star size={16} color={colors.accent} fill={colors.accent} />
                             <Text style={[styles.ratingText, { color: colors.textPrimary }]}>
-                                {shelter.rating.toFixed(1)} <Text style={[styles.reviewsCount, { color: colors.textSecondary }]}>({shelter.reviewsCount} отзывов)</Text>
+                                {shelter.rating.toFixed(1)} <Text style={[styles.reviewsCount, { color: colors.textSecondary }]}>({shelter.reviewsCount} reviews)</Text>
                             </Text>
                             <Text style={[styles.dot, { color: colors.textSecondary }]}>•</Text>
-                            <Text style={[styles.typeText, { color: colors.textSecondary }]}>{SHELTER_TYPE_LABELS[shelter.type] || shelter.type}</Text>
+                            <Text style={[styles.typeText, { color: colors.textSecondary }]}>{getShelterTypeLabel(shelter.type, i18n.language)}</Text>
                         </View>
                         <View style={styles.locationRow}>
                             <MapPin size={16} color={colors.textSecondary} />
@@ -278,9 +280,9 @@ const ShelterDetailScreen: React.FC = () => {
                             style={[styles.hostAvatar, { borderColor: colors.accent }]}
                         />
                         <View style={styles.hostInfo}>
-                            <Text style={[styles.hostLabel, { color: colors.textSecondary }]}>Хозяин</Text>
+                            <Text style={[styles.hostLabel, { color: colors.textSecondary }]}>Host</Text>
                             <Text style={[styles.hostName, { color: colors.textPrimary }]}>
-                                {shelter.host?.spiritualName || shelter.host?.karmicName || 'Пользователь'}
+                                {shelter.host?.spiritualName || shelter.host?.karmicName || 'User'}
                             </Text>
                         </View>
                         <TouchableOpacity
@@ -294,13 +296,13 @@ const ShelterDetailScreen: React.FC = () => {
 
                 {/* Description */}
                 <View style={[styles.section, { borderBottomColor: colors.border }]}>
-                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Описание</Text>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Description</Text>
                     <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{shelter.description}</Text>
 
                     {shelter.nearTemple && (
                         <View style={[styles.templeBox, { backgroundColor: colors.accentSoft }]}>
                             <MapPin size={20} color={colors.success} />
-                            <Text style={[styles.templeText, { color: colors.success }]}>Рядом с храмом: {shelter.nearTemple}</Text>
+                            <Text style={[styles.templeText, { color: colors.success }]}>Near temple: {shelter.nearTemple}</Text>
                         </View>
                     )}
                 </View>
@@ -308,7 +310,7 @@ const ShelterDetailScreen: React.FC = () => {
                 {/* Amenities */}
                 {amenities.length > 0 && (
                     <View style={[styles.section, { borderBottomColor: colors.border }]}>
-                        <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Удобства</Text>
+                        <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Amenities</Text>
                         <View style={styles.amenitiesGrid}>
                             {amenities.map(key => {
                                 const Icon = getAmenityIcon(key);
@@ -316,7 +318,7 @@ const ShelterDetailScreen: React.FC = () => {
                                     <View key={key} style={styles.amenityItem}>
                                         <Icon size={24} color={colors.textSecondary} strokeWidth={1.5} />
                                         <Text style={[styles.amenityText, { color: colors.textSecondary }]}>
-                                            {AMENITY_LABELS[key] || key}
+                                            {getAmenityLabel(key, i18n.language)}
                                         </Text>
                                     </View>
                                 );
@@ -327,29 +329,29 @@ const ShelterDetailScreen: React.FC = () => {
 
                 {/* Rules */}
                 <View style={[styles.section, { borderBottomColor: colors.border }]}>
-                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Правила дома</Text>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>House rules</Text>
                     <View style={styles.ruleList}>
                         {shelter.vegetarianOnly && (
                             <View style={styles.ruleItem}>
                                 <CheckCircle size={20} color={colors.success} />
-                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Только вегетарианская еда</Text>
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Vegetarian food only</Text>
                             </View>
                         )}
                         {shelter.noSmoking && (
                             <View style={styles.ruleItem}>
                                 <CheckCircle size={20} color={colors.success} />
-                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Курение запрещено</Text>
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Smoking is prohibited</Text>
                             </View>
                         )}
                         {shelter.noAlcohol && (
                             <View style={styles.ruleItem}>
                                 <CheckCircle size={20} color={colors.success} />
-                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Алкоголь запрещён</Text>
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Alcohol is prohibited</Text>
                             </View>
                         )}
                         <View style={styles.ruleItem}>
                             <Clock size={20} color={colors.textSecondary} />
-                            <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Мин. срок аренды: {shelter.minStay} дн.</Text>
+                            <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Min. stay: {shelter.minStay} days</Text>
                         </View>
                     </View>
                     {shelter.houseRules ? (
@@ -365,10 +367,10 @@ const ShelterDetailScreen: React.FC = () => {
                         <View style={[styles.sevaBox, { backgroundColor: colors.surfaceElevated, borderColor: colors.danger }]}>
                             <View style={styles.sevaHeader}>
                                 <Heart size={24} color={colors.danger} fill={colors.danger} />
-                                <Text style={[styles.sevaBoxTitle, { color: colors.danger }]}>Сева (Служение)</Text>
+                                <Text style={[styles.sevaBoxTitle, { color: colors.danger }]}>Seva (service)</Text>
                             </View>
                             <Text style={[styles.sevaBoxText, { color: colors.textSecondary }]}>
-                                {shelter.sevaDescription || 'Хозяин предлагает проживание в обмен на помощь. Свяжитесь для деталей.'}
+                                {shelter.sevaDescription || 'The host offers accommodation in exchange for help. Contact them for details.'}
                             </Text>
                         </View>
                     </View>
@@ -378,9 +380,9 @@ const ShelterDetailScreen: React.FC = () => {
                 {reviews.length > 0 && (
                     <View style={[styles.section, { borderBottomColor: colors.border }]}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Отзывы</Text>
+                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Reviews</Text>
                             <TouchableOpacity onPress={() => setReviewModalVisible(true)}>
-                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Написать отзыв</Text>
+                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Write a review</Text>
                             </TouchableOpacity>
                         </View>
                         {reviews.map(review => (
@@ -409,12 +411,12 @@ const ShelterDetailScreen: React.FC = () => {
                 {reviews.length === 0 && (
                     <View style={[styles.section, { borderBottomColor: colors.border }]}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Отзывы</Text>
+                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Reviews</Text>
                             <TouchableOpacity onPress={() => setReviewModalVisible(true)}>
-                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Написать первым</Text>
+                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Write the first one</Text>
                             </TouchableOpacity>
                         </View>
-                        <Text style={{ color: colors.textSecondary }}>Пока нет отзывов. Будьте первым!</Text>
+                        <Text style={{ color: colors.textSecondary }}>No reviews yet. Be the first!</Text>
                     </View>
                 )}
 
@@ -423,9 +425,9 @@ const ShelterDetailScreen: React.FC = () => {
             {/* Bottom Action Bar */}
             <View style={[styles.actionBar, { backgroundColor: colors.surfaceElevated, borderTopColor: colors.border }]}>
                 <View style={styles.priceContainer}>
-                    <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Цена за ночь</Text>
+                    <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Price per night</Text>
                     <Text style={[styles.priceValue, { color: colors.textPrimary }]}>
-                        {shelter.pricePerNight || 'Договорная'}
+                        {shelter.pricePerNight || 'Negotiable'}
                     </Text>
                 </View>
 
@@ -463,9 +465,9 @@ const ShelterDetailScreen: React.FC = () => {
                             style={[styles.modalContent, { backgroundColor: colors.surfaceElevated }]}
                         >
                             <View style={styles.modalHeader}>
-                                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Написать отзыв</Text>
+                                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Write a review</Text>
                                 <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
-                                    <Text style={[styles.closeButtonText, { color: colors.accent }]}>Закрыть</Text>
+                                    <Text style={[styles.closeButtonText, { color: colors.accent }]}>Close</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -483,7 +485,7 @@ const ShelterDetailScreen: React.FC = () => {
 
                             <TextInput
                                 style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary, borderColor: colors.border }]}
-                                placeholder="Расскажите о вашем опыте..."
+                                placeholder="Tell about your experience..."
                                 placeholderTextColor={colors.textSecondary}
                                 multiline
                                 numberOfLines={4}
@@ -497,7 +499,7 @@ const ShelterDetailScreen: React.FC = () => {
                                 disabled={submittingReview}
                             >
                                 <Text style={[styles.submitButtonText, { color: colors.background }]}>
-                                    {submittingReview ? 'Отправка...' : 'Опубликовать'}
+                                    {submittingReview ? 'Submitting...' : 'Publish'}
                                 </Text>
                             </TouchableOpacity>
                         </KeyboardAvoidingView>

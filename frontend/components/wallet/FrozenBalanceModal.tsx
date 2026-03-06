@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Lock, CheckCircle2 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 interface FrozenBalanceModalProps {
     visible: boolean;
@@ -22,7 +23,39 @@ export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({
     regularAmount,
     bonusAmount,
 }) => {
+    const { i18n } = useTranslation();
     const totalAmount = regularAmount + bonusAmount;
+    const lang = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
+    const locale = lang === 'ru' ? 'ru-RU' : lang === 'hi' ? 'hi-IN' : 'en-US';
+    const copy = {
+        en: {
+            title: 'Reserved LKM',
+            regular: 'Regular',
+            bonus: 'Bonus',
+            description: 'LKM are temporarily reserved for active bookings and pending operations.',
+            scenarioConfirmed: 'Used when the service is confirmed',
+            scenarioCancelled: 'Returned if the booking is cancelled in time',
+            close: 'Got it',
+        },
+        ru: {
+            title: 'Зарезервированные LKM',
+            regular: 'Основной',
+            bonus: 'Бонусный',
+            description: 'LKM временно зарезервированы под активные бронирования и операции в ожидании.',
+            scenarioConfirmed: 'Используются — когда услуга подтверждена',
+            scenarioCancelled: 'Возвращаются — если запись отменена вовремя',
+            close: 'Понятно',
+        },
+        hi: {
+            title: 'आरक्षित LKM',
+            regular: 'नियमित',
+            bonus: 'बोनस',
+            description: 'LKM सक्रिय बुकिंग और लंबित कार्रवाइयों के लिए अस्थायी रूप से आरक्षित हैं।',
+            scenarioConfirmed: 'सेवा की पुष्टि होने पर उपयोग किए जाते हैं',
+            scenarioCancelled: 'यदि बुकिंग समय पर रद्द हो जाए तो वापस कर दिए जाते हैं',
+            close: 'समझ गया',
+        },
+    }[lang];
 
     return (
         <Modal
@@ -43,37 +76,37 @@ export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({
                             <Lock size={32} color="#EF4444" />
                         </View>
 
-                        <Text style={styles.title}>Зарезервированные LKM</Text>
-                        <Text style={styles.bigAmount}>{totalAmount} LKM</Text>
+                        <Text style={styles.title}>{copy.title}</Text>
+                        <Text style={styles.bigAmount}>{totalAmount.toLocaleString(locale)} LKM</Text>
 
                         <View style={styles.amountSplitCard}>
                             <View style={styles.amountSplitRow}>
-                                <Text style={styles.amountSplitLabel}>Основной</Text>
-                                <Text style={styles.amountSplitValue}>{regularAmount} LKM</Text>
+                                <Text style={styles.amountSplitLabel}>{copy.regular}</Text>
+                                <Text style={styles.amountSplitValue}>{regularAmount.toLocaleString(locale)} LKM</Text>
                             </View>
                             <View style={styles.amountSplitRow}>
-                                <Text style={styles.amountSplitLabel}>Бонусный</Text>
-                                <Text style={styles.amountSplitValue}>{bonusAmount} LKM</Text>
+                                <Text style={styles.amountSplitLabel}>{copy.bonus}</Text>
+                                <Text style={styles.amountSplitValue}>{bonusAmount.toLocaleString(locale)} LKM</Text>
                             </View>
                         </View>
 
                         <Text style={styles.description}>
-                            LKM временно зарезервированы под активные бронирования и операции в ожидании.
+                            {copy.description}
                         </Text>
 
                         <View style={styles.scenarios}>
                             <View style={styles.scenarioRow}>
                                 <CheckCircle2 size={16} color="#10B981" />
-                                <Text style={styles.scenarioText}>Используются — когда услуга подтверждена</Text>
+                                <Text style={styles.scenarioText}>{copy.scenarioConfirmed}</Text>
                             </View>
                             <View style={styles.scenarioRow}>
                                 <CheckCircle2 size={16} color="#10B981" />
-                                <Text style={styles.scenarioText}>Возвращаются — если запись отменена вовремя</Text>
+                                <Text style={styles.scenarioText}>{copy.scenarioCancelled}</Text>
                             </View>
                         </View>
 
                         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                            <Text style={styles.closeText}>Понятно</Text>
+                            <Text style={styles.closeText}>{copy.close}</Text>
                         </TouchableOpacity>
                     </LinearGradient>
                 </View>

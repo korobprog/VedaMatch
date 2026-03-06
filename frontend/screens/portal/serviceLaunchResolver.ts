@@ -49,6 +49,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
         return { kind: 'open_portal_tab', tab: 'services' };
     }
 
+    if (serviceId === 'connect') {
+        return { kind: 'navigate', screen: 'ConnectHome' };
+    }
+
     if (serviceId === 'history') {
         return { kind: 'open_menu' };
     }
@@ -87,6 +91,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
 
     if (serviceId === 'seva') {
         return { kind: 'navigate', screen: 'SevaHub' };
+    }
+
+    if (serviceId === 'ekadashi_calendar') {
+        return { kind: 'navigate', screen: 'EkadashiCalendar' };
     }
 
     if (serviceId === 'knowledge_base') {

@@ -38,7 +38,7 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export const SellerOrdersScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'SellerOrders'>>();
     const { user } = useUser();
@@ -194,7 +194,8 @@ export const SellerOrdersScreen: React.FC = () => {
 
     const formatDate = (dateString: string): string => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     };
 
     const renderOrder = ({ item }: { item: Order }) => {

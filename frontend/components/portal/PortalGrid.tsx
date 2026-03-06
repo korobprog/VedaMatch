@@ -536,12 +536,12 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             <TouchableOpacity
                 onPress={() => {
                     Alert.alert(
-                        'Новая страница',
-                        'Создать новую страницу портала?',
+                        t('portal.grid.newPageTitle'),
+                        t('portal.grid.newPageMessage'),
                         [
-                            { text: 'Отмена', style: 'cancel' },
+                            { text: t('portal.grid.cancel'), style: 'cancel' },
                             {
-                                text: 'Создать',
+                                text: t('portal.grid.create'),
                                 onPress: () => {
                                     addNewPage();
                                 }
@@ -592,7 +592,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         style={styles.toolbarButton}
                     >
                         <FolderPlus size={20} color={isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E")} />
-                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>Папка</Text>
+                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>{t('portal.grid.folder')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -600,7 +600,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         style={styles.toolbarButton}
                     >
                         <LayoutGrid size={20} color={isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E")} />
-                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>Виджет</Text>
+                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>{t('portal.grid.widget')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -617,7 +617,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         ) : (
                             <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FF9448' }]} />
                         )}
-                        <Text style={styles.doneText}>Готово</Text>
+                        <Text style={styles.doneText}>{t('portal.grid.done')}</Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
@@ -680,7 +680,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         )}
                         <TextInput
                             style={[styles.newFolderInput, { color: vTheme.colors.text }]}
-                            placeholder="Название папки..."
+                            placeholder={t('portal.grid.folderNamePlaceholder')}
                             placeholderTextColor={vTheme.colors.textSecondary}
                             value={newFolderName}
                             onChangeText={setNewFolderName}
@@ -689,13 +689,13 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         />
                         <View style={styles.newFolderActions}>
                             <TouchableOpacity onPress={handleCreateFolder} style={styles.createButton}>
-                                <Text style={[styles.createText, { color: vTheme.colors.primary }]}>Создать</Text>
+                                <Text style={[styles.createText, { color: vTheme.colors.primary }]}>{t('portal.grid.create')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => {
                                 setShowNewFolderInput(false);
                                 setNewFolderName('');
                             }} style={styles.cancelButton}>
-                                <Text style={[styles.cancelText, { color: vTheme.colors.textSecondary }]}>Отмена</Text>
+                                <Text style={[styles.cancelText, { color: vTheme.colors.textSecondary }]}>{t('portal.grid.cancel')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

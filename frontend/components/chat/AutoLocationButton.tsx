@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { geoLocationService } from '../../services/geoLocationService';
 import { COLORS } from '../chat/ChatConstants';
 
@@ -12,6 +13,45 @@ export const AutoLocationButton: React.FC<AutoLocationButtonProps> = ({
 	onLocationDetected,
 	theme
 }) => {
+	const { i18n } = useTranslation();
+	const copy = i18n.language?.startsWith('ru')
+		? {
+			locationFound: 'Местоположение найдено',
+			locationNotFound: 'Местоположение не найдено',
+			locationNotFoundMessage: 'Не удалось автоматически определить ваше местоположение. Выберите его вручную.',
+			error: 'Ошибка',
+			detectFailed: 'Не удалось определить местоположение. Проверьте разрешения.',
+			tryManualEntry: 'Ввести вручную',
+			ok: 'OK',
+			detecting: 'Определяем...',
+			autoDetect: 'Определить моё местоположение',
+			usesGps: 'Использует GPS для точности',
+		}
+		: i18n.language?.startsWith('hi')
+			? {
+				locationFound: 'स्थान मिल गया',
+				locationNotFound: 'स्थान नहीं मिला',
+				locationNotFoundMessage: 'आपका स्थान अपने आप निर्धारित नहीं हो सका। कृपया इसे मैन्युअली चुनें।',
+				error: 'त्रुटि',
+				detectFailed: 'स्थान पता नहीं चल सका। कृपया अनुमतियाँ जाँचें।',
+				tryManualEntry: 'मैन्युअल रूप से दर्ज करें',
+				ok: 'ठीक है',
+				detecting: 'पता लगाया जा रहा है...',
+				autoDetect: 'मेरा स्थान स्वतः पहचानें',
+				usesGps: 'सटीकता के लिए GPS का उपयोग करता है',
+			}
+			: {
+				locationFound: 'Location Found!',
+				locationNotFound: 'Location Not Found',
+				locationNotFoundMessage: 'Could not determine your location automatically. Please select it manually.',
+				error: 'Error',
+				detectFailed: 'Failed to detect location. Please check your permissions.',
+				tryManualEntry: 'Try Manual Entry',
+				ok: 'OK',
+				detecting: 'Detecting...',
+				autoDetect: 'Auto-detect my location',
+				usesGps: 'Uses GPS for accuracy',
+			};
 	const [loading, setLoading] = useState(false);
 
 	const handleDetectLocation = async () => {
@@ -29,16 +69,16 @@ export const AutoLocationButton: React.FC<AutoLocationButtonProps> = ({
 				);
 
 				Alert.alert(
-					'Location Found!',
+					copy.locationFound,
 					`${location.city}, ${location.country}`,
-					[{ text: 'OK' }]
+					[{ text: copy.ok }]
 				);
 			} else {
 				Alert.alert(
-					'Location Not Found',
-					'Could not determine your location automatically. Please select it manually.',
+					copy.locationNotFound,
+					copy.locationNotFoundMessage,
 					[
-						{ text: 'OK' },
+						{ text: copy.ok },
 					]
 				);
 			}
@@ -46,10 +86,10 @@ export const AutoLocationButton: React.FC<AutoLocationButtonProps> = ({
 			console.error('Error detecting location:', error);
 
 			Alert.alert(
-				'Error',
-				error.message || 'Failed to detect location. Please check your permissions.',
+				copy.error,
+				error.message || copy.detectFailed,
 				[
-					{ text: 'Try Manual Entry' },
+					{ text: copy.tryManualEntry },
 				]
 			);
 		} finally {
@@ -70,10 +110,10 @@ export const AutoLocationButton: React.FC<AutoLocationButtonProps> = ({
 					<Text style={styles.icon}>📍</Text>
 					<View style={styles.textContainer}>
 						<Text style={[styles.mainText, { color: '#fff' }]}>
-							{loading ? 'Detecting...' : 'Auto-detect my location'}
+							{loading ? copy.detecting : copy.autoDetect}
 						</Text>
 						<Text style={[styles.subText, { color: '#fff' }]}>
-							Uses GPS for accuracy
+							{copy.usesGps}
 						</Text>
 					</View>
 				</>

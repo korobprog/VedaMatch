@@ -2,6 +2,17 @@ import { Platform, PermissionsAndroid, Alert, Linking, Share } from 'react-nativ
 import RNFS from 'react-native-fs';
 import i18n from '../i18n';
 
+const getFileCopy = () => {
+    const language = String(i18n.language || '').trim().toLowerCase();
+    if (language.startsWith('ru')) {
+        return { failedToOpenImage: 'Не удалось открыть изображение' };
+    }
+    if (language.startsWith('hi')) {
+        return { failedToOpenImage: 'चित्र खोलने में विफल' };
+    }
+    return { failedToOpenImage: 'Failed to open image' };
+};
+
 export const shareImage = async (url: string) => {
     try {
         await Share.share({
@@ -55,6 +66,7 @@ export const downloadImage = async (imageUrl: string, imageName?: string) => {
             throw new Error(`Download error: ${downloadResult.statusCode}`);
         }
     } catch (error: any) {
+        const fileCopy = getFileCopy();
         console.error('Ошибка при скачивании изображения:', error);
         Alert.alert(
             i18n.t('common.error'),
@@ -64,7 +76,7 @@ export const downloadImage = async (imageUrl: string, imageName?: string) => {
                 {
                     text: i18n.t('file.openInBrowser'),
                     onPress: () => Linking.openURL(imageUrl).catch(() => {
-                        Alert.alert(i18n.t('common.error'), 'Failed to open image');
+                        Alert.alert(i18n.t('common.error'), fileCopy.failedToOpenImage);
                     }),
                 },
             ]

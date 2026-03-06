@@ -34,7 +34,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
     onShare,
     theme,
 }) => {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const { imageSize, imagePosition } = useSettings();
     // Default size is square until loaded
     const [size, setSize] = useState<{ width: number; height: number }>({ width: 300, height: 300 });
@@ -92,7 +92,14 @@ export const ChatImage: React.FC<ChatImageProps> = ({
         "Рама Рама Харе Харе"
     ];
 
-    const MANTRA_LINES = i18n.language === 'ru' ? MANTRA_LINES_RU : MANTRA_LINES_EN;
+    const MANTRA_LINES_HI = [
+        "हरे कृष्ण हरे कृष्ण",
+        "कृष्ण कृष्ण हरे हरे",
+        "हरे राम हरे राम",
+        "राम राम हरे हरे"
+    ];
+
+    const MANTRA_LINES = i18n.language === 'ru' ? MANTRA_LINES_RU : i18n.language === 'hi' ? MANTRA_LINES_HI : MANTRA_LINES_EN;
     const [mantraIndex, setMantraIndex] = useState(0);
 
     useEffect(() => {
@@ -182,14 +189,20 @@ export const ChatImage: React.FC<ChatImageProps> = ({
                 {/* Error State */}
                 {error && (
                     <View style={[styles.errorContainer, { borderColor: theme.borderColor, width: '100%', height: 150 }]}>
-                        <Text style={[styles.errorText, { color: theme.text }]}>Не удалось загрузить изображение</Text>
+                        <Text style={[styles.errorText, { color: theme.text }]}>
+                            {i18n.language === 'ru' ? 'Не удалось загрузить изображение' : i18n.language === 'hi' ? 'चित्र लोड नहीं हो सका' : 'Failed to load image'}
+                        </Text>
                         <TouchableOpacity onPress={handleRetry} style={{ marginBottom: 10 }}>
-                            <Text style={[styles.linkText, { color: theme.accent }]}>🔄 Попробовать снова</Text>
+                            <Text style={[styles.linkText, { color: theme.accent }]}>
+                                {i18n.language === 'ru' ? '🔄 Попробовать снова' : i18n.language === 'hi' ? '🔄 फिर से प्रयास करें' : '🔄 Try again'}
+                            </Text>
                         </TouchableOpacity>
 
                         {onDownload && (
                             <TouchableOpacity onPress={() => onDownload(imageUrl, altText)}>
-                                <Text style={[styles.linkText, { color: theme.accent }]}>Скачать по ссылке</Text>
+                                <Text style={[styles.linkText, { color: theme.accent }]}>
+                                    {i18n.language === 'ru' ? 'Скачать по ссылке' : i18n.language === 'hi' ? 'लिंक से डाउनलोड करें' : 'Download by link'}
+                                </Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -203,7 +216,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
                             style={[styles.button, { backgroundColor: theme.accent, marginRight: 4 }]}
                             onPress={() => onDownload(imageUrl, altText)}
                         >
-                            <Text style={styles.buttonText}>📥 Скачать</Text>
+                            <Text style={styles.buttonText}>{i18n.language === 'ru' ? '📥 Скачать' : i18n.language === 'hi' ? '📥 डाउनलोड करें' : '📥 Download'}</Text>
                         </TouchableOpacity>
                     )}
                     {onShare && (
@@ -211,7 +224,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
                             style={[styles.button, { backgroundColor: theme.botBubble, borderWidth: 1, borderColor: theme.accent }]}
                             onPress={() => onShare(imageUrl)}
                         >
-                            <Text style={[styles.buttonText, { color: theme.text }]}>🔗 Поделиться</Text>
+                            <Text style={[styles.buttonText, { color: theme.text }]}>{i18n.language === 'ru' ? '🔗 Поделиться' : i18n.language === 'hi' ? '🔗 साझा करें' : '🔗 Share'}</Text>
                         </TouchableOpacity>
                     )}
                 </View>

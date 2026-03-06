@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { FestivalCalendarResponse } from '../../types/ads';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -30,6 +31,7 @@ export const FestivalMonthCalendar: React.FC<FestivalMonthCalendarProps> = ({
     onPrevMonth,
     onNextMonth,
 }) => {
+    const { i18n } = useTranslation();
     const { vTheme } = useSettings();
     const colors = vTheme.colors;
 
@@ -58,7 +60,7 @@ export const FestivalMonthCalendar: React.FC<FestivalMonthCalendarProps> = ({
         return cells;
     }, [monthDate]);
 
-    const monthTitle = monthDate.toLocaleDateString('ru-RU', {
+    const monthTitle = monthDate.toLocaleDateString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US', {
         month: 'long',
         year: 'numeric',
     });

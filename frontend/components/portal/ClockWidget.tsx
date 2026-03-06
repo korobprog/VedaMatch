@@ -15,6 +15,7 @@ import Animated, {
     cancelAnimation,
 } from 'react-native-reanimated';
 import { BlurView } from '@react-native-community/blur';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../context/SettingsContext';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
@@ -29,6 +30,7 @@ const WIDGET_SIZES = {
 };
 
 export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
+    const { i18n } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const [time, setTime] = useState(new Date());
     const colonOpacity = useSharedValue(1);
@@ -81,7 +83,8 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
             day: 'numeric',
             month: 'short'
         };
-        return time.toLocaleDateString('ru-RU', options);
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+        return time.toLocaleDateString(locale, options);
     };
 
     const { hours, minutes } = formatTime();

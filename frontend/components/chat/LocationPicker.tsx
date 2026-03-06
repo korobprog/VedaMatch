@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, ActivityIndicator, Keyboard } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { locationService } from '../../services/locationService';
 import { AutoLocationButton } from './AutoLocationButton';
 import { COLORS } from '../chat/ChatConstants';
@@ -23,8 +24,47 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 	theme,
 	showAutoDetect = true
 }) => {
-	const [latitude, setLatitude] = useState<number | undefined>();
-	const [longitude, setLongitude] = useState<number | undefined>();
+	const { i18n } = useTranslation();
+	const copy = i18n.language?.startsWith('ru')
+		? {
+			country: 'Страна',
+			selectCountry: 'Выберите страну',
+			city: 'Город',
+			selectCity: 'Выберите город',
+			enterCityName: 'Введите название города',
+			enterCityManually: 'Или введите город вручную',
+			searchCountry: 'Найти страну...',
+			searchCity: 'Найти город...',
+			capital: 'Столица',
+			close: 'Закрыть',
+		}
+		: i18n.language?.startsWith('hi')
+			? {
+				country: 'देश',
+				selectCountry: 'देश चुनें',
+				city: 'शहर',
+				selectCity: 'शहर चुनें',
+				enterCityName: 'शहर का नाम दर्ज करें',
+				enterCityManually: 'या शहर का नाम मैन्युअली दर्ज करें',
+				searchCountry: 'देश खोजें...',
+				searchCity: 'शहर खोजें...',
+				capital: 'राजधानी',
+				close: 'बंद करें',
+			}
+			: {
+				country: 'Country',
+				selectCountry: 'Select Country',
+				city: 'City',
+				selectCity: 'Select City',
+				enterCityName: 'Enter city name',
+				enterCityManually: 'Or enter city manually',
+				searchCountry: 'Search country...',
+				searchCity: 'Search city...',
+				capital: 'Capital',
+				close: 'Close',
+			};
+	const [, setLatitude] = useState<number | undefined>();
+	const [, setLongitude] = useState<number | undefined>();
 	const [countriesData, setCountriesData] = useState<any[]>([]);
 	const [citiesData, setCitiesData] = useState<string[]>([]);
 	const [loadingCountries, setLoadingCountries] = useState(true);
@@ -108,7 +148,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 			)}
 
 			<View style={styles.section}>
-				<Text style={[styles.label, { color: theme.text }]}>Country</Text>
+				<Text style={[styles.label, { color: theme.text }]}>{copy.country}</Text>
 				<TouchableOpacity
 					style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
 					onPress={() => {
@@ -117,12 +157,12 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 					}}
 				>
 					<Text style={[styles.inputText, { color: country ? theme.inputText : theme.subText }]}>
-						{country || 'Select Country'}
+						{country || copy.selectCountry}
 					</Text>
 					<Text style={{ color: theme.subText }}>▼</Text>
 				</TouchableOpacity>
 
-				<Text style={[styles.label, { color: theme.text, marginTop: 16 }]}>City</Text>
+				<Text style={[styles.label, { color: theme.text, marginTop: 16 }]}>{copy.city}</Text>
 				{!cityInputMode ? (
 					<TouchableOpacity
 						style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
@@ -132,7 +172,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 						}}
 					>
 						<Text style={[styles.inputText, { color: city ? theme.inputText : theme.subText }]}>
-							{city || 'Select City'}
+							{city || copy.selectCity}
 						</Text>
 						<Text style={{ color: theme.subText }}>▼</Text>
 					</TouchableOpacity>
@@ -144,7 +184,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 							setCityInput(text);
 							onCityChange(text);
 						}}
-						placeholder="Enter city name"
+						placeholder={copy.enterCityName}
 						placeholderTextColor={theme.subText}
 					/>
 				)}
@@ -157,7 +197,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 						}}
 					>
 						<Text style={[styles.linkText, { color: theme.accent }]}>
-							Or enter city manually
+							{copy.enterCityManually}
 						</Text>
 					</TouchableOpacity>
 				)}
@@ -170,13 +210,13 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 			>
 				<View style={styles.modalOverlay}>
 					<View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-						<Text style={[styles.modalTitle, { color: theme.text }]}>Select Country</Text>
+						<Text style={[styles.modalTitle, { color: theme.text }]}>{copy.selectCountry}</Text>
 
 						<TextInput
 							style={[styles.searchInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
 							value={countrySearchQuery}
 							onChangeText={setCountrySearchQuery}
-							placeholder="Search country..."
+							placeholder={copy.searchCountry}
 							placeholderTextColor={theme.subText}
 						/>
 
@@ -192,7 +232,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 									>
 										<Text style={{ color: theme.text }}>{cData.name?.common}</Text>
 										{cData.capital && (
-											<Text style={{ color: theme.subText, fontSize: 12 }}>Capital: {cData.capital[0]}</Text>
+											<Text style={{ color: theme.subText, fontSize: 12 }}>{copy.capital}: {cData.capital[0]}</Text>
 										)}
 									</TouchableOpacity>
 								))
@@ -203,7 +243,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 							style={{ padding: 15, alignItems: 'center' }}
 							onPress={() => setShowCountryPicker(false)}
 						>
-							<Text style={{ color: theme.subText }}>Close</Text>
+							<Text style={{ color: theme.subText }}>{copy.close}</Text>
 						</TouchableOpacity>
 					</View>
 				</View>
@@ -216,7 +256,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 			>
 				<View style={styles.modalOverlay}>
 					<View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-						<Text style={[styles.modalTitle, { color: theme.text }]}>Select City</Text>
+						<Text style={[styles.modalTitle, { color: theme.text }]}>{copy.selectCity}</Text>
 
 						<TextInput
 							style={[styles.searchInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}

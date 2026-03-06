@@ -199,6 +199,10 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         if (screen === 'SevaHub') {
             navigation.navigate('SevaHub');
+            return;
+        }
+        if (screen === 'ConnectHome') {
+            navigation.navigate('ConnectHome');
         }
     }, [navigation]);
 

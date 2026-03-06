@@ -74,7 +74,7 @@ export const TVScreen: React.FC = () => {
             <View style={styles.info}>
                 <Text style={[styles.name, { color: roleColors.textPrimary }]}>{item.name}</Text>
                 <Text style={[styles.type, { color: roleColors.textSecondary }]}>
-                    {item.streamType === 'youtube' ? 'YouTube Трансляция' : 'Прямой эфир'}
+                    {item.streamType === 'youtube' ? 'YouTube Stream' : 'Live stream'}
                 </Text>
                 <Text
                     style={[
@@ -82,7 +82,7 @@ export const TVScreen: React.FC = () => {
                         { color: item.status === 'online' ? roleColors.success : item.status === 'offline' ? roleColors.danger : roleColors.textSecondary },
                     ]}
                 >
-                    {item.status === 'online' ? 'В сети' : item.status === 'offline' ? 'Оффлайн' : 'Статус неизвестен'}
+                    {item.status === 'online' ? 'Online' : item.status === 'offline' ? 'Offline' : 'Status unknown'}
                 </Text>
             </View>
             <View style={styles.playIcon}>
@@ -97,7 +97,7 @@ export const TVScreen: React.FC = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Духовное ТВ</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Spiritual TV</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -113,7 +113,7 @@ export const TVScreen: React.FC = () => {
                             ]}
                             onPress={() => setSelectedMadh(undefined)}
                         >
-                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
+                            <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>All traditions</Text>
                         </TouchableOpacity>
                         {MULTIMEDIA_MADH_OPTIONS.map((m) => (
                             <TouchableOpacity
@@ -137,16 +137,16 @@ export const TVScreen: React.FC = () => {
                 <View style={[styles.scopeCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
                     {userMadh ? (
                         <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                            Режим доступа: ваша организация и общий контент.
+                            Access mode: your organization and shared content.
                         </Text>
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                                Сейчас доступен общий ТВ-контент. Добавьте организацию в профиль или включите PRO.
+                                Shared TV content is currently available. Add an organization to your profile or enable PRO.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
-                                    <Text style={{ color: roleColors.textPrimary }}>Профиль</Text>
+                                    <Text style={{ color: roleColors.textPrimary }}>Profile</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
                                     <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
@@ -160,7 +160,7 @@ export const TVScreen: React.FC = () => {
             {loading ? (
                 <View style={styles.center}>
                     <Loader2 size={32} color={roleColors.accent} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка каналов...</Text>
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Loading channels...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -174,7 +174,7 @@ export const TVScreen: React.FC = () => {
                     ListEmptyComponent={
                         <View style={styles.center}>
                             <Tv size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Каналы пока не добавлены</Text>
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Channels are not added yet</Text>
                         </View>
                     }
                 />

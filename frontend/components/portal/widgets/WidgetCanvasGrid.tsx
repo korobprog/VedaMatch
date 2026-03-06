@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { PortalWidget } from '../../../types/portal';
 import { useSettings } from '../../../context/SettingsContext';
 import { DraggablePortalItem } from '../DraggablePortalItem';
@@ -27,6 +28,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     onRemoveWidget,
     onReorderWidgets,
 }) => {
+    const { i18n } = useTranslation();
     const { vTheme, portalBackgroundType, isDarkMode, screenVisualStyle } = useSettings();
     const { height: viewportHeight } = useWindowDimensions();
     const isPhotoBg = screenVisualStyle === 'classic' && portalBackgroundType === 'image' && isDarkMode;
@@ -39,6 +41,21 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
         [widgets],
     );
     const singleWidget = orderedWidgets.length === 1 ? orderedWidgets[0] : null;
+    const copy =
+        i18n.language === 'ru'
+            ? {
+                  emptyTitle: 'Пока нет виджетов',
+                  emptySubtitle: 'Удерживайте палец на экране, чтобы открыть меню добавления виджетов',
+              }
+            : i18n.language === 'hi'
+              ? {
+                    emptyTitle: 'अभी कोई विजेट नहीं है',
+                    emptySubtitle: 'विजेट जोड़ने का मेनू खोलने के लिए स्क्रीन को दबाकर रखें',
+                }
+              : {
+                    emptyTitle: 'No widgets yet',
+                    emptySubtitle: 'Press and hold the screen to open the add widgets menu',
+                };
 
     const dnd = useGridReorderDnd({
         items: orderedWidgets,
@@ -141,10 +158,10 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                         pointerEvents="none"
                     >
                         <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
-                            Пока нет виджетов
+                            {copy.emptyTitle}
                         </Text>
                         <Text style={[styles.emptySubtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary }]}>
-                            Удерживайте палец на экране, чтобы открыть меню добавления виджетов
+                            {copy.emptySubtitle}
                         </Text>
                     </View>
                 </Pressable>

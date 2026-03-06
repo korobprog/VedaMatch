@@ -16,8 +16,9 @@ import {
     CheckCircle, XCircle, Info, DollarSign, Home, Bus, Globe,
     ChevronLeft
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { yatraService } from '../../../services/yatraService';
-import { Yatra, YatraParticipant, YATRA_THEME_LABELS } from '../../../types/yatra';
+import { Yatra, YatraParticipant, getYatraThemeLabel } from '../../../types/yatra';
 import LinearGradient from 'react-native-linear-gradient';
 import { useUser } from '../../../context/UserContext';
 import OrganizerBadge from '../../../components/travel/OrganizerBadge';
@@ -43,6 +44,7 @@ const YatraDetailScreen: React.FC = () => {
     const isMountedRef = useRef(true);
 
     const { user } = useUser(); // Get current user
+    const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -61,7 +63,7 @@ const YatraDetailScreen: React.FC = () => {
         if (!yatraId) {
             if (isMountedRef.current) {
                 setLoading(false);
-                Alert.alert('Ошибка', 'Тур не найден');
+                Alert.alert('Error', 'Trip not found');
                 navigation.goBack();
             }
             return;
@@ -107,7 +109,7 @@ const YatraDetailScreen: React.FC = () => {
         } catch (error) {
             console.error('Error loading yatra details:', error);
             if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось загрузить информацию о туре');
+                Alert.alert('Error', 'Failed to load trip details');
                 navigation.goBack();
             }
         } finally {
@@ -120,25 +122,25 @@ const YatraDetailScreen: React.FC = () => {
     const handleJoin = async () => {
         if (!yatra || joining || !yatraId) return;
         if (!canJoinNow) {
-            Alert.alert('Недоступно', 'Тур временно недоступен для новых заявок.');
+            Alert.alert('Unavailable', 'The trip is temporarily unavailable for new requests.');
             return;
         }
 
         const requestId = ++latestJoinRequestRef.current;
         try {
             setJoining(true);
-            await yatraService.joinYatra(yatra.id, { message: 'Хочу присоединиться!' });
+            await yatraService.joinYatra(yatra.id, { message: 'I would like to join!' });
             if (requestId !== latestJoinRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            Alert.alert('Заявка отправлена', 'Организатор рассмотрит вашу заявку.');
+            Alert.alert('Request sent', 'The organizer will review your request.');
             await loadYatra(); // Reload to update status
         } catch (error: any) {
             if (requestId !== latestJoinRequestRef.current || !isMountedRef.current) {
                 return;
             }
             console.error('Error joining yatra:', error);
-            Alert.alert('Ошибка', error.response?.data?.error || 'Не удалось отправить заявку');
+            Alert.alert('Error', error.response?.data?.error || 'Failed to send the request');
         } finally {
             if (requestId === latestJoinRequestRef.current && isMountedRef.current) {
                 setJoining(false);
@@ -157,11 +159,11 @@ const YatraDetailScreen: React.FC = () => {
             if (requestId !== latestDecisionRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            Alert.alert('Успех', 'Участник одобрен');
+            Alert.alert('Success', 'Participant approved');
             await loadYatra();
         } catch {
             if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось одобрить участника');
+                Alert.alert('Error', 'Failed to approve the participant');
             }
         } finally {
             if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
@@ -181,11 +183,11 @@ const YatraDetailScreen: React.FC = () => {
             if (requestId !== latestDecisionRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            Alert.alert('Успех', 'Заявка отклонена');
+            Alert.alert('Success', 'Request rejected');
             await loadYatra();
         } catch {
             if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
-                Alert.alert('Ошибка', 'Не удалось отклонить заявку');
+                Alert.alert('Error', 'Failed to reject the request');
             }
         } finally {
             if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
@@ -200,7 +202,7 @@ const YatraDetailScreen: React.FC = () => {
         }
         try {
             await Share.share({
-                message: `${yatra.title}\n${yatra.startCity} → ${yatra.endCity}\n${yatraService.formatDateRange(yatra.startDate, yatra.endDate)}`,
+                message: `${yatra.title}\n${yatra.startCity} → ${yatra.endCity}\n${yatraService.formatDateRange(yatra.startDate, yatra.endDate, i18n.language)}`,
             });
         } catch (error) {
             console.error('Failed to share yatra:', error);
@@ -212,21 +214,21 @@ const YatraDetailScreen: React.FC = () => {
             return;
         }
         Alert.alert(
-            'Остановить тур',
-            'Тур будет отменен, новые списания LKM остановятся.',
+            'Stop trip',
+            'The trip will be canceled and new LKM charges will stop.',
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Остановить',
+                    text: 'Stop',
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             setStoppingTour(true);
                             await yatraService.stopYatra(yatra.id);
-                            Alert.alert('Тур остановлен');
+                            Alert.alert('Trip stopped');
                             await loadYatra();
                         } catch (error: any) {
-                            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось остановить тур');
+                            Alert.alert('Error', error?.response?.data?.error || 'Failed to stop the trip');
                         } finally {
                             setStoppingTour(false);
                         }
@@ -285,7 +287,7 @@ const YatraDetailScreen: React.FC = () => {
                     <View style={styles.headerContent}>
                         <View style={[styles.themeBadge, { backgroundColor: colors.accent }]}>
                             <Text style={[styles.themeText, { color: colors.background }]}>
-                                {YATRA_THEME_LABELS[yatra.theme] || yatra.theme}
+                                {getYatraThemeLabel(yatra.theme, i18n.language)}
                             </Text>
                         </View>
                         <Text style={[styles.title, { color: colors.textPrimary }]}>{yatra.title}</Text>
@@ -300,7 +302,7 @@ const YatraDetailScreen: React.FC = () => {
 
                 {/* Organizer Info */}
                 <View style={[styles.organizerSection, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Организатор</Text>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Organizer</Text>
                     <View style={styles.organizerRow}>
                         <Image
                             source={{ uri: yatra.organizer?.avatarUrl || 'https://via.placeholder.com/50' }}
@@ -308,7 +310,7 @@ const YatraDetailScreen: React.FC = () => {
                         />
                         <View style={styles.organizerInfo}>
                             <Text style={[styles.organizerName, { color: colors.textPrimary }]}>
-                                {yatra.organizer?.spiritualName || yatra.organizer?.karmicName || 'Организатор'}
+                                {yatra.organizer?.spiritualName || yatra.organizer?.karmicName || 'Organizer'}
                             </Text>
                             <Text style={[styles.organizerLocation, { color: colors.textSecondary }]}>
                                 {yatra.organizer?.city}, {yatra.organizer?.country}
@@ -336,12 +338,12 @@ const YatraDetailScreen: React.FC = () => {
                             yatra.billingState === 'stopped' && { backgroundColor: colors.surfaceElevated, borderColor: colors.warning },
                         ]}>
                             <Text style={[styles.billingBannerTitle, { color: colors.textPrimary }]}>
-                                {yatra.billingState === 'active' && 'Продвижение активно'}
-                                {yatra.billingState === 'paused_insufficient' && 'Продвижение на паузе (недостаточно LKM)'}
-                                {yatra.billingState === 'stopped' && 'Продвижение остановлено'}
+                                {yatra.billingState === 'active' && 'Promotion is active'}
+                                {yatra.billingState === 'paused_insufficient' && 'Promotion is paused (not enough LKM)'}
+                                {yatra.billingState === 'stopped' && 'Promotion stopped'}
                             </Text>
                             <Text style={[styles.billingBannerText, { color: colors.textSecondary }]}>
-                                {yatra.dailyFeeLkm ? `Ежедневное списание: ${yatra.dailyFeeLkm} LKM` : 'Списание начнется после публикации'}
+                                {yatra.dailyFeeLkm ? `Daily charge: ${yatra.dailyFeeLkm} LKM` : 'Charging will start after publishing'}
                             </Text>
                         </View>
                     </View>
@@ -353,21 +355,21 @@ const YatraDetailScreen: React.FC = () => {
                         <View style={styles.infoBox}>
                             <Users size={24} color={colors.accent} />
                             <View style={styles.infoContent}>
-                                <Text style={styles.infoTitle}>Управление туром</Text>
+                                <Text style={styles.infoTitle}>Trip management</Text>
                                 {pendingParticipants.length === 0 ? (
-                                    <Text style={styles.infoText}>Нет новых заявок на участие.</Text>
+                                    <Text style={styles.infoText}>No new participation requests.</Text>
                                 ) : (
                                     <>
-                                        <Text style={[styles.infoText, { marginBottom: 8 }]}>Новые заявки: {pendingParticipants.length}</Text>
+                                        <Text style={[styles.infoText, { marginBottom: 8 }]}>New requests: {pendingParticipants.length}</Text>
                                         {isBillingPaused && (
                                             <Text style={[styles.infoText, { color: colors.danger, marginBottom: 8 }]}>
-                                                Заявки временно заблокированы, пополните баланс LKM.
+                                                Requests are temporarily blocked, top up your LKM balance.
                                             </Text>
                                         )}
                                         {pendingParticipants.map(participant => (
                                             <View key={participant.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 8 }}>
                                                 <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>Пол-ль #{participant.userId}</Text>
+                                                    <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>User #{participant.userId}</Text>
                                                     <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{participant.message || '...'}</Text>
                                                 </View>
                                                 <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -396,10 +398,10 @@ const YatraDetailScreen: React.FC = () => {
                                     <TouchableOpacity
                                         style={[styles.chatButton, isBillingPaused && { opacity: 0.6 }]}
                                         disabled={isBillingPaused}
-                                        onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
+                                        onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: `${yatra.title} - Chat`, isYatraChat: true })}
                                     >
                                         <MessageCircle size={20} color={colors.background} />
-                                        <Text style={[styles.chatButtonText, { color: colors.background }]}>Открыть групповой чат</Text>
+                                        <Text style={[styles.chatButtonText, { color: colors.background }]}>Open group chat</Text>
                                     </TouchableOpacity>
                                 )}
                                 {isDraft && (
@@ -409,7 +411,7 @@ const YatraDetailScreen: React.FC = () => {
                                             onPress={() => navigation.navigate('YatraPublish', { yatraId: yatra.id })}
                                         >
                                             <Text style={[styles.publishButtonText, { color: colors.background }]}>
-                                                Перейти к публикации
+                                                Go to publishing
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
@@ -421,7 +423,7 @@ const YatraDetailScreen: React.FC = () => {
                                         onPress={handleStopTour}
                                     >
                                         <Text style={[styles.stopButtonText, { color: colors.danger }]}>
-                                            {stoppingTour ? 'Остановка...' : 'Остановить тур'}
+                                            {stoppingTour ? 'Stopping...' : 'Stop trip'}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
@@ -436,12 +438,12 @@ const YatraDetailScreen: React.FC = () => {
                         <TouchableOpacity
                             style={[styles.participantChatButton, isBillingPaused && { opacity: 0.6 }]}
                             disabled={isBillingPaused}
-                            onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
+                            onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: `${yatra.title} - Chat`, isYatraChat: true })}
                         >
                             <MessageCircle size={24} color={colors.textPrimary} />
                             <View style={{ marginLeft: 12 }}>
-                                <Text style={[styles.chatButtonText, { color: colors.textPrimary }]}>Групповой чат участников</Text>
-                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Общайтесь с группой</Text>
+                                <Text style={[styles.chatButtonText, { color: colors.textPrimary }]}>Participant group chat</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Talk with the group</Text>
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -451,45 +453,45 @@ const YatraDetailScreen: React.FC = () => {
                 <View style={[styles.statsGrid, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
                     <View style={styles.statItem}>
                         <Calendar size={24} color={colors.warning} />
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Даты</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dates</Text>
                         <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                            {yatraService.formatDateRange(yatra.startDate, yatra.endDate)}
+                            {yatraService.formatDateRange(yatra.startDate, yatra.endDate, i18n.language)}
                         </Text>
-                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>{duration} дней</Text>
+                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>{duration} days</Text>
                     </View>
                     <View style={[styles.statItem, styles.statBorder, { borderColor: colors.border }]}>
                         <Users size={24} color={colors.success} />
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Участники</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Participants</Text>
                         <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                             {yatra.participantCount}/{yatra.maxParticipants}
                         </Text>
-                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>места есть</Text>
+                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>spots available</Text>
                     </View>
                     <View style={styles.statItem}>
                         <DollarSign size={24} color={colors.accent} />
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Бюджет</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Budget</Text>
                         <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                            {yatra.costEstimate || 'Бесплатно'}
+                            {yatra.costEstimate || 'Free'}
                         </Text>
-                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>на человека</Text>
+                        <Text style={[styles.statSub, { color: colors.textSecondary }]}>per person</Text>
                     </View>
                 </View>
 
                 {/* Description */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>О путешествии</Text>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>About the trip</Text>
                     <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{yatra.description}</Text>
                 </View>
 
                 {/* Logistics */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Детали</Text>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Details</Text>
 
                     {yatra.accommodation && (
                         <View style={styles.detailRow}>
                             <Home size={20} color={colors.textSecondary} />
                             <View style={[styles.detailContent, { borderBottomColor: colors.border }]}>
-                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Проживание</Text>
+                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Accommodation</Text>
                                 <Text style={[styles.detailText, { color: colors.textPrimary }]}>{yatra.accommodation}</Text>
                             </View>
                         </View>
@@ -499,7 +501,7 @@ const YatraDetailScreen: React.FC = () => {
                         <View style={styles.detailRow}>
                             <Bus size={20} color={colors.textSecondary} />
                             <View style={[styles.detailContent, { borderBottomColor: colors.border }]}>
-                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Транспорт</Text>
+                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Transport</Text>
                                 <Text style={[styles.detailText, { color: colors.textPrimary }]}>{yatra.transportation}</Text>
                             </View>
                         </View>
@@ -509,7 +511,7 @@ const YatraDetailScreen: React.FC = () => {
                         <View style={styles.detailRow}>
                             <Globe size={20} color={colors.textSecondary} />
                             <View style={[styles.detailContent, { borderBottomColor: colors.border }]}>
-                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Язык группы</Text>
+                                <Text style={[styles.detailTitle, { color: colors.textSecondary }]}>Group language</Text>
                                 <Text style={[styles.detailText, { color: colors.textPrimary }]}>{yatra.language}</Text>
                             </View>
                         </View>
@@ -519,7 +521,7 @@ const YatraDetailScreen: React.FC = () => {
                 {/* Route */}
                 {routePoints.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Маршрут</Text>
+                        <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Route</Text>
                         <View style={[styles.timeline, { borderColor: colors.border }]}>
                             {routePoints.map((point, index) => (
                                 <View key={index} style={styles.timelineItem}>
@@ -550,7 +552,7 @@ const YatraDetailScreen: React.FC = () => {
                         <View style={[styles.infoBox, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
                             <Info size={24} color={colors.accent} />
                             <View style={styles.infoContent}>
-                                <Text style={[styles.infoTitle, { color: colors.accent }]}>Важно знать</Text>
+                                <Text style={[styles.infoTitle, { color: colors.accent }]}>Important to know</Text>
                                 <Text style={[styles.infoText, { color: colors.textSecondary }]}>{yatra.requirements}</Text>
                             </View>
                         </View>
@@ -574,7 +576,7 @@ const YatraDetailScreen: React.FC = () => {
                 {/* Join / Status Button */}
                 {isOrganizer ? (
                     <View style={[styles.actionButton, styles.disabledButton, { backgroundColor: colors.surface }]}>
-                        <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>Вы организатор</Text>
+                        <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>You are the organizer</Text>
                     </View>
                 ) : myParticipation ? (
                     <View style={[styles.actionButton, styles.disabledButton, { backgroundColor: colors.surface },
@@ -582,9 +584,9 @@ const YatraDetailScreen: React.FC = () => {
                         myParticipation.status === 'rejected' ? [styles.rejectedButton, { backgroundColor: colors.danger }] : {}
                     ]}>
                         <Text style={[styles.actionButtonText, { color: colors.background }]}>
-                            {myParticipation.status === 'approved' ? 'Вы участвуете' :
-                                myParticipation.status === 'rejected' ? 'Заявка отклонена' :
-                                    'Заявка отправлена'}
+                            {myParticipation.status === 'approved' ? 'You are participating' :
+                                myParticipation.status === 'rejected' ? 'Request rejected' :
+                                    'Request sent'}
                         </Text>
                     </View>
                 ) : (
@@ -601,7 +603,7 @@ const YatraDetailScreen: React.FC = () => {
                             <ActivityIndicator color={colors.background} />
                         ) : (
                             <Text style={[styles.actionButtonText, { color: canJoinNow ? colors.background : colors.textSecondary }]}>
-                                {isBillingPaused ? 'Временно недоступно' : 'Присоединиться'}
+                                {isBillingPaused ? 'Temporarily unavailable' : 'Join'}
                             </Text>
                         )}
                     </TouchableOpacity>

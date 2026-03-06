@@ -3,6 +3,7 @@ import { TouchableOpacity, StyleSheet, Image, Animated, StyleProp, ViewStyle, Ap
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -19,6 +20,7 @@ interface AssistantChatButtonProps {
 
 export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size = 40, style }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const { i18n } = useTranslation();
     const { handleNewChat } = useChat();
     const { assistantType, performanceMode, runtimePerformanceState } = useSettings();
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
@@ -77,6 +79,13 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
         return krishnaAssistant;
     }, [assistantType]);
 
+    const accessibilityLabel =
+        i18n.language === 'ru'
+            ? 'Открыть ассистента'
+            : i18n.language === 'hi'
+              ? 'सहायक खोलें'
+              : 'Open assistant';
+
     return (
         <TouchableOpacity
             activeOpacity={0.85}
@@ -86,7 +95,7 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
             }}
             style={buttonStyle}
             accessibilityRole="button"
-            accessibilityLabel="Открыть ассистента"
+            accessibilityLabel={accessibilityLabel}
         >
             {showGradient && (
                 <LinearGradient

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { X, Sparkles, AlertCircle, Clock, CheckCircle2 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 
 interface WalletInfoModalProps {
@@ -20,6 +21,52 @@ interface WalletInfoModalProps {
 const { height } = Dimensions.get('window');
 
 export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClose }) => {
+    const { i18n } = useTranslation();
+    const copy =
+        i18n.language === 'ru'
+            ? {
+                  title: 'О LKM',
+                  mainDescription: 'LKM — внутренняя единица активности.\nLKM начисляются за участие.\nLKM используются для доступа к функциям портала.\nLKM не имеют денежной стоимости и не подлежат обмену.',
+                  understanding: 'Как понимать LKM',
+                  regularAccess: 'Основные LKM используются для стандартного доступа к функциям портала',
+                  bonusRules: 'Бонусные LKM начисляются по правилам сервиса',
+                  historySplit: 'В истории активности видна разбивка: Основные / Бонусные',
+                  limits: 'Ограничения',
+                  bonusOnly: 'Бонусные LKM используются только в сервисах с отметкой VedaMatch',
+                  perFeatureLimit: 'Для каждой функции может действовать лимит использования бонусных LKM',
+                  historyTitle: 'История активности',
+                  historyHint: 'Используйте фильтр «Все / Бонусные», чтобы быстро найти действия с бонусной частью.',
+                  cta: 'Всё понятно',
+              }
+            : i18n.language === 'hi'
+              ? {
+                    title: 'LKM के बारे में',
+                    mainDescription: 'LKM आंतरिक एक्टिविटी यूनिट है।\nLKM भागीदारी के लिए दिए जाते हैं।\nLKM पोर्टल की सुविधाओं तक पहुंच के लिए उपयोग होते हैं।\nLKM का कोई मौद्रिक मूल्य नहीं है और इन्हें बदला नहीं जा सकता।',
+                    understanding: 'LKM को कैसे समझें',
+                    regularAccess: 'मुख्य LKM पोर्टल की सुविधाओं तक सामान्य पहुंच के लिए उपयोग होते हैं',
+                    bonusRules: 'बोनस LKM सेवा के नियमों के अनुसार दिए जाते हैं',
+                    historySplit: 'एक्टिविटी इतिहास में विभाजन दिखता है: मुख्य / बोनस',
+                    limits: 'सीमाएँ',
+                    bonusOnly: 'बोनस LKM केवल VedaMatch चिह्नित सेवाओं में उपयोग होते हैं',
+                    perFeatureLimit: 'हर सुविधा के लिए बोनस LKM उपयोग की सीमा हो सकती है',
+                    historyTitle: 'एक्टिविटी इतिहास',
+                    historyHint: 'बोनस वाले कार्य जल्दी खोजने के लिए “सभी / बोनस” फ़िल्टर का उपयोग करें।',
+                    cta: 'समझ गया',
+                }
+              : {
+                    title: 'About LKM',
+                    mainDescription: 'LKM is an internal activity unit.\nLKM is awarded for participation.\nLKM is used to access portal features.\nLKM has no monetary value and cannot be exchanged.',
+                    understanding: 'How to understand LKM',
+                    regularAccess: 'Regular LKM is used for standard access to portal features',
+                    bonusRules: 'Bonus LKM is awarded according to the service rules',
+                    historySplit: 'Activity history shows a split: Regular / Bonus',
+                    limits: 'Limitations',
+                    bonusOnly: 'Bonus LKM is used only in services marked VedaMatch',
+                    perFeatureLimit: 'Each feature may have its own bonus LKM usage limit',
+                    historyTitle: 'Activity history',
+                    historyHint: 'Use the “All / Bonus” filter to quickly find actions with a bonus part.',
+                    cta: 'Got it',
+                };
     return (
         <Modal
             visible={visible}
@@ -40,7 +87,7 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
                                 <View style={styles.iconContainer}>
                                     <Sparkles size={20} color="#F59E0B" fill="#F59E0B" />
                                 </View>
-                                <Text style={styles.title}>О LKM</Text>
+                                <Text style={styles.title}>{copy.title}</Text>
                             </View>
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                                 <X size={24} color="#9CA3AF" />
@@ -50,47 +97,44 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
                         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                             <Text style={styles.mainDescription}>
-                                LKM — внутренняя единица активности.{"\n"}
-                                LKM начисляются за участие.{"\n"}
-                                LKM используются для доступа к функциям портала.{"\n"}
-                                LKM не имеют денежной стоимости и не подлежат обмену.
+                                {copy.mainDescription}
                             </Text>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Как понимать LKM</Text>
+                                <Text style={styles.sectionTitle}>{copy.understanding}</Text>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Основные LKM используются для стандартного доступа к функциям портала</Text>
+                                    <Text style={styles.featureText}>{copy.regularAccess}</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Бонусные LKM начисляются по правилам сервиса</Text>
+                                    <Text style={styles.featureText}>{copy.bonusRules}</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>В истории активности видна разбивка: Основные / Бонусные</Text>
+                                    <Text style={styles.featureText}>{copy.historySplit}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Ограничения</Text>
+                                <Text style={styles.sectionTitle}>{copy.limits}</Text>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Бонусные LKM используются только в сервисах с отметкой VedaMatch</Text>
+                                    <Text style={styles.featureText}>{copy.bonusOnly}</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Для каждой функции может действовать лимит использования бонусных LKM</Text>
+                                    <Text style={styles.featureText}>{copy.perFeatureLimit}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.infoBox}>
                                 <View style={styles.infoBoxHeader}>
                                     <Clock size={16} color="#F59E0B" />
-                                    <Text style={styles.infoBoxTitle}>История активности</Text>
+                                    <Text style={styles.infoBoxTitle}>{copy.historyTitle}</Text>
                                 </View>
                                 <Text style={styles.infoBoxText}>
-                                    Используйте фильтр «Все / Бонусные», чтобы быстро найти действия с бонусной частью.
+                                    {copy.historyHint}
                                 </Text>
                             </View>
 
@@ -98,7 +142,7 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
 
                         <View style={styles.footer}>
                             <TouchableOpacity style={styles.understandButton} onPress={onClose}>
-                                <Text style={styles.understandButtonText}>Всё понятно</Text>
+                                <Text style={styles.understandButtonText}>{copy.cta}</Text>
                             </TouchableOpacity>
                         </View>
                     </LinearGradient>

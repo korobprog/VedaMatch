@@ -29,7 +29,7 @@ type FilterType = 'all' | 'completed' | 'cancelled';
 const StaffOrderHistoryScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffOrderHistory'>>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -103,6 +103,7 @@ const StaffOrderHistoryScreen: React.FC = () => {
     const renderOrderCard = (order: CafeOrder) => {
         const orderDate = new Date(order.createdAt);
         const isCompleted = order.status === 'completed';
+        const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
 
         return (
             <View
@@ -116,7 +117,7 @@ const StaffOrderHistoryScreen: React.FC = () => {
                     <View>
                         <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
                         <Text style={styles.orderDate}>
-                            {orderDate.toLocaleDateString('ru-RU')} {orderDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                            {orderDate.toLocaleDateString(locale)} {orderDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                     </View>
                     <View style={styles.orderStatus}>

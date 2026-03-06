@@ -11,6 +11,20 @@ import { yatraCacheService } from './yatraCacheService';
 import { getGodModeQueryParams } from './godModeService';
 
 class YatraService {
+    private normalizeLanguage(language?: string): 'ru' | 'en' | 'hi' {
+        const value = String(language || '').trim().toLowerCase();
+        if (value.startsWith('ru')) return 'ru';
+        if (value.startsWith('hi')) return 'hi';
+        return 'en';
+    }
+
+    private getDateLocale(language?: string): string {
+        const normalized = this.normalizeLanguage(language);
+        if (normalized === 'ru') return 'ru-RU';
+        if (normalized === 'hi') return 'hi-IN';
+        return 'en-US';
+    }
+
     getImageUrl(path: string | null | undefined): string {
         if (!path) {
             return 'https://via.placeholder.com/400x200?text=No+Image';
@@ -447,18 +461,19 @@ class YatraService {
         }
     }
 
-    formatDateRange(startDate: string, endDate: string): string {
+    formatDateRange(startDate: string, endDate: string, language?: string): string {
         const start = new Date(startDate);
         const end = new Date(endDate);
+        const locale = this.getDateLocale(language);
         const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 
         if (start.getFullYear() === end.getFullYear()) {
             if (start.getMonth() === end.getMonth()) {
-                return `${start.getDate()}-${end.toLocaleDateString('ru-RU', options)}`;
+                return `${start.getDate()}-${end.toLocaleDateString(locale, options)}`;
             }
-            return `${start.toLocaleDateString('ru-RU', options)} - ${end.toLocaleDateString('ru-RU', options)}`;
+            return `${start.toLocaleDateString(locale, options)} - ${end.toLocaleDateString(locale, options)}`;
         }
-        return `${start.toLocaleDateString('ru-RU', { ...options, year: 'numeric' })} - ${end.toLocaleDateString('ru-RU', { ...options, year: 'numeric' })}`;
+        return `${start.toLocaleDateString(locale, { ...options, year: 'numeric' })} - ${end.toLocaleDateString(locale, { ...options, year: 'numeric' })}`;
     }
 
     getDaysUntilStart(startDate: string): number {
