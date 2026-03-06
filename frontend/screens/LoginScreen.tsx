@@ -266,7 +266,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [i18n]);
 
-    const trackSocialClick = useCallback((provider: 'vk' | 'telegram' | 'google') => {
+    const trackSocialClick = useCallback((provider: 'vk' | 'google') => {
         console.log('[AuthSocialClick]', {
             event: 'auth_social_click_total',
             provider,
@@ -274,16 +274,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             ts: new Date().toISOString(),
         });
     }, []);
-
-    const handleComingSoonSocial = useCallback((provider: 'telegram') => {
-        trackSocialClick(provider);
-        const detailsKey = 'auth.loginScreen.social.telegramHint';
-        Alert.alert(
-            t('auth.loginScreen.social.comingSoonTitle'),
-            t(detailsKey),
-            [{ text: t('common.close') }],
-        );
-    }, [t, trackSocialClick]);
 
     const handleGoogleSignIn = useCallback(async () => {
         trackSocialClick('google');
@@ -687,14 +677,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                         )}
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity
-                                        activeOpacity={0.8}
-                                        style={styles.socialButton}
-                                        onPress={() => handleComingSoonSocial('telegram')}
-                                        disabled={loading || socialLoadingProvider !== null}
-                                    >
-                                        <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.telegram')}</Text>
-                                    </TouchableOpacity>
                                 </View>
                             </View>
 

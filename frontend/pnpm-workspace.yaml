@@ -1,2 +1,3 @@
 patchedDependencies:
   metro@0.81.5: patches/metro@0.81.5.patch
+  react-native-nitro-modules@0.33.9: patches/react-native-nitro-modules@0.33.9.patch

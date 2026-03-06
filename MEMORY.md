@@ -126,7 +126,7 @@
   - auto-AI анализ изображения не вызывается.
 
 ## Auth / Login Localization
-- Stage-1 rollout для login выполнен как `i18n + language switch + Google auth + VK auth`, Telegram оставлен подготовленным entry point.
+- Login auth rollout сейчас состоит из `i18n + language switch + Google auth + VK auth`; Telegram mini app auth остается отдельным flow и больше не показывается как рабочий quick-login на mobile login screen.
 - Login экран (`frontend/screens/LoginScreen.tsx`) теперь использует единый namespace `auth.loginScreen.*` вместо хардкодных строк.
 - Login экран визуально обновлен в портал-стиле:
   - фон в светлой шафран/крем палитре портала;
@@ -140,7 +140,12 @@
 - Соц-кнопки login:
   - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
   - `VK` — реальный вход через OAuth authorize + backend callback/deep link (`signInWithVK` -> `GET /api/auth/vk/callback` -> `POST /auth/vk/login`).
-  - `Telegram` — `coming soon` alert + telemetry log (`[AuthSocialClick]`), miniapp flow остается отдельным.
+  - `Telegram` — не должен отображаться на mobile login screen, пока mini app auth flow не подключен end-to-end.
+- `frontend/services/socialAuthService.ts` должен поддерживать новый ответ `@react-native-google-signin/google-signin@15`:
+  - `GoogleSignin.signIn()` возвращает wrapper `{ type, data }`, а не старый плоский объект;
+  - при `type === 'cancelled'` сервис бросает `GOOGLE_SIGNIN_CANCELLED`;
+  - `loadGoogleModule()` сначала использует обычный `require(...)`, потом dynamic fallback, чтобы regression-тесты и runtime вели себя одинаково.
+- `VK` mobile callback должен проверять не только `Linking` event, но и `Linking.getInitialURL()`, иначе deep link после возврата из браузера может потеряться в некоторых Android состояниях activity.
 - Локали login добавлены/синхронизированы в:
   - `frontend/i18n/locales/ru.ts`
   - `frontend/i18n/locales/en.ts`
@@ -153,19 +158,27 @@
 - Для stage-1 добавлен тест `frontend/__tests__/screens/LoginScreen.localization.test.tsx`:
   - проверяет вызов `i18n.changeLanguage` из switch языка;
   - проверяет Google social handler (`signInWithGoogle` -> `login(...)`);
-  - проверяет локализованные `coming soon` alerts для VK/Telegram.
+  - подтверждает, что `Telegram` quick-login не рендерится, пока mobile auth flow не реализован.
+- Добавлен regression-тест `frontend/__tests__/services/socialAuthService.test.ts`:
+  - фиксирует чтение `idToken` из wrapped Google SDK response;
+  - фиксирует отдельную ошибку `GOOGLE_SIGNIN_CANCELLED`.
 - `frontend/package-lock.json` синхронизирован после установки `@react-native-google-signin/google-signin`; npm может выводить peer warnings (`@firebase/auth` vs async-storage), но установка проходит успешно.
 - Для backend Google auth добавлена testability-точка:
   - `server/internal/handlers/auth_handler.go`: `googleIDTokenVerifier` (по умолчанию `verifyGoogleIDToken`) для deterministic тестов без внешнего HTTP.
 - Добавлен integration test suite `server/internal/handlers/auth_google_integration_test.go`:
   - `TestGoogleLogin_Disabled_ReturnsNotFound`,
   - `TestGoogleLogin_InvalidToken_ReturnsUnauthorized`,
-  - `TestGoogleLogin_ExistingUserBySub_Success`.
+  - `TestGoogleLogin_ExistingUserBySub_Success`,
+  - `TestGoogleLogin_InvalidAudience_ReturnsUnauthorized`,
+  - `TestGoogleLogin_MissingClientIDs_ReturnsServiceUnavailable`.
 - В frontend env-профили (`.env`, `.env.production`, `.env.ios`, `.env.emulator`, `.env.usb`) добавлены OAuth client IDs:
   - `GOOGLE_WEB_CLIENT_ID`
   - `GOOGLE_IOS_CLIENT_ID`
   - `GOOGLE_ANDROID_CLIENT_ID_DEBUG`
   - `GOOGLE_ANDROID_CLIENT_ID_RELEASE`
+- Backend Google auth нельзя включать в production без server build, который уже содержит audience validation:
+  - `server/internal/handlers/auth_handler.go` валидирует `tokenInfo.aud` против `AUTH_GOOGLE_ALLOWED_CLIENT_IDS` и fallback env client IDs;
+  - если client IDs не заданы, endpoint должен отвечать `503 Google auth is not configured`, а не молча принимать токены.
 - Для VK stage-2 добавлена конфигурационная заготовка:
   - frontend env ключи: `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
   - backend env example ключи: `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`;
@@ -1410,10 +1423,13 @@
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
-- Текущие версии (2026-02-27):
-  - Android: `versionCode=17`, `versionName=1.1.15`
+- Текущие версии (2026-03-07):
+  - Android: `versionCode=19`, `versionName=1.1.17`
   - iOS: `MARKETING_VERSION=1.1.16`, `CURRENT_PROJECT_VERSION=8`
-- Статус production-сборок (2026-02-27):
+- Статус production-сборок (2026-03-07):
+  - Android: `./gradlew app:assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
+  - Android metadata (`output-metadata.json`): `applicationId=com.ragagent`, `versionCode=19`, `versionName=1.1.17`.
+- Исторический статус production-сборок (2026-02-27):
   - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
   - Android metadata (`output-metadata.json`): `applicationId=com.ragagent`, `versionCode=17`, `versionName=1.1.15`.
   - iOS: `xcodebuild ... -configuration Release ... install` успешно (`** INSTALL SUCCEEDED **`), собранный `.app`: `.../DerivedData/vedamatch-prod/.../Applications/vedamatch.app`.
@@ -1633,6 +1649,9 @@
 
 ## Storage Runtime Notes
 - `frontend/lib/mmkvStorage.ts`: при недоступности native MMKV/NitroModules используется in-memory fallback.
+- Для текущего mobile dependency set совместимая связка: `react-native-mmkv=4.1.2` + `react-native-nitro-modules=0.33.9`.
+- `react-native-mmkv=4.2.0` несовместим с `react-native-nitro-modules=0.33.9` в Android release build: ломается nitro-generated код (`HybridMMKVPlatformContextSpec`), поэтому до обновления nitro-стека выше `4.1.2` не поднимать.
+- Для `react-native-nitro-modules=0.33.9` нужен compat patch в `frontend/patches/react-native-nitro-modules@0.33.9.patch`, подключенный через `frontend/pnpm-workspace.yaml`; без него Android build падает на `NitroModulesPackage.kt` из-за сигнатуры `ReactModuleInfo`.
 - Чтобы dev-консоль не засыпалась `Error Component Stack` от LogBox, fallback и migration ошибки логируются одной строкой через `console.log` в dev (без передачи объекта `Error` в `console.warn/error`).
 - В production остаётся `console.warn`, но тоже без объекта ошибки (только короткое сообщение + первая строка причины).
 

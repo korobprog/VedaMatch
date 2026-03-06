@@ -10,12 +10,21 @@ type GoogleSigninModule = {
   GoogleSignin: {
     configure: (options: Record<string, any>) => void;
     hasPlayServices?: (options?: Record<string, any>) => Promise<boolean>;
-    signIn: () => Promise<{ idToken?: string | null; user?: any }>;
+    signIn: () => Promise<
+      | { idToken?: string | null; user?: any }
+      | { type?: string; data?: { idToken?: string | null; user?: any } | null }
+    >;
     signOut?: () => Promise<void>;
   };
 };
 
 const loadGoogleModule = async (): Promise<GoogleSigninModule | null> => {
+  try {
+    return require('@react-native-google-signin/google-signin') as GoogleSigninModule;
+  } catch {
+    // Fall back to a dynamic require for environments where the module can be optional.
+  }
+
   try {
     // eslint-disable-next-line no-new-func
     const req = Function('m', 'return require(m)') as (name: string) => GoogleSigninModule;
@@ -45,6 +54,26 @@ const buildGoogleConfig = (): Record<string, any> => {
   };
 
   return Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined));
+};
+
+const extractGoogleSignInPayload = (
+  result: Awaited<ReturnType<GoogleSigninModule['GoogleSignin']['signIn']>>,
+): { idToken?: string | null; user?: any } => {
+  if (!result || typeof result !== 'object') {
+    return {};
+  }
+
+  if ('type' in result) {
+    if (result.type === 'cancelled') {
+      throw new Error('GOOGLE_SIGNIN_CANCELLED');
+    }
+    if (result.data && typeof result.data === 'object') {
+      return result.data;
+    }
+    return {};
+  }
+
+  return result;
 };
 
 const ensureGoogleConfigured = async (): Promise<GoogleSigninModule> => {
@@ -145,6 +174,11 @@ const waitForVKCallback = async (state: string): Promise<{ accessToken: string; 
     };
 
     const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) handleUrl(initialUrl);
+      })
+      .catch(() => undefined);
   });
 
 export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
@@ -154,7 +188,8 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   }
 
   const result = await module.GoogleSignin.signIn();
-  const idToken = readConfigString(result?.idToken);
+  const payload = extractGoogleSignInPayload(result);
+  const idToken = readConfigString(payload?.idToken);
   if (!idToken) {
     throw new Error('GOOGLE_ID_TOKEN_MISSING');
   }

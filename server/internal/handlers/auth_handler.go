@@ -283,9 +283,16 @@ type googleTokenInfo struct {
 	GivenName     string `json:"given_name"`
 	FamilyName    string `json:"family_name"`
 	Locale        string `json:"locale"`
+	Audience      string `json:"aud"`
 }
 
 var googleIDTokenVerifier = verifyGoogleIDToken
+
+var (
+	errGoogleAuthClientIDsMissing  = errors.New("google auth client IDs are not configured")
+	errGoogleTokenAudienceMissing  = errors.New("google token payload missing aud")
+	errGoogleTokenAudienceMismatch = errors.New("google token audience mismatch")
+)
 
 type vkUserInfo struct {
 	UserID     int64
@@ -313,6 +320,62 @@ func normalizeGoogleLocale(locale string) string {
 	default:
 		return "en"
 	}
+}
+
+func splitCSVEnv(raw string) []string {
+	items := strings.Split(raw, ",")
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func resolveGoogleAllowedClientIDs() []string {
+	envKeys := []string{
+		"AUTH_GOOGLE_ALLOWED_CLIENT_IDS",
+		"GOOGLE_WEB_CLIENT_ID",
+		"GOOGLE_IOS_CLIENT_ID",
+		"GOOGLE_ANDROID_CLIENT_ID_DEBUG",
+		"GOOGLE_ANDROID_CLIENT_ID_RELEASE",
+	}
+
+	seen := make(map[string]struct{}, len(envKeys))
+	result := make([]string, 0, len(envKeys))
+	for _, key := range envKeys {
+		for _, value := range splitCSVEnv(os.Getenv(key)) {
+			if _, exists := seen[value]; exists {
+				continue
+			}
+			seen[value] = struct{}{}
+			result = append(result, value)
+		}
+	}
+
+	return result
+}
+
+func validateGoogleAudience(audience string) error {
+	allowedClientIDs := resolveGoogleAllowedClientIDs()
+	if len(allowedClientIDs) == 0 {
+		return errGoogleAuthClientIDsMissing
+	}
+
+	actualAudience := strings.TrimSpace(audience)
+	if actualAudience == "" {
+		return errGoogleTokenAudienceMissing
+	}
+
+	for _, allowedAudience := range allowedClientIDs {
+		if actualAudience == allowedAudience {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%w: %s", errGoogleTokenAudienceMismatch, actualAudience)
 }
 
 func verifyGoogleIDToken(idToken string) (*googleTokenInfo, error) {
@@ -699,6 +762,18 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 	if err != nil {
 		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
 		log.Printf("[AUTH] Google token verification failed: %v", err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid Google token",
+		})
+	}
+	if err := validateGoogleAudience(tokenInfo.Audience); err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
+		log.Printf("[AUTH] Google token audience validation failed: %v", err)
+		if errors.Is(err, errGoogleAuthClientIDsMissing) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Google auth is not configured",
+			})
+		}
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid Google token",
 		})

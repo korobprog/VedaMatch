@@ -18,10 +18,6 @@ const translations: Record<string, string> = {
   'auth.loginScreen.orContinueWith': 'или продолжить через',
   'auth.loginScreen.social.google': 'Google',
   'auth.loginScreen.social.vk': 'VK',
-  'auth.loginScreen.social.telegram': 'Telegram',
-  'auth.loginScreen.social.comingSoonTitle': 'Скоро будет доступно',
-  'auth.loginScreen.social.vkHint': 'Вход через VK готовится к следующему релизу.',
-  'auth.loginScreen.social.telegramHint': 'Telegram-вход для мобильного login экрана появится в следующем релизе.',
   'auth.loginScreen.createAccountPrefix': 'Впервые в VedaMatch?',
   'auth.loginScreen.createAccountCta': 'Создать аккаунт',
   'auth.loginScreen.supportPrompt': 'Не получается войти?',
@@ -129,16 +125,8 @@ describe('LoginScreen localization and social auth', () => {
     });
   });
 
-  it('shows localized coming soon alert for Telegram button', () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('does not render Telegram quick-login button before mobile auth flow exists', () => {
     const screen = render(<LoginScreen navigation={navigation} route={route} />);
-
-    fireEvent.press(screen.getByText('Telegram'));
-
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Скоро будет доступно',
-      'Telegram-вход для мобильного login экрана появится в следующем релизе.',
-      [{ text: 'Закрыть' }],
-    );
+    expect(screen.queryByText('Telegram')).toBeNull();
   });
 });

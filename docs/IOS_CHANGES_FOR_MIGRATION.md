@@ -1,5 +1,96 @@
 # IOS Changes For Migration
 
+## 2026-03-07 (Social auth contract hardened for Google/VK; Telegram hidden on login)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_google_integration_test.go`
+- `server/.env.example`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile login screen показывал `Telegram` как quick-login, хотя реального mobile auth flow там не было;
+  - `Google` client code читал старый плоский ответ SDK и на `@react-native-google-signin/google-signin@15` терял `idToken`;
+  - backend `GoogleLogin` принимал `tokeninfo` без проверки `aud`.
+- Стало:
+  - `Telegram` убран из quick-login на mobile login screen до появления реального mini app flow;
+  - `Google` client code теперь читает wrapper `{ type, data }`, обрабатывает `cancelled` и остается совместимым с текущим SDK;
+  - `VK` callback дополнительно читает `Linking.getInitialURL()`, чтобы deep link не терялся после возврата из браузера;
+  - backend `GoogleLogin` требует допустимый `aud` и конфиг разрешенных client IDs.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+if ('type' in result) {
+  if (result.type === 'cancelled') {
+    throw new Error('GOOGLE_SIGNIN_CANCELLED');
+  }
+  return result.data ?? {};
+}
+```
+
+```ts
+Linking.getInitialURL()
+  .then((initialUrl) => {
+    if (initialUrl) handleUrl(initialUrl);
+  })
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+func validateGoogleAudience(audience string) error {
+  allowedClientIDs := resolveGoogleAllowedClientIDs()
+  if len(allowedClientIDs) == 0 {
+    return errGoogleAuthClientIDsMissing
+  }
+  ...
+}
+```
+
+## 2026-03-07 (Android release 1.1.17 + MMKV/Nitro compatibility pinned)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/pnpm-workspace.yaml`
+- `frontend/patches/react-native-nitro-modules@0.33.9.patch`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android production version оставалась `1.1.16 (18)`;
+  - в `frontend/node_modules` оказался `react-native-mmkv 4.2.0`, который не совпадал с проектным nitro-стеком `react-native-nitro-modules 0.33.9` и ломал release build.
+- Стало:
+  - Android release version поднята до `1.1.17 (19)`;
+  - shared mobile storage dependency закреплена на совместимой версии `react-native-mmkv 4.1.2`;
+  - compat patch для `react-native-nitro-modules 0.33.9` сохранен как `pnpm` patch, чтобы Android release build воспроизводимо собирался.
+
+### Сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionCode 19
+versionName "1.1.17"
+```
+
+`frontend/package.json`:
+```json
+"react-native-mmkv": "4.1.2",
+"react-native-nitro-modules": "0.33.9"
+```
+
+`frontend/pnpm-workspace.yaml`:
+```yaml
+patchedDependencies:
+  metro@0.81.5: patches/metro@0.81.5.patch
+  react-native-nitro-modules@0.33.9: patches/react-native-nitro-modules@0.33.9.patch
+```
+
 ## 2026-03-06 (Connect push copy now follows user language)
 
 ### Измененные файлы

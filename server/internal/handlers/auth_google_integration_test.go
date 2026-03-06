@@ -64,6 +64,7 @@ func TestGoogleLogin_Disabled_ReturnsNotFound(t *testing.T) {
 func TestGoogleLogin_InvalidToken_ReturnsUnauthorized(t *testing.T) {
 	setupAuthGoogleIntegrationDB(t)
 	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+	t.Setenv("GOOGLE_WEB_CLIENT_ID", "google-web-client-id")
 	originalVerifier := googleIDTokenVerifier
 	googleIDTokenVerifier = func(_ string) (*googleTokenInfo, error) {
 		return nil, errors.New("invalid token")
@@ -87,6 +88,7 @@ func TestGoogleLogin_InvalidToken_ReturnsUnauthorized(t *testing.T) {
 func TestGoogleLogin_ExistingUserBySub_Success(t *testing.T) {
 	setupAuthGoogleIntegrationDB(t)
 	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+	t.Setenv("GOOGLE_WEB_CLIENT_ID", "google-web-client-id")
 	t.Setenv("JWT_SECRET", "google-test-secret")
 	t.Setenv("AUTH_REFRESH_V1", "true")
 
@@ -110,6 +112,7 @@ func TestGoogleLogin_ExistingUserBySub_Success(t *testing.T) {
 			EmailVerified: "true",
 			Name:          "Google Existing",
 			Locale:        "en",
+			Audience:      "google-web-client-id",
 		}, nil
 	}
 	t.Cleanup(func() {
@@ -134,4 +137,67 @@ func TestGoogleLogin_ExistingUserBySub_Success(t *testing.T) {
 	require.NotEmpty(t, body["refreshToken"])
 	require.NotEmpty(t, body["sessionId"])
 	require.NotNil(t, body["user"])
+}
+
+func TestGoogleLogin_InvalidAudience_ReturnsUnauthorized(t *testing.T) {
+	setupAuthGoogleIntegrationDB(t)
+	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+	t.Setenv("GOOGLE_WEB_CLIENT_ID", "google-web-client-id")
+
+	originalVerifier := googleIDTokenVerifier
+	googleIDTokenVerifier = func(_ string) (*googleTokenInfo, error) {
+		return &googleTokenInfo{
+			Sub:           "google-sub-invalid-aud",
+			Email:         "invalid-aud@example.com",
+			EmailVerified: "true",
+			Name:          "Wrong Audience",
+			Locale:        "en",
+			Audience:      "some-other-client-id",
+		}, nil
+	}
+	t.Cleanup(func() {
+		googleIDTokenVerifier = originalVerifier
+	})
+
+	app := newAuthGoogleTestApp(NewAuthHandler(nil, nil))
+	payload, _ := json.Marshal(map[string]string{
+		"idToken": "wrong-audience-token",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/google/login", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestGoogleLogin_MissingClientIDs_ReturnsServiceUnavailable(t *testing.T) {
+	setupAuthGoogleIntegrationDB(t)
+	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+
+	originalVerifier := googleIDTokenVerifier
+	googleIDTokenVerifier = func(_ string) (*googleTokenInfo, error) {
+		return &googleTokenInfo{
+			Sub:           "google-sub-missing-config",
+			Email:         "missing-config@example.com",
+			EmailVerified: "true",
+			Name:          "Missing Config",
+			Locale:        "en",
+			Audience:      "google-web-client-id",
+		}, nil
+	}
+	t.Cleanup(func() {
+		googleIDTokenVerifier = originalVerifier
+	})
+
+	app := newAuthGoogleTestApp(NewAuthHandler(nil, nil))
+	payload, _ := json.Marshal(map[string]string{
+		"idToken": "missing-config-token",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/google/login", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 }
