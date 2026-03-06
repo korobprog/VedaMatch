@@ -55,7 +55,7 @@ const ConnectFiltersScreen: React.FC<Props> = ({ navigation, route }) => {
                             style={[styles.chip, filters.entryLevel === item && styles.chipActive]}
                             onPress={() => toggleEntry(item)}
                         >
-                            <Text style={[styles.chipText, filters.entryLevel === item && styles.chipTextActive]}>{getConnectEntryLevelLabel(item)}</Text>
+                            <Text style={[styles.chipText, filters.entryLevel === item && styles.chipTextActive]}>{getConnectEntryLevelLabel(item, t)}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -70,26 +70,30 @@ const ConnectFiltersScreen: React.FC<Props> = ({ navigation, route }) => {
                             style={[styles.chip, filters.participationFormat === item && styles.chipActive]}
                             onPress={() => toggleFormat(item)}
                         >
-                            <Text style={[styles.chipText, filters.participationFormat === item && styles.chipTextActive]}>{getConnectFormatLabel(item)}</Text>
+                            <Text style={[styles.chipText, filters.participationFormat === item && styles.chipTextActive]}>{getConnectFormatLabel(item, t)}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
             </View>
 
             <View style={styles.switchRow}>
-                <View>
+                <View style={styles.switchCopy}>
                     <Text style={styles.label}>{t('portal.connect.filters.newcomerOnly', { defaultValue: 'Newcomer-friendly only' })}</Text>
                     <Text style={styles.note}>{t('portal.connect.filters.newcomerOnlyHint', { defaultValue: 'Prefer softer first steps and friendly teams.' })}</Text>
                 </View>
-                <Switch value={Boolean(filters.newcomerOnly)} onValueChange={(value) => setFilters((prev) => ({ ...prev, newcomerOnly: value }))} />
+                <View style={styles.switchControl}>
+                    <Switch value={Boolean(filters.newcomerOnly)} onValueChange={(value) => setFilters((prev) => ({ ...prev, newcomerOnly: value }))} />
+                </View>
             </View>
 
             <View style={styles.switchRow}>
-                <View>
+                <View style={styles.switchCopy}>
                     <Text style={styles.label}>{t('portal.connect.filters.nearbyOnly', { defaultValue: 'Nearby only' })}</Text>
                     <Text style={styles.note}>{t('portal.connect.filters.nearbyOnlyHint', { defaultValue: 'Prefer matches in your city first.' })}</Text>
                 </View>
-                <Switch value={Boolean(filters.nearbyOnly)} onValueChange={(value) => setFilters((prev) => ({ ...prev, nearbyOnly: value }))} />
+                <View style={styles.switchControl}>
+                    <Switch value={Boolean(filters.nearbyOnly)} onValueChange={(value) => setFilters((prev) => ({ ...prev, nearbyOnly: value }))} />
+                </View>
             </View>
 
             <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.replace('ConnectHome', { filters })}>
@@ -113,7 +117,9 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: '#C2410C', borderColor: '#C2410C' },
     chipText: { color: '#7C2D12', fontWeight: '700' },
     chipTextActive: { color: '#FFF7ED' },
-    switchRow: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center', borderWidth: 1, borderColor: '#FED7AA' },
+    switchRow: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#FED7AA' },
+    switchCopy: { flex: 1, minWidth: 0, paddingRight: 12 },
+    switchControl: { flexShrink: 0, alignSelf: 'center' },
     primaryButton: { backgroundColor: '#C2410C', borderRadius: 999, paddingVertical: 14, alignItems: 'center' },
     primaryButtonText: { color: '#FFF7ED', fontWeight: '800', fontSize: 16 },
 });

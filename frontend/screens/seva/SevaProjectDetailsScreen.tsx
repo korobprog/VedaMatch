@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Linking } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ArrowLeft, CheckCircle } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
@@ -7,24 +7,68 @@ import { DonateModal } from '../../components/seva/DonateModal';
 import { EvidenceWall } from '../../components/seva/EvidenceWall';
 import { KarmaFeed } from '../../components/seva/KarmaFeed';
 import LinearGradient from 'react-native-linear-gradient';
+import { charityService } from '../../services/charityService';
 
 const SevaProjectDetailsScreen: React.FC = () => {
     const route = useRoute();
     const navigation = useNavigation();
-    const { project } = route.params as { project: CharityProject };
+    const params = (route.params || {}) as { project?: CharityProject; projectId?: number };
+    const [project, setProject] = useState<CharityProject | null>(params.project || null);
+    const [loading, setLoading] = useState(!params.project && Boolean(params.projectId));
 
     const [donateModalVisible, setDonateModalVisible] = useState(false);
+
+    useEffect(() => {
+        if (params.project || !params.projectId) {
+            return;
+        }
+        setLoading(true);
+        charityService.getProjectById(params.projectId)
+            .then((result) => setProject(result))
+            .catch((error) => {
+                console.warn('[SevaProjectDetails] failed to load project by id:', error);
+                setProject(null);
+            })
+            .finally(() => setLoading(false));
+    }, [params.project, params.projectId]);
 
     // Mock balance
     const userBalance = 2500;
 
-    const progress = Math.min(project.raisedAmount / project.goalAmount, 1);
+    const progress = useMemo(() => {
+        if (!project || !project.goalAmount) {
+            return 0;
+        }
+        return Math.min(project.raisedAmount / project.goalAmount, 1);
+    }, [project]);
 
     const handleDonate = async (amount: number, tips: boolean, isAnonymous: boolean, message: string) => {
         // API Call would go here
         console.log("Donate:", amount, tips, isAnonymous, message);
         // Refresh data...
     };
+
+    if (loading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFD700" />
+            </View>
+        );
+    }
+
+    if (!project) {
+        return (
+            <View style={styles.loadingContainer}>
+                <TouchableOpacity
+                    style={styles.backButtonFallback}
+                    onPress={() => navigation.goBack()}
+                >
+                    <ArrowLeft size={20} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={styles.missingText}>Project not found.</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -128,6 +172,28 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#121212',
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    backButtonFallback: {
+        position: 'absolute',
+        top: 54,
+        left: 20,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    missingText: {
+        color: '#FFF',
+        fontSize: 16,
     },
     content: {
         paddingBottom: 40,

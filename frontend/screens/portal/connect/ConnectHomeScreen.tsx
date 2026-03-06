@@ -9,8 +9,9 @@ import {
     View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowRight, Filter, HeartHandshake, MapPin, Plus, Settings2, Users } from 'lucide-react-native';
+import { ArrowRight, Filter, HeartHandshake, MapPin, Plus, Settings2, ShieldCheck, Users } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { useUser } from '../../../context/UserContext';
 import type { ConnectCommunityCard, ConnectFeedFilters, ConnectOpportunityCard } from '../../../types/connect';
 import type { RootStackParamList } from '../../../types/navigation';
 import { connectService } from '../../../services/connectService';
@@ -20,6 +21,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ConnectHome'>;
 
 const ConnectHomeScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
+    const { user } = useUser();
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filters, setFilters] = useState<ConnectFeedFilters>(route.params?.filters || {});
@@ -96,6 +99,12 @@ const ConnectHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                         <Plus size={16} color="#7C2D12" />
                         <Text style={styles.secondaryButtonText}>{t('portal.connect.actions.create', { defaultValue: 'Add opportunity' })}</Text>
                     </TouchableOpacity>
+                    {isAdmin ? (
+                        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('ConnectModeration')}>
+                            <ShieldCheck size={16} color="#7C2D12" />
+                            <Text style={styles.secondaryButtonText}>{t('portal.connect.actions.moderation', { defaultValue: 'Moderation queue' })}</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
                 {cityLabel ? (
                     <View style={styles.cityRow}>
@@ -131,7 +140,7 @@ const ConnectHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                             <Text style={styles.scoreText}>{item.score}%</Text>
                         </View>
                         <Text style={styles.cardMeta}>
-                            {getConnectEntryLevelLabel(item.entryLevel)} • {getConnectFormatLabel(item.participationFormat)} • {item.category}
+                            {getConnectEntryLevelLabel(item.entryLevel, t)} • {getConnectFormatLabel(item.participationFormat, t)} • {item.category}
                         </Text>
                         {item.locationLabel ? <Text style={styles.cardLocation}>{item.locationLabel}</Text> : null}
                         <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>

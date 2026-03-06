@@ -72,9 +72,11 @@ const (
 type ConnectApplicationStatus string
 
 const (
-	ConnectApplicationPending  ConnectApplicationStatus = "pending"
-	ConnectApplicationApproved ConnectApplicationStatus = "approved"
-	ConnectApplicationRejected ConnectApplicationStatus = "rejected"
+	ConnectApplicationPending   ConnectApplicationStatus = "pending"
+	ConnectApplicationApproved  ConnectApplicationStatus = "approved"
+	ConnectApplicationAttended  ConnectApplicationStatus = "attended"
+	ConnectApplicationCompleted ConnectApplicationStatus = "completed"
+	ConnectApplicationRejected  ConnectApplicationStatus = "rejected"
 )
 
 type ConnectOnboardingMode string
@@ -138,6 +140,10 @@ type ConnectOpportunity struct {
 	StartsAt            *time.Time                 `json:"startsAt" gorm:"index"`
 	EndsAt              *time.Time                 `json:"endsAt"`
 	Status              ConnectOpportunityStatus   `json:"status" gorm:"type:varchar(32);default:'moderation';index"`
+	ModeratedAt         *time.Time                 `json:"moderatedAt"`
+	ModeratedByUserID   *uint                      `json:"moderatedByUserId" gorm:"index"`
+	ModeratedByUser     *User                      `json:"moderatedByUser,omitempty" gorm:"foreignKey:ModeratedByUserID"`
+	ModerationNote      string                     `json:"moderationNote" gorm:"type:text"`
 	SourceType          ConnectSourceType          `json:"sourceType" gorm:"type:varchar(32);index;default:'native'"`
 	SourceEntityID      *uint                      `json:"sourceEntityId" gorm:"index"`
 	Applications        []ConnectApplication       `json:"applications,omitempty" gorm:"foreignKey:OpportunityID"`
@@ -166,16 +172,37 @@ type ConnectMatchProfile struct {
 }
 
 type ConnectApplication struct {
-	ID            uint                     `gorm:"primarykey" json:"id"`
-	CreatedAt     time.Time                `json:"createdAt"`
-	UpdatedAt     time.Time                `json:"updatedAt"`
-	DeletedAt     gorm.DeletedAt           `gorm:"index" json:"-"`
-	OpportunityID uint                     `json:"opportunityId" gorm:"index;not null"`
-	Opportunity   *ConnectOpportunity      `json:"opportunity,omitempty" gorm:"foreignKey:OpportunityID"`
-	UserID        uint                     `json:"userId" gorm:"index;not null"`
-	User          *User                    `json:"user,omitempty" gorm:"foreignKey:UserID"`
-	Status        ConnectApplicationStatus `json:"status" gorm:"type:varchar(24);default:'pending';index"`
-	Message       string                   `json:"message" gorm:"type:text"`
+	ID               uint                     `gorm:"primarykey" json:"id"`
+	CreatedAt        time.Time                `json:"createdAt"`
+	UpdatedAt        time.Time                `json:"updatedAt"`
+	DeletedAt        gorm.DeletedAt           `gorm:"index" json:"-"`
+	OpportunityID    uint                     `json:"opportunityId" gorm:"index;not null"`
+	Opportunity      *ConnectOpportunity      `json:"opportunity,omitempty" gorm:"foreignKey:OpportunityID"`
+	UserID           uint                     `json:"userId" gorm:"index;not null"`
+	User             *User                    `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	Status           ConnectApplicationStatus `json:"status" gorm:"type:varchar(24);default:'pending';index"`
+	Message          string                   `json:"message" gorm:"type:text"`
+	ReviewedAt       *time.Time               `json:"reviewedAt,omitempty"`
+	ReviewedByUserID *uint                    `json:"reviewedByUserId,omitempty" gorm:"index"`
+	ReviewedByUser   *User                    `json:"reviewedByUser,omitempty" gorm:"foreignKey:ReviewedByUserID"`
+	ReviewNote       string                   `json:"reviewNote" gorm:"type:text"`
+}
+
+type ConnectFeedback struct {
+	ID               uint                `gorm:"primarykey" json:"id"`
+	CreatedAt        time.Time           `json:"createdAt"`
+	UpdatedAt        time.Time           `json:"updatedAt"`
+	DeletedAt        gorm.DeletedAt      `gorm:"index" json:"-"`
+	OpportunityID    uint                `json:"opportunityId" gorm:"index;not null"`
+	Opportunity      *ConnectOpportunity `json:"opportunity,omitempty" gorm:"foreignKey:OpportunityID"`
+	UserID           uint                `json:"userId" gorm:"index;not null"`
+	User             *User               `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	Rating           int                 `json:"rating" gorm:"not null"`
+	Comment          string              `json:"comment" gorm:"type:text"`
+	Tags             []string            `json:"tags" gorm:"type:jsonb;serializer:json"`
+	FeltSafe         bool                `json:"feltSafe" gorm:"default:false"`
+	NewcomerFriendly bool                `json:"newcomerFriendly" gorm:"default:false"`
+	WouldReturn      bool                `json:"wouldReturn" gorm:"default:false"`
 }
 
 type ConnectSourceLink struct {
@@ -221,8 +248,29 @@ type ConnectOpportunityCard struct {
 	EndsAt              *time.Time                 `json:"endsAt,omitempty"`
 	Score               int                        `json:"score"`
 	Why                 []string                   `json:"why"`
+	TrustSummary        *ConnectTrustSummary       `json:"trustSummary,omitempty"`
 	Community           *ConnectCommunityCard      `json:"community,omitempty"`
 	SourceLink          *ConnectSourceLink         `json:"sourceLink,omitempty"`
+}
+
+type ConnectTrustSummary struct {
+	ReviewsCount            int     `json:"reviewsCount"`
+	AverageRating           float64 `json:"averageRating"`
+	FeltSafePercent         int     `json:"feltSafePercent"`
+	NewcomerFriendlyPercent int     `json:"newcomerFriendlyPercent"`
+	WouldReturnPercent      int     `json:"wouldReturnPercent"`
+}
+
+type ConnectFeedbackItem struct {
+	ID               uint      `json:"id"`
+	CreatedAt        time.Time `json:"createdAt"`
+	Rating           int       `json:"rating"`
+	Comment          string    `json:"comment"`
+	Tags             []string  `json:"tags"`
+	FeltSafe         bool      `json:"feltSafe"`
+	NewcomerFriendly bool      `json:"newcomerFriendly"`
+	WouldReturn      bool      `json:"wouldReturn"`
+	AuthorLabel      string    `json:"authorLabel"`
 }
 
 type ConnectFeedResponse struct {
@@ -231,8 +279,21 @@ type ConnectFeedResponse struct {
 	Profile       *ConnectMatchProfile     `json:"profile,omitempty"`
 }
 
+type ConnectViewerApplication struct {
+	ID         uint                     `json:"id"`
+	Status     ConnectApplicationStatus `json:"status"`
+	Message    string                   `json:"message"`
+	ReviewNote string                   `json:"reviewNote"`
+	UpdatedAt  time.Time                `json:"updatedAt"`
+}
+
 type ConnectOpportunityDetailResponse struct {
-	Opportunity ConnectOpportunityCard `json:"opportunity"`
+	Opportunity           ConnectOpportunityCard    `json:"opportunity"`
+	TrustSummary          *ConnectTrustSummary      `json:"trustSummary,omitempty"`
+	Feedback              []ConnectFeedbackItem     `json:"feedback,omitempty"`
+	CanSubmitFeedback     bool                      `json:"canSubmitFeedback"`
+	CanManageApplications bool                      `json:"canManageApplications"`
+	ViewerApplication     *ConnectViewerApplication `json:"viewerApplication,omitempty"`
 }
 
 type ConnectCommunityDetailResponse struct {
@@ -291,4 +352,22 @@ type ConnectOpportunityCreateRequest struct {
 
 type ConnectApplyRequest struct {
 	Message string `json:"message"`
+}
+
+type ConnectModerationRequest struct {
+	Reason string `json:"reason"`
+}
+
+type ConnectApplicationStatusUpdateRequest struct {
+	Status ConnectApplicationStatus `json:"status"`
+	Note   string                   `json:"note"`
+}
+
+type ConnectFeedbackCreateRequest struct {
+	Rating           int      `json:"rating"`
+	Comment          string   `json:"comment"`
+	Tags             []string `json:"tags"`
+	FeltSafe         bool     `json:"feltSafe"`
+	NewcomerFriendly bool     `json:"newcomerFriendly"`
+	WouldReturn      bool     `json:"wouldReturn"`
 }

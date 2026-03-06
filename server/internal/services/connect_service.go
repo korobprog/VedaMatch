@@ -1,8 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"sort"
@@ -16,19 +18,40 @@ var (
 	ErrConnectInvalidPayload     = errors.New("invalid connect payload")
 	ErrConnectOpportunityMissing = errors.New("connect opportunity not found")
 	ErrConnectCommunityMissing   = errors.New("connect community not found")
+	ErrConnectApplicationMissing = errors.New("connect application not found")
+	ErrConnectForbidden          = errors.New("connect access forbidden")
 	ErrConnectUnauthorized       = errors.New("unauthorized")
+	ErrConnectFeedbackNotAllowed = errors.New("connect feedback requires an approved or completed application first")
 )
 
 type ConnectService struct {
-	db *gorm.DB
+	db   *gorm.DB
+	push connectPushSender
+}
+
+type connectPushSender interface {
+	SendToUser(userID uint, message PushMessage) error
 }
 
 func NewConnectService() *ConnectService {
-	return &ConnectService{db: database.DB}
+	return &ConnectService{db: database.DB, push: GetPushService()}
 }
 
 func NewConnectServiceWithDB(db *gorm.DB) *ConnectService {
-	return &ConnectService{db: db}
+	return &ConnectService{db: db, push: GetPushService()}
+}
+
+func NewConnectServiceWithDeps(db *gorm.DB, push connectPushSender) *ConnectService {
+	return &ConnectService{db: db, push: push}
+}
+
+func (s *ConnectService) incrementMetricSafe(key string, delta int64) {
+	if strings.TrimSpace(key) == "" {
+		return
+	}
+	if err := GetMetricsService().Increment(key, delta); err != nil {
+		log.Printf("[Connect] metric increment failed (%s): %v", key, err)
+	}
 }
 
 func (s *ConnectService) GetFeed(userID uint, req models.ConnectFeedRequest) (*models.ConnectFeedResponse, error) {
@@ -200,17 +223,199 @@ func (s *ConnectService) Apply(userID, opportunityID uint, req models.ConnectApp
 		return nil, err
 	}
 
-	application := models.ConnectApplication{
-		OpportunityID: opportunityID,
-		UserID:        userID,
-		Status:        models.ConnectApplicationPending,
-		Message:       strings.TrimSpace(req.Message),
+	var application models.ConnectApplication
+	err := s.db.Where("opportunity_id = ? AND user_id = ?", opportunityID, userID).First(&application).Error
+	if err == nil {
+		application.Message = strings.TrimSpace(req.Message)
+		if saveErr := s.db.Save(&application).Error; saveErr != nil {
+			return nil, saveErr
+		}
+		return &application, nil
 	}
-	if err := s.db.Where("opportunity_id = ? AND user_id = ?", opportunityID, userID).
-		Assign(application).
-		FirstOrCreate(&application).Error; err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
+
+	initialStatus := models.ConnectApplicationPending
+	if !opportunity.RequiresApproval {
+		initialStatus = models.ConnectApplicationApproved
+	}
+
+	application = models.ConnectApplication{
+		OpportunityID: opportunityID,
+		UserID:        userID,
+		Status:        initialStatus,
+		Message:       strings.TrimSpace(req.Message),
+	}
+	if err := s.db.Create(&application).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricConnectApplicationCreatedTotal, 1)
+	s.notifyOpportunityManagersAboutApplication(opportunity, application, userID)
+	return &application, nil
+}
+
+func (s *ConnectService) SubmitFeedback(userID, opportunityID uint, req models.ConnectFeedbackCreateRequest) (*models.ConnectFeedback, error) {
+	if userID == 0 {
+		return nil, ErrConnectUnauthorized
+	}
+	if req.Rating < 1 || req.Rating > 5 {
+		return nil, ErrConnectInvalidPayload
+	}
+	if !s.canUserSubmitFeedback(userID, opportunityID) {
+		return nil, ErrConnectFeedbackNotAllowed
+	}
+
+	var opportunity models.ConnectOpportunity
+	if err := s.db.First(&opportunity, opportunityID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConnectOpportunityMissing
+		}
+		return nil, err
+	}
+
+	feedback := models.ConnectFeedback{
+		OpportunityID:    opportunityID,
+		UserID:           userID,
+		Rating:           req.Rating,
+		Comment:          strings.TrimSpace(req.Comment),
+		Tags:             normalizeStringList(req.Tags),
+		FeltSafe:         req.FeltSafe,
+		NewcomerFriendly: req.NewcomerFriendly,
+		WouldReturn:      req.WouldReturn,
+	}
+
+	if err := s.db.Where("opportunity_id = ? AND user_id = ?", opportunityID, userID).
+		Assign(feedback).
+		FirstOrCreate(&feedback).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricConnectFeedbackSubmittedTotal, 1)
+	return &feedback, nil
+}
+
+func (s *ConnectService) ListOpportunitiesForModeration(status string) ([]models.ConnectOpportunity, error) {
+	if s.db == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	effectiveStatus := models.ConnectOpportunityStatusModeration
+	if strings.TrimSpace(status) != "" {
+		effectiveStatus = models.ConnectOpportunityStatus(status)
+	}
+
+	var opportunities []models.ConnectOpportunity
+	if err := s.db.
+		Preload("Community").
+		Preload("CreatedByUser").
+		Where("source_type = ?", models.ConnectSourceNative).
+		Where("status = ?", effectiveStatus).
+		Order("created_at asc").
+		Find(&opportunities).Error; err != nil {
+		return nil, err
+	}
+
+	return opportunities, nil
+}
+
+func (s *ConnectService) ListApplications(actorID, opportunityID uint, status string) ([]models.ConnectApplication, error) {
+	if s.db == nil {
+		return nil, errors.New("database is not initialized")
+	}
+	opportunity, err := s.getManageableOpportunity(actorID, opportunityID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := s.db.
+		Preload("User").
+		Preload("Opportunity").
+		Where("opportunity_id = ?", opportunity.ID).
+		Order("created_at asc")
+	if trimmed := strings.TrimSpace(status); trimmed != "" {
+		query = query.Where("status = ?", trimmed)
+	}
+
+	var applications []models.ConnectApplication
+	if err := query.Find(&applications).Error; err != nil {
+		return nil, err
+	}
+	return applications, nil
+}
+
+func (s *ConnectService) ModerateOpportunity(opportunityID, adminID uint, approve bool, reason string) (*models.ConnectOpportunity, error) {
+	if adminID == 0 {
+		return nil, ErrConnectUnauthorized
+	}
+	if s.db == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	var opportunity models.ConnectOpportunity
+	if err := s.db.Preload("Community").First(&opportunity, opportunityID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConnectOpportunityMissing
+		}
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	nextStatus := models.ConnectOpportunityStatusPaused
+	if approve {
+		nextStatus = models.ConnectOpportunityStatusActive
+	}
+
+	opportunity.Status = nextStatus
+	opportunity.ModeratedAt = &now
+	opportunity.ModeratedByUserID = &adminID
+	opportunity.ModerationNote = strings.TrimSpace(reason)
+
+	if err := s.db.Save(&opportunity).Error; err != nil {
+		return nil, err
+	}
+	if approve {
+		s.incrementMetricSafe(MetricConnectOpportunityApprovedTotal, 1)
+	} else {
+		s.incrementMetricSafe(MetricConnectOpportunityRejectedTotal, 1)
+	}
+
+	return &opportunity, nil
+}
+
+func (s *ConnectService) UpdateApplicationStatus(actorID, applicationID uint, req models.ConnectApplicationStatusUpdateRequest) (*models.ConnectApplication, error) {
+	if actorID == 0 {
+		return nil, ErrConnectUnauthorized
+	}
+	if s.db == nil {
+		return nil, errors.New("database is not initialized")
+	}
+	if !isAllowedConnectApplicationStatus(req.Status) {
+		return nil, ErrConnectInvalidPayload
+	}
+
+	var application models.ConnectApplication
+	if err := s.db.Preload("User").Preload("Opportunity").First(&application, applicationID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConnectApplicationMissing
+		}
+		return nil, err
+	}
+	if _, err := s.getManageableOpportunity(actorID, application.OpportunityID); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	application.Status = req.Status
+	application.ReviewedAt = &now
+	application.ReviewedByUserID = &actorID
+	application.ReviewNote = strings.TrimSpace(req.Note)
+
+	if err := s.db.Save(&application).Error; err != nil {
+		return nil, err
+	}
+	s.incrementMetricSafe(MetricConnectApplicationStatusUpdatedTotal, 1)
+	s.notifyApplicantAboutStatusChange(application)
+
 	return &application, nil
 }
 
@@ -221,8 +426,43 @@ func (s *ConnectService) GetOpportunity(userID, opportunityID uint) (*models.Con
 	}
 	for _, item := range feed.Opportunities {
 		if item.ID == opportunityID {
-			return &models.ConnectOpportunityDetailResponse{Opportunity: item}, nil
+			trustSummary, feedback, trustErr := s.loadOpportunityTrust(opportunityID)
+			if trustErr != nil {
+				return nil, trustErr
+			}
+			item.TrustSummary = trustSummary
+			return &models.ConnectOpportunityDetailResponse{
+				Opportunity:           item,
+				TrustSummary:          trustSummary,
+				Feedback:              feedback,
+				CanSubmitFeedback:     s.canUserSubmitFeedback(userID, opportunityID),
+				CanManageApplications: s.canManageOpportunity(userID, opportunityID),
+				ViewerApplication:     s.getViewerApplication(userID, opportunityID),
+			}, nil
 		}
+	}
+
+	var native models.ConnectOpportunity
+	if err := s.db.Preload("Community").First(&native, opportunityID).Error; err == nil {
+		if native.Status == models.ConnectOpportunityStatusActive || s.canAccessNativeOpportunity(userID, native) {
+			profile, _ := s.GetProfile(userID)
+			card := s.makeNativeOpportunityCard(native, profile)
+			trustSummary, feedback, trustErr := s.loadOpportunityTrust(opportunityID)
+			if trustErr != nil {
+				return nil, trustErr
+			}
+			card.TrustSummary = trustSummary
+			return &models.ConnectOpportunityDetailResponse{
+				Opportunity:           card,
+				TrustSummary:          trustSummary,
+				Feedback:              feedback,
+				CanSubmitFeedback:     s.canUserSubmitFeedback(userID, opportunityID),
+				CanManageApplications: s.canManageOpportunity(userID, opportunityID),
+				ViewerApplication:     s.getViewerApplication(userID, opportunityID),
+			}, nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 	return nil, ErrConnectOpportunityMissing
 }
@@ -618,6 +858,344 @@ func (s *ConnectService) collectCommunities(opportunities []models.ConnectOpport
 		result = append(result, *item.Community)
 	}
 	return result
+}
+
+func (s *ConnectService) canAccessNativeOpportunity(userID uint, opportunity models.ConnectOpportunity) bool {
+	if userID == 0 {
+		return false
+	}
+	if opportunity.CreatedByUserID == userID {
+		return true
+	}
+	if opportunity.CommunityID != nil {
+		var community models.ConnectCommunity
+		if err := s.db.Select("id", "coordinator_user_id").First(&community, *opportunity.CommunityID).Error; err == nil {
+			if community.CoordinatorUserID != nil && *community.CoordinatorUserID == userID {
+				return true
+			}
+		}
+	}
+
+	var user models.User
+	if err := s.db.Select("id", "role").Where("id = ?", userID).First(&user).Error; err != nil {
+		return false
+	}
+	return user.Role == models.RoleAdmin || user.Role == models.RoleSuperadmin
+}
+
+func (s *ConnectService) canManageOpportunity(userID, opportunityID uint) bool {
+	if _, err := s.getManageableOpportunity(userID, opportunityID); err != nil {
+		return false
+	}
+	return true
+}
+
+func (s *ConnectService) getManageableOpportunity(userID, opportunityID uint) (*models.ConnectOpportunity, error) {
+	if userID == 0 {
+		return nil, ErrConnectUnauthorized
+	}
+	if opportunityID == 0 {
+		return nil, ErrConnectInvalidPayload
+	}
+
+	var opportunity models.ConnectOpportunity
+	if err := s.db.Preload("Community").First(&opportunity, opportunityID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConnectOpportunityMissing
+		}
+		return nil, err
+	}
+	if opportunity.CreatedByUserID == userID {
+		return &opportunity, nil
+	}
+	if opportunity.Community != nil && opportunity.Community.CoordinatorUserID != nil && *opportunity.Community.CoordinatorUserID == userID {
+		return &opportunity, nil
+	}
+
+	var user models.User
+	if err := s.db.Select("id", "role").Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, ErrConnectForbidden
+	}
+	if models.IsAdminRole(user.Role) {
+		return &opportunity, nil
+	}
+	return nil, ErrConnectForbidden
+}
+
+func (s *ConnectService) loadOpportunityTrust(opportunityID uint) (*models.ConnectTrustSummary, []models.ConnectFeedbackItem, error) {
+	var feedbackRows []models.ConnectFeedback
+	if err := s.db.Preload("User").
+		Where("opportunity_id = ?", opportunityID).
+		Order("created_at desc").
+		Limit(5).
+		Find(&feedbackRows).Error; err != nil {
+		return nil, nil, err
+	}
+
+	var allRows []models.ConnectFeedback
+	if err := s.db.Where("opportunity_id = ?", opportunityID).Find(&allRows).Error; err != nil {
+		return nil, nil, err
+	}
+
+	items := make([]models.ConnectFeedbackItem, 0, len(feedbackRows))
+	for _, row := range feedbackRows {
+		author := "Anonymous"
+		if row.User != nil {
+			author = connectFirstNonEmpty(row.User.SpiritualName, row.User.KarmicName, row.User.Email, author)
+		}
+		items = append(items, models.ConnectFeedbackItem{
+			ID:               row.ID,
+			CreatedAt:        row.CreatedAt,
+			Rating:           row.Rating,
+			Comment:          row.Comment,
+			Tags:             normalizeStringList(row.Tags),
+			FeltSafe:         row.FeltSafe,
+			NewcomerFriendly: row.NewcomerFriendly,
+			WouldReturn:      row.WouldReturn,
+			AuthorLabel:      author,
+		})
+	}
+
+	if len(allRows) == 0 {
+		return nil, items, nil
+	}
+
+	totalRating := 0
+	feltSafeCount := 0
+	newcomerFriendlyCount := 0
+	wouldReturnCount := 0
+	for _, row := range allRows {
+		totalRating += row.Rating
+		if row.FeltSafe {
+			feltSafeCount++
+		}
+		if row.NewcomerFriendly {
+			newcomerFriendlyCount++
+		}
+		if row.WouldReturn {
+			wouldReturnCount++
+		}
+	}
+
+	total := len(allRows)
+	summary := &models.ConnectTrustSummary{
+		ReviewsCount:            total,
+		AverageRating:           float64(totalRating) / float64(total),
+		FeltSafePercent:         int(float64(feltSafeCount) * 100 / float64(total)),
+		NewcomerFriendlyPercent: int(float64(newcomerFriendlyCount) * 100 / float64(total)),
+		WouldReturnPercent:      int(float64(wouldReturnCount) * 100 / float64(total)),
+	}
+	return summary, items, nil
+}
+
+func (s *ConnectService) canUserSubmitFeedback(userID, opportunityID uint) bool {
+	if userID == 0 || opportunityID == 0 {
+		return false
+	}
+
+	var count int64
+	if err := s.db.Model(&models.ConnectApplication{}).
+		Where("user_id = ? AND opportunity_id = ?", userID, opportunityID).
+		Where("status IN ?", []models.ConnectApplicationStatus{
+			models.ConnectApplicationApproved,
+			models.ConnectApplicationAttended,
+			models.ConnectApplicationCompleted,
+		}).
+		Count(&count).Error; err != nil {
+		return false
+	}
+	return count > 0
+}
+
+func (s *ConnectService) getViewerApplication(userID, opportunityID uint) *models.ConnectViewerApplication {
+	if userID == 0 || opportunityID == 0 {
+		return nil
+	}
+
+	var application models.ConnectApplication
+	if err := s.db.Where("user_id = ? AND opportunity_id = ?", userID, opportunityID).First(&application).Error; err != nil {
+		return nil
+	}
+
+	return &models.ConnectViewerApplication{
+		ID:         application.ID,
+		Status:     application.Status,
+		Message:    application.Message,
+		ReviewNote: application.ReviewNote,
+		UpdatedAt:  application.UpdatedAt,
+	}
+}
+
+func isAllowedConnectApplicationStatus(status models.ConnectApplicationStatus) bool {
+	switch status {
+	case models.ConnectApplicationPending,
+		models.ConnectApplicationApproved,
+		models.ConnectApplicationAttended,
+		models.ConnectApplicationCompleted,
+		models.ConnectApplicationRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *ConnectService) notifyOpportunityManagersAboutApplication(opportunity models.ConnectOpportunity, application models.ConnectApplication, actorUserID uint) {
+	if s == nil || s.push == nil || opportunity.ID == 0 {
+		return
+	}
+
+	recipients := make(map[uint]struct{})
+	if opportunity.CreatedByUserID != 0 && opportunity.CreatedByUserID != application.UserID {
+		recipients[opportunity.CreatedByUserID] = struct{}{}
+	}
+	if opportunity.CommunityID != nil {
+		var community models.ConnectCommunity
+		if err := s.db.Select("id", "coordinator_user_id").First(&community, *opportunity.CommunityID).Error; err == nil {
+			if community.CoordinatorUserID != nil && *community.CoordinatorUserID != 0 && *community.CoordinatorUserID != application.UserID {
+				recipients[*community.CoordinatorUserID] = struct{}{}
+			}
+		}
+	}
+	if len(recipients) == 0 {
+		return
+	}
+
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"opportunityId": opportunity.ID})
+	for recipientID := range recipients {
+		language := s.userLanguage(recipientID)
+		title, body := connectApplicationCreatedCopy(language, strings.TrimSpace(opportunity.Title))
+		msg := PushMessage{
+			Title:    title,
+			Body:     body,
+			Priority: "high",
+			EventKey: fmt.Sprintf("connect_application_created:%d:actor:%d:target:%d:application:%d", opportunity.ID, actorUserID, recipientID, application.ID),
+			Data: map[string]string{
+				"type":          "connect_application_created",
+				"opportunityId": fmt.Sprintf("%d", opportunity.ID),
+				"applicationId": fmt.Sprintf("%d", application.ID),
+				"actorId":       fmt.Sprintf("%d", actorUserID),
+				"targetUserId":  fmt.Sprintf("%d", recipientID),
+				"screen":        "ConnectModeration",
+				"params":        string(paramsJSON),
+			},
+		}
+		if err := s.push.SendToUser(recipientID, msg); err != nil {
+			s.incrementMetricSafe(MetricConnectPushApplicationCreatedFailedTotal, 1)
+			log.Printf("[ConnectService] application-created push failed opportunity_id=%d recipient_id=%d application_id=%d: %v", opportunity.ID, recipientID, application.ID, err)
+			continue
+		}
+		s.incrementMetricSafe(MetricConnectPushApplicationCreatedSentTotal, 1)
+	}
+}
+
+func (s *ConnectService) notifyApplicantAboutStatusChange(application models.ConnectApplication) {
+	if s == nil || s.push == nil || application.UserID == 0 || application.OpportunityID == 0 {
+		return
+	}
+
+	language := s.userLanguage(application.UserID)
+	title, body := connectApplicationStatusCopy(language, application.Status)
+
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"opportunityId": application.OpportunityID})
+	msg := PushMessage{
+		Title:    title,
+		Body:     body,
+		Priority: "high",
+		EventKey: fmt.Sprintf("connect_application_status:%d:user:%d:status:%s", application.ID, application.UserID, application.Status),
+		Data: map[string]string{
+			"type":          "connect_application_status",
+			"opportunityId": fmt.Sprintf("%d", application.OpportunityID),
+			"applicationId": fmt.Sprintf("%d", application.ID),
+			"targetUserId":  fmt.Sprintf("%d", application.UserID),
+			"status":        string(application.Status),
+			"screen":        "ConnectOpportunityDetails",
+			"params":        string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(application.UserID, msg); err != nil {
+		s.incrementMetricSafe(MetricConnectPushApplicationStatusFailedTotal, 1)
+		log.Printf("[ConnectService] application-status push failed opportunity_id=%d application_id=%d user_id=%d: %v", application.OpportunityID, application.ID, application.UserID, err)
+		return
+	}
+	s.incrementMetricSafe(MetricConnectPushApplicationStatusSentTotal, 1)
+}
+
+func (s *ConnectService) userLanguage(userID uint) string {
+	if s == nil || s.db == nil || userID == 0 {
+		return "en"
+	}
+	var user models.User
+	if err := s.db.Select("id", "language").Where("id = ?", userID).First(&user).Error; err != nil {
+		return "en"
+	}
+	return normalizeConnectLanguage(user.Language)
+}
+
+func normalizeConnectLanguage(language string) string {
+	language = strings.ToLower(strings.TrimSpace(language))
+	switch {
+	case strings.HasPrefix(language, "ru"):
+		return "ru"
+	case strings.HasPrefix(language, "hi"):
+		return "hi"
+	default:
+		return "en"
+	}
+}
+
+func connectApplicationCreatedCopy(language string, opportunityTitle string) (string, string) {
+	switch language {
+	case "ru":
+		return "Новая заявка в Connect", fmt.Sprintf("Новый участник откликнулся на \"%s\"", opportunityTitle)
+	case "hi":
+		return "Connect में नया आवेदन", fmt.Sprintf("एक नए प्रतिभागी ने \"%s\" के लिए आवेदन किया है।", opportunityTitle)
+	default:
+		return "New Connect application", fmt.Sprintf("A new participant applied to \"%s\".", opportunityTitle)
+	}
+}
+
+func connectApplicationStatusCopy(language string, status models.ConnectApplicationStatus) (string, string) {
+	switch language {
+	case "ru":
+		switch status {
+		case models.ConnectApplicationApproved:
+			return "Заявка подтверждена", "Вашу заявку в Connect подтвердили. Можно готовиться к участию."
+		case models.ConnectApplicationAttended:
+			return "Участие отмечено", "Координатор отметил ваше участие. Теперь можно оставить отзыв."
+		case models.ConnectApplicationCompleted:
+			return "Служение завершено", "Ваше участие отмечено как завершенное. Спасибо за служение."
+		case models.ConnectApplicationRejected:
+			return "Заявка не подтверждена", "К сожалению, вашу заявку в Connect не подтвердили."
+		default:
+			return "Статус заявки обновлен", "Статус вашей заявки в Connect был обновлен."
+		}
+	case "hi":
+		switch status {
+		case models.ConnectApplicationApproved:
+			return "आवेदन स्वीकृत हुआ", "आपका Connect आवेदन स्वीकृत हो गया है। अब आप भाग लेने की तैयारी कर सकते हैं।"
+		case models.ConnectApplicationAttended:
+			return "उपस्थिति दर्ज हुई", "समन्वयक ने आपकी भागीदारी दर्ज कर दी है। अब आप प्रतिक्रिया छोड़ सकते हैं।"
+		case models.ConnectApplicationCompleted:
+			return "सेवा पूर्ण हुई", "आपकी भागीदारी पूर्ण के रूप में दर्ज की गई है। सेवा के लिए धन्यवाद।"
+		case models.ConnectApplicationRejected:
+			return "आवेदन स्वीकृत नहीं हुआ", "दुर्भाग्य से आपका Connect आवेदन स्वीकृत नहीं हुआ।"
+		default:
+			return "आवेदन स्थिति अपडेट हुई", "आपके Connect आवेदन की स्थिति अपडेट कर दी गई है।"
+		}
+	default:
+		switch status {
+		case models.ConnectApplicationApproved:
+			return "Application approved", "Your Connect application was approved. You can get ready to join."
+		case models.ConnectApplicationAttended:
+			return "Participation recorded", "The coordinator marked your participation. You can now leave feedback."
+		case models.ConnectApplicationCompleted:
+			return "Service completed", "Your participation was marked as completed. Thank you for serving."
+		case models.ConnectApplicationRejected:
+			return "Application not approved", "Your Connect application was not approved."
+		default:
+			return "Application status updated", "Your Connect application status was updated."
+		}
+	}
 }
 
 func scoreConnectOpportunity(city string, interests []string, entryLevel string, format string, modes []string, newcomerFriendly bool, mentorAvailable bool, profile *models.ConnectMatchProfile) (int, []string) {

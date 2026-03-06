@@ -17,8 +17,13 @@ type connectService interface {
 	UpsertProfile(userID uint, req models.ConnectMatchProfileUpsertRequest) (*models.ConnectMatchProfile, error)
 	CreateOpportunity(userID uint, req models.ConnectOpportunityCreateRequest) (*models.ConnectOpportunity, error)
 	Apply(userID, opportunityID uint, req models.ConnectApplyRequest) (*models.ConnectApplication, error)
+	SubmitFeedback(userID, opportunityID uint, req models.ConnectFeedbackCreateRequest) (*models.ConnectFeedback, error)
 	GetOpportunity(userID, opportunityID uint) (*models.ConnectOpportunityDetailResponse, error)
 	GetCommunity(userID, communityID uint) (*models.ConnectCommunityDetailResponse, error)
+	ListOpportunitiesForModeration(status string) ([]models.ConnectOpportunity, error)
+	ListApplications(actorID, opportunityID uint, status string) ([]models.ConnectApplication, error)
+	ModerateOpportunity(opportunityID, adminID uint, approve bool, reason string) (*models.ConnectOpportunity, error)
+	UpdateApplicationStatus(actorID, applicationID uint, req models.ConnectApplicationStatusUpdateRequest) (*models.ConnectApplication, error)
 }
 
 type ConnectHandler struct {
@@ -104,6 +109,23 @@ func (h *ConnectHandler) Apply(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
 
+func (h *ConnectHandler) SubmitFeedback(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	opportunityID, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil || opportunityID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid opportunity id"})
+	}
+	var req models.ConnectFeedbackCreateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	result, feedbackErr := h.service.SubmitFeedback(userID, uint(opportunityID), req)
+	if feedbackErr != nil {
+		return respondConnectError(c, feedbackErr)
+	}
+	return c.Status(fiber.StatusCreated).JSON(result)
+}
+
 func (h *ConnectHandler) GetOpportunity(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	opportunityID, err := strconv.ParseUint(c.Params("id"), 10, 64)
@@ -130,13 +152,92 @@ func (h *ConnectHandler) GetCommunity(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
+func (h *ConnectHandler) ListPendingOpportunities(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
+	items, err := h.service.ListOpportunitiesForModeration(strings.TrimSpace(c.Query("status")))
+	if err != nil {
+		return respondConnectError(c, err)
+	}
+	return c.JSON(fiber.Map{"opportunities": items})
+}
+
+func (h *ConnectHandler) ListApplications(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	opportunityRef := strings.TrimSpace(c.Params("id"))
+	if opportunityRef == "" {
+		opportunityRef = strings.TrimSpace(c.Query("opportunityId"))
+	}
+	opportunityID, err := strconv.ParseUint(opportunityRef, 10, 64)
+	if err != nil || opportunityID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid opportunity id"})
+	}
+	items, listErr := h.service.ListApplications(actorID, uint(opportunityID), strings.TrimSpace(c.Query("status")))
+	if listErr != nil {
+		return respondConnectError(c, listErr)
+	}
+	return c.JSON(fiber.Map{"applications": items})
+}
+
+func (h *ConnectHandler) ApproveOpportunity(c *fiber.Ctx) error {
+	return h.moderateOpportunity(c, true)
+}
+
+func (h *ConnectHandler) RejectOpportunity(c *fiber.Ctx) error {
+	return h.moderateOpportunity(c, false)
+}
+
+func (h *ConnectHandler) UpdateApplicationStatus(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	applicationID, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil || applicationID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid application id"})
+	}
+	var req models.ConnectApplicationStatusUpdateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	result, updateErr := h.service.UpdateApplicationStatus(actorID, uint(applicationID), req)
+	if updateErr != nil {
+		return respondConnectError(c, updateErr)
+	}
+	return c.JSON(result)
+}
+
+func (h *ConnectHandler) moderateOpportunity(c *fiber.Ctx, approve bool) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
+	opportunityID, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil || opportunityID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid opportunity id"})
+	}
+	var req models.ConnectModerationRequest
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		}
+	}
+	adminID := middleware.GetUserID(c)
+	result, moderateErr := h.service.ModerateOpportunity(uint(opportunityID), adminID, approve, req.Reason)
+	if moderateErr != nil {
+		return respondConnectError(c, moderateErr)
+	}
+	return c.JSON(result)
+}
+
 func respondConnectError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, services.ErrConnectUnauthorized):
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrConnectInvalidPayload):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	case errors.Is(err, services.ErrConnectOpportunityMissing), errors.Is(err, services.ErrConnectCommunityMissing):
+	case errors.Is(err, services.ErrConnectFeedbackNotAllowed):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	case errors.Is(err, services.ErrConnectForbidden):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	case errors.Is(err, services.ErrConnectOpportunityMissing), errors.Is(err, services.ErrConnectCommunityMissing), errors.Is(err, services.ErrConnectApplicationMissing):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	default:
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

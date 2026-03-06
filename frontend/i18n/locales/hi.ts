@@ -1441,6 +1441,7 @@ export default {
                 "filters": "फ़िल्टर",
                 "profile": "मेरी पसंद",
                 "create": "अवसर जोड़ें",
+                "moderation": "मॉडरेशन कतार",
                 "open": "विवरण खोलें"
             },
             "sections": {
@@ -1455,6 +1456,31 @@ export default {
                 "online": "ऑनलाइन",
                 "newcomerFriendly": "नए लोगों के लिए अनुकूल",
                 "mentor": "मार्गदर्शक उपलब्ध"
+            },
+            "entryLevels": {
+                "intro": "सरल शुरुआत",
+                "one_time": "एक बार",
+                "regular": "नियमित",
+                "team_based": "टीम के साथ"
+            },
+            "formats": {
+                "offline": "ऑफलाइन",
+                "online": "ऑनलाइन",
+                "hybrid": "हाइब्रिड"
+            },
+            "statuses": {
+                "moderation": "मॉडरेशन",
+                "active": "सक्रिय",
+                "filled": "भर चुका",
+                "completed": "पूर्ण",
+                "paused": "रुका हुआ"
+            },
+            "applicationStatuses": {
+                "pending": "स्वीकृति की प्रतीक्षा",
+                "approved": "स्वीकृत",
+                "attended": "भाग लिया",
+                "completed": "पूर्ण",
+                "rejected": "अस्वीकृत"
             },
             "filters": {
                 "title": "अपनी Connect फ़ीड सेट करें",
@@ -1476,12 +1502,37 @@ export default {
             },
             "apply": {
                 "title": "इस अवसर से जुड़ें",
+                "statusTitle": "आपके आवेदन की स्थिति",
                 "placeholder": "समन्वयक के लिए छोटा संदेश लिखें",
                 "submit": "अभी आवेदन करें",
+                "manageApplications": "प्रतिभागी आवेदनों का प्रबंधन करें",
                 "loading": "भेजा जा रहा है...",
                 "successTitle": "आवेदन भेजा गया",
                 "successBody": "समन्वयक को आपकी अनुरोध मिल गई है।",
                 "errorTitle": "आवेदन विफल",
+                "errorBody": "कृपया फिर प्रयास करें।"
+            },
+            "feedback": {
+                "title": "भाग लेने के बाद प्रतिक्रिया साझा करें",
+                "subtitle": "एक छोटा रिव्यू भविष्य के प्रतिभागियों को भरोसा, स्पष्टता और उपयुक्तता समझने में मदद करता है।",
+                "trustTitle": "हाल के प्रतिभागियों से भरोसे के संकेत",
+                "ratingLine": "{{rating}} / 5, कुल {{count}} समीक्षाओं के आधार पर",
+                "recentTitle": "हाल की प्रतिक्रियाएं",
+                "placeholder": "क्या स्पष्ट, स्नेहपूर्ण या कठिन लगा?",
+                "feltSafe": "सुरक्षित महसूस हुआ",
+                "newcomerFriendly": "नए लोगों के लिए अनुकूल",
+                "wouldReturn": "फिर से जुड़ना चाहूँगा",
+                "submit": "प्रतिक्रिया सहेजें",
+                "submitting": "सहेजा जा रहा है...",
+                "lockedTitle": "शामिल होने के बाद ही प्रतिक्रिया खुलेगी",
+                "lockedBody": "पहले इस अवसर के लिए आवेदन करें। इससे भरोसे के संकेत वास्तविक भागीदारी से जुड़े रहते हैं।",
+                "pendingTitle": "स्वीकृति की प्रतीक्षा है",
+                "pendingBody": "आपका अनुरोध अभी लंबित है। प्रतिक्रिया तब खुलेगी जब समन्वयक आपकी भागीदारी को स्वीकृत या दर्ज करेगा।",
+                "rejectedTitle": "आवेदन स्वीकृत नहीं हुआ",
+                "rejectedBody": "अस्वीकृत आवेदन के लिए प्रतिक्रिया बंद रहती है, क्योंकि पुष्टि की गई भागीदारी नहीं हुई।",
+                "successTitle": "प्रतिक्रिया सहेजी गई",
+                "successBody": "अब आपकी प्रतिक्रिया भविष्य के प्रतिभागियों को भरोसा और उपयुक्तता समझने में मदद करेगी।",
+                "errorTitle": "प्रतिक्रिया सहेजना विफल",
                 "errorBody": "कृपया फिर प्रयास करें।"
             },
             "community": {
@@ -1519,6 +1570,67 @@ export default {
                 "successBody": "समीक्षा के बाद यह अवसर Connect में दिखाई देगा।",
                 "errorTitle": "बनाना विफल",
                 "errorBody": "कृपया फॉर्म जांचें और फिर प्रयास करें।"
+            },
+            "moderation": {
+                "title": "Connect मॉडरेशन",
+                "subtitle": "मूल Connect अवसरों को सार्वजनिक फ़ीड में जाने से पहले जांचें।",
+                "scopedTitle": "प्रतिभागी आवेदन",
+                "scopedSubtitle": "इस अवसर के लिए आवेदनों का प्रबंधन करें।",
+                "deniedTitle": "एडमिन एक्सेस आवश्यक है",
+                "deniedBody": "यह कतार केवल एडमिन और मॉडरेटर के लिए उपलब्ध है।",
+                "emptyTitle": "कतार खाली है",
+                "emptyBody": "अभी इस मॉडरेशन स्थिति में कोई अवसर नहीं है।",
+                "createdBy": "किसने बनाया",
+                "createdAt": "बनाया गया",
+                "startsAt": "शुरू होता है",
+                "note": "नोट",
+                "approve": "स्वीकृत करें",
+                "reject": "अस्वीकार करें",
+                "working": "सहेजा जा रहा है...",
+                "reasonApproveTitle": "नोट के साथ स्वीकृत करें",
+                "reasonRejectTitle": "नोट के साथ अस्वीकार करें",
+                "reasonHint": "एक छोटा नोट दूसरे मॉडरेटरों को यह निर्णय समझने में मदद करता है।",
+                "reasonPlaceholder": "वैकल्पिक कारण या समीक्षक नोट",
+                "historyTitle": "रीव्यू इतिहास",
+                "historyStatus": "अंतिम स्थिति: {{status}}",
+                "historyDate": "रीव्यू समय: {{date}}",
+                "historyReviewer": "रीव्यूअर ID: {{id}}",
+                "presets": {
+                    "approve": {
+                        "goodFirstStep": "नए लोगों के लिए अच्छा पहला कदम",
+                        "clearLogistics": "लॉजिस्टिक्स और अपेक्षाएँ स्पष्ट हैं",
+                        "verifiedCoordinator": "समन्वयक का संदर्भ पर्याप्त रूप से स्पष्ट है"
+                    },
+                    "reject": {
+                        "needLocation": "स्थान का विवरण और स्पष्ट चाहिए",
+                        "needExpectations": "प्रतिभागी अपेक्षाएँ और स्पष्ट चाहिए",
+                        "needVerification": "समन्वयक सत्यापन आवश्यक है"
+                    }
+                },
+                "errorTitle": "मॉडरेशन त्रुटि",
+                "loadError": "मॉडरेशन कतार लोड नहीं हो सकी।",
+                "actionError": "मॉडरेशन स्थिति अपडेट नहीं हो सकी।",
+                "approveSuccessTitle": "स्वीकृत",
+                "approveSuccessBody": "यह अवसर अब Connect में दिखेगा।",
+                "rejectSuccessTitle": "अस्वीकृत",
+                "rejectSuccessBody": "यह अवसर सार्वजनिक कतार से हटा दिया गया।",
+                "showApplications": "आवेदन प्रबंधित करें",
+                "hideApplications": "आवेदन छिपाएं",
+                "applicationsTitle": "प्रतिभागियों के आवेदन",
+                "applicationsEmpty": "इस अवसर के लिए अभी कोई आवेदन नहीं है।",
+                "applicationsLoadError": "आवेदन लोड नहीं हो सके।",
+                "scopedLoadError": "आवेदन प्रबंधन के लिए यह अवसर लोड नहीं हो सका।",
+                "applicationModalTitle": "आवेदन स्थिति अपडेट करें",
+                "applicationModalSubtitle": "प्रतिभागी को \"{{status}}\" स्थिति में ले जाएँ और ज़रूरत हो तो एक छोटा नोट छोड़ें।",
+                "applicationReasonPlaceholder": "आवेदन स्थिति अपडेट के लिए वैकल्पिक नोट",
+                "applicationSuccessTitle": "आवेदन अपडेट हुआ",
+                "applicationSuccessBody": "प्रतिभागी की स्थिति अपडेट कर दी गई।",
+                "applicationActionError": "आवेदन की स्थिति अपडेट नहीं हो सकी।",
+                "filters": {
+                    "moderation": "लंबित",
+                    "active": "सक्रिय",
+                    "paused": "रुका हुआ"
+                }
             }
         },
         "servicesHome": {

@@ -207,6 +207,7 @@ export type RootStackParamList = {
     ConnectCommunityDetails: { communityId: number };
     ConnectProfileSetup: undefined;
     ConnectCreateOpportunity: undefined;
+    ConnectModeration: { opportunityId?: number } | undefined;
 
     // Wallet Routes
     Wallet: undefined;
@@ -214,7 +215,7 @@ export type RootStackParamList = {
 
     // Seva Charity Routes
     SevaHub: undefined;
-    SevaProjectDetails: { project: any };
+    SevaProjectDetails: { project?: any; projectId?: number };
     MyDonations: undefined;
 
     // Path Tracker Routes

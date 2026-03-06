@@ -17,8 +17,11 @@ describe('serviceLaunchResolver', () => {
         expect(resolveServiceLaunch('map')).toEqual({ kind: 'navigate', screen: 'MapGeoapify' });
     });
 
+    it('routes connect shortcut to connect home', () => {
+        expect(resolveServiceLaunch('connect')).toEqual({ kind: 'navigate', screen: 'ConnectHome' });
+    });
+
     it('supports initial tab resolver with services_catalog', () => {
         expect(resolvePortalInitialTabLaunch('services_catalog')).toEqual({ kind: 'open_portal_tab', tab: 'services' });
     });
 });
-

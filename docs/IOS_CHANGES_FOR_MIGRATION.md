@@ -1,5 +1,238 @@
 # IOS Changes For Migration
 
+## 2026-03-06 (Connect push copy now follows user language)
+
+### Измененные файлы
+- `server/internal/services/connect_service.go`
+- `server/internal/services/connect_service_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - push deep links для `Connect` уже отправлялись, но тексты были только на русском;
+  - пользователь с `en` или `hi` интерфейсом получал `Connect` notification на другом языке.
+- Стало:
+  - backend выбирает текст push по `users.language`;
+  - `Connect` lifecycle push теперь локализован для `ru/en/hi`;
+  - screen target остался тем же, изменился только localized title/body.
+
+### Сниппеты кода
+
+`server/internal/services/connect_service.go`:
+```go
+func normalizeConnectLanguage(language string) string {
+  language = strings.ToLower(strings.TrimSpace(language))
+  switch {
+  case strings.HasPrefix(language, "ru"):
+    return "ru"
+  case strings.HasPrefix(language, "hi"):
+    return "hi"
+  default:
+    return "en"
+  }
+}
+```
+
+```go
+title, body := connectApplicationStatusCopy(language, application.Status)
+```
+
+## 2026-03-06 (Connect application lifecycle now emits push deep links)
+
+### Измененные файлы
+- `server/internal/services/connect_service.go`
+- `server/internal/services/connect_service_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Connect` lifecycle менялся только в API;
+  - mobile пользователь не получал push-переходы в нужный `Connect` screen после отклика или смены статуса.
+- Стало:
+  - новый отклик отправляет push creator/coordinator с deep link в `ConnectModeration`;
+  - смена статуса заявки отправляет push участнику с deep link в `ConnectOpportunityDetails`;
+  - это использует уже существующий push delivery pipeline приложения.
+
+### Сниппеты кода
+
+`server/internal/services/connect_service.go`:
+```go
+Data: map[string]string{
+  "type": "connect_application_created",
+  "screen": "ConnectModeration",
+  "params": string(paramsJSON),
+}
+```
+
+```go
+Data: map[string]string{
+  "type": "connect_application_status",
+  "screen": "ConnectOpportunityDetails",
+  "params": string(paramsJSON),
+}
+```
+
+## 2026-03-06 (Connect scoped moderation access for creators and coordinators)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/types/connect.ts`
+- `frontend/services/connectService.ts`
+- `frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`
+- `frontend/screens/portal/connect/ConnectModerationScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile admin flow `ConnectModeration` был полезен только глобальному admin;
+  - creator/coordinator opportunity не видел client CTA для управления заявками.
+- Стало:
+  - detail response получил `canManageApplications`;
+  - `ConnectOpportunityDetails` показывает переход в moderation screen для управляемой opportunity;
+  - `ConnectModeration` умеет работать в scoped mode по `opportunityId`, без доступа ко всей moderation queue.
+
+### Сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+ConnectModeration: { opportunityId?: number } | undefined;
+```
+
+`frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`:
+```tsx
+{canManageApplications ? (
+  <TouchableOpacity
+    style={styles.secondaryButton}
+    onPress={() => navigation.navigate('ConnectModeration', { opportunityId: opportunity.id })}
+  >
+    <Text style={styles.secondaryButtonText}>{t('portal.connect.apply.manageApplications')}</Text>
+  </TouchableOpacity>
+) : null}
+```
+
+## 2026-03-06 (Connect moderation screen now manages participant applications)
+
+### Измененные файлы
+- `frontend/screens/portal/connect/ConnectModerationScreen.tsx`
+- `frontend/types/connect.ts`
+- `frontend/services/connectService.ts`
+- `frontend/screens/portal/connect/connectUi.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ConnectModeration` умел только approve/reject самой opportunity;
+  - заявки участников не были доступны в mobile admin flow.
+- Стало:
+  - у moderation card появилась секция `Manage applications`;
+  - экран умеет загружать заявки по opportunity и переводить их по lifecycle (`approved`, `attended`, `completed`, `rejected`);
+  - статусы заявок отображаются через shared label helper и локализованы.
+
+### Сниппеты кода
+
+`frontend/services/connectService.ts`:
+```ts
+async getApplications(opportunityId: number, status?: string): Promise<ConnectModerationApplication[]> {
+  const response = await apiClient.get('/admin/connect/applications', {
+    params: { opportunityId, status },
+  });
+  return Array.isArray(response.data?.applications) ? response.data.applications : [];
+}
+```
+
+`frontend/screens/portal/connect/ConnectModerationScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={styles.openButton}
+  onPress={() => toggleApplications(item.id)}
+>
+  <Text style={styles.openButtonText}>{t('portal.connect.moderation.showApplications')}</Text>
+</TouchableOpacity>
+```
+
+## 2026-03-06 (Connect application lifecycle surfaced in mobile detail flow)
+
+### Измененные файлы
+- `frontend/types/connect.ts`
+- `frontend/services/connectService.ts`
+- `frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`
+- `frontend/screens/portal/connect/connectUi.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile detail flow знал только факт отклика;
+  - форма feedback открывалась после любой заявки, без различия между `pending` и подтвержденным участием.
+- Стало:
+  - detail response теперь содержит `viewerApplication`;
+  - экран показывает статус заявки пользователя прямо в `ConnectOpportunityDetails`;
+  - feedback открывается только для `approved/attended/completed`, а для `pending/rejected` показывается отдельное объяснение.
+
+### Сниппеты кода
+
+`frontend/types/connect.ts`:
+```ts
+export type ConnectApplicationStatus = 'pending' | 'approved' | 'attended' | 'completed' | 'rejected';
+```
+
+`frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`:
+```tsx
+{viewerApplication ? (
+  <View style={styles.applicationStatusCard}>
+    <Text style={styles.applicationStatusValue}>
+      {getConnectApplicationStatusLabel(viewerApplication.status, t)}
+    </Text>
+  </View>
+) : null}
+```
+
+## 2026-03-06 (Connect feedback eligibility gate in mobile detail flow)
+
+### Измененные файлы
+- `frontend/types/connect.ts`
+- `frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ConnectOpportunityDetails` всегда показывал форму отзыва;
+  - trust signals можно было усиливать без подтвержденного факта отклика на opportunity.
+- Стало:
+  - detail response получил флаг `canSubmitFeedback`;
+  - экран `ConnectOpportunityDetails` показывает форму отзыва только после отклика;
+  - до этого пользователь видит locked-state с объяснением, почему feedback пока закрыт.
+
+### Сниппеты кода
+
+`frontend/types/connect.ts`:
+```ts
+export interface ConnectOpportunityDetailResponse {
+  opportunity: ConnectOpportunityCard;
+  trustSummary?: ConnectTrustSummary | null;
+  feedback?: ConnectFeedbackItem[];
+  canSubmitFeedback?: boolean;
+}
+```
+
+`frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`:
+```tsx
+{canSubmitFeedback ? (
+  <TouchableOpacity style={styles.primaryButton} onPress={handleSubmitFeedback}>
+    <Text style={styles.primaryButtonText}>{t('portal.connect.feedback.submit')}</Text>
+  </TouchableOpacity>
+) : (
+  <View style={styles.lockedCard}>
+    <Text style={styles.lockedTitle}>{t('portal.connect.feedback.lockedTitle')}</Text>
+  </View>
+)}
+```
+
 ## 2026-03-06 (Ekadashi provider fallback notice in mobile UI)
 
 ### Измененные файлы
@@ -9620,6 +9853,8 @@ CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
   - Стало: `connect` добавлен в portal service catalog и route resolver, с навигацией в `ConnectHome`.
   - Было: агрегированные карточки не имели общего mobile-layer для перехода к исходным сервисам.
   - Стало: `Connect` карточки получили `sourceLink` и mobile deeplink mapping в `YatraDetail`, `SevaHub`, `ServiceDetail`.
+  - Было: `SevaProjectDetails` открывался только если в route уже лежал целый объект `project`.
+  - Стало: `SevaProjectDetails` умеет открываться и по `projectId`, сам догружает проект через `charityService.getProjectById(...)`, поэтому `Connect` теперь может вести прямо в конкретный seva-проект.
 
 - Короткие сниппеты:
 
@@ -9646,6 +9881,12 @@ export const resolveConnectSourceRoute = (sourceLink?: ConnectSourceLink | null)
   }
   return null;
 };
+```
+
+```ts
+async getProjectById(projectId: number): Promise<CharityProject | null> {
+  return this.get(`/charity/projects/${projectId}`);
+}
 ```
 
 ## 2026-03-05 (Assistant display names updated in profile and chat UI)
@@ -10421,4 +10662,206 @@ Alert.alert(
 
 ```tsx
 const locale = i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'hi' ? 'hi-IN' : 'en-US';
+```
+
+## 2026-03-06 (Connect: admin moderation queue in mobile flow)
+
+### Измененные файлы
+- `frontend/screens/portal/connect/ConnectHomeScreen.tsx`
+- `frontend/screens/portal/connect/ConnectModerationScreen.tsx`
+- `frontend/screens/portal/connect/connectUi.ts`
+- `frontend/screens/portal/connect/index.ts`
+- `frontend/services/connectService.ts`
+- `frontend/types/connect.ts`
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `Connect` в mobile имел только public/user flow: home, filters, details, profile, create;
+  - у admin не было встроенной очереди модерации для native `Connect` opportunities;
+  - `ConnectOpportunityDetails` зависел от публичного feed и не открывал non-active native opportunity по `id`.
+- Стало:
+  - в `ConnectHome` появился admin-only CTA на `ConnectModeration`;
+  - добавлен экран `ConnectModerationScreen` с фильтрами `moderation / active / paused`, действиями approve/reject и локализацией `ru/en/hi`;
+  - `connectService` получил admin methods для `/admin/connect/opportunities`;
+  - `connectUi` переведен на i18n для entry level / format / status labels;
+  - backend `GetOpportunity` теперь умеет открывать native opportunity по прямому `id` для автора или admin, даже если она еще не `active`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/connect/ConnectHomeScreen.tsx`:
+```tsx
+{isAdmin ? (
+  <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('ConnectModeration')}>
+    <ShieldCheck size={16} color="#7C2D12" />
+    <Text style={styles.secondaryButtonText}>{t('portal.connect.actions.moderation')}</Text>
+  </TouchableOpacity>
+) : null}
+```
+
+`frontend/services/connectService.ts`:
+```ts
+async getModerationQueue(status: 'moderation' | 'active' | 'paused' = 'moderation') {
+  const response = await apiClient.get('/admin/connect/opportunities', { params: { status } });
+  return Array.isArray(response.data?.opportunities) ? response.data.opportunities : [];
+}
+```
+
+`server/internal/services/connect_service.go`:
+```go
+if native.Status == models.ConnectOpportunityStatusActive || s.canAccessNativeOpportunity(userID, native) {
+	return &models.ConnectOpportunityDetailResponse{
+		Opportunity: s.makeNativeOpportunityCard(native, profile),
+	}, nil
+}
+```
+
+## 2026-03-06 (Connect moderation: reviewer note modal + testable label helpers)
+
+### Измененные файлы
+- `frontend/screens/portal/connect/ConnectModerationScreen.tsx`
+- `frontend/screens/portal/connect/connectUi.ts`
+- `frontend/screens/portal/connect/ConnectHomeScreen.tsx`
+- `frontend/screens/portal/connect/ConnectFiltersScreen.tsx`
+- `frontend/screens/portal/connect/ConnectCreateOpportunityScreen.tsx`
+- `frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`
+- `frontend/__tests__/screens/portal/ConnectModerationScreen.test.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - approve/reject в `ConnectModeration` отправляли фиксированные canned notes без ввода причины;
+  - helper’ы `getConnectEntryLevelLabel` / `getConnectFormatLabel` / `getConnectStatusLabel` тянули глобальный `i18n`, из-за чего экран сложнее было изолированно тестировать.
+- Стало:
+  - перед approve/reject открывается modal с reviewer note;
+  - note уходит в admin API как `reason`;
+  - label helpers теперь принимают `t` явно, а не зависят от global singleton;
+  - добавлены screen tests на approve/reject с reviewer note.
+
+### Сниппеты кода
+
+`frontend/screens/portal/connect/ConnectModerationScreen.tsx`:
+```tsx
+<TextInput
+  value={moderationReason}
+  onChangeText={setModerationReason}
+  placeholder={t('portal.connect.moderation.reasonPlaceholder')}
+  testID="connect-moderation-reason-input"
+/>
+```
+
+```tsx
+await connectService.approveOpportunity(item.id, { reason });
+await connectService.rejectOpportunity(item.id, { reason });
+```
+
+`frontend/screens/portal/connect/connectUi.ts`:
+```ts
+export const getConnectStatusLabel = (
+  value: 'moderation' | 'active' | 'filled' | 'completed' | 'paused',
+  t?: TranslateFn,
+): string => {
+  return t?.('portal.connect.statuses.moderation', { defaultValue: 'Moderation' }) ?? 'Moderation';
+};
+```
+
+## 2026-03-06 (Connect moderation: preset reasons + lightweight review history)
+
+### Измененные файлы
+- `frontend/screens/portal/connect/ConnectModerationScreen.tsx`
+- `frontend/__tests__/screens/portal/ConnectModerationScreen.test.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - reviewer note вводился только вручную;
+  - карточка moderation почти не показывала уже совершенную историю review, кроме сырого `moderationNote`.
+- Стало:
+  - в modal появились preset chips для approve/reject причин;
+  - preset можно быстро вставить в reviewer note и при желании дополнить текстом;
+  - на карточке появился lightweight review history block с последним статусом, временем review и `reviewerId`, если они уже есть в payload.
+
+### Сниппеты кода
+
+`frontend/screens/portal/connect/ConnectModerationScreen.tsx`:
+```tsx
+{(pendingAction?.approve ? reasonPresets.approve : reasonPresets.reject).map((preset) => (
+  <TouchableOpacity key={preset} style={styles.presetChip} onPress={() => applyPreset(preset)}>
+    <Text style={styles.presetChipText}>{preset}</Text>
+  </TouchableOpacity>
+))}
+```
+
+```tsx
+{item.moderatedAt ? (
+  <View style={styles.historyCard}>
+    <Text style={styles.historyTitle}>{t('portal.connect.moderation.historyTitle')}</Text>
+  </View>
+) : null}
+```
+
+## 2026-03-06 (Connect: trust summary + post-participation feedback)
+
+### Измененные файлы
+- `server/internal/models/connect.go`
+- `server/internal/services/connect_service.go`
+- `server/internal/handlers/connect_handler.go`
+- `server/internal/handlers/connect_handler_test.go`
+- `server/internal/services/connect_service_test.go`
+- `server/internal/database/database.go`
+- `server/cmd/api/main.go`
+- `frontend/types/connect.ts`
+- `frontend/services/connectService.ts`
+- `frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `ConnectOpportunityDetails` показывал только описание, match-why и apply форму;
+  - после участия не было встроенного trust loop и пользователь не видел отзывы других участников;
+  - backend `Connect` не хранил отдельный feedback model.
+- Стало:
+  - добавлен backend model `ConnectFeedback` и endpoint `POST /api/connect/opportunities/:id/feedback`;
+  - `GET /api/connect/opportunities/:id` теперь возвращает `trustSummary` и последние feedback items;
+  - `ConnectOpportunityDetails` показывает trust summary, recent feedback и форму “после участия” с rating + trust flags.
+
+### Сниппеты кода
+
+`server/internal/services/connect_service.go`:
+```go
+func (s *ConnectService) SubmitFeedback(userID, opportunityID uint, req models.ConnectFeedbackCreateRequest) (*models.ConnectFeedback, error) {
+    if req.Rating < 1 || req.Rating > 5 {
+        return nil, ErrConnectInvalidPayload
+    }
+    ...
+}
+```
+
+`frontend/screens/portal/connect/ConnectOpportunityDetailsScreen.tsx`:
+```tsx
+{trustSummary ? (
+  <View style={styles.infoCard}>
+    <Text style={styles.infoTitle}>{t('portal.connect.feedback.trustTitle')}</Text>
+  </View>
+) : null}
+```
+
+```tsx
+await connectService.submitFeedback(opportunity.id, {
+  rating: feedbackRating,
+  comment: feedbackComment,
+  feltSafe,
+  newcomerFriendly,
+  wouldReturn,
+});
 ```

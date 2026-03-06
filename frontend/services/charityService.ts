@@ -65,6 +65,14 @@ class CharityService {
         return result.projects || [];
     }
 
+    async getProjectById(projectId: number, token?: string): Promise<CharityProject | null> {
+        try {
+            return await this.get(`/charity/projects/${projectId}`, token);
+        } catch {
+            return null;
+        }
+    }
+
     async createProject(token: string, data: Partial<CharityProject>): Promise<CharityProject> {
         return this.post('/charity/projects', token, data);
     }

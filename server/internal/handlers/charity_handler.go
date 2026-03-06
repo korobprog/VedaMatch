@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // Helper to get UserID
@@ -108,6 +109,24 @@ func (h *CharityHandler) GetProjects(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": result.Error.Error()})
 	}
 	return c.JSON(fiber.Map{"projects": projects})
+}
+
+func (h *CharityHandler) GetProjectByID(c *fiber.Ctx) error {
+	projectID, err := strconv.Atoi(c.Params("id"))
+	if err != nil || projectID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid project ID"})
+	}
+	project, getErr := h.Service.GetProjectByID(uint(projectID))
+	if getErr != nil {
+		if getErr == gorm.ErrRecordNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Project not found"})
+		}
+		if getErr.Error() == "project is not active" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Project not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": getErr.Error()})
+	}
+	return c.JSON(project)
 }
 
 // ==================== DONATION ====================

@@ -188,6 +188,17 @@ func (s *CharityService) CreateProject(userID uint, req models.CreateProjectRequ
 	return &project, nil
 }
 
+func (s *CharityService) GetProjectByID(projectID uint) (*models.CharityProject, error) {
+	var project models.CharityProject
+	if err := database.DB.Preload("Organization").First(&project, projectID).Error; err != nil {
+		return nil, err
+	}
+	if project.Status != models.ProjectStatusActive {
+		return nil, errors.New("project is not active")
+	}
+	return &project, nil
+}
+
 // UpdateProjectStatus (Admin only)
 func (s *CharityService) UpdateProjectStatus(projectID uint, status models.ProjectStatus, adminID uint) error {
 	now := time.Now().UTC()

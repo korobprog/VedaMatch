@@ -19,10 +19,68 @@
   - базовые сигналы: город, интересы, entry level, participation format, participation modes;
   - дополнительные сигналы: `newcomerFriendly`, `mentorAvailable`, `needsMentor`, `wantsCompany`, `quietServicePreferred`.
 - Пользовательские возможности в `Connect` создаются сразу в статусе `moderation`; публичная лента показывает только `active`.
+- Для native `Connect` opportunities добавлен admin moderation flow:
+  - `GET /api/admin/connect/opportunities?status=moderation|active|paused`,
+  - `POST /api/admin/connect/opportunities/:id/approve`,
+  - `POST /api/admin/connect/opportunities/:id/reject`;
+  - при moderation сохраняются `moderatedAt`, `moderatedByUserId`, `moderationNote`.
+- Mobile `Connect` получил admin-only route `ConnectModeration`:
+  - CTA показывается только для `admin/superadmin` в `ConnectHome`;
+  - экран умеет переключать `moderation / active / paused`, одобрять и отклонять native opportunities;
+  - `ConnectOpportunityDetails` backend fallback теперь открывает native opportunity не только из публичного `active` feed, но и для автора/админа по прямому `id`.
+- В `ConnectModeration` добавлен reason-modal:
+  - approve/reject теперь отправляют reviewer note, а не только canned action;
+  - `connectUi` больше не зависит от глобального `i18n`, label helpers принимают `t` явно, что упростило screen tests.
+- `ConnectModeration` получил frontend-level structured moderation reasons:
+  - есть preset chips для approve/reject, которые дополняют reviewer note;
+  - карточка теперь показывает lightweight review history по уже имеющимся `moderatedAt` / `moderatedByUserId` / `moderationNote`, без отдельного backend timeline.
+- `Connect` получил post-participation feedback loop:
+  - backend хранит `ConnectFeedback` с rating/comment/tags и trust flags (`feltSafe`, `newcomerFriendly`, `wouldReturn`);
+  - `GET /connect/opportunities/:id` теперь возвращает `trustSummary` и последние feedback items;
+  - `POST /connect/opportunities/:id/feedback` позволяет сохранить или обновить отзыв текущего пользователя;
+  - `ConnectOpportunityDetails` показывает trust summary, recent feedback и форму отправки отзыва после участия.
+- Lifecycle заявок в `Connect` стал полноценнее:
+  - `ConnectApplication` использует статусы `pending`, `approved`, `attended`, `completed`, `rejected`;
+  - для opportunities без `requiresApproval` отклик сразу создается в статусе `approved`;
+  - `GET /connect/opportunities/:id` возвращает `viewerApplication` и `canSubmitFeedback`;
+  - feedback теперь открыт только для `approved` / `attended` / `completed`, а не для любого факта заявки;
+  - backend добавил admin endpoints для заявок: `GET /api/admin/connect/applications?opportunityId=:id&status=...` и `POST /api/admin/connect/applications/:id/status`.
+- `ConnectModeration` теперь управляет не только публикацией opportunities, но и lifecycle заявок:
+  - модератор может раскрыть заявки по конкретной opportunity;
+  - из mobile admin UI можно перевести участника в `approved`, `attended`, `completed`, `rejected`;
+  - screen test покрывает загрузку заявок и смену статуса через новый admin flow.
+- Permission boundary для заявок в `Connect` расширен с admin-only до manager scope:
+  - backend разрешает управление заявками не только `admin/superadmin`, но и создателю `ConnectOpportunity`, а также `CoordinatorUserID` связанного `ConnectCommunity`;
+  - `GET /connect/opportunities/:id` возвращает `canManageApplications`;
+  - `ConnectOpportunityDetails` показывает CTA управления заявками, если backend разрешает;
+  - `ConnectModeration` поддерживает scoped mode для одной opportunity, поэтому creator/coordinator не требует глобального доступа ко всей moderation queue.
+- Для lifecycle заявок в `Connect` добавлены push-события:
+  - при новом отклике creator/coordinator получают push с deep link в `ConnectModeration`;
+  - при смене статуса заявки участник получает push с deep link в `ConnectOpportunityDetails`;
+  - отправка встроена прямо в `ConnectService` и использует существующий `PushNotificationService`.
+- `Connect` push-тексты локализованы по `users.language`:
+  - backend нормализует язык до `ru/en/hi`;
+  - creator/coordinator и applicant получают одинаковые lifecycle-события, но с localized title/body;
+  - это покрыто integration-style service tests через mock push sender.
+- Для `Connect` добавлены counters в общую metrics-систему:
+  - `connect_application_created_total`,
+  - `connect_application_status_updated_total`,
+  - `connect_feedback_submitted_total`,
+  - `connect_opportunity_approved_total`,
+  - `connect_opportunity_rejected_total`,
+  - `connect_push_application_created_sent_total` / `connect_push_application_created_failed_total`,
+  - `connect_push_application_status_sent_total` / `connect_push_application_status_failed_total`.
+- Snapshot `Connect` counters включен в существующий admin metrics endpoint, без отдельного нового admin UI.
+- Runtime smoke на iOS simulator (`iPhone 17 Pro`, Debug) подтвердил:
+  - без Metro debug-сборка падает в RedBox `No bundle URL present`, это проблема dev-окружения, а не `Connect`;
+  - после запуска Metro clean launch доходит до `ConnectHome` и рендерит `Connect MVP` hero без crash;
+  - `simctl openurl vedamatch://portal` на simulator показывает системный confirm dialog `Открыть в приложении`, что нормально для smoke;
+  - в Metro runtime были dev warnings по shadow rendering и повторяющийся `ConnectModeration` 404 в текущем окружении API, это не выглядело как crash `ConnectHome`.
 - Deep-link contract для агрегированных карточек:
   - `yatra` -> `YatraDetail`,
-  - `seva` -> `SevaHub` / `SevaProjectDetails` source metadata,
+  - `seva` -> `SevaProjectDetails` по `projectId` с клиентской догрузкой проекта через `charityService.getProjectById(...)`,
   - `service` -> `ServiceDetail`.
+- Для `Seva` добавлен backend endpoint `GET /charity/projects/:id`; клиент `charityService.getProjectById(...)` теперь использует его напрямую вместо загрузки всего каталога.
 - `LKM` не является условием доступа к `Connect`, отклику или матчингу в `v1`; экономическая часть пока только soft-support outside core gating.
 
 ## Ekadashi Calendar
@@ -794,6 +852,10 @@
 - Фактическая очистка от `2026-02-27` выполнена:
   - удалены `frontend/ios/build*`, `frontend/build`, `frontend/android/app/build`, `~/Library/Developer/Xcode/DerivedData`, `~/.gradle/caches`, `~/.gradle/wrapper`, `ragagent-release.apk`;
   - свободное место на `/System/Volumes/Data` выросло с `~4.7GiB` до `~78GiB`.
+- Фактическая очистка внутри workspace от `2026-03-06` выполнена:
+  - удалены `frontend/ios/build`, `frontend/ios/build_release_prod`, `frontend/android/app/build`, `frontend/android/.gradle`, `frontend/android/app/.cxx`, `admin/.next`, `frontend/android/app/build/outputs/apk/release/app-release.apk`;
+  - размер проекта уменьшился примерно с `12G` до `5.1G`;
+  - сознательно не трогать без отдельной необходимости: `frontend/node_modules`, `admin/node_modules`, `frontend/ios/Pods`, `.git`.
 
 ## Feed V2 Service
 - Публичные маршруты ленты (protected): `GET /api/v2/feed`, `GET /api/v2/feed/item/:type/:id`, `POST /api/v2/feed/item/:type/:id/impression`, `POST /api/v2/feed/item/:type/:id/reactions`, `GET/POST /api/v2/feed/item/:type/:id/comments` (`server/cmd/api/main.go`, `server/internal/handlers/feed_v2_handler.go`).
@@ -1270,7 +1332,7 @@
   - `45` подтвержден: social networking + moderation/report/block + astrology/spiritual services (`main.go`, `service.go`, `ad.go`, `yatra_report.go`).
   - `39` подтвержден частично: yatra organization/join + map route; лучше формулировать как организация/координация поездок и инфосервис, без «билетов».
   - `43` подтвержден частично: shelter/cafe листинги и отзывы есть; table reservation модель есть, но публичных API бронирования проживания не выявлено, поэтому в формулировках лучше избегать избыточного «hotel booking» до релиза такого сценария.
- - Сравнение с формулировками юриста (практическое решение):
+- Сравнение с формулировками юриста (практическое решение):
    - Базовые классы оставить: `09, 35, 38, 41, 42, 45`.
    - По текущему продукту лучше включить в основной пакет также `39` и `43` (не как «спорные», а как функционально подтвержденные, но в узкой формулировке).
    - В `09` убрать дубли и рискованные для store формулировки (`кошельки цифровой/виртуальной валюты`) в app-контуре.
@@ -1279,7 +1341,7 @@
    - В `42` оставить SaaS/PaaS/AIaaS, но убрать «разработка мобильных приложений для третьих лиц» и «консалтинг», если это не отдельная услуга.
    - В `39` не заявлять «бронирование билетов/перевозка пассажиров», пока нет ticketing и оператора перевозок; оставить travel arrangement + route/travel info.
    - В `43` не заявлять, что платформа сама оказывает гостиничные/ресторанные услуги; формулировать как информационно-бронировочный сервис/агрегатор.
-   - `36` не включать в основной app-пакет; при запуске внешнего финсервиса (сайт/бот) подавать отдельным контуром с отдельной compliance-документацией.
+  - `36` не включать в основной mobile/store-контур, но можно включать в общую стратегию знака как отдельный внешний контур для сайта/бота с отдельной compliance-документацией и отдельным позиционированием LKM.
 
 ## Store Legal Links (RuStore)
 - Целевой публичный контракт для стора:

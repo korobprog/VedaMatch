@@ -62,18 +62,18 @@ const ConnectCreateOpportunityScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.selectionRow}>
                 <TouchableOpacity style={styles.option} onPress={() => setEntryLevel('intro')}>
-                    <Text style={[styles.optionText, entryLevel === 'intro' && styles.optionTextActive]}>{getConnectEntryLevelLabel('intro')}</Text>
+                    <Text style={[styles.optionText, entryLevel === 'intro' && styles.optionTextActive]}>{getConnectEntryLevelLabel('intro', t)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.option} onPress={() => setEntryLevel('regular')}>
-                    <Text style={[styles.optionText, entryLevel === 'regular' && styles.optionTextActive]}>{getConnectEntryLevelLabel('regular')}</Text>
+                    <Text style={[styles.optionText, entryLevel === 'regular' && styles.optionTextActive]}>{getConnectEntryLevelLabel('regular', t)}</Text>
                 </TouchableOpacity>
             </View>
             <View style={styles.selectionRow}>
                 <TouchableOpacity style={styles.option} onPress={() => setParticipationFormat('offline')}>
-                    <Text style={[styles.optionText, participationFormat === 'offline' && styles.optionTextActive]}>{getConnectFormatLabel('offline')}</Text>
+                    <Text style={[styles.optionText, participationFormat === 'offline' && styles.optionTextActive]}>{getConnectFormatLabel('offline', t)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.option} onPress={() => setParticipationFormat('online')}>
-                    <Text style={[styles.optionText, participationFormat === 'online' && styles.optionTextActive]}>{getConnectFormatLabel('online')}</Text>
+                    <Text style={[styles.optionText, participationFormat === 'online' && styles.optionTextActive]}>{getConnectFormatLabel('online', t)}</Text>
                 </TouchableOpacity>
             </View>
 

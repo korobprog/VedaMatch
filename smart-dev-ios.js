@@ -8,10 +8,12 @@
  */
 
 const { spawn, execSync } = require('child_process');
+const http = require('http');
 const net = require('net');
 
 const BACKEND_PORT = 8000;
 const METRO_PORT = 8082;
+const METRO_STATUS_URL = `http://127.0.0.1:${METRO_PORT}/status`;
 
 // Check if a port is in use (by trying to connect to it)
 const isPortInUse = (port) => new Promise((resolve) => {
@@ -21,6 +23,25 @@ const isPortInUse = (port) => new Promise((resolve) => {
     socket.on('timeout', () => { socket.destroy(); resolve(false); });
     socket.on('error', () => { socket.destroy(); resolve(false); });
     socket.connect(port, '127.0.0.1');
+});
+
+const isMetroHealthy = () => new Promise((resolve) => {
+    const request = http.get(METRO_STATUS_URL, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+            body += chunk;
+        });
+        response.on('end', () => {
+            resolve(response.statusCode === 200 && body.includes('packager-status:running'));
+        });
+    });
+
+    request.setTimeout(500, () => {
+        request.destroy();
+        resolve(false);
+    });
+    request.on('error', () => resolve(false));
 });
 
 async function main() {
@@ -48,12 +69,13 @@ async function main() {
 
     // Check what's already running
     const backendRunning = await isPortInUse(BACKEND_PORT);
-    const metroRunning = await isPortInUse(METRO_PORT);
+    const metroPortBusy = await isPortInUse(METRO_PORT);
+    const metroRunning = metroPortBusy && await isMetroHealthy();
 
     console.log('');
     console.log('🔍 Проверка запущенных сервисов:');
     console.log(`   Backend (${BACKEND_PORT}): ${backendRunning ? '✅ Работает' : '❌ Не запущен'}`);
-    console.log(`   Metro (${METRO_PORT}): ${metroRunning ? '✅ Работает' : '❌ Не запущен'}`);
+    console.log(`   Metro (${METRO_PORT}): ${metroRunning ? '✅ Работает' : (metroPortBusy ? '⚠️ Порт занят, но Metro не отвечает' : '❌ Не запущен')}`);
     console.log('');
 
     if (backendRunning && metroRunning) {
@@ -97,13 +119,13 @@ async function main() {
         colors.push('yellow');
 
         if (!metroRunning) {
-            tasks.push(`wait-on tcp:${BACKEND_PORT} && pnpm run frontend`);
+            tasks.push('pnpm run frontend');
             names.push('METRO');
             colors.push('magenta');
         }
 
         // iOS waits for metro
-        tasks.push(`wait-on tcp:${METRO_PORT} && pnpm run ios`);
+        tasks.push(`wait-on ${METRO_STATUS_URL} && pnpm run ios`);
         names.push('IOS');
         colors.push('green');
 

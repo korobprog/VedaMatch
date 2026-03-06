@@ -170,6 +170,7 @@ import {
   ConnectCommunityDetailsScreen,
   ConnectProfileSetupScreen,
   ConnectCreateOpportunityScreen,
+  ConnectModerationScreen,
 } from './screens/portal/connect';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
@@ -744,6 +745,7 @@ const AppContent = () => {
                   <Stack.Screen name="ConnectCommunityDetails" component={ConnectCommunityDetailsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ConnectProfileSetup" component={ConnectProfileSetupScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ConnectCreateOpportunity" component={ConnectCreateOpportunityScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ConnectModeration" component={ConnectModerationScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />

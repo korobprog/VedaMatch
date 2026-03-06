@@ -4,3 +4,4 @@ export { default as ConnectOpportunityDetailsScreen } from './ConnectOpportunity
 export { default as ConnectCommunityDetailsScreen } from './ConnectCommunityDetailsScreen';
 export { default as ConnectProfileSetupScreen } from './ConnectProfileSetupScreen';
 export { default as ConnectCreateOpportunityScreen } from './ConnectCreateOpportunityScreen';
+export { default as ConnectModerationScreen } from './ConnectModerationScreen';

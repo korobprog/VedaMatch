@@ -81,7 +81,7 @@ func Connect() {
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.ConnectCommunity{}, &models.ConnectOpportunity{},
-		&models.ConnectMatchProfile{}, &models.ConnectApplication{},
+		&models.ConnectMatchProfile{}, &models.ConnectApplication{}, &models.ConnectFeedback{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
 		&models.ChatTranscribeWeeklyUsage{}, &models.ChatTranscribeJob{},
 		// Ads models

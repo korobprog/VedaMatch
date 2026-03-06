@@ -9,6 +9,7 @@ export type ConnectOnboardingMode =
     | 'try_simple_service'
     | 'friendly_group'
     | 'need_simple_explanation';
+export type ConnectApplicationStatus = 'pending' | 'approved' | 'attended' | 'completed' | 'rejected';
 
 export interface ConnectSourceLink {
     type: ConnectSourceType;
@@ -53,8 +54,29 @@ export interface ConnectOpportunityCard {
     endsAt?: string;
     score: number;
     why: string[];
+    trustSummary?: ConnectTrustSummary;
     community?: ConnectCommunityCard;
     sourceLink?: ConnectSourceLink;
+}
+
+export interface ConnectTrustSummary {
+    reviewsCount: number;
+    averageRating: number;
+    feltSafePercent: number;
+    newcomerFriendlyPercent: number;
+    wouldReturnPercent: number;
+}
+
+export interface ConnectFeedbackItem {
+    id: number;
+    createdAt: string;
+    rating: number;
+    comment: string;
+    tags: string[];
+    feltSafe: boolean;
+    newcomerFriendly: boolean;
+    wouldReturn: boolean;
+    authorLabel: string;
 }
 
 export interface ConnectFeedFilters {
@@ -95,6 +117,19 @@ export interface ConnectFeedResponse {
 
 export interface ConnectOpportunityDetailResponse {
     opportunity: ConnectOpportunityCard;
+    trustSummary?: ConnectTrustSummary | null;
+    feedback?: ConnectFeedbackItem[];
+    canSubmitFeedback?: boolean;
+    canManageApplications?: boolean;
+    viewerApplication?: ConnectViewerApplication | null;
+}
+
+export interface ConnectViewerApplication {
+    id: number;
+    status: ConnectApplicationStatus;
+    message?: string;
+    reviewNote?: string;
+    updatedAt: string;
 }
 
 export interface ConnectCommunityDetailResponse {
@@ -125,4 +160,84 @@ export interface ConnectOpportunityCreateRequest {
 
 export interface ConnectApplyRequest {
     message?: string;
+}
+
+export interface ConnectApplication {
+    id: number;
+    opportunityId: number;
+    userId: number;
+    status: ConnectApplicationStatus;
+    message?: string;
+    reviewedAt?: string;
+    reviewedByUserId?: number;
+    reviewNote?: string;
+}
+
+export interface ConnectModerationRequest {
+    reason?: string;
+}
+
+export interface ConnectModerationUser {
+    ID?: number;
+    karmicName?: string;
+    spiritualName?: string;
+    email?: string;
+}
+
+export interface ConnectModerationCommunity {
+    id: number;
+    name: string;
+    city?: string;
+}
+
+export interface ConnectModerationOpportunity {
+    id: number;
+    title: string;
+    description?: string;
+    city?: string;
+    district?: string;
+    locationLabel?: string;
+    category: string;
+    entryLevel: ConnectEntryLevel;
+    participationFormat: ConnectParticipationFormat;
+    participationModes?: string[];
+    newcomerFriendly: boolean;
+    mentorAvailable: boolean;
+    requiresApproval: boolean;
+    status: ConnectOpportunityStatus;
+    moderatedAt?: string;
+    moderatedByUserId?: number;
+    moderationNote?: string;
+    createdAt?: string;
+    startsAt?: string;
+    createdByUser?: ConnectModerationUser;
+    community?: ConnectModerationCommunity | null;
+}
+
+export interface ConnectModerationApplication {
+    id: number;
+    opportunityId: number;
+    userId: number;
+    status: ConnectApplicationStatus;
+    message?: string;
+    reviewedAt?: string;
+    reviewedByUserId?: number;
+    reviewNote?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    user?: ConnectModerationUser;
+}
+
+export interface ConnectApplicationStatusUpdateRequest {
+    status: ConnectApplicationStatus;
+    note?: string;
+}
+
+export interface ConnectFeedbackCreateRequest {
+    rating: number;
+    comment?: string;
+    tags?: string[];
+    feltSafe?: boolean;
+    newcomerFriendly?: boolean;
+    wouldReturn?: boolean;
 }

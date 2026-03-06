@@ -71,6 +71,15 @@ func (h *AdminFeedHandler) GetMetrics(c *fiber.Ctx) error {
 		services.MetricVideoCirclesCreateRejectedNonCDN,
 		services.MetricVideoCirclesUploadS3FailTotal,
 		services.MetricVideoCirclesNonCDNDetectedTotal,
+		services.MetricConnectApplicationCreatedTotal,
+		services.MetricConnectApplicationStatusUpdatedTotal,
+		services.MetricConnectFeedbackSubmittedTotal,
+		services.MetricConnectOpportunityApprovedTotal,
+		services.MetricConnectOpportunityRejectedTotal,
+		services.MetricConnectPushApplicationCreatedSentTotal,
+		services.MetricConnectPushApplicationCreatedFailedTotal,
+		services.MetricConnectPushApplicationStatusSentTotal,
+		services.MetricConnectPushApplicationStatusFailedTotal,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

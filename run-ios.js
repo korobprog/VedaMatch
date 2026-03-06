@@ -1,10 +1,35 @@
 #!/usr/bin/env node
+const fs = require('fs');
 const { execSync, spawn } = require('child_process');
 const path = require('path');
 
 const simulator = process.argv[2] || 'iPhone 17 Pro';
-const projectPath = path.join(__dirname, 'frontend', 'ios');
+const frontendPath = path.join(__dirname, 'frontend');
+const projectPath = path.join(frontendPath, 'ios');
 const derivedDataPath = `${process.env.HOME}/Library/Developer/Xcode/DerivedData`;
+const codegenOutputPath = path.join(projectPath, 'build', 'generated', 'ios');
+const reactCodegenHeaderPath = path.join(
+    codegenOutputPath,
+    'FBReactNativeSpec',
+    'FBReactNativeSpec.h'
+);
+
+function ensureIOSCodegenArtifacts() {
+    console.log('🧬 Подготавливаю React Native iOS codegen...');
+
+    fs.rmSync(codegenOutputPath, { recursive: true, force: true });
+
+    execSync(
+        'node node_modules/react-native/scripts/generate-codegen-artifacts.js --path . --targetPlatform ios --outputPath ios',
+        { cwd: frontendPath, stdio: 'inherit' }
+    );
+
+    if (!fs.existsSync(reactCodegenHeaderPath)) {
+        throw new Error(`React Native codegen не создал ${reactCodegenHeaderPath}`);
+    }
+
+    console.log('✅ React Native iOS codegen готов.');
+}
 
 console.log(`\n🔨 Сборка iOS приложения для ${simulator}...`);
 
@@ -46,6 +71,8 @@ try {
 
     // Открываем приложение Simulator
     spawn('open', ['-a', 'Simulator'], { detached: true, stdio: 'ignore' }).unref();
+
+    ensureIOSCodegenArtifacts();
 
     // Собираем проект
     console.log('⏳ Компиляция (это может занять несколько минут при первом запуске)...');
