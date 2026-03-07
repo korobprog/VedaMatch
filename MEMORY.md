@@ -139,7 +139,10 @@
 - Глобальный переключатель языка добавлен в правый верхний угол login (`RU | EN | हिंदी`) и вызывает `i18n.changeLanguage(...)` без перезапуска экрана.
 - Соц-кнопки login:
   - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
-  - `VK` — реальный вход через in-app WebView implicit OAuth flow (`createVKAuthSession` -> `VKAuthModal` -> `finalizeVKSignIn` -> `POST /auth/vk/login`); mobile app больше не зависит от browser callback/deep link как от основного пути.
+  - `VK` — реальный вход через platform-specific browser/native OAuth flow:
+    - Android: `createVKAuthSession` открывает внешний authorize URL с `response_type=code` + PKCE и native callback `vk54474353://vk.ru/blank.html`;
+    - iOS: `createVKAuthSession` открывает внешний authorize URL с `response_type=code` и universal callback `https://api.vedamatch.ru/auth/vk/callback`;
+    - оба пути завершаются через `finalizeVKSignIn` -> `POST /auth/vk/login`.
   - `Telegram` — реальный mobile auth через `@vedamatch_bot` и Telegram Mini App bridge:
     - app вызывает `POST /auth/telegram/mobile/start`, получает `t.me/...?...startapp=vm_auth_<state>` и открывает Telegram;
     - `lkm` Mini App завершает `miniapp/login` или `miniapp/link`, потом шлет `authPayload` в `POST /auth/telegram/mobile/complete`;
@@ -149,7 +152,7 @@
   - `GoogleSignin.signIn()` возвращает wrapper `{ type, data }`, а не старый плоский объект;
   - при `type === 'cancelled'` сервис бросает `GOOGLE_SIGNIN_CANCELLED`;
   - `loadGoogleModule()` сначала использует обычный `require(...)`, потом dynamic fallback, чтобы regression-тесты и runtime вели себя одинаково.
-- Для mobile VK flow используется `https://oauth.vk.com/blank.html` как callback URL внутри WebView; callback hash с `access_token`/`email` парсится прямо в приложении, а backend получает уже готовый token на `/auth/vk/login`.
+- Если Android VK login падает после callback, `LoginScreen.tsx` теперь показывает детальную причину для `VK_AUTH_ERROR:*` и `VK_TOKEN_EXCHANGE_FAILED:*`, а не только общий `Не удалось выполнить вход через VK.`.
 - Локали login добавлены/синхронизированы в:
   - `frontend/i18n/locales/ru.ts`
   - `frontend/i18n/locales/en.ts`
@@ -162,12 +165,12 @@
 - Для stage-1 добавлен тест `frontend/__tests__/screens/LoginScreen.localization.test.tsx`:
   - проверяет вызов `i18n.changeLanguage` из switch языка;
   - проверяет Google social handler (`signInWithGoogle` -> `login(...)`);
-  - проверяет VK modal flow (`createVKAuthSession` -> `finalizeVKSignIn` -> `login(...)`);
+  - проверяет Android/iOS VK callback flow (`createVKAuthSession` -> `finalizeVKSignIn` -> `login(...)`) и показ детальной VK exchange ошибки;
   - проверяет Telegram flow (`createTelegramAuthSession` -> open `@vedamatch_bot` -> `finalizeTelegramSignIn` -> `login(...)`).
 - Добавлен regression-тест `frontend/__tests__/services/socialAuthService.test.ts`:
   - фиксирует чтение `idToken` из wrapped Google SDK response;
   - фиксирует отдельную ошибку `GOOGLE_SIGNIN_CANCELLED`;
-  - фиксирует сборку VK implicit authorize URL и parsing callback hash/error;
+  - фиксирует Android VK PKCE authorize URL, native callback parsing и передачу `code + codeVerifier + vkDeviceId + state` на backend;
   - фиксирует Telegram mobile `start` и `exchange` contract.
 - `frontend/package-lock.json` синхронизирован после установки `@react-native-google-signin/google-signin`; npm может выводить peer warnings (`@firebase/auth` vs async-storage), но установка проходит успешно.
 - Для backend Google auth добавлена testability-точка:
@@ -190,7 +193,7 @@
   - frontend env ключи: `VK_ANDROID_CLIENT_ID`, `VK_IOS_CLIENT_ID`, `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
   - `VK_ANDROID_CLIENT_ID=54474353` используется только на Android release/native callback;
   - `VK_IOS_CLIENT_ID=54474354` и fallback `VK_CLIENT_ID=54474354` используются для iOS/universal-link flow;
-  - backend по-прежнему использует `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`, поэтому для production server выставлен iOS app id/secret.
+  - backend использует `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_ANDROID_CLIENT_ID`, `VK_ANDROID_CLIENT_SECRET`, `VK_REDIRECT_URI`; оба protected key теперь должны храниться только на server/Dokploy.
 - Старый VK app `54418465` оказался `Web`-приложением:
   - authorize endpoint для native Android login на нем отвечал `invalid_request / Security Error`;
   - mobile больше не использует этот app id для Android/iOS логина.
@@ -202,11 +205,12 @@
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
   - Android использует `VK_ANDROID_CLIENT_ID=54474353` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`);
-  - Android после native callback сам меняет `code + device_id` на `access_token` через `https://id.vk.com/oauth2/auth`, затем завершает login обычным `POST /api/auth/vk/login` с `accessToken`;
+  - Android после native callback больше не меняет `code -> access_token` локально; приложение отправляет `code + codeVerifier + vkDeviceId + state` на backend, а backend уже делает exchange через `https://id.vk.com/oauth2/auth`;
   - iOS сохраняет внешний browser + server callback `https://api.vedamatch.ru/auth/vk/callback` и завершает login через `POST /api/auth/vk/login` с `code`;
   - `frontend/android/app/build.gradle` и manifest placeholder продолжают держать Android native scheme из `VK_ANDROID_CLIENT_ID`;
-  - production server/Dokploy уже переведен на iOS VK credentials (`VK_CLIENT_ID=54474354` + новый protected key), redeploy завершен 2026-03-07;
+  - production server/Dokploy использует iOS и Android VK credentials; 2026-03-08 live container `vedamatch-server-dnkxc8` перепроверен через `docker inspect`, `VK_CLIENT_SECRET` для iOS/server flow присутствует после redeploy;
   - причина ухода от Android implicit/token flow: VK authorize для `client_id=54474353` начал возвращать `invalid_request / Security Error`;
+  - дополнительный Android hardening от 2026-03-08: `state` остаётся частью PKCE chain, но `VK_ANDROID_CLIENT_SECRET` больше не живёт в APK; `service key` для mobile user login не используется;
   - актуальная Android release с этой схемой: `1.1.23 (25)`.
 - Для локальной Debug-сборки на iPhone с Personal Team production entitlements отключены:
   - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` переводит `Debug` на `vedamatch.debug.entitlements`;

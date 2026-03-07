@@ -149,15 +149,8 @@ describe('socialAuthService', () => {
     expect(session.presentation).toBe('external');
   });
 
-  it('finalizes Android VK login from native callback URL, exchanges code, and posts access token to backend', async () => {
+  it('finalizes Android VK login from native callback URL and lets backend exchange code with PKCE data', async () => {
     const session = createVKAuthSession();
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue({
-        access_token: 'vk-access-token',
-        email: 'vk@example.com',
-      }),
-    });
     (apiClient.post as jest.Mock).mockResolvedValue({
       data: {
         user: { ID: 8, email: 'vk@example.com' },
@@ -170,27 +163,19 @@ describe('socialAuthService', () => {
       session.state,
     );
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://id.vk.com/oauth2/auth',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        }),
-        body: expect.stringContaining('grant_type=authorization_code'),
-      }),
-    );
+    expect(mockFetch).not.toHaveBeenCalled();
 
     expect(apiClient.post).toHaveBeenCalledWith(
       '/auth/vk/login',
-      {
-        accessToken: 'vk-access-token',
+      expect.objectContaining({
         clientId: '54474353',
+        code: 'vk-auth-code',
+        codeVerifier: expect.any(String),
         deviceId: 'device-id',
-        email: 'vk@example.com',
         platform: 'android',
-      },
+        state: session.state,
+        vkDeviceId: 'vk-device-id',
+      }),
       expect.objectContaining({ __skipAuthSession: true }),
     );
     expect(result).toEqual({

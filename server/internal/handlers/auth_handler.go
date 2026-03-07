@@ -340,6 +340,15 @@ type vkUserInfo struct {
 var vkAccessTokenVerifier = verifyVKAccessToken
 var vkCodeExchanger = exchangeVKCode
 
+type vkAndroidCodeExchangeInput struct {
+	Code         string
+	CodeVerifier string
+	VKDeviceID   string
+	State        string
+}
+
+var vkAndroidCodeExchanger = exchangeVKAndroidCode
+
 func parseGoogleEmailVerified(raw string) bool {
 	value := strings.TrimSpace(strings.ToLower(raw))
 	return value == "true" || value == "1" || value == "yes"
@@ -568,6 +577,76 @@ func exchangeVKCode(code string) (accessToken string, email string, userID int64
 	}
 	if strings.TrimSpace(payload.AccessToken) == "" {
 		return "", "", 0, errors.New("vk access_token is empty")
+	}
+
+	return strings.TrimSpace(payload.AccessToken), strings.TrimSpace(payload.Email), payload.UserID, nil
+}
+
+func exchangeVKAndroidCode(input vkAndroidCodeExchangeInput) (accessToken string, email string, userID int64, err error) {
+	clientID := strings.TrimSpace(os.Getenv("VK_ANDROID_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("VK_ANDROID_CLIENT_SECRET"))
+	code := strings.TrimSpace(input.Code)
+	codeVerifier := strings.TrimSpace(input.CodeVerifier)
+	vkDeviceID := strings.TrimSpace(input.VKDeviceID)
+	state := strings.TrimSpace(input.State)
+
+	if clientID == "" || clientSecret == "" {
+		return "", "", 0, errors.New("VK android env config is incomplete")
+	}
+	if code == "" || codeVerifier == "" || vkDeviceID == "" {
+		return "", "", 0, errors.New("VK android code exchange payload is incomplete")
+	}
+
+	redirectURI := fmt.Sprintf("vk%s://vk.ru/blank.html", clientID)
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("code", code)
+	form.Set("code_verifier", codeVerifier)
+	form.Set("device_id", vkDeviceID)
+	form.Set("grant_type", "authorization_code")
+	form.Set("redirect_uri", redirectURI)
+	if state != "" {
+		form.Set("state", state)
+	}
+
+	req, reqErr := http.NewRequest(http.MethodPost, "https://id.vk.com/oauth2/auth", strings.NewReader(form.Encode()))
+	if reqErr != nil {
+		return "", "", 0, fmt.Errorf("failed to create vk android auth request: %w", reqErr)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		return "", "", 0, fmt.Errorf("vk android auth request failed: %w", doErr)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != http.StatusOK {
+		return "", "", 0, fmt.Errorf("vk android auth failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		AccessToken string `json:"access_token"`
+		Email       string `json:"email"`
+		UserID      int64  `json:"user_id"`
+		Error       string `json:"error"`
+		ErrorDesc   string `json:"error_description"`
+	}
+	if unmarshalErr := json.Unmarshal(body, &payload); unmarshalErr != nil {
+		return "", "", 0, fmt.Errorf("failed to parse vk android auth response: %w", unmarshalErr)
+	}
+	if payload.Error != "" {
+		if payload.ErrorDesc != "" {
+			return "", "", 0, fmt.Errorf("vk android auth error %s: %s", payload.Error, payload.ErrorDesc)
+		}
+		return "", "", 0, fmt.Errorf("vk android auth error: %s", payload.Error)
+	}
+	if strings.TrimSpace(payload.AccessToken) == "" {
+		return "", "", 0, errors.New("vk android access_token is empty")
 	}
 
 	return strings.TrimSpace(payload.AccessToken), strings.TrimSpace(payload.Email), payload.UserID, nil
@@ -959,10 +1038,14 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		AccessToken string `json:"accessToken"`
-		Code        string `json:"code"`
-		DeviceID    string `json:"deviceId"`
-		Email       string `json:"email"`
+		AccessToken  string `json:"accessToken"`
+		Code         string `json:"code"`
+		DeviceID     string `json:"deviceId"`
+		Email        string `json:"email"`
+		Platform     string `json:"platform"`
+		State        string `json:"state"`
+		CodeVerifier string `json:"codeVerifier"`
+		VKDeviceID   string `json:"vkDeviceId"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -972,6 +1055,10 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 	req.AccessToken = strings.TrimSpace(req.AccessToken)
 	req.Code = strings.TrimSpace(req.Code)
 	req.Email = strings.TrimSpace(req.Email)
+	req.Platform = strings.TrimSpace(strings.ToLower(req.Platform))
+	req.State = strings.TrimSpace(req.State)
+	req.CodeVerifier = strings.TrimSpace(req.CodeVerifier)
+	req.VKDeviceID = strings.TrimSpace(req.VKDeviceID)
 	if req.AccessToken == "" && req.Code == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "accessToken or code is required",
@@ -980,7 +1067,23 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 
 	accessToken := req.AccessToken
 	if accessToken == "" {
-		exchangedAccessToken, exchangedEmail, _, exchangeErr := vkCodeExchanger(req.Code)
+		var (
+			exchangedAccessToken string
+			exchangedEmail       string
+			exchangeErr          error
+		)
+
+		if req.Platform == "android" {
+			exchangedAccessToken, exchangedEmail, _, exchangeErr = vkAndroidCodeExchanger(vkAndroidCodeExchangeInput{
+				Code:         req.Code,
+				CodeVerifier: req.CodeVerifier,
+				VKDeviceID:   req.VKDeviceID,
+				State:        req.State,
+			})
+		} else {
+			exchangedAccessToken, exchangedEmail, _, exchangeErr = vkCodeExchanger(req.Code)
+		}
+
 		if exchangeErr != nil {
 			log.Printf("[AUTH] VK code exchange failed: %v", exchangeErr)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

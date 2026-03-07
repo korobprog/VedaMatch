@@ -119,15 +119,11 @@ type TelegramAuthSession = {
 };
 
 type VKPkceSession = {
-  clientId: string;
   codeVerifier: string;
-  platform: VKAuthPlatform;
-  redirectUri: string;
 };
 
 const VK_OAUTH_CALLBACK = 'https://oauth.vk.com/blank.html';
 const VK_MOBILE_CALLBACK_FALLBACK = 'https://api.vedamatch.ru/auth/vk/callback';
-const VK_ID_TOKEN_ENDPOINT = 'https://id.vk.com/oauth2/auth';
 const VK_ANDROID_CLIENT_ID_FALLBACK = '54474353';
 const VK_IOS_CLIENT_ID_FALLBACK = '54474354';
 const VK_LEGACY_MOBILE_CALLBACK = 'vedamatch://auth/vk/callback';
@@ -306,10 +302,7 @@ const buildVKAuthorizeUrl = (state: string, platform: VKAuthPlatform): string =>
   if (isAndroid) {
     const codeVerifier = generateCodeVerifier();
     vkPkceSessions.set(state, {
-      clientId,
       codeVerifier,
-      platform,
-      redirectUri,
     });
     query.set('code_challenge', sha256Base64Url(codeVerifier));
     query.set('code_challenge_method', 'S256');
@@ -401,58 +394,20 @@ const extractVKCallbackPayload = (
   };
 };
 
-const exchangeVKAndroidCode = async ({
-  clientId,
-  code,
-  codeVerifier,
-  deviceId,
-  redirectUri,
-}: {
-  clientId: string;
-  code: string;
-  codeVerifier: string;
-  deviceId: string;
-  redirectUri: string;
-}): Promise<{ accessToken: string; email?: string }> => {
-  const response = await fetch(VK_ID_TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      code,
-      code_verifier: codeVerifier,
-      device_id: deviceId,
-      grant_type: 'authorization_code',
-      redirect_uri: redirectUri,
-    }).toString(),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  const accessToken = readConfigString(payload?.access_token);
-  const email = readConfigString(payload?.email);
-
-  if (!response.ok || !accessToken) {
-    const description = readConfigString(payload?.error_description) || readConfigString(payload?.error);
-    throw new Error(description ? `VK_TOKEN_EXCHANGE_FAILED:${description}` : 'VK_TOKEN_EXCHANGE_FAILED');
-  }
-
-  return {
-    accessToken,
-    email: email || undefined,
-  };
-};
-
 export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
+  console.log('[GoogleAuth] ensureGoogleConfigured:start');
   const module = await ensureGoogleConfigured();
+  console.log('[GoogleAuth] ensureGoogleConfigured:done');
 
   if (module.GoogleSignin.hasPlayServices) {
+    console.log('[GoogleAuth] hasPlayServices:start');
     await module.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log('[GoogleAuth] hasPlayServices:done');
   }
 
+  console.log('[GoogleAuth] sdkSignIn:start');
   const result = await module.GoogleSignin.signIn();
+  console.log('[GoogleAuth] sdkSignIn:done');
   const payload = extractGoogleSignInPayload(result);
   const idToken = readConfigString(payload?.idToken);
 
@@ -460,6 +415,7 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
     throw new Error('GOOGLE_ID_TOKEN_MISSING');
   }
 
+  console.log('[GoogleAuth] backendLogin:start');
   const deviceId = await DeviceInfo.getUniqueId();
   const response = await apiClient.post(
     '/auth/google/login',
@@ -471,6 +427,7 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
       ...({ __skipAuthSession: true } as any),
     },
   );
+  console.log('[GoogleAuth] backendLogin:done');
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {
@@ -503,6 +460,12 @@ export const finalizeVKSignIn = async (
   const platform = resolveVKCallbackPlatform(callbackUrl);
   const isAndroidNativeCallback = callbackUrl.startsWith(getVKAndroidRedirectUri());
   const clientId = isAndroidNativeCallback ? getVKNativeClientId('android') : getVKMobileClientId();
+  const deviceId = await DeviceInfo.getUniqueId();
+  const payload: Record<string, any> = {
+    deviceId,
+    platform,
+    clientId,
+  };
 
   if (isAndroidNativeCallback && callbackData.code) {
     const pkceSession = vkPkceSessions.get(state);
@@ -513,33 +476,18 @@ export const finalizeVKSignIn = async (
       throw new Error('VK_DEVICE_ID_MISSING');
     }
 
-    const exchanged = await exchangeVKAndroidCode({
-      clientId: pkceSession.clientId,
-      code: callbackData.code,
-      codeVerifier: pkceSession.codeVerifier,
-      deviceId: callbackData.deviceId,
-      redirectUri: pkceSession.redirectUri,
-    });
-    callbackData.accessToken = exchanged.accessToken;
-    callbackData.code = undefined;
-    if (!callbackData.email && exchanged.email) {
-      callbackData.email = exchanged.email;
-    }
+    payload.code = callbackData.code;
+    payload.codeVerifier = pkceSession.codeVerifier;
+    payload.vkDeviceId = callbackData.deviceId;
+    payload.state = state;
     vkPkceSessions.delete(state);
   }
-
-  const deviceId = await DeviceInfo.getUniqueId();
-  const payload: Record<string, any> = {
-    deviceId,
-    platform,
-    clientId,
-  };
 
   if (callbackData.accessToken) {
     payload.accessToken = callbackData.accessToken;
   }
 
-  if (callbackData.code) {
+  if (callbackData.code && !isAndroidNativeCallback) {
     payload.code = callbackData.code;
   }
 

@@ -1,5 +1,149 @@
 # IOS Changes For Migration
 
+## 2026-03-08 (Android VK PKCE exchange moved from mobile client to backend)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/.env.production`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_vk_integration_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android app после native VK callback сам делал `POST https://id.vk.com/oauth2/auth` и держал `VK_ANDROID_CLIENT_SECRET` в mobile runtime env;
+  - это означало, что Android protected key попадал в APK.
+- Стало:
+  - Android app после native callback отправляет на backend только `code + codeVerifier + vkDeviceId + state`;
+  - backend сам выполняет Android PKCE `code -> access_token` exchange через `id.vk.com/oauth2/auth`, используя `VK_ANDROID_CLIENT_ID` и `VK_ANDROID_CLIENT_SECRET` из server env;
+  - `VK_ANDROID_CLIENT_SECRET` удалён из `frontend/.env.production`, поэтому оба VK protected key теперь должны жить только на server/Dokploy.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+payload.code = callbackData.code;
+payload.codeVerifier = pkceSession.codeVerifier;
+payload.vkDeviceId = callbackData.deviceId;
+payload.state = state;
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if req.Platform == "android" {
+	exchangedAccessToken, exchangedEmail, _, exchangeErr = vkAndroidCodeExchanger(vkAndroidCodeExchangeInput{
+		Code:         req.Code,
+		CodeVerifier: req.CodeVerifier,
+		VKDeviceID:   req.VKDeviceID,
+		State:        req.State,
+	})
+} else {
+	exchangedAccessToken, exchangedEmail, _, exchangeErr = vkCodeExchanger(req.Code)
+}
+```
+
+## 2026-03-08 (Production backend now has VK iOS protected key in Dokploy)
+
+### Измененные файлы
+- `docs/IOS_CHANGES_FOR_MIGRATION.md`
+- `MEMORY.md`
+- `Dokploy application env: Vedamatch / production / Server`
+
+### Суть правки (от старого к новому)
+- Было:
+  - production backend container для `api.vedamatch.ru` держал `VK_CLIENT_ID=54474354`, но live env не содержал `VK_CLIENT_SECRET`;
+  - из-за этого iOS/server-side VK `code` flow оставался неполным даже при корректном mobile client config.
+- Стало:
+  - в Dokploy для `Vedamatch / production / Server` добавлен `VK_CLIENT_SECRET` для iOS/server VK app и выполнен redeploy;
+  - после redeploy новый running container на production был перепроверен через `docker inspect`: `VK_CLIENT_SECRET` реально присутствует в live env.
+
+### Сниппеты кода
+
+`Dokploy env`:
+```env
+AUTH_VK_ENABLED=on
+VK_CLIENT_ID=54474354
+VK_CLIENT_SECRET=<configured>
+VK_REDIRECT_URI=https://api.vedamatch.ru/auth/vk/callback
+```
+
+## 2026-03-08 (VK Android PKCE exchange now sends protected key)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/.env.production`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android после native VK callback менял `code + device_id + state` на token через `https://id.vk.com/oauth2/auth`, но не передавал `client_secret`;
+  - наличие `Universal link` и `service key` в VK кабинете не помогало, потому что Android native PKCE flow упирался именно в `protected key`.
+- Стало:
+  - Android PKCE exchange теперь отправляет `client_secret` из `VK_ANDROID_CLIENT_SECRET` (с fallback на `VK_CLIENT_SECRET`);
+  - `.env.production` содержит отдельный `VK_ANDROID_CLIENT_SECRET`, а тесты фиксируют отправку `client_secret` в form body;
+  - `service key` по-прежнему не используется для mobile user login.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+if (readConfigString(clientSecret)) {
+  body.set('client_secret', readConfigString(clientSecret));
+}
+```
+
+```ts
+const exchanged = await exchangeVKAndroidCode({
+  clientId: pkceSession.clientId,
+  clientSecret: getVKAndroidClientSecret(),
+  code: callbackData.code,
+  codeVerifier: pkceSession.codeVerifier,
+  deviceId: callbackData.deviceId,
+  redirectUri: pkceSession.redirectUri,
+  state,
+});
+```
+
+## 2026-03-07 (VK Android PKCE exchange passes state and surfaces detailed failure)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android после native VK callback менял `code + device_id` на token через `https://id.vk.com/oauth2/auth`, но не передавал туда `state`;
+  - если exchange падал, `LoginScreen` почти всегда показывал только общий fallback `Не удалось выполнить вход через VK.`.
+- Стало:
+  - Android PKCE exchange отправляет `code + device_id + state`, чтобы цепочка authorize -> callback -> token exchange оставалась согласованной;
+  - `LoginScreen` теперь показывает деталь для `VK_TOKEN_EXCHANGE_FAILED:*` и пишет точную причину в `console.warn`, чтобы реальный device trace больше не был слепым.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+body: new URLSearchParams({
+  client_id: clientId,
+  code,
+  code_verifier: codeVerifier,
+  device_id: deviceId,
+  grant_type: 'authorization_code',
+  redirect_uri: redirectUri,
+  state,
+}).toString(),
+```
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+const detailedVKError = extractDetailedVKError(rawMessage);
+if (rawMessage || backendMessage) {
+  console.warn('VK auth failure:', rawMessage || '<empty>', backendMessage || '');
+}
+const fallbackMessage = detailedVKError || backendMessage || t('auth.loginScreen.errors.vkFailed');
+```
+
 ## 2026-03-07 (VK Android switched to PKCE native callback flow)
 
 ### Измененные файлы

@@ -184,6 +184,60 @@ func TestVKLogin_AuthorizationCode_Success(t *testing.T) {
 	require.NotNil(t, body["user"])
 }
 
+func TestVKLogin_AndroidAuthorizationCode_Success(t *testing.T) {
+	setupAuthVKIntegrationDB(t)
+	t.Setenv("AUTH_VK_ENABLED", "true")
+	t.Setenv("JWT_SECRET", "vk-test-secret")
+	t.Setenv("AUTH_REFRESH_V1", "true")
+
+	originalAndroidExchanger := vkAndroidCodeExchanger
+	originalVerifier := vkAccessTokenVerifier
+	vkAndroidCodeExchanger = func(input vkAndroidCodeExchangeInput) (string, string, int64, error) {
+		require.Equal(t, "vk-auth-code", input.Code)
+		require.Equal(t, "vk-code-verifier", input.CodeVerifier)
+		require.Equal(t, "vk-callback-device", input.VKDeviceID)
+		require.Equal(t, "vk-state-android", input.State)
+		return "vk-android-access", "vk-android@example.com", 54474353, nil
+	}
+	vkAccessTokenVerifier = func(token string) (*vkUserInfo, error) {
+		require.Equal(t, "vk-android-access", token)
+		return &vkUserInfo{
+			UserID:     54474353,
+			FirstName:  "VK",
+			LastName:   "Android",
+			ScreenName: "vkandroid",
+			Email:      "vk-android@example.com",
+		}, nil
+	}
+	t.Cleanup(func() {
+		vkAndroidCodeExchanger = originalAndroidExchanger
+		vkAccessTokenVerifier = originalVerifier
+	})
+
+	app := newAuthVKTestApp(NewAuthHandler(nil, nil))
+	payload, _ := json.Marshal(map[string]string{
+		"code":         "vk-auth-code",
+		"codeVerifier": "vk-code-verifier",
+		"deviceId":     "app-device-android-1",
+		"platform":     "android",
+		"state":        "vk-state-android",
+		"vkDeviceId":   "vk-callback-device",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/vk/login", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.NotEmpty(t, body["accessToken"])
+	require.NotEmpty(t, body["refreshToken"])
+	require.NotEmpty(t, body["sessionId"])
+	require.NotNil(t, body["user"])
+}
+
 func TestVKCallback_Success_RedirectsToDeepLink(t *testing.T) {
 	originalExchanger := vkCodeExchanger
 	vkCodeExchanger = func(_ string) (string, string, int64, error) {
