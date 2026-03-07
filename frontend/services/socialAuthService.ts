@@ -63,17 +63,28 @@ const extractGoogleSignInPayload = (
     return {};
   }
 
-  if ('type' in result) {
-    if (result.type === 'cancelled') {
-      throw new Error('GOOGLE_SIGNIN_CANCELLED');
-    }
-    if (result.data && typeof result.data === 'object') {
-      return result.data;
-    }
-    return {};
+  const maybeTyped = result as {
+    type?: string;
+    data?: { idToken?: string | null; user?: any } | null;
+    idToken?: string | null;
+    user?: any;
+  };
+
+  if (maybeTyped.type === 'cancelled') {
+    throw new Error('GOOGLE_SIGNIN_CANCELLED');
   }
 
-  return result;
+  if (maybeTyped.data && typeof maybeTyped.data === 'object') {
+    return {
+      idToken: maybeTyped.data.idToken ?? null,
+      user: maybeTyped.data.user,
+    };
+  }
+
+  return {
+    idToken: maybeTyped.idToken ?? null,
+    user: maybeTyped.user,
+  };
 };
 
 const ensureGoogleConfigured = async (): Promise<GoogleSigninModule> => {
@@ -113,6 +124,7 @@ const VK_IOS_CLIENT_ID_FALLBACK = '54474354';
 const VK_LEGACY_MOBILE_CALLBACK = 'vedamatch://auth/vk/callback';
 const TELEGRAM_MOBILE_CALLBACK = 'vedamatch://auth/telegram/callback';
 const TELEGRAM_UNIVERSAL_CALLBACK = 'https://api.vedamatch.ru/auth/telegram/callback';
+
 type VKAuthPlatform = 'android' | 'ios';
 
 const generateState = (): string => `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -121,10 +133,13 @@ const resolveVKAuthPlatform = (platform: string | undefined): VKAuthPlatform => 
   platform === 'ios' ? 'ios' : 'android'
 );
 
+const getCurrentVKAuthPlatform = (): VKAuthPlatform => resolveVKAuthPlatform(Platform.OS);
+
 const getVKClientId = (platform: VKAuthPlatform): string => {
   const platformSpecific = platform === 'ios'
     ? readConfigString((Config as any).VK_IOS_CLIENT_ID)
     : readConfigString((Config as any).VK_ANDROID_CLIENT_ID);
+
   if (platformSpecific) return platformSpecific;
 
   const legacyClientId = readConfigString((Config as any).VK_CLIENT_ID);
@@ -133,29 +148,42 @@ const getVKClientId = (platform: VKAuthPlatform): string => {
   return platform === 'ios' ? VK_IOS_CLIENT_ID_FALLBACK : VK_ANDROID_CLIENT_ID_FALLBACK;
 };
 
-const getVKAndroidRedirectUri = (): string => {
-  return `vk${getVKClientId('android')}://vk.ru/blank.html`;
-};
+const getVKAndroidRedirectUri = (): string => (
+  `vk${getVKClientId('android')}://vk.ru/blank.html`
+);
+
+const getVKIOSRedirectUri = (): string => (
+  `vk${getVKClientId('ios')}://vk.ru/blank.html`
+);
 
 const getVKMobileRedirectUri = (): string => (
   readConfigString((Config as any).VK_REDIRECT_URI) || VK_MOBILE_CALLBACK_FALLBACK
+);
+
+const getVKRedirectUri = (platform: VKAuthPlatform): string => (
+  platform === 'android' ? getVKAndroidRedirectUri() : getVKMobileRedirectUri()
+);
+
+const getVKResponseType = (platform: VKAuthPlatform): 'token' | 'code' => (
+  platform === 'android' ? 'token' : 'code'
 );
 
 const resolveVKCallbackPrefixes = (): string[] => (
   Array.from(new Set([
     VK_OAUTH_CALLBACK,
     getVKAndroidRedirectUri(),
+    getVKIOSRedirectUri(),
     VK_LEGACY_MOBILE_CALLBACK,
     getVKMobileRedirectUri(),
     VK_MOBILE_CALLBACK_FALLBACK,
   ]))
 );
 
-const buildVKAuthorizeUrl = (state: string, _platform: VKAuthPlatform): string => {
-  const clientId = getVKClientId(_platform);
+const buildVKAuthorizeUrl = (state: string, platform: VKAuthPlatform): string => {
+  const clientId = getVKClientId(platform);
   const scope = readConfigString((Config as any).VK_SCOPE) || 'email';
-  const redirectUri = _platform === 'android' ? getVKAndroidRedirectUri() : getVKMobileRedirectUri();
-  const responseType = _platform === 'android' ? 'token' : 'code';
+  const redirectUri = getVKRedirectUri(platform);
+  const responseType = getVKResponseType(platform);
 
   if (!clientId) {
     throw new Error('VK_CONFIG_MISSING');
@@ -180,9 +208,11 @@ const parseQueryParam = (url: string, key: string): string => {
   const hashPart = url.split('#')[1] || '';
   const merged = [queryPart, hashPart].filter(Boolean).join('&');
   const search = new URLSearchParams(merged);
+
   for (const [k, value] of search.entries()) {
     if (k.toLowerCase() === lowerKey) return value || '';
   }
+
   return '';
 };
 
@@ -190,9 +220,23 @@ const isVKCallbackUrl = (url: string): boolean => (
   resolveVKCallbackPrefixes().some((prefix) => url.startsWith(prefix))
 );
 
-const resolveVKCallbackPlatform = (url: string): VKAuthPlatform => (
-  url.startsWith(getVKAndroidRedirectUri()) ? 'android' : 'ios'
-);
+const resolveVKCallbackPlatform = (url: string): VKAuthPlatform => {
+  if (url.startsWith(getVKAndroidRedirectUri())) {
+    return 'android';
+  }
+
+  if (
+    url.startsWith(getVKIOSRedirectUri()) ||
+    url.startsWith(getVKMobileRedirectUri()) ||
+    url.startsWith(VK_MOBILE_CALLBACK_FALLBACK) ||
+    url.startsWith(VK_OAUTH_CALLBACK) ||
+    url.startsWith(VK_LEGACY_MOBILE_CALLBACK)
+  ) {
+    return 'ios';
+  }
+
+  return getCurrentVKAuthPlatform();
+};
 
 const resolveTelegramCallbackPrefixes = (): string[] => (
   [TELEGRAM_MOBILE_CALLBACK, TELEGRAM_UNIVERSAL_CALLBACK]
@@ -224,6 +268,7 @@ const extractVKCallbackPayload = (
   const accessToken = readConfigString(parseQueryParam(url, 'access_token'));
   const code = readConfigString(parseQueryParam(url, 'code'));
   const email = readConfigString(parseQueryParam(url, 'email'));
+
   if (!accessToken && !code) {
     throw new Error('VK_ACCESS_TOKEN_OR_CODE_MISSING');
   }
@@ -237,6 +282,7 @@ const extractVKCallbackPayload = (
 
 export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   const module = await ensureGoogleConfigured();
+
   if (module.GoogleSignin.hasPlayServices) {
     await module.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   }
@@ -244,17 +290,22 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   const result = await module.GoogleSignin.signIn();
   const payload = extractGoogleSignInPayload(result);
   const idToken = readConfigString(payload?.idToken);
+
   if (!idToken) {
     throw new Error('GOOGLE_ID_TOKEN_MISSING');
   }
 
   const deviceId = await DeviceInfo.getUniqueId();
-  const response = await apiClient.post('/auth/google/login', {
-    idToken,
-    deviceId,
-  }, {
-    ...({ __skipAuthSession: true } as any),
-  });
+  const response = await apiClient.post(
+    '/auth/google/login',
+    {
+      idToken,
+      deviceId,
+    },
+    {
+      ...({ __skipAuthSession: true } as any),
+    },
+  );
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {
@@ -267,13 +318,14 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   };
 };
 
-export const createVKAuthSession = (
-  platform: VKAuthPlatform = resolveVKAuthPlatform(Platform.OS),
-): VKAuthSession => {
+export const createVKAuthSession = (): VKAuthSession => {
+  const platform = getCurrentVKAuthPlatform();
   const state = generateState();
+  const authorizeUrl = buildVKAuthorizeUrl(state, platform);
+
   return {
     state,
-    authorizeUrl: buildVKAuthorizeUrl(state, platform),
+    authorizeUrl,
     presentation: 'external',
   };
 };
@@ -292,20 +344,28 @@ export const finalizeVKSignIn = async (
     platform,
     clientId,
   };
+
   if (callbackData.accessToken) {
     payload.accessToken = callbackData.accessToken;
   }
+
   if (callbackData.code) {
     payload.code = callbackData.code;
   }
+
   if (callbackData.email) {
     payload.email = callbackData.email;
   }
-  const response = await apiClient.post('/auth/vk/login', {
-    ...payload,
-  }, {
-    ...({ __skipAuthSession: true } as any),
-  });
+
+  const response = await apiClient.post(
+    '/auth/vk/login',
+    {
+      ...payload,
+    },
+    {
+      ...({ __skipAuthSession: true } as any),
+    },
+  );
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {
@@ -322,15 +382,20 @@ export const isVKAuthCallbackUrl = isVKCallbackUrl;
 
 export const createTelegramAuthSession = async (): Promise<TelegramAuthSession> => {
   const deviceId = await DeviceInfo.getUniqueId();
-  const response = await apiClient.post('/auth/telegram/mobile/start', {
-    deviceId,
-  }, {
-    ...({ __skipAuthSession: true } as any),
-  });
+  const response = await apiClient.post(
+    '/auth/telegram/mobile/start',
+    {
+      deviceId,
+    },
+    {
+      ...({ __skipAuthSession: true } as any),
+    },
+  );
 
   const state = readConfigString(response?.data?.state);
   const launchUrl = readConfigString(response?.data?.launchUrl);
   const expiresAt = readConfigString(response?.data?.expiresAt);
+
   if (!state || !launchUrl) {
     throw new Error('TELEGRAM_AUTH_START_RESPONSE_INVALID');
   }
@@ -354,17 +419,22 @@ export const finalizeTelegramSignIn = async (
   if (!state) {
     throw new Error('TELEGRAM_AUTH_STATE_MISSING');
   }
+
   if (readConfigString(expectedState) && state !== readConfigString(expectedState)) {
     throw new Error('TELEGRAM_AUTH_STATE_MISMATCH');
   }
 
   const deviceId = await DeviceInfo.getUniqueId();
-  const response = await apiClient.post('/auth/telegram/mobile/exchange', {
-    state,
-    deviceId,
-  }, {
-    ...({ __skipAuthSession: true } as any),
-  });
+  const response = await apiClient.post(
+    '/auth/telegram/mobile/exchange',
+    {
+      state,
+      deviceId,
+    },
+    {
+      ...({ __skipAuthSession: true } as any),
+    },
+  );
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {
