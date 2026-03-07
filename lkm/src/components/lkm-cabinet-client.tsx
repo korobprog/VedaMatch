@@ -104,6 +104,55 @@ type LoginResponse = {
   };
 };
 
+type SocialAuthConfigResponse = {
+  google?: {
+    enabled?: boolean;
+    clientId?: string;
+  };
+  vk?: {
+    enabled?: boolean;
+  };
+};
+
+type SocialAuthPopupMessage = {
+  source?: string;
+  provider?: 'vk';
+  status?: 'success' | 'error';
+  error?: string;
+  authPayload?: LoginResponse;
+};
+
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+type GoogleIdentityAPI = {
+  accounts?: {
+    id?: {
+      initialize: (options: {
+        client_id: string;
+        callback: (response: GoogleCredentialResponse) => void;
+        ux_mode?: 'popup' | 'redirect';
+        auto_select?: boolean;
+        cancel_on_tap_outside?: boolean;
+        context?: 'signin' | 'signup' | 'use';
+      }) => void;
+      renderButton: (
+        parent: HTMLElement,
+        options: {
+          theme?: 'outline' | 'filled_blue' | 'filled_black';
+          size?: 'large' | 'medium' | 'small';
+          text?: string;
+          shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+          width?: number;
+          logo_alignment?: 'left' | 'center';
+        },
+      ) => void;
+      cancel?: () => void;
+    };
+  };
+};
+
 type TelegramMiniAppUser = {
   id?: number;
   language_code?: string;
@@ -137,6 +186,12 @@ type Props = {
   apiBaseUrl: string;
 };
 
+declare global {
+  interface Window {
+    google?: GoogleIdentityAPI;
+  }
+}
+
 const TOKEN_KEY = 'lkm_access_token';
 const REFRESH_TOKEN_KEY = 'lkm_refresh_token';
 const SESSION_ID_KEY = 'lkm_session_id';
@@ -146,6 +201,7 @@ const DEVICE_ID_KEY = 'lkm_device_id';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
 const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
+const SOCIAL_AUTH_POPUP_SOURCE = 'vedamatch:lkm-social-auth';
 const HISTORY_STATUS_OPTIONS: ReadonlyArray<TopupStatusFilter> = [
   'all',
   'pending_payment',
@@ -211,6 +267,26 @@ function buildErrorMessage(error: unknown): string {
     return message;
   }
   return 'Неизвестная ошибка';
+}
+
+function buildSocialPopupErrorMessage(provider: 'vk', rawError: string | undefined): string {
+  const normalized = (rawError || '').trim();
+  if (!normalized) {
+    return provider === 'vk' ? 'Не удалось выполнить вход через VK' : 'Не удалось выполнить social login';
+  }
+  if (normalized === 'access_denied') {
+    return 'Вход через VK был отменен';
+  }
+  if (normalized === 'exchange_failed') {
+    return 'VK не выдал access token. Проверьте настройки web-приложения и попробуйте снова.';
+  }
+  if (normalized === 'missing_code') {
+    return 'VK не вернул код авторизации';
+  }
+  if (normalized === 'Invalid VK token') {
+    return 'VK вернул невалидный токен';
+  }
+  return normalized;
 }
 
 function getTelegramWebApp(): TelegramWebApp | null {
@@ -317,6 +393,13 @@ export default function LkmCabinetClient({
   apiBaseUrl,
 }: Props) {
   const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
+  const apiOrigin = useMemo(() => {
+    try {
+      return new URL(normalizedApiBaseUrl).origin;
+    } catch {
+      return '';
+    }
+  }, [normalizedApiBaseUrl]);
   const [token, setToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -334,6 +417,10 @@ export default function LkmCabinetClient({
   const [telegramMobileDeepLink, setTelegramMobileDeepLink] = useState('');
   const [telegramLinkRequired, setTelegramLinkRequired] = useState(false);
   const [telegramAuthAttempted, setTelegramAuthAttempted] = useState(false);
+  const [socialAuthConfig, setSocialAuthConfig] = useState<SocialAuthConfigResponse | null>(null);
+  const [isSocialAuthConfigLoading, setIsSocialAuthConfigLoading] = useState(false);
+  const [isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(false);
+  const [isVKAuthLoading, setIsVKAuthLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -364,8 +451,16 @@ export default function LkmCabinetClient({
   const refreshTokenRef = useRef('');
   const sessionIdRef = useRef<number | null>(null);
   const deviceIdRef = useRef('');
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const socialAuthPopupRef = useRef<Window | null>(null);
+  const socialAuthPopupPollRef = useRef<number | null>(null);
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
   const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
+  const canUseWebSocialAuth = !isTelegramMiniApp && !telegramLinkRequired;
+  const googleClientId = (socialAuthConfig?.google?.clientId || '').trim();
+  const canUseGoogleWebAuth = canUseWebSocialAuth && !!socialAuthConfig?.google?.enabled && googleClientId !== '';
+  const canUseVKWebAuth = canUseWebSocialAuth && !!socialAuthConfig?.vk?.enabled;
+  const showSocialAuthOptions = !token && canUseWebSocialAuth && (canUseGoogleWebAuth || canUseVKWebAuth || isSocialAuthConfigLoading);
 
   const canTopup = !!token && !isBlockedInApp;
 
@@ -460,6 +555,37 @@ export default function LkmCabinetClient({
     return accessToken;
   }, []);
 
+  const performPublicSocialLogin = useCallback(async (path: string, body: unknown): Promise<LoginResponse> => {
+    const response = await fetch(`${normalizedApiBaseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+
+    const raw = await response.text();
+    let payload: unknown = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        payload = { error: raw };
+      }
+    }
+
+    if (!response.ok) {
+      const errorData = payload as { error?: string; errorCode?: string };
+      const message = errorData.errorCode
+        ? `${errorData.error || 'Request failed'} (${errorData.errorCode})`
+        : errorData.error || `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+
+    return payload as LoginResponse;
+  }, [normalizedApiBaseUrl]);
+
   const refreshAuthSession = useCallback(async (): Promise<string | null> => {
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
@@ -548,6 +674,265 @@ export default function LkmCabinetClient({
       setIsTelegramMobileBridgeLoading(false);
     }
   }, [isTelegramMobileAuthFlow, telegramMobileAuthState]);
+
+  const finalizeSocialLogin = useCallback(async (authPayload: LoginResponse, providerLabel: string) => {
+    applyAuthSession(authPayload);
+    setSessionRestoreAttempted(true);
+    setError('');
+    if (isTelegramMobileAuthFlow) {
+      await completeTelegramMobileBridge(authPayload);
+    } else {
+      setSuccess(`Вход через ${providerLabel} выполнен`);
+    }
+  }, [applyAuthSession, completeTelegramMobileBridge, isTelegramMobileAuthFlow]);
+
+  const handleGoogleCredentialResponse = useCallback(async (response: GoogleCredentialResponse) => {
+    const idToken = (response.credential || '').trim();
+    if (!idToken) {
+      setError('Google не вернул id token');
+      return;
+    }
+
+    const resolvedDeviceID = deviceIdRef.current || getOrCreateLkmDeviceID();
+    if (resolvedDeviceID && resolvedDeviceID !== deviceIdRef.current) {
+      deviceIdRef.current = resolvedDeviceID;
+      setDeviceId(resolvedDeviceID);
+    }
+
+    setError('');
+    setSuccess('');
+    setIsGoogleAuthLoading(true);
+    try {
+      const authPayload = await performPublicSocialLogin('/auth/google/login', {
+        idToken,
+        deviceId: resolvedDeviceID || undefined,
+      });
+      await finalizeSocialLogin(authPayload, 'Google');
+    } catch (googleError) {
+      setError(buildErrorMessage(googleError));
+    } finally {
+      setIsGoogleAuthLoading(false);
+    }
+  }, [finalizeSocialLogin, performPublicSocialLogin]);
+
+  const openVKWebPopup = useCallback(() => {
+    if (!socialAuthConfig?.vk?.enabled) {
+      setError('VK web авторизация пока не настроена');
+      return;
+    }
+
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!currentOrigin) {
+      setError('Не удалось определить origin текущего сайта');
+      return;
+    }
+
+    const resolvedDeviceID = deviceIdRef.current || getOrCreateLkmDeviceID();
+    if (resolvedDeviceID && resolvedDeviceID !== deviceIdRef.current) {
+      deviceIdRef.current = resolvedDeviceID;
+      setDeviceId(resolvedDeviceID);
+    }
+
+    setError('');
+    setSuccess('');
+    setIsVKAuthLoading(true);
+
+    const startURL = `${normalizedApiBaseUrl}/auth/vk/web/start?origin=${encodeURIComponent(currentOrigin)}&deviceId=${encodeURIComponent(resolvedDeviceID || '')}`;
+    const width = 560;
+    const height = 720;
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+    const features = `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+    const popup = window.open(startURL, 'vedamatch-vk-login', features);
+
+    if (!popup) {
+      setIsVKAuthLoading(false);
+      setError('Браузер заблокировал окно VK авторизации. Разрешите popup и попробуйте снова.');
+      return;
+    }
+
+    socialAuthPopupRef.current = popup;
+    popup.focus();
+
+    if (socialAuthPopupPollRef.current) {
+      window.clearInterval(socialAuthPopupPollRef.current);
+    }
+    socialAuthPopupPollRef.current = window.setInterval(() => {
+      const currentPopup = socialAuthPopupRef.current;
+      if (!currentPopup || currentPopup.closed) {
+        if (socialAuthPopupPollRef.current) {
+          window.clearInterval(socialAuthPopupPollRef.current);
+          socialAuthPopupPollRef.current = null;
+        }
+        socialAuthPopupRef.current = null;
+        setIsVKAuthLoading(false);
+      }
+    }, 400);
+  }, [normalizedApiBaseUrl, socialAuthConfig?.vk?.enabled]);
+
+  useEffect(() => {
+    if (token || isTelegramMiniApp) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsSocialAuthConfigLoading(true);
+    fetch(`${normalizedApiBaseUrl}/auth/social/config`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as SocialAuthConfigResponse;
+        if (!response.ok) {
+          throw new Error('Не удалось загрузить social auth config');
+        }
+        if (!cancelled) {
+          setSocialAuthConfig(payload);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSocialAuthConfig(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSocialAuthConfigLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTelegramMiniApp, normalizedApiBaseUrl, token]);
+
+  useEffect(() => {
+    if (!apiOrigin) {
+      return;
+    }
+
+    const handleSocialPopupMessage = (event: MessageEvent<SocialAuthPopupMessage>) => {
+      if (event.origin !== apiOrigin) {
+        return;
+      }
+      const message = event.data;
+      if (!message || message.source !== SOCIAL_AUTH_POPUP_SOURCE || message.provider !== 'vk') {
+        return;
+      }
+
+      if (socialAuthPopupPollRef.current) {
+        window.clearInterval(socialAuthPopupPollRef.current);
+        socialAuthPopupPollRef.current = null;
+      }
+      if (socialAuthPopupRef.current && !socialAuthPopupRef.current.closed) {
+        socialAuthPopupRef.current.close();
+      }
+      socialAuthPopupRef.current = null;
+      setIsVKAuthLoading(false);
+
+      if (message.status === 'success' && message.authPayload) {
+        void finalizeSocialLogin(message.authPayload, 'VK');
+        return;
+      }
+
+      setError(buildSocialPopupErrorMessage('vk', message.error));
+    };
+
+    window.addEventListener('message', handleSocialPopupMessage);
+    return () => {
+      window.removeEventListener('message', handleSocialPopupMessage);
+    };
+  }, [apiOrigin, finalizeSocialLogin]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (!canUseWebSocialAuth || token) {
+      if (googleButtonRef.current) {
+        googleButtonRef.current.innerHTML = '';
+      }
+      return;
+    }
+
+    const googleClientId = (socialAuthConfig?.google?.clientId || '').trim();
+    if (!socialAuthConfig?.google?.enabled || !googleClientId || !googleButtonRef.current) {
+      if (googleButtonRef.current) {
+        googleButtonRef.current.innerHTML = '';
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    const renderGoogleButton = () => {
+      if (cancelled || !googleButtonRef.current) {
+        return;
+      }
+      const googleIdentity = window.google?.accounts?.id;
+      if (!googleIdentity) {
+        return;
+      }
+
+      googleIdentity.initialize({
+        client_id: googleClientId,
+        callback: (response) => {
+          void handleGoogleCredentialResponse(response);
+        },
+        ux_mode: 'popup',
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        context: 'signin',
+      });
+      googleButtonRef.current.innerHTML = '';
+      googleIdentity.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'pill',
+        width: 320,
+        logo_alignment: 'left',
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[data-google-identity="true"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', renderGoogleButton, { once: true });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = 'true';
+    script.addEventListener('load', renderGoogleButton, { once: true });
+    document.head.appendChild(script);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseWebSocialAuth, handleGoogleCredentialResponse, socialAuthConfig, token]);
+
+  useEffect(() => () => {
+    if (socialAuthPopupPollRef.current) {
+      window.clearInterval(socialAuthPopupPollRef.current);
+      socialAuthPopupPollRef.current = null;
+    }
+    if (socialAuthPopupRef.current && !socialAuthPopupRef.current.closed) {
+      socialAuthPopupRef.current.close();
+      socialAuthPopupRef.current = null;
+    }
+  }, []);
 
   const amountToQuote = useMemo(() => {
     if (selectedAmount && selectedAmount > 0) {
@@ -1228,6 +1613,38 @@ export default function LkmCabinetClient({
                       ? 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch и вернуть вас в приложение.'
                       : 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.'}
                   </p>
+                ) : null}
+                {showSocialAuthOptions ? (
+                  <div className="social-auth-stack">
+                    <p className="note">
+                      Войти можно через Google или VK. Email и пароль остаются как резервный способ.
+                    </p>
+                    {canUseGoogleWebAuth ? (
+                      <div className="google-auth-slot-wrap">
+                        <div
+                          ref={googleButtonRef}
+                          className={`google-auth-slot${isGoogleAuthLoading ? ' is-loading' : ''}`}
+                          aria-live="polite"
+                        />
+                        {isGoogleAuthLoading ? (
+                          <p className="note">Подтверждаем вход через Google...</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {canUseVKWebAuth ? (
+                      <button
+                        type="button"
+                        className="secondary social-auth-button vk-auth-button"
+                        onClick={openVKWebPopup}
+                        disabled={isVKAuthLoading || isGoogleAuthLoading || isLoggingIn}
+                      >
+                        {isVKAuthLoading ? 'Открываем VK...' : 'Войти через VK'}
+                      </button>
+                    ) : null}
+                    <div className="social-auth-divider" aria-hidden="true">
+                      <span>или</span>
+                    </div>
+                  </div>
                 ) : null}
                 <label>
                   Email

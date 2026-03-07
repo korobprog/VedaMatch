@@ -34,6 +34,7 @@ type AuthHandler struct {
 	walletService       *services.WalletService
 	referralService     *services.ReferralService
 	telegramAuthService *services.TelegramAuthService
+	webSocialAuthBridge *services.WebSocialAuthBridgeService
 	proService          *services.ProService
 }
 
@@ -44,6 +45,7 @@ func NewAuthHandler(walletService *services.WalletService, referralService *serv
 		walletService:       walletService,
 		referralService:     referralService,
 		telegramAuthService: services.NewTelegramAuthService(database.DB),
+		webSocialAuthBridge: services.NewWebSocialAuthBridgeService(),
 		proService:          services.NewProService(walletService),
 	}
 }
@@ -175,26 +177,22 @@ func buildTokenPairResponse(message string, user models.User, sessionID uint, ac
 	return response
 }
 
-func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models.User, deviceID string) error {
+func buildAuthResponsePayload(message string, user models.User, deviceID string) (fiber.Map, error) {
 	authNow := time.Now().UTC()
 	if config.AuthRefreshV1Enabled() {
 		session, refreshToken, sessionErr := createAuthSession(user.ID, deviceID, authNow)
 		if sessionErr != nil {
 			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not create auth session",
-			})
+			return nil, errors.New("Could not create auth session")
 		}
 
 		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
 		if tokenErr != nil {
 			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not generate token",
-			})
+			return nil, errors.New("Could not generate token")
 		}
 
-		return c.Status(statusCode).JSON(buildTokenPairResponse(
+		return buildTokenPairResponse(
 			message,
 			user,
 			session.ID,
@@ -202,16 +200,14 @@ func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models
 			accessExpiresAt,
 			refreshToken,
 			session.ExpiresAt,
-		))
+		), nil
 	}
 
 	// Legacy auth flow when refresh sessions are disabled.
 	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if secret == "" {
 		log.Println("[AUTH] JWT_SECRET not configured")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server configuration error",
-		})
+		return nil, errors.New("Server configuration error")
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -224,16 +220,24 @@ func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		log.Printf("[AUTH] Failed to generate token: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not generate token",
-		})
+		return nil, errors.New("Could not generate token")
 	}
 
-	return c.Status(statusCode).JSON(fiber.Map{
+	return fiber.Map{
 		"message": message,
 		"token":   tokenString,
 		"user":    user,
-	})
+	}, nil
+}
+
+func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models.User, deviceID string) error {
+	response, err := buildAuthResponsePayload(message, user, deviceID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return c.Status(statusCode).JSON(response)
 }
 
 func respondTelegramAuthError(c *fiber.Ctx, err error) error {
@@ -339,6 +343,7 @@ type vkUserInfo struct {
 
 var vkAccessTokenVerifier = verifyVKAccessToken
 var vkCodeExchanger = exchangeVKCode
+var vkWebCodeExchanger = exchangeVKWebCode
 
 type vkAndroidCodeExchangeInput struct {
 	Code         string
@@ -381,6 +386,7 @@ func splitCSVEnv(raw string) []string {
 func resolveGoogleAllowedClientIDs() []string {
 	envKeys := []string{
 		"AUTH_GOOGLE_ALLOWED_CLIENT_IDS",
+		"GOOGLE_LKM_WEB_CLIENT_ID",
 		"GOOGLE_WEB_CLIENT_ID",
 		"GOOGLE_IOS_CLIENT_ID",
 		"GOOGLE_ANDROID_CLIENT_ID_DEBUG",
@@ -400,6 +406,100 @@ func resolveGoogleAllowedClientIDs() []string {
 	}
 
 	return result
+}
+
+func resolveGoogleLKMWebClientID() string {
+	for _, key := range []string{"GOOGLE_LKM_WEB_CLIENT_ID", "GOOGLE_WEB_CLIENT_ID"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeWebAuthOrigin(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return ""
+	}
+	if parsed.Host == "" || parsed.User != nil {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host
+}
+
+func resolveAllowedLKMWebOrigins() map[string]struct{} {
+	defaults := []string{
+		"https://lkm.vedamatch.ru",
+		"https://lkm.vedamatch.com",
+		"http://localhost:3006",
+		"http://127.0.0.1:3006",
+	}
+
+	allowed := make(map[string]struct{}, len(defaults))
+	for _, origin := range defaults {
+		if normalized := normalizeWebAuthOrigin(origin); normalized != "" {
+			allowed[normalized] = struct{}{}
+		}
+	}
+
+	for _, item := range splitCSVEnv(os.Getenv("LKM_WEB_ALLOWED_ORIGINS")) {
+		if normalized := normalizeWebAuthOrigin(item); normalized != "" {
+			allowed[normalized] = struct{}{}
+		}
+	}
+
+	return allowed
+}
+
+func isAllowedLKMWebOrigin(origin string) bool {
+	normalized := normalizeWebAuthOrigin(origin)
+	if normalized == "" {
+		return false
+	}
+	_, ok := resolveAllowedLKMWebOrigins()[normalized]
+	return ok
+}
+
+func resolveVKWebRedirectURI() string {
+	if value := strings.TrimSpace(os.Getenv("VK_WEB_REDIRECT_URI")); value != "" {
+		return value
+	}
+
+	apiBaseURL := strings.TrimSpace(os.Getenv("NEXT_PUBLIC_API_URL"))
+	if apiBaseURL != "" {
+		parsed, err := url.Parse(apiBaseURL)
+		if err == nil && parsed.Scheme != "" && parsed.Host != "" {
+			return parsed.Scheme + "://" + parsed.Host + "/auth/vk/web/callback"
+		}
+	}
+
+	return "https://api.vedamatch.ru/auth/vk/web/callback"
+}
+
+func resolveVKWebScope() string {
+	if scope := strings.TrimSpace(os.Getenv("VK_WEB_SCOPE")); scope != "" {
+		return scope
+	}
+	if scope := strings.TrimSpace(os.Getenv("VK_SCOPE")); scope != "" {
+		return scope
+	}
+	return "email"
+}
+
+func isVKWebAuthConfigured() bool {
+	return config.AuthVKEnabled() &&
+		strings.TrimSpace(os.Getenv("VK_WEB_CLIENT_ID")) != "" &&
+		strings.TrimSpace(os.Getenv("VK_WEB_CLIENT_SECRET")) != "" &&
+		strings.TrimSpace(resolveVKWebRedirectURI()) != ""
 }
 
 func validateGoogleAudience(audience string) error {
@@ -527,10 +627,10 @@ func buildVKFallbackEmail(userID int64) string {
 	return fmt.Sprintf("vk_%d@oauth.vedamatch.local", userID)
 }
 
-func exchangeVKCode(code string) (accessToken string, email string, userID int64, err error) {
-	clientID := strings.TrimSpace(os.Getenv("VK_CLIENT_ID"))
-	clientSecret := strings.TrimSpace(os.Getenv("VK_CLIENT_SECRET"))
-	redirectURI := strings.TrimSpace(os.Getenv("VK_REDIRECT_URI"))
+func exchangeVKCodeWithConfig(code string, clientID string, clientSecret string, redirectURI string) (accessToken string, email string, userID int64, err error) {
+	clientID = strings.TrimSpace(clientID)
+	clientSecret = strings.TrimSpace(clientSecret)
+	redirectURI = strings.TrimSpace(redirectURI)
 	if clientID == "" || clientSecret == "" || redirectURI == "" {
 		return "", "", 0, errors.New("VK env config is incomplete")
 	}
@@ -580,6 +680,24 @@ func exchangeVKCode(code string) (accessToken string, email string, userID int64
 	}
 
 	return strings.TrimSpace(payload.AccessToken), strings.TrimSpace(payload.Email), payload.UserID, nil
+}
+
+func exchangeVKCode(code string) (accessToken string, email string, userID int64, err error) {
+	return exchangeVKCodeWithConfig(
+		code,
+		os.Getenv("VK_CLIENT_ID"),
+		os.Getenv("VK_CLIENT_SECRET"),
+		os.Getenv("VK_REDIRECT_URI"),
+	)
+}
+
+func exchangeVKWebCode(code string) (accessToken string, email string, userID int64, err error) {
+	return exchangeVKCodeWithConfig(
+		code,
+		os.Getenv("VK_WEB_CLIENT_ID"),
+		os.Getenv("VK_WEB_CLIENT_SECRET"),
+		resolveVKWebRedirectURI(),
+	)
 }
 
 func exchangeVKAndroidCode(input vkAndroidCodeExchangeInput) (accessToken string, email string, userID int64, err error) {
@@ -852,6 +970,18 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
 }
 
+func (h *AuthHandler) SocialAuthConfig(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"google": fiber.Map{
+			"enabled":  config.AuthGoogleEnabled(),
+			"clientId": resolveGoogleLKMWebClientID(),
+		},
+		"vk": fiber.Map{
+			"enabled": isVKWebAuthConfigured(),
+		},
+	})
+}
+
 func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 	_ = services.GetMetricsService().Increment(services.MetricAuthGoogleAttemptTotal, 1)
 	if !config.AuthGoogleEnabled() {
@@ -1030,6 +1160,257 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 	return issueAuthResponse(c, fiber.StatusOK, "Google login successful", user, req.DeviceID)
 }
 
+func (h *AuthHandler) buildVKLoginPayload(accessToken string, email string, deviceID string) (fiber.Map, *fiber.Error) {
+	vkUser, err := vkAccessTokenVerifier(accessToken)
+	if err != nil {
+		log.Printf("[AUTH] VK token verification failed: %v", err)
+		return nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid VK token")
+	}
+
+	now := time.Now().UTC()
+	var user models.User
+	foundByVK := false
+	if err := database.DB.Where("vk_user_id = ?", vkUser.UserID).First(&user).Error; err == nil {
+		foundByVK = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[AUTH] VK login lookup by vk_user_id failed vk=%d: %v", vkUser.UserID, err)
+		return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not resolve VK account")
+	}
+
+	candidateEmail := strings.TrimSpace(strings.ToLower(email))
+	if candidateEmail == "" {
+		candidateEmail = strings.TrimSpace(strings.ToLower(vkUser.Email))
+	}
+
+	if !foundByVK && candidateEmail != "" {
+		normalizedEmail := candidateEmail
+		if err := database.DB.Where("email = ?", normalizedEmail).First(&user).Error; err == nil {
+			if user.VKUserID != nil && *user.VKUserID != 0 && *user.VKUserID != vkUser.UserID {
+				return nil, fiber.NewError(fiber.StatusConflict, "VK account is already linked to another user")
+			}
+			vkUserID := vkUser.UserID
+			updates := map[string]interface{}{
+				"vk_user_id":   vkUserID,
+				"vk_email":     normalizedEmail,
+				"vk_linked_at": now,
+			}
+			if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+				log.Printf("[AUTH] VK login link existing user failed user=%d vk=%d: %v", user.ID, vkUser.UserID, err)
+				return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not link VK account")
+			}
+			user.VKUserID = &vkUserID
+			user.VKEmail = normalizedEmail
+			user.VKLinkedAt = &now
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[AUTH] VK login lookup by email failed email=%s: %v", normalizedEmail, err)
+			return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not resolve VK account by email")
+		}
+	}
+
+	if user.ID == 0 {
+		passwordRaw := fmt.Sprintf("vk:%d:%d", vkUser.UserID, now.UnixNano())
+		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(passwordRaw), bcrypt.DefaultCost)
+		if hashErr != nil {
+			log.Printf("[AUTH] VK login hash password failed vk=%d: %v", vkUser.UserID, hashErr)
+			return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not create VK user")
+		}
+
+		normalizedEmail := candidateEmail
+		if normalizedEmail == "" {
+			normalizedEmail = buildVKFallbackEmail(vkUser.UserID)
+		}
+		karmicName := strings.TrimSpace(strings.TrimSpace(vkUser.FirstName + " " + vkUser.LastName))
+		if karmicName == "" {
+			if vkUser.ScreenName != "" {
+				karmicName = vkUser.ScreenName
+			} else {
+				karmicName = "VK User"
+			}
+		}
+		spiritualName := strings.TrimSpace(vkUser.FirstName)
+		if spiritualName == "" {
+			spiritualName = "Guest"
+		}
+
+		vkUserID := vkUser.UserID
+		newUser := models.User{
+			Email:         normalizedEmail,
+			Password:      string(hashedPassword),
+			KarmicName:    karmicName,
+			SpiritualName: spiritualName,
+			Role:          models.RoleUser,
+			VKUserID:      &vkUserID,
+			VKEmail:       normalizedEmail,
+			VKLinkedAt:    &now,
+			Language:      "ru",
+		}
+
+		nicknameService := services.NewNicknameService(database.DB)
+		nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration("", newUser.Email, newUser.KarmicName)
+		if nicknameErr != nil {
+			log.Printf("[AUTH] VK login assign nickname failed email=%s: %v", newUser.Email, nicknameErr)
+			return nil, fiber.NewError(fiber.StatusUnprocessableEntity, "Could not assign nickname")
+		}
+		newUser.Nickname = nickname
+		newUser.NicknameSetManually = nicknameSetManually
+
+		if strings.TrimSpace(deviceID) != "" {
+			newUser.DeviceID = strings.TrimSpace(deviceID)
+		}
+
+		if err := database.DB.Create(&newUser).Error; err != nil {
+			log.Printf("[AUTH] VK login create user failed email=%s vk=%d: %v", newUser.Email, vkUser.UserID, err)
+			return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not create VK user")
+		}
+
+		if _, walletErr := h.walletService.GetOrCreateWallet(newUser.ID); walletErr != nil {
+			log.Printf("[AUTH] Failed to create wallet for VK user %d: %v", newUser.ID, walletErr)
+		}
+
+		user = newUser
+	}
+
+	if user.IsBlocked {
+		return nil, fiber.NewError(fiber.StatusUnauthorized, "User is blocked")
+	}
+
+	updateUserDeviceID(&user, deviceID)
+	if h.proService != nil {
+		if err := h.proService.SyncEntitlement(user.ID); err != nil {
+			log.Printf("[AUTH] Failed to sync PRO entitlement for vk login user=%d err=%v", user.ID, err)
+		} else {
+			_ = database.DB.First(&user, user.ID).Error
+		}
+	}
+
+	sanitizeUser(&user)
+	payload, payloadErr := buildAuthResponsePayload("VK login successful", user, deviceID)
+	if payloadErr != nil {
+		log.Printf("[AUTH] VK auth payload build failed user=%d err=%v", user.ID, payloadErr)
+		return nil, fiber.NewError(fiber.StatusInternalServerError, payloadErr.Error())
+	}
+	return payload, nil
+}
+
+func renderWebSocialAuthPopup(c *fiber.Ctx, targetOrigin string, message fiber.Map) error {
+	originJSON, err := json.Marshal(strings.TrimSpace(targetOrigin))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Could not prepare auth popup response")
+	}
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Could not prepare auth popup payload")
+	}
+
+	c.Type("html", "utf-8")
+	return c.SendString(
+		"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>VedaMatch Auth</title></head><body>" +
+			"<script>(function(){const targetOrigin=" + string(originJSON) + ";const message=" + string(messageJSON) + ";" +
+			"const doneText=message.status==='success'?'Авторизация завершена. Можно закрыть окно.':'Авторизация завершилась с ошибкой. Закройте окно и попробуйте снова.';" +
+			"try{if(window.opener&&!window.opener.closed){window.opener.postMessage(message,targetOrigin);window.close();return;}}catch(error){}" +
+			"document.body.style.fontFamily='system-ui,sans-serif';document.body.style.padding='24px';document.body.textContent=doneText;})();</script>" +
+			"</body></html>",
+	)
+}
+
+func (h *AuthHandler) VKWebStart(c *fiber.Ctx) error {
+	if h.webSocialAuthBridge == nil {
+		h.webSocialAuthBridge = services.NewWebSocialAuthBridgeService()
+	}
+	if !isVKWebAuthConfigured() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "VK web auth is not configured",
+		})
+	}
+
+	targetOrigin := normalizeWebAuthOrigin(c.Query("origin"))
+	if !isAllowedLKMWebOrigin(targetOrigin) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid origin",
+		})
+	}
+
+	deviceID := strings.TrimSpace(c.Query("deviceId"))
+	state, err := h.webSocialAuthBridge.CreateState("vk", deviceID, targetOrigin)
+	if err != nil {
+		log.Printf("[AUTH] VK web auth start failed: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not initialize VK web auth",
+		})
+	}
+
+	query := url.Values{}
+	query.Set("client_id", strings.TrimSpace(os.Getenv("VK_WEB_CLIENT_ID")))
+	query.Set("redirect_uri", resolveVKWebRedirectURI())
+	query.Set("response_type", "code")
+	query.Set("display", "page")
+	query.Set("scope", resolveVKWebScope())
+	query.Set("v", "5.199")
+	query.Set("state", state.State)
+
+	return c.Redirect("https://oauth.vk.com/authorize?"+query.Encode(), fiber.StatusFound)
+}
+
+func (h *AuthHandler) VKWebCallback(c *fiber.Ctx) error {
+	if h.webSocialAuthBridge == nil {
+		h.webSocialAuthBridge = services.NewWebSocialAuthBridgeService()
+	}
+	stateValue := strings.TrimSpace(c.Query("state"))
+	state, stateErr := h.webSocialAuthBridge.ConsumeState("vk", stateValue)
+	if stateErr != nil {
+		log.Printf("[AUTH] VK web callback invalid state=%q err=%v", stateValue, stateErr)
+		return c.Status(fiber.StatusBadRequest).SendString("VK web auth session is invalid or expired")
+	}
+
+	authCode := strings.TrimSpace(c.Query("code"))
+	authErr := strings.TrimSpace(c.Query("error"))
+	if authErr != "" {
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    authErr,
+		})
+	}
+	if authCode == "" {
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    "missing_code",
+		})
+	}
+
+	accessToken, email, _, err := vkWebCodeExchanger(authCode)
+	if err != nil {
+		log.Printf("[AUTH] VK web callback exchange failed: %v", err)
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    "exchange_failed",
+		})
+	}
+
+	authPayload, authPayloadErr := h.buildVKLoginPayload(accessToken, email, state.DeviceID)
+	if authPayloadErr != nil {
+		log.Printf("[AUTH] VK web callback auth failed: %v", authPayloadErr)
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    authPayloadErr.Message,
+		})
+	}
+
+	return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+		"source":      "vedamatch:lkm-social-auth",
+		"provider":    "vk",
+		"status":      "success",
+		"authPayload": authPayload,
+	})
+}
+
 func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 	if !config.AuthVKEnabled() {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -1096,145 +1477,13 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 		}
 	}
 
-	vkUser, err := vkAccessTokenVerifier(accessToken)
-	if err != nil {
-		log.Printf("[AUTH] VK token verification failed: %v", err)
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid VK token",
+	payload, payloadErr := h.buildVKLoginPayload(accessToken, req.Email, req.DeviceID)
+	if payloadErr != nil {
+		return c.Status(payloadErr.Code).JSON(fiber.Map{
+			"error": payloadErr.Message,
 		})
 	}
-
-	now := time.Now().UTC()
-	var user models.User
-	foundByVK := false
-	if err := database.DB.Where("vk_user_id = ?", vkUser.UserID).First(&user).Error; err == nil {
-		foundByVK = true
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Printf("[AUTH] VK login lookup by vk_user_id failed vk=%d: %v", vkUser.UserID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not resolve VK account",
-		})
-	}
-
-	candidateEmail := strings.TrimSpace(strings.ToLower(req.Email))
-	if candidateEmail == "" {
-		candidateEmail = strings.TrimSpace(strings.ToLower(vkUser.Email))
-	}
-
-	if !foundByVK && candidateEmail != "" {
-		if err := database.DB.Where("email = ?", candidateEmail).First(&user).Error; err == nil {
-			if user.VKUserID != nil && *user.VKUserID != vkUser.UserID {
-				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-					"error": "VK account is already linked to another user",
-				})
-			}
-			updates := map[string]interface{}{
-				"vk_user_id":   vkUser.UserID,
-				"vk_email":     candidateEmail,
-				"vk_linked_at": now,
-			}
-			if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
-				log.Printf("[AUTH] VK login link existing user failed user=%d vk=%d: %v", user.ID, vkUser.UserID, err)
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Could not link VK account",
-				})
-			}
-			user.VKUserID = &vkUser.UserID
-			user.VKEmail = candidateEmail
-			user.VKLinkedAt = &now
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Printf("[AUTH] VK login lookup by email failed email=%s: %v", candidateEmail, err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not resolve VK account by email",
-			})
-		}
-	}
-
-	if user.ID == 0 {
-		passwordRaw := fmt.Sprintf("vk:%d:%d", vkUser.UserID, now.UnixNano())
-		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(passwordRaw), bcrypt.DefaultCost)
-		if hashErr != nil {
-			log.Printf("[AUTH] VK login hash password failed: %v", hashErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not create VK user",
-			})
-		}
-
-		email := candidateEmail
-		if email == "" {
-			email = buildVKFallbackEmail(vkUser.UserID)
-		}
-		karmicName := strings.TrimSpace(strings.TrimSpace(vkUser.FirstName + " " + vkUser.LastName))
-		if karmicName == "" {
-			if strings.TrimSpace(vkUser.ScreenName) != "" {
-				karmicName = vkUser.ScreenName
-			} else {
-				karmicName = "VK User"
-			}
-		}
-		spiritualName := strings.TrimSpace(vkUser.FirstName)
-		if spiritualName == "" {
-			spiritualName = "Guest"
-		}
-
-		newUser := models.User{
-			Email:         email,
-			Password:      string(hashedPassword),
-			KarmicName:    karmicName,
-			SpiritualName: spiritualName,
-			Role:          models.RoleUser,
-			VKUserID:      &vkUser.UserID,
-			VKEmail:       email,
-			VKLinkedAt:    &now,
-			Language:      "ru",
-		}
-
-		nicknameService := services.NewNicknameService(database.DB)
-		nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration("", newUser.Email, newUser.KarmicName)
-		if nicknameErr != nil {
-			log.Printf("[AUTH] VK login assign nickname failed email=%s: %v", newUser.Email, nicknameErr)
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"error": "Could not assign nickname",
-			})
-		}
-		newUser.Nickname = nickname
-		newUser.NicknameSetManually = nicknameSetManually
-
-		if strings.TrimSpace(req.DeviceID) != "" {
-			newUser.DeviceID = strings.TrimSpace(req.DeviceID)
-		}
-
-		if err := database.DB.Create(&newUser).Error; err != nil {
-			log.Printf("[AUTH] VK login create user failed email=%s vk=%d: %v", newUser.Email, vkUser.UserID, err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not create VK user",
-			})
-		}
-
-		if _, walletErr := h.walletService.GetOrCreateWallet(newUser.ID); walletErr != nil {
-			log.Printf("[AUTH] Failed to create wallet for VK user %d: %v", newUser.ID, walletErr)
-		}
-
-		user = newUser
-	}
-
-	if user.IsBlocked {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "User is blocked",
-		})
-	}
-
-	updateUserDeviceID(&user, req.DeviceID)
-	if h.proService != nil {
-		if err := h.proService.SyncEntitlement(user.ID); err != nil {
-			log.Printf("[AUTH] Failed to sync PRO entitlement for vk login user=%d err=%v", user.ID, err)
-		} else {
-			_ = database.DB.First(&user, user.ID).Error
-		}
-	}
-
-	sanitizeUser(&user)
-	return issueAuthResponse(c, fiber.StatusOK, "VK login successful", user, req.DeviceID)
+	return c.Status(fiber.StatusOK).JSON(payload)
 }
 
 func (h *AuthHandler) VKCallback(c *fiber.Ctx) error {

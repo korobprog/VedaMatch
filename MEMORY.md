@@ -148,6 +148,15 @@
     - `lkm` Mini App завершает `miniapp/login` или `miniapp/link`, потом шлет `authPayload` в `POST /auth/telegram/mobile/complete`;
     - возврат в app идет по `vedamatch://auth/telegram/callback?state=...`, после чего mobile client делает `POST /auth/telegram/mobile/exchange`.
 - Telegram mobile auth зависит от того, что у `@vedamatch_bot` настроен основной Mini App, который открывает `lkm.vedamatch.ru/.com`; стартовый параметр `vm_auth_<state>` используется как bridge key.
+- `lkm` wallet web теперь держит отдельный social-auth flow поверх backend:
+  - `GET /api/auth/social/config` отдает публичную конфигурацию для web login;
+  - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;
+  - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`.
+- `VK` web login для `lkm` идет только через backend secrets:
+  - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state и редиректит на VK OAuth;
+  - `GET /auth/vk/web/callback` меняет `code -> access_token` на server side через `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI`;
+  - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string.
+- В Dokploy `lkm.vedamatch.ru` и `lkm.vedamatch.com` сейчас обслуживаются одним приложением `lkm`, а его `NEXT_PUBLIC_API_URL` в production указывает на `https://api.vedamatch.ru/api`.
 - `frontend/services/socialAuthService.ts` должен поддерживать новый ответ `@react-native-google-signin/google-signin@15`:
   - `GoogleSignin.signIn()` возвращает wrapper `{ type, data }`, а не старый плоский объект;
   - при `type === 'cancelled'` сервис бросает `GOOGLE_SIGNIN_CANCELLED`;
@@ -206,6 +215,7 @@
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
   - Android использует `VK_ANDROID_CLIENT_ID=54474353` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`);
   - Android после native callback больше не меняет `code -> access_token` локально; приложение отправляет `code + codeVerifier + vkDeviceId + state` на backend, а backend уже делает exchange через `https://id.vk.com/oauth2/auth`;
+  - если на Android конкретное устройство не может открыть внешний VK/browser authorize URL через `Linking.openURL(...)`, `LoginScreen` теперь автоматически падает в уже существующий `VKAuthModal`, а `VKAuthModal` перехватывает callback через `onShouldStartLoadWithRequest` до реальной WebView navigation;
   - iOS сохраняет внешний browser + server callback `https://api.vedamatch.ru/auth/vk/callback` и завершает login через `POST /api/auth/vk/login` с `code`;
   - `frontend/android/app/build.gradle` и manifest placeholder продолжают держать Android native scheme из `VK_ANDROID_CLIENT_ID`;
   - production server/Dokploy использует iOS и Android VK credentials; 2026-03-08 live container `vedamatch-server-dnkxc8` перепроверен через `docker inspect`, `VK_CLIENT_SECRET` для iOS/server flow присутствует после redeploy;

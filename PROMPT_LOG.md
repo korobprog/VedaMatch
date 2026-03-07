@@ -1,5 +1,47 @@
 # Prompt Log
 
+- 2026-03-08 08:49:08 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:
+# Починка Android VK login без изменений backend
+
+## Summary
+- Диагностика на `2026-03-08` показала: локальный release APK `1.1.23` уже содержит правильную Android scheme `vk54474353://vk.ru/blank.html`, а production server уже поднят с VK Android credentials и новым контейнером.
+- Во время live ADB-репродукции не было ни browser/VK launch, ни `POST /api/auth/vk/login`; вместо этого сразу открывался внутренний `Alert` в `MainActivity`.
+- На том же устройстве `Linking.openURL` для Telegram работает, значит ломается не общий Android intent path, а именно текущий VK external-launch flow.
+- Делать последовательно одним агентом: зона логина/auth overlap, распараллеливание здесь рискованно.
+
+## Key Changes
+- В [LoginScreen.tsx](/Users/mamu/Documents/vedicai/frontend/screens/LoginScreen.tsx) оставить текущий external VK flow как primary, но на Android при `Linking.openURL(authorizeUrl)` reject не показывать общий alert сразу.
+- В том же обработчике добавить Android fallback на уже существующий modal path:
+  - сохранить `vkAuthState`;
+  - выставить `vkAuthUrl=authorizeUrl`;
+  - снять `socialLoadingProvider`, чтобы пользователь перешёл в `VKAuthModal`;
+  - в лог писать raw error (`console.warn`) для ADB-диагностики.
+- В [VKAuthModal.tsx](/Users/mamu/Documents/vedicai/frontend/components/auth/VKAuthModal.tsx) усилить перехват callback:
+  - добавить `onShouldStartLoadWithRequest`;
+  - если URL уже match для VK callback, не давать WebView реально навигироваться, а сразу вызывать `onComplete(url)`;
+  - сохранить текущие `onMessage` и `onNavigationStateChange` как backup.
+- Backend и Dokploy env не менять: Android по-прежнему должен отправлять на `/api/auth/vk/login` тот же payload `code + codeVerifier + vkDeviceId + state`.
+- После реализации обновить repo bookkeeping по правилам проекта: `PROMPT_LOG.md`, `MEMORY.md`, и запись в `Docs/IOS_CHANGES_FOR_MIGRATION.md`, потому что меняется shared mobile auth behavior.
+
+## Public / Interface Changes
+- Публичный server API не меняется.
+- Пользовательское поведение Android меняется так:
+  - сначала пробуем внешний VK/browser launch как сейчас;
+  - если launch не стартует, автоматически падаем в встроенный VK modal вместо общего `Не удалось выполнить вход через VK`.
+
+## Test Plan
+- Обновить [LoginScreen.localization.test.tsx](/Users/mamu/Documents/vedicai/frontend/__tests__/screens/LoginScreen.localization.test.tsx):
+  - Android success path через `Linking.openURL` остаётся рабочим;
+  - новый Android fallback test: `Linking.openURL` reject -> показывается `VKAuthModal`, затем native callback URL завершает login;
+  - iOS regression: по-прежнему внешний browser + universal-link callback.
+- При необходимости добавить компонентный тест на `VKAuthModal` interception custom-scheme callback через `onShouldStartLoadWithRequest`.
+- Прогнать минимум:
+  - targeted Jest для VK social auth/login screen;
+  - manual ADB smoke test на подключенном Android: нажать VK, убедиться что больше нет мгновенного общего alert, затем увидеть либо внешний launch, либо modal, и успешный запрос на live `/api/auth/vk/login`.
+
+## Assumptions
+- Production backend уже в корректном состоянии; текущая проблема клиентская, до backend exchange.
+- Новые переводы не нужны, если fallback не вводит новый user-facing текст; если появится новый текст, его нужно добавить сразу в `ru/en/hi`."
 - 2026-03-07 23:43:41 +1000 | Запрос: "пишет не удась выполнит вход VK"
 - 2026-03-07 23:29:44 +1000 | Запрос: "авторизация не проходи https://oauth.vk.com/authorize?client_id=54474354&redirect_uri=https%3A%2F%2Fapi.vedamatch.ru%2Fauth%2Fvk%2Fcallback&response_type=code&display=mobile&scope=email&v=5.199&state=1772890042575_h8wnkhka ошибка"
 - 2026-03-07 23:04:12 +1000 | Запрос: "авторизация черз вк ломаться https://oauth.vk.com/authorize?client_id=54474353&redirect_uri=vk54474353%3A%2F%2Fvk.ru%2Fblank.html&response_type=token&display=mobile&scope=email&v=5.199&state=1772881828760_ablp74b7 и там ошибка"
@@ -739,3 +781,4 @@
 2026-03-08 08:19:30 +1000 | Запрос: "у насе серкиты должны быть для"
 2026-03-08 08:19:58 +1000 | Запрос: "у нас должны быть на сервере для Android protected key (client_id 54474353): jjRvKNKOmpjGzymXwprH iOS protected key (client_id 54474354): B7rO4CV8auvlzngJpKHa"
 2026-03-08 08:21:34 +1000 | Запрос: "Но важная оговорка: это не лучший security-вариант. Если хотим сделать правильно с точки зрения секрета, нужно перенести Android code -> token exchange на backend. Тогда оба protected key будут храниться только на сервере, а не в APK. - давай так и сделаем"
+2026-03-08 08:40:10 +1000 | Запрос: "давай еще сделаем авторизацию Google ВК для https://lkm.vedamatch.ru https://lkm.vedamatch.com для нашего кошелька вот ключ от вк ID приложения для WEB 54474355 Защищённый ключ zGdB2dF6osGbMojeRUPC и что нужно для Google для автризации в кошельке веб ключ ели нужно сделаю"

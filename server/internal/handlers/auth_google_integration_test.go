@@ -20,6 +20,7 @@ import (
 
 func newAuthGoogleTestApp(handler *AuthHandler) *fiber.App {
 	app := fiber.New()
+	app.Get("/api/auth/social/config", handler.SocialAuthConfig)
 	app.Post("/api/auth/google/login", handler.GoogleLogin)
 	return app
 }
@@ -200,4 +201,26 @@ func TestGoogleLogin_MissingClientIDs_ReturnsServiceUnavailable(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+}
+
+func TestSocialAuthConfig_UsesDedicatedLKMGoogleClientID(t *testing.T) {
+	app := newAuthGoogleTestApp(NewAuthHandler(nil, nil))
+	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+	t.Setenv("GOOGLE_WEB_CLIENT_ID", "google-web-client-id")
+	t.Setenv("GOOGLE_LKM_WEB_CLIENT_ID", "google-lkm-web-client-id")
+
+	req := httptest.NewRequest("GET", "/api/auth/social/config", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body struct {
+		Google struct {
+			Enabled  bool   `json:"enabled"`
+			ClientID string `json:"clientId"`
+		} `json:"google"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.True(t, body.Google.Enabled)
+	require.Equal(t, "google-lkm-web-client-id", body.Google.ClientID)
 }

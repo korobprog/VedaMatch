@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -20,7 +21,10 @@ import (
 
 func newAuthVKTestApp(handler *AuthHandler) *fiber.App {
 	app := fiber.New()
+	app.Get("/api/auth/social/config", handler.SocialAuthConfig)
 	app.Post("/api/auth/vk/login", handler.VKLogin)
+	app.Get("/api/auth/vk/web/start", handler.VKWebStart)
+	app.Get("/auth/vk/web/callback", handler.VKWebCallback)
 	app.Get("/api/auth/vk/callback", handler.VKCallback)
 	return app
 }
@@ -236,6 +240,103 @@ func TestVKLogin_AndroidAuthorizationCode_Success(t *testing.T) {
 	require.NotEmpty(t, body["refreshToken"])
 	require.NotEmpty(t, body["sessionId"])
 	require.NotNil(t, body["user"])
+}
+
+func TestSocialAuthConfig_ReportsVKWebAvailability(t *testing.T) {
+	app := newAuthVKTestApp(NewAuthHandler(nil, nil))
+	t.Setenv("AUTH_VK_ENABLED", "true")
+	t.Setenv("VK_WEB_CLIENT_ID", "54474355")
+	t.Setenv("VK_WEB_CLIENT_SECRET", "vk-web-secret")
+	t.Setenv("VK_WEB_REDIRECT_URI", "https://api.vedamatch.ru/auth/vk/web/callback")
+
+	req := httptest.NewRequest("GET", "/api/auth/social/config", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body struct {
+		VK struct {
+			Enabled bool `json:"enabled"`
+		} `json:"vk"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.True(t, body.VK.Enabled)
+}
+
+func TestVKWebStart_RedirectsToVKAuthorize(t *testing.T) {
+	app := newAuthVKTestApp(NewAuthHandler(nil, nil))
+	t.Setenv("AUTH_VK_ENABLED", "true")
+	t.Setenv("VK_WEB_CLIENT_ID", "54474355")
+	t.Setenv("VK_WEB_CLIENT_SECRET", "vk-web-secret")
+	t.Setenv("VK_WEB_REDIRECT_URI", "https://api.vedamatch.ru/auth/vk/web/callback")
+	t.Setenv("VK_WEB_SCOPE", "email")
+
+	req := httptest.NewRequest("GET", "/api/auth/vk/web/start?origin=https%3A%2F%2Flkm.vedamatch.ru&deviceId=lkm-web-device-1", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusFound, resp.StatusCode)
+
+	location := resp.Header.Get("Location")
+	parsed, err := url.Parse(location)
+	require.NoError(t, err)
+	require.Equal(t, "oauth.vk.com", parsed.Host)
+	require.Equal(t, "/authorize", parsed.Path)
+	query := parsed.Query()
+	require.Equal(t, "54474355", query.Get("client_id"))
+	require.Equal(t, "https://api.vedamatch.ru/auth/vk/web/callback", query.Get("redirect_uri"))
+	require.Equal(t, "code", query.Get("response_type"))
+	require.Equal(t, "email", query.Get("scope"))
+	require.NotEmpty(t, query.Get("state"))
+}
+
+func TestVKWebCallback_Success_PostsAuthPayload(t *testing.T) {
+	setupAuthVKIntegrationDB(t)
+	t.Setenv("AUTH_VK_ENABLED", "true")
+	t.Setenv("AUTH_REFRESH_V1", "true")
+	t.Setenv("JWT_SECRET", "vk-web-secret")
+	t.Setenv("VK_WEB_CLIENT_ID", "54474355")
+	t.Setenv("VK_WEB_CLIENT_SECRET", "vk-web-protected")
+	t.Setenv("VK_WEB_REDIRECT_URI", "https://api.vedamatch.ru/auth/vk/web/callback")
+
+	handler := NewAuthHandler(nil, nil)
+	state, err := handler.webSocialAuthBridge.CreateState("vk", "lkm-web-device-1", "https://lkm.vedamatch.ru")
+	require.NoError(t, err)
+
+	originalExchanger := vkWebCodeExchanger
+	originalVerifier := vkAccessTokenVerifier
+	vkWebCodeExchanger = func(code string) (string, string, int64, error) {
+		require.Equal(t, "vk-web-auth-code", code)
+		return "vk-web-access-token", "vk-web@example.com", 54474355, nil
+	}
+	vkAccessTokenVerifier = func(token string) (*vkUserInfo, error) {
+		require.Equal(t, "vk-web-access-token", token)
+		return &vkUserInfo{
+			UserID:     54474355,
+			FirstName:  "VK",
+			LastName:   "Web",
+			ScreenName: "vkweb",
+			Email:      "vk-web@example.com",
+		}, nil
+	}
+	t.Cleanup(func() {
+		vkWebCodeExchanger = originalExchanger
+		vkAccessTokenVerifier = originalVerifier
+	})
+
+	app := newAuthVKTestApp(handler)
+	req := httptest.NewRequest("GET", "/auth/vk/web/callback?code=vk-web-auth-code&state="+url.QueryEscape(state.State), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	bodyBytes := new(bytes.Buffer)
+	_, err = bodyBytes.ReadFrom(resp.Body)
+	require.NoError(t, err)
+	body := bodyBytes.String()
+	require.Contains(t, body, "\"source\":\"vedamatch:lkm-social-auth\"")
+	require.Contains(t, body, "\"provider\":\"vk\"")
+	require.Contains(t, body, "\"status\":\"success\"")
+	require.Contains(t, body, "\"accessToken\"")
 }
 
 func TestVKCallback_Success_RedirectsToDeepLink(t *testing.T) {
