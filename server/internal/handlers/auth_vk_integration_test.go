@@ -263,7 +263,7 @@ func TestSocialAuthConfig_ReportsVKWebAvailability(t *testing.T) {
 	require.True(t, body.VK.Enabled)
 }
 
-func TestVKWebStart_RedirectsToVKAuthorize(t *testing.T) {
+func TestVKWebStart_RedirectsToVKIDAuthorize(t *testing.T) {
 	app := newAuthVKTestApp(NewAuthHandler(nil, nil))
 	t.Setenv("AUTH_VK_ENABLED", "true")
 	t.Setenv("VK_WEB_CLIENT_ID", "54474355")
@@ -279,7 +279,7 @@ func TestVKWebStart_RedirectsToVKAuthorize(t *testing.T) {
 	location := resp.Header.Get("Location")
 	parsed, err := url.Parse(location)
 	require.NoError(t, err)
-	require.Equal(t, "oauth.vk.com", parsed.Host)
+	require.Equal(t, "id.vk.com", parsed.Host)
 	require.Equal(t, "/authorize", parsed.Path)
 	query := parsed.Query()
 	require.Equal(t, "54474355", query.Get("client_id"))

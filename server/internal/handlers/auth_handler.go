@@ -1348,7 +1348,7 @@ func (h *AuthHandler) VKWebStart(c *fiber.Ctx) error {
 	query.Set("v", "5.199")
 	query.Set("state", state.State)
 
-	return c.Redirect("https://oauth.vk.com/authorize?"+query.Encode(), fiber.StatusFound)
+	return c.Redirect("https://id.vk.com/authorize?"+query.Encode(), fiber.StatusFound)
 }
 
 func (h *AuthHandler) VKWebCallback(c *fiber.Ctx) error {

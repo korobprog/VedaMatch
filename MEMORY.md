@@ -153,10 +153,14 @@
   - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;
   - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`.
 - `VK` web login для `lkm` идет только через backend secrets:
-  - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state и редиректит на VK OAuth;
+  - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state и редиректит на `https://id.vk.com/authorize`;
   - `GET /auth/vk/web/callback` меняет `code -> access_token` на server side через `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI`;
   - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string.
 - В Dokploy `lkm.vedamatch.ru` и `lkm.vedamatch.com` сейчас обслуживаются одним приложением `lkm`, а его `NEXT_PUBLIC_API_URL` в production указывает на `https://api.vedamatch.ru/api`.
+- Production verify от `2026-03-08`:
+  - live `GET https://api.vedamatch.ru/api/auth/social/config` отвечает `200` и включает `google.enabled=true`, `vk.enabled=true`;
+  - CORS для `Origin: https://lkm.vedamatch.ru` и `Origin: https://lkm.vedamatch.com` подтвержден;
+  - в live backend env есть `VK_WEB_CLIENT_ID=54474355`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI`, а Google web для `lkm` пока использует общий `GOOGLE_WEB_CLIENT_ID` (без отдельного `GOOGLE_LKM_WEB_CLIENT_ID`).
 - `frontend/services/socialAuthService.ts` должен поддерживать новый ответ `@react-native-google-signin/google-signin@15`:
   - `GoogleSignin.signIn()` возвращает wrapper `{ type, data }`, а не старый плоский объект;
   - при `type === 'cancelled'` сервис бросает `GOOGLE_SIGNIN_CANCELLED`;
@@ -213,7 +217,7 @@
   - mobile client на iOS открывает VK auth во внешнем browser с `response_type=code`, принимает universal link `https://api.vedamatch.ru/auth/vk/callback?...` и завершает login через `POST /api/auth/vk/login` с `code`;
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
-  - Android использует `VK_ANDROID_CLIENT_ID=54474353` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`);
+  - Android использует `VK_ANDROID_CLIENT_ID=54474353` + authorize endpoint `https://id.vk.com/authorize` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`); live release 2026-03-08 показал, что старый `https://oauth.vk.com/authorize` для этого Android code-flow отвечает `invalid_request: Code challenge method is unsupported`;
   - Android после native callback больше не меняет `code -> access_token` локально; приложение отправляет `code + codeVerifier + vkDeviceId + state` на backend, а backend уже делает exchange через `https://id.vk.com/oauth2/auth`;
   - если на Android конкретное устройство не может открыть внешний VK/browser authorize URL через `Linking.openURL(...)`, `LoginScreen` теперь автоматически падает в уже существующий `VKAuthModal`, а `VKAuthModal` перехватывает callback через `onShouldStartLoadWithRequest` до реальной WebView navigation;
   - iOS сохраняет внешний browser + server callback `https://api.vedamatch.ru/auth/vk/callback` и завершает login через `POST /api/auth/vk/login` с `code`;
