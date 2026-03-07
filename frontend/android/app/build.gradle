@@ -12,6 +12,7 @@ apply from: file("../../node_modules/react-native-config/android/dotenv.gradle")
 
 def enableProguardInReleaseBuilds = true
 def jscFlavor = 'org.webkit:android-jsc:+'
+def vkClientId = project.env.get("VK_ANDROID_CLIENT_ID") ?: project.env.get("VK_CLIENT_ID") ?: "54474353"
 
 react {
     /* Autolinking */
@@ -56,8 +57,9 @@ react {
         applicationId "com.ragagent"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 22
-        versionName "1.1.20"
+        versionName "1.1.23"
+        versionCode 25
+        manifestPlaceholders = [vkAuthScheme: "vk${vkClientId}"]
         resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'

@@ -55,6 +55,7 @@ jest.mock('../../services/socialAuthService', () => ({
   finalizeTelegramSignIn: (...args: any[]) => mockFinalizeTelegramSignIn(...args),
   isVKAuthCallbackUrl: (url: string) => (
     url.startsWith('https://oauth.vk.com/blank.html')
+    || url.startsWith('vk54474353://vk.ru/blank.html')
     || url.startsWith('https://api.vedamatch.ru/auth/vk/callback')
     || url.startsWith('vedamatch://auth/vk/callback')
   ),
@@ -120,7 +121,7 @@ describe('LoginScreen localization and social auth', () => {
     mockCreateVKAuthSession.mockReturnValue({
       authorizeUrl: 'https://oauth.vk.com/authorize?state=vk-state',
       state: 'vk-state',
-      presentation: 'modal',
+      presentation: 'external',
     });
     mockFinalizeVKSignIn.mockReset();
     mockCreateTelegramAuthSession.mockReset();
@@ -175,7 +176,7 @@ describe('LoginScreen localization and social auth', () => {
     });
   });
 
-  it('completes VK sign in from modal flow and passes auth payload to login()', async () => {
+  it('opens Android VK auth in the external browser and completes login from app deep link callback', async () => {
     mockFinalizeVKSignIn.mockResolvedValue({
       user: { ID: 8, email: 'vk@example.com' },
       authPayload: { accessToken: 'vk-token' },
@@ -183,12 +184,21 @@ describe('LoginScreen localization and social auth', () => {
 
     const screen = render(<LoginScreen navigation={navigation} route={route} />);
     fireEvent.press(screen.getByText('VK'));
-    fireEvent.press(screen.getByText('Complete VK'));
+
+    await waitFor(() => {
+      expect(linkingOpenURLSpy).toHaveBeenCalledWith('https://oauth.vk.com/authorize?state=vk-state');
+    });
+
+    await act(async () => {
+      vkUrlListeners.forEach((listener) => {
+        listener({ url: 'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state' });
+      });
+    });
 
     await waitFor(() => {
       expect(mockCreateVKAuthSession).toHaveBeenCalledTimes(1);
       expect(mockFinalizeVKSignIn).toHaveBeenCalledWith(
-        'https://oauth.vk.com/blank.html#access_token=vk-access-token&state=vk-state',
+        'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state',
         'vk-state',
       );
       expect(mockLogin).toHaveBeenCalledWith(

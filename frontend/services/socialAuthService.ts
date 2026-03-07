@@ -107,7 +107,9 @@ type TelegramAuthSession = {
 };
 
 const VK_OAUTH_CALLBACK = 'https://oauth.vk.com/blank.html';
-const VK_IOS_UNIVERSAL_CALLBACK_FALLBACK = 'https://api.vedamatch.ru/auth/vk/callback';
+const VK_MOBILE_CALLBACK_FALLBACK = 'https://api.vedamatch.ru/auth/vk/callback';
+const VK_ANDROID_CLIENT_ID_FALLBACK = '54474353';
+const VK_IOS_CLIENT_ID_FALLBACK = '54474354';
 const VK_LEGACY_MOBILE_CALLBACK = 'vedamatch://auth/vk/callback';
 const TELEGRAM_MOBILE_CALLBACK = 'vedamatch://auth/telegram/callback';
 const TELEGRAM_UNIVERSAL_CALLBACK = 'https://api.vedamatch.ru/auth/telegram/callback';
@@ -119,24 +121,41 @@ const resolveVKAuthPlatform = (platform: string | undefined): VKAuthPlatform => 
   platform === 'ios' ? 'ios' : 'android'
 );
 
-const getVKIOSRedirectUri = (): string => (
-  readConfigString((Config as any).VK_REDIRECT_URI) || VK_IOS_UNIVERSAL_CALLBACK_FALLBACK
+const getVKClientId = (platform: VKAuthPlatform): string => {
+  const platformSpecific = platform === 'ios'
+    ? readConfigString((Config as any).VK_IOS_CLIENT_ID)
+    : readConfigString((Config as any).VK_ANDROID_CLIENT_ID);
+  if (platformSpecific) return platformSpecific;
+
+  const legacyClientId = readConfigString((Config as any).VK_CLIENT_ID);
+  if (legacyClientId) return legacyClientId;
+
+  return platform === 'ios' ? VK_IOS_CLIENT_ID_FALLBACK : VK_ANDROID_CLIENT_ID_FALLBACK;
+};
+
+const getVKAndroidRedirectUri = (): string => {
+  return `vk${getVKClientId('android')}://vk.ru/blank.html`;
+};
+
+const getVKMobileRedirectUri = (): string => (
+  readConfigString((Config as any).VK_REDIRECT_URI) || VK_MOBILE_CALLBACK_FALLBACK
 );
 
 const resolveVKCallbackPrefixes = (): string[] => (
   Array.from(new Set([
     VK_OAUTH_CALLBACK,
+    getVKAndroidRedirectUri(),
     VK_LEGACY_MOBILE_CALLBACK,
-    getVKIOSRedirectUri(),
-    VK_IOS_UNIVERSAL_CALLBACK_FALLBACK,
+    getVKMobileRedirectUri(),
+    VK_MOBILE_CALLBACK_FALLBACK,
   ]))
 );
 
-const buildVKAuthorizeUrl = (state: string, platform: VKAuthPlatform): string => {
-  const clientId = readConfigString((Config as any).VK_CLIENT_ID);
+const buildVKAuthorizeUrl = (state: string, _platform: VKAuthPlatform): string => {
+  const clientId = getVKClientId(_platform);
   const scope = readConfigString((Config as any).VK_SCOPE) || 'email';
-  const redirectUri = platform === 'ios' ? getVKIOSRedirectUri() : VK_OAUTH_CALLBACK;
-  const responseType = platform === 'ios' ? 'code' : 'token';
+  const redirectUri = _platform === 'android' ? getVKAndroidRedirectUri() : getVKMobileRedirectUri();
+  const responseType = _platform === 'android' ? 'token' : 'code';
 
   if (!clientId) {
     throw new Error('VK_CONFIG_MISSING');
@@ -169,6 +188,10 @@ const parseQueryParam = (url: string, key: string): string => {
 
 const isVKCallbackUrl = (url: string): boolean => (
   resolveVKCallbackPrefixes().some((prefix) => url.startsWith(prefix))
+);
+
+const resolveVKCallbackPlatform = (url: string): VKAuthPlatform => (
+  url.startsWith(getVKAndroidRedirectUri()) ? 'android' : 'ios'
 );
 
 const resolveTelegramCallbackPrefixes = (): string[] => (
@@ -251,7 +274,7 @@ export const createVKAuthSession = (
   return {
     state,
     authorizeUrl: buildVKAuthorizeUrl(state, platform),
-    presentation: platform === 'ios' ? 'external' : 'modal',
+    presentation: 'external',
   };
 };
 
@@ -260,10 +283,14 @@ export const finalizeVKSignIn = async (
   state: string,
 ): Promise<SocialLoginResult> => {
   const callbackData = extractVKCallbackPayload(callbackUrl, state);
+  const platform = resolveVKCallbackPlatform(callbackUrl);
+  const clientId = getVKClientId(platform);
 
   const deviceId = await DeviceInfo.getUniqueId();
   const payload: Record<string, any> = {
     deviceId,
+    platform,
+    clientId,
   };
   if (callbackData.accessToken) {
     payload.accessToken = callbackData.accessToken;

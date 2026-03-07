@@ -26,7 +26,9 @@ jest.mock('react-native', () => ({
 jest.mock('react-native-config', () => ({
   GOOGLE_WEB_CLIENT_ID: 'google-web-client-id',
   GOOGLE_IOS_CLIENT_ID: 'google-ios-client-id',
-  VK_CLIENT_ID: '54418465',
+  VK_CLIENT_ID: '54474354',
+  VK_ANDROID_CLIENT_ID: '54474353',
+  VK_IOS_CLIENT_ID: '54474354',
   VK_REDIRECT_URI: 'https://api.vedamatch.ru/auth/vk/callback',
   VK_SCOPE: 'email',
 }));
@@ -112,18 +114,18 @@ describe('socialAuthService', () => {
     await expect(signInWithGoogle()).rejects.toThrow('GOOGLE_SIGNIN_CANCELLED');
   });
 
-  it('builds Android VK auth session with implicit mobile flow', () => {
+  it('builds Android VK auth session with external token flow via native callback', () => {
     const session = createVKAuthSession('android');
     const url = new URL(session.authorizeUrl);
 
     expect(url.origin + url.pathname).toBe('https://oauth.vk.com/authorize');
-    expect(url.searchParams.get('client_id')).toBe('54418465');
-    expect(url.searchParams.get('redirect_uri')).toBe('https://oauth.vk.com/blank.html');
+    expect(url.searchParams.get('client_id')).toBe('54474353');
+    expect(url.searchParams.get('redirect_uri')).toBe('vk54474353://vk.ru/blank.html');
     expect(url.searchParams.get('response_type')).toBe('token');
     expect(url.searchParams.get('display')).toBe('mobile');
     expect(url.searchParams.get('scope')).toBe('email');
     expect(url.searchParams.get('state')).toBe(session.state);
-    expect(session.presentation).toBe('modal');
+    expect(session.presentation).toBe('external');
   });
 
   it('builds iOS VK auth session with code flow and universal link callback', () => {
@@ -131,7 +133,7 @@ describe('socialAuthService', () => {
     const url = new URL(session.authorizeUrl);
 
     expect(url.origin + url.pathname).toBe('https://oauth.vk.com/authorize');
-    expect(url.searchParams.get('client_id')).toBe('54418465');
+    expect(url.searchParams.get('client_id')).toBe('54474354');
     expect(url.searchParams.get('redirect_uri')).toBe('https://api.vedamatch.ru/auth/vk/callback');
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('display')).toBe('mobile');
@@ -140,7 +142,7 @@ describe('socialAuthService', () => {
     expect(session.presentation).toBe('external');
   });
 
-  it('finalizes VK login from the callback URL and posts access_token to backend', async () => {
+  it('finalizes Android VK login from app deep link callback and posts access_token to backend', async () => {
     (apiClient.post as jest.Mock).mockResolvedValue({
       data: {
         user: { ID: 8, email: 'vk@example.com' },
@@ -149,7 +151,7 @@ describe('socialAuthService', () => {
     });
 
     const result = await finalizeVKSignIn(
-      'https://oauth.vk.com/blank.html#access_token=vk-access-token&state=vk-state&email=vk%40example.com',
+      'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state&email=vk%40example.com',
       'vk-state',
     );
 
@@ -157,8 +159,10 @@ describe('socialAuthService', () => {
       '/auth/vk/login',
       {
         accessToken: 'vk-access-token',
+        clientId: '54474353',
         email: 'vk@example.com',
         deviceId: 'device-id',
+        platform: 'android',
       },
       expect.objectContaining({ __skipAuthSession: true }),
     );
@@ -187,8 +191,10 @@ describe('socialAuthService', () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       '/auth/vk/login',
       {
+        clientId: '54474354',
         code: 'vk-auth-code',
         deviceId: 'device-id',
+        platform: 'ios',
       },
       expect.objectContaining({ __skipAuthSession: true }),
     );
@@ -203,7 +209,7 @@ describe('socialAuthService', () => {
 
   it('surfaces detailed VK OAuth errors from callback URL', async () => {
     await expect(finalizeVKSignIn(
-      'https://oauth.vk.com/blank.html#error=invalid_request&error_description=Security%20error&state=vk-state',
+      'vk54474353://vk.ru/blank.html?error=invalid_request&error_description=Security%20error&state=vk-state',
       'vk-state',
     )).rejects.toThrow('VK_AUTH_ERROR:invalid_request:Security error');
   });

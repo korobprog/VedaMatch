@@ -1,5 +1,59 @@
 # IOS Changes For Migration
 
+## 2026-03-07 (VK platform app IDs split: Android token flow, iOS server credentials refreshed)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/android/app/build.gradle`
+- `frontend/.env`
+- `frontend/.env.production`
+- `frontend/.env.ios`
+- `frontend/.env.usb`
+- `frontend/.env.emulator`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `server/.env`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile использовал общий `VK_CLIENT_ID=54418465`, который оказался `Web` app и давал `Security Error` на native Android authorize;
+  - Android шел в `response_type=code`, хотя production server не был развернут под platform-specific VK exchange;
+  - Dokploy server env держал старый VK `client id/secret`.
+- Стало:
+  - Android release берет отдельный `VK_ANDROID_CLIENT_ID=54474353`, использует native scheme `vk54474353://vk.ru/blank.html` и `response_type=token`;
+  - iOS берет `VK_IOS_CLIENT_ID=54474354`, продолжает universal-link `code` flow через `https://api.vedamatch.ru/auth/vk/callback`;
+  - production server env переключен на iOS VK credentials, чтобы backend exchange для iOS совпадал с новым `app id`.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const clientId = platform === 'ios'
+  ? (Config.VK_IOS_CLIENT_ID || Config.VK_CLIENT_ID || '54474354')
+  : (Config.VK_ANDROID_CLIENT_ID || Config.VK_CLIENT_ID || '54474353');
+
+const responseType = platform === 'android' ? 'token' : 'code';
+```
+
+```ts
+const payload = {
+  deviceId,
+  platform: resolveVKCallbackPlatform(callbackUrl),
+  clientId: getVKClientId(resolveVKCallbackPlatform(callbackUrl)),
+};
+```
+
+`frontend/android/app/build.gradle`:
+```gradle
+def vkClientId = project.env.get("VK_ANDROID_CLIENT_ID") ?: project.env.get("VK_CLIENT_ID") ?: "54474353"
+
+defaultConfig {
+    versionName "1.1.23"
+    versionCode 25
+    manifestPlaceholders = [vkAuthScheme: "vk${vkClientId}"]
+}
+```
+
 ## 2026-03-07 (Telegram mobile auth enabled via Mini App bridge for iOS and Android)
 
 ### Измененные файлы
@@ -11165,4 +11219,102 @@ await connectService.submitFeedback(opportunity.id, {
   newcomerFriendly,
   wouldReturn,
 });
+```
+
+## 2026-03-07 (Debug entitlements split for Personal Team iPhone builds)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+- `frontend/ios/vedamatch/vedamatch.debug.entitlements`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `Debug` и `Release` использовали общий `vedamatch.entitlements`;
+  - общий entitlements включал `aps-environment` и `com.apple.developer.associated-domains`;
+  - Xcode не мог выпустить provisioning profile для Personal Team и падал на `Push Notifications` и `Associated Domains`.
+- Стало:
+  - `Debug` target использует отдельный `vedamatch.debug.entitlements` без production-capabilities;
+  - `Release` target продолжает использовать `vedamatch.entitlements`;
+  - debug-сборка на iPhone больше не требует entitlements, недоступные для Personal Team.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.debug.entitlements;
+```
+
+`frontend/ios/vedamatch/vedamatch.debug.entitlements`:
+```xml
+<dict>
+</dict>
+```
+
+## 2026-03-07 (VK mobile flow unified to external browser code callback)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Android `VK` шел через встроенный `WebView` modal;
+  - authorize URL использовал `response_type=token` и `https://oauth.vk.com/blank.html`;
+  - на Android это приводило к `invalid_request / Security Error` еще на стороне VK authorize.
+- Стало:
+  - mobile `VK` на Android и iOS унифицирован в `external browser + response_type=code + https://api.vedamatch.ru/auth/vk/callback`;
+  - Android теперь, как и iOS, возвращается в app через server redirect `vedamatch://auth/vk/callback?...`;
+  - regression-тесты обновлены под новый Android callback path.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const redirectUri = getVKMobileRedirectUri();
+const responseType = 'code';
+```
+
+```ts
+return {
+  state,
+  authorizeUrl: buildVKAuthorizeUrl(state, platform),
+  presentation: 'external',
+};
+```
+
+## 2026-03-07 (Android VK redirect switched to vk{appId} native callback)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/android/app/src/main/AndroidManifest.xml`
+- `frontend/android/app/build.gradle`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Android `VK` использовал внешний browser, но redirect URI оставался `https://api.vedamatch.ru/auth/vk/callback`;
+  - при authorize это все еще приводило к `invalid_request / Security Error` на стороне VK.
+- Стало:
+  - Android `VK` authorize использует native callback `vk{VK_CLIENT_ID}://vk.ru/blank.html`;
+  - Android manifest принимает этот redirect отдельным `intent-filter`;
+  - JS callback parsing и regression-тесты обновлены под новый Android URL.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const getVKAndroidRedirectUri = (): string => {
+  const clientId = readConfigString((Config as any).VK_CLIENT_ID);
+  return clientId ? `vk${clientId}://vk.ru/blank.html` : 'vk54418465://vk.ru/blank.html';
+};
+```
+
+`frontend/android/app/src/main/AndroidManifest.xml`:
+```xml
+<data
+    android:scheme="${vkAuthScheme}"
+    android:host="vk.ru"
+    android:path="/blank.html" />
 ```

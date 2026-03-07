@@ -186,21 +186,31 @@
 - Backend Google auth в production уже включен в Dokploy после выката server build с audience validation:
   - `server/internal/handlers/auth_handler.go` валидирует `tokenInfo.aud` против `AUTH_GOOGLE_ALLOWED_CLIENT_IDS` и fallback env client IDs;
   - production endpoint `POST https://api.vedamatch.ru/api/auth/google/login` больше не отвечает `404 Google auth is disabled`; invalid token теперь дает `401 Invalid Google token`.
-- Для VK stage-2 добавлена конфигурационная заготовка:
-  - frontend env ключи: `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
-  - backend env example ключи: `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`;
-  - создан гайд `docs/VK_AUTH_SETUP.md` с точными полями для VK ID Console и env.
-- Применены рабочие VK credentials в окружениях:
-  - `VK_CLIENT_ID` установлен во все `frontend/.env*`;
-  - `server/.env` обновлен `AUTH_VK_ENABLED=on` + `VK_CLIENT_ID`/`VK_CLIENT_SECRET`/`VK_REDIRECT_URI`;
-  - `VK_REDIRECT_URI` стандартизирован как HTTPS callback (`https://api.vedamatch.ru/auth/vk/callback`), deep link не используется в VK Console redirect поле.
-- В марте 2026 выяснилось, что текущий VK app `54418465` в кабинете заведён с платформой `Web`; authorize endpoint для native Android login на этом app ID отвечает `invalid_request / Security Error`, поэтому для production Android нужен отдельный Android/native VK app либо явное добавление Android-платформы с package/activity/fingerprint.
+- Для mobile VK используется раздельная конфигурация platform app IDs:
+  - frontend env ключи: `VK_ANDROID_CLIENT_ID`, `VK_IOS_CLIENT_ID`, `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
+  - `VK_ANDROID_CLIENT_ID=54474353` используется только на Android release/native callback;
+  - `VK_IOS_CLIENT_ID=54474354` и fallback `VK_CLIENT_ID=54474354` используются для iOS/universal-link flow;
+  - backend по-прежнему использует `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`, поэтому для production server выставлен iOS app id/secret.
+- Старый VK app `54418465` оказался `Web`-приложением:
+  - authorize endpoint для native Android login на нем отвечал `invalid_request / Security Error`;
+  - mobile больше не использует этот app id для Android/iOS логина.
 - Для iOS VK настроен рабочий universal-link flow:
   - iOS bundle id проекта: `com.VedaMatch.vedamatch`, Apple Team ID: `CVW85BZU5Z`;
   - `frontend/ios/vedamatch/vedamatch.entitlements` включает `applinks:api.vedamatch.ru`;
   - backend AASA endpoint `server/cmd/api/main.go` отдает `CVW85BZU5Z.com.VedaMatch.vedamatch` и путь `/auth/vk/callback`;
   - mobile client на iOS открывает VK auth во внешнем browser с `response_type=code`, принимает universal link `https://api.vedamatch.ru/auth/vk/callback?...` и завершает login через `POST /api/auth/vk/login` с `code`;
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
+- Текущая рабочая схема mobile VK после разведения platform app IDs:
+  - Android использует внешний browser + `response_type=token` + native redirect `vk54474353://vk.ru/blank.html`, поэтому login завершается прямой передачей `accessToken` в `POST /api/auth/vk/login` и не зависит от server-side code exchange;
+  - `frontend/android/app/build.gradle` и manifest placeholder берут Android scheme из `VK_ANDROID_CLIENT_ID`;
+  - iOS сохраняет внешний browser + `response_type=code` + universal-link callback `https://api.vedamatch.ru/auth/vk/callback?...`;
+  - production server/Dokploy уже переведен на iOS VK credentials (`VK_CLIENT_ID=54474354` + новый protected key), redeploy завершен 2026-03-07;
+  - актуальная Android release с этой схемой: `1.1.23 (25)`.
+- Для локальной Debug-сборки на iPhone с Personal Team production entitlements отключены:
+  - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` переводит `Debug` на `vedamatch.debug.entitlements`;
+  - `frontend/ios/vedamatch/vedamatch.debug.entitlements` пустой, без `aps-environment` и `associated-domains`;
+  - `Release` оставлен на `frontend/ios/vedamatch/vedamatch.entitlements`, поэтому production push/universal links не меняются;
+  - ограничение: в Debug-сборке на Personal Team не будет работать iOS universal-link возврат для VK, пока не использовать платный Apple Developer аккаунт или release/profile с этими capability.
 - Реализован backend endpoint `POST /api/auth/vk/login`:
   - feature flag: `AUTH_VK_ENABLED`;
   - валидация VK access token через `users.get`;
