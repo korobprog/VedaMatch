@@ -27,6 +27,7 @@ type WebSocialAuthState struct {
 	State        string    `json:"state"`
 	Provider     string    `json:"provider"`
 	DeviceID     string    `json:"deviceId,omitempty"`
+	CodeVerifier string    `json:"codeVerifier,omitempty"`
 	TargetOrigin string    `json:"targetOrigin"`
 	Status       string    `json:"status"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -62,7 +63,7 @@ func buildWebSocialAuthState() (string, error) {
 	return strings.TrimRight(base64.RawURLEncoding.EncodeToString(buf), "="), nil
 }
 
-func (s *WebSocialAuthBridgeService) CreateState(provider string, deviceID string, targetOrigin string) (WebSocialAuthState, error) {
+func (s *WebSocialAuthBridgeService) CreateState(provider string, deviceID string, targetOrigin string, codeVerifier string) (WebSocialAuthState, error) {
 	state, err := buildWebSocialAuthState()
 	if err != nil {
 		return WebSocialAuthState{}, err
@@ -73,6 +74,7 @@ func (s *WebSocialAuthBridgeService) CreateState(provider string, deviceID strin
 		State:        state,
 		Provider:     strings.TrimSpace(strings.ToLower(provider)),
 		DeviceID:     strings.TrimSpace(deviceID),
+		CodeVerifier: strings.TrimSpace(codeVerifier),
 		TargetOrigin: strings.TrimSpace(targetOrigin),
 		Status:       "pending",
 		CreatedAt:    now,

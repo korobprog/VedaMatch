@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -691,13 +694,88 @@ func exchangeVKCode(code string) (accessToken string, email string, userID int64
 	)
 }
 
-func exchangeVKWebCode(code string) (accessToken string, email string, userID int64, err error) {
-	return exchangeVKCodeWithConfig(
-		code,
-		os.Getenv("VK_WEB_CLIENT_ID"),
-		os.Getenv("VK_WEB_CLIENT_SECRET"),
-		resolveVKWebRedirectURI(),
-	)
+type vkWebCodeExchangeInput struct {
+	Code         string
+	CodeVerifier string
+	VKDeviceID   string
+}
+
+func exchangeVKWebCode(input vkWebCodeExchangeInput) (accessToken string, email string, userID int64, err error) {
+	clientID := strings.TrimSpace(os.Getenv("VK_WEB_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("VK_WEB_CLIENT_SECRET"))
+	code := strings.TrimSpace(input.Code)
+	codeVerifier := strings.TrimSpace(input.CodeVerifier)
+	vkDeviceID := strings.TrimSpace(input.VKDeviceID)
+
+	if clientID == "" || clientSecret == "" {
+		return "", "", 0, errors.New("VK web env config is incomplete")
+	}
+	if code == "" || codeVerifier == "" || vkDeviceID == "" {
+		return "", "", 0, errors.New("VK web code exchange payload is incomplete")
+	}
+
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("code", code)
+	form.Set("code_verifier", codeVerifier)
+	form.Set("device_id", vkDeviceID)
+	form.Set("grant_type", "authorization_code")
+	form.Set("redirect_uri", resolveVKWebRedirectURI())
+
+	req, reqErr := http.NewRequest(http.MethodPost, "https://id.vk.com/oauth2/auth", strings.NewReader(form.Encode()))
+	if reqErr != nil {
+		return "", "", 0, fmt.Errorf("failed to create vk web auth request: %w", reqErr)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		return "", "", 0, fmt.Errorf("vk web auth request failed: %w", doErr)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != http.StatusOK {
+		return "", "", 0, fmt.Errorf("vk web auth failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		AccessToken string `json:"access_token"`
+		Email       string `json:"email"`
+		UserID      int64  `json:"user_id"`
+		Error       string `json:"error"`
+		ErrorDesc   string `json:"error_description"`
+	}
+	if unmarshalErr := json.Unmarshal(body, &payload); unmarshalErr != nil {
+		return "", "", 0, fmt.Errorf("failed to parse vk web auth response: %w", unmarshalErr)
+	}
+	if payload.Error != "" {
+		if payload.ErrorDesc != "" {
+			return "", "", 0, fmt.Errorf("vk web auth error %s: %s", payload.Error, payload.ErrorDesc)
+		}
+		return "", "", 0, fmt.Errorf("vk web auth error: %s", payload.Error)
+	}
+	if strings.TrimSpace(payload.AccessToken) == "" {
+		return "", "", 0, errors.New("vk web access_token is empty")
+	}
+
+	return strings.TrimSpace(payload.AccessToken), strings.TrimSpace(payload.Email), payload.UserID, nil
+}
+
+func generatePKCECodeVerifier() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func buildPKCECodeChallenge(codeVerifier string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(codeVerifier)))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 func exchangeVKAndroidCode(input vkAndroidCodeExchangeInput) (accessToken string, email string, userID int64, err error) {
@@ -784,6 +862,23 @@ func updateUserDeviceID(user *models.User, deviceID string) {
 	}
 }
 
+func createAuthUser(user *models.User) error {
+	if user == nil {
+		return errors.New("user is nil")
+	}
+
+	if strings.TrimSpace(user.InviteCode) == "" {
+		user.InviteCode = services.GenerateInviteCode()
+	}
+
+	query := database.DB
+	if strings.TrimSpace(user.GoogleSub) == "" {
+		query = query.Omit("GoogleSub")
+	}
+
+	return query.Create(user).Error
+}
+
 func validateRegistrationCredentials(email, password string) error {
 	email = strings.TrimSpace(strings.ToLower(email))
 	password = strings.TrimSpace(password)
@@ -854,20 +949,17 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 	user.Password = string(hashedPassword)
 
-	// Generate invite code for the new user
-	user.InviteCode = services.GenerateInviteCode()
-
 	// Update registration logic to handle device ID provided from frontend
 	if registerData.DeviceID != "" {
 		user.DeviceID = registerData.DeviceID
 	}
 
 	// 1. Save to Database
-	result := database.DB.Create(&user)
-	if result.Error != nil {
-		log.Printf("[AUTH] Registration failed: %v", result.Error)
-		if errors.Is(result.Error, gorm.ErrDuplicatedKey) || strings.Contains(strings.ToLower(result.Error.Error()), "duplicate") {
-			lowerErr := strings.ToLower(result.Error.Error())
+	result := createAuthUser(&user)
+	if result != nil {
+		log.Printf("[AUTH] Registration failed: %v", result)
+		if errors.Is(result, gorm.ErrDuplicatedKey) || strings.Contains(strings.ToLower(result.Error()), "duplicate") {
+			lowerErr := strings.ToLower(result.Error())
 			if strings.Contains(lowerErr, "nickname") {
 				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 					"error":     "Nickname already exists",
@@ -1124,7 +1216,7 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 			newUser.DeviceID = strings.TrimSpace(req.DeviceID)
 		}
 
-		if err := database.DB.Create(&newUser).Error; err != nil {
+		if err := createAuthUser(&newUser); err != nil {
 			_ = services.GetMetricsService().Increment(services.MetricAuthGoogleFailTotal, 1)
 			log.Printf("[AUTH] Google login create user failed email=%s sub=%s: %v", newUser.Email, googleSub, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1258,7 +1350,7 @@ func (h *AuthHandler) buildVKLoginPayload(accessToken string, email string, devi
 			newUser.DeviceID = strings.TrimSpace(deviceID)
 		}
 
-		if err := database.DB.Create(&newUser).Error; err != nil {
+		if err := createAuthUser(&newUser); err != nil {
 			log.Printf("[AUTH] VK login create user failed email=%s vk=%d: %v", newUser.Email, vkUser.UserID, err)
 			return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not create VK user")
 		}
@@ -1331,7 +1423,15 @@ func (h *AuthHandler) VKWebStart(c *fiber.Ctx) error {
 	}
 
 	deviceID := strings.TrimSpace(c.Query("deviceId"))
-	state, err := h.webSocialAuthBridge.CreateState("vk", deviceID, targetOrigin)
+	codeVerifier, codeVerifierErr := generatePKCECodeVerifier()
+	if codeVerifierErr != nil {
+		log.Printf("[AUTH] VK web auth code verifier generation failed: %v", codeVerifierErr)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not initialize VK web auth",
+		})
+	}
+
+	state, err := h.webSocialAuthBridge.CreateState("vk", deviceID, targetOrigin, codeVerifier)
 	if err != nil {
 		log.Printf("[AUTH] VK web auth start failed: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1347,6 +1447,8 @@ func (h *AuthHandler) VKWebStart(c *fiber.Ctx) error {
 	query.Set("scope", resolveVKWebScope())
 	query.Set("v", "5.199")
 	query.Set("state", state.State)
+	query.Set("code_challenge", buildPKCECodeChallenge(codeVerifier))
+	query.Set("code_challenge_method", "S256")
 
 	return c.Redirect("https://id.vk.com/authorize?"+query.Encode(), fiber.StatusFound)
 }
@@ -1363,6 +1465,7 @@ func (h *AuthHandler) VKWebCallback(c *fiber.Ctx) error {
 	}
 
 	authCode := strings.TrimSpace(c.Query("code"))
+	vkDeviceID := strings.TrimSpace(c.Query("device_id"))
 	authErr := strings.TrimSpace(c.Query("error"))
 	if authErr != "" {
 		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
@@ -1380,8 +1483,28 @@ func (h *AuthHandler) VKWebCallback(c *fiber.Ctx) error {
 			"error":    "missing_code",
 		})
 	}
+	if vkDeviceID == "" {
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    "missing_device_id",
+		})
+	}
+	if strings.TrimSpace(state.CodeVerifier) == "" {
+		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{
+			"source":   "vedamatch:lkm-social-auth",
+			"provider": "vk",
+			"status":   "error",
+			"error":    "missing_code_verifier",
+		})
+	}
 
-	accessToken, email, _, err := vkWebCodeExchanger(authCode)
+	accessToken, email, _, err := vkWebCodeExchanger(vkWebCodeExchangeInput{
+		Code:         authCode,
+		CodeVerifier: state.CodeVerifier,
+		VKDeviceID:   vkDeviceID,
+	})
 	if err != nil {
 		log.Printf("[AUTH] VK web callback exchange failed: %v", err)
 		return renderWebSocialAuthPopup(c, state.TargetOrigin, fiber.Map{

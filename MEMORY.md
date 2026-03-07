@@ -151,10 +151,11 @@
 - `lkm` wallet web теперь держит отдельный social-auth flow поверх backend:
   - `GET /api/auth/social/config` отдает публичную конфигурацию для web login;
   - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;
-  - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`.
+  - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`;
+  - для Google Web Client в консоли должны быть добавлены `Authorized JavaScript origins` как минимум для `https://lkm.vedamatch.ru` и `https://lkm.vedamatch.com`, иначе Google popup отдает `401 invalid_client / no registered origin`.
 - `VK` web login для `lkm` идет только через backend secrets:
-  - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state и редиректит на `https://id.vk.com/authorize`;
-  - `GET /auth/vk/web/callback` меняет `code -> access_token` на server side через `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI`;
+  - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state, генерирует PKCE `code_verifier/code_challenge` и редиректит на `https://id.vk.com/authorize`;
+  - `GET /auth/vk/web/callback` ожидает `code + device_id`, затем меняет их на `access_token` через `https://id.vk.com/oauth2/auth` с `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI` и сохраненным `code_verifier`;
   - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string.
 - В Dokploy `lkm.vedamatch.ru` и `lkm.vedamatch.com` сейчас обслуживаются одним приложением `lkm`, а его `NEXT_PUBLIC_API_URL` в production указывает на `https://api.vedamatch.ru/api`.
 - Production verify от `2026-03-08`:
@@ -218,6 +219,7 @@
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
   - Android использует `VK_ANDROID_CLIENT_ID=54474353` + authorize endpoint `https://id.vk.com/authorize` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`); live release 2026-03-08 показал, что старый `https://oauth.vk.com/authorize` для этого Android code-flow отвечает `invalid_request: Code challenge method is unsupported`;
+  - PKCE `code_challenge` на Android теперь считается через стандартный SHA-256 (`node-forge`), потому что прежняя handwritten-реализация давала неверный хэш и ломала последующий `code` exchange;
   - Android после native callback больше не меняет `code -> access_token` локально; приложение отправляет `code + codeVerifier + vkDeviceId + state` на backend, а backend уже делает exchange через `https://id.vk.com/oauth2/auth`;
   - если на Android конкретное устройство не может открыть внешний VK/browser authorize URL через `Linking.openURL(...)`, `LoginScreen` теперь автоматически падает в уже существующий `VKAuthModal`, а `VKAuthModal` перехватывает callback через `onShouldStartLoadWithRequest` до реальной WebView navigation;
   - iOS сохраняет внешний browser + server callback `https://api.vedamatch.ru/auth/vk/callback` и завершает login через `POST /api/auth/vk/login` с `code`;
@@ -225,6 +227,8 @@
   - production server/Dokploy использует iOS и Android VK credentials; 2026-03-08 live container `vedamatch-server-dnkxc8` перепроверен через `docker inspect`, `VK_CLIENT_SECRET` для iOS/server flow присутствует после redeploy;
   - причина ухода от Android implicit/token flow: VK authorize для `client_id=54474353` начал возвращать `invalid_request / Security Error`;
   - дополнительный Android hardening от 2026-03-08: `state` остаётся частью PKCE chain, но `VK_ANDROID_CLIENT_SECRET` больше не живёт в APK; `service key` для mobile user login не используется;
+  - live smoke на Samsung `SM-A515F` после исправления PKCE уже возвращает приложение из VK обратно в `MainActivity`; production `docker logs` на 2026-03-08 показали реальную причину backend `500 Could not create VK user`: `duplicate key value violates unique constraint "users_google_sub_key"`, потому что новые non-Google users создавались с `google_sub=''`, а social create path ещё и не гарантировал `invite_code`;
+  - server `auth_handler.go` теперь создаёт новых auth users через общий helper: если `google_sub` пустой, поле не вставляется в `INSERT`, а `invite_code` всегда генерируется до `Create`, поэтому fix покрывает обычную регистрацию, Google login и VK login;
   - актуальная Android release с этой схемой: `1.1.23 (25)`.
 - Для локальной Debug-сборки на iPhone с Personal Team production entitlements отключены:
   - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` переводит `Debug` на `vedamatch.debug.entitlements`;

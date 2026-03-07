@@ -147,6 +147,15 @@ func TestVKLogin_AuthorizationCode_Success(t *testing.T) {
 	t.Setenv("JWT_SECRET", "vk-test-secret")
 	t.Setenv("AUTH_REFRESH_V1", "true")
 
+	legacyUser := models.User{
+		Email:      fmt.Sprintf("legacy-vk-%d@VedaMatch.local", time.Now().UnixNano()),
+		Password:   "hash",
+		KarmicName: "Legacy User",
+		Role:       models.RoleUser,
+		InviteCode: fmt.Sprintf("VK%06d", time.Now().UnixNano()%1000000),
+	}
+	require.NoError(t, database.DB.Create(&legacyUser).Error)
+
 	originalExchanger := vkCodeExchanger
 	originalVerifier := vkAccessTokenVerifier
 	vkCodeExchanger = func(code string) (string, string, int64, error) {
@@ -186,6 +195,11 @@ func TestVKLogin_AuthorizationCode_Success(t *testing.T) {
 	require.NotEmpty(t, body["refreshToken"])
 	require.NotEmpty(t, body["sessionId"])
 	require.NotNil(t, body["user"])
+
+	var created models.User
+	require.NoError(t, database.DB.Where("vk_user_id = ?", 54418465).First(&created).Error)
+	require.NotEmpty(t, created.InviteCode)
+	require.Equal(t, "vk-code@example.com", created.Email)
 }
 
 func TestVKLogin_AndroidAuthorizationCode_Success(t *testing.T) {
@@ -286,6 +300,8 @@ func TestVKWebStart_RedirectsToVKIDAuthorize(t *testing.T) {
 	require.Equal(t, "https://api.vedamatch.ru/auth/vk/web/callback", query.Get("redirect_uri"))
 	require.Equal(t, "code", query.Get("response_type"))
 	require.Equal(t, "email", query.Get("scope"))
+	require.Equal(t, "S256", query.Get("code_challenge_method"))
+	require.NotEmpty(t, query.Get("code_challenge"))
 	require.NotEmpty(t, query.Get("state"))
 }
 
@@ -299,13 +315,15 @@ func TestVKWebCallback_Success_PostsAuthPayload(t *testing.T) {
 	t.Setenv("VK_WEB_REDIRECT_URI", "https://api.vedamatch.ru/auth/vk/web/callback")
 
 	handler := NewAuthHandler(nil, nil)
-	state, err := handler.webSocialAuthBridge.CreateState("vk", "lkm-web-device-1", "https://lkm.vedamatch.ru")
+	state, err := handler.webSocialAuthBridge.CreateState("vk", "lkm-web-device-1", "https://lkm.vedamatch.ru", "vk-web-code-verifier")
 	require.NoError(t, err)
 
 	originalExchanger := vkWebCodeExchanger
 	originalVerifier := vkAccessTokenVerifier
-	vkWebCodeExchanger = func(code string) (string, string, int64, error) {
-		require.Equal(t, "vk-web-auth-code", code)
+	vkWebCodeExchanger = func(input vkWebCodeExchangeInput) (string, string, int64, error) {
+		require.Equal(t, "vk-web-auth-code", input.Code)
+		require.Equal(t, "vk-web-code-verifier", input.CodeVerifier)
+		require.Equal(t, "vk-web-callback-device", input.VKDeviceID)
 		return "vk-web-access-token", "vk-web@example.com", 54474355, nil
 	}
 	vkAccessTokenVerifier = func(token string) (*vkUserInfo, error) {
@@ -324,7 +342,7 @@ func TestVKWebCallback_Success_PostsAuthPayload(t *testing.T) {
 	})
 
 	app := newAuthVKTestApp(handler)
-	req := httptest.NewRequest("GET", "/auth/vk/web/callback?code=vk-web-auth-code&state="+url.QueryEscape(state.State), nil)
+	req := httptest.NewRequest("GET", "/auth/vk/web/callback?code=vk-web-auth-code&device_id=vk-web-callback-device&state="+url.QueryEscape(state.State), nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
