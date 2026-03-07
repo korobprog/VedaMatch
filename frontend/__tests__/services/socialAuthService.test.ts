@@ -11,6 +11,7 @@ const mockConfigure = jest.fn();
 const mockHasPlayServices = jest.fn().mockResolvedValue(true);
 const mockSignIn = jest.fn();
 const mockGetUniqueId = jest.fn().mockResolvedValue('device-id');
+const mockFetch = jest.fn();
 
 jest.mock('react-native', () => ({
   Platform: {
@@ -55,12 +56,15 @@ jest.mock('../../lib/apiClient', () => ({
 
 describe('socialAuthService', () => {
   beforeEach(() => {
+    Object.defineProperty(require('react-native').Platform, 'OS', { value: 'android', configurable: true });
     mockConfigure.mockReset();
     mockHasPlayServices.mockReset();
     mockHasPlayServices.mockResolvedValue(true);
     mockSignIn.mockReset();
     mockGetUniqueId.mockReset();
     mockGetUniqueId.mockResolvedValue('device-id');
+    mockFetch.mockReset();
+    global.fetch = mockFetch as any;
     (apiClient.post as jest.Mock).mockReset();
   });
 
@@ -114,14 +118,16 @@ describe('socialAuthService', () => {
     await expect(signInWithGoogle()).rejects.toThrow('GOOGLE_SIGNIN_CANCELLED');
   });
 
-  it('builds Android VK auth session with external token flow via native callback', () => {
-    const session = createVKAuthSession('android');
+  it('builds Android VK auth session with PKCE code flow via native callback', () => {
+    const session = createVKAuthSession();
     const url = new URL(session.authorizeUrl);
 
     expect(url.origin + url.pathname).toBe('https://oauth.vk.com/authorize');
     expect(url.searchParams.get('client_id')).toBe('54474353');
     expect(url.searchParams.get('redirect_uri')).toBe('vk54474353://vk.ru/blank.html');
-    expect(url.searchParams.get('response_type')).toBe('token');
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('code_challenge')).toBeTruthy();
     expect(url.searchParams.get('display')).toBe('mobile');
     expect(url.searchParams.get('scope')).toBe('email');
     expect(url.searchParams.get('state')).toBe(session.state);
@@ -129,7 +135,8 @@ describe('socialAuthService', () => {
   });
 
   it('builds iOS VK auth session with code flow and universal link callback', () => {
-    const session = createVKAuthSession('ios');
+    Object.defineProperty(require('react-native').Platform, 'OS', { value: 'ios', configurable: true });
+    const session = createVKAuthSession();
     const url = new URL(session.authorizeUrl);
 
     expect(url.origin + url.pathname).toBe('https://oauth.vk.com/authorize');
@@ -142,7 +149,15 @@ describe('socialAuthService', () => {
     expect(session.presentation).toBe('external');
   });
 
-  it('finalizes Android VK login from app deep link callback and posts access_token to backend', async () => {
+  it('finalizes Android VK login from native callback URL, exchanges code, and posts access token to backend', async () => {
+    const session = createVKAuthSession();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        access_token: 'vk-access-token',
+        email: 'vk@example.com',
+      }),
+    });
     (apiClient.post as jest.Mock).mockResolvedValue({
       data: {
         user: { ID: 8, email: 'vk@example.com' },
@@ -151,8 +166,20 @@ describe('socialAuthService', () => {
     });
 
     const result = await finalizeVKSignIn(
-      'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state&email=vk%40example.com',
-      'vk-state',
+      `vk54474353://vk.ru/blank.html?code=vk-auth-code&state=${session.state}&device_id=vk-device-id`,
+      session.state,
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://id.vk.com/oauth2/auth',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }),
+        body: expect.stringContaining('grant_type=authorization_code'),
+      }),
     );
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -160,8 +187,8 @@ describe('socialAuthService', () => {
       {
         accessToken: 'vk-access-token',
         clientId: '54474353',
-        email: 'vk@example.com',
         deviceId: 'device-id',
+        email: 'vk@example.com',
         platform: 'android',
       },
       expect.objectContaining({ __skipAuthSession: true }),
@@ -176,6 +203,7 @@ describe('socialAuthService', () => {
   });
 
   it('finalizes iOS VK login from universal link callback URL and posts code to backend', async () => {
+    Object.defineProperty(require('react-native').Platform, 'OS', { value: 'ios', configurable: true });
     (apiClient.post as jest.Mock).mockResolvedValue({
       data: {
         user: { ID: 9, email: 'vk-ios@example.com' },
@@ -209,7 +237,7 @@ describe('socialAuthService', () => {
 
   it('surfaces detailed VK OAuth errors from callback URL', async () => {
     await expect(finalizeVKSignIn(
-      'vk54474353://vk.ru/blank.html?error=invalid_request&error_description=Security%20error&state=vk-state',
+      'https://api.vedamatch.ru/auth/vk/callback?error=invalid_request&error_description=Security%20error&state=vk-state',
       'vk-state',
     )).rejects.toThrow('VK_AUTH_ERROR:invalid_request:Security error');
   });

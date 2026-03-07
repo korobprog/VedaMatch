@@ -176,7 +176,7 @@ describe('LoginScreen localization and social auth', () => {
     });
   });
 
-  it('opens Android VK auth in the external browser and completes login from app deep link callback', async () => {
+  it('opens Android VK auth in the external browser and completes login from native VK callback', async () => {
     mockFinalizeVKSignIn.mockResolvedValue({
       user: { ID: 8, email: 'vk@example.com' },
       authPayload: { accessToken: 'vk-token' },
@@ -191,14 +191,14 @@ describe('LoginScreen localization and social auth', () => {
 
     await act(async () => {
       vkUrlListeners.forEach((listener) => {
-        listener({ url: 'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state' });
+        listener({ url: 'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id' });
       });
     });
 
     await waitFor(() => {
       expect(mockCreateVKAuthSession).toHaveBeenCalledTimes(1);
       expect(mockFinalizeVKSignIn).toHaveBeenCalledWith(
-        'vk54474353://vk.ru/blank.html?access_token=vk-access-token&state=vk-state',
+        'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id',
         'vk-state',
       );
       expect(mockLogin).toHaveBeenCalledWith(

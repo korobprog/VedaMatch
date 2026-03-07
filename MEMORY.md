@@ -201,10 +201,12 @@
   - mobile client на iOS открывает VK auth во внешнем browser с `response_type=code`, принимает universal link `https://api.vedamatch.ru/auth/vk/callback?...` и завершает login через `POST /api/auth/vk/login` с `code`;
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
-  - Android использует внешний browser + `response_type=token` + native redirect `vk54474353://vk.ru/blank.html`, поэтому login завершается прямой передачей `accessToken` в `POST /api/auth/vk/login` и не зависит от server-side code exchange;
-  - `frontend/android/app/build.gradle` и manifest placeholder берут Android scheme из `VK_ANDROID_CLIENT_ID`;
-  - iOS сохраняет внешний browser + `response_type=code` + universal-link callback `https://api.vedamatch.ru/auth/vk/callback?...`;
+  - Android использует `VK_ANDROID_CLIENT_ID=54474353` + native redirect `vk54474353://vk.ru/blank.html` + `response_type=code` с PKCE (`code_challenge` / `code_verifier`);
+  - Android после native callback сам меняет `code + device_id` на `access_token` через `https://id.vk.com/oauth2/auth`, затем завершает login обычным `POST /api/auth/vk/login` с `accessToken`;
+  - iOS сохраняет внешний browser + server callback `https://api.vedamatch.ru/auth/vk/callback` и завершает login через `POST /api/auth/vk/login` с `code`;
+  - `frontend/android/app/build.gradle` и manifest placeholder продолжают держать Android native scheme из `VK_ANDROID_CLIENT_ID`;
   - production server/Dokploy уже переведен на iOS VK credentials (`VK_CLIENT_ID=54474354` + новый protected key), redeploy завершен 2026-03-07;
+  - причина ухода от Android implicit/token flow: VK authorize для `client_id=54474353` начал возвращать `invalid_request / Security Error`;
   - актуальная Android release с этой схемой: `1.1.23 (25)`.
 - Для локальной Debug-сборки на iPhone с Personal Team production entitlements отключены:
   - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` переводит `Debug` на `vedamatch.debug.entitlements`;

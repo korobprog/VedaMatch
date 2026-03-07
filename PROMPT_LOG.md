@@ -1,5 +1,7 @@
 # Prompt Log
 
+- 2026-03-07 23:29:44 +1000 | Запрос: "авторизация не проходи https://oauth.vk.com/authorize?client_id=54474354&redirect_uri=https%3A%2F%2Fapi.vedamatch.ru%2Fauth%2Fvk%2Fcallback&response_type=code&display=mobile&scope=email&v=5.199&state=1772890042575_h8wnkhka ошибка"
+- 2026-03-07 23:04:12 +1000 | Запрос: "авторизация черз вк ломаться https://oauth.vk.com/authorize?client_id=54474353&redirect_uri=vk54474353%3A%2F%2Fvk.ru%2Fblank.html&response_type=token&display=mobile&scope=email&v=5.199&state=1772881828760_ablp74b7 и там ошибка"
 - 2026-03-07 22:59:36 +1000 | Запрос: "установи его на телефон"
 - 2026-03-07 22:50:34 +1000 | Запрос: "я исправил файл  [socialAuthService.ts](frontend/services/socialAuthService.ts)  проверь и забилдь приложение реализ продакшен"
 - 2026-03-07 09:30:36 +1000 | Запрос: "готово"

@@ -1,5 +1,53 @@
 # IOS Changes For Migration
 
+## 2026-03-07 (VK Android switched to PKCE native callback flow)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android mobile VK authorize генерировал `client_id=54474353`, native redirect `vk54474353://vk.ru/blank.html` и `response_type=token`;
+  - на реальном устройстве VK начал отвечать `{"error":"invalid_request","error_description":"Security Error"}` ещё на authorize step.
+- Стало:
+  - Android остаётся на `client_id=54474353`, но теперь использует `response_type=code` + PKCE (`code_challenge`, `code_challenge_method=S256`) и native callback `vk54474353://vk.ru/blank.html`;
+  - после native callback приложение локально меняет `code + device_id` на `access_token` через `https://id.vk.com/oauth2/auth`, затем завершает login через существующий `POST /auth/vk/login` с `accessToken`.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const query = new URLSearchParams({
+  client_id: getVKNativeClientId('android'),
+  redirect_uri: getVKAndroidRedirectUri(),
+  response_type: 'code',
+  display: 'mobile',
+  scope,
+  v: '5.199',
+  state,
+});
+
+query.set('code_challenge', sha256Base64Url(codeVerifier));
+query.set('code_challenge_method', 'S256');
+```
+
+```ts
+const response = await fetch('https://id.vk.com/oauth2/auth', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    client_id,
+    code,
+    code_verifier,
+    device_id,
+    grant_type: 'authorization_code',
+    redirect_uri,
+  }).toString(),
+});
+```
+
 ## 2026-03-07 (VK platform app IDs split: Android token flow, iOS server credentials refreshed)
 
 ### Измененные файлы
