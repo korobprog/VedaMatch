@@ -12,6 +12,7 @@ import {
     StatusBar,
     ScrollView,
     Alert,
+    Linking,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -33,8 +34,17 @@ import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 import DeviceInfo from 'react-native-device-info';
 import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
 import apiClient from '../lib/apiClient';
+import { VKAuthModal } from '../components/auth/VKAuthModal';
 import { ScreenScaffold } from '../components/theme/ScreenScaffold';
-import { signInWithGoogle, signInWithVK } from '../services/socialAuthService';
+import {
+    createTelegramAuthSession,
+    createVKAuthSession,
+    finalizeTelegramSignIn,
+    finalizeVKSignIn,
+    isTelegramAuthCallbackUrl,
+    isVKAuthCallbackUrl,
+    signInWithGoogle,
+} from '../services/socialAuthService';
 
 const { width, height } = Dimensions.get('window');
 const SLOGAN_ROTATION_MS = 4200;
@@ -61,11 +71,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [socialLoadingProvider, setSocialLoadingProvider] = useState<'google' | 'vk' | null>(null);
+    const [socialLoadingProvider, setSocialLoadingProvider] = useState<'google' | 'vk' | 'telegram' | null>(null);
+    const [vkAuthUrl, setVKAuthUrl] = useState('');
+    const [vkAuthState, setVKAuthState] = useState('');
+    const [telegramAuthState, setTelegramAuthState] = useState('');
     const [emailFocused, setEmailFocused] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [sloganIndex, setSloganIndex] = useState(0);
+    const lastHandledVKCallbackRef = React.useRef('');
+    const lastHandledTelegramCallbackRef = React.useRef('');
 
     // Animation values
     const glowValue = useSharedValue(0);
@@ -266,7 +281,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [i18n]);
 
-    const trackSocialClick = useCallback((provider: 'vk' | 'google') => {
+    const trackSocialClick = useCallback((provider: 'vk' | 'google' | 'telegram') => {
         console.log('[AuthSocialClick]', {
             event: 'auth_social_click_total',
             provider,
@@ -294,16 +309,159 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         trackSocialClick('vk');
         setSocialLoadingProvider('vk');
         try {
-            const response = await signInWithVK();
-            await login(response.user as Parameters<typeof login>[0], response.authPayload);
+            const session = createVKAuthSession();
+            setVKAuthState(session.state);
+            if (session.presentation === 'external') {
+                setVKAuthUrl('');
+                await Linking.openURL(session.authorizeUrl);
+                setSocialLoadingProvider(null);
+                return;
+            }
+
+            setVKAuthUrl(session.authorizeUrl);
         } catch (_error: any) {
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.vkFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
+            setVKAuthState('');
+            setVKAuthUrl('');
+            setSocialLoadingProvider(null);
+        }
+    }, [t, trackSocialClick]);
+
+    const handleTelegramSignIn = useCallback(async () => {
+        trackSocialClick('telegram');
+        setSocialLoadingProvider('telegram');
+        try {
+            const session = await createTelegramAuthSession();
+            setTelegramAuthState(session.state);
+            await Linking.openURL(session.launchUrl);
+        } catch (_error: any) {
+            const backendMessage = _error?.response?.data?.error;
+            const fallbackMessage = t('auth.loginScreen.errors.telegramFailed');
+            setTelegramAuthState('');
+            Alert.alert(t('common.error'), backendMessage || fallbackMessage);
         } finally {
             setSocialLoadingProvider(null);
         }
-    }, [login, t, trackSocialClick]);
+    }, [t, trackSocialClick]);
+
+    const closeVKAuthModal = useCallback(() => {
+        setVKAuthState('');
+        setVKAuthUrl('');
+        setSocialLoadingProvider(null);
+    }, []);
+
+    const handleVKAuthComplete = useCallback(async (callbackUrl: string) => {
+        if (!vkAuthState) {
+            closeVKAuthModal();
+            return;
+        }
+
+        try {
+            setSocialLoadingProvider('vk');
+            const response = await finalizeVKSignIn(callbackUrl, vkAuthState);
+            closeVKAuthModal();
+            await login(response.user as Parameters<typeof login>[0], response.authPayload);
+        } catch (_error: any) {
+            closeVKAuthModal();
+            const backendMessage = _error?.response?.data?.error;
+            const rawMessage = String(_error?.message || '');
+            const detailedVKError = rawMessage.startsWith('VK_AUTH_ERROR:')
+                ? decodeURIComponent(rawMessage.replace(/^VK_AUTH_ERROR:[^:]*:?/, '').trim())
+                : '';
+            const fallbackMessage = detailedVKError || backendMessage || t('auth.loginScreen.errors.vkFailed');
+            Alert.alert(t('common.error'), fallbackMessage);
+        }
+    }, [closeVKAuthModal, login, t, vkAuthState]);
+
+    const handleTelegramAuthComplete = useCallback(async (callbackUrl: string) => {
+        if (!telegramAuthState) {
+            return;
+        }
+
+        try {
+            setSocialLoadingProvider('telegram');
+            const response = await finalizeTelegramSignIn(callbackUrl, telegramAuthState);
+            setTelegramAuthState('');
+            await login(response.user as Parameters<typeof login>[0], response.authPayload);
+        } catch (_error: any) {
+            setTelegramAuthState('');
+            const backendMessage = _error?.response?.data?.error;
+            const fallbackMessage = t('auth.loginScreen.errors.telegramFailed');
+            Alert.alert(t('common.error'), backendMessage || fallbackMessage);
+        } finally {
+            setSocialLoadingProvider(null);
+        }
+    }, [login, t, telegramAuthState]);
+
+    useEffect(() => {
+        if (!vkAuthState) {
+            lastHandledVKCallbackRef.current = '';
+            return undefined;
+        }
+
+        const maybeHandleVKCallback = (url?: string | null) => {
+            const nextUrl = String(url || '').trim();
+            if (!nextUrl || !isVKAuthCallbackUrl(nextUrl)) {
+                return;
+            }
+            if (lastHandledVKCallbackRef.current === nextUrl) {
+                return;
+            }
+
+            lastHandledVKCallbackRef.current = nextUrl;
+            handleVKAuthComplete(nextUrl).catch(() => undefined);
+        };
+
+        Linking.getInitialURL()
+            .then((initialUrl) => {
+                maybeHandleVKCallback(initialUrl);
+            })
+            .catch(() => {});
+
+        const subscription = Linking.addEventListener('url', ({ url }) => {
+            maybeHandleVKCallback(url);
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [handleVKAuthComplete, vkAuthState]);
+
+    useEffect(() => {
+        if (!telegramAuthState) {
+            lastHandledTelegramCallbackRef.current = '';
+            return undefined;
+        }
+
+        const maybeHandleTelegramCallback = (url?: string | null) => {
+            const nextUrl = String(url || '').trim();
+            if (!nextUrl || !isTelegramAuthCallbackUrl(nextUrl)) {
+                return;
+            }
+            if (lastHandledTelegramCallbackRef.current === nextUrl) {
+                return;
+            }
+
+            lastHandledTelegramCallbackRef.current = nextUrl;
+            handleTelegramAuthComplete(nextUrl).catch(() => undefined);
+        };
+
+        Linking.getInitialURL()
+            .then((initialUrl) => {
+                maybeHandleTelegramCallback(initialUrl);
+            })
+            .catch(() => {});
+
+        const subscription = Linking.addEventListener('url', ({ url }) => {
+            maybeHandleTelegramCallback(url);
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [handleTelegramAuthComplete, telegramAuthState]);
 
     const handleDevLogin = useCallback(async () => {
         const devEmail = 'dev_admin_yatra@example.com';
@@ -677,6 +835,19 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                         )}
                                     </TouchableOpacity>
 
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={styles.socialButton}
+                                        onPress={handleTelegramSignIn}
+                                        disabled={loading || socialLoadingProvider !== null}
+                                    >
+                                        {socialLoadingProvider === 'telegram' ? (
+                                            <ActivityIndicator color={ModernVedicTheme.colors.primary} />
+                                        ) : (
+                                            <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.telegram')}</Text>
+                                        )}
+                                    </TouchableOpacity>
+
                                 </View>
                             </View>
 
@@ -714,6 +885,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 </ScrollView>
             </KeyboardAwareContainer>
         </View>
+        <VKAuthModal
+            visible={Boolean(vkAuthUrl && vkAuthState)}
+            authorizeUrl={vkAuthUrl}
+            title={t('auth.loginScreen.social.vk')}
+            loadingLabel={t('common.loading')}
+            closeLabel={t('common.close')}
+            onClose={closeVKAuthModal}
+            onComplete={handleVKAuthComplete}
+        />
         </ScreenScaffold>
     );
 };

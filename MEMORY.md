@@ -126,7 +126,7 @@
   - auto-AI анализ изображения не вызывается.
 
 ## Auth / Login Localization
-- Login auth rollout сейчас состоит из `i18n + language switch + Google auth + VK auth`; Telegram mini app auth остается отдельным flow и больше не показывается как рабочий quick-login на mobile login screen.
+- Login auth rollout сейчас состоит из `i18n + language switch + Google auth + VK auth + Telegram mobile auth`.
 - Login экран (`frontend/screens/LoginScreen.tsx`) теперь использует единый namespace `auth.loginScreen.*` вместо хардкодных строк.
 - Login экран визуально обновлен в портал-стиле:
   - фон в светлой шафран/крем палитре портала;
@@ -139,13 +139,17 @@
 - Глобальный переключатель языка добавлен в правый верхний угол login (`RU | EN | हिंदी`) и вызывает `i18n.changeLanguage(...)` без перезапуска экрана.
 - Соц-кнопки login:
   - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
-  - `VK` — реальный вход через OAuth authorize + backend callback/deep link (`signInWithVK` -> `GET /api/auth/vk/callback` -> `POST /auth/vk/login`).
-  - `Telegram` — не должен отображаться на mobile login screen, пока mini app auth flow не подключен end-to-end.
+  - `VK` — реальный вход через in-app WebView implicit OAuth flow (`createVKAuthSession` -> `VKAuthModal` -> `finalizeVKSignIn` -> `POST /auth/vk/login`); mobile app больше не зависит от browser callback/deep link как от основного пути.
+  - `Telegram` — реальный mobile auth через `@vedamatch_bot` и Telegram Mini App bridge:
+    - app вызывает `POST /auth/telegram/mobile/start`, получает `t.me/...?...startapp=vm_auth_<state>` и открывает Telegram;
+    - `lkm` Mini App завершает `miniapp/login` или `miniapp/link`, потом шлет `authPayload` в `POST /auth/telegram/mobile/complete`;
+    - возврат в app идет по `vedamatch://auth/telegram/callback?state=...`, после чего mobile client делает `POST /auth/telegram/mobile/exchange`.
+- Telegram mobile auth зависит от того, что у `@vedamatch_bot` настроен основной Mini App, который открывает `lkm.vedamatch.ru/.com`; стартовый параметр `vm_auth_<state>` используется как bridge key.
 - `frontend/services/socialAuthService.ts` должен поддерживать новый ответ `@react-native-google-signin/google-signin@15`:
   - `GoogleSignin.signIn()` возвращает wrapper `{ type, data }`, а не старый плоский объект;
   - при `type === 'cancelled'` сервис бросает `GOOGLE_SIGNIN_CANCELLED`;
   - `loadGoogleModule()` сначала использует обычный `require(...)`, потом dynamic fallback, чтобы regression-тесты и runtime вели себя одинаково.
-- `VK` mobile callback должен проверять не только `Linking` event, но и `Linking.getInitialURL()`, иначе deep link после возврата из браузера может потеряться в некоторых Android состояниях activity.
+- Для mobile VK flow используется `https://oauth.vk.com/blank.html` как callback URL внутри WebView; callback hash с `access_token`/`email` парсится прямо в приложении, а backend получает уже готовый token на `/auth/vk/login`.
 - Локали login добавлены/синхронизированы в:
   - `frontend/i18n/locales/ru.ts`
   - `frontend/i18n/locales/en.ts`
@@ -158,10 +162,13 @@
 - Для stage-1 добавлен тест `frontend/__tests__/screens/LoginScreen.localization.test.tsx`:
   - проверяет вызов `i18n.changeLanguage` из switch языка;
   - проверяет Google social handler (`signInWithGoogle` -> `login(...)`);
-  - подтверждает, что `Telegram` quick-login не рендерится, пока mobile auth flow не реализован.
+  - проверяет VK modal flow (`createVKAuthSession` -> `finalizeVKSignIn` -> `login(...)`);
+  - проверяет Telegram flow (`createTelegramAuthSession` -> open `@vedamatch_bot` -> `finalizeTelegramSignIn` -> `login(...)`).
 - Добавлен regression-тест `frontend/__tests__/services/socialAuthService.test.ts`:
   - фиксирует чтение `idToken` из wrapped Google SDK response;
-  - фиксирует отдельную ошибку `GOOGLE_SIGNIN_CANCELLED`.
+  - фиксирует отдельную ошибку `GOOGLE_SIGNIN_CANCELLED`;
+  - фиксирует сборку VK implicit authorize URL и parsing callback hash/error;
+  - фиксирует Telegram mobile `start` и `exchange` contract.
 - `frontend/package-lock.json` синхронизирован после установки `@react-native-google-signin/google-signin`; npm может выводить peer warnings (`@firebase/auth` vs async-storage), но установка проходит успешно.
 - Для backend Google auth добавлена testability-точка:
   - `server/internal/handlers/auth_handler.go`: `googleIDTokenVerifier` (по умолчанию `verifyGoogleIDToken`) для deterministic тестов без внешнего HTTP.
@@ -176,9 +183,9 @@
   - `GOOGLE_IOS_CLIENT_ID`
   - `GOOGLE_ANDROID_CLIENT_ID_DEBUG`
   - `GOOGLE_ANDROID_CLIENT_ID_RELEASE`
-- Backend Google auth нельзя включать в production без server build, который уже содержит audience validation:
+- Backend Google auth в production уже включен в Dokploy после выката server build с audience validation:
   - `server/internal/handlers/auth_handler.go` валидирует `tokenInfo.aud` против `AUTH_GOOGLE_ALLOWED_CLIENT_IDS` и fallback env client IDs;
-  - если client IDs не заданы, endpoint должен отвечать `503 Google auth is not configured`, а не молча принимать токены.
+  - production endpoint `POST https://api.vedamatch.ru/api/auth/google/login` больше не отвечает `404 Google auth is disabled`; invalid token теперь дает `401 Invalid Google token`.
 - Для VK stage-2 добавлена конфигурационная заготовка:
   - frontend env ключи: `VK_CLIENT_ID`, `VK_REDIRECT_URI`, `VK_SCOPE`;
   - backend env example ключи: `AUTH_VK_ENABLED`, `VK_CLIENT_ID`, `VK_CLIENT_SECRET`, `VK_REDIRECT_URI`;
@@ -187,6 +194,13 @@
   - `VK_CLIENT_ID` установлен во все `frontend/.env*`;
   - `server/.env` обновлен `AUTH_VK_ENABLED=on` + `VK_CLIENT_ID`/`VK_CLIENT_SECRET`/`VK_REDIRECT_URI`;
   - `VK_REDIRECT_URI` стандартизирован как HTTPS callback (`https://api.vedamatch.ru/auth/vk/callback`), deep link не используется в VK Console redirect поле.
+- В марте 2026 выяснилось, что текущий VK app `54418465` в кабинете заведён с платформой `Web`; authorize endpoint для native Android login на этом app ID отвечает `invalid_request / Security Error`, поэтому для production Android нужен отдельный Android/native VK app либо явное добавление Android-платформы с package/activity/fingerprint.
+- Для iOS VK настроен рабочий universal-link flow:
+  - iOS bundle id проекта: `com.VedaMatch.vedamatch`, Apple Team ID: `CVW85BZU5Z`;
+  - `frontend/ios/vedamatch/vedamatch.entitlements` включает `applinks:api.vedamatch.ru`;
+  - backend AASA endpoint `server/cmd/api/main.go` отдает `CVW85BZU5Z.com.VedaMatch.vedamatch` и путь `/auth/vk/callback`;
+  - mobile client на iOS открывает VK auth во внешнем browser с `response_type=code`, принимает universal link `https://api.vedamatch.ru/auth/vk/callback?...` и завершает login через `POST /api/auth/vk/login` с `code`;
+  - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Реализован backend endpoint `POST /api/auth/vk/login`:
   - feature flag: `AUTH_VK_ENABLED`;
   - валидация VK access token через `users.get`;

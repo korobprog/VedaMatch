@@ -1,8 +1,29 @@
 import { LinkingOptions } from '@react-navigation/native';
+import { Linking } from 'react-native';
 import { RootStackParamList } from '../types/navigation';
+import { isTelegramAuthCallbackUrl, isVKAuthCallbackUrl } from '../services/socialAuthService';
 
 export const linking: LinkingOptions<RootStackParamList> = {
-    prefixes: ['vedamatch://', 'https://vedamatch.ru', 'https://www.vedamatch.ru'],
+    prefixes: ['vedamatch://', 'https://vedamatch.ru', 'https://www.vedamatch.ru', 'https://api.vedamatch.ru'],
+    async getInitialURL() {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl && (isVKAuthCallbackUrl(initialUrl) || isTelegramAuthCallbackUrl(initialUrl))) {
+            return null;
+        }
+        return initialUrl;
+    },
+    subscribe(listener) {
+        const subscription = Linking.addEventListener('url', ({ url }) => {
+            if (isVKAuthCallbackUrl(url) || isTelegramAuthCallbackUrl(url)) {
+                return;
+            }
+            listener(url);
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    },
     config: {
         screens: {
             // Auth screens handling

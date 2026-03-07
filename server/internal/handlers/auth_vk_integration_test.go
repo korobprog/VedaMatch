@@ -137,6 +137,53 @@ func TestVKLogin_ExistingUserByVKUserID_Success(t *testing.T) {
 	require.NotNil(t, body["user"])
 }
 
+func TestVKLogin_AuthorizationCode_Success(t *testing.T) {
+	setupAuthVKIntegrationDB(t)
+	t.Setenv("AUTH_VK_ENABLED", "true")
+	t.Setenv("JWT_SECRET", "vk-test-secret")
+	t.Setenv("AUTH_REFRESH_V1", "true")
+
+	originalExchanger := vkCodeExchanger
+	originalVerifier := vkAccessTokenVerifier
+	vkCodeExchanger = func(code string) (string, string, int64, error) {
+		require.Equal(t, "vk-auth-code", code)
+		return "vk-access-from-code", "vk-code@example.com", 54418465, nil
+	}
+	vkAccessTokenVerifier = func(token string) (*vkUserInfo, error) {
+		require.Equal(t, "vk-access-from-code", token)
+		return &vkUserInfo{
+			UserID:     54418465,
+			FirstName:  "VK",
+			LastName:   "Code Flow",
+			ScreenName: "vkcodeflow",
+			Email:      "vk-code@example.com",
+		}, nil
+	}
+	t.Cleanup(func() {
+		vkCodeExchanger = originalExchanger
+		vkAccessTokenVerifier = originalVerifier
+	})
+
+	app := newAuthVKTestApp(NewAuthHandler(nil, nil))
+	payload, _ := json.Marshal(map[string]string{
+		"code":     "vk-auth-code",
+		"deviceId": "vk-ios-device-1",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/vk/login", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.NotEmpty(t, body["accessToken"])
+	require.NotEmpty(t, body["refreshToken"])
+	require.NotEmpty(t, body["sessionId"])
+	require.NotNil(t, body["user"])
+}
+
 func TestVKCallback_Success_RedirectsToDeepLink(t *testing.T) {
 	originalExchanger := vkCodeExchanger
 	vkCodeExchanger = func(_ string) (string, string, int64, error) {

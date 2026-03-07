@@ -186,8 +186,8 @@ func main() {
 				"apps": [],
 				"details": [
 					{
-						"appID": "YOUR_APPLE_TEAM_ID.com.ragagent",
-						"paths": ["/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
+						"appID": "CVW85BZU5Z.com.VedaMatch.vedamatch",
+						"paths": ["/auth/vk/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
 					}
 				]
 			}
@@ -332,6 +332,9 @@ func main() {
 	api.Post("/auth/google/login", middleware.RateLimitByIP("auth_google_login", 60, 10*time.Minute), authHandler.GoogleLogin)
 	api.Post("/auth/vk/login", middleware.RateLimitByIP("auth_vk_login", 60, 10*time.Minute), authHandler.VKLogin)
 	api.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback", 120, 10*time.Minute), authHandler.VKCallback)
+	api.Post("/auth/telegram/mobile/start", middleware.RateLimitByIP("auth_telegram_mobile_start", 60, 10*time.Minute), authHandler.TelegramMobileAuthStart)
+	api.Post("/auth/telegram/mobile/complete", middleware.RateLimitByIP("auth_telegram_mobile_complete", 120, 10*time.Minute), authHandler.TelegramMobileAuthComplete)
+	api.Post("/auth/telegram/mobile/exchange", middleware.RateLimitByIP("auth_telegram_mobile_exchange", 120, 10*time.Minute), authHandler.TelegramMobileAuthExchange)
 	api.Post("/auth/telegram/miniapp/login", middleware.RateLimitByIP("auth_telegram_miniapp_login", 60, 10*time.Minute), authHandler.TelegramMiniAppLogin)
 	api.Post("/auth/telegram/miniapp/link", middleware.RateLimitByIP("auth_telegram_miniapp_link", 60, 10*time.Minute), authHandler.TelegramMiniAppLink)
 	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)

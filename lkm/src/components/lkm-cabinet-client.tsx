@@ -117,9 +117,16 @@ type TelegramWebApp = {
   initData?: string;
   initDataUnsafe?: {
     user?: TelegramMiniAppUser;
+    start_param?: string;
   };
   ready?: () => void;
   expand?: () => void;
+  close?: () => void;
+};
+
+type TelegramMobileBridgeResponse = {
+  state?: string;
+  deepLink?: string;
 };
 
 type Props = {
@@ -238,6 +245,24 @@ function isLkmVedamatchHost(hostname: string): boolean {
   return host === 'lkm.vedamatch.ru' || host === 'lkm.vedamatch.com';
 }
 
+function extractTelegramMobileAuthStateFromStartParam(raw: string | null | undefined): string {
+  const value = (raw || '').trim();
+  if (!value.startsWith('vm_auth_')) {
+    return '';
+  }
+  return value.slice('vm_auth_'.length).trim();
+}
+
+function extractTelegramStartParamFromLocation(search: string): string {
+  const params = new URLSearchParams(search);
+  return (
+    params.get('tgWebAppStartParam')?.trim()
+    || params.get('startapp')?.trim()
+    || params.get('startattach')?.trim()
+    || ''
+  );
+}
+
 function normalizeSessionID(value: string | null): number | null {
   const parsed = Number(value || '');
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -303,7 +328,10 @@ export default function LkmCabinetClient({
   const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [telegramInitData, setTelegramInitData] = useState('');
   const [telegramUser, setTelegramUser] = useState<TelegramMiniAppUser | null>(null);
+  const [telegramMobileAuthState, setTelegramMobileAuthState] = useState('');
   const [isTelegramAuthLoading, setIsTelegramAuthLoading] = useState(false);
+  const [isTelegramMobileBridgeLoading, setIsTelegramMobileBridgeLoading] = useState(false);
+  const [telegramMobileDeepLink, setTelegramMobileDeepLink] = useState('');
   const [telegramLinkRequired, setTelegramLinkRequired] = useState(false);
   const [telegramAuthAttempted, setTelegramAuthAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -337,6 +365,7 @@ export default function LkmCabinetClient({
   const sessionIdRef = useRef<number | null>(null);
   const deviceIdRef = useRef('');
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
+  const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
 
   const canTopup = !!token && !isBlockedInApp;
 
@@ -483,6 +512,43 @@ export default function LkmCabinetClient({
     return refreshPromise;
   }, [normalizedApiBaseUrl, applyAuthSession, clearAuthSession]);
 
+  const completeTelegramMobileBridge = useCallback(async (authPayload: LoginResponse): Promise<boolean> => {
+    if (!isTelegramMobileAuthFlow || !telegramMobileAuthState) {
+      return false;
+    }
+
+    setIsTelegramMobileBridgeLoading(true);
+    setTelegramMobileDeepLink('');
+    setError('');
+    try {
+      const response = await apiRequest<TelegramMobileBridgeResponse>('/auth/telegram/mobile/complete', {
+        method: 'POST',
+        timeoutMs: 10000,
+        body: {
+          state: telegramMobileAuthState,
+          authPayload,
+        },
+        skipAuthRefresh: true,
+      });
+      const deepLink = (response.deepLink || '').trim();
+      if (!deepLink) {
+        throw new Error('Не удалось подготовить возврат в приложение');
+      }
+
+      setTelegramMobileDeepLink(deepLink);
+      setSuccess('Авторизация завершена. Возвращаемся в приложение VedaMatch...');
+      window.setTimeout(() => {
+        window.location.replace(deepLink);
+      }, 120);
+      return true;
+    } catch (bridgeError) {
+      setError(buildErrorMessage(bridgeError));
+      return false;
+    } finally {
+      setIsTelegramMobileBridgeLoading(false);
+    }
+  }, [isTelegramMobileAuthFlow, telegramMobileAuthState]);
+
   const amountToQuote = useMemo(() => {
     if (selectedAmount && selectedAmount > 0) {
       return selectedAmount;
@@ -552,6 +618,8 @@ export default function LkmCabinetClient({
       const telegramWebApp = getTelegramWebApp();
       const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
       const telegramMiniAppUser = telegramWebApp?.initDataUnsafe?.user;
+      const telegramStartParam = telegramWebApp?.initDataUnsafe?.start_param?.trim() || extractTelegramStartParamFromLocation(window.location.search);
+      const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(telegramStartParam);
       const telegramLanguageCode = normalizeLanguageCode(telegramMiniAppUser?.language_code);
       if (!telegramInitDataValue) {
         return false;
@@ -561,6 +629,14 @@ export default function LkmCabinetClient({
       setTelegramInitData(telegramInitDataValue);
       setTelegramUser(telegramMiniAppUser || null);
       setIsBlockedInApp(false);
+      setTelegramMobileDeepLink('');
+
+      if (telegramMobileState) {
+        setTelegramMobileAuthState(telegramMobileState);
+        clearAuthSession();
+      } else {
+        setTelegramMobileAuthState('');
+      }
 
       const currentHost = window.location.hostname.toLowerCase();
       if (isLkmVedamatchHost(currentHost)) {
@@ -604,9 +680,9 @@ export default function LkmCabinetClient({
     if (
       !isTelegramMiniApp ||
       !telegramInitData ||
-      token ||
       telegramAuthAttempted ||
-      (!!refreshToken && !sessionRestoreAttempted)
+      (token && !isTelegramMobileAuthFlow) ||
+      (!!refreshToken && !sessionRestoreAttempted && !isTelegramMobileAuthFlow)
     ) {
       return;
     }
@@ -642,7 +718,11 @@ export default function LkmCabinetClient({
         }
         setSessionRestoreAttempted(true);
         setTelegramLinkRequired(false);
-        setSuccess('Вход через Telegram выполнен');
+        if (isTelegramMobileAuthFlow) {
+          await completeTelegramMobileBridge(response);
+        } else {
+          setSuccess('Вход через Telegram выполнен');
+        }
       } catch (telegramLoginError) {
         if (cancelled) {
           return;
@@ -672,7 +752,17 @@ export default function LkmCabinetClient({
       cancelled = true;
       window.clearTimeout(watchdogId);
     };
-  }, [isTelegramMiniApp, telegramInitData, token, telegramAuthAttempted, refreshToken, sessionRestoreAttempted, applyAuthSession]);
+  }, [
+    isTelegramMiniApp,
+    telegramInitData,
+    token,
+    telegramAuthAttempted,
+    refreshToken,
+    sessionRestoreAttempted,
+    applyAuthSession,
+    completeTelegramMobileBridge,
+    isTelegramMobileAuthFlow,
+  ]);
 
   useEffect(() => {
     if (token || !refreshToken || sessionRestoreAttempted) {
@@ -931,7 +1021,11 @@ export default function LkmCabinetClient({
       applyAuthSession(response);
       setSessionRestoreAttempted(true);
       setTelegramLinkRequired(false);
-      setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
+      if (isTelegramMobileAuthFlow) {
+        await completeTelegramMobileBridge(response);
+      } else {
+        setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
+      }
     } catch (loginError) {
       setError(buildErrorMessage(loginError));
     } finally {
@@ -1108,7 +1202,11 @@ export default function LkmCabinetClient({
           {!token ? (
             isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
               <div className="stack">
-                <p className="note">Проверяем вход через Telegram Mini App...</p>
+                <p className="note">
+                  {isTelegramMobileAuthFlow
+                    ? 'Проверяем вход через Telegram и готовим возврат в приложение VedaMatch...'
+                    : 'Проверяем вход через Telegram Mini App...'}
+                </p>
                 <p className="note">Обычно это занимает до 10 секунд.</p>
                 <button
                   type="button"
@@ -1126,7 +1224,9 @@ export default function LkmCabinetClient({
               <form className="stack" onSubmit={onLogin}>
                 {isTelegramMiniApp && telegramLinkRequired ? (
                   <p className="note">
-                    Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.
+                    {isTelegramMobileAuthFlow
+                      ? 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch и вернуть вас в приложение.'
+                      : 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.'}
                   </p>
                 ) : null}
                 <label>
@@ -1150,7 +1250,9 @@ export default function LkmCabinetClient({
                 <button type="submit" disabled={isLoggingIn}>
                   {isLoggingIn
                     ? telegramLinkRequired && isTelegramMiniApp
-                      ? 'Привязываем...'
+                      ? isTelegramMobileAuthFlow
+                        ? 'Подтверждаем...'
+                        : 'Привязываем...'
                       : 'Вход...'
                     : telegramLinkRequired && isTelegramMiniApp
                       ? 'Привязать Telegram'
@@ -1163,8 +1265,20 @@ export default function LkmCabinetClient({
             )
           ) : (
             <div className="stack">
-              <p className="ok">{isTelegramAuthorizedSession ? 'Авторизовано через Telegram' : 'Авторизовано'}</p>
-              <p className="note">Сессия продлевается автоматически, пока действует refresh-сессия.</p>
+              <p className="ok">
+                {isTelegramMobileAuthFlow
+                  ? 'Авторизация завершена. Возвращаемся в приложение VedaMatch...'
+                  : isTelegramAuthorizedSession
+                    ? 'Авторизовано через Telegram'
+                    : 'Авторизовано'}
+              </p>
+              <p className="note">
+                {isTelegramMobileAuthFlow
+                  ? isTelegramMobileBridgeLoading
+                    ? 'Подготавливаем возврат в приложение...'
+                    : 'Если приложение не открылось автоматически, используйте кнопку ниже.'
+                  : 'Сессия продлевается автоматически, пока действует refresh-сессия.'}
+              </p>
               <button
                 type="button"
                 className="secondary"
@@ -1440,6 +1554,14 @@ export default function LkmCabinetClient({
 
       {error ? <div className="flash error">{error}</div> : null}
       {success ? <div className="flash success">{success}</div> : null}
+      {telegramMobileDeepLink ? (
+        <div className="flash success">
+          <p>Если VedaMatch не открылся автоматически, нажмите кнопку ниже.</p>
+          <p>
+            <a href={telegramMobileDeepLink}>Вернуться в приложение</a>
+          </p>
+        </div>
+      ) : null}
     </main>
   );
 

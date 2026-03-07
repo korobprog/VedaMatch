@@ -271,6 +271,41 @@ func respondTelegramAuthError(c *fiber.Ctx, err error) error {
 	}
 }
 
+func respondTelegramMobileAuthError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, services.ErrTelegramMobileAuthStateExpired):
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":     "Telegram mobile auth session expired",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_EXPIRED",
+		})
+	case errors.Is(err, services.ErrTelegramMobileAuthStateNotReady):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Telegram mobile auth is not ready yet",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_NOT_READY",
+		})
+	case errors.Is(err, services.ErrTelegramMobileAuthStateConsumed):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Telegram mobile auth session is already consumed",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_CONSUMED",
+		})
+	case errors.Is(err, services.ErrTelegramMobileAuthDeviceMismatch):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error":     "Telegram mobile auth device mismatch",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_DEVICE_MISMATCH",
+		})
+	case errors.Is(err, services.ErrTelegramMobileAuthStateInvalid):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":     "Telegram mobile auth state is invalid",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_STATE_INVALID",
+		})
+	default:
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":     "Telegram mobile auth failed",
+			"errorCode": "TELEGRAM_MOBILE_AUTH_FAILED",
+		})
+	}
+}
+
 func validateAuthCredentials(email, password string) bool {
 	return strings.TrimSpace(email) != "" && strings.TrimSpace(password) != ""
 }
@@ -925,6 +960,7 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 
 	var req struct {
 		AccessToken string `json:"accessToken"`
+		Code        string `json:"code"`
 		DeviceID    string `json:"deviceId"`
 		Email       string `json:"email"`
 	}
@@ -934,13 +970,30 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 		})
 	}
 	req.AccessToken = strings.TrimSpace(req.AccessToken)
-	if req.AccessToken == "" {
+	req.Code = strings.TrimSpace(req.Code)
+	req.Email = strings.TrimSpace(req.Email)
+	if req.AccessToken == "" && req.Code == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "accessToken is required",
+			"error": "accessToken or code is required",
 		})
 	}
 
-	vkUser, err := vkAccessTokenVerifier(req.AccessToken)
+	accessToken := req.AccessToken
+	if accessToken == "" {
+		exchangedAccessToken, exchangedEmail, _, exchangeErr := vkCodeExchanger(req.Code)
+		if exchangeErr != nil {
+			log.Printf("[AUTH] VK code exchange failed: %v", exchangeErr)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid VK code",
+			})
+		}
+		accessToken = strings.TrimSpace(exchangedAccessToken)
+		if req.Email == "" {
+			req.Email = strings.TrimSpace(exchangedEmail)
+		}
+	}
+
+	vkUser, err := vkAccessTokenVerifier(accessToken)
 	if err != nil {
 		log.Printf("[AUTH] VK token verification failed: %v", err)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1194,6 +1247,90 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 	}
 	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Telegram login successful", user, req.DeviceID)
+}
+
+func (h *AuthHandler) TelegramMobileAuthStart(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	var req struct {
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	state, err := h.telegramAuthService.CreateMobileAuthState(req.DeviceID)
+	if err != nil {
+		log.Printf("[AUTH] Telegram mobile auth start failed: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not initialize Telegram mobile auth",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"state":     state.State,
+		"launchUrl": h.telegramAuthService.ResolveMobileAuthLaunchURL(state.State),
+		"expiresAt": state.ExpiresAt.UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *AuthHandler) TelegramMobileAuthComplete(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	var req struct {
+		State       string          `json:"state"`
+		AuthPayload json.RawMessage `json:"authPayload"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	if err := services.ValidateTelegramMobileAuthPayload(req.AuthPayload); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	entry, err := h.telegramAuthService.CompleteMobileAuthState(req.State, req.AuthPayload)
+	if err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"state":    entry.State,
+		"deepLink": h.telegramAuthService.ResolveMobileAuthDeepLink(entry.State),
+	})
+}
+
+func (h *AuthHandler) TelegramMobileAuthExchange(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	var req struct {
+		State    string `json:"state"`
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	payload, err := h.telegramAuthService.ConsumeMobileAuthState(req.State, req.DeviceID)
+	if err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+
+	c.Type("json")
+	return c.Send(payload)
 }
 
 func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {

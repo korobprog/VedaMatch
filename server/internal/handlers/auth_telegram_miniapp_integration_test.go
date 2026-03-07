@@ -62,6 +62,9 @@ func setupAuthTelegramMiniAppIntegrationDB(t *testing.T) *gorm.DB {
 func newAuthTelegramMiniAppTestApp() *fiber.App {
 	app := fiber.New()
 	handler := NewAuthHandler(nil, nil)
+	app.Post("/api/auth/telegram/mobile/start", handler.TelegramMobileAuthStart)
+	app.Post("/api/auth/telegram/mobile/complete", handler.TelegramMobileAuthComplete)
+	app.Post("/api/auth/telegram/mobile/exchange", handler.TelegramMobileAuthExchange)
 	app.Post("/api/auth/telegram/miniapp/login", handler.TelegramMiniAppLogin)
 	app.Post("/api/auth/telegram/miniapp/link", handler.TelegramMiniAppLink)
 	return app
@@ -74,11 +77,12 @@ func createAuthTelegramTestUser(t *testing.T, attrs authTelegramTestUserAttrs) m
 	require.NoError(t, err)
 
 	user := models.User{
-		Email:             attrs.Email,
+		Email:             strings.TrimSpace(strings.ToLower(attrs.Email)),
 		Password:          string(passwordHash),
 		KarmicName:        "telegram-user",
 		Role:              models.RoleUser,
 		IsProfileComplete: true,
+		GoogleSub:         fmt.Sprintf("test-google-sub-%d", time.Now().UnixNano()),
 		InviteCode:        fmt.Sprintf("TG%06d", time.Now().UnixNano()%1000000),
 	}
 	if attrs.TelegramUserID != nil {
@@ -271,6 +275,126 @@ func TestAuthTelegramMiniAppLink_RebindForSameUser(t *testing.T) {
 	require.NotNil(t, refreshed.TelegramUserID)
 	require.EqualValues(t, newTelegramID, *refreshed.TelegramUserID)
 	require.Equal(t, "rebind_user", refreshed.TelegramUsername)
+}
+
+func TestAuthTelegramMobileBridge_StartCompleteExchange(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	startPayload, _ := json.Marshal(map[string]string{
+		"deviceId": "tg-mobile-device-1",
+	})
+	startReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/start", bytes.NewBuffer(startPayload))
+	startReq.Header.Set("Content-Type", "application/json")
+
+	startResp, err := app.Test(startReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, startResp.StatusCode)
+
+	var startBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(startResp.Body).Decode(&startBody))
+	state := strings.TrimSpace(fmt.Sprintf("%v", startBody["state"]))
+	launchURL := strings.TrimSpace(fmt.Sprintf("%v", startBody["launchUrl"]))
+	require.NotEmpty(t, state)
+	require.Contains(t, launchURL, "https://t.me/vedamatch_bot?startapp=vm_auth_")
+
+	authPayload, _ := json.Marshal(map[string]interface{}{
+		"token":        "telegram-access-token",
+		"accessToken":  "telegram-access-token",
+		"refreshToken": "telegram-refresh-token",
+		"sessionId":    42,
+		"user": map[string]interface{}{
+			"ID":    1001,
+			"email": "telegram@example.com",
+		},
+	})
+	completePayload, _ := json.Marshal(map[string]interface{}{
+		"state":       state,
+		"authPayload": json.RawMessage(authPayload),
+	})
+	completeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/complete", bytes.NewBuffer(completePayload))
+	completeReq.Header.Set("Content-Type", "application/json")
+
+	completeResp, err := app.Test(completeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, completeResp.StatusCode)
+
+	var completeBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(completeResp.Body).Decode(&completeBody))
+	require.Equal(t, state, strings.TrimSpace(fmt.Sprintf("%v", completeBody["state"])))
+	require.Equal(t, fmt.Sprintf("vedamatch://auth/telegram/callback?state=%s", url.QueryEscape(state)), strings.TrimSpace(fmt.Sprintf("%v", completeBody["deepLink"])))
+
+	exchangePayload, _ := json.Marshal(map[string]string{
+		"state":    state,
+		"deviceId": "tg-mobile-device-1",
+	})
+	exchangeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/exchange", bytes.NewBuffer(exchangePayload))
+	exchangeReq.Header.Set("Content-Type", "application/json")
+
+	exchangeResp, err := app.Test(exchangeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, exchangeResp.StatusCode)
+
+	var exchangeBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(exchangeResp.Body).Decode(&exchangeBody))
+	require.Equal(t, "telegram-access-token", exchangeBody["accessToken"])
+	require.Equal(t, "telegram-refresh-token", exchangeBody["refreshToken"])
+
+	replayReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/exchange", bytes.NewBuffer(exchangePayload))
+	replayReq.Header.Set("Content-Type", "application/json")
+
+	replayResp, err := app.Test(replayReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusConflict, replayResp.StatusCode)
+}
+
+func TestAuthTelegramMobileBridge_RejectsDeviceMismatch(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	startPayload, _ := json.Marshal(map[string]string{
+		"deviceId": "tg-mobile-device-2",
+	})
+	startReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/start", bytes.NewBuffer(startPayload))
+	startReq.Header.Set("Content-Type", "application/json")
+
+	startResp, err := app.Test(startReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, startResp.StatusCode)
+
+	var startBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(startResp.Body).Decode(&startBody))
+	state := strings.TrimSpace(fmt.Sprintf("%v", startBody["state"]))
+
+	authPayload, _ := json.Marshal(map[string]interface{}{
+		"token":       "telegram-access-token",
+		"accessToken": "telegram-access-token",
+		"user": map[string]interface{}{
+			"ID":    1002,
+			"email": "telegram2@example.com",
+		},
+	})
+	completePayload, _ := json.Marshal(map[string]interface{}{
+		"state":       state,
+		"authPayload": json.RawMessage(authPayload),
+	})
+	completeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/complete", bytes.NewBuffer(completePayload))
+	completeReq.Header.Set("Content-Type", "application/json")
+
+	completeResp, err := app.Test(completeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, completeResp.StatusCode)
+
+	exchangePayload, _ := json.Marshal(map[string]string{
+		"state":    state,
+		"deviceId": "other-device",
+	})
+	exchangeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/exchange", bytes.NewBuffer(exchangePayload))
+	exchangeReq.Header.Set("Content-Type", "application/json")
+
+	exchangeResp, err := app.Test(exchangeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusForbidden, exchangeResp.StatusCode)
 }
 
 func buildHandlerTelegramInitData(t *testing.T, botToken string, authDate int64, fields map[string]string) string {

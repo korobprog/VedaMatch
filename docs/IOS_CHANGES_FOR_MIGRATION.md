@@ -1,5 +1,215 @@
 # IOS Changes For Migration
 
+## 2026-03-07 (Telegram mobile auth enabled via Mini App bridge for iOS and Android)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/navigation/linking.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `frontend/android/app/build.gradle`
+- `lkm/src/components/lkm-cabinet-client.tsx`
+- `server/internal/services/telegram_mobile_auth_bridge.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_telegram_miniapp_integration_test.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Telegram` кнопка на mobile login screen либо была скрыта, либо показывала placeholder-alert;
+  - backend умел только `miniapp/login` и `miniapp/link`, но не умел безопасно вернуть готовую auth-сессию из Telegram Mini App обратно в native app;
+  - `lkm` Mini App авторизовывался внутри себя, но не делал handoff назад в iOS/Android.
+- Стало:
+  - mobile app запускает `POST /auth/telegram/mobile/start`, открывает `@vedamatch_bot` через `startapp=vm_auth_<state>` и ждет callback `vedamatch://auth/telegram/callback?state=...`;
+  - backend хранит short-lived Telegram mobile auth state (`pending -> ready -> consumed`) в Redis или in-memory fallback и отдает endpoints `start/complete/exchange`;
+  - `lkm` Mini App распознает `vm_auth_<state>`, завершает `miniapp/login` или `miniapp/link`, после чего делает `POST /auth/telegram/mobile/complete` и отправляет пользователя обратно в native app;
+  - deep link routing в React Navigation игнорирует Telegram auth callback так же, как и VK callback;
+  - Android release version поднята до `1.1.20 (22)`.
+
+### Сниппеты кода
+
+`server/internal/services/telegram_mobile_auth_bridge.go`:
+```go
+func BuildTelegramMobileStartParam(state string) string {
+  return "vm_auth_" + strings.TrimSpace(state)
+}
+```
+
+```go
+func (s *TelegramAuthService) ResolveMobileAuthDeepLink(state string) string {
+  return "vedamatch://auth/telegram/callback?state=" + url.QueryEscape(state)
+}
+```
+
+`frontend/services/socialAuthService.ts`:
+```ts
+export const createTelegramAuthSession = async () => {
+  const response = await apiClient.post('/auth/telegram/mobile/start', { deviceId }, {
+    __skipAuthSession: true,
+  });
+  return { state: response.data.state, launchUrl: response.data.launchUrl };
+};
+```
+
+```ts
+export const finalizeTelegramSignIn = async (callbackUrl: string, expectedState?: string) => {
+  const state = parseQueryParam(callbackUrl, 'state');
+  return apiClient.post('/auth/telegram/mobile/exchange', { state, deviceId }, {
+    __skipAuthSession: true,
+  });
+};
+```
+
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```tsx
+const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(
+  telegramWebApp?.initDataUnsafe?.start_param || extractTelegramStartParamFromLocation(window.location.search),
+);
+```
+
+```tsx
+const response = await apiRequest('/auth/telegram/mobile/complete', {
+  method: 'POST',
+  body: { state: telegramMobileAuthState, authPayload },
+  skipAuthRefresh: true,
+});
+window.location.replace(response.deepLink);
+```
+
+## 2026-03-07 (VK iOS moved to universal-link code flow; Associated Domains enabled)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/navigation/linking.ts`
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/ios/vedamatch/vedamatch.entitlements`
+- `frontend/ios/Podfile.lock`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_vk_integration_test.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS не имел `Associated Domains`, поэтому `https://api.vedamatch.ru/auth/vk/callback` не мог открывать приложение как universal link;
+  - backend AASA отдавал placeholder `YOUR_APPLE_TEAM_ID.com.ragagent`;
+  - mobile `VK` login умел только `access_token` flow и был завязан на `blank.html`/deep link сценарий.
+- Стало:
+  - iOS target включает `applinks:api.vedamatch.ru`, а `AppDelegate` пробрасывает и custom URL, и universal links в React Native;
+  - backend AASA отдает реальный app id `CVW85BZU5Z.com.VedaMatch.vedamatch` и путь `/auth/vk/callback`;
+  - на iOS `VK` login теперь стартует как `response_type=code` через внешний browser, ловит возврат на `https://api.vedamatch.ru/auth/vk/callback?...` и завершает auth через `POST /auth/vk/login` с `code`;
+  - `VKLogin` на backend принимает и `accessToken`, и `code`;
+  - iOS pod graph синхронизирован под текущий `react-native-mmkv 4.1.2` (`NitroMmkv 4.1.2`, `MMKVCore 2.2.4`), чтобы simulator build снова проходил.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const redirectUri = platform === 'ios'
+  ? (Config.VK_REDIRECT_URI || 'https://api.vedamatch.ru/auth/vk/callback')
+  : 'https://oauth.vk.com/blank.html';
+const responseType = platform === 'ios' ? 'code' : 'token';
+```
+
+```ts
+if (callbackData.code) {
+  payload.code = callbackData.code;
+}
+return apiClient.post('/auth/vk/login', payload, {
+  __skipAuthSession: true,
+});
+```
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+- (BOOL)application:(UIApplication *)application
+    continueUserActivity:(NSUserActivity *)userActivity
+      restorationHandler:(void (^)(NSArray * _Nullable))restorationHandler {
+  return [RCTLinkingManager application:application
+                   continueUserActivity:userActivity
+                     restorationHandler:restorationHandler];
+}
+```
+
+`server/cmd/api/main.go`:
+```go
+"details": [
+  {
+    "appID": "CVW85BZU5Z.com.VedaMatch.vedamatch",
+    "paths": ["/auth/vk/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
+  }
+]
+```
+
+## 2026-03-07 (VK switched to in-app WebView flow; Telegram button restored as explicit placeholder)
+
+### Измененные файлы
+- `frontend/components/auth/VKAuthModal.tsx`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/services/socialAuthService.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `frontend/android/app/build.gradle`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile `VK` login открывал внешний browser OAuth и зависел от backend callback/deep link;
+  - на реальном Android это приводило к `invalid_request / Security error` на стороне VK authorize;
+  - `Telegram` кнопка была скрыта полностью, из-за чего на login screen не было явного статуса этого flow.
+- Стало:
+  - `VK` login идет через встроенный `WebView` modal и получает `access_token` прямо из `https://oauth.vk.com/blank.html#...`;
+  - после получения token mobile client завершает auth обычным `POST /auth/vk/login`, без обязательного browser round-trip;
+  - `Telegram` кнопка снова видна, но показывает localized alert, что direct Telegram login в приложении пока не подключен;
+  - Android release version поднята до `1.1.19 (21)`.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const query = new URLSearchParams({
+  client_id: clientId,
+  redirect_uri: 'https://oauth.vk.com/blank.html',
+  response_type: 'token',
+  display: 'mobile',
+  scope,
+  v: '5.199',
+  state,
+});
+```
+
+```ts
+export const finalizeVKSignIn = async (callbackUrl: string, state: string) => {
+  const callbackData = extractVKCallbackPayload(callbackUrl, state);
+  return apiClient.post('/auth/vk/login', {
+    accessToken: callbackData.accessToken,
+    email: callbackData.email || undefined,
+    deviceId,
+  });
+};
+```
+
+`frontend/components/auth/VKAuthModal.tsx`:
+```tsx
+window.ReactNativeWebView.postMessage(JSON.stringify({
+  type: 'vk-auth-url',
+  url: window.location.href,
+}));
+```
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+<TouchableOpacity style={styles.socialButton} onPress={handleTelegramSignIn}>
+  <Text style={styles.socialButtonText}>{t('auth.loginScreen.social.telegram')}</Text>
+</TouchableOpacity>
+```
+
 ## 2026-03-07 (Social auth contract hardened for Google/VK; Telegram hidden on login)
 
 ### Измененные файлы
