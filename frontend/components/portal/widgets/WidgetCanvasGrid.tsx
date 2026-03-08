@@ -28,7 +28,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     onRemoveWidget,
     onReorderWidgets,
 }) => {
-    const { i18n } = useTranslation();
+    const { t } = useTranslation();
     const { vTheme, portalBackgroundType, isDarkMode, screenVisualStyle } = useSettings();
     const { height: viewportHeight } = useWindowDimensions();
     const isPhotoBg = screenVisualStyle === 'classic' && portalBackgroundType === 'image' && isDarkMode;
@@ -41,22 +41,6 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
         [widgets],
     );
     const singleWidget = orderedWidgets.length === 1 ? orderedWidgets[0] : null;
-    const copy =
-        i18n.language === 'ru'
-            ? {
-                  emptyTitle: 'Пока нет виджетов',
-                  emptySubtitle: 'Удерживайте палец на экране, чтобы открыть меню добавления виджетов',
-              }
-            : i18n.language === 'hi'
-              ? {
-                    emptyTitle: 'अभी कोई विजेट नहीं है',
-                    emptySubtitle: 'विजेट जोड़ने का मेनू खोलने के लिए स्क्रीन को दबाकर रखें',
-                }
-              : {
-                    emptyTitle: 'No widgets yet',
-                    emptySubtitle: 'Press and hold the screen to open the add widgets menu',
-                };
-
     const dnd = useGridReorderDnd({
         items: orderedWidgets,
         onReorder: onReorderWidgets,
@@ -155,14 +139,27 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
                                 backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : vTheme.colors.backgroundSecondary,
                             },
                         ]}
-                        pointerEvents="none"
                     >
                         <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
-                            {copy.emptyTitle}
+                            {t('portal.widgets.empty.title')}
                         </Text>
                         <Text style={[styles.emptySubtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary }]}>
-                            {copy.emptySubtitle}
+                            {t('portal.widgets.empty.subtitle')}
                         </Text>
+                        <Pressable
+                            testID="widget-canvas-empty-add-button"
+                            style={[
+                                styles.emptyActionButton,
+                                {
+                                    backgroundColor: vTheme.colors.primary,
+                                },
+                            ]}
+                            onPress={handleCanvasLongPress}
+                        >
+                            <Text style={styles.emptyActionButtonText}>
+                                {t('portal.widgets.addWidget')}
+                            </Text>
+                        </Pressable>
                     </View>
                 </Pressable>
             </View>
@@ -272,5 +269,18 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         textAlign: 'center',
         lineHeight: 18,
+    },
+    emptyActionButton: {
+        marginTop: 16,
+        minHeight: 42,
+        borderRadius: 14,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyActionButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
 });

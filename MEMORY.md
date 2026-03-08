@@ -7,11 +7,52 @@
 - Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 
+## MVP Readiness
+- На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.
+- Backend auth/session ядро уже заведено в коде:
+  - есть `POST /api/auth/refresh`, `POST /api/auth/logout`;
+  - есть stateful `auth_sessions`;
+  - есть `GET /api/messages/history` с `beforeId / nextBeforeId`.
+- Mobile auth/session слой тоже собран:
+  - `frontend/services/authSessionService.ts` использует shared refresh lock;
+  - `frontend/context/UserContext.tsx` и `frontend/context/WebSocketContext.tsx` уже пытаются делать refresh перед logout;
+  - websocket recovery path в коде присутствует.
+- Для оценки готовности нельзя считать backend полностью зеленым:
+  - `go test ./...` в `server` на 2026-03-08 падает;
+  - повторяющиеся причины: `duplicate key value violates unique constraint "users_google_sub_key"` в integration tests, а также ошибки вида `sql: transaction has already been committed or rolled back` в support/push/connect flows;
+  - это релизный сигнал, а не косметика тестовой среды.
+- Для closed beta безопасно позиционировать тест как `core beta`, а не `full feature beta`.
+- Повышенный риск для тестеров сейчас связан не с одним ядром чата, а с хвостами в отдельных вертикалях:
+  - `Seva`;
+  - `Services`;
+  - `Map`;
+  - части `Market/Cafe`;
+  - library/books UI и theme-contrast regressions на Android.
+- Явно незавершенные или частично заглушенные места, которые уже видны по коду:
+  - `frontend/screens/portal/shops/ProductDetailsScreen.tsx`: `TODO: Implement cart context`;
+  - `frontend/screens/portal/cafe/StaffOrderHistoryScreen.tsx`: placeholder logic вместо реальной истории;
+  - `frontend/services/datingService.ts`: placeholder domain comment;
+  - часть экранов полагается на `console.error/warn + Alert`, что говорит о runtime-fallback модели, а не о полностью добитом UX.
+
+## Portal Visual Settings
+- В `frontend/context/SettingsContext.tsx` дефолтный `portalIconStyle` должен быть `solid` (`Заливка`) для новых пользователей и при отсутствии сохраненного значения.
+- На экране `frontend/screens/settings/AppSettingsScreen.tsx` опция `Заливка` должна показываться первой в списке стилей иконок.
+
+## Portal Widgets
+- Для роли `devotee` календарный portal widget должен стартовать сразу в режиме `ekadashi`, иначе пользователь видит обычный `Месяц` и создается ложное впечатление, что данные Экадаши не подключены.
+- После удаления последнего виджета empty-state в `WidgetSelection` не должен полагаться только на long-press: picker нужно открывать сразу, а на пустом холсте должна быть явная CTA-кнопка добавления виджета.
+- `WidgetSelection` и `WidgetCanvasGrid` должны использовать i18n для toolbar/empty-state/hint copy; не оставлять hardcoded `Done` и английские подсказки в UI.
+- Duplicate-alert при добавлении уже существующего виджета тоже должен идти через `portal.widgets.*`, а не через hardcoded English text.
+- Для глобального скрытия сервисов правильная архитектура: один server-side system setting c JSON-картой видимости сервисов, а не второй hardcoded список в admin/mobile.
+- Источник каталога сервисов на mobile остается `frontend/types/portal.ts::DEFAULT_SERVICES`; server setting должен только накладывать runtime-фильтр `visible/hidden`, не дублируя label/icon/color.
+
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.
+- Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
 
 ## Dhama Service
 - `Dhama` реализован как отдельный доменный модуль sacred places, но не как замена `Yatra`, `MapService` или `Multimedia`.
+- Портальный ярлык `Dhama` не должен использовать абстрактную карту/заглушку; для home-screen иконки нужен более предметный sacred-place символ (`Landmark`) и тёплый паломнический акцент вместо холодного фиолетового map-style.
 - Source-of-truth в `Dhama`:
   - святое место (`HolyPlace`);
   - локализованные тексты `ru/en/hi`;
@@ -54,6 +95,14 @@
   - для `DhamaHome`, `DhamaCollectionDetail` и `DhamaMap` spinner-only loading заменен на layout-aware skeleton placeholders;
   - skeleton helper вынесен в `frontend/screens/dhama/DhamaSkeleton.tsx`;
   - при будущих изменениях layout этих экранов skeleton-структуру нужно держать синхронной с реальным экраном, чтобы не возвращаться к пустому centered spinner.
+- `DhamaHome` visual entry:
+  - верх экрана переведен из плоского title/subtitle блока в gradient hero-card;
+  - CTA карты встроен прямо в hero;
+  - это осознанный temporary visual replacement, пока реальные header-images не подготовлены.
+- Mobile `Dhama` localization hygiene:
+  - в `DhamaHome` не оставлять raw brand string `Dhama` в hero eyebrow, использовать `t('dhama.homeTitle')`, чтобы `ru/en/hi` были синхронны;
+  - в `HolyPlaceDetail` `placeType` не должен показываться как raw enum/backend value, его нужно прогонять через `dhama.filterValues.placeType.*` с humanized fallback;
+  - в `DhamaMap` шапка чувствительна к вертикальным отступам: после back button нужен явный gap, иначе title визуально прилипает к кнопке на iPhone.
 - Admin `Dhama` v1:
   - раздел `/dhama` в admin navigation;
   - list/search/filter по статусу;
@@ -1703,6 +1752,7 @@
       - `frontend/screens/portal/PortalMainScreen.tsx` (header icon)
       - `frontend/components/portal/PortalGrid.tsx` (edit toolbar)
     - В `frontend/screens/portal/WidgetSelectionScreen.tsx` `BlurView` переведен на `androidVisualPolicy` (без принудительного blur на reduced Android mode).
+  - `frontend/screens/RegistrationScreen.tsx` (2026-03-08): на Android сочетание full-screen dark overlay + header `BlurView` давало визуально "тусклый/под фильтром" фон; для registration-screen нужен более слабый Android overlay и статичный header fallback вместо blur-fallback.
 
 ## Calls Architecture (Contacts + Rooms)
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
@@ -2365,6 +2415,37 @@
 - EditProfileScreen and PlansScreen now use runtime-localized validation, fallback success/error copy, and plan feature labels for en/ru/hi.
 ## Monetization Map
 - В проекте уже есть несколько независимых контуров монетизации, а не один общий тарифный модуль.
+- В `admin` введен единый раздел `Monetization` (`/monetization`) как обзор и точка управления активными тарифами и комиссиями.
+- Для `Monetization` принят порядок источников данных:
+  - primary truth: доменные DB-конфиги / доменные таблицы;
+  - legacy fallback: `system_settings`;
+  - last fallback: code defaults / seed defaults только для первичного заполнения.
+- `LKM Top-up` остается отдельным доменным контуром и существующим admin flow (`/payments`), но в `Monetization` показывается как интегрированный блок со ссылкой на полный LKM-конфиг.
+- `ServiceTariff` не переносится в глобальное редактирование:
+  - в `Monetization` показывается только summary-реестр тарифов услуг;
+  - редактирование остается внутри service-domain flow.
+- Для legacy monetization-блоков добавлены явные DB-конфиги:
+  - `ProPlanConfig`
+  - `ChatTranscribeBillingConfigModel`
+  - `YatraBillingConfigModel`
+  - `ServiceFeeConfigModel`
+  - `MarketFeeConfigModel`
+  - `CafeFeeConfigModel`
+- Seed monetization больше не должен восприниматься как текущая цена:
+  - он only-creates missing DB-config rows;
+  - существующие DB-конфиги не перезаписываются.
+- Backend `Monetization` overview агрегирует:
+  - `LKM Top-up`
+  - `PRO`
+  - `Services Fees`
+  - `Market Fees`
+  - `Cafe Fees`
+  - `Shop Plans`
+  - `Shop Promotions`
+  - `Chat Transcribe`
+  - `Yatra Billing`
+  - `Services Tariffs Summary`
+- Для admin UI важно явно показывать `source` (`db`, `legacy_system_settings`, `seed_fallback`) и `status`, чтобы админ видел, где блок еще живет на legacy fallback.
 - Пополнение LKM:
   - отдельный web/Telegram контур `LKM Top-up`;
   - дефолтный номинал `1 LKM = 1 RUB`, но курс configurable через `LKMTopupGlobalConfig.NominalRubPerLKM`;
@@ -2385,6 +2466,13 @@
   - промо товаров: `24h=15`, `7d=60`, `30d=180` LKM;
   - geo boost магазина: `24h=20` LKM;
   - есть platform fee marketplace.
+- Market incident fix:
+  - `GET /api/products` падал на PostgreSQL с `ERROR: column products.* does not exist (SQLSTATE 42703)`;
+  - причина: в `ProductService.GetProducts` стоял `Select("products.*")` до `Count()`, и GORM генерировал `COUNT("products"."*")`;
+  - фикс: убрать явный `Select("products.*")` из discovery-query.
+- React Native dev logging:
+  - для market discovery нельзя прокидывать сырой `AxiosError` в `console.error`, иначе iOS dev показывает RedBox вместо обычного recoverable состояния;
+  - использовать короткий summary (`status/method/url/message`) через `console.log` в dev или `console.warn` в prod.
 - Chat transcribe billing:
   - включен по умолчанию;
   - `5` бесплатных минут в неделю;

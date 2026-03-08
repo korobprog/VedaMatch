@@ -41,4 +41,23 @@ describe('WidgetCanvasGrid', () => {
         fireEvent(screen.getByTestId('widget-canvas-empty-zone'), 'onLongPress');
         expect(onSetEditMode).toHaveBeenCalledWith(true);
     });
+
+    it('opens add menu from empty-state button', () => {
+        const onSetEditMode = jest.fn();
+        const onRequestWidgetMenu = jest.fn();
+        const screen = render(
+            <WidgetCanvasGrid
+                widgets={[]}
+                isEditMode={false}
+                onSetEditMode={onSetEditMode}
+                onRequestWidgetMenu={onRequestWidgetMenu}
+                onRemoveWidget={jest.fn()}
+                onReorderWidgets={jest.fn()}
+            />,
+        );
+
+        fireEvent.press(screen.getByTestId('widget-canvas-empty-add-button'));
+        expect(onSetEditMode).toHaveBeenCalledWith(true);
+        expect(onRequestWidgetMenu).toHaveBeenCalled();
+    });
 });

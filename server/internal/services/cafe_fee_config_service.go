@@ -87,6 +87,20 @@ func ResolveCafeFeeConfig() CafeFeeConfig {
 		ConfigSource:   "none",
 	}
 
+	if database.DB != nil {
+		var model models.CafeFeeConfigModel
+		if err := database.DB.Where("singleton_key = ?", "default").First(&model).Error; err == nil {
+			cfg.Enabled = model.IsEnabled
+			cfg.PercentBps = model.PercentBps
+			cfg.CapLkm = model.CapLkm
+			cfg.MinOrderLkm = model.MinOrderLkm
+			cfg.EffectiveFrom = model.EffectiveFrom
+			cfg.RolloutPercent = model.RolloutPercent
+			cfg.ConfigSource = "db"
+			return cfg
+		}
+	}
+
 	if v, ok := getCafeFeeSystemSettingValue("CAFE_PLATFORM_FEE_ENABLED"); ok {
 		cfg.Enabled = parseCafeFeeBoolWithDefault(v, cfg.Enabled)
 		cfg.ConfigSource = "db"

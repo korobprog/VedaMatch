@@ -116,7 +116,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [chatBackground, setChatBackgroundState] = useState<string>(defaultChatBackground);
     const [chatBackgroundType, setChatBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
-    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('vedamatch');
+    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('solid');
     const [performanceMode, setPerformanceModeState] = useState<PerformanceMode>(
         Platform.OS === 'android' ? 'adaptive' : 'high_quality',
     );
@@ -274,7 +274,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 } else if (savedIconStyle === 'colored') {
                     setPortalIconStyleState('solid');
                 } else if (!savedIconStyle) {
-                    setPortalIconStyleState('vedamatch');
+                    setPortalIconStyleState('solid');
                 }
 
                 const savedPerformanceMode = await AsyncStorage.getItem(PERFORMANCE_MODE_STORAGE_KEY);

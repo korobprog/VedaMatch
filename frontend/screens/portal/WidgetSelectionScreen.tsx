@@ -12,6 +12,7 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { Film, Gift, LayoutGrid, List, MessageSquare, Settings } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
@@ -34,6 +35,7 @@ const SWIPE_MIN_VELOCITY_PX = 650;
 const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
+    const { t } = useTranslation();
     const { handleNewChat } = useChat();
     const {
         layout,
@@ -245,10 +247,18 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix'; size: '1x1' | '2x1' | '2x2' }) => {
         const result = addWidget(widget);
         if (!result.ok && result.reason === 'duplicate') {
-            Alert.alert('Widget already added', 'Only one instance is available for each type.');
+            Alert.alert(t('portal.widgets.duplicateTitle'), t('portal.widgets.duplicateMessage'));
         }
         return result;
-    }, [addWidget]);
+    }, [addWidget, t]);
+
+    const handleRemoveWidget = useCallback((widgetId: string) => {
+        const isRemovingLastWidget = widgets.length === 1 && widgets[0]?.id === widgetId;
+        removeWidget(widgetId);
+        if (isRemovingLastWidget) {
+            openWidgetMenu();
+        }
+    }, [openWidgetMenu, removeWidget, widgets]);
 
     const content = (
         <View style={styles.container}>
@@ -419,7 +429,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 isEditMode={isEditMode}
                 onSetEditMode={setEditMode}
                 onRequestWidgetMenu={openWidgetMenu}
-                onRemoveWidget={removeWidget}
+                onRemoveWidget={handleRemoveWidget}
                 onReorderWidgets={reorderWidgets}
             />
 
@@ -444,7 +454,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                             { color: (isPhotoBg || isDarkMode) ? '#FFFFFF' : vTheme.colors.textSecondary },
                         ]}
                     >
-                        Widgets · swipe right to return to portal
+                        {t('portal.widgets.returnHint')}
                     </Text>
                 </View>
             )}
@@ -476,7 +486,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         activeOpacity={0.88}
                     >
-                        <Text style={styles.toolbarPrimaryButtonText}>Done</Text>
+                        <Text style={styles.toolbarPrimaryButtonText}>{t('common.done')}</Text>
                     </TouchableOpacity>
                 </View>
             )}

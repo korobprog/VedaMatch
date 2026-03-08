@@ -94,6 +94,24 @@ func StartProSubscriptionScheduler(walletService *WalletService) {
 }
 
 func (s *ProService) GetPlans() []ProPlan {
+	if s.db != nil {
+		var configs []models.ProPlanConfig
+		if err := s.db.Where("is_enabled = ?", true).Order("days ASC, id ASC").Find(&configs).Error; err == nil && len(configs) > 0 {
+			plans := make([]ProPlan, 0, len(configs))
+			for _, item := range configs {
+				plans = append(plans, ProPlan{
+					Code:      item.Code,
+					Days:      item.Days,
+					PriceLKM:  item.PriceLkm,
+					Title:     item.Title,
+					Badge:     item.Badge,
+					IsPopular: item.IsPopular,
+				})
+			}
+			return plans
+		}
+	}
+
 	plans := []ProPlan{
 		{
 			Code:     "pro_7d",
@@ -385,6 +403,13 @@ func (s *ProService) extendSubscription(userID uint, plan ProPlan) error {
 }
 
 func (s *ProService) isProEnabled() bool {
+	if s.db != nil {
+		var count int64
+		if err := s.db.Model(&models.ProPlanConfig{}).Where("is_enabled = ?", true).Count(&count).Error; err == nil && count > 0 {
+			return true
+		}
+	}
+
 	proEnabled := strings.TrimSpace(strings.ToLower(s.settingValue("PRO_ENABLED", "true")))
 	proSubscriptionsEnabled := strings.TrimSpace(strings.ToLower(s.settingValue("PRO_LKM_SUBSCRIPTIONS_ENABLED", "true")))
 	if isProFalseLike(proEnabled) || isProFalseLike(proSubscriptionsEnabled) {

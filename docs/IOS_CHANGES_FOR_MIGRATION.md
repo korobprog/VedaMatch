@@ -238,6 +238,46 @@ logoOverlay: {
   alignItems: 'flex-end',
   paddingLeft: 6,
   paddingRight: 5,
+
+## 2026-03-08 (Dhama map header spacing and Dhama localization cleanup on mobile)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/HolyPlaceDetailScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на `DhamaMap` заголовок визуально прилипал к back button, особенно заметно на iPhone;
+  - в hero `DhamaHome` оставался raw string `Dhama`, минуя локализацию;
+  - в `HolyPlaceDetail` тип места мог показываться как техническое backend-значение вроде `holy_town`.
+- Стало:
+  - у шапки `DhamaMap` добавлен явный нижний отступ после top bar и выровнен line-height заголовка/подзаголовка;
+  - hero eyebrow на `DhamaHome` теперь идет через `t('dhama.homeTitle')`;
+  - `HolyPlaceDetail` локализует `placeType` через `dhama.filterValues.placeType.*`, а для неизвестных значений показывает humanized fallback вместо raw enum.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+topBar: { alignItems: 'flex-start', marginBottom: 18 },
+title: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
+subtitle: { fontSize: 14, lineHeight: 21, marginTop: 2, marginBottom: 4 },
+```
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+<Text style={styles.heroEyebrow}>
+  {selectedCollection ? t('dhama.collectionLabel') : t('dhama.homeTitle')}
+</Text>
+```
+
+`frontend/screens/dhama/HolyPlaceDetailScreen.tsx`:
+```tsx
+const localizedPlaceType = normalizedPlaceType
+  ? t(`dhama.filterValues.placeType.${normalizedPlaceType}`, { defaultValue: humanizeDhamaValue(place.placeType) })
+  : '';
+```
 }
 ```
 
@@ -1405,6 +1445,63 @@ const saved = await ekadashiService.updatePushPreference({
   country,
   timezone,
 });
+```
+
+## 2026-03-08 (Portal widget defaults to Ekadashi mode for devotees)
+
+### Измененные файлы
+- `frontend/components/portal/CalendarWidget.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - portal calendar widget для `devotee` открывался в режиме `gregorian` (`Месяц`);
+  - данные Экадаши подгружались только после ручного переключения в `Экадаши`, из-за чего казалось, что виджет не работает.
+- Стало:
+  - для `devotee` widget стартует сразу в режиме `ekadashi`;
+  - загрузка календаря Экадаши начинается сразу при открытии виджетов, без дополнительного тапа по переключателю.
+
+### Короткий сниппет
+
+`frontend/components/portal/CalendarWidget.tsx`:
+```tsx
+const canUseEkadashi = isDevoteeRole(user?.role);
+const [mode, setMode] = useState<'gregorian' | 'ekadashi'>(
+  canUseEkadashi ? 'ekadashi' : 'gregorian'
+);
+```
+
+## 2026-03-08 (WidgetSelection empty-state recovery after deleting last widget)
+
+### Измененные файлы
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после удаления последнего виджета пользователь попадал в пустой canvas;
+  - повторное добавление зависело от long-press по пустой зоне, который на устройстве мог не срабатывать стабильно.
+- Стало:
+  - при удалении последнего виджета `WidgetPickerSheet` открывается сразу автоматически;
+  - в empty-state добавлена явная CTA-кнопка `Add widget`, помимо сохраненного long-press.
+
+### Короткий сниппет
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+const handleRemoveWidget = useCallback((widgetId: string) => {
+  const isRemovingLastWidget = widgets.length === 1 && widgets[0]?.id === widgetId;
+  removeWidget(widgetId);
+  if (isRemovingLastWidget) {
+    openWidgetMenu();
+  }
+}, [openWidgetMenu, removeWidget, widgets]);
+```
+
+`frontend/components/portal/widgets/WidgetCanvasGrid.tsx`:
+```tsx
+<Pressable testID="widget-canvas-empty-add-button" onPress={handleCanvasLongPress}>
+  <Text>{copy.emptyAction}</Text>
+</Pressable>
 ```
 
 ## 2026-03-06 (Chat open-at-bottom stabilization + large history virtualization)
@@ -12366,4 +12463,117 @@ if (loading || loadError || webViewError || mapReady || !webViewStarted) {
 const mapErrorBody = loadError
   ? t('dhama.mapErrorBody')
   : t('dhama.mapWebViewErrorBody');
+```
+
+## 2026-03-08 (DhamaHome header upgraded to a gradient hero instead of a flat text block)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - верх `DhamaHome` был обычным блоком `title + subtitle + map button`;
+  - экран был рабочим, но сверху не имел сильной visual identity;
+  - пока у мест нет полноценного hero-media, верх сервиса выглядел слишком плоско.
+- Стало:
+  - верхний блок заменен на gradient hero-card;
+  - CTA карты встроен прямо в hero;
+  - добавлены теплые glow-формы и более выразительная иерархия текста;
+  - active collection context теперь тоже читается внутри hero без отдельного сухого title-блока.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+<LinearGradient
+  colors={['#1C214A', '#8D4B24', '#E4B66B']}
+  style={styles.heroShell}
+>
+```
+
+```tsx
+<TouchableOpacity
+  onPress={() => navigation.navigate('DhamaMap', selectedCollectionSlug ? { collectionSlug: selectedCollectionSlug } : undefined)}
+  style={styles.heroMapButton}
+>
+```
+
+## 2026-03-08 (Portal locked-service banner now links to profile completion)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - при первом входе через social login пользователь мог попасть в `Portal` с незавершенным профилем;
+  - locked-banner для `Yatra` только сообщал, что сервис откроется после завершения профиля;
+  - прямого перехода в экран выбора роли/категории не было.
+- Стало:
+  - в banner добавлена CTA-кнопка перехода в `EditProfile`;
+  - текст кнопки вынесен в i18n (`portal.seekerTravelLocked.action`);
+  - добавлен regression test на отображение CTA и навигацию в профиль.
+
+### Короткий сниппет
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={styles.lockedServiceHintAction}
+  onPress={() => navigation.navigate('EditProfile')}
+>
+  <Text style={styles.lockedServiceHintActionText}>
+    {t('portal.seekerTravelLocked.action')}
+  </Text>
+</TouchableOpacity>
+```
+## 2026-03-08 (Support ticket form: add back button)
+
+- Измененные файлы:
+  - `frontend/screens/support/SupportTicketFormScreen.tsx`
+- Суть правки:
+  - Было: экран создания тикета открывался без явной кнопки возврата в левом верхнем углу.
+  - Стало: в верхней части формы добавлена кнопка `←`, которая делает `goBack()`, а при отсутствии back stack возвращает в `SupportHome`.
+- Код:
+```tsx
+<TouchableOpacity
+  style={styles.backButton}
+  onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('SupportHome', { entryPoint }))}
+>
+  <Text style={styles.backButtonText}>←</Text>
+</TouchableOpacity>
+```
+
+## 2026-03-08 (Marketplace home: Axios 500 no longer triggers iOS RedBox)
+
+### Измененные файлы
+- `frontend/screens/portal/shops/MarketHomeScreen.tsx`
+- `frontend/services/marketService.ts`
+- `server/internal/services/product_service.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `GET /api/products` мог падать на сервере из-за SQL `COUNT("products"."*")`;
+  - `MarketHomeScreen` и `marketService` прокидывали сырой `AxiosError` в `console.error(...)`;
+  - на iOS dev это поднимало RedBox `Error loading market data: AxiosError 500`.
+- Стало:
+  - server query больше не использует `Select("products.*")` перед `Count()`, поэтому `/api/products` не генерирует некорректный SQL;
+  - mobile logging переведен на короткий summary без передачи полного `AxiosError` объекта;
+  - recoverable API error больше не выглядит как crash на iOS dev.
+
+### Короткие сниппеты кода
+
+`server/internal/services/product_service.go`:
+```go
+query := database.DB.Model(&models.Product{}).
+    Joins("JOIN shops ON shops.id = products.shop_id")
+```
+
+`frontend/screens/portal/shops/MarketHomeScreen.tsx`:
+```tsx
+const summary = getRequestErrorSummary(error, 'Failed to load market data');
+const logger = __DEV__ ? console.log : console.warn;
+logger(`[MarketHomeScreen] ${summary}`);
 ```

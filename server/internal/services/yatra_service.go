@@ -235,6 +235,14 @@ func (s *YatraService) loadYatraBillingConfigTx(tx *gorm.DB) yatraBillingConfig 
 	if tx == nil {
 		return cfg
 	}
+	var model models.YatraBillingConfigModel
+	if err := tx.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
+		Where("singleton_key = ?", "default").
+		First(&model).Error; err == nil {
+		cfg.Enabled = model.IsEnabled
+		cfg.DailyFeeLkm = model.DailyFeeLkm
+		return cfg
+	}
 	cfg.Enabled = parseSystemSettingBool(s.getSystemSettingValueTx(tx, yatraBillingEnabledSettingKey), false)
 	cfg.DailyFeeLkm = parseSystemSettingPositiveInt(s.getSystemSettingValueTx(tx, yatraDailyFeeSettingKey), defaultYatraDailyFeeLkm)
 	return cfg

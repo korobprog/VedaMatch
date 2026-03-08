@@ -720,6 +720,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     defaultValue: 'Complete registration to see this service in the main portal grid.',
                                 })}
                             </Text>
+                            <TouchableOpacity
+                                style={styles.lockedServiceHintAction}
+                                onPress={() => navigation.navigate('EditProfile')}
+                                activeOpacity={0.88}
+                            >
+                                <Text style={styles.lockedServiceHintActionText}>
+                                    {t('portal.seekerTravelLocked.action', {
+                                        defaultValue: 'Перейти в профиль',
+                                    })}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     )}
 
@@ -1014,6 +1025,21 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.92)',
         fontSize: 12,
         lineHeight: 16,
+    },
+    lockedServiceHintAction: {
+        alignSelf: 'flex-start',
+        marginTop: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.34)',
+    },
+    lockedServiceHintActionText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
     },
     roleStatusDot: {
         ...StyleSheet.absoluteFillObject,

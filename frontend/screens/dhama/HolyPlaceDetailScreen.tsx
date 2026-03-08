@@ -12,6 +12,12 @@ import { DhamaBackButton } from './DhamaBackButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HolyPlaceDetail'>;
 
+const humanizeDhamaValue = (value: string) => value
+  .replace(/[_-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .replace(/\b\w/g, (match) => match.toUpperCase());
+
 export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { t } = useTranslation();
   const { vTheme } = useSettings();
@@ -68,6 +74,11 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
   const linkedMedia = Array.isArray(place.linkedMedia) ? place.linkedMedia : [];
   const linkedYatras = Array.isArray(place.linkedYatras) ? place.linkedYatras : [];
   const collections = Array.isArray(place.collections) ? place.collections : [];
+  const normalizedPlaceType = place.placeType ? place.placeType.replace(/_/g, '-') : '';
+  const localizedPlaceType = normalizedPlaceType
+    ? t(`dhama.filterValues.placeType.${normalizedPlaceType}`, { defaultValue: humanizeDhamaValue(place.placeType) })
+    : '';
+  const metaParts = [place.city, place.state, localizedPlaceType].filter(Boolean);
 
   return (
     <ScreenScaffold>
@@ -77,7 +88,7 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
         </View>
         {place.heroImageUrl ? <Image source={{ uri: place.heroImageUrl }} style={styles.hero} /> : null}
         <Text style={[styles.title, { color: vTheme.colors.text }]}>{place.title}</Text>
-        <Text style={[styles.meta, { color: vTheme.colors.textSecondary }]}>{place.city}, {place.state} · {place.placeType}</Text>
+        <Text style={[styles.meta, { color: vTheme.colors.textSecondary }]}>{metaParts.join(' · ')}</Text>
         <Text style={[styles.short, { color: vTheme.colors.textSecondary }]}>{place.shortDescription}</Text>
 
         {collections.length > 0 ? (

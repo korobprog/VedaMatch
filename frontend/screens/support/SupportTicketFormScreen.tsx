@@ -302,6 +302,15 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                 >
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('SupportHome', { entryPoint }))}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={ui.support}
+                    >
+                        <Text style={styles.backButtonText}>←</Text>
+                    </TouchableOpacity>
                     <Text style={styles.title}>{ui.title}</Text>
                     <Text style={styles.subtitle}>
                         {isAbuseReport
@@ -435,6 +444,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 18,
         paddingBottom: 32,
+    },
+    backButton: {
+        alignSelf: 'flex-start',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+    },
+    backButtonText: {
+        color: '#0F172A',
+        fontSize: 20,
+        fontWeight: '700',
+        lineHeight: 22,
     },
     title: {
         fontSize: 24,

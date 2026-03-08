@@ -44,6 +44,7 @@ import {
     Sun,
     Bot,
     Flame,
+    Landmark,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -98,6 +99,7 @@ const IconComponents: Record<string, any> = {
     Sun,
     Bot,
     Flame,
+    Landmark,
 };
 
 const SERVICE_EMOJIS: Record<string, string> = {

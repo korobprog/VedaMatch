@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    Image,
     Alert,
     ActivityIndicator,
     Platform,
@@ -75,6 +74,11 @@ const normalizeUILanguageCode = (value?: string): 'ru' | 'en' | 'hi' => {
     return 'ru';
 };
 
+const ANDROID_REGISTRATION_OVERLAY = 'rgba(12, 8, 5, 0.28)';
+const ANDROID_HEADER_FALLBACK = 'rgba(22, 16, 11, 0.28)';
+const ANDROID_INPUT_BACKGROUND = 'rgba(72, 50, 28, 0.44)';
+const ANDROID_INPUT_BORDER = 'rgba(255, 222, 173, 0.28)';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
@@ -82,7 +86,16 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { login } = useUser();
     const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
     const { phase = 'initial', inviteCode: paramInviteCode } = params;
-    const theme = COLORS.dark; // Registration/Profile phase always uses dark glass aesthetic
+    const theme = Platform.OS === 'android'
+        ? {
+            ...COLORS.dark,
+            header: ANDROID_HEADER_FALLBACK,
+            inputBackground: ANDROID_INPUT_BACKGROUND,
+            borderColor: ANDROID_INPUT_BORDER,
+            card: 'rgba(52, 36, 19, 0.76)',
+            glass: 'rgba(44, 30, 17, 0.56)',
+        }
+        : COLORS.dark; // Registration/Profile phase always uses dark glass aesthetic
 
     const [avatar, setAvatar] = useState<Asset | null>(null);
     const [email, setEmail] = useState('');
@@ -136,6 +149,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const submitInProgressRef = useRef(false);
     const skipInProgressRef = useRef(false);
     const { colors: roleColors, roleTheme } = useRoleTheme(role, true); // Force dark theme colors for text on dark background
+    const screenOverlayColor = Platform.OS === 'android'
+        ? ANDROID_REGISTRATION_OVERLAY
+        : roleColors.overlay;
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
     const isLiteProfileRole = isSeekerRole || isInGoodnessRole;
@@ -499,7 +515,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={StyleSheet.absoluteFill}
                 resizeMode="cover"
             />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: screenOverlayColor }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
                 <KeyboardAwareContainer
@@ -509,12 +525,19 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 >
                     <View style={{ flex: 1 }}>
                         <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="dark"
-                                blurAmount={15}
-                                reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
-                            />
+                            {Platform.OS === 'ios' ? (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="dark"
+                                    blurAmount={15}
+                                    reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
+                                />
+                            ) : (
+                                <View
+                                    pointerEvents="none"
+                                    style={[StyleSheet.absoluteFill, { backgroundColor: theme.header }]}
+                                />
+                            )}
                             <View style={styles.languageSwitchContainer}>
                                 {REG_LANGUAGES.map((option, index) => {
                                     const isActive = activeLanguage === option.code;
@@ -562,20 +585,13 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                             nestedScrollEnabled
                         >
-                            <View style={styles.logoHeaderContainer}>
-                                <View style={styles.logoWrapper}>
-                                    <Image
-                                        source={require('../assets/logo_tilak.png')}
-                                        style={[styles.logoImage, { tintColor: roleColors.accent }]}
-                                        resizeMode="contain"
-                                    />
-                                </View>
-                                {phase === 'profile' && !!registeredNickname ? (
+                            {phase === 'profile' && !!registeredNickname ? (
+                                <View style={styles.logoHeaderContainer}>
                                     <Text style={[styles.nicknameChip, { color: roleColors.accent }]}>
                                         {t('registration.idLabel')}: {registeredNickname}
                                     </Text>
-                                ) : null}
-                            </View>
+                                </View>
+                            ) : null}
 
                             {phase === 'initial' ? (
                                 <>
@@ -1110,22 +1126,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         marginTop: 10,
     },
-    logoWrapper: {
-        width: 84,
-        height: 84,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 42,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-    },
-    logoImage: {
-        width: 50,
-        height: 50,
-    },
     nicknameChip: {
-        marginTop: 10,
         fontSize: 14,
         fontWeight: '700',
         textAlign: 'center',
@@ -1158,9 +1159,14 @@ const styles = StyleSheet.create({
         padding: 12,
         fontSize: 16,
         height: 54,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.16)',
         color: '#F8FAFC',
+        shadowColor: 'rgba(244, 197, 66, 0.22)',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+        elevation: 2,
     },
     checkboxContainer: {
         flexDirection: 'row',

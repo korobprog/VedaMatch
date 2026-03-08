@@ -34,6 +34,16 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
     return axiosError?.message || fallback;
 };
 
+const logApiWarning = (context: string, error: unknown): void => {
+    const axiosError = error as AxiosError<any>;
+    const status = axiosError?.response?.status ?? 'n/a';
+    const method = axiosError?.config?.method?.toUpperCase?.() ?? 'GET';
+    const url = axiosError?.config?.url ?? 'unknown';
+    const message = getApiErrorMessage(error, 'Request failed');
+    const logger = __DEV__ ? console.log : console.warn;
+    logger(`[marketService] ${context} status=${status} method=${method} url=${url} message=${message}`);
+};
+
 class MarketService {
     private async uploadFile(endpoint: string, file: any): Promise<string> {
         try {
@@ -235,7 +245,7 @@ class MarketService {
             const response = await apiClient.get('/products', { params: { ...(filters || {}), ...godModeParams } });
             return response.data;
         } catch (error) {
-            console.error('Error fetching products:', error);
+            logApiWarning('getProducts failed', error);
             throw error;
         }
     }
@@ -266,7 +276,7 @@ class MarketService {
             const response = await apiClient.get('/products/categories');
             return response.data;
         } catch (error) {
-            console.error('Error fetching product categories:', error);
+            logApiWarning('getProductCategories failed', error);
             throw error;
         }
     }

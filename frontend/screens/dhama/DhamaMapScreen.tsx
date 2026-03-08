@@ -290,9 +290,9 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 12 },
-  topBar: { alignItems: 'flex-start' },
-  title: { fontSize: 26, fontWeight: '800' },
-  subtitle: { fontSize: 14 },
+  topBar: { alignItems: 'flex-start', marginBottom: 18 },
+  title: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
+  subtitle: { fontSize: 14, lineHeight: 21, marginTop: 2, marginBottom: 4 },
   mapFrame: { borderWidth: 1, borderRadius: 20, overflow: 'hidden', height: 360, position: 'relative' },
   mapLoadingSurface: { flex: 1, padding: 18, justifyContent: 'space-between' },
   mapLoadingBlock: { flex: 1, borderRadius: 18 },

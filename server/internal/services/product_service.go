@@ -530,7 +530,6 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 	filters = normalizeProductFiltersForQuery(filters)
 
 	query := database.DB.Model(&models.Product{}).
-		Select("products.*").
 		Joins("JOIN shops ON shops.id = products.shop_id").
 		Joins("LEFT JOIN product_promotions pp ON pp.product_id = products.id AND pp.status = ? AND pp.ends_at > NOW()", models.ShopPromotionStatusActive).
 		Where("products.status = ?", models.ProductStatusActive).

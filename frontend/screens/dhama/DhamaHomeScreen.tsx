@@ -3,6 +3,7 @@ import { FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpac
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { MapPinned, Search } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 import { RootStackParamList } from '../../types/navigation';
 import { DhamaCollection, HolyPlaceFiltersResponse, HolyPlaceSummary } from '../../types/dhama';
@@ -277,23 +278,44 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         ItemSeparatorComponent={ListSeparator}
         ListHeaderComponent={(
           <>
-            <View style={styles.topBar}>
-              <DhamaBackButton navigation={navigation} />
-            </View>
-            <View style={styles.header}>
-              <View>
-                <Text style={[styles.title, { color: vTheme.colors.text }]}>{t('dhama.homeTitle')}</Text>
-                <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>{t('dhama.homeSubtitle')}</Text>
+            <LinearGradient
+              colors={['#1C214A', '#8D4B24', '#E4B66B']}
+              start={{ x: 0.04, y: 0.08 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroShell}
+            >
+              <View style={styles.heroGlowTop} />
+              <View style={styles.heroGlowBottom} />
+              <View style={styles.heroTopBar}>
+                <DhamaBackButton navigation={navigation} />
               </View>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('DhamaMap', selectedCollectionSlug ? { collectionSlug: selectedCollectionSlug } : undefined)}
-                style={[styles.mapButton, { backgroundColor: vTheme.colors.primary }]}
-                activeOpacity={0.9}
-              >
-                <MapPinned size={18} color="#fff" />
-                <Text style={styles.mapButtonText}>{t('dhama.openMap')}</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.heroContent}>
+                <View style={styles.heroTextWrap}>
+                  <Text style={styles.heroEyebrow}>{selectedCollection ? t('dhama.collectionLabel') : t('dhama.homeTitle')}</Text>
+                  <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>
+                  <Text style={styles.heroSubtitle}>
+                    {selectedCollection?.description || t('dhama.homeSubtitle')}
+                  </Text>
+                </View>
+
+                <View style={styles.heroFooter}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('DhamaMap', selectedCollectionSlug ? { collectionSlug: selectedCollectionSlug } : undefined)}
+                    style={styles.heroMapButton}
+                    activeOpacity={0.9}
+                  >
+                    <MapPinned size={18} color="#1F1A14" />
+                    <Text style={styles.heroMapButtonText}>{t('dhama.openMap')}</Text>
+                  </TouchableOpacity>
+
+                  {selectedCollection ? (
+                    <View style={styles.heroActiveChip}>
+                      <Text style={styles.heroActiveChipText}>{t('dhama.filterByCollection')}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </LinearGradient>
 
             <View style={[styles.searchBox, { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }]}>
               <Search size={18} color={vTheme.colors.textSecondary} />
@@ -547,8 +569,65 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20, gap: 18 },
-  topBar: { alignItems: 'flex-start', marginBottom: 2 },
-  header: { gap: 14, alignItems: 'flex-start' },
+  heroShell: {
+    minHeight: 270,
+    borderRadius: 30,
+    overflow: 'hidden',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 22,
+    marginBottom: 4,
+  },
+  heroGlowTop: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 999,
+    backgroundColor: 'rgba(252, 215, 163, 0.18)',
+    top: -92,
+    right: -28,
+  },
+  heroGlowBottom: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 25, 88, 0.26)',
+    bottom: -88,
+    left: -36,
+  },
+  heroTopBar: { alignItems: 'flex-start' },
+  heroContent: { flex: 1, justifyContent: 'space-between', gap: 22, paddingTop: 18 },
+  heroTextWrap: { gap: 10, maxWidth: '88%' },
+  heroEyebrow: {
+    color: 'rgba(255, 245, 228, 0.76)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  heroTitle: { color: '#FFF8EA', fontSize: 34, lineHeight: 38, fontWeight: '900', maxWidth: '92%' },
+  heroSubtitle: { color: 'rgba(255, 244, 228, 0.9)', fontSize: 16, lineHeight: 23, maxWidth: '92%' },
+  heroFooter: { gap: 12, alignItems: 'flex-start' },
+  heroMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#F6E7C8',
+  },
+  heroMapButtonText: { color: '#1F1A14', fontWeight: '800', fontSize: 15 },
+  heroActiveChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255, 249, 237, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 249, 237, 0.26)',
+  },
+  heroActiveChipText: { color: '#FFF1D5', fontSize: 12, fontWeight: '700' },
   title: { fontSize: 28, fontWeight: '800' },
   subtitle: { marginTop: 6, fontSize: 16, lineHeight: 22, maxWidth: 320 },
   mapButton: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 18, paddingHorizontal: 18, paddingVertical: 14 },

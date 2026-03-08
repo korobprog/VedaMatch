@@ -85,6 +85,19 @@ func ResolveMarketFeeConfig() MarketFeeConfig {
 		ConfigSource:   "none",
 	}
 
+	if database.DB != nil {
+		var model models.MarketFeeConfigModel
+		if err := database.DB.Where("singleton_key = ?", "default").First(&model).Error; err == nil {
+			cfg.Enabled = model.IsEnabled
+			cfg.PercentBps = model.PercentBps
+			cfg.CapLkm = model.CapLkm
+			cfg.EffectiveFrom = model.EffectiveFrom
+			cfg.RolloutPercent = model.RolloutPercent
+			cfg.ConfigSource = "db"
+			return cfg
+		}
+	}
+
 	if v, ok := getMarketFeeSystemSettingValue("MARKET_PLATFORM_FEE_ENABLED"); ok {
 		cfg.Enabled = parseMarketFeeBoolWithDefault(v, cfg.Enabled)
 		cfg.ConfigSource = "db"

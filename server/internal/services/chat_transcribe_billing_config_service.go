@@ -99,6 +99,20 @@ func ResolveChatTranscribeBillingConfig() ChatTranscribeBillingConfig {
 		ConfigSource:            "default",
 	}
 
+	if database.DB != nil {
+		var model models.ChatTranscribeBillingConfigModel
+		if err := database.DB.Where("singleton_key = ?", "default").First(&model).Error; err == nil {
+			cfg.Enabled = model.IsEnabled
+			cfg.FreeMinPerWeek = model.FreeMinPerWeek
+			cfg.PricePerMinLKM = model.PricePerMinLkm
+			cfg.LongAudioThresholdMin = model.LongAudioThresholdMin
+			cfg.LongAudioPricePerMinLKM = model.LongAudioPricePerMinLkm
+			cfg.MinChargeLKM = model.MinChargeLkm
+			cfg.ConfigSource = "db"
+			return cfg
+		}
+	}
+
 	if v, source, ok := resolveChatTranscribeSettingOrEnv(chatTranscribeBillingEnabledKey); ok {
 		cfg.Enabled = parseChatTranscribeBoolWithDefault(v, cfg.Enabled)
 		cfg.ConfigSource = source

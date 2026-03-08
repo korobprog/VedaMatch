@@ -891,6 +891,24 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     style={[
                                         styles.sizeBtn,
                                         {
+                                            backgroundColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.divider
+                                        }
+                                    ]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setPortalIconStyle('solid');
+                                    }}
+                                >
+                                    <Text style={portalIconStyle === 'solid' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
+                                        {t('settings.appScreen.iconStyle.solid', { defaultValue: 'Solid' })}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.sizeBtn,
+                                        {
                                             backgroundColor: portalIconStyle === 'vedamatch' ? colors.accent : vTheme.colors.backgroundSecondary,
                                             borderColor: portalIconStyle === 'vedamatch' ? colors.accent : vTheme.colors.divider
                                         }
@@ -920,24 +938,6 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 >
                                     <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
                                         {t('settings.appScreen.iconStyle.premium3d', { defaultValue: 'Premium 3D' })}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    activeOpacity={0.88}
-                                    style={[
-                                        styles.sizeBtn,
-                                        {
-                                            backgroundColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.backgroundSecondary,
-                                            borderColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.divider
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        triggerTapFeedback();
-                                        setPortalIconStyle('solid');
-                                    }}
-                                >
-                                    <Text style={portalIconStyle === 'solid' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
-                                        {t('settings.appScreen.iconStyle.solid', { defaultValue: 'Solid' })}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity

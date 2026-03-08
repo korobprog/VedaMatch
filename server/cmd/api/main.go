@@ -318,6 +318,7 @@ func main() {
 	feedV2Handler := handlers.NewFeedV2Handler()
 	supportHandler := handlers.NewSupportHandler()
 	lkmTopupHandler := handlers.NewLKMTopupHandler(lkmTopupService)
+	monetizationHandler := handlers.NewMonetizationHandler()
 	proHandler := handlers.NewProHandler(walletService)
 	adminFeedHandler := handlers.NewAdminFeedHandler()
 	// bookHandler removed, using library functions directly
@@ -613,6 +614,16 @@ func main() {
 	admin.Post("/lkm/topups/:topupId/approve", lkmTopupHandler.ApproveTopup)
 	admin.Post("/lkm/topups/:topupId/reject", lkmTopupHandler.RejectTopup)
 	admin.Post("/lkm/topups/:topupId/mark-paid", lkmTopupHandler.MarkTopupPaid)
+	admin.Get("/monetization/overview", monetizationHandler.GetOverview)
+	admin.Get("/monetization/service-tariffs", monetizationHandler.GetServiceTariffs)
+	admin.Put("/monetization/pro", monetizationHandler.UpdatePro)
+	admin.Put("/monetization/chat-transcribe", monetizationHandler.UpdateChatTranscribe)
+	admin.Put("/monetization/yatra-billing", monetizationHandler.UpdateYatraBilling)
+	admin.Put("/monetization/services-fee", monetizationHandler.UpdateServiceFee)
+	admin.Put("/monetization/market-fee", monetizationHandler.UpdateMarketFee)
+	admin.Put("/monetization/cafe-fee", monetizationHandler.UpdateCafeFee)
+	admin.Put("/monetization/shop-plans", monetizationHandler.UpdateShopPlans)
+	admin.Put("/monetization/shop-promotions", monetizationHandler.UpdateShopPromotions)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)

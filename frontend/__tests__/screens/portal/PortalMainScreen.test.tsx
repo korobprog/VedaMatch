@@ -5,6 +5,11 @@ const mockHandleNewChat = jest.fn();
 const mockSetIsMenuOpen = jest.fn();
 const mockGetUnreadCount = jest.fn().mockResolvedValue({ unreadCount: 0 });
 let latestOnServicePress: ((serviceId: string) => void) | null = null;
+const mockUserState = {
+    isProfileComplete: true,
+    godModeEnabled: true,
+    role: 'user',
+};
 
 jest.mock('react-i18next', () => ({
     useTranslation: () => ({ t: (key: string) => key }),
@@ -25,7 +30,7 @@ jest.mock('../../../components/portal/PortalBackgroundLayer', () => ({
 
 jest.mock('../../../context/UserContext', () => ({
     useUser: () => ({
-        user: { isProfileComplete: true, godModeEnabled: true, role: 'user' },
+        user: mockUserState,
         roleDescriptor: {
             title: 'Преданный',
             description: 'Сева и община',
@@ -140,6 +145,9 @@ describe('PortalMainScreen', () => {
         mockHandleNewChat.mockClear();
         mockSetIsMenuOpen.mockClear();
         mockGetUnreadCount.mockClear();
+        mockUserState.isProfileComplete = true;
+        mockUserState.godModeEnabled = true;
+        mockUserState.role = 'user';
     });
 
     it('shows god mode filters panel when god mode is enabled', () => {
@@ -203,5 +211,22 @@ describe('PortalMainScreen', () => {
 
         fireEvent.press(screen.getByTestId('services-back'));
         expect(navigation.goBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows profile completion CTA in locked service hint and opens EditProfile', () => {
+        mockUserState.isProfileComplete = false;
+        mockUserState.godModeEnabled = false;
+        const navigation = createNavigation();
+        const screen = render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        fireEvent.press(screen.getByText('portal.seekerTravelLocked.action'));
+
+        expect(screen.getByText('portal.seekerTravelLocked.title')).toBeTruthy();
+        expect(navigation.navigate).toHaveBeenCalledWith('EditProfile');
     });
 });

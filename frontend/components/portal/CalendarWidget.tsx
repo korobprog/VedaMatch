@@ -34,7 +34,8 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     const { user } = useUser();
     const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [mode, setMode] = useState<'gregorian' | 'ekadashi'>('gregorian');
+    const canUseEkadashi = isDevoteeRole(user?.role);
+    const [mode, setMode] = useState<'gregorian' | 'ekadashi'>(canUseEkadashi ? 'ekadashi' : 'gregorian');
     const [ekadashiDays, setEkadashiDays] = useState<EkadashiDay[]>([]);
     const [selectedDay, setSelectedDay] = useState<EkadashiDay | null>(null);
     const [organizations, setOrganizations] = useState<EkadashiOrganization[]>([resolveOrganizationOption('iskcon')]);
@@ -43,7 +44,6 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     const today = useMemo(() => new Date(), []);
     const isPhotoBg = portalBackgroundType === 'image';
     const isVedaMatch = portalIconStyle === 'vedamatch';
-    const canUseEkadashi = isDevoteeRole(user?.role);
     const locale = localeFromLanguage(i18n.language);
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
     const textColor = isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text;

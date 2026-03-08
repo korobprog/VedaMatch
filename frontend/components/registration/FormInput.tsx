@@ -22,11 +22,16 @@ export const FormInput: React.FC<FormInputProps> = ({
             <TextInput
                 style={[
                     styles.input,
+                    {
+                        backgroundColor: theme?.inputBackground ?? styles.input.backgroundColor,
+                        borderColor: theme?.borderColor ?? styles.input.borderColor,
+                        color: theme?.inputText ?? styles.input.color,
+                    },
                     style
                 ]}
                 value={value}
                 onChangeText={onChangeText}
-                placeholderTextColor="rgba(248,250,252,0.4)"
+                placeholderTextColor={theme?.subText ?? 'rgba(248,250,252,0.4)'}
                 {...props}
             />
         </View>
@@ -51,8 +56,13 @@ const styles = StyleSheet.create({
         padding: 12,
         fontSize: 16,
         height: 54,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.14)',
         color: '#F8FAFC',
+        shadowColor: 'rgba(244, 197, 66, 0.22)',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+        elevation: 2,
     },
 });

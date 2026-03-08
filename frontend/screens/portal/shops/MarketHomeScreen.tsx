@@ -35,8 +35,21 @@ import { BalancePill } from '../../../components/wallet/BalancePill';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import { ScreenScaffold } from '../../../components/theme/ScreenScaffold';
+import type { AxiosError } from 'axios';
 
 const { width } = Dimensions.get('window');
+
+const getRequestErrorSummary = (error: unknown, fallback: string): string => {
+    const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+    const payload = axiosError?.response?.data;
+    const status = axiosError?.response?.status;
+    const payloadMessage =
+        typeof payload === 'string'
+            ? payload
+            : payload?.error || payload?.message;
+    const message = (payloadMessage || axiosError?.message || fallback).trim();
+    return status ? `${message} (status ${status})` : message;
+};
 
 interface MarketHomeScreenProps {
     onBack?: () => void;
@@ -86,7 +99,9 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
             setTotalPages(result.totalPages);
             setTotal(result.total);
         } catch (error) {
-            console.error('Error loading market data:', error);
+            const summary = getRequestErrorSummary(error, 'Failed to load market data');
+            const logger = __DEV__ ? console.log : console.warn;
+            logger(`[MarketHomeScreen] ${summary}`);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -120,7 +135,9 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
             setTotalPages(result.totalPages);
             setTotal(result.total);
         } catch (error) {
-            console.error('Error loading products:', error);
+            const summary = getRequestErrorSummary(error, 'Failed to load products');
+            const logger = __DEV__ ? console.log : console.warn;
+            logger(`[MarketHomeScreen] ${summary}`);
         }
     };
 

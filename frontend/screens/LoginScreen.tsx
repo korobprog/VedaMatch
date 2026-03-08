@@ -223,12 +223,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         borderColor: interpolateColor(
             emailFocusValue.value,
             [0, 1],
-            ['rgba(255, 255, 255, 0.4)', ModernVedicTheme.colors.primary]
+            ['rgba(255, 232, 196, 0.72)', 'rgba(255, 153, 51, 0.92)']
         ),
         backgroundColor: interpolateColor(
             emailFocusValue.value,
             [0, 1],
-            ['rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 0.95)']
+            ['rgba(255, 255, 255, 0.54)', 'rgba(255, 255, 255, 0.82)']
         ),
     }));
 
@@ -236,12 +236,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         borderColor: interpolateColor(
             passwordFocusValue.value,
             [0, 1],
-            ['rgba(255, 255, 255, 0.4)', ModernVedicTheme.colors.primary]
+            ['rgba(255, 232, 196, 0.72)', 'rgba(255, 153, 51, 0.92)']
         ),
         backgroundColor: interpolateColor(
             passwordFocusValue.value,
             [0, 1],
-            ['rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 0.95)']
+            ['rgba(255, 255, 255, 0.54)', 'rgba(255, 255, 255, 0.82)']
         ),
     }));
 
@@ -726,6 +726,31 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 />
             </Animated.View>
 
+            <View style={styles.languageSwitchOverlay}>
+                <View style={styles.languageSwitchContainer}>
+                    {LOGIN_LANGUAGES.map((option, index) => {
+                        const isActive = activeLanguage === option.code;
+                        return (
+                            <TouchableOpacity
+                                key={option.code}
+                                style={[
+                                    styles.languageOption,
+                                    isActive && styles.languageOptionActive,
+                                    index !== LOGIN_LANGUAGES.length - 1 && styles.languageOptionGap,
+                                ]}
+                                onPress={() => handleLanguageChange(option.code)}
+                                accessibilityRole="button"
+                                accessibilityLabel={option.label}
+                            >
+                                <Text style={[styles.languageOptionText, isActive && styles.languageOptionTextActive]}>
+                                    {option.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </View>
+
             <KeyboardAwareContainer style={styles.keyboardView}>
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
@@ -733,38 +758,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     showsVerticalScrollIndicator={false}
                 >
                     <Animated.View style={[styles.content, animatedFormStyle]}>
-                        <View style={styles.languageSwitchContainer}>
-                            {LOGIN_LANGUAGES.map((option, index) => {
-                                const isActive = activeLanguage === option.code;
-                                return (
-                                    <TouchableOpacity
-                                        key={option.code}
-                                        style={[
-                                            styles.languageOption,
-                                            isActive && styles.languageOptionActive,
-                                            index !== LOGIN_LANGUAGES.length - 1 && styles.languageOptionGap,
-                                        ]}
-                                        onPress={() => handleLanguageChange(option.code)}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={option.label}
-                                    >
-                                        <Text style={[styles.languageOptionText, isActive && styles.languageOptionTextActive]}>
-                                            {option.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-
                         <Animated.View style={[styles.headerContainer, animatedFloatStyle]}>
                             <View style={styles.logoWrapper}>
                                 <Image
-                                    source={require('../assets/logo_tilak.png')}
+                                    source={require('../assets/logo_veda_match.png')}
                                     style={styles.logoImage}
                                     resizeMode="contain"
                                 />
                             </View>
-                            <Text style={styles.title}>VedaMatch</Text>
                             <View style={styles.subtitleSlot}>
                                 <Animated.Text
                                     style={[styles.subtitle, animatedSloganStyle]}
@@ -947,13 +948,17 @@ const styles = StyleSheet.create({
     },
     content: {
         paddingHorizontal: 28,
-        paddingTop: height * 0.10,
+        paddingTop: height * 0.14,
         paddingBottom: 40,
     },
-    languageSwitchContainer: {
+    languageSwitchOverlay: {
         position: 'absolute',
-        top: 4,
-        right: 2,
+        top: 56,
+        right: 28,
+        zIndex: 80,
+        elevation: 10,
+    },
+    languageSwitchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: 18,
@@ -1015,31 +1020,24 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     logoWrapper: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        width: 142,
+        height: 142,
+        borderRadius: 71,
+        backgroundColor: 'rgba(255, 255, 255, 0.72)',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
         borderWidth: 1,
         borderColor: ModernVedicTheme.colors.glassBorder,
         ...ModernVedicTheme.shadows.soft,
-        shadowOpacity: 0.16,
+        shadowOpacity: 0.22,
+        shadowRadius: 22,
+        elevation: 7,
     },
     logoImage: {
-        width: 85,
-        height: 85,
-    },
-    title: {
-        fontSize: 40,
-        fontWeight: '700',
-        color: '#2A241A',
-        fontFamily: Platform.OS === 'ios' ? 'Playfair Display' : 'serif',
-        letterSpacing: 1.1,
-        textShadowColor: 'rgba(244, 197, 66, 0.32)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 8,
+        width: 112,
+        height: 112,
+        transform: [{ translateY: -8 }],
     },
     subtitle: {
         fontSize: 15,
@@ -1054,7 +1052,7 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     subtitleSlot: {
-        marginTop: 7,
+        marginTop: 2,
         height: 24,
         width: '100%',
         justifyContent: 'center',
@@ -1077,10 +1075,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: 24,
-        borderWidth: 1,
+        borderWidth: 1.2,
         marginBottom: 16,
         height: 60,
         paddingHorizontal: 24,
+        shadowColor: 'rgba(244, 197, 66, 0.45)',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.14,
+        shadowRadius: 24,
+        elevation: 3,
     },
     input: {
         flex: 1,

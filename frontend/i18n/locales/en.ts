@@ -1519,6 +1519,7 @@ export default {
         seekerTravelLocked: {
             title: 'Yatra will unlock after profile completion',
             subtitle: 'Complete registration to see this service in the main portal grid.',
+            action: 'Go to profile',
         },
         serviceLabels: {
             path_tracker: 'Daily Path',
@@ -2049,6 +2050,13 @@ export default {
             addWidget: 'Add widget',
             add: 'Add',
             added: 'Added',
+            duplicateTitle: 'Widget already added',
+            duplicateMessage: 'Only one instance is available for each type.',
+            returnHint: 'Widgets · swipe right to return to portal',
+            empty: {
+                title: 'No widgets yet',
+                subtitle: 'Press and hold the screen to open the add widgets menu',
+            },
             clockWide: {
                 title: 'Large clock',
                 description: 'Shows time and date in wide format',

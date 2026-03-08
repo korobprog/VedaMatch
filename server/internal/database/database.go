@@ -74,6 +74,7 @@ func Connect() {
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
 		&models.ChannelPromotedAdImpression{},
 		&models.OrgType{}, &models.OrgProfile{}, &models.UserOrgMatch{}, &models.UserProSubscription{},
+		&models.ProPlanConfig{},
 		&models.FeedPost{}, &models.FeedMediaAsset{}, &models.FeedItem{}, &models.FeedCursorState{},
 		&models.FeedPostReaction{}, &models.FeedPostComment{},
 		&models.UserDeviceToken{}, &models.PushDeliveryEvent{},
@@ -84,6 +85,7 @@ func Connect() {
 		&models.ConnectMatchProfile{}, &models.ConnectApplication{}, &models.ConnectFeedback{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
 		&models.ChatTranscribeWeeklyUsage{}, &models.ChatTranscribeJob{},
+		&models.ChatTranscribeBillingConfigModel{},
 		// Ads models
 		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
 		// Library models
@@ -142,12 +144,13 @@ func Connect() {
 		// Yatra Travel models (pilgrimage service)
 		&models.Yatra{}, &models.YatraParticipant{},
 		&models.Shelter{}, &models.ShelterReview{},
-		&models.YatraReview{}, &models.YatraBillingEvent{},
+		&models.YatraReview{}, &models.YatraBillingEvent{}, &models.YatraBillingConfigModel{},
 		// Yatra Admin models (moderation)
 		&models.YatraReport{}, &models.OrganizerBlock{},
 		&models.AdminNotification{}, &models.ModerationTemplate{},
 		// Services (universal service constructor)
 		&models.Service{}, &models.ServiceTariff{},
+		&models.ServiceFeeConfigModel{}, &models.MarketFeeConfigModel{}, &models.CafeFeeConfigModel{},
 		&models.ServiceSchedule{}, &models.ServiceBooking{},
 		// Wallet (Лакшми currency)
 		&models.Wallet{}, &models.WalletTransaction{},
@@ -298,6 +301,7 @@ func Connect() {
 	InitializeSuperAdmin()
 	SeedMarket()
 	SeedServices()
+	SeedMonetizationConfigs()
 	SeedEducation()
 	SeedMultimedia()
 	FixMultimediaLiveSources()
