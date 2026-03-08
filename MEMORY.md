@@ -71,6 +71,14 @@
   - запуск сервиса из `PortalMainScreen`;
   - quick-access launch на `WidgetSelectionScreen`.
 
+## Admin Web
+- В web dashboard `admin/src/app/user/dashboard/page.tsx` сервисы без реальных Next routes (`contacts`, `chat`, `cafe`, `shops`) не должны оставаться обычными `Link`, иначе Next app router шлет `?_rsc` prefetch в несуществующие страницы и засоряет консоль `404`.
+- Для таких web-unavailable сервисов безопасный паттерн:
+  - не использовать `Link`;
+  - показывать карточку как `app-only` / `В приложении`;
+  - для доступных web routes можно ставить `prefetch={false}` если маршрут дорогой или нестабилен.
+- `admin/src/app/monetization/page.tsx` должен нормализовать backend response (`sections`, `items`, `actions`) до массивов перед `.map`, потому что на внешнем сервере неполная секция легко вызывает `Cannot read properties of undefined (reading 'map')`.
+
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.

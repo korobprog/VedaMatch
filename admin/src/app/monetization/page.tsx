@@ -125,6 +125,14 @@ function numberValue(section: MonetizationSection | undefined, key: string, fall
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeSection(section: MonetizationSection): MonetizationSection {
+    return {
+        ...section,
+        items: Array.isArray(section?.items) ? section.items : [],
+        actions: Array.isArray(section?.actions) ? section.actions : [],
+    };
+}
+
 function statusTone(status: string) {
     switch (status) {
         case 'active':
@@ -184,7 +192,7 @@ export default function MonetizationPage() {
     const [shopPromotions, setShopPromotions] = useState<PromotionForm[]>([]);
 
     const sectionsMap = useMemo(
-        () => new Map(overview.map((section) => [section.sectionCode, section])),
+        () => new Map(overview.map((section) => [section.sectionCode, normalizeSection(section)])),
         [overview],
     );
 
@@ -196,7 +204,7 @@ export default function MonetizationPage() {
         const proSection = sectionsMap.get('pro');
         if (proSection) {
             setProPlans(
-                proSection.items.map((item) => ({
+                (proSection.items || []).map((item) => ({
                     code: item.key,
                     title: item.label,
                     days: Number(item.meta?.days || 0),
@@ -263,7 +271,7 @@ export default function MonetizationPage() {
         const shopPlanSection = sectionsMap.get('shop_plans');
         if (shopPlanSection) {
             setShopPlans(
-                shopPlanSection.items.map((item) => ({
+                (shopPlanSection.items || []).map((item) => ({
                     code: item.key,
                     priceLkm: Number(item.value || 0),
                     productsLimit: Number(item.meta?.productsLimit || 0),
@@ -277,7 +285,7 @@ export default function MonetizationPage() {
         const promoSection = sectionsMap.get('shop_promotions');
         if (promoSection) {
             setShopPromotions(
-                promoSection.items.map((item) => ({
+                (promoSection.items || []).map((item) => ({
                     code: item.key,
                     scope: String(item.meta?.scope || ''),
                     priceLkm: Number(item.value || 0),
@@ -314,8 +322,8 @@ export default function MonetizationPage() {
                 api.get<{ items: ServiceTariffSummary[] }>('/admin/monetization/service-tariffs'),
                 api.get<LKMAdminConfig>('/admin/lkm/config'),
             ]);
-            setOverview(overviewRes.data.sections || []);
-            setServiceTariffs(tariffsRes.data.items || []);
+            setOverview(Array.isArray(overviewRes.data?.sections) ? overviewRes.data.sections.map(normalizeSection) : []);
+            setServiceTariffs(Array.isArray(tariffsRes.data?.items) ? tariffsRes.data.items : []);
             setLkmConfig(lkmRes.data);
         } catch (err) {
             console.error(err);

@@ -13,12 +13,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 const SERVICES = [
-    { id: 'contacts', label: 'Контакты', icon: Users, color: 'bg-blue-600', path: '/contacts' },
-    { id: 'chat', label: 'Чат', icon: MessageCircle, color: 'bg-[#4a3e36]', path: '/chat' },
+    { id: 'contacts', label: 'Контакты', icon: Users, color: 'bg-blue-600', path: '/contacts', availableOnWeb: false, availabilityLabel: 'В приложении' },
+    { id: 'chat', label: 'Чат', icon: MessageCircle, color: 'bg-[#4a3e36]', path: '/chat', availableOnWeb: false, availabilityLabel: 'В приложении' },
     { id: 'calls', label: 'Звонки', icon: Phone, color: 'bg-emerald-600', path: '/calls' },
     { id: 'dating', label: 'Союз', icon: Sparkles, color: 'bg-pink-600', path: '/dating' },
-    { id: 'cafe', label: 'Кафе', icon: Coffee, color: 'bg-orange-700', path: '/cafe' },
-    { id: 'shops', label: 'Магазины', icon: ShoppingBag, color: 'bg-[#b8632c]', path: '/shops' },
+    { id: 'cafe', label: 'Кафе', icon: Coffee, color: 'bg-orange-700', path: '/cafe', availableOnWeb: false, availabilityLabel: 'В приложении' },
+    { id: 'shops', label: 'Магазины', icon: ShoppingBag, color: 'bg-[#b8632c]', path: '/shops', availableOnWeb: false, availabilityLabel: 'В приложении' },
     { id: 'ads', label: 'Объявления', icon: Megaphone, color: 'bg-red-600', path: '/ads' },
     { id: 'library', label: 'Библиотека', icon: Book, color: 'bg-green-700', path: '/library' },
     { id: 'bookmarks', label: 'Закладки', icon: Bookmark, color: 'bg-orange-600', path: '/library/bookmarks' },
@@ -185,12 +185,23 @@ export default function UserDashboard() {
                                 transition={{ delay: i * 0.04 }}
                                 className="group flex flex-col items-center"
                             >
-                                <Link href={service.path} className="relative mb-4">
-                                    <div className={`w-18 h-18 sm:w-20 sm:h-20 ${service.color} rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white shadow-2xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] group-active:scale-90 transition-all duration-300 group-hover:-translate-y-2 relative z-10 border-t border-white/20`}>
-                                        <service.icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={2} />
+                                {service.availableOnWeb === false ? (
+                                    <div className="relative mb-4 cursor-default">
+                                        <div className={`w-18 h-18 sm:w-20 sm:h-20 ${service.color} rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white shadow-2xl opacity-65 relative z-10 border-t border-white/20`}>
+                                            <service.icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={2} />
+                                        </div>
+                                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-orange-200 backdrop-blur-md">
+                                            {service.availabilityLabel || 'Скоро'}
+                                        </div>
                                     </div>
-                                    <div className={`absolute inset-0 ${service.color} rounded-[32px] opacity-0 blur-2xl group-hover:opacity-40 transition-opacity duration-300 scale-90`} />
-                                </Link>
+                                ) : (
+                                    <Link href={service.path} prefetch={false} className="relative mb-4">
+                                        <div className={`w-18 h-18 sm:w-20 sm:h-20 ${service.color} rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white shadow-2xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] group-active:scale-90 transition-all duration-300 group-hover:-translate-y-2 relative z-10 border-t border-white/20`}>
+                                            <service.icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={2} />
+                                        </div>
+                                        <div className={`absolute inset-0 ${service.color} rounded-[32px] opacity-0 blur-2xl group-hover:opacity-40 transition-opacity duration-300 scale-90`} />
+                                    </Link>
+                                )}
                                 <span className="text-xs sm:text-sm font-bold text-center text-white/70 group-hover:text-white transition-colors line-clamp-1 truncate w-full px-1">
                                     {service.label}
                                 </span>
