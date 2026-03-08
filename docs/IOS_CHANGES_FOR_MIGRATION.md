@@ -12133,3 +12133,237 @@ window.setTimeout(() => {
   openMobileReturnLink(deepLink);
 }, 120);
 ```
+
+## 2026-03-08 (DhamaHome now supports quick mobile filters for larger catalogs)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/services/dhamaService.ts`
+- `frontend/types/dhama.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `DhamaHome` умел фильтровать каталог только через search и active collection;
+  - при росте количества sacred places список становился труднее сканировать на mobile;
+  - mobile не использовал public `Dhama` filters payload, хотя backend уже отдавал states, traditions и place types.
+- Стало:
+  - `DhamaHome` загружает `GET /api/dhama/filters`;
+  - на экране появились quick-filter chips по `region`, `tradition`, `placeType`;
+  - новые фильтры работают вместе с search и collection filter;
+  - пользователь может сбросить их одной кнопкой `clear all`;
+  - `dhamaService` нормализует обе формы backend payload: `types` и `placeTypes`, чтобы mobile не ломался при разных shape ответа.
+
+### Сниппеты кода
+
+`frontend/services/dhamaService.ts`:
+```ts
+placeTypes: Array.isArray(response.data?.placeTypes)
+  ? response.data.placeTypes
+  : Array.isArray(response.data?.types)
+    ? response.data.types
+    : [],
+```
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```ts
+dhamaService.getPlaces({
+  search,
+  collection: selectedCollectionSlug || undefined,
+  state: selectedState || undefined,
+  tradition: selectedTradition || undefined,
+  type: selectedPlaceType || undefined,
+  limit: 50,
+})
+```
+
+```tsx
+<Text style={[styles.quickFilterLabel, { color: vTheme.colors.textSecondary }]}>{t('dhama.filterLabels.region')}</Text>
+```
+
+## 2026-03-08 (Dhama mobile screens now expose explicit empty, error, and retry states)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/DhamaCollectionDetailScreen.tsx`
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Dhama` экраны mostly полагались на голый spinner или молчаливое отсутствие данных;
+  - пользователь не видел разницы между `ничего не найдено`, `данные не загрузились` и `сейчас идет загрузка`;
+  - при network/server проблемах не было явного `retry` в самом UI.
+- Стало:
+  - `DhamaHome` показывает отдельные error cards для places, collections и quick filters;
+  - `DhamaHome` различает обычный empty state и empty state после активных search/filter условий;
+  - `DhamaCollectionDetail` показывает retry/error state, если подборка не открылась;
+  - `DhamaMap` показывает retry/error state при сбое загрузки markers и отдельный empty state, если под текущий context маркеров нет;
+  - локали `ru/en/hi` дополнены соответствующим mobile copy для этих состояний.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+{hasAnyActiveFilter ? t('dhama.emptyFilteredTitle') : t('dhama.empty')}
+```
+
+```tsx
+<TouchableOpacity onPress={retryAll} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+  <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+</TouchableOpacity>
+```
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+{loadError ? (
+  <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+```
+
+## 2026-03-08 (Dhama loading flow now uses skeleton layouts instead of bare spinners)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaSkeleton.tsx`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/DhamaCollectionDetailScreen.tsx`
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `DhamaHome`, `DhamaCollectionDetail` и `DhamaMap` во время загрузки в основном показывали только `ActivityIndicator`;
+  - первый вход и refresh выглядели как пустой экран со спиннером без понимания будущей структуры;
+  - на shared mobile UI происходил резкий скачок от пустого loading-state к финальному layout.
+- Стало:
+  - добавлен локальный reusable helper `DhamaSkeletonBlock`;
+  - `DhamaHome` показывает skeleton для quick filters, collections, featured rail и списка мест;
+  - `DhamaCollectionDetail` показывает skeleton hero/header/stats/buttons/lead-card;
+  - `DhamaMap` показывает skeleton map-frame и skeleton списка marker cards до загрузки реальных данных;
+  - общее поведение загрузки на iOS и Android стало более предсказуемым и визуально цельным.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaSkeleton.tsx`:
+```tsx
+export const DhamaSkeletonBlock: React.FC<Props> = ({ color, style }) => (
+  <View style={[styles.base, { backgroundColor: color }, style]} />
+);
+```
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+{loading ? (
+  <View style={styles.mapLoadingSurface}>
+    <DhamaSkeletonBlock color={skeletonColor} style={styles.mapLoadingBlock} />
+  </View>
+) : (
+  <WebView source={{ html }} style={styles.webview} />
+)}
+```
+
+## 2026-03-08 (DhamaMap WebView lifecycle hardened with mapReady handshake and crash-safe reload path)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `DhamaMap` считал карту готовой сразу после завершения загрузки markers с backend;
+  - если `Leaflet` CDN не догружался, `L` оказывался undefined и экран мог зависнуть в неопределенном состоянии;
+  - у `WebView` не было собственного timeout и не обрабатывались `onHttpError`, `render process gone` и похожие platform-level сбои.
+- Стало:
+  - HTML карты отправляет `mapReady` после успешной инициализации `Leaflet`;
+  - HTML также отправляет `mapError`, если `Leaflet` не загрузился или map-script упал в runtime;
+  - RN-экран держит skeleton поверх карты, пока не придет `mapReady`;
+  - добавлен timeout `map_init_timeout` и контролируемый reload через `webViewReloadKey`;
+  - подключены `onError`, `onHttpError`, `onRenderProcessGone`, `onContentProcessDidTerminate`, чтобы iOS/Android сбои `WebView` не оставляли карту в зависшем состоянии.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+if (payload?.type === 'mapReady') {
+  setMapReady(true);
+  setWebViewError(null);
+  return;
+}
+```
+
+```tsx
+onRenderProcessGone={() => {
+  setWebViewError('render_process_gone');
+  return true;
+}}
+```
+
+## 2026-03-08 (Dhama quick filters now render localized labels instead of raw enum values)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - quick filters на `DhamaHome` показывали raw backend values вроде `gaudiya_vaishnava`, `holy_town`, `temple_city`;
+  - на локализованном UI это выглядело как сломанный перевод и технический enum leakage;
+  - для неизвестных значений не было даже базового human-readable fallback.
+- Стало:
+  - `tradition` и `placeType` теперь проходят через локализованные `dhama.filterValues.*` labels;
+  - если конкретного translation key нет, UI показывает humanized fallback вместо `snake_case` / `kebab-case`;
+  - `region` оставлен как server-provided human label.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+const translated = t(key);
+return translated === key ? fallback : translated;
+```
+
+`frontend/i18n/locales/ru.ts`:
+```ts
+filterValues: {
+  tradition: {
+    'gaudiya-vaishnava': 'Гаудия-вайшнавизм',
+  },
+}
+```
+
+## 2026-03-08 (DhamaMap waits longer for WebView readiness and separates marker errors from map-engine errors)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `DhamaMap` переходил в `map_init_timeout` слишком рано, через `4.5s`;
+  - timeout мог сработать еще до нормальной инициализации `WebView` на медленном устройстве/симуляторе;
+  - UI показывал один и тот же текст ошибки и для `markers not loaded`, и для `Leaflet/WebView` failure.
+- Стало:
+  - timeout увеличен до `9s`;
+  - countdown начинается только после реального `WebView onLoadStart/onLoadEnd`, а не просто после завершения backend fetch;
+  - добавлены `allowFileAccess`, `allowUniversalAccessFromFileURLs`, `cacheEnabled` для более устойчивого `WebView` path;
+  - пользователь теперь видит разный текст для `markers failed` и `map engine failed`.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+if (loading || loadError || webViewError || mapReady || !webViewStarted) {
+  return;
+}
+```
+
+```tsx
+const mapErrorBody = loadError
+  ? t('dhama.mapErrorBody')
+  : t('dhama.mapWebViewErrorBody');
+```

@@ -50,6 +50,10 @@
   - `DhamaHome` показывает thematic collections отдельной горизонтальной секцией и умеет фильтровать список мест по выбранной подборке;
   - `DhamaMap` принимает optional filter по подборке и показывает только соответствующие markers;
   - `HolyPlaceDetail` показывает chips подборок, в которые входит место, и может увести пользователя обратно в `DhamaHome` уже с активной подборкой.
+- Mobile `Dhama` loading UX:
+  - для `DhamaHome`, `DhamaCollectionDetail` и `DhamaMap` spinner-only loading заменен на layout-aware skeleton placeholders;
+  - skeleton helper вынесен в `frontend/screens/dhama/DhamaSkeleton.tsx`;
+  - при будущих изменениях layout этих экранов skeleton-структуру нужно держать синхронной с реальным экраном, чтобы не возвращаться к пустому centered spinner.
 - Admin `Dhama` v1:
   - раздел `/dhama` в admin navigation;
   - list/search/filter по статусу;
@@ -75,6 +79,12 @@
   - текущая стартовая волна: `Vrindavan`, `Govardhan`, `Mayapur`, `Nabadwip`, `Puri`, `Tirumala`;
   - все записи заведены как `draft`, чтобы сначала дозаполнить изображения, media/yatra links и финально вычитать локали;
   - краткая инструкция для команды лежит в `docs/dhama/DHAMA_IMPORT_GUIDE.md`.
+- Для релизного доведения `Dhama` собран единый operational checklist:
+  - файл `docs/dhama/DHAMA_RELEASE_CHECKLIST.md`;
+  - фиксирует порядок импорта, контентные требования к place/collection, admin smoke, mobile smoke и критерии `ready for production`.
+- Для быстрого старта контентной команды собран отдельный `day 1` operational plan:
+  - файл `docs/dhama/DHAMA_DAY1_PUBLISH_PLAN.md`;
+  - фиксирует первые 5 places и 3 collections, которые стоит доводить до publish раньше всего.
 - Подготовлена и вторая волна sacred places:
   - файл `docs/dhama/dhama_places_wave2_import.json`;
   - состав: `Dwarka`, `Udupi`, `Pandharpur`, `Srirangam`, `Melkote`, `Nathdwara`, `Ayodhya`;
@@ -101,8 +111,23 @@
     - quick-access chips по местам;
     - lead place card;
     - более содержательный included places block.
+- `DhamaHome` получил quick filters для растущего каталога:
+  - mobile загружает `GET /api/dhama/filters`;
+  - появились быстрые чипы по `region`, `tradition`, `placeType`;
+  - filters работают поверх текущего `collection/search` сценария и могут быть сброшены отдельно кнопкой `clear all`.
+  - значения `tradition/placeType` теперь отображаются не как raw backend enum (`gaudiya_vaishnava`, `holy_town`), а через локализованные labels с humanized fallback.
+- На `Dhama` mobile добавлены production-like `empty / error / loading` states:
+  - `DhamaHome` теперь явно показывает ошибки загрузки places / collections / filters и умеет retry;
+  - `DhamaHome` различает empty state без данных и empty state после активных фильтров;
+  - `DhamaCollectionDetail` получил retry/error state при сбое загрузки;
+  - `DhamaMap` получил retry/error state и отдельный empty state для случая без markers.
 - Известные ограничения текущего v1:
-  - mobile map screen использует `WebView` + Leaflet CDN, то есть зависит от сетевой загрузки Leaflet;
+  - mobile map screen использует `WebView` + Leaflet CDN, то есть по-прежнему зависит от сетевой загрузки Leaflet, но теперь имеет hardening-слой:
+    - `mapReady` handshake из HTML в RN;
+    - timeout на инициализацию карты, который теперь стартует только после реального `WebView` load start и увеличен до 9 секунд;
+    - `onError/onHttpError/onRenderProcessGone/onContentProcessDidTerminate` для `WebView`;
+    - контролируемый reload через `webViewReloadKey`;
+    - отдельный UI copy для случая `markers failed` vs `map engine failed`.
   - полный `frontend tsc` все еще падает на pre-existing ошибках в `frontend/components/auth/VKAuthModal.tsx`, не связанных с `Dhama`.
 - После добавления `Dhama collections` известные хвосты такие:
   - admin collections уже умеют bulk import, но все еще без reorder UX;

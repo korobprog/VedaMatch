@@ -53,6 +53,22 @@ export default {
         "featured": "प्रमुख स्थल",
         "allPlaces": "सभी स्थल",
         "empty": "अभी कोई पवित्र स्थल नहीं मिला।",
+        "emptyDefaultBody": "प्रमुख स्थलों से शुरुआत करें या तीर्थ-मैप खोलें।",
+        "emptyFilteredTitle": "वर्तमान फ़िल्टरों से कोई स्थल नहीं मिला।",
+        "emptyFilteredBody": "अधिक पवित्र स्थल देखने के लिए कुछ फ़िल्टर हटाएँ।",
+        "homeErrorTitle": "पवित्र स्थलों को लोड नहीं किया जा सका",
+        "homeErrorBody": "अभी `Dhama` कैटलॉग उपलब्ध नहीं है। कृपया फिर से प्रयास करें।",
+        "collectionsErrorTitle": "संग्रह लोड नहीं किए जा सके",
+        "collectionsErrorBody": "विषयगत संग्रह अस्थायी रूप से उपलब्ध नहीं हैं।",
+        "filtersErrorTitle": "त्वरित फ़िल्टर लोड नहीं किए जा सके",
+        "filtersErrorBody": "त्वरित फ़िल्टर अभी उपलब्ध नहीं हैं, लेकिन आप खोज का उपयोग कर सकते हैं।",
+        "collectionErrorTitle": "यह संग्रह खोला नहीं जा सका",
+        "collectionErrorBody": "यह संग्रह अभी उपलब्ध नहीं है। कृपया फिर से प्रयास करें।",
+        "mapErrorTitle": "धाम मैप लोड नहीं किया जा सका",
+        "mapErrorBody": "मैप मार्कर अभी लोड नहीं हो सके। कृपया फिर से प्रयास करें।",
+        "mapWebViewErrorBody": "इस डिवाइस पर मैप इंजन प्रारम्भ नहीं हो सका। कनेक्शन जाँचें और फिर प्रयास करें।",
+        "mapEmptyTitle": "वर्तमान संदर्भ के लिए कोई मार्कर नहीं है",
+        "mapEmptyBody": "किसी अन्य संग्रह को खोलें या पूरे `Dhama` कैटलॉग पर लौटें।",
         "showCollectionPlaces": "इस संग्रह के स्थल दिखाएँ",
         "openCollectionMap": "संग्रह का मैप खोलें",
         "collectionPlaces": "इस संग्रह में {{count}} स्थल",
@@ -61,8 +77,28 @@ export default {
         "collectionLead": "इस संग्रह का मुख्य स्थल",
         "quickAccess": "त्वरित पहुँच",
         "openPlace": "स्थल खोलें",
+        "quickFilters": "त्वरित फ़िल्टर",
         "filterByCollection": "संग्रह से फ़िल्टर करें",
         "clearCollectionFilter": "फ़िल्टर हटाएँ",
+        "clearAllFilters": "सभी हटाएँ",
+        "filterLabels": {
+            "region": "क्षेत्र",
+            "tradition": "परंपरा",
+            "placeType": "स्थल प्रकार"
+        },
+        "filterValues": {
+            "tradition": {
+                "gaudiya-vaishnava": "गौड़ीय वैष्णव",
+                "vaishnava": "वैष्णव"
+            },
+            "placeType": {
+                "holy-town": "पवित्र नगर",
+                "holy-township": "पवित्र धाम-नगर",
+                "temple-city": "मंदिर नगर",
+                "sacred-city": "पवित्र शहर",
+                "sacred-region": "पवित्र क्षेत्र"
+            }
+        },
         "stats": {
             "places": "स्थल",
             "regions": "क्षेत्र",

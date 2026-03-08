@@ -743,7 +743,10 @@ func (s *DhamaService) ListPublicHolyPlaces(filters models.HolyPlaceFilters, req
 		limit = 20
 	}
 
-	if err := s.preloadHolyPlaceRelations(query).
+	// Public list view does not need linked media/yatra/collection payloads.
+	// Avoiding relation preloads here makes the catalog endpoint more robust
+	// against partial relation data or out-of-date local schemas.
+	if err := query.
 		Order("is_featured DESC, sort_order ASC, created_at DESC").
 		Offset((page - 1) * limit).
 		Limit(limit).
@@ -753,14 +756,7 @@ func (s *DhamaService) ListPublicHolyPlaces(filters models.HolyPlaceFilters, req
 
 	items := make([]models.HolyPlaceLocalizedResponse, 0, len(places))
 	for _, place := range places {
-		item := selectHolyPlaceLocale(place, locale)
-		for _, link := range place.CollectionLinks {
-			if link.Collection.Status != models.DhamaCollectionStatusPublished {
-				continue
-			}
-			item.Collections = append(item.Collections, buildDhamaCollectionSummary(link.Collection, locale, 0))
-		}
-		items = append(items, item)
+		items = append(items, selectHolyPlaceLocale(place, locale))
 	}
 	return items, total, locale, nil
 }

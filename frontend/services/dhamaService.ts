@@ -107,7 +107,22 @@ class DhamaService {
 
   async getFilters(): Promise<HolyPlaceFiltersResponse> {
     const response = await apiClient.get('/dhama/filters');
-    return response.data;
+    return {
+      ...response.data,
+      placeTypes: Array.isArray(response.data?.placeTypes)
+        ? response.data.placeTypes
+        : Array.isArray(response.data?.types)
+          ? response.data.types
+          : [],
+      states: Array.isArray(response.data?.states) ? response.data.states : [],
+      cities: Array.isArray(response.data?.cities) ? response.data.cities : [],
+      traditions: Array.isArray(response.data?.traditions) ? response.data.traditions : [],
+      types: Array.isArray(response.data?.types)
+        ? response.data.types
+        : Array.isArray(response.data?.placeTypes)
+          ? response.data.placeTypes
+          : [],
+    };
   }
 }
 

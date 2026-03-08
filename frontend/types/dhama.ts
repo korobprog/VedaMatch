@@ -95,10 +95,11 @@ export interface HolyPlaceListResponse {
 }
 
 export interface HolyPlaceFiltersResponse {
-  types: string[];
+  placeTypes: string[];
   states: string[];
   cities: string[];
   traditions: string[];
+  types: string[];
 }
 
 export interface HolyPlaceMapMarker {

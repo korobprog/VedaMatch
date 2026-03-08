@@ -1,30 +1,58 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { MapPinned, Search } from 'lucide-react-native';
 
 import { RootStackParamList } from '../../types/navigation';
-import { DhamaCollection, HolyPlaceSummary } from '../../types/dhama';
+import { DhamaCollection, HolyPlaceFiltersResponse, HolyPlaceSummary } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { useSettings } from '../../context/SettingsContext';
 import { DhamaBackButton } from './DhamaBackButton';
+import { DhamaSkeletonBlock } from './DhamaSkeleton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaHome'>;
 
 const ListSeparator = () => <View style={styles.separator} />;
 const HorizontalSeparator = () => <View style={styles.horizontalSeparator} />;
 
+const LoadingPillRow: React.FC<{ color: string }> = ({ color }) => (
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilterRow}>
+    {Array.from({ length: 4 }).map((_, index) => (
+      <DhamaSkeletonBlock
+        key={`pill-${index}`}
+        color={color}
+        style={styles.quickFilterSkeletonChip}
+      />
+    ))}
+  </ScrollView>
+);
+
+const humanizeDhamaFilterValue = (value: string) => value
+  .replace(/[_-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .replace(/\b\w/g, (match) => match.toUpperCase());
+
 export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const { vTheme } = useSettings();
   const [loading, setLoading] = useState(true);
   const [collectionsLoading, setCollectionsLoading] = useState(true);
+  const [filtersLoading, setFiltersLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
   const [places, setPlaces] = useState<HolyPlaceSummary[]>([]);
   const [collections, setCollections] = useState<DhamaCollection[]>([]);
+  const [filters, setFilters] = useState<HolyPlaceFiltersResponse>({ placeTypes: [], states: [], cities: [], traditions: [], types: [] });
   const [selectedCollectionSlug, setSelectedCollectionSlug] = useState<string | null>(null);
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedTradition, setSelectedTradition] = useState<string | null>(null);
+  const [selectedPlaceType, setSelectedPlaceType] = useState<string | null>(null);
+  const [placesError, setPlacesError] = useState(false);
+  const [collectionsError, setCollectionsError] = useState(false);
+  const [filtersError, setFiltersError] = useState(false);
 
   useEffect(() => {
     if (route.params?.collectionSlug) {
@@ -35,7 +63,15 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    dhamaService.getPlaces({ search, collection: selectedCollectionSlug || undefined, limit: 50 })
+    setPlacesError(false);
+    dhamaService.getPlaces({
+      search,
+      collection: selectedCollectionSlug || undefined,
+      state: selectedState || undefined,
+      tradition: selectedTradition || undefined,
+      type: selectedPlaceType || undefined,
+      limit: 50,
+    })
       .then((payload) => {
         if (mounted) {
           setPlaces(payload.places || []);
@@ -45,6 +81,7 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         console.warn('[DhamaHome] failed to load places', error);
         if (mounted) {
           setPlaces([]);
+          setPlacesError(true);
         }
       })
       .finally(() => {
@@ -55,11 +92,12 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
     return () => {
       mounted = false;
     };
-  }, [search, selectedCollectionSlug]);
+  }, [refreshKey, search, selectedCollectionSlug, selectedPlaceType, selectedState, selectedTradition]);
 
   useEffect(() => {
     let mounted = true;
     setCollectionsLoading(true);
+    setCollectionsError(false);
     dhamaService.getCollections()
       .then((payload) => {
         if (mounted) {
@@ -70,6 +108,7 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         console.warn('[DhamaHome] failed to load collections', error);
         if (mounted) {
           setCollections([]);
+          setCollectionsError(true);
         }
       })
       .finally(() => {
@@ -80,13 +119,49 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    setFiltersLoading(true);
+    setFiltersError(false);
+    dhamaService.getFilters()
+      .then((payload) => {
+        if (mounted) {
+          setFilters(payload);
+        }
+      })
+      .catch((error) => {
+        console.warn('[DhamaHome] failed to load filters', error);
+        if (mounted) {
+          setFilters({ placeTypes: [], states: [], cities: [], traditions: [], types: [] });
+          setFiltersError(true);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setFiltersLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey]);
 
   const featured = useMemo(() => places.filter((place) => place.isFeatured), [places]);
   const selectedCollection = useMemo(
     () => collections.find((collection) => collection.slug === selectedCollectionSlug) || null,
     [collections, selectedCollectionSlug],
   );
+  const stateOptions = useMemo(() => filters.states.slice(0, 8), [filters.states]);
+  const traditionOptions = useMemo(() => filters.traditions.slice(0, 8), [filters.traditions]);
+  const placeTypeOptions = useMemo(() => {
+    const source = filters.placeTypes.length > 0 ? filters.placeTypes : filters.types;
+    return source.slice(0, 8);
+  }, [filters.placeTypes, filters.types]);
+  const hasActiveQuickFilters = Boolean(selectedState || selectedTradition || selectedPlaceType);
+  const hasAnyActiveFilter = Boolean(search.trim() || selectedCollectionSlug || hasActiveQuickFilters);
 
   const renderPlaceCard = (item: HolyPlaceSummary, variant: 'featured' | 'list') => (
     <TouchableOpacity
@@ -151,6 +226,46 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const renderFeaturedCard = ({ item }: { item: HolyPlaceSummary }) => renderPlaceCard(item, 'featured');
   const renderListCard = ({ item }: { item: HolyPlaceSummary }) => renderPlaceCard(item, 'list');
+  const getQuickFilterLabel = (kind: 'state' | 'tradition' | 'placeType', rawValue: string) => {
+    if (kind === 'state') {
+      return rawValue;
+    }
+
+    const normalizedValue = rawValue.replace(/_/g, '-');
+    const fallback = humanizeDhamaFilterValue(rawValue);
+    const key = kind === 'tradition'
+      ? `dhama.filterValues.tradition.${normalizedValue}`
+      : `dhama.filterValues.placeType.${normalizedValue}`;
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
+  const renderQuickChip = (key: string, label: string, active: boolean, onPress: () => void) => (
+    <TouchableOpacity
+      key={key}
+      onPress={onPress}
+      style={[
+        styles.quickFilterChip,
+        {
+          backgroundColor: vTheme.colors.surfaceElevated,
+          borderColor: active ? vTheme.colors.primary : vTheme.colors.divider,
+        },
+      ]}
+      activeOpacity={0.88}
+    >
+      <Text style={[styles.quickFilterChipText, { color: active ? vTheme.colors.primary : vTheme.colors.text }]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+  const resetAllFilters = () => {
+    setSearch('');
+    setSelectedCollectionSlug(null);
+    setSelectedState(null);
+    setSelectedTradition(null);
+    setSelectedPlaceType(null);
+  };
+  const retryAll = () => setRefreshKey((current) => current + 1);
+  const skeletonColor = vTheme.colors.divider;
 
   return (
     <ScreenScaffold>
@@ -191,6 +306,87 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
               />
             </View>
 
+            <View style={styles.section}>
+              <View style={styles.filterSectionHeader}>
+                <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('dhama.quickFilters')}</Text>
+                {hasActiveQuickFilters ? (
+                  <TouchableOpacity onPress={() => {
+                    setSelectedState(null);
+                    setSelectedTradition(null);
+                    setSelectedPlaceType(null);
+                  }}>
+                    <Text style={[styles.clearFiltersText, { color: vTheme.colors.primary }]}>{t('dhama.clearAllFilters')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {filtersLoading ? (
+                <View style={styles.quickFilterGroups}>
+                  <View style={styles.quickFilterGroup}>
+                    <DhamaSkeletonBlock color={skeletonColor} style={styles.quickFilterSkeletonLabel} />
+                    <LoadingPillRow color={skeletonColor} />
+                  </View>
+                  <View style={styles.quickFilterGroup}>
+                    <DhamaSkeletonBlock color={skeletonColor} style={styles.quickFilterSkeletonLabel} />
+                    <LoadingPillRow color={skeletonColor} />
+                  </View>
+                </View>
+              ) : filtersError ? (
+                <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+                  <Text style={[styles.feedbackTitle, { color: vTheme.colors.text }]}>{t('dhama.filtersErrorTitle')}</Text>
+                  <Text style={[styles.feedbackBody, { color: vTheme.colors.textSecondary }]}>{t('dhama.filtersErrorBody')}</Text>
+                  <TouchableOpacity onPress={retryAll} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+                    <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.quickFilterGroups}>
+                  {stateOptions.length > 0 ? (
+                    <View style={styles.quickFilterGroup}>
+                      <Text style={[styles.quickFilterLabel, { color: vTheme.colors.textSecondary }]}>{t('dhama.filterLabels.region')}</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilterRow}>
+                        {stateOptions.map((state) => renderQuickChip(`state-${state}`, state, selectedState === state, () => {
+                          setSelectedState((current) => (current === state ? null : state));
+                        }))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+
+                  {traditionOptions.length > 0 ? (
+                    <View style={styles.quickFilterGroup}>
+                      <Text style={[styles.quickFilterLabel, { color: vTheme.colors.textSecondary }]}>{t('dhama.filterLabels.tradition')}</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilterRow}>
+                        {traditionOptions.map((tradition) => renderQuickChip(
+                          `tradition-${tradition}`,
+                          getQuickFilterLabel('tradition', tradition),
+                          selectedTradition === tradition,
+                          () => {
+                          setSelectedTradition((current) => (current === tradition ? null : tradition));
+                          },
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+
+                  {placeTypeOptions.length > 0 ? (
+                    <View style={styles.quickFilterGroup}>
+                      <Text style={[styles.quickFilterLabel, { color: vTheme.colors.textSecondary }]}>{t('dhama.filterLabels.placeType')}</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilterRow}>
+                        {placeTypeOptions.map((placeType) => renderQuickChip(
+                          `placeType-${placeType}`,
+                          getQuickFilterLabel('placeType', placeType),
+                          selectedPlaceType === placeType,
+                          () => {
+                          setSelectedPlaceType((current) => (current === placeType ? null : placeType));
+                          },
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </View>
+
             {(collectionsLoading || collections.length > 0) ? (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('dhama.collections')}</Text>
@@ -198,7 +394,34 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
                   <Text style={[styles.sectionCaption, { color: vTheme.colors.textSecondary }]}>{selectedCollection.description}</Text>
                 ) : null}
                 {collectionsLoading ? (
-                  <ActivityIndicator color={vTheme.colors.primary} />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionListContent}>
+                    {Array.from({ length: 2 }).map((_, index) => (
+                      <View
+                        key={`collection-skeleton-${index}`}
+                        style={[
+                          styles.collectionCard,
+                          styles.collectionSkeletonCard,
+                          { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider },
+                        ]}
+                      >
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.collectionImage} />
+                        <View style={styles.collectionBody}>
+                          <DhamaSkeletonBlock color={skeletonColor} style={styles.collectionSkeletonTitle} />
+                          <DhamaSkeletonBlock color={skeletonColor} style={styles.collectionSkeletonLine} />
+                          <DhamaSkeletonBlock color={skeletonColor} style={styles.collectionSkeletonLineShort} />
+                          <DhamaSkeletonBlock color={skeletonColor} style={styles.collectionSkeletonMeta} />
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : collectionsError ? (
+                  <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.feedbackTitle, { color: vTheme.colors.text }]}>{t('dhama.collectionsErrorTitle')}</Text>
+                    <Text style={[styles.feedbackBody, { color: vTheme.colors.textSecondary }]}>{t('dhama.collectionsErrorBody')}</Text>
+                    <TouchableOpacity onPress={retryAll} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+                      <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <FlatList
                     data={collections}
@@ -228,6 +451,32 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
               </View>
             ) : null}
 
+            {loading && featured.length === 0 ? (
+              <View style={styles.section}>
+                <DhamaSkeletonBlock color={skeletonColor} style={styles.sectionTitleSkeleton} />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredListContent}>
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <View
+                      key={`featured-skeleton-${index}`}
+                      style={[
+                        styles.card,
+                        styles.featuredCard,
+                        { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider },
+                      ]}
+                    >
+                      <DhamaSkeletonBlock color={skeletonColor} style={styles.cardImage} />
+                      <View style={styles.cardBody}>
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardTitleSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardMetaSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardLineSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardLineSkeletonShort} />
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
                 {selectedCollection ? selectedCollection.title : t('dhama.allPlaces')}
@@ -235,11 +484,61 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
               {selectedCollection && selectedCollection.description ? (
                 <Text style={[styles.sectionCaption, { color: vTheme.colors.textSecondary }]}>{selectedCollection.description}</Text>
               ) : null}
-              {loading ? <ActivityIndicator color={vTheme.colors.primary} /> : null}
+              {loading ? (
+                <View style={styles.placeSkeletonList}>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <View
+                      key={`place-skeleton-${index}`}
+                      style={[
+                        styles.card,
+                        styles.listCard,
+                        { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider },
+                      ]}
+                    >
+                      <DhamaSkeletonBlock color={skeletonColor} style={styles.cardImage} />
+                      <View style={styles.cardBody}>
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardTitleSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardMetaSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardLineSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardLineSkeleton} />
+                        <DhamaSkeletonBlock color={skeletonColor} style={styles.cardLineSkeletonShort} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {!loading && placesError ? (
+                <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+                  <Text style={[styles.feedbackTitle, { color: vTheme.colors.text }]}>{t('dhama.homeErrorTitle')}</Text>
+                  <Text style={[styles.feedbackBody, { color: vTheme.colors.textSecondary }]}>{t('dhama.homeErrorBody')}</Text>
+                  <TouchableOpacity onPress={retryAll} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+                    <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           </>
         )}
-        ListEmptyComponent={loading ? null : <Text style={{ color: vTheme.colors.textSecondary }}>{t('dhama.empty')}</Text>}
+        ListEmptyComponent={loading || placesError ? null : (
+          <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+            <Text style={[styles.feedbackTitle, { color: vTheme.colors.text }]}>
+              {hasAnyActiveFilter ? t('dhama.emptyFilteredTitle') : t('dhama.empty')}
+            </Text>
+            <Text style={[styles.feedbackBody, { color: vTheme.colors.textSecondary }]}>
+              {hasAnyActiveFilter ? t('dhama.emptyFilteredBody') : t('dhama.emptyDefaultBody')}
+            </Text>
+            <View style={styles.feedbackActions}>
+              {hasAnyActiveFilter ? (
+                <TouchableOpacity onPress={resetAllFilters} style={[styles.feedbackButton, { borderColor: vTheme.colors.divider }]}>
+                  <Text style={[styles.feedbackButtonText, { color: vTheme.colors.text }]}>{t('dhama.clearAllFilters')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={retryAll} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+                <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         ListFooterComponent={<View style={styles.footerSpace} />}
       />
     </ScreenScaffold>
@@ -259,10 +558,31 @@ const styles = StyleSheet.create({
   section: { gap: 14, marginTop: 4 },
   sectionTitle: { fontSize: 20, fontWeight: '700' },
   sectionCaption: { fontSize: 14, lineHeight: 21 },
+  filterSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  clearFiltersText: { fontSize: 13, fontWeight: '700' },
+  quickFilterGroups: { gap: 12 },
+  quickFilterGroup: { gap: 8 },
+  quickFilterLabel: { fontSize: 13, fontWeight: '600' },
+  quickFilterRow: { gap: 10, paddingRight: 20 },
+  quickFilterChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  quickFilterChipText: { fontSize: 13, fontWeight: '600' },
+  quickFilterSkeletonLabel: { width: 86, height: 12, borderRadius: 999 },
+  quickFilterSkeletonChip: { width: 92, height: 36, borderRadius: 999 },
+  feedbackCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
+  feedbackTitle: { fontSize: 17, fontWeight: '700' },
+  feedbackBody: { fontSize: 14, lineHeight: 21 },
+  feedbackActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  feedbackButton: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  feedbackButtonText: { fontSize: 13, fontWeight: '700' },
   collectionListContent: { paddingRight: 20, paddingTop: 2, paddingBottom: 4 },
   collectionCard: { width: 264, borderWidth: 1, borderRadius: 22, overflow: 'hidden' },
+  collectionSkeletonCard: { justifyContent: 'flex-start' },
   collectionImage: { width: '100%', height: 132, backgroundColor: '#ddd' },
   collectionBody: { padding: 16, gap: 8 },
+  collectionSkeletonTitle: { width: '82%', height: 20, borderRadius: 999 },
+  collectionSkeletonLine: { width: '100%', height: 12, borderRadius: 999 },
+  collectionSkeletonLineShort: { width: '72%', height: 12, borderRadius: 999 },
+  collectionSkeletonMeta: { width: 94, height: 12, borderRadius: 999, marginTop: 6 },
   collectionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   collectionTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
   collectionMetaBadge: { fontSize: 18, fontWeight: '800' },
@@ -279,6 +599,12 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 18, fontWeight: '700' },
   cardMeta: { fontSize: 14 },
   cardDescription: { fontSize: 15, lineHeight: 22 },
+  sectionTitleSkeleton: { width: 156, height: 24, borderRadius: 999 },
+  cardTitleSkeleton: { width: '74%', height: 20, borderRadius: 999 },
+  cardMetaSkeleton: { width: '46%', height: 12, borderRadius: 999 },
+  cardLineSkeleton: { width: '100%', height: 12, borderRadius: 999, marginTop: 4 },
+  cardLineSkeletonShort: { width: '66%', height: 12, borderRadius: 999, marginTop: 4 },
+  placeSkeletonList: { gap: 16 },
   separator: { height: 16 },
   horizontalSeparator: { width: 16 },
   footerSpace: { height: 8 },

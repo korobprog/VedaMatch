@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"encoding/json"
+	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -191,6 +192,7 @@ func (h *DhamaHandler) ListPlaces(c *fiber.Ctx) error {
 	viewerID := middleware.GetUserID(c)
 	items, total, locale, err := h.service.ListPublicHolyPlaces(filters, parseDhamaLocale(c), viewerID)
 	if err != nil {
+		log.Printf("[Dhama] ListPlaces failed: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list dhama places"})
 	}
 	return c.JSON(fiber.Map{
@@ -222,6 +224,7 @@ func (h *DhamaHandler) GetMapMarkers(c *fiber.Ctx) error {
 	viewerID := middleware.GetUserID(c)
 	markers, locale, err := h.service.GetPublicHolyPlaceMapMarkers(filters, parseDhamaLocale(c), viewerID)
 	if err != nil {
+		log.Printf("[Dhama] GetMapMarkers failed: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load dhama markers"})
 	}
 	return c.JSON(fiber.Map{

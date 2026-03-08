@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 
@@ -9,6 +9,7 @@ import { dhamaService } from '../../services/dhamaService';
 import { useSettings } from '../../context/SettingsContext';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { DhamaBackButton } from './DhamaBackButton';
+import { DhamaSkeletonBlock } from './DhamaSkeleton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaCollectionDetail'>;
 const EMPTY_PLACES: DhamaCollection['places'] = [];
@@ -17,6 +18,8 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
   const { t } = useTranslation();
   const { vTheme } = useSettings();
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loadError, setLoadError] = useState(false);
   const [collection, setCollection] = useState<DhamaCollection | null>(null);
   const places = collection?.places ?? EMPTY_PLACES;
   const uniqueStates = useMemo(
@@ -28,10 +31,12 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
     [places],
   );
   const leadPlace = featuredPlaces[0] || places[0] || null;
+  const skeletonColor = vTheme.colors.divider;
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setLoadError(false);
     dhamaService.getCollection(route.params.slug)
       .then((payload) => {
         if (mounted) {
@@ -42,6 +47,7 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
         console.warn('[DhamaCollectionDetail] failed to load collection', error);
         if (mounted) {
           setCollection(null);
+          setLoadError(true);
         }
       })
       .finally(() => {
@@ -53,12 +59,50 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
     return () => {
       mounted = false;
     };
-  }, [route.params.slug]);
+  }, [refreshKey, route.params.slug]);
 
   if (loading) {
     return (
-      <ScreenScaffold contentStyle={styles.loadingWrap}>
-        <ActivityIndicator color={vTheme.colors.primary} />
+      <ScreenScaffold>
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.topBar}>
+            <DhamaBackButton navigation={navigation} />
+          </View>
+          <DhamaSkeletonBlock color={skeletonColor} style={styles.hero} />
+          <View style={styles.headerBlock}>
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.eyebrowSkeleton} />
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.titleSkeleton} />
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.descriptionSkeleton} />
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.descriptionSkeletonShort} />
+          </View>
+          <View style={styles.statsRow}>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <View key={`stat-skeleton-${index}`} style={[styles.statCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+                <DhamaSkeletonBlock color={skeletonColor} style={styles.statValueSkeleton} />
+                <DhamaSkeletonBlock color={skeletonColor} style={styles.statLabelSkeleton} />
+              </View>
+            ))}
+          </View>
+          <View style={styles.actionRow}>
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.buttonSkeleton} />
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.buttonSkeleton} />
+          </View>
+          <View style={styles.section}>
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.sectionTitleSkeleton} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickChipRow}>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <DhamaSkeletonBlock key={`quick-chip-skeleton-${index}`} color={skeletonColor} style={styles.quickChipSkeleton} />
+              ))}
+            </ScrollView>
+          </View>
+          <View style={[styles.leadCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+            <DhamaSkeletonBlock color={skeletonColor} style={styles.leadImage} />
+            <View style={styles.leadBody}>
+              <DhamaSkeletonBlock color={skeletonColor} style={styles.leadTitleSkeleton} />
+              <DhamaSkeletonBlock color={skeletonColor} style={styles.leadMetaSkeleton} />
+            </View>
+          </View>
+        </ScrollView>
       </ScreenScaffold>
     );
   }
@@ -66,7 +110,17 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
   if (!collection) {
     return (
       <ScreenScaffold contentStyle={styles.loadingWrap}>
-        <Text style={{ color: vTheme.colors.textSecondary }}>{t('dhama.empty')}</Text>
+        <View style={[styles.feedbackCard, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+          <Text style={[styles.feedbackTitle, { color: vTheme.colors.text }]}>
+            {loadError ? t('dhama.collectionErrorTitle') : t('dhama.collectionEmpty')}
+          </Text>
+          <Text style={[styles.feedbackBody, { color: vTheme.colors.textSecondary }]}>
+            {loadError ? t('dhama.collectionErrorBody') : t('dhama.collectionEmpty')}
+          </Text>
+          <TouchableOpacity onPress={() => setRefreshKey((current) => current + 1)} style={[styles.feedbackButton, { borderColor: vTheme.colors.primary }]}>
+            <Text style={[styles.feedbackButtonText, { color: vTheme.colors.primary }]}>{t('common.retry', 'Retry')}</Text>
+          </TouchableOpacity>
+        </View>
       </ScreenScaffold>
     );
   }
@@ -201,26 +255,42 @@ const styles = StyleSheet.create({
   heroFallbackEyebrow: { fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   heroFallbackTitle: { fontSize: 30, fontWeight: '800', lineHeight: 36, maxWidth: '88%' },
   headerBlock: { gap: 8 },
+  eyebrowSkeleton: { width: 102, height: 12, borderRadius: 999 },
   eyebrow: { fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  titleSkeleton: { width: '72%', height: 34, borderRadius: 999 },
   title: { fontSize: 28, fontWeight: '800' },
+  descriptionSkeleton: { width: '100%', height: 14, borderRadius: 999 },
+  descriptionSkeletonShort: { width: '76%', height: 14, borderRadius: 999 },
   description: { fontSize: 16, lineHeight: 23 },
   statsRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, borderWidth: 1, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 12, gap: 4 },
+  statValueSkeleton: { width: 32, height: 22, borderRadius: 999 },
   statValue: { fontSize: 22, fontWeight: '800' },
+  statLabelSkeleton: { width: 58, height: 10, borderRadius: 999 },
   statLabel: { fontSize: 12, fontWeight: '600' },
   actionRow: { gap: 10 },
+  buttonSkeleton: { width: '100%', height: 48, borderRadius: 16 },
   primaryButton: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   secondaryButton: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
   section: { gap: 12 },
+  sectionTitleSkeleton: { width: 148, height: 24, borderRadius: 999 },
   sectionTitle: { fontSize: 20, fontWeight: '700' },
   sectionCaption: { fontSize: 14, lineHeight: 21 },
+  feedbackCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10, maxWidth: 360 },
+  feedbackTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  feedbackBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  feedbackButton: { alignSelf: 'center', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  feedbackButtonText: { fontSize: 13, fontWeight: '700' },
   quickChipRow: { gap: 10, paddingRight: 16 },
+  quickChipSkeleton: { width: 96, height: 36, borderRadius: 999 },
   quickChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
   quickChipText: { fontSize: 13, fontWeight: '600' },
   leadCard: { borderWidth: 1, borderRadius: 22, overflow: 'hidden' },
   leadImage: { width: '100%', height: 168, backgroundColor: '#ddd' },
   leadBody: { padding: 18, gap: 6 },
+  leadTitleSkeleton: { width: '64%', height: 22, borderRadius: 999 },
+  leadMetaSkeleton: { width: '40%', height: 12, borderRadius: 999 },
   leadTitle: { fontSize: 20, fontWeight: '800' },
   leadMeta: { fontSize: 14 },
   leadHint: { fontSize: 13, fontWeight: '700', marginTop: 2 },
