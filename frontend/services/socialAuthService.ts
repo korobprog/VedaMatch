@@ -2,6 +2,7 @@ import Config from 'react-native-config';
 import DeviceInfo from 'react-native-device-info';
 import { Platform } from 'react-native';
 import { Buffer } from 'buffer';
+import * as forge from 'node-forge';
 import apiClient from '../lib/apiClient';
 import { APP_ENV } from '../config/api.config';
 
@@ -129,6 +130,8 @@ const VK_IOS_CLIENT_ID_FALLBACK = '54474354';
 const VK_LEGACY_MOBILE_CALLBACK = 'vedamatch://auth/vk/callback';
 const TELEGRAM_MOBILE_CALLBACK = 'vedamatch://auth/telegram/callback';
 const TELEGRAM_UNIVERSAL_CALLBACK = 'https://api.vedamatch.ru/auth/telegram/callback';
+const TELEGRAM_MOBILE_EXCHANGE_RETRY_DELAY_MS = 400;
+const TELEGRAM_MOBILE_EXCHANGE_MAX_ATTEMPTS = 6;
 
 type VKAuthPlatform = 'android' | 'ios';
 const vkPkceSessions = new Map<string, VKPkceSession>();
@@ -183,91 +186,14 @@ const resolveVKCallbackPrefixes = (): string[] => (
   ]))
 );
 
-/* eslint-disable no-bitwise, no-div-regex */
-const rightRotate = (value: number, amount: number): number => (
-  (value >>> amount) | (value << (32 - amount))
-);
-
 const sha256Base64Url = (value: string): string => {
-  const words: number[] = [];
-  const asciiBitLength = value.length * 8;
-  const hash = [
-    0x6a09e667,
-    0xbb67ae85,
-    0x3c6ef372,
-    0xa54ff53a,
-    0x510e527f,
-    0x9b05688c,
-    0x1f83d9ab,
-    0x5be0cd19,
-  ];
-  const constants = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-  ];
+  const digestBytes = forge.md.sha256.create().update(value, 'utf8').digest().getBytes();
 
-  for (let i = 0; i < value.length; i += 1) {
-    words[i >> 2] |= value.charCodeAt(i) << (24 - (i % 4) * 8);
-  }
-  words[asciiBitLength >> 5] |= 0x80 << (24 - (asciiBitLength % 32));
-  words[(((asciiBitLength + 64) >> 9) << 4) + 15] = asciiBitLength;
-
-  for (let i = 0; i < words.length; i += 16) {
-    const schedule = words.slice(i, i + 16);
-    let [a, b, c, d, e, f, g, h] = hash;
-
-    for (let j = 0; j < 64; j += 1) {
-      if (j >= 16) {
-        const s0 = rightRotate(schedule[j - 15], 7) ^ rightRotate(schedule[j - 15], 18) ^ (schedule[j - 15] >>> 3);
-        const s1 = rightRotate(schedule[j - 2], 17) ^ rightRotate(schedule[j - 2], 19) ^ (schedule[j - 2] >>> 10);
-        schedule[j] = (((schedule[j - 16] + s0) | 0) + ((schedule[j - 7] + s1) | 0)) | 0;
-      }
-
-      const s1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
-      const ch = (e & f) ^ (~e & g);
-      const temp1 = (((((h + s1) | 0) + ch) | 0) + ((constants[j] + schedule[j]) | 0)) | 0;
-      const s0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
-      const maj = (a & b) ^ (a & c) ^ (b & c);
-      const temp2 = (s0 + maj) | 0;
-
-      h = g;
-      g = f;
-      f = e;
-      e = (d + temp1) | 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (temp1 + temp2) | 0;
-    }
-
-    hash[0] = (hash[0] + a) | 0;
-    hash[1] = (hash[1] + b) | 0;
-    hash[2] = (hash[2] + c) | 0;
-    hash[3] = (hash[3] + d) | 0;
-    hash[4] = (hash[4] + e) | 0;
-    hash[5] = (hash[5] + f) | 0;
-    hash[6] = (hash[6] + g) | 0;
-    hash[7] = (hash[7] + h) | 0;
-  }
-
-  const digestBytes = hash.flatMap((word) => [
-    (word >>> 24) & 0xff,
-    (word >>> 16) & 0xff,
-    (word >>> 8) & 0xff,
-    word & 0xff,
-  ]);
-
-  return Buffer.from(digestBytes)
+  return Buffer.from(digestBytes, 'binary')
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
-    .replace(/=+$/g, '');
+    .replace(/[=]+$/g, '');
 };
 
 const generateCodeVerifier = (): string => {
@@ -277,38 +203,54 @@ const generateCodeVerifier = (): string => {
   }
   return parts.join('').slice(0, 64);
 };
-/* eslint-enable no-bitwise, no-div-regex */
+
+const encodeQueryComponent = (value: string): string => encodeURIComponent(value);
+
+const decodeQueryComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, ' '));
+  } catch {
+    return value;
+  }
+};
+
+const buildQueryString = (entries: Array<[string, string]>): string => (
+  entries
+    .map(([key, value]) => `${encodeQueryComponent(key)}=${encodeQueryComponent(value)}`)
+    .join('&')
+);
 
 const buildVKAuthorizeUrl = (state: string, platform: VKAuthPlatform): string => {
   const isAndroid = platform === 'android';
   const clientId = isAndroid ? getVKNativeClientId('android') : getVKMobileClientId();
   const scope = readConfigString((Config as any).VK_SCOPE) || 'email';
   const redirectUri = isAndroid ? getVKAndroidRedirectUri() : getVKMobileRedirectUri();
+  const authorizeBaseUrl = isAndroid ? 'https://id.vk.com/authorize' : 'https://oauth.vk.com/authorize';
 
   if (!clientId) {
     throw new Error('VK_CONFIG_MISSING');
   }
 
-  const query = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    display: 'mobile',
-    scope,
-    v: '5.199',
-    state,
-  });
+  const queryEntries: Array<[string, string]> = [
+    ['client_id', clientId],
+    ['redirect_uri', redirectUri],
+    ['response_type', 'code'],
+    ['display', 'mobile'],
+    ['scope', scope],
+    ['v', '5.199'],
+    ['state', state],
+  ];
 
   if (isAndroid) {
     const codeVerifier = generateCodeVerifier();
     vkPkceSessions.set(state, {
       codeVerifier,
     });
-    query.set('code_challenge', sha256Base64Url(codeVerifier));
-    query.set('code_challenge_method', 'S256');
+    queryEntries.push(['code_challenge', sha256Base64Url(codeVerifier)]);
+    queryEntries.push(['code_challenge_method', 'S256']);
   }
 
-  return `https://oauth.vk.com/authorize?${query.toString()}`;
+  return `${authorizeBaseUrl}?${buildQueryString(queryEntries)}`;
 };
 
 const parseQueryParam = (url: string, key: string): string => {
@@ -316,10 +258,18 @@ const parseQueryParam = (url: string, key: string): string => {
   const queryPart = url.split('?')[1] || '';
   const hashPart = url.split('#')[1] || '';
   const merged = [queryPart, hashPart].filter(Boolean).join('&');
-  const search = new URLSearchParams(merged);
 
-  for (const [k, value] of search.entries()) {
-    if (k.toLowerCase() === lowerKey) return value || '';
+  for (const pair of merged.split('&')) {
+    if (!pair) {
+      continue;
+    }
+
+    const [rawKey, ...rawValueParts] = pair.split('=');
+    if (decodeQueryComponent(rawKey).toLowerCase() !== lowerKey) {
+      continue;
+    }
+
+    return decodeQueryComponent(rawValueParts.join('='));
   }
 
   return '';
@@ -357,6 +307,24 @@ const resolveTelegramCallbackPrefixes = (): string[] => (
 const isTelegramCallbackUrl = (url: string): boolean => (
   resolveTelegramCallbackPrefixes().some((prefix) => url.startsWith(prefix))
 );
+
+const sleep = (ms: number): Promise<void> => (
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  })
+);
+
+const isTelegramMobileAuthNotReadyError = (error: unknown): boolean => {
+  const responseError = readConfigString((error as any)?.response?.data?.error);
+  const responseErrorCode = readConfigString((error as any)?.response?.data?.errorCode);
+  const message = readConfigString((error as any)?.message);
+
+  return (
+    responseErrorCode === 'TELEGRAM_MOBILE_AUTH_NOT_READY'
+    || responseError === 'Telegram mobile auth is not ready yet'
+    || message === 'Telegram mobile auth is not ready yet'
+  );
+};
 
 const extractVKCallbackPayload = (
   url: string,
@@ -563,16 +531,29 @@ export const finalizeTelegramSignIn = async (
   }
 
   const deviceId = await DeviceInfo.getUniqueId();
-  const response = await apiClient.post(
-    '/auth/telegram/mobile/exchange',
-    {
-      state,
-      deviceId,
-    },
-    {
-      ...({ __skipAuthSession: true } as any),
-    },
-  );
+  let response: any;
+
+  for (let attempt = 0; attempt < TELEGRAM_MOBILE_EXCHANGE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      response = await apiClient.post(
+        '/auth/telegram/mobile/exchange',
+        {
+          state,
+          deviceId,
+        },
+        {
+          ...({ __skipAuthSession: true } as any),
+        },
+      );
+      break;
+    } catch (error) {
+      const isLastAttempt = attempt === TELEGRAM_MOBILE_EXCHANGE_MAX_ATTEMPTS - 1;
+      if (!isTelegramMobileAuthNotReadyError(error) || isLastAttempt) {
+        throw error;
+      }
+      await sleep(TELEGRAM_MOBILE_EXCHANGE_RETRY_DELAY_MS);
+    }
+  }
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {

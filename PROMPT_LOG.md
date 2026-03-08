@@ -1,5 +1,124 @@
 # Prompt Log
 
+- 2026-03-08 12:30:18 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:
+# Plan: `Dhama` v1 as Sacred Places Catalog for India
+
+## Summary
+`Dhama` is introduced as a new domain module centered on `HolyPlace` entities, not as a replacement for `Yatra`, `MapService`, or `Multimedia`. In v1, it will launch on mobile plus admin, focused on sacred places in India only. The module will own place data, editorial content, photo galleries, and explicit links to existing audio content and pilgrimage tours through join-relations. Localization is required for `ru`, `en`, and `hi`.
+
+## Implementation Changes
+### Domain and data model
+- Add a new core entity `HolyPlace` as the source of truth for sacred places.
+- `HolyPlace` fields should include:
+  - stable slug, published status, sort order
+  - localized title and short description in `ru/en/hi`
+  - localized full editorial content in `ru/en/hi`
+  - place type, tradition/organization tag, city, state, country, latitude, longitude
+  - pilgrimage guidance fields: visiting rules, best season/time, etiquette, recommended practices
+  - hero image plus gallery support
+- Add separate link tables instead of duplicating existing module data:
+  - `holy_place_media_links` -> links `HolyPlace` to existing `MediaTrack`
+  - `holy_place_yatra_links` -> links `HolyPlace` to existing `Yatra`
+- Add optional sub-entity or structured child collection for “sections” if editorial cards need curated blocks beyond plain text; default to structured fields first, not a fully free-form page builder.
+- Keep scope India-only in content and admin validation, but use neutral schema names so future geographic expansion does not require a rename.
+
+### Backend API and service boundaries
+- Create a dedicated `DhamaService` responsible only for sacred-place domain logic, publishing, localization selection, and relation loading.
+- Reuse existing modules instead of reimplementing them:
+  - map behavior uses existing `MapService` infrastructure
+  - audio content comes from existing `Multimedia` records
+  - pilgrimage tours come from existing `Yatra` records
+- Public/mobile API should provide:
+  - `GET /api/dhama/places` with search, map bounds, type, city/state, and featured filters
+  - `GET /api/dhama/places/:slug` with localized editorial content, gallery, linked media, and linked tours
+  - `GET /api/dhama/map/markers` as a Dhama-focused map layer over sacred places
+  - optional `GET /api/dhama/filters` if mobile needs server-driven place types/regions
+- Admin API should provide full CRUD for places and relation management:
+  - create/update/publish/archive place
+  - manage localized content fields
+  - upload/select gallery images
+  - attach/detach existing media tracks
+  - attach/detach existing yatras
+- Locale resolution default:
+  - explicit query/header locale if sent
+  - otherwise user language if authenticated
+  - otherwise fallback `ru -> en -> hi` should not be used; instead use requested language with fallback to `en` only when the requested localized field is empty
+
+### Mobile and admin surfaces
+- Mobile v1 includes:
+  - `DhamaHome` with featured places, search, and quick region/type filters
+  - `DhamaMap` with sacred place markers only
+  - `HolyPlaceDetail` with hero, gallery, localized content blocks, pilgrimage guidance, linked audio, linked tours
+- Integrate `Dhama` into existing portal navigation as a separate service entry, not inside `Yatra` or `Multimedia`.
+- Admin v1 includes:
+  - list view with publish status and search
+  - editor for localized place content
+  - gallery management
+  - linked media manager
+  - linked yatra manager
+- Do not build a separate public web-user surface in v1.
+- Do not build booking, housing, chat, or pilgrimage applications inside `Dhama`; those remain in existing modules.
+
+### Delivery phases
+1. Backend foundation
+- models, migrations, admin/public handlers, service layer, locale handling
+- seeded sample sacred places for development and QA
+2. Admin content operations
+- place CRUD, gallery management, media/yatra linking, publish workflow
+3. Mobile user experience
+- navigation entry, list, map, detail screen, localized rendering, linked content blocks
+4. Integration polish
+- featured places, filters, empty states, loading/error handling, analytics events
+
+## Public API / Interface Additions
+- New backend domain: `Dhama`
+- New public endpoints under `/api/dhama/*`
+- New admin endpoints under `/api/admin/dhama/*`
+- New core type: `HolyPlace`
+- New relation types linking `HolyPlace` to existing `MediaTrack` and `Yatra`
+- New mobile screens for list, map, and sacred-place details
+- New admin surface for managing sacred places and their cross-module links
+
+## Test Plan
+- Backend model and service tests:
+  - create/update/publish/archive holy place
+  - localized field resolution for `ru/en/hi`
+  - list filtering by bounds, type, city/state, featured
+  - detail response includes gallery, linked media, linked tours
+  - relation attach/detach does not duplicate or mutate source `MediaTrack` or `Yatra`
+- Backend handler tests:
+  - public list/detail endpoints
+  - admin CRUD and publish endpoints
+  - locale fallback behavior
+  - unpublished places are hidden from public endpoints
+- Mobile tests:
+  - navigation entry renders correctly
+  - place list and detail load localized content
+  - map opens sacred place markers
+  - linked audio opens multimedia flow
+  - linked tours open yatra flow
+  - empty and partial-translation states behave correctly
+- Admin tests:
+  - localized editor saves all three languages
+  - gallery changes persist
+  - linking/unlinking existing media and yatras works
+- Manual QA:
+  - sacred place discoverable from list and map
+  - card content consistent across `ru/en/hi`
+  - no duplication of tour/media data between modules
+
+## Assumptions and defaults
+- `Dhama` owns sacred place content only; `Yatra` remains source-of-truth for tours and `Multimedia` remains source-of-truth for media.
+- v1 is India-only in product scope and content strategy.
+- Required locales for v1 are `ru`, `en`, and `hi`.
+- Client scope for v1 is React Native mobile plus admin only.
+- Editorial model is structured content plus gallery, not a generic CMS/page-builder.
+- If a place has no linked media or no linked tours, the detail page still publishes successfully with those blocks omitted."
+
+- 2026-03-08 12:20:20 +1000 | Запрос: "двай сделаем новый серси и разработаем его если что то у нас уже есть по сервисам бекенду то внедрить вот концепт давай подумаем пока не пишем когд а анализируем 
+
+Сервис дхама это интерактивная карта святых мест Индии включающая в себя фото-галлерею и описание всех святых мест. А также аудиотеку с лекциями и семинарами о святых местах и о том как правильно совершать паломничество. Также - расписание туров паломничеств."
+
 - 2026-03-08 11:48:15 +1000 | Запрос: "давай теперь отладим в ios и андройд вход в телеграме - там присходит вход потом надпись вас редиректнет в риложения но не происходит я так понимаю не передаться токен либо еще что то"
 - 2026-03-08 11:41:41 +1000 | Запрос: "а все вошел с первого раза не вошло после подтверждения через подтвердение входа"
 - 2026-03-08 11:40:41 +1000 | Запрос: "а сейчас вхожу вот"
@@ -804,3 +923,6 @@
 2026-03-08 11:56:22 +1000 | Запрос: "давай теперь отладим в ios и андройд вход в телеграме - там присходит вход потом надпись вас редиректнет в риложения но не происходит я так понимаю не передаться токен либо еще что то"
 2026-03-08 12:03:21 +1000 | Запрос: "попадаю на страницу lkm там написанно что возвращаемся к приложению но ни чего не происходит"
 2026-03-08 12:09:35 +1000 | Запрос: "2 и там нет кнопки - вернуться в приложение только вижу кнопку выход"
+2026-03-08 12:22:08 +1000 | Запрос: "кнопка появлся нажал на вернуться но выскочило окно с ошибкой - telegram mobile autch is not ready yet"
+2026-03-08 12:31:37 +1000 | Запрос: "ничайно удалил приложение на телефоне установи еще раз"
+2026-03-08 12:33:43 +1000 | Запрос: "нет такая же ошибка посмотри в MCP context7 и в интернете как ее ришить"

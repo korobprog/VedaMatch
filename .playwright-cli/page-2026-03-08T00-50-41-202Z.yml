@@ -1,0 +1,6 @@
+- alert [ref=e4]:
+  - img [ref=e6]
+  - generic [ref=e8]: Ошибка загрузки
+  - generic [ref=e9]: Попробуйте ещё раз. Если не получится сейчас, то чуть позже.
+  - button "Попробовать снова" [ref=e11] [cursor=pointer]:
+    - generic [ref=e13]: Попробовать снова

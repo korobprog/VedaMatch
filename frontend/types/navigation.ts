@@ -19,6 +19,7 @@ export type PortalInitialTab =
     | 'education'
     | 'map'
     | 'travel'
+    | 'dhama'
     | 'services'
     | 'services_catalog'
     | 'connect'
@@ -57,6 +58,9 @@ export type RootStackParamList = {
         originServiceId?: string;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
+    DhamaHome: undefined;
+    DhamaMap: undefined;
+    HolyPlaceDetail: { slug: string };
     ContactProfile: { userId: number };
     AppSettings: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;

@@ -10,7 +10,11 @@ import {
 } from 'react-native';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
-import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
+import type {
+  ShouldStartLoadRequest,
+  WebViewMessageEvent,
+  WebViewNavigation,
+} from 'react-native-webview/lib/WebViewTypes';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { isVKAuthCallbackUrl } from '../../services/socialAuthService';
 
@@ -73,22 +77,31 @@ export const VKAuthModal: React.FC<VKAuthModalProps> = ({
     }
   }, [visible]);
 
-  const handleUrl = (url?: string) => {
+  const interceptCallbackUrl = (url?: string): boolean => {
     const nextUrl = String(url || '').trim();
-    if (!nextUrl || resolvedRef.current || !isVKAuthCallbackUrl(nextUrl)) {
-      return;
+    if (!nextUrl || !isVKAuthCallbackUrl(nextUrl)) {
+      return false;
     }
+    if (resolvedRef.current) {
+      return true;
+    }
+
     resolvedRef.current = true;
     onComplete(nextUrl);
+    return true;
   };
 
   const handleMessage = (event: WebViewMessageEvent) => {
-    handleUrl(safeParseBridgeMessage(event.nativeEvent.data));
+    interceptCallbackUrl(safeParseBridgeMessage(event.nativeEvent.data));
   };
 
   const handleNavigationChange = (event: WebViewNavigation) => {
-    handleUrl(event.url);
+    interceptCallbackUrl(event.url);
   };
+
+  const handleShouldStartLoadWithRequest = (request: ShouldStartLoadRequest): boolean => (
+    !interceptCallbackUrl(request.url)
+  );
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -125,6 +138,7 @@ export const VKAuthModal: React.FC<VKAuthModalProps> = ({
             onLoadEnd={() => setLoading(false)}
             onMessage={handleMessage}
             onNavigationStateChange={handleNavigationChange}
+            onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
             startInLoadingState={false}
           />
 

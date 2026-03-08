@@ -7,6 +7,15 @@
 - Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 
+## Dhama Service
+- Новый сервис `Dhama` пока рассматривается как candidate composition-service, а не отдельный isolated vertical.
+- Уже существующие backend-блоки, которые логично переиспользовать:
+  - `Yatra` для расписания паломнических туров и связанной орг-логистики;
+  - `MapService` для карты, геокодинга, autocomplete и маршрутов;
+  - `MultimediaService` для аудиотеки лекций и семинаров;
+  - существующая медиа-инфраструктура (`S3`/uploads) для фото-галерей.
+- Предварительная продуктовая граница `Dhama`: source-of-truth по самим святым местам, их описаниям, фото, связям с аудио и связям с турами; туры и аудио не должны дублироваться как отдельные независимые сущности внутри `Dhama`.
+
 ## Connect MVP
 - `Connect` введен как отдельный агрегатор поверх существующих `Yatra`, `Seva` и `Services`, а не как замена этих модулей.
 - Источники данных в `v1`:
@@ -145,7 +154,7 @@
     - оба пути завершаются через `finalizeVKSignIn` -> `POST /auth/vk/login`.
   - `Telegram` — реальный mobile auth через `@vedamatch_bot` и Telegram Mini App bridge:
     - app вызывает `POST /auth/telegram/mobile/start`, получает `t.me/...?...startapp=vm_auth_<state>` и открывает Telegram;
-    - `lkm` Mini App завершает `miniapp/login` или `miniapp/link`, потом шлет `authPayload` в `POST /auth/telegram/mobile/complete`;
+    - `lkm` Mini App завершает `miniapp/login` или `miniapp/link` и передает `mobileAuthState` прямо в этот запрос; backend в том же handler сразу помечает mobile bridge state как `ready`, без отдельного обязательного `POST /auth/telegram/mobile/complete` из WebView;
     - backend возвращает `https://api.vedamatch.ru/auth/telegram/callback?state=...` как основной callback URL; если app link не перехватился, fallback-page на сервере пытается открыть `vedamatch://auth/telegram/callback?...` и показывает кнопку `Открыть VedaMatch`;
     - mobile client принимает и `https://api.vedamatch.ru/auth/telegram/callback?...`, и `vedamatch://auth/telegram/callback?...`, после чего делает `POST /auth/telegram/mobile/exchange`.
 - Telegram mobile auth зависит от того, что у `@vedamatch_bot` настроен основной Mini App, который открывает `lkm.vedamatch.ru/.com`; стартовый параметр `vm_auth_<state>` используется как bridge key.
@@ -156,7 +165,8 @@
   - device verify от `2026-03-08`: Android release-приложение на устройстве `R58N10182QN` перехватывает live callback URL и получает `Activity: com.ragagent/.MainActivity`; iOS simulator `D7804896-63D0-46A5-A65E-D6F26F6003CD` также открывает `com.VedaMatch.vedamatch` через universal link.
   - Если пользователь застревает именно на `lkm`-экране с текстом `Авторизация завершена. Возвращаемся в приложение VedaMatch...`, это уже не backend callback issue: значит `Telegram Mini App` не выполнил обычный `window.location.replace(...)`. Для этого в `lkm` включен отдельный helper, который открывает callback URL через `Telegram.WebApp.openLink(..., { try_browser: 'external' })`, а затем уже через browser/system handoff уводит пользователя в приложение.
   - CTA `Вернуться в приложение` должен находиться в основном success-блоке рядом с `Выйти`, а не отдельным flash-блоком ниже по странице: иначе в реальном Telegram потоке пользователь видит только `Выйти` и не замечает запасной возврат.
-  - Если `lkm` был повторно открыт или перерендерен после успешного Telegram login, временный `telegramMobileDeepLink` может потеряться, хотя `telegramMobileAuthState` все еще есть. Поэтому fallback CTA должен уметь заново строить `https://api.vedamatch.ru/auth/telegram/callback?state=...` прямо из `state`, а не зависеть только от одноразового ответа `/auth/telegram/mobile/complete`.
+  - Если `lkm` был повторно открыт или перерендерен после успешного Telegram login, временный `telegramMobileDeepLink` может потеряться, хотя `telegramMobileAuthState` все еще есть. Поэтому fallback CTA должен уметь заново строить `https://api.vedamatch.ru/auth/telegram/callback?state=...` прямо из `state`, а не зависеть только от одноразового backend-ответа.
+  - Реальный production root cause от `2026-03-08`: live server logs показали `miniapp/login` и последующие `mobile/exchange` без `mobile/complete`. Значит WebView-path мог показать success UI и открыть return CTA, но вообще не успевал завершить bridge state. Основной фикс — completion state прямо внутри `miniapp/login` / `miniapp/link`; mobile retry на `TELEGRAM_MOBILE_AUTH_NOT_READY` остается как дополнительный safety net, а не как единственная защита.
 - `lkm` wallet web теперь держит отдельный social-auth flow поверх backend:
   - `GET /api/auth/social/config` отдает публичную конфигурацию для web login;
   - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;

@@ -85,6 +85,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'feed', label: 'Feed', icon: 'PlayCircle', color: '#0EA5E9' },
     { id: 'news', label: 'News', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Map', icon: 'Map', color: '#7C3AED' },
+    { id: 'dhama', label: 'Dhama', icon: 'Map', color: '#8B5CF6' },
     { id: 'support', label: 'Support', icon: 'LifeBuoy', color: '#2563EB' },
     { id: 'history', label: 'History', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Settings', icon: 'Settings', color: '#6B7280' },

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,6 +139,60 @@ func TestGoogleLogin_ExistingUserBySub_Success(t *testing.T) {
 	require.NotEmpty(t, body["refreshToken"])
 	require.NotEmpty(t, body["sessionId"])
 	require.NotNil(t, body["user"])
+}
+
+func TestGoogleLogin_NewUser_AssignsInviteCode(t *testing.T) {
+	setupAuthGoogleIntegrationDB(t)
+	t.Setenv("AUTH_GOOGLE_ENABLED", "true")
+	t.Setenv("GOOGLE_WEB_CLIENT_ID", "google-web-client-id")
+	t.Setenv("JWT_SECRET", "google-test-secret")
+	t.Setenv("AUTH_REFRESH_V1", "true")
+
+	legacyUser := models.User{
+		Email:      fmt.Sprintf("legacy-google-%d@VedaMatch.local", time.Now().UnixNano()),
+		Password:   "hash",
+		KarmicName: "Legacy Google User",
+		Role:       models.RoleUser,
+		GoogleSub:  fmt.Sprintf("legacy-google-sub-%d", time.Now().UnixNano()),
+	}
+	require.NoError(t, database.DB.Create(&legacyUser).Error)
+
+	googleSub := fmt.Sprintf("fresh-google-sub-%d", time.Now().UnixNano())
+	googleEmail := fmt.Sprintf("fresh-google-%d@VedaMatch.local", time.Now().UnixNano())
+
+	originalVerifier := googleIDTokenVerifier
+	googleIDTokenVerifier = func(_ string) (*googleTokenInfo, error) {
+		return &googleTokenInfo{
+			Sub:           googleSub,
+			Email:         googleEmail,
+			EmailVerified: "true",
+			Name:          "Fresh Google User",
+			GivenName:     "Fresh",
+			FamilyName:    "Google",
+			Locale:        "en",
+			Audience:      "google-web-client-id",
+		}, nil
+	}
+	t.Cleanup(func() {
+		googleIDTokenVerifier = originalVerifier
+	})
+
+	app := newAuthGoogleTestApp(NewAuthHandler(nil, nil))
+	payload, _ := json.Marshal(map[string]string{
+		"idToken":  "fresh-token",
+		"deviceId": "g-device-fresh-1",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/google/login", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var created models.User
+	require.NoError(t, database.DB.Where("google_sub = ?", googleSub).First(&created).Error)
+	require.NotEmpty(t, created.InviteCode)
+	require.Equal(t, strings.ToLower(googleEmail), created.Email)
 }
 
 func TestGoogleLogin_InvalidAudience_ReturnsUnauthorized(t *testing.T) {

@@ -1,0 +1,69 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - paragraph [ref=e4]:
+        - img [ref=e5]
+        - text: lkm.vedamatch.ru
+      - heading "Кабинет LKM" [level=1] [ref=e8]
+      - paragraph [ref=e9]: Пополнение баланса LKM для экосистемы VedaMatch. Доступно на сайте и в Telegram-боте.
+      - link "Тарифы" [ref=e11] [cursor=pointer]:
+        - /url: /tariffs
+      - generic [ref=e12]:
+        - generic [ref=e13]: "Регион: СНГ"
+        - generic [ref=e14]: "Шлюз оплаты: yookassa"
+        - generic [ref=e15]: "Валюта: RUB"
+    - generic [ref=e16]:
+      - article [ref=e17]:
+        - heading "Авторизация" [level=2] [ref=e19]:
+          - img [ref=e20]
+          - text: Авторизация
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - paragraph [ref=e25]: Войти можно через Google или VK. Email и пароль остаются как резервный способ.
+            - iframe [active] [ref=e82]:
+              - button "Вход через аккаунт Google. Откроется в новой вкладке." [active] [ref=f1e3] [cursor=pointer]:
+                - generic [ref=f1e5]:
+                  - img [ref=f1e7]
+                  - generic [ref=f1e14]: Вход через аккаунт Google
+            - button "Войти через VK" [ref=e42] [cursor=pointer]
+            - generic [ref=e44]: или
+          - generic [ref=e45]:
+            - text: Email
+            - textbox "Email" [ref=e46]:
+              - /placeholder: you@example.com
+          - generic [ref=e47]:
+            - text: Пароль
+            - textbox "Пароль" [ref=e48]:
+              - /placeholder: ••••••••
+          - button "Войти" [ref=e49] [cursor=pointer]
+          - paragraph [ref=e50]: После первого входа сессия сохраняется, повторный вход обычно не требуется.
+      - article [ref=e51]:
+        - heading "Кошелек" [level=2] [ref=e52]:
+          - img [ref=e53]
+          - text: Кошелек
+        - generic [ref=e57]:
+          - paragraph [ref=e58]:
+            - text: "Текущий активный баланс:"
+            - strong [ref=e59]: —
+          - paragraph [ref=e60]:
+            - text: "Номинальный курс:"
+            - strong [ref=e61]: 1 LKM = 1.00 RUB
+          - paragraph [ref=e62]:
+            - text: "Для верификации можно использовать бота:"
+            - code [ref=e63]: "@vedamatch_bot"
+    - generic [ref=e64]:
+      - heading "Пополнение счета" [level=2] [ref=e65]:
+        - img [ref=e66]
+        - text: Пополнение счета
+      - paragraph [ref=e68]: После авторизации загрузятся пакеты региона.
+    - generic [ref=e69]:
+      - heading "Расчет и создание" [level=2] [ref=e70]:
+        - img [ref=e71]
+        - text: Расчет и создание
+      - button "Получить расчет" [disabled] [ref=e74]
+    - generic [ref=e75]:
+      - heading "История пополнений" [level=2] [ref=e76]:
+        - img [ref=e77]
+        - text: История пополнений
+      - paragraph [ref=e80]: История доступна после авторизации.
+  - alert [ref=e81]

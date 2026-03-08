@@ -47,6 +47,7 @@ const menuItems = [
     { icon: Waves, label: 'Feed Posts', path: '/feed-posts' },
     { icon: PieChart, label: 'Financials (P&L)', path: '/financials' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
+    { icon: MapPin, label: 'Dhama', path: '/dhama' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
     { icon: Heart, label: 'Union', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
@@ -107,6 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/polza',
                 '/ai-prompts',
                 '/multimedia',
+                '/dhama',
                 '/financials'
             ];
 

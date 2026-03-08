@@ -57,6 +57,7 @@ jest.mock('../../lib/apiClient', () => ({
 describe('socialAuthService', () => {
   beforeEach(() => {
     Object.defineProperty(require('react-native').Platform, 'OS', { value: 'android', configurable: true });
+    jest.useRealTimers();
     mockConfigure.mockReset();
     mockHasPlayServices.mockReset();
     mockHasPlayServices.mockResolvedValue(true);
@@ -122,7 +123,7 @@ describe('socialAuthService', () => {
     const session = createVKAuthSession();
     const url = new URL(session.authorizeUrl);
 
-    expect(url.origin + url.pathname).toBe('https://oauth.vk.com/authorize');
+    expect(url.origin + url.pathname).toBe('https://id.vk.com/authorize');
     expect(url.searchParams.get('client_id')).toBe('54474353');
     expect(url.searchParams.get('redirect_uri')).toBe('vk54474353://vk.ru/blank.html');
     expect(url.searchParams.get('response_type')).toBe('code');
@@ -132,6 +133,27 @@ describe('socialAuthService', () => {
     expect(url.searchParams.get('scope')).toBe('email');
     expect(url.searchParams.get('state')).toBe(session.state);
     expect(session.presentation).toBe('external');
+  });
+
+  it('builds Android VK auth session even when URLSearchParams.set is unavailable in runtime', () => {
+    const originalURLSearchParams = global.URLSearchParams;
+    (global as any).URLSearchParams = class BrokenURLSearchParams {
+      set(): void {
+        throw new Error('URLSearchParams.set is not implemented');
+      }
+    } as any;
+
+    try {
+      const session = createVKAuthSession();
+
+      expect(session.authorizeUrl).toContain('https://id.vk.com/authorize?');
+      expect(session.authorizeUrl).toContain('client_id=54474353');
+      expect(session.authorizeUrl).toContain('redirect_uri=vk54474353%3A%2F%2Fvk.ru%2Fblank.html');
+      expect(session.authorizeUrl).toContain('code_challenge_method=S256');
+      expect(session.authorizeUrl).toContain(`state=${encodeURIComponent(session.state)}`);
+    } finally {
+      (global as any).URLSearchParams = originalURLSearchParams;
+    }
   });
 
   it('builds iOS VK auth session with code flow and universal link callback', () => {
@@ -280,5 +302,54 @@ describe('socialAuthService', () => {
         refreshToken: 'telegram-refresh',
       },
     });
+  });
+
+  it('retries Telegram mobile exchange when backend is temporarily not ready', async () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation(((handler: any) => {
+      handler();
+      return 0 as any;
+    }) as any);
+
+    (apiClient.post as jest.Mock)
+      .mockRejectedValueOnce({
+        response: {
+          data: {
+            error: 'Telegram mobile auth is not ready yet',
+            errorCode: 'TELEGRAM_MOBILE_AUTH_NOT_READY',
+          },
+        },
+      })
+      .mockRejectedValueOnce({
+        response: {
+          data: {
+            error: 'Telegram mobile auth is not ready yet',
+            errorCode: 'TELEGRAM_MOBILE_AUTH_NOT_READY',
+          },
+        },
+      })
+      .mockResolvedValue({
+        data: {
+          user: { ID: 11, email: 'telegram-retry@example.com' },
+          accessToken: 'telegram-token',
+          refreshToken: 'telegram-refresh',
+        },
+      });
+
+    const result = await finalizeTelegramSignIn(
+      'vedamatch://auth/telegram/callback?state=telegram-state',
+      'telegram-state',
+    );
+
+    expect(apiClient.post).toHaveBeenCalledTimes(3);
+    expect(result).toEqual({
+      user: { ID: 11, email: 'telegram-retry@example.com' },
+      authPayload: {
+        user: { ID: 11, email: 'telegram-retry@example.com' },
+        accessToken: 'telegram-token',
+        refreshToken: 'telegram-refresh',
+      },
+    });
+
+    setTimeoutSpy.mockRestore();
   });
 });

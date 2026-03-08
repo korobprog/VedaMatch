@@ -64,6 +64,18 @@ const normalizeLanguageCode = (value?: string): string => {
     return 'ru';
 };
 
+const extractDetailedVKError = (rawMessage: string): string => {
+    if (rawMessage.startsWith('VK_AUTH_ERROR:')) {
+        return decodeURIComponent(rawMessage.replace(/^VK_AUTH_ERROR:[^:]*:?/, '').trim());
+    }
+
+    if (rawMessage.startsWith('VK_TOKEN_EXCHANGE_FAILED:')) {
+        return decodeURIComponent(rawMessage.replace(/^VK_TOKEN_EXCHANGE_FAILED:?/, '').trim());
+    }
+
+    return '';
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
@@ -294,13 +306,18 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         trackSocialClick('google');
         setSocialLoadingProvider('google');
         try {
+            console.log('[GoogleAuth] handleGoogleSignIn:start');
             const response = await signInWithGoogle();
+            console.log('[GoogleAuth] handleGoogleSignIn:signInWithGoogle:done');
             await login(response.user as Parameters<typeof login>[0], response.authPayload);
+            console.log('[GoogleAuth] handleGoogleSignIn:login:done');
         } catch (_error: any) {
+            console.warn('[GoogleAuth] handleGoogleSignIn:error', _error?.message || _error);
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.googleFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
         } finally {
+            console.log('[GoogleAuth] handleGoogleSignIn:finally');
             setSocialLoadingProvider(null);
         }
     }, [login, t, trackSocialClick]);
@@ -313,14 +330,35 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             setVKAuthState(session.state);
             if (session.presentation === 'external') {
                 setVKAuthUrl('');
-                await Linking.openURL(session.authorizeUrl);
-                setSocialLoadingProvider(null);
-                return;
+                try {
+                    await Linking.openURL(session.authorizeUrl);
+                    setSocialLoadingProvider(null);
+                    return;
+                } catch (launchError: any) {
+                    console.warn(
+                        'VK auth external launch failed:',
+                        session.authorizeUrl,
+                        launchError?.message || launchError,
+                    );
+
+                    if (Platform.OS === 'android') {
+                        setVKAuthUrl(session.authorizeUrl);
+                        setSocialLoadingProvider(null);
+                        return;
+                    }
+
+                    throw launchError;
+                }
             }
 
             setVKAuthUrl(session.authorizeUrl);
+            setSocialLoadingProvider(null);
         } catch (_error: any) {
+            const rawMessage = String(_error?.message || '');
             const backendMessage = _error?.response?.data?.error;
+            if (rawMessage || backendMessage) {
+                console.warn('VK auth start failure:', rawMessage || '<empty>', backendMessage || '');
+            }
             const fallbackMessage = t('auth.loginScreen.errors.vkFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
             setVKAuthState('');
@@ -367,9 +405,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             closeVKAuthModal();
             const backendMessage = _error?.response?.data?.error;
             const rawMessage = String(_error?.message || '');
-            const detailedVKError = rawMessage.startsWith('VK_AUTH_ERROR:')
-                ? decodeURIComponent(rawMessage.replace(/^VK_AUTH_ERROR:[^:]*:?/, '').trim())
-                : '';
+            const detailedVKError = extractDetailedVKError(rawMessage);
+            if (rawMessage || backendMessage) {
+                console.warn('VK auth failure:', rawMessage || '<empty>', backendMessage || '');
+            }
             const fallbackMessage = detailedVKError || backendMessage || t('auth.loginScreen.errors.vkFailed');
             Alert.alert(t('common.error'), fallbackMessage);
         }

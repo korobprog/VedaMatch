@@ -397,7 +397,7 @@ defaultConfig {
 - Стало:
   - mobile app запускает `POST /auth/telegram/mobile/start`, открывает `@vedamatch_bot` через `startapp=vm_auth_<state>` и ждет callback `vedamatch://auth/telegram/callback?state=...`;
   - backend хранит short-lived Telegram mobile auth state (`pending -> ready -> consumed`) в Redis или in-memory fallback и отдает endpoints `start/complete/exchange`;
-  - `lkm` Mini App распознает `vm_auth_<state>`, завершает `miniapp/login` или `miniapp/link`, после чего делает `POST /auth/telegram/mobile/complete` и отправляет пользователя обратно в native app;
+  - `lkm` Mini App распознает `vm_auth_<state>` и использует этот state для возврата пользователя обратно в native app;
   - deep link routing в React Navigation игнорирует Telegram auth callback так же, как и VK callback;
   - Android release version поднята до `1.1.20 (22)`.
 
@@ -440,15 +440,6 @@ export const finalizeTelegramSignIn = async (callbackUrl: string, expectedState?
 const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(
   telegramWebApp?.initDataUnsafe?.start_param || extractTelegramStartParamFromLocation(window.location.search),
 );
-```
-
-```tsx
-const response = await apiRequest('/auth/telegram/mobile/complete', {
-  method: 'POST',
-  body: { state: telegramMobileAuthState, authPayload },
-  skipAuthRefresh: true,
-});
-window.location.replace(response.deepLink);
 ```
 
 ## 2026-03-08 (Telegram mobile return switched to universal callback with browser fallback)
@@ -11739,4 +11730,82 @@ window.setTimeout(() => {
 ```ts
 const telegramMobileReturnLink = telegramMobileDeepLink.trim() ||
   buildTelegramMobileReturnLink(telegramMobileAuthState);
+```
+
+## 2026-03-08 (Shared mobile Telegram exchange now retries transient `not ready yet`)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после возврата из Telegram/LKM mobile client сразу делал `POST /auth/telegram/mobile/exchange`;
+  - если backend callback `complete` и mobile `exchange` приходили почти одновременно, server мог вернуть `409 TELEGRAM_MOBILE_AUTH_NOT_READY`;
+  - приложение показывало пользователю сырой transient error, хотя через несколько сотен миллисекунд state уже становился `ready`.
+- Стало:
+  - shared mobile JS-path считает `TELEGRAM_MOBILE_AUTH_NOT_READY` временной гонкой, а не финальной ошибкой;
+  - `finalizeTelegramSignIn(...)` теперь повторяет `exchange` до `6` раз с короткой паузой `400ms`;
+  - остальные ошибки по-прежнему пробрасываются сразу, без скрытия реальных сбоев backend/auth.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+if (!isTelegramMobileAuthNotReadyError(error) || isLastAttempt) {
+  throw error;
+}
+await sleep(TELEGRAM_MOBILE_EXCHANGE_RETRY_DELAY_MS);
+```
+
+`frontend/__tests__/services/socialAuthService.test.ts`:
+```ts
+it('retries Telegram mobile exchange when backend is temporarily not ready', async () => {
+  (apiClient.post as jest.Mock)
+    .mockRejectedValueOnce({ response: { data: { errorCode: 'TELEGRAM_MOBILE_AUTH_NOT_READY' } } })
+    .mockResolvedValue({ data: { user: { ID: 11 } } });
+```
+
+## 2026-03-08 (Telegram Mini App login/link now complete mobile bridge inline)
+
+### Измененные файлы
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_telegram_miniapp_integration_test.go`
+- `lkm/src/components/lkm-cabinet-client.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `lkm` после `miniapp/login` или `miniapp/link` отдельно вызывал `POST /auth/telegram/mobile/complete`, а уже потом открывал return link в приложение;
+  - live production logs показали проблемный путь: `miniapp/login -> mobile/exchange`, но без `mobile/complete`, из-за чего mobile app неизбежно получал `TELEGRAM_MOBILE_AUTH_NOT_READY`.
+- Стало:
+  - `lkm` передает `mobileAuthState` прямо в `miniapp/login` и `miniapp/link`;
+  - backend в этих handler'ах сам сериализует auth response и сразу вызывает `CompleteMobileAuthState(...)`, прежде чем ответить Mini App;
+  - после успешного login/link `lkm` больше не зависит от отдельного completion-request из WebView и просто открывает `https://api.vedamatch.ru/auth/telegram/callback?state=...` по уже известному `state`.
+
+### Сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if normalizedState != "" {
+  rawPayload, _ := json.Marshal(response)
+  if _, completeErr := h.telegramAuthService.CompleteMobileAuthState(normalizedState, rawPayload); completeErr != nil {
+    return respondTelegramMobileAuthError(c, completeErr)
+  }
+}
+```
+
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```ts
+body: {
+  initData: telegramInitData,
+  deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
+  mobileAuthState: telegramMobileAuthState || undefined,
+}
+```
+
+```ts
+const deepLink = buildTelegramMobileReturnLink(telegramMobileAuthState);
+window.setTimeout(() => {
+  openMobileReturnLink(deepLink);
+}, 120);
 ```

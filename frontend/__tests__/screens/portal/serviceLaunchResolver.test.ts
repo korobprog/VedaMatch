@@ -17,6 +17,10 @@ describe('serviceLaunchResolver', () => {
         expect(resolveServiceLaunch('map')).toEqual({ kind: 'navigate', screen: 'MapGeoapify' });
     });
 
+    it('routes dhama to stack screen', () => {
+        expect(resolveServiceLaunch('dhama')).toEqual({ kind: 'navigate', screen: 'DhamaHome' });
+    });
+
     it('routes connect shortcut to connect home', () => {
         expect(resolveServiceLaunch('connect')).toEqual({ kind: 'navigate', screen: 'ConnectHome' });
     });

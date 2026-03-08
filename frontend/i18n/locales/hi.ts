@@ -43,6 +43,28 @@ export default {
         "no_markers_visible": "कोई मार्कर दिखाई नहीं दे रहा",
         "search_placeholder": "नक्शे में खोजें..."
     },
+    "dhama": {
+        "homeTitle": "धाम",
+        "homeSubtitle": "भारत के पवित्र स्थल, गाइड, ऑडियो और संबंधित यात्राओं के साथ।",
+        "openMap": "मैप खोलें",
+        "searchPlaceholder": "पवित्र स्थलों की खोज करें...",
+        "featured": "प्रमुख स्थल",
+        "allPlaces": "सभी स्थल",
+        "empty": "अभी कोई पवित्र स्थल नहीं मिला।",
+        "mapTitle": "धाम मैप",
+        "mapSubtitle": "भारत के पवित्र स्थलों का अन्वेषण करें।",
+        "audioSection": "ऑडियो लाइब्रेरी",
+        "audioLecture": "व्याख्यान",
+        "yatraSection": "संबंधित यात्राएँ",
+        "sections": {
+            "about": "स्थल परिचय",
+            "rules": "दर्शन नियम",
+            "etiquette": "आचरण",
+            "tips": "तीर्थ सुझाव",
+            "practices": "अनुशंसित साधनाएँ",
+            "faq": "FAQ"
+        }
+    },
     "ads": {
         "title": "विज्ञापन",
         "sections": {

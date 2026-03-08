@@ -43,6 +43,28 @@ export default {
         no_markers_visible: 'No markers visible',
         search_placeholder: 'Search on map...',
     },
+    dhama: {
+        homeTitle: 'Dhama',
+        homeSubtitle: 'Sacred places of India with guides, audio, and related yatras.',
+        openMap: 'Open map',
+        searchPlaceholder: 'Search sacred places...',
+        featured: 'Featured places',
+        allPlaces: 'All places',
+        empty: 'No sacred places found yet.',
+        mapTitle: 'Dhama Map',
+        mapSubtitle: 'Explore holy places across India.',
+        audioSection: 'Audio library',
+        audioLecture: 'Lecture',
+        yatraSection: 'Related yatras',
+        sections: {
+            about: 'About the place',
+            rules: 'Visit rules',
+            etiquette: 'Etiquette',
+            tips: 'Pilgrimage tips',
+            practices: 'Recommended practices',
+            faq: 'FAQ',
+        },
+    },
     ads: {
         title: 'Ads',
         sections: {

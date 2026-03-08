@@ -64,6 +64,7 @@ func main() {
 
 	// Seed map test data (users, shops, ads with coordinates)
 	database.SeedMapTestData()
+	database.SeedDhamaPlaces()
 
 	// Initialize Services
 	services.InitScheduler()
@@ -300,6 +301,7 @@ func main() {
 	multimediaHandler := handlers.NewMultimediaHandler()
 	yatraHandler := handlers.NewYatraHandler()
 	yatraAdminHandler := handlers.NewYatraAdminHandler()
+	dhamaHandler := handlers.NewDhamaHandler()
 	walletHandler := handlers.NewWalletHandler(walletService)
 	callFeedbackHandler := handlers.NewCallFeedbackHandler(walletService)
 	referralHandler := handlers.NewReferralHandler(referralService)
@@ -493,6 +495,14 @@ func main() {
 	api.Get("/shelter", yatraHandler.ListShelters)
 	api.Get("/shelter/:id", yatraHandler.GetShelter)
 	api.Get("/shelter/:id/reviews", yatraHandler.GetShelterReviews)
+
+	// Public Dhama Routes (Sacred Places Catalog)
+	dhama := api.Group("/dhama")
+	dhama.Use(middleware.OptionalAuth())
+	dhama.Get("/places", dhamaHandler.ListPlaces)
+	dhama.Get("/places/:slug", dhamaHandler.GetPlace)
+	dhama.Get("/map/markers", dhamaHandler.GetMapMarkers)
+	dhama.Get("/filters", dhamaHandler.GetFilters)
 
 	// NOTE: These routes must be registered before the global protected group.
 	// Otherwise they become unintentionally protected due route registration order.
@@ -777,6 +787,19 @@ func main() {
 	admin.Get("/yatra/analytics/geography", yatraAdminHandler.GetGeography)
 	admin.Get("/yatra/analytics/themes", yatraAdminHandler.GetThemes)
 	admin.Get("/yatra/analytics/trends", yatraAdminHandler.GetTrends)
+
+	// Admin Dhama management
+	admin.Get("/dhama/places", dhamaHandler.AdminListPlaces)
+	admin.Get("/dhama/places/:id", dhamaHandler.AdminGetPlace)
+	admin.Post("/dhama/places", dhamaHandler.AdminCreatePlace)
+	admin.Put("/dhama/places/:id", dhamaHandler.AdminUpdatePlace)
+	admin.Post("/dhama/places/:id/publish", dhamaHandler.AdminPublishPlace)
+	admin.Post("/dhama/places/:id/archive", dhamaHandler.AdminArchivePlace)
+	admin.Delete("/dhama/places/:id", dhamaHandler.AdminDeletePlace)
+	admin.Post("/dhama/places/:id/media", dhamaHandler.AdminAttachMedia)
+	admin.Delete("/dhama/places/:id/media/:mediaTrackId", dhamaHandler.AdminDetachMedia)
+	admin.Post("/dhama/places/:id/yatras", dhamaHandler.AdminAttachYatra)
+	admin.Delete("/dhama/places/:id/yatras/:yatraId", dhamaHandler.AdminDetachYatra)
 
 	// Notifications
 	admin.Get("/notifications", yatraAdminHandler.GetNotifications)

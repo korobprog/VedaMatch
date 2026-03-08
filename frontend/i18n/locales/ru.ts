@@ -45,6 +45,28 @@ export default {
         no_markers_visible: 'На карте нет видимых меток',
         search_placeholder: 'Поиск на карте...',
     },
+    dhama: {
+        homeTitle: 'Дхама',
+        homeSubtitle: 'Святые места Индии с гидами, аудио и связанными ятрами.',
+        openMap: 'Открыть карту',
+        searchPlaceholder: 'Поиск святых мест...',
+        featured: 'Избранные места',
+        allPlaces: 'Все места',
+        empty: 'Пока нет святых мест.',
+        mapTitle: 'Карта Дхамы',
+        mapSubtitle: 'Исследуйте святые места Индии.',
+        audioSection: 'Аудиотека',
+        audioLecture: 'Лекция',
+        yatraSection: 'Связанные ятры',
+        sections: {
+            about: 'О месте',
+            rules: 'Правила посещения',
+            etiquette: 'Этикет',
+            tips: 'Советы паломнику',
+            practices: 'Рекомендуемая практика',
+            faq: 'FAQ',
+        },
+    },
     ads: {
         title: 'Объявления',
         sections: {

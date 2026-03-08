@@ -79,7 +79,7 @@ jest.mock('../../components/auth/VKAuthModal', () => ({
       ReactModule.createElement(MockText, null, 'VKAuthModal'),
       ReactModule.createElement(
         MockTouchableOpacity,
-        { onPress: () => onComplete('https://oauth.vk.com/blank.html#access_token=vk-access-token&state=vk-state') },
+        { onPress: () => onComplete('vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id') },
         ReactModule.createElement(MockText, null, 'Complete VK'),
       ),
     );
@@ -208,6 +208,35 @@ describe('LoginScreen localization and social auth', () => {
     });
   });
 
+  it('falls back to VK modal on Android when external launch fails and completes login from modal callback', async () => {
+    linkingOpenURLSpy.mockRejectedValueOnce(new Error('No activity found to handle VK auth'));
+    mockFinalizeVKSignIn.mockResolvedValue({
+      user: { ID: 18, email: 'vk-modal@example.com' },
+      authPayload: { accessToken: 'vk-modal-token' },
+    });
+
+    const screen = render(<LoginScreen navigation={navigation} route={route} />);
+    fireEvent.press(screen.getByText('VK'));
+
+    await waitFor(() => {
+      expect(linkingOpenURLSpy).toHaveBeenCalledWith('https://oauth.vk.com/authorize?state=vk-state');
+      expect(screen.getByText('VKAuthModal')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('Complete VK'));
+
+    await waitFor(() => {
+      expect(mockFinalizeVKSignIn).toHaveBeenCalledWith(
+        'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id',
+        'vk-state',
+      );
+      expect(mockLogin).toHaveBeenCalledWith(
+        { ID: 18, email: 'vk-modal@example.com' },
+        { accessToken: 'vk-modal-token' },
+      );
+    });
+  });
+
   it('starts Telegram auth, opens bot Mini App, and completes login from callback', async () => {
     mockFinalizeTelegramSignIn.mockResolvedValue({
       user: { ID: 10, email: 'telegram@example.com' },
@@ -274,6 +303,27 @@ describe('LoginScreen localization and social auth', () => {
         { ID: 9, email: 'vk-ios@example.com' },
         { accessToken: 'vk-ios-token' },
       );
+    });
+  });
+
+  it('shows detailed VK token exchange error instead of generic fallback', async () => {
+    mockFinalizeVKSignIn.mockRejectedValue(new Error('VK_TOKEN_EXCHANGE_FAILED:invalid_request:state is invalid'));
+
+    const screen = render(<LoginScreen navigation={navigation} route={route} />);
+    fireEvent.press(screen.getByText('VK'));
+
+    await waitFor(() => {
+      expect(linkingOpenURLSpy).toHaveBeenCalledWith('https://oauth.vk.com/authorize?state=vk-state');
+    });
+
+    await act(async () => {
+      vkUrlListeners.forEach((listener) => {
+        listener({ url: 'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id' });
+      });
+    });
+
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith('Ошибка', 'invalid_request:state is invalid');
     });
   });
 });

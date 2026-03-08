@@ -112,7 +112,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     const parsedUser = JSON.parse(savedUser);
                     setUser(parsedUser);
                     mmkvSetString('user', savedUser);
-                } catch (parseError) {
+                } catch {
                     console.warn('[UserContext] Failed to parse saved user, clearing storage');
                     await clearLocalSession();
                 }
@@ -123,7 +123,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setActiveMathId(savedActiveMath);
                 mmkvSetString('active_math_id', savedActiveMath);
             }
-        } catch (e) {
+        } catch {
             console.warn('[UserContext] Failed to load user from storage');
         } finally {
             setIsLoading(false);
@@ -131,7 +131,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [clearLocalSession]);
 
     useEffect(() => {
-        void loadUser();
+        loadUser().catch(() => undefined);
     }, [loadUser]);
 
     useEffect(() => {
@@ -155,7 +155,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             };
 
             // Initial heartbeat
-            void runHeartbeat();
+            runHeartbeat().catch(() => undefined);
 
             // Register push token
             AsyncStorage.getItem('pushToken').then(async token => {
@@ -178,7 +178,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
             // Set up interval (every 10 minutes — server throttles writes to 5min)
             heartbeatInterval = setInterval(() => {
-                void runHeartbeat();
+                runHeartbeat().catch(() => undefined);
             }, 10 * 60 * 1000);
         }
         return () => {
@@ -197,14 +197,21 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [activeMathId]);
 
     const login = useCallback(async (profile: UserProfile, authPayload?: any) => {
+        console.log('[GoogleAuth] UserContext.login:start');
         if (typeof authPayload === 'string' && authPayload.trim()) {
+            console.log('[GoogleAuth] UserContext.login:saveAuthTokens:string');
             await saveAuthTokens({ accessToken: authPayload, token: authPayload });
         } else if (authPayload && typeof authPayload === 'object') {
+            console.log('[GoogleAuth] UserContext.login:saveAuthTokens:object');
             await saveAuthTokens(authPayload);
         }
+        console.log('[GoogleAuth] UserContext.login:saveAuthTokens:done');
         mmkvSetString('user', JSON.stringify(profile));
+        console.log('[GoogleAuth] UserContext.login:mmkvSetUser:done');
         await AsyncStorage.setItem('user', JSON.stringify(profile));
+        console.log('[GoogleAuth] UserContext.login:asyncStorageSetUser:done');
         setUser(profile);
+        console.log('[GoogleAuth] UserContext.login:setUser:done');
     }, []);
 
     const deleteAccount = useCallback(async () => {

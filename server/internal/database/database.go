@@ -130,6 +130,7 @@ func Connect() {
 		&models.UserPlaylist{}, &models.UserPlaylistItem{},
 		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
 		&models.UserMediaHistory{},
+		&models.HolyPlace{}, &models.HolyPlaceMediaLink{}, &models.HolyPlaceYatraLink{},
 		&models.VideoCircle{}, &models.VideoCircleInteraction{},
 		&models.VideoTariff{}, &models.VideoCircleBillingLog{},
 		// Video-specific models

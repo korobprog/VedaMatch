@@ -1,0 +1,8 @@
+./ber.go
+./decrypt.go
+./encrypt.go
+./pkcs7.go
+./sign.go
+./sign_cert_v2.go
+./verify.go
+./verify_test_dsa.go

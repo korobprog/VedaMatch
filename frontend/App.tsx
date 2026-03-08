@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
 import { Platform, AppState } from 'react-native';
@@ -102,6 +102,7 @@ import { SellerOrdersScreen } from './screens/portal/shops/SellerOrdersScreen';
 import { MyProductsScreen } from './screens/portal/shops/MyProductsScreen';
 import { ShopsMapScreen } from './screens/portal/shops/ShopsMapScreen';
 import { MapGeoapifyScreen } from './screens/portal/map/MapGeoapifyScreen';
+import { DhamaHomeScreen, DhamaMapScreen, HolyPlaceDetailScreen } from './screens/dhama';
 
 import { EducationHomeScreen } from './screens/portal/education/EducationHomeScreen';
 import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
@@ -109,7 +110,6 @@ import { ExamTrainerScreen } from './screens/portal/education/ExamTrainerScreen'
 import { AITutorScreen } from './screens/portal/education/AITutorScreen';
 
 import {
-  CafeListScreen,
   CafeDetailScreen,
   DishDetailScreen,
   CafeCartScreen,
@@ -131,7 +131,6 @@ import {
 import { CafeCartProvider } from './contexts/CafeCartContext';
 
 import {
-  TravelHomeScreen,
   YatraDetailScreen,
   YatraPublishScreen,
   ShelterDetailScreen,
@@ -181,7 +180,7 @@ import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectio
 
 import { QueryProvider } from './providers/QueryProvider';
 
-import { StatusBar, useColorScheme, ActivityIndicator, Image, Text, View } from 'react-native';
+import { StatusBar, ActivityIndicator, Image, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationProvider } from './context/NotificationContext';
@@ -665,6 +664,9 @@ const AppContent = () => {
 
                   {/* Map Routes */}
                   <Stack.Screen name="MapGeoapify" component={MapGeoapifyScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="DhamaHome" component={DhamaHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="DhamaMap" component={DhamaMapScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="HolyPlaceDetail" component={HolyPlaceDetailScreen} options={{ headerShown: false }} />
 
                   {/* Cafe Routes */}
                   <Stack.Screen name="CafesMap" component={CafesMapScreen} options={{ headerShown: false }} />

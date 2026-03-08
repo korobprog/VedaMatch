@@ -69,6 +69,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
         return { kind: 'navigate', screen: 'MapGeoapify' };
     }
 
+    if (serviceId === 'dhama') {
+        return { kind: 'navigate', screen: 'DhamaHome' };
+    }
+
     if (serviceId === 'path_tracker') {
         return { kind: 'navigate', screen: 'PathTrackerHome' };
     }
