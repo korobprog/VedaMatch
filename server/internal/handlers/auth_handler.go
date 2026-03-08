@@ -243,6 +243,36 @@ func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models
 	return c.Status(statusCode).JSON(response)
 }
 
+func (h *AuthHandler) issueAuthResponseWithTelegramMobileState(c *fiber.Ctx, statusCode int, message string, user models.User, deviceID string, mobileAuthState string) error {
+	response, err := buildAuthResponsePayload(message, user, deviceID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	normalizedState := strings.TrimSpace(mobileAuthState)
+	if normalizedState != "" {
+		if h.telegramAuthService == nil {
+			h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+		}
+
+		rawPayload, marshalErr := json.Marshal(response)
+		if marshalErr != nil {
+			log.Printf("[AUTH] Failed to marshal Telegram mobile auth payload: %v", marshalErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not prepare Telegram mobile auth payload",
+			})
+		}
+
+		if _, completeErr := h.telegramAuthService.CompleteMobileAuthState(normalizedState, rawPayload); completeErr != nil {
+			return respondTelegramMobileAuthError(c, completeErr)
+		}
+	}
+
+	return c.Status(statusCode).JSON(response)
+}
+
 func respondTelegramAuthError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, services.ErrTelegramAuthDisabled):
@@ -1702,8 +1732,9 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		InitData string `json:"initData"`
-		DeviceID string `json:"deviceId"`
+		InitData        string `json:"initData"`
+		DeviceID        string `json:"deviceId"`
+		MobileAuthState string `json:"mobileAuthState"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -1769,7 +1800,14 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 		}
 	}
 	sanitizeUser(&user)
-	return issueAuthResponse(c, fiber.StatusOK, "Telegram login successful", user, req.DeviceID)
+	return h.issueAuthResponseWithTelegramMobileState(
+		c,
+		fiber.StatusOK,
+		"Telegram login successful",
+		user,
+		req.DeviceID,
+		req.MobileAuthState,
+	)
 }
 
 func (h *AuthHandler) TelegramMobileAuthStart(c *fiber.Ctx) error {
@@ -1862,10 +1900,11 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		InitData string `json:"initData"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		DeviceID string `json:"deviceId"`
+		InitData        string `json:"initData"`
+		Email           string `json:"email"`
+		Password        string `json:"password"`
+		DeviceID        string `json:"deviceId"`
+		MobileAuthState string `json:"mobileAuthState"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -1959,7 +1998,14 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 	user.TelegramLinkedAt = &now
 	sanitizeUser(&user)
 
-	return issueAuthResponse(c, fiber.StatusOK, "Telegram linked and login successful", user, req.DeviceID)
+	return h.issueAuthResponseWithTelegramMobileState(
+		c,
+		fiber.StatusOK,
+		"Telegram linked and login successful",
+		user,
+		req.DeviceID,
+		req.MobileAuthState,
+	)
 }
 
 func verifyPasswordWithLegacyFallback(storedPassword string, providedPassword string) (bool, bool) {

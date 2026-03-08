@@ -180,11 +180,6 @@ type TelegramWebApp = {
   ) => void;
 };
 
-type TelegramMobileBridgeResponse = {
-  state?: string;
-  deepLink?: string;
-};
-
 type Props = {
   initialHost: string;
   initialRegion: LKMRegion;
@@ -706,7 +701,7 @@ export default function LkmCabinetClient({
     return refreshPromise;
   }, [normalizedApiBaseUrl, applyAuthSession, clearAuthSession]);
 
-  const completeTelegramMobileBridge = useCallback(async (authPayload: LoginResponse): Promise<boolean> => {
+  const completeTelegramMobileBridge = useCallback(async (): Promise<boolean> => {
     if (!isTelegramMobileAuthFlow || !telegramMobileAuthState) {
       return false;
     }
@@ -715,16 +710,7 @@ export default function LkmCabinetClient({
     setTelegramMobileDeepLink('');
     setError('');
     try {
-      const response = await apiRequest<TelegramMobileBridgeResponse>('/auth/telegram/mobile/complete', {
-        method: 'POST',
-        timeoutMs: 10000,
-        body: {
-          state: telegramMobileAuthState,
-          authPayload,
-        },
-        skipAuthRefresh: true,
-      });
-      const deepLink = (response.deepLink || '').trim();
+      const deepLink = buildTelegramMobileReturnLink(telegramMobileAuthState);
       if (!deepLink) {
         throw new Error('Не удалось подготовить возврат в приложение');
       }
@@ -748,7 +734,7 @@ export default function LkmCabinetClient({
     setSessionRestoreAttempted(true);
     setError('');
     if (isTelegramMobileAuthFlow) {
-      await completeTelegramMobileBridge(authPayload);
+      await completeTelegramMobileBridge();
     } else {
       setSuccess(`Вход через ${providerLabel} выполнен`);
     }
@@ -1167,6 +1153,7 @@ export default function LkmCabinetClient({
           body: {
             initData: telegramInitData,
             deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
+            mobileAuthState: telegramMobileAuthState || undefined,
           },
           skipAuthRefresh: true,
         });
@@ -1177,7 +1164,7 @@ export default function LkmCabinetClient({
         setSessionRestoreAttempted(true);
         setTelegramLinkRequired(false);
         if (isTelegramMobileAuthFlow) {
-          await completeTelegramMobileBridge(response);
+          await completeTelegramMobileBridge();
         } else {
           setSuccess('Вход через Telegram выполнен');
         }
@@ -1462,6 +1449,7 @@ export default function LkmCabinetClient({
           email: email.trim(),
           password,
           deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
+          mobileAuthState: telegramMobileAuthState || undefined,
         }
         : {
           email: email.trim(),
@@ -1480,7 +1468,7 @@ export default function LkmCabinetClient({
       setSessionRestoreAttempted(true);
       setTelegramLinkRequired(false);
       if (isTelegramMobileAuthFlow) {
-        await completeTelegramMobileBridge(response);
+        await completeTelegramMobileBridge();
       } else {
         setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
       }

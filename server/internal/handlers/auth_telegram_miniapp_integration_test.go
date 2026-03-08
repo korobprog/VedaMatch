@@ -135,6 +135,75 @@ func TestAuthTelegramMiniAppLogin_SuccessForLinkedUser(t *testing.T) {
 	require.NotEmpty(t, body["refreshToken"])
 }
 
+func TestAuthTelegramMiniAppLogin_CompletesMobileBridgeWhenStateProvided(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	startPayload, _ := json.Marshal(map[string]string{
+		"deviceId": "tg-miniapp-device-bridge",
+	})
+	startReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/start", bytes.NewBuffer(startPayload))
+	startReq.Header.Set("Content-Type", "application/json")
+
+	startResp, err := app.Test(startReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, startResp.StatusCode)
+
+	var startBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(startResp.Body).Decode(&startBody))
+	state := strings.TrimSpace(fmt.Sprintf("%v", startBody["state"]))
+	require.NotEmpty(t, state)
+
+	telegramID := int64(700002)
+	user := createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
+		Email:          fmt.Sprintf("bridge-%d@VedaMatch.local", time.Now().UnixNano()),
+		Password:       "password123",
+		TelegramUserID: &telegramID,
+	})
+
+	initData := buildHandlerTelegramInitData(t, "test-telegram-auth-token", time.Now().UTC().Unix()-15, map[string]string{
+		"query_id": "AAH7V6YAAAAAb8R1mQ",
+		"user":     fmt.Sprintf(`{"id":%d,"first_name":"Bridge","username":"bridge_user","language_code":"ru"}`, telegramID),
+	})
+
+	loginPayload, _ := json.Marshal(map[string]string{
+		"initData":        initData,
+		"deviceId":        "tg-miniapp-device-bridge",
+		"mobileAuthState": state,
+	})
+	loginReq := httptest.NewRequest("POST", "/api/auth/telegram/miniapp/login", bytes.NewBuffer(loginPayload))
+	loginReq.Header.Set("Content-Type", "application/json")
+
+	loginResp, err := app.Test(loginReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, loginResp.StatusCode)
+
+	var loginBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(loginResp.Body).Decode(&loginBody))
+	require.NotEmpty(t, loginBody["accessToken"])
+	require.NotEmpty(t, loginBody["refreshToken"])
+
+	exchangePayload, _ := json.Marshal(map[string]string{
+		"state":    state,
+		"deviceId": "tg-miniapp-device-bridge",
+	})
+	exchangeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/exchange", bytes.NewBuffer(exchangePayload))
+	exchangeReq.Header.Set("Content-Type", "application/json")
+
+	exchangeResp, err := app.Test(exchangeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, exchangeResp.StatusCode)
+
+	var exchangeBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(exchangeResp.Body).Decode(&exchangeBody))
+	require.Equal(t, loginBody["accessToken"], exchangeBody["accessToken"])
+	require.Equal(t, loginBody["refreshToken"], exchangeBody["refreshToken"])
+
+	var refreshed models.User
+	require.NoError(t, database.DB.First(&refreshed, user.ID).Error)
+	require.Equal(t, "bridge_user", refreshed.TelegramUsername)
+}
+
 func TestAuthTelegramMiniAppLogin_ReturnsLinkRequired(t *testing.T) {
 	setupAuthTelegramMiniAppIntegrationDB(t)
 	app := newAuthTelegramMiniAppTestApp()
@@ -197,6 +266,78 @@ func TestAuthTelegramMiniAppLink_Success(t *testing.T) {
 	require.NotNil(t, refreshed.TelegramUserID)
 	require.EqualValues(t, telegramID, *refreshed.TelegramUserID)
 	require.Equal(t, "link_me", refreshed.TelegramUsername)
+}
+
+func TestAuthTelegramMiniAppLink_CompletesMobileBridgeWhenStateProvided(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	startPayload, _ := json.Marshal(map[string]string{
+		"deviceId": "tg-miniapp-link-bridge",
+	})
+	startReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/start", bytes.NewBuffer(startPayload))
+	startReq.Header.Set("Content-Type", "application/json")
+
+	startResp, err := app.Test(startReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, startResp.StatusCode)
+
+	var startBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(startResp.Body).Decode(&startBody))
+	state := strings.TrimSpace(fmt.Sprintf("%v", startBody["state"]))
+	require.NotEmpty(t, state)
+
+	email := fmt.Sprintf("link-bridge-%d@VedaMatch.local", time.Now().UnixNano())
+	user := createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
+		Email:    email,
+		Password: "password123",
+	})
+
+	telegramID := int64(702223)
+	initData := buildHandlerTelegramInitData(t, "test-telegram-auth-token", time.Now().UTC().Unix()-10, map[string]string{
+		"query_id": "AAH7V6YAAAAAb8R1mQ",
+		"user":     fmt.Sprintf(`{"id":%d,"first_name":"Link","last_name":"Bridge","username":"link_bridge","language_code":"en"}`, telegramID),
+	})
+
+	payload, _ := json.Marshal(map[string]string{
+		"initData":        initData,
+		"email":           email,
+		"password":        "password123",
+		"deviceId":        "tg-miniapp-link-bridge",
+		"mobileAuthState": state,
+	})
+	req := httptest.NewRequest("POST", "/api/auth/telegram/miniapp/link", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.NotEmpty(t, body["accessToken"])
+	require.NotEmpty(t, body["refreshToken"])
+
+	exchangePayload, _ := json.Marshal(map[string]string{
+		"state":    state,
+		"deviceId": "tg-miniapp-link-bridge",
+	})
+	exchangeReq := httptest.NewRequest("POST", "/api/auth/telegram/mobile/exchange", bytes.NewBuffer(exchangePayload))
+	exchangeReq.Header.Set("Content-Type", "application/json")
+
+	exchangeResp, err := app.Test(exchangeReq)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, exchangeResp.StatusCode)
+
+	var exchangeBody map[string]interface{}
+	require.NoError(t, json.NewDecoder(exchangeResp.Body).Decode(&exchangeBody))
+	require.Equal(t, body["accessToken"], exchangeBody["accessToken"])
+	require.Equal(t, body["refreshToken"], exchangeBody["refreshToken"])
+
+	var refreshed models.User
+	require.NoError(t, database.DB.First(&refreshed, user.ID).Error)
+	require.NotNil(t, refreshed.TelegramUserID)
+	require.EqualValues(t, telegramID, *refreshed.TelegramUserID)
 }
 
 func TestAuthTelegramMiniAppLink_Conflict(t *testing.T) {
