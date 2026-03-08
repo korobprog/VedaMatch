@@ -39,6 +39,8 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const { handleNewChat } = useChat();
     const {
         layout,
+        isServiceVisible,
+        getServiceMaintenanceMessage,
         isEditMode,
         setEditMode,
         addWidget,
@@ -106,8 +108,17 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         const quickItems = [...(layout.quickAccess || [])].sort((a, b) => a.position - b.position).slice(0, 3);
         return quickItems
             .map((item) => DEFAULT_SERVICES.find((service) => service.id === item.serviceId))
+            .filter((service) => (service ? isServiceVisible(service.id) : false))
             .filter((service): service is NonNullable<typeof service> => Boolean(service));
-    }, [layout.quickAccess]);
+    }, [isServiceVisible, layout.quickAccess]);
+
+    const showServiceUnavailableAlert = useCallback((serviceId: string) => {
+        const maintenanceMessage = getServiceMaintenanceMessage(serviceId);
+        Alert.alert(
+            'Service temporarily unavailable',
+            maintenanceMessage || 'This service is currently hidden for your account.',
+        );
+    }, [getServiceMaintenanceMessage]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -214,6 +225,10 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const handleQuickAccessPress = useCallback((serviceId: string) => {
         setEditMode(false);
+        if (!isServiceVisible(serviceId)) {
+            showServiceUnavailableAlert(serviceId);
+            return;
+        }
         const launch = resolveServiceLaunch(serviceId);
 
         if (launch.kind === 'assistant_chat') {
@@ -242,7 +257,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             origin: 'widget_dock',
             originServiceId: serviceId,
         });
-    }, [handleNewChat, navigateResolvedScreen, navigation, setEditMode]);
+    }, [handleNewChat, isServiceVisible, navigateResolvedScreen, navigation, setEditMode, showServiceUnavailableAlert]);
 
     const handleAddWidget = useCallback((widget: { type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel' | 'feed_quick' | 'feed_mix'; size: '1x1' | '2x1' | '2x2' }) => {
         const result = addWidget(widget);
@@ -306,8 +321,9 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         )}
                         <Gift size={18} color={accentIconColor} />
                     </TouchableOpacity>
+                    {isServiceVisible('video_circles') && (
                     <TouchableOpacity
-                        onPress={() => navigation.navigate('VideoCirclesScreen')}
+                        onPress={() => handleQuickAccessPress('video_circles')}
                         style={[
                             styles.headerCircularButton,
                             {
@@ -326,6 +342,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                         )}
                         <Film size={16} color={accentIconColor} />
                     </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                         onPress={openWidgetMenu}
                         style={[

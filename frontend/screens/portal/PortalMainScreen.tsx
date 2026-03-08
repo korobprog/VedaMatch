@@ -45,6 +45,7 @@ import { TravelHomeScreen } from './travel';
 import { ServicesHomeScreen } from './services';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
+import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { BellButton } from '../../components/portal/BellButton';
 import { NotificationPanel } from '../../components/portal/NotificationPanel';
@@ -78,6 +79,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { handleNewChat } = useChat();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
+    const { isServiceVisible, getServiceMaintenanceMessage } = usePortalLayout();
     const {
         vTheme,
         isDarkMode,
@@ -113,6 +115,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const widgetNavLockRef = useRef(false);
     const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showServiceUnavailableAlert = useCallback((serviceId: string) => {
+        const maintenanceMessage = getServiceMaintenanceMessage(serviceId);
+        Alert.alert(
+            'Service temporarily unavailable',
+            maintenanceMessage || 'This service is currently hidden for your account.',
+        );
+    }, [getServiceMaintenanceMessage]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -332,6 +342,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return;
         }
 
+        if (route.params?.initialTab && !isServiceVisible(route.params.initialTab)) {
+            showServiceUnavailableAlert(route.params.initialTab);
+            navigation.setParams({ initialTab: undefined });
+            return;
+        }
+
         if (launch.kind === 'open_portal_tab') {
             setActiveTab(launch.tab);
         } else if (launch.kind === 'navigate') {
@@ -343,7 +359,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             setIsMenuOpen(true);
         }
         navigation.setParams({ initialTab: undefined });
-    }, [route.params?.initialTab, navigation, navigateResolvedScreen, setIsMenuOpen, handleNewChat]);
+    }, [route.params?.initialTab, navigation, navigateResolvedScreen, setIsMenuOpen, handleNewChat, isServiceVisible, showServiceUnavailableAlert]);
 
     useEffect(() => {
         if (route.params?.resetToGridAt) {
@@ -378,6 +394,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     );
 
     const handleServicePress = useCallback((serviceId: string) => {
+        if (!isServiceVisible(serviceId)) {
+            showServiceUnavailableAlert(serviceId);
+            return;
+        }
         const launch = resolveServiceLaunch(serviceId);
 
         if (launch.kind === 'assistant_chat') {
@@ -439,7 +459,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         if (EMBEDDED_PORTAL_TABS.has(launch.tab)) {
             setActiveTab(launch.tab);
         }
-    }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen]);
+    }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen, isServiceVisible, showServiceUnavailableAlert]);
 
     const handleLinkedCallContactPress = useCallback(() => {
         if (activeTab === 'contacts') {
@@ -540,8 +560,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                                 </Animated.View>
                             </TouchableOpacity>
+                            {isServiceVisible('video_circles') && (
                             <TouchableOpacity
-                                onPress={() => navigation.navigate('VideoCirclesScreen')}
+                                onPress={() => handleServicePress('video_circles')}
                                 activeOpacity={0.9}
                                 style={[
                                     styles.headerCircularButton,
@@ -561,6 +582,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 )}
                                 <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
+                            )}
                             <TouchableOpacity
                                 onPress={() => openWidgetSelection('portal_header')}
                                 activeOpacity={0.9}

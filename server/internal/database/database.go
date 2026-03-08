@@ -78,7 +78,7 @@ func Connect() {
 		&models.FeedPost{}, &models.FeedMediaAsset{}, &models.FeedItem{}, &models.FeedCursorState{},
 		&models.FeedPostReaction{}, &models.FeedPostComment{},
 		&models.UserDeviceToken{}, &models.PushDeliveryEvent{},
-		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
+		&models.SystemSetting{}, &models.PortalServiceVisibility{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.ConnectCommunity{}, &models.ConnectOpportunity{},

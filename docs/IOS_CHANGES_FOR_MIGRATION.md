@@ -1,3 +1,119 @@
+## 2026-03-08 (Portal service visibility control added to shared mobile portal runtime)
+
+### Измененные файлы
+- `server/internal/models/portal_service_visibility.go`
+- `server/internal/handlers/portal_service_visibility.go`
+- `server/internal/database/database.go`
+- `server/cmd/api/main.go`
+- `admin/src/app/settings/page.tsx`
+- `frontend/types/portal.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile portal всегда рендерил сервисы только из локального каталога и сохраненного layout;
+  - админка не могла централизованно скрыть проблемный сервис без новой сборки;
+  - `beta`-доступ по тестовым `userId` для сервисов портала отсутствовал;
+  - deep-link/portal launch path не умел мягко блокировать скрытый сервис.
+- Стало:
+  - backend получил отдельную таблицу `portal_service_visibility` и admin/runtime API для effective visibility map;
+  - admin settings page теперь умеет управлять `Visible / Beta / Hidden`, allowlist и maintenance message по каждому `serviceId`;
+  - mobile `PortalLayoutContext` загружает runtime visibility map и фильтрует grid / folders / quick access до рендера;
+  - `PortalMainScreen` и `WidgetSelectionScreen` блокируют запуск скрытого сервиса и показывают fallback alert с maintenance message;
+  - поведение едино на iOS и Android, потому что используется shared React Native portal runtime.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+admin.Get("/portal/services/visibility", adminHandler.GetPortalServiceVisibility)
+admin.Put("/portal/services/visibility", adminHandler.UpdatePortalServiceVisibility)
+protected.Get("/system/portal-services-visibility", systemHandler.GetPortalServiceVisibility)
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+export const fetchPortalServiceVisibility = async (): Promise<PortalServiceVisibilityMap> => {
+  const response = await apiClient.get('/system/portal-services-visibility', { headers });
+  return response.data?.services as PortalServiceVisibilityMap;
+};
+```
+
+`frontend/context/PortalLayoutContext.tsx`:
+```ts
+const visibilityMap = await fetchPortalServiceVisibility();
+const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
+const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (!isServiceVisible(serviceId)) {
+  showServiceUnavailableAlert(serviceId);
+  return;
+}
+```
+## 2026-03-08 (Portal service visibility control added to shared mobile portal runtime)
+
+### Измененные файлы
+- `server/internal/models/portal_service_visibility.go`
+- `server/internal/handlers/portal_service_visibility.go`
+- `server/internal/database/database.go`
+- `server/cmd/api/main.go`
+- `admin/src/app/settings/page.tsx`
+- `frontend/types/portal.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile portal всегда рендерил сервисы только из локального каталога и сохраненного layout;
+  - админка не могла централизованно скрыть проблемный сервис без новой сборки;
+  - `beta`-доступ по тестовым `userId` для сервисов портала отсутствовал;
+  - deep-link/portal launch path не умел мягко блокировать скрытый сервис.
+- Стало:
+  - backend получил отдельную таблицу `portal_service_visibility` и admin/runtime API для effective visibility map;
+  - admin settings page теперь умеет управлять `Visible / Beta / Hidden`, allowlist и maintenance message по каждому `serviceId`;
+  - mobile `PortalLayoutContext` загружает runtime visibility map и фильтрует grid / folders / quick access до рендера;
+  - `PortalMainScreen` и `WidgetSelectionScreen` блокируют запуск скрытого сервиса и показывают fallback alert с maintenance message;
+  - поведение едино на iOS и Android, потому что используется shared React Native portal runtime.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+admin.Get("/portal/services/visibility", adminHandler.GetPortalServiceVisibility)
+admin.Put("/portal/services/visibility", adminHandler.UpdatePortalServiceVisibility)
+protected.Get("/system/portal-services-visibility", systemHandler.GetPortalServiceVisibility)
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+export const fetchPortalServiceVisibility = async (): Promise<PortalServiceVisibilityMap> => {
+  const response = await apiClient.get('/system/portal-services-visibility', { headers });
+  return response.data?.services as PortalServiceVisibilityMap;
+};
+```
+
+`frontend/context/PortalLayoutContext.tsx`:
+```ts
+const visibilityMap = await fetchPortalServiceVisibility();
+const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
+const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (!isServiceVisible(serviceId)) {
+  showServiceUnavailableAlert(serviceId);
+  return;
+}
+```
 # IOS Changes For Migration
 
 ## 2026-03-08 (EditProfile role carousel no longer triggers accidental swipe-back to portal)

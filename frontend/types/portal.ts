@@ -53,6 +53,14 @@ export interface ServiceDefinition {
     color: string;
 }
 
+export interface PortalServiceVisibilityEntry {
+    mode: 'visible' | 'beta' | 'hidden';
+    visible: boolean;
+    maintenanceMessage?: string;
+}
+
+export type PortalServiceVisibilityMap = Record<string, PortalServiceVisibilityEntry>;
+
 const DEVOTEE_ONLY_SERVICE_IDS = new Set(['ekadashi_calendar']);
 
 export const isServiceAllowedForRole = (serviceId: string, role?: string | null): boolean => {

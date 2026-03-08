@@ -4,6 +4,7 @@ import {
     PortalLayout,
     PortalFolder,
     PortalItem,
+    PortalServiceVisibilityMap,
     PortalWidget,
     createDefaultLayout,
     DEFAULT_SERVICES,
@@ -15,6 +16,10 @@ import {
     initializeLayout,
     fetchPortalBlueprint,
     fetchGodModeMathFilters,
+    fetchPortalServiceVisibility,
+    filterLayoutByPortalVisibility,
+    getPortalServiceMaintenanceMessage,
+    isPortalServiceVisibleForUser,
     addItemToFolder,
     removeItemFromFolder,
     reorderItems,
@@ -372,6 +377,7 @@ const ensureVideoCirclesShortcut = (inputLayout: PortalLayout): { layout: Portal
 
 interface PortalLayoutContextType {
     layout: PortalLayout;
+    serviceVisibilityMap: PortalServiceVisibilityMap;
     isEditMode: boolean;
     isLoading: boolean;
     currentPage: number;
@@ -409,6 +415,8 @@ interface PortalLayoutContextType {
 
     // Force refresh
     refreshLayout: () => Promise<void>;
+    isServiceVisible: (serviceId: string) => boolean;
+    getServiceMaintenanceMessage: (serviceId: string) => string;
 }
 
 const PortalLayoutContext = createContext<PortalLayoutContextType | undefined>(undefined);
@@ -416,6 +424,7 @@ const PortalLayoutContext = createContext<PortalLayoutContextType | undefined>(u
 export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user, setRoleDescriptor, setGodModeFilters, setActiveMath } = useUser();
     const [layout, setLayout] = useState<PortalLayout>(createDefaultLayout());
+    const [serviceVisibilityMap, setServiceVisibilityMap] = useState<PortalServiceVisibilityMap>({});
     const [isEditMode, setIsEditMode] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
@@ -426,6 +435,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             setRoleDescriptor(null);
             setGodModeFilters([]);
             setActiveMath(null);
+            setServiceVisibilityMap({});
             setLayout(createDefaultLayout());
             setIsLoading(false);
             return;
@@ -446,17 +456,21 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                     setActiveMath(null);
                 }
 
-                const savedLayout = await initializeLayout(role, blueprint);
+                const visibilityMap = await fetchPortalServiceVisibility();
+                setServiceVisibilityMap(visibilityMap);
+                const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
                 const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
                 const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-                if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged) {
-                    await saveLocalLayout(layoutWithCircles);
+                const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+                if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+                    await saveLocalLayout(filteredLayout);
                 }
-                setLayout(layoutWithCircles);
+                setLayout(filteredLayout);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
+                setServiceVisibilityMap({});
             } finally {
                 setIsLoading(false);
             }
@@ -466,9 +480,10 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     // Save layout whenever it changes
     const updateLayout = useCallback((newLayout: PortalLayout) => {
-        setLayout(newLayout);
-        saveLocalLayout(newLayout);
-    }, []);
+        const filteredLayout = filterLayoutByPortalVisibility(newLayout, serviceVisibilityMap);
+        setLayout(filteredLayout);
+        saveLocalLayout(filteredLayout);
+    }, [serviceVisibilityMap]);
 
     // === Folder Operations ===
     const createNewFolder = useCallback((name: string, color?: string) => {
@@ -655,24 +670,36 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
     const refreshLayout = useCallback(async () => {
         setIsLoading(true);
         try {
-            const savedLayout = await initializeLayout(user?.role || 'user');
+            const visibilityMap = await fetchPortalServiceVisibility();
+            setServiceVisibilityMap(visibilityMap);
+            const savedLayout = await initializeLayout(user?.role || 'user', undefined, visibilityMap);
             const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
             const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-            if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged) {
-                await saveLocalLayout(layoutWithCircles);
+            const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+            if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+                await saveLocalLayout(filteredLayout);
             }
-            setLayout(layoutWithCircles);
+            setLayout(filteredLayout);
         } finally {
             setIsLoading(false);
         }
     }, [user?.isProfileComplete, user?.role]);
 
+    const isServiceVisible = useCallback((serviceId: string) => (
+        isPortalServiceVisibleForUser(serviceId, serviceVisibilityMap)
+    ), [serviceVisibilityMap]);
+
+    const getServiceMaintenanceMessageForUI = useCallback((serviceId: string) => (
+        getPortalServiceMaintenanceMessage(serviceId, serviceVisibilityMap)
+    ), [serviceVisibilityMap]);
+
     return (
         <PortalLayoutContext.Provider
             value={{
                 layout,
+                serviceVisibilityMap,
                 isEditMode,
                 isLoading,
                 currentPage,
@@ -695,6 +722,8 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 setGridColumns,
                 setIconSize,
                 refreshLayout,
+                isServiceVisible,
+                getServiceMaintenanceMessage: getServiceMaintenanceMessageForUI,
             }}
         >
             {children}

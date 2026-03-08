@@ -43,8 +43,33 @@
 - После удаления последнего виджета empty-state в `WidgetSelection` не должен полагаться только на long-press: picker нужно открывать сразу, а на пустом холсте должна быть явная CTA-кнопка добавления виджета.
 - `WidgetSelection` и `WidgetCanvasGrid` должны использовать i18n для toolbar/empty-state/hint copy; не оставлять hardcoded `Done` и английские подсказки в UI.
 - Duplicate-alert при добавлении уже существующего виджета тоже должен идти через `portal.widgets.*`, а не через hardcoded English text.
-- Для глобального скрытия сервисов правильная архитектура: один server-side system setting c JSON-картой видимости сервисов, а не второй hardcoded список в admin/mobile.
-- Источник каталога сервисов на mobile остается `frontend/types/portal.ts::DEFAULT_SERVICES`; server setting должен только накладывать runtime-фильтр `visible/hidden`, не дублируя label/icon/color.
+
+## Portal Service Visibility
+- Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.
+- Backend хранит только runtime-политику видимости:
+  - `service_id`;
+  - `mode = visible | beta | hidden`;
+  - `tester_allowlist`;
+  - `maintenance_message`;
+  - `updated_by_user_id`.
+- Источник метаданных сервиса (`label`, `icon`, `color`) на mobile остается `frontend/types/portal.ts::DEFAULT_SERVICES`; backend не дублирует каталог.
+- Admin surface:
+  - `GET /api/admin/portal/services/visibility`;
+  - `PUT /api/admin/portal/services/visibility`;
+  - UI встроен в `admin/src/app/settings/page.tsx` как блок `Portal Services`.
+- Runtime surface для mobile:
+  - `GET /api/system/portal-services-visibility`;
+  - ответ содержит effective map `serviceId -> { mode, visible, maintenanceMessage }` уже с учетом текущего `userId`.
+- Правила видимости:
+  - `visible` — сервис доступен всем;
+  - `hidden` — сервис скрыт для всех;
+  - `beta` — сервис доступен только `userId` из allowlist.
+- Если policy для `service_id` отсутствует, сервис считается `visible` по умолчанию.
+- Portal entry points на mobile должны подчиняться этой карте видимости:
+  - grid;
+  - quick access dock;
+  - запуск сервиса из `PortalMainScreen`;
+  - quick-access launch на `WidgetSelectionScreen`.
 
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.

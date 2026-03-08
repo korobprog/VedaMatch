@@ -1,7 +1,7 @@
 // Portal Layout Service - Hybrid storage (AsyncStorage + Server)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
-import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS, isServiceAllowedForRole } from '../types/portal';
+import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, PortalServiceVisibilityMap, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS, isServiceAllowedForRole } from '../types/portal';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
@@ -13,6 +13,14 @@ const SYNC_DEBOUNCE_MS = 5000; // Sync to server after 5 seconds of inactivity
 let syncTimeout: NodeJS.Timeout | null = null;
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((service) => service.id));
 let hasLoggedOfflineDevPortalFallback = false;
+
+export const isPortalServiceVisibleForUser = (serviceId: string, visibilityMap: PortalServiceVisibilityMap = {}): boolean => (
+    visibilityMap[serviceId]?.visible ?? true
+);
+
+export const getPortalServiceMaintenanceMessage = (serviceId: string, visibilityMap: PortalServiceVisibilityMap = {}): string => (
+    visibilityMap[serviceId]?.maintenanceMessage || ''
+);
 
 // Load layout from local storage (fast)
 export const loadLocalLayout = async (): Promise<PortalLayout> => {
@@ -147,6 +155,36 @@ const filterLayoutByRole = (layout: PortalLayout, role?: string): PortalLayout =
     };
 };
 
+export const filterLayoutByPortalVisibility = (
+    layout: PortalLayout,
+    visibilityMap: PortalServiceVisibilityMap = {},
+): PortalLayout => ({
+    ...layout,
+    pages: layout.pages.map((page) => ({
+        ...page,
+        items: page.items
+            .map((item) => {
+                if (item.type === 'service') {
+                    return item;
+                }
+                return {
+                    ...item,
+                    items: item.items.filter((folderItem) => isPortalServiceVisibleForUser(folderItem.serviceId, visibilityMap)),
+                };
+            })
+            .filter((item) => {
+                if (item.type === 'service') {
+                    return isPortalServiceVisibleForUser(item.serviceId, visibilityMap);
+                }
+                return item.items.length > 0;
+            })
+            .map((item, index) => ({ ...item, position: index })),
+    })),
+    quickAccess: layout.quickAccess
+        .filter((item) => isPortalServiceVisibleForUser(item.serviceId, visibilityMap))
+        .map((item, index) => ({ ...item, position: index })),
+});
+
 export const fetchPortalBlueprint = async (role?: string): Promise<PortalBlueprint> => {
     const normalizedRole = (role || 'user').toLowerCase();
     try {
@@ -178,6 +216,22 @@ export const fetchGodModeMathFilters = async (): Promise<MathFilter[]> => {
         console.warn('Failed to fetch god-mode math filters:', error);
     }
     return [];
+};
+
+export const fetchPortalServiceVisibility = async (): Promise<PortalServiceVisibilityMap> => {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) {
+            return {};
+        }
+        const response = await apiClient.get('/system/portal-services-visibility', { headers });
+        if (response.data?.services && typeof response.data.services === 'object') {
+            return response.data.services as PortalServiceVisibilityMap;
+        }
+    } catch (error) {
+        console.warn('Failed to fetch portal service visibility:', error);
+    }
+    return {};
 };
 
 export const applyRoleBlueprint = (layout: PortalLayout, blueprint?: PortalBlueprint): PortalLayout => {
@@ -377,7 +431,11 @@ const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
 };
 
 // Merge local and server layouts (server wins if newer)
-export const initializeLayout = async (role?: string, blueprint?: PortalBlueprint): Promise<PortalLayout> => {
+export const initializeLayout = async (
+    role?: string,
+    blueprint?: PortalBlueprint,
+    visibilityMap: PortalServiceVisibilityMap = {},
+): Promise<PortalLayout> => {
     let localLayout = await loadLocalLayout();
 
     try {
@@ -392,6 +450,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
                 updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
                 updatedServer = filterLayoutByRole(updatedServer, role);
+                updatedServer = filterLayoutByPortalVisibility(updatedServer, visibilityMap);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
             }
@@ -413,6 +472,7 @@ export const initializeLayout = async (role?: string, blueprint?: PortalBlueprin
     }
     updatedLocal = applyRoleBlueprint(updatedLocal, blueprint);
     updatedLocal = filterLayoutByRole(updatedLocal, role);
+    updatedLocal = filterLayoutByPortalVisibility(updatedLocal, visibilityMap);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);
     }

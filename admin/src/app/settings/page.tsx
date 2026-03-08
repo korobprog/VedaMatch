@@ -125,6 +125,21 @@ interface TutorMetricsState {
     no_data_rate: number;
 }
 
+type PortalServiceMode = 'visible' | 'beta' | 'hidden';
+
+interface PortalServiceVisibilityItem {
+    serviceId: string;
+    mode: PortalServiceMode;
+    testerAllowlist: number[];
+    maintenanceMessage: string;
+    isDefault: boolean;
+}
+
+interface PortalServiceVisibilityDraft extends PortalServiceVisibilityItem {
+    testerAllowlistInput: string;
+    validationError: string | null;
+}
+
 const DEFAULT_SETTINGS: SettingsState = {
     API_OPEN_AI: '',
     GEMINI_API_KEY: '',
@@ -211,6 +226,7 @@ export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
     const [loadingTutorMetrics, setLoadingTutorMetrics] = useState(false);
     const [tutorMetrics, setTutorMetrics] = useState<TutorMetricsState | null>(null);
+    const [portalServiceVisibility, setPortalServiceVisibility] = useState<PortalServiceVisibilityDraft[]>([]);
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
@@ -223,6 +239,7 @@ export default function SettingsPage() {
         }
 
         fetchSettings();
+        fetchPortalServiceVisibility();
     }, []);
 
     useEffect(() => {
@@ -250,6 +267,23 @@ export default function SettingsPage() {
             setTutorMetrics(null);
         } finally {
             setLoadingTutorMetrics(false);
+        }
+    };
+
+    const fetchPortalServiceVisibility = async () => {
+        try {
+            const res = await api.get('/admin/portal/services/visibility');
+            const items = Array.isArray(res.data?.items) ? res.data.items as PortalServiceVisibilityItem[] : [];
+            setPortalServiceVisibility(
+                items.map((item) => ({
+                    ...item,
+                    testerAllowlistInput: item.testerAllowlist.join(', '),
+                    validationError: null,
+                })),
+            );
+        } catch (err) {
+            console.error('Failed to fetch portal service visibility', err);
+            setPortalServiceVisibility([]);
         }
     };
 
@@ -297,10 +331,93 @@ export default function SettingsPage() {
         }
     };
 
+    const updatePortalServiceVisibilityDraft = (serviceId: string, patch: Partial<PortalServiceVisibilityDraft>) => {
+        setPortalServiceVisibility((prev) => prev.map((item) => {
+            if (item.serviceId !== serviceId) {
+                return item;
+            }
+            return {
+                ...item,
+                ...patch,
+                validationError: patch.validationError !== undefined ? patch.validationError : null,
+            };
+        }));
+    };
+
+    const parsePortalAllowlistInput = (raw: string): { ids: number[]; error: string | null } => {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+            return { ids: [], error: null };
+        }
+        const parts = trimmed.split(',');
+        const uniqueIds = new Set<number>();
+        for (const part of parts) {
+            const value = part.trim();
+            if (!value) {
+                continue;
+            }
+            if (!/^\d+$/.test(value)) {
+                return { ids: [], error: 'Only numeric user IDs separated by commas are allowed.' };
+            }
+            uniqueIds.add(Number(value));
+        }
+        return { ids: Array.from(uniqueIds).sort((a, b) => a - b), error: null };
+    };
+
+    const buildPortalServiceVisibilityPayload = () => {
+        let hasError = false;
+        const nextDrafts = portalServiceVisibility.map((item) => {
+            if (item.mode !== 'beta') {
+                return {
+                    ...item,
+                    testerAllowlistInput: '',
+                    validationError: null,
+                };
+            }
+            const parsed = parsePortalAllowlistInput(item.testerAllowlistInput);
+            if (parsed.error) {
+                hasError = true;
+            }
+            return {
+                ...item,
+                testerAllowlist: parsed.ids,
+                validationError: parsed.error,
+            };
+        });
+
+        setPortalServiceVisibility(nextDrafts);
+        if (hasError) {
+            return null;
+        }
+
+        return nextDrafts.map((item) => ({
+            serviceId: item.serviceId,
+            mode: item.mode,
+            testerAllowlist: item.mode === 'beta' ? item.testerAllowlist : [],
+            maintenanceMessage: item.maintenanceMessage.trim(),
+            isDefault: item.isDefault,
+        }));
+    };
+
     const handleSave = async () => {
+        const portalVisibilityPayload = buildPortalServiceVisibilityPayload();
+        if (!portalVisibilityPayload) {
+            return;
+        }
         setLoading(true);
         try {
             await api.post('/admin/settings', settings);
+            const portalVisibilityRes = await api.put('/admin/portal/services/visibility', {
+                items: portalVisibilityPayload,
+            });
+            const nextItems = Array.isArray(portalVisibilityRes.data?.items) ? portalVisibilityRes.data.items as PortalServiceVisibilityItem[] : [];
+            setPortalServiceVisibility(
+                nextItems.map((item) => ({
+                    ...item,
+                    testerAllowlistInput: item.testerAllowlist.join(', '),
+                    validationError: null,
+                })),
+            );
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
@@ -1407,6 +1524,78 @@ export default function SettingsPage() {
                                                     onChange={(e) => setSettings({ ...settings, YOUTUBE_DESCRIPTION_TEMPLATE: e.target.value })}
                                                     className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20 min-h-[96px]"
                                                 />
+                                            </div>
+
+                                            <div className="pt-2 border-t border-[var(--border)]/60 space-y-4">
+                                                <div>
+                                                    <p className="text-sm font-semibold">Portal Services</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)]">
+                                                        Runtime visibility control for mobile portal entry points. `Visible` shows to everyone, `Beta` shows only to listed tester `userId`, `Hidden` removes the service from portal entry points.
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {portalServiceVisibility.map((item) => (
+                                                        <div
+                                                            key={item.serviceId}
+                                                            className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 space-y-3"
+                                                        >
+                                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <p className="text-sm font-semibold">{item.serviceId}</p>
+                                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.isDefault ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                                                            {item.isDefault ? 'default' : 'custom'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-[11px] text-[var(--muted-foreground)]">
+                                                                        {item.mode === 'visible' && 'Visible to all users.'}
+                                                                        {item.mode === 'beta' && 'Visible only to tester allowlist.'}
+                                                                        {item.mode === 'hidden' && 'Hidden for all users and blocked in portal entry points.'}
+                                                                    </p>
+                                                                </div>
+
+                                                                <select
+                                                                    value={item.mode}
+                                                                    onChange={(e) => updatePortalServiceVisibilityDraft(item.serviceId, { mode: e.target.value as PortalServiceMode })}
+                                                                    className="w-full sm:w-40 bg-[var(--secondary)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                                >
+                                                                    <option value="visible">Visible</option>
+                                                                    <option value="beta">Beta</option>
+                                                                    <option value="hidden">Hidden</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">Tester allowlist</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={item.mode === 'beta' ? item.testerAllowlistInput : ''}
+                                                                        disabled={item.mode !== 'beta'}
+                                                                        onChange={(e) => updatePortalServiceVisibilityDraft(item.serviceId, { testerAllowlistInput: e.target.value })}
+                                                                        placeholder="123, 456"
+                                                                        className={`w-full border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 bg-[var(--secondary)] ${item.validationError ? 'focus:ring-red-500/20 ring-1 ring-red-400/50' : 'focus:ring-[var(--primary)]/20'}`}
+                                                                    />
+                                                                    <p className={`text-[11px] ${item.validationError ? 'text-red-500' : 'text-[var(--muted-foreground)]'}`}>
+                                                                        {item.validationError || 'Comma-separated numeric user IDs. Ignored unless mode is Beta.'}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">Maintenance message</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={item.maintenanceMessage}
+                                                                        onChange={(e) => updatePortalServiceVisibilityDraft(item.serviceId, { maintenanceMessage: e.target.value })}
+                                                                        placeholder="Service is temporarily unavailable"
+                                                                        className="w-full bg-[var(--secondary)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
