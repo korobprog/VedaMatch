@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAuthData } from './auth';
 
 const normalizeApiBaseURL = (rawBaseURL: string): string => {
     const trimmedBaseURL = rawBaseURL.trim().replace(/\/+$/, '');
@@ -61,5 +62,20 @@ api.interceptors.request.use((config) => {
     }
     return config;
 });
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (typeof window !== 'undefined' && error?.response?.status === 401) {
+            clearAuthData();
+            const pathname = window.location.pathname;
+            const authRoutes = new Set(['/login', '/admin-login', '/register']);
+            if (!authRoutes.has(pathname)) {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    },
+);
 
 export default api;

@@ -78,6 +78,9 @@
   - показывать карточку как `app-only` / `В приложении`;
   - для доступных web routes можно ставить `prefetch={false}` если маршрут дорогой или нестабилен.
 - `admin/src/app/monetization/page.tsx` должен нормализовать backend response (`sections`, `items`, `actions`) до массивов перед `.map`, потому что на внешнем сервере неполная секция легко вызывает `Cannot read properties of undefined (reading 'map')`.
+- `admin/src/app/settings/page.tsx` не должен считать `401` рабочей ошибкой страницы:
+  - при отсутствии локального admin token страница должна сразу редиректить на `/login` без API-запросов;
+  - если `api` interceptor уже получил `401` и чистит сессию, page-level `catch` не должен дополнительно заспамливать консоль как будто это отдельная функциональная поломка.
 
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.

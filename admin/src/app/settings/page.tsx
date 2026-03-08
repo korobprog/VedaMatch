@@ -23,6 +23,7 @@ import {
     Newspaper
 } from 'lucide-react';
 import api from '@/lib/api';
+import { getAuthToken } from '@/lib/auth';
 
 interface AdminData {
     spiritualName?: string;
@@ -228,6 +229,13 @@ export default function SettingsPage() {
     const [tutorMetrics, setTutorMetrics] = useState<TutorMetricsState | null>(null);
     const [portalServiceVisibility, setPortalServiceVisibility] = useState<PortalServiceVisibilityDraft[]>([]);
 
+    const isUnauthorizedError = (error: unknown): boolean => (
+        typeof error === 'object'
+        && error !== null
+        && 'response' in error
+        && (error as { response?: { status?: number } }).response?.status === 401
+    );
+
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
         if (data) {
@@ -236,6 +244,11 @@ export default function SettingsPage() {
             } catch (e) {
                 console.error('Failed to parse admin_data from localStorage', e);
             }
+        }
+
+        if (!getAuthToken()) {
+            window.location.replace('/login');
+            return;
         }
 
         fetchSettings();
@@ -253,6 +266,9 @@ export default function SettingsPage() {
             const res = await api.get('/admin/settings');
             setSettings(prev => ({ ...prev, ...(res.data as Partial<SettingsState>) }));
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                return;
+            }
             console.error('Failed to fetch settings', err);
         }
     };
@@ -263,6 +279,10 @@ export default function SettingsPage() {
             const res = await api.get(`/admin/education/tutor/metrics?window_hours=${windowHours}`);
             setTutorMetrics(res.data as TutorMetricsState);
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                setTutorMetrics(null);
+                return;
+            }
             console.error('Failed to fetch tutor metrics', err);
             setTutorMetrics(null);
         } finally {
@@ -282,6 +302,10 @@ export default function SettingsPage() {
                 })),
             );
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                setPortalServiceVisibility([]);
+                return;
+            }
             console.error('Failed to fetch portal service visibility', err);
             setPortalServiceVisibility([]);
         }
@@ -305,6 +329,10 @@ export default function SettingsPage() {
                 setCorpora([]);
             }
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                setCorpora([]);
+                return;
+            }
             console.error('Failed to fetch corpora', err);
             alert('Failed to fetch corpora. Check API Key permission.');
         } finally {
@@ -324,6 +352,9 @@ export default function SettingsPage() {
             fetchCorpora(); // Refresh list
             alert(`Corpus created: ${res.data.name}`);
         } catch (err) {
+            if (isUnauthorizedError(err)) {
+                return;
+            }
             console.error('Failed to create corpus', err);
             alert('Failed to create corpus.');
         } finally {
