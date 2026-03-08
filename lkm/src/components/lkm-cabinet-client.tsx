@@ -1748,6 +1748,17 @@ export default function LkmCabinetClient({
                     : 'Если приложение не открылось автоматически, используйте кнопку ниже.'
                   : 'Сессия продлевается автоматически, пока действует refresh-сессия.'}
               </p>
+              {isTelegramMobileAuthFlow && telegramMobileDeepLink ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    openMobileReturnLink(telegramMobileDeepLink);
+                  }}
+                >
+                  Вернуться в приложение
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="secondary"
@@ -2023,22 +2034,6 @@ export default function LkmCabinetClient({
 
       {error ? <div className="flash error">{error}</div> : null}
       {success ? <div className="flash success">{success}</div> : null}
-      {telegramMobileDeepLink ? (
-        <div className="flash success">
-          <p>Если VedaMatch не открылся автоматически, нажмите кнопку ниже.</p>
-          <p>
-            <a
-              href={telegramMobileDeepLink}
-              onClick={(event) => {
-                event.preventDefault();
-                openMobileReturnLink(telegramMobileDeepLink);
-              }}
-            >
-              Вернуться в приложение
-            </a>
-          </p>
-        </div>
-      ) : null}
     </main>
   );
 

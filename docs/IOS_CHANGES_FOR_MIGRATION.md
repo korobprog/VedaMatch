@@ -11717,7 +11717,7 @@ const getVKAndroidRedirectUri = (): string => {
 - Стало:
   - `lkm` открывает callback URL через `Telegram.WebApp.openLink(..., { try_browser: 'external' })`, если Telegram WebApp API доступен;
   - если API недоступен или отклоняет вызов, используется fallback `window.open(..., '_blank')` и только потом `window.location.replace(...)`;
-  - кнопка `Вернуться в приложение` использует ту же логику, а не голый `href`.
+  - кнопка `Вернуться в приложение` использует ту же логику, а не голый `href`, и рендерится в основном success-блоке рядом с `Выйти`, чтобы CTA не терялся ниже по странице.
 
 ### Сниппеты кода
 
