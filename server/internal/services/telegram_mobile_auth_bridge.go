@@ -18,6 +18,8 @@ const (
 	telegramMobileAuthStatePrefix = "telegram_auth:mobile:state:"
 	telegramMobileAuthStartPrefix = "vm_auth_"
 	defaultTelegramBotURL         = "https://t.me/vedamatch_bot"
+	defaultTelegramMobileCallback = "vedamatch://auth/telegram/callback"
+	defaultTelegramUniversalAuth  = "https://api.vedamatch.ru/auth/telegram/callback"
 )
 
 var (
@@ -108,7 +110,13 @@ func (s *TelegramAuthService) ResolveMobileAuthLaunchURL(state string) string {
 func (s *TelegramAuthService) ResolveMobileAuthDeepLink(state string) string {
 	query := url.Values{}
 	query.Set("state", strings.TrimSpace(state))
-	return "vedamatch://auth/telegram/callback?" + query.Encode()
+	return defaultTelegramUniversalAuth + "?" + query.Encode()
+}
+
+func (s *TelegramAuthService) ResolveMobileAuthNativeDeepLink(state string) string {
+	query := url.Values{}
+	query.Set("state", strings.TrimSpace(state))
+	return defaultTelegramMobileCallback + "?" + query.Encode()
 }
 
 func (s *TelegramAuthService) CreateMobileAuthState(deviceID string) (TelegramMobileAuthState, error) {

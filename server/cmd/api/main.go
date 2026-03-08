@@ -187,7 +187,7 @@ func main() {
 				"details": [
 					{
 						"appID": "CVW85BZU5Z.com.VedaMatch.vedamatch",
-						"paths": ["/auth/vk/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
+						"paths": ["/auth/vk/callback", "/auth/telegram/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
 					}
 				]
 			}
@@ -199,9 +199,12 @@ func main() {
 			{
 				"relation": []string{"delegate_permission/common.handle_all_urls"},
 				"target": map[string]interface{}{
-					"namespace":                "android_app",
-					"package_name":             "com.ragagent",
-					"sha256_cert_fingerprints": []string{"YOUR_ANDROID_SHA256_FINGERPRINT"},
+					"namespace":    "android_app",
+					"package_name": "com.ragagent",
+					"sha256_cert_fingerprints": []string{
+						"CD:FE:7C:7A:51:BF:85:60:32:F7:B1:93:5D:D7:39:AE:7A:AC:32:BB:39:2A:E8:C1:15:89:3E:AD:75:F0:0B:C1",
+						"4E:07:51:37:28:12:DB:3D:FD:4A:5B:71:84:9B:C0:BC:AB:21:A0:2E:6C:01:E3:1A:B7:A2:6C:66:D1:CE:D4:FB",
+					},
 				},
 			},
 		})
@@ -324,6 +327,7 @@ func main() {
 	// VK OAuth callback alias without /api (matches provider console redirect URI constraints in current rollout)
 	app.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback_alias", 120, 10*time.Minute), authHandler.VKCallback)
 	app.Get("/auth/vk/web/callback", middleware.RateLimitByIP("auth_vk_web_callback_alias", 120, 10*time.Minute), authHandler.VKWebCallback)
+	app.Get("/auth/telegram/callback", middleware.RateLimitByIP("auth_telegram_callback_alias", 120, 10*time.Minute), authHandler.TelegramMobileCallback)
 
 	api := app.Group("/api")
 
@@ -336,6 +340,7 @@ func main() {
 	api.Get("/auth/vk/web/start", middleware.RateLimitByIP("auth_vk_web_start", 120, 10*time.Minute), authHandler.VKWebStart)
 	api.Get("/auth/vk/callback", middleware.RateLimitByIP("auth_vk_callback", 120, 10*time.Minute), authHandler.VKCallback)
 	api.Get("/auth/vk/web/callback", middleware.RateLimitByIP("auth_vk_web_callback", 120, 10*time.Minute), authHandler.VKWebCallback)
+	api.Get("/auth/telegram/callback", middleware.RateLimitByIP("auth_telegram_callback", 120, 10*time.Minute), authHandler.TelegramMobileCallback)
 	api.Post("/auth/telegram/mobile/start", middleware.RateLimitByIP("auth_telegram_mobile_start", 60, 10*time.Minute), authHandler.TelegramMobileAuthStart)
 	api.Post("/auth/telegram/mobile/complete", middleware.RateLimitByIP("auth_telegram_mobile_complete", 120, 10*time.Minute), authHandler.TelegramMobileAuthComplete)
 	api.Post("/auth/telegram/mobile/exchange", middleware.RateLimitByIP("auth_telegram_mobile_exchange", 120, 10*time.Minute), authHandler.TelegramMobileAuthExchange)

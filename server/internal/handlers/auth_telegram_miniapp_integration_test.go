@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http/httptest"
 	"net/url"
 	"sort"
@@ -62,6 +63,8 @@ func setupAuthTelegramMiniAppIntegrationDB(t *testing.T) *gorm.DB {
 func newAuthTelegramMiniAppTestApp() *fiber.App {
 	app := fiber.New()
 	handler := NewAuthHandler(nil, nil)
+	app.Get("/auth/telegram/callback", handler.TelegramMobileCallback)
+	app.Get("/api/auth/telegram/callback", handler.TelegramMobileCallback)
 	app.Post("/api/auth/telegram/mobile/start", handler.TelegramMobileAuthStart)
 	app.Post("/api/auth/telegram/mobile/complete", handler.TelegramMobileAuthComplete)
 	app.Post("/api/auth/telegram/mobile/exchange", handler.TelegramMobileAuthExchange)
@@ -322,7 +325,7 @@ func TestAuthTelegramMobileBridge_StartCompleteExchange(t *testing.T) {
 	var completeBody map[string]interface{}
 	require.NoError(t, json.NewDecoder(completeResp.Body).Decode(&completeBody))
 	require.Equal(t, state, strings.TrimSpace(fmt.Sprintf("%v", completeBody["state"])))
-	require.Equal(t, fmt.Sprintf("vedamatch://auth/telegram/callback?state=%s", url.QueryEscape(state)), strings.TrimSpace(fmt.Sprintf("%v", completeBody["deepLink"])))
+	require.Equal(t, fmt.Sprintf("https://api.vedamatch.ru/auth/telegram/callback?state=%s", url.QueryEscape(state)), strings.TrimSpace(fmt.Sprintf("%v", completeBody["deepLink"])))
 
 	exchangePayload, _ := json.Marshal(map[string]string{
 		"state":    state,
@@ -346,6 +349,23 @@ func TestAuthTelegramMobileBridge_StartCompleteExchange(t *testing.T) {
 	replayResp, err := app.Test(replayReq)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusConflict, replayResp.StatusCode)
+}
+
+func TestAuthTelegramMobileCallback_RendersFallbackRedirectPage(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	req := httptest.NewRequest("GET", "/auth/telegram/callback?state=test-state", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	body, readErr := io.ReadAll(resp.Body)
+	require.NoError(t, readErr)
+	rendered := string(body)
+	require.Contains(t, rendered, "Авторизация завершена. Возвращаемся в приложение VedaMatch...")
+	require.Contains(t, rendered, "vedamatch://auth/telegram/callback?state=test-state")
+	require.Contains(t, rendered, "Открыть VedaMatch")
 }
 
 func TestAuthTelegramMobileBridge_RejectsDeviceMismatch(t *testing.T) {

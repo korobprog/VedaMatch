@@ -1405,6 +1405,27 @@ func renderWebSocialAuthPopup(c *fiber.Ctx, targetOrigin string, message fiber.M
 	)
 }
 
+func renderMobileDeepLinkRedirectPage(c *fiber.Ctx, deepLink string, statusText string) error {
+	deepLinkJSON, err := json.Marshal(strings.TrimSpace(deepLink))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Could not prepare deep link redirect")
+	}
+	statusJSON, err := json.Marshal(strings.TrimSpace(statusText))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Could not prepare redirect status")
+	}
+
+	c.Type("html", "utf-8")
+	return c.SendString(
+		"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>VedaMatch</title></head><body>" +
+			"<script>(function(){const deepLink=" + string(deepLinkJSON) + ";const statusText=" + string(statusJSON) + ";" +
+			"document.body.style.fontFamily='system-ui,sans-serif';document.body.style.padding='24px';document.body.style.lineHeight='1.5';" +
+			"document.body.innerHTML='<h1 style=\"font-size:24px;margin-bottom:12px;\">'+statusText+'</h1><p style=\"margin-bottom:16px;\">Если приложение не открылось автоматически, нажмите кнопку ниже.</p><p><a id=\"open-app\" href=\"'+deepLink+'\" style=\"display:inline-block;padding:12px 18px;border-radius:12px;background:#0B57D0;color:#fff;text-decoration:none;font-weight:600;\">Открыть VedaMatch</a></p>';" +
+			"window.setTimeout(function(){window.location.replace(deepLink);},120);" +
+			"})();</script></body></html>",
+	)
+}
+
 func (h *AuthHandler) VKWebStart(c *fiber.Ctx) error {
 	if h.webSocialAuthBridge == nil {
 		h.webSocialAuthBridge = services.NewWebSocialAuthBridgeService()
@@ -1644,6 +1665,35 @@ func (h *AuthHandler) VKCallback(c *fiber.Ctx) error {
 
 	deepLink := "vedamatch://auth/vk/callback?" + deepLinkQuery.Encode()
 	return c.Redirect(deepLink, fiber.StatusFound)
+}
+
+func (h *AuthHandler) TelegramMobileCallback(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	state := strings.TrimSpace(c.Query("state"))
+	authErr := strings.TrimSpace(c.Query("error"))
+
+	deepLinkQuery := url.Values{}
+	if state != "" {
+		deepLinkQuery.Set("state", state)
+	}
+	if authErr != "" {
+		deepLinkQuery.Set("error", authErr)
+	}
+
+	deepLink := h.telegramAuthService.ResolveMobileAuthNativeDeepLink(state)
+	if deepLinkQuery.Encode() != "" {
+		deepLink = "vedamatch://auth/telegram/callback?" + deepLinkQuery.Encode()
+	}
+
+	statusText := "Авторизация завершена. Возвращаемся в приложение VedaMatch..."
+	if authErr != "" {
+		statusText = "Авторизация завершилась с ошибкой. Вернитесь в приложение VedaMatch и попробуйте снова."
+	}
+
+	return renderMobileDeepLinkRedirectPage(c, deepLink, statusText)
 }
 
 func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
