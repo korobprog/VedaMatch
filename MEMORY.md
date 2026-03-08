@@ -152,11 +152,14 @@
   - `GET /api/auth/social/config` отдает публичную конфигурацию для web login;
   - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;
   - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`;
-  - для Google Web Client в консоли должны быть добавлены `Authorized JavaScript origins` как минимум для `https://lkm.vedamatch.ru` и `https://lkm.vedamatch.com`, иначе Google popup отдает `401 invalid_client / no registered origin`.
+  - для Google Web Client в консоли должны быть добавлены `Authorized JavaScript origins` как минимум для `https://lkm.vedamatch.ru` и `https://lkm.vedamatch.com`, иначе Google popup отдает `401 invalid_client / no registered origin`;
+  - live browser check `2026-03-08` подтвердил это на самом сайте: `accounts.google.com/gsi/button` отвечает `403`, а консоль пишет `The given origin is not allowed for the given client ID`.
 - `VK` web login для `lkm` идет только через backend secrets:
   - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state, генерирует PKCE `code_verifier/code_challenge` и редиректит на `https://id.vk.com/authorize`;
   - `GET /auth/vk/web/callback` ожидает `code + device_id`, затем меняет их на `access_token` через `https://id.vk.com/oauth2/auth` с `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI` и сохраненным `code_verifier`;
-  - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string.
+  - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string;
+  - live browser check `2026-03-08` показал, что popup `id.vk.com` открывается уже с `PKCE`, но внутренняя ошибка VK сейчас точная: `redirect_uri is missing or invalid`; в server logs в этот момент есть только `GET /api/auth/vk/web/start` без callback hit, значит текущий блокер находится в настройке VK Web app `54474355`, а не в backend token exchange;
+  - для `id.vk.com` web flow убраны legacy query params `display` и `v`, чтобы authorize URL соответствовал текущему `VK ID` OAuth 2.1 flow.
 - В Dokploy `lkm.vedamatch.ru` и `lkm.vedamatch.com` сейчас обслуживаются одним приложением `lkm`, а его `NEXT_PUBLIC_API_URL` в production указывает на `https://api.vedamatch.ru/api`.
 - Production verify от `2026-03-08`:
   - live `GET https://api.vedamatch.ru/api/auth/social/config` отвечает `200` и включает `google.enabled=true`, `vk.enabled=true`;
@@ -229,6 +232,7 @@
   - дополнительный Android hardening от 2026-03-08: `state` остаётся частью PKCE chain, но `VK_ANDROID_CLIENT_SECRET` больше не живёт в APK; `service key` для mobile user login не используется;
   - live smoke на Samsung `SM-A515F` после исправления PKCE уже возвращает приложение из VK обратно в `MainActivity`; production `docker logs` на 2026-03-08 показали реальную причину backend `500 Could not create VK user`: `duplicate key value violates unique constraint "users_google_sub_key"`, потому что новые non-Google users создавались с `google_sub=''`, а social create path ещё и не гарантировал `invite_code`;
   - server `auth_handler.go` теперь создаёт новых auth users через общий helper: если `google_sub` пустой, поле не вставляется в `INSERT`, а `invite_code` всегда генерируется до `Create`, поэтому fix покрывает обычную регистрацию, Google login и VK login;
+  - после production redeploy `Vedamatch / production / Server` пользователь подтвердил, что вход через VK снова проходит; единичная первая ошибка пришлась на момент переключения контейнера, повторная попытка уже вошла в приложение успешно;
   - актуальная Android release с этой схемой: `1.1.23 (25)`.
 - Для локальной Debug-сборки на iPhone с Personal Team production entitlements отключены:
   - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` переводит `Debug` на `vedamatch.debug.entitlements`;

@@ -202,6 +202,7 @@ const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
 const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
 const SOCIAL_AUTH_POPUP_SOURCE = 'vedamatch:lkm-social-auth';
+const VK_WEB_REDIRECT_URI_HINT = 'https://api.vedamatch.ru/auth/vk/web/callback';
 const HISTORY_STATUS_OPTIONS: ReadonlyArray<TopupStatusFilter> = [
   'all',
   'pending_payment',
@@ -454,6 +455,7 @@ export default function LkmCabinetClient({
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const socialAuthPopupRef = useRef<Window | null>(null);
   const socialAuthPopupPollRef = useRef<number | null>(null);
+  const socialAuthPopupResolvedRef = useRef(false);
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
   const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
   const canUseWebSocialAuth = !isTelegramMiniApp && !telegramLinkRequired;
@@ -752,6 +754,7 @@ export default function LkmCabinetClient({
     }
 
     socialAuthPopupRef.current = popup;
+    socialAuthPopupResolvedRef.current = false;
     popup.focus();
 
     if (socialAuthPopupPollRef.current) {
@@ -763,6 +766,9 @@ export default function LkmCabinetClient({
         if (socialAuthPopupPollRef.current) {
           window.clearInterval(socialAuthPopupPollRef.current);
           socialAuthPopupPollRef.current = null;
+        }
+        if (!socialAuthPopupResolvedRef.current) {
+          setError(`VK popup закрылся до callback. Проверьте redirect URI в VK ID Web app: ${VK_WEB_REDIRECT_URI_HINT}`);
         }
         socialAuthPopupRef.current = null;
         setIsVKAuthLoading(false);
@@ -828,6 +834,7 @@ export default function LkmCabinetClient({
         socialAuthPopupRef.current.close();
       }
       socialAuthPopupRef.current = null;
+      socialAuthPopupResolvedRef.current = true;
       setIsVKAuthLoading(false);
 
       if (message.status === 'success' && message.authPayload) {
