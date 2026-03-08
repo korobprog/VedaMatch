@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "krishna-sacred-geography",
+    "status": "draft",
+    "sortOrder": 50,
+    "isFeatured": true,
+    "titleRu": "Священная география Кришны",
+    "titleEn": "Krishna Sacred Geography",
+    "titleHi": "कृष्ण की पवित्र भूगोल",
+    "descriptionRu": "Подборка мест, через которые можно увидеть разные измерения кришна-лилы: Брадж, Дварака и храмовые центры поклонения Кришне.",
+    "descriptionEn": "A thematic set of places that reveals different dimensions of Krishna-lila: Braj, Dwarka, and temple centers of Krishna worship.",
+    "descriptionHi": "यह подборка ब्रज, द्वारका और कृष्ण-उपासना के मंदिर केंद्रों के माध्यम से कृष्ण-लीला के विभिन्न आयाम दिखाती है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["vrindavan", "govardhan", "dwarka", "udupi"]
+  },
+  {
+    "slug": "chaitanya-pilgrimage-route",
+    "status": "draft",
+    "sortOrder": 60,
+    "isFeatured": true,
+    "titleRu": "Паломнический маршрут Чайтаньи",
+    "titleEn": "Chaitanya Pilgrimage Route",
+    "titleHi": "चैतन्य तीर्थ मार्ग",
+    "descriptionRu": "Подборка мест для пользователя, который хочет идти по линии Махапрабху: Маяпур, Навадвипа, Вриндаван и Пури.",
+    "descriptionEn": "A thematic route for users who want to follow the line of Mahaprabhu through Mayapur, Nabadwip, Vrindavan, and Puri.",
+    "descriptionHi": "मायापुर, नवद्वीप, वृन्दावन और पुरी के माध्यम से महाप्रभु की धारा का अनुसरण करने वाले यात्रियों के लिए यह एक चयनित मार्ग है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["mayapur", "nabadwip", "vrindavan", "puri"]
+  },
+  {
+    "slug": "rama-and-royal-dharma",
+    "status": "draft",
+    "sortOrder": 70,
+    "isFeatured": false,
+    "titleRu": "Рама и царская дхарма",
+    "titleEn": "Rama and Royal Dharma",
+    "titleHi": "राम और राजधर्म",
+    "descriptionRu": "Подборка вокруг Айодхьи и других мест, где паломничество раскрывает тему дхармы, служения и царственного идеала в вайшнавской традиции.",
+    "descriptionEn": "A collection centered on Ayodhya and related places where pilgrimage opens themes of dharma, service, and the royal ideal in Vaishnava tradition.",
+    "descriptionHi": "अयोध्या और संबंधित स्थलों पर केंद्रित यह подборка वैष्णव परंपरा में धर्म, सेवा और राजधर्म के आदर्श को उजागर करती है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["ayodhya", "dwarka"]
+  },
+  {
+    "slug": "south-indian-vaishnava-centers",
+    "status": "draft",
+    "sortOrder": 80,
+    "isFeatured": false,
+    "titleRu": "Южноиндийские вайшнавские центры",
+    "titleEn": "South Indian Vaishnava Centers",
+    "titleHi": "दक्षिण भारतीय वैष्णव केंद्र",
+    "descriptionRu": "Подборка для знакомства с южноиндийскими линиями вайшнавизма через Шрирангам, Мелкоте, Удупи и Тирумалу.",
+    "descriptionEn": "A thematic introduction to South Indian Vaishnava lineages through Srirangam, Melkote, Udupi, and Tirumala.",
+    "descriptionHi": "श्रीरंगम, मेलकोटे, उडुपी और तिरुमला के माध्यम से दक्षिण भारतीय वैष्णव परंपराओं का यह एक परिचयात्मक चयन है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["srirangam", "melkote", "udupi", "tirumala"]
+  },
+  {
+    "slug": "bhakti-beyond-one-region",
+    "status": "draft",
+    "sortOrder": 90,
+    "isFeatured": false,
+    "titleRu": "Бхакти шире одного региона",
+    "titleEn": "Bhakti Beyond One Region",
+    "titleHi": "एक क्षेत्र से परे भक्ति",
+    "descriptionRu": "Подборка, показывающая, что паломническая карта бхакти не ограничивается одним регионом: от Браджа и Бенгалии до Гуджарата, Раджастхана, Махараштры и Южной Индии.",
+    "descriptionEn": "A collection showing that the sacred map of bhakti extends beyond any one region: from Braj and Bengal to Gujarat, Rajasthan, Maharashtra, and South India.",
+    "descriptionHi": "यह подборка दिखाती है कि भक्ति की पवित्र यात्रा-भूमि केवल एक क्षेत्र तक सीमित नहीं है, बल्कि ब्रज और बंगाल से लेकर गुजरात, राजस्थान, महाराष्ट्र और दक्षिण भारत तक फैली है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["vrindavan", "mayapur", "dwarka", "nathdwara", "pandharpur", "srirangam"]
+  }
+]

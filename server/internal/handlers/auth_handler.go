@@ -385,7 +385,40 @@ type vkAndroidCodeExchangeInput struct {
 	State        string
 }
 
+type vkAuthRequest struct {
+	AccessToken  string `json:"accessToken"`
+	Code         string `json:"code"`
+	DeviceID     string `json:"deviceId"`
+	Email        string `json:"email"`
+	Platform     string `json:"platform"`
+	State        string `json:"state"`
+	CodeVerifier string `json:"codeVerifier"`
+	VKDeviceID   string `json:"vkDeviceId"`
+}
+
 var vkAndroidCodeExchanger = exchangeVKAndroidCode
+
+type linkedAuthProvider string
+
+const (
+	authProviderGoogle   linkedAuthProvider = "google"
+	authProviderVK       linkedAuthProvider = "vk"
+	authProviderTelegram linkedAuthProvider = "telegram"
+)
+
+type linkedProviderStatus struct {
+	Provider linkedAuthProvider `json:"provider"`
+	Linked   bool               `json:"linked"`
+	Label    string             `json:"label,omitempty"`
+	LinkedAt string             `json:"linkedAt,omitempty"`
+}
+
+type linkedAuthProvidersResponse struct {
+	Providers    []linkedProviderStatus `json:"providers"`
+	HasPassword  bool                   `json:"hasPassword"`
+	MethodCount  int                    `json:"methodCount"`
+	CanUnlinkAny bool                   `json:"canUnlinkAny"`
+}
 
 func parseGoogleEmailVerified(raw string) bool {
 	value := strings.TrimSpace(strings.ToLower(raw))
@@ -658,6 +691,177 @@ func buildVKFallbackEmail(userID int64) string {
 		return fmt.Sprintf("vk_%d@oauth.vedamatch.local", time.Now().UTC().UnixNano())
 	}
 	return fmt.Sprintf("vk_%d@oauth.vedamatch.local", userID)
+}
+
+func currentAuthUser(c *fiber.Ctx) (*models.User, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return nil, fiber.NewError(fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fiber.NewError(fiber.StatusUnauthorized, "User not found")
+		}
+		return nil, fiber.NewError(fiber.StatusInternalServerError, "Could not load user")
+	}
+	if user.IsBlocked {
+		return nil, fiber.NewError(fiber.StatusUnauthorized, "User is blocked")
+	}
+
+	return &user, nil
+}
+
+func isPasswordAuthAvailable(user models.User) bool {
+	password := strings.TrimSpace(user.Password)
+	email := strings.TrimSpace(strings.ToLower(user.Email))
+	if password == "" || email == "" {
+		return false
+	}
+	return !strings.HasSuffix(email, "@oauth.vedamatch.local")
+}
+
+func linkedAuthMethodCount(user models.User) int {
+	count := 0
+	if isPasswordAuthAvailable(user) {
+		count++
+	}
+	if strings.TrimSpace(user.GoogleSub) != "" {
+		count++
+	}
+	if user.VKUserID != nil && *user.VKUserID > 0 {
+		count++
+	}
+	if user.TelegramUserID != nil && *user.TelegramUserID > 0 {
+		count++
+	}
+	return count
+}
+
+func authProviderStatuses(user models.User) []linkedProviderStatus {
+	providers := []linkedProviderStatus{
+		{Provider: authProviderGoogle},
+		{Provider: authProviderVK},
+		{Provider: authProviderTelegram},
+	}
+
+	if strings.TrimSpace(user.GoogleSub) != "" {
+		providers[0].Linked = true
+		providers[0].Label = strings.TrimSpace(user.GoogleEmail)
+		if user.GoogleLinkedAt != nil {
+			providers[0].LinkedAt = user.GoogleLinkedAt.UTC().Format(time.RFC3339)
+		}
+	}
+
+	if user.VKUserID != nil && *user.VKUserID > 0 {
+		providers[1].Linked = true
+		providers[1].Label = strings.TrimSpace(user.VKEmail)
+		if user.VKLinkedAt != nil {
+			providers[1].LinkedAt = user.VKLinkedAt.UTC().Format(time.RFC3339)
+		}
+	}
+
+	if user.TelegramUserID != nil && *user.TelegramUserID > 0 {
+		providers[2].Linked = true
+		if username := strings.TrimSpace(user.TelegramUsername); username != "" {
+			providers[2].Label = "@" + strings.TrimPrefix(username, "@")
+		} else {
+			providers[2].Label = strings.TrimSpace(strings.TrimSpace(user.TelegramFirstName + " " + user.TelegramLastName))
+		}
+		if user.TelegramLinkedAt != nil {
+			providers[2].LinkedAt = user.TelegramLinkedAt.UTC().Format(time.RFC3339)
+		}
+	}
+
+	return providers
+}
+
+func buildLinkedAuthProvidersResponse(user models.User) linkedAuthProvidersResponse {
+	methodCount := linkedAuthMethodCount(user)
+	return linkedAuthProvidersResponse{
+		Providers:    authProviderStatuses(user),
+		HasPassword:  isPasswordAuthAvailable(user),
+		MethodCount:  methodCount,
+		CanUnlinkAny: methodCount > 1,
+	}
+}
+
+func parseLinkedAuthProvider(raw string) (linkedAuthProvider, bool) {
+	switch linkedAuthProvider(strings.TrimSpace(strings.ToLower(raw))) {
+	case authProviderGoogle:
+		return authProviderGoogle, true
+	case authProviderVK:
+		return authProviderVK, true
+	case authProviderTelegram:
+		return authProviderTelegram, true
+	default:
+		return "", false
+	}
+}
+
+func isProviderLinked(user models.User, provider linkedAuthProvider) bool {
+	switch provider {
+	case authProviderGoogle:
+		return strings.TrimSpace(user.GoogleSub) != ""
+	case authProviderVK:
+		return user.VKUserID != nil && *user.VKUserID > 0
+	case authProviderTelegram:
+		return user.TelegramUserID != nil && *user.TelegramUserID > 0
+	default:
+		return false
+	}
+}
+
+func clearProviderFields(updates map[string]interface{}, provider linkedAuthProvider) {
+	switch provider {
+	case authProviderGoogle:
+		updates["google_sub"] = ""
+		updates["google_email"] = ""
+		updates["google_linked_at"] = nil
+	case authProviderVK:
+		updates["vk_user_id"] = nil
+		updates["vk_email"] = ""
+		updates["vk_linked_at"] = nil
+	case authProviderTelegram:
+		updates["telegram_user_id"] = nil
+		updates["telegram_username"] = ""
+		updates["telegram_first_name"] = ""
+		updates["telegram_last_name"] = ""
+		updates["telegram_linked_at"] = nil
+	}
+}
+
+func resolveVKAccessToken(req vkAuthRequest) (string, string, error) {
+	accessToken := strings.TrimSpace(req.AccessToken)
+	email := strings.TrimSpace(req.Email)
+	if accessToken != "" {
+		return accessToken, email, nil
+	}
+
+	var (
+		exchangedAccessToken string
+		exchangedEmail       string
+		exchangeErr          error
+	)
+
+	if req.Platform == "android" {
+		exchangedAccessToken, exchangedEmail, _, exchangeErr = vkAndroidCodeExchanger(vkAndroidCodeExchangeInput{
+			Code:         strings.TrimSpace(req.Code),
+			CodeVerifier: strings.TrimSpace(req.CodeVerifier),
+			VKDeviceID:   strings.TrimSpace(req.VKDeviceID),
+			State:        strings.TrimSpace(req.State),
+		})
+	} else {
+		exchangedAccessToken, exchangedEmail, _, exchangeErr = vkCodeExchanger(strings.TrimSpace(req.Code))
+	}
+	if exchangeErr != nil {
+		return "", "", exchangeErr
+	}
+	if email == "" {
+		email = strings.TrimSpace(exchangedEmail)
+	}
+	return strings.TrimSpace(exchangedAccessToken), email, nil
 }
 
 func exchangeVKCodeWithConfig(code string, clientID string, clientSecret string, redirectURI string) (accessToken string, email string, userID int64, err error) {
@@ -1090,6 +1294,439 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	sanitizeUser(&user)
 	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
+}
+
+func (h *AuthHandler) GetLinkedAuthProviders(c *fiber.Ctx) error {
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(buildLinkedAuthProvidersResponse(*user))
+}
+
+func (h *AuthHandler) GoogleLink(c *fiber.Ctx) error {
+	if !config.AuthGoogleEnabled() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Google auth is disabled",
+		})
+	}
+
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	var req struct {
+		IDToken string `json:"idToken"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	tokenInfo, err := googleIDTokenVerifier(req.IDToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid Google token",
+		})
+	}
+	if err := validateGoogleAudience(tokenInfo.Audience); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Google token audience is not allowed",
+		})
+	}
+
+	googleSub := strings.TrimSpace(tokenInfo.Sub)
+	if googleSub == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Google token payload missing sub",
+		})
+	}
+
+	googleEmail := strings.TrimSpace(strings.ToLower(tokenInfo.Email))
+	if googleEmail == "" {
+		googleEmail = buildGoogleFallbackEmail(googleSub)
+	}
+
+	var existing models.User
+	if err := database.DB.Where("google_sub = ?", googleSub).First(&existing).Error; err == nil && existing.ID != user.ID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Google account is already linked to another user",
+			"errorCode": "AUTH_PROVIDER_CONFLICT",
+		})
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate Google account",
+		})
+	}
+
+	now := time.Now().UTC()
+	updates := map[string]interface{}{
+		"google_sub":       googleSub,
+		"google_email":     googleEmail,
+		"google_linked_at": now,
+	}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not link Google account",
+		})
+	}
+
+	user.GoogleSub = googleSub
+	user.GoogleEmail = googleEmail
+	user.GoogleLinkedAt = &now
+	sanitizeUser(user)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":   "Google account linked",
+		"user":      user,
+		"providers": buildLinkedAuthProvidersResponse(*user),
+	})
+}
+
+func (h *AuthHandler) VKLink(c *fiber.Ctx) error {
+	if !config.AuthVKEnabled() {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "VK auth is disabled",
+		})
+	}
+
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	var req vkAuthRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	req.Code = strings.TrimSpace(req.Code)
+	req.Email = strings.TrimSpace(req.Email)
+	req.Platform = strings.TrimSpace(strings.ToLower(req.Platform))
+	req.State = strings.TrimSpace(req.State)
+	req.CodeVerifier = strings.TrimSpace(req.CodeVerifier)
+	req.VKDeviceID = strings.TrimSpace(req.VKDeviceID)
+	if req.AccessToken == "" && req.Code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "accessToken or code is required",
+		})
+	}
+
+	accessToken, email, exchangeErr := resolveVKAccessToken(req)
+	if exchangeErr != nil {
+		log.Printf("[AUTH] VK link exchange failed: %v", exchangeErr)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid VK code",
+		})
+	}
+
+	vkUser, err := vkAccessTokenVerifier(accessToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid VK token",
+		})
+	}
+
+	var existing models.User
+	if err := database.DB.Where("vk_user_id = ?", vkUser.UserID).First(&existing).Error; err == nil && existing.ID != user.ID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "VK account is already linked to another user",
+			"errorCode": "AUTH_PROVIDER_CONFLICT",
+		})
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate VK account",
+		})
+	}
+
+	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
+	if normalizedEmail == "" {
+		normalizedEmail = strings.TrimSpace(strings.ToLower(vkUser.Email))
+	}
+
+	now := time.Now().UTC()
+	vkUserID := vkUser.UserID
+	updates := map[string]interface{}{
+		"vk_user_id":   vkUserID,
+		"vk_email":     normalizedEmail,
+		"vk_linked_at": now,
+	}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not link VK account",
+		})
+	}
+
+	user.VKUserID = &vkUserID
+	user.VKEmail = normalizedEmail
+	user.VKLinkedAt = &now
+	sanitizeUser(user)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":   "VK account linked",
+		"user":      user,
+		"providers": buildLinkedAuthProvidersResponse(*user),
+	})
+}
+
+func (h *AuthHandler) TelegramLinkStart(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	var req struct {
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	state, err := h.telegramAuthService.CreateMobileAuthStateForPurpose(req.DeviceID, user.ID, "link")
+	if err != nil {
+		log.Printf("[AUTH] Telegram link start failed: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not initialize Telegram link",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"state":     state.State,
+		"launchUrl": h.telegramAuthService.ResolveMobileAuthLaunchURL(state.State),
+		"expiresAt": state.ExpiresAt.UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *AuthHandler) TelegramLink(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	var req struct {
+		State    string `json:"state"`
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	rawPayload, err := h.telegramAuthService.ConsumeMobileAuthState(req.State, req.DeviceID)
+	if err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+
+	var payload struct {
+		TelegramUserID    int64  `json:"telegramUserId"`
+		TelegramUsername  string `json:"telegramUsername"`
+		TelegramFirstName string `json:"telegramFirstName"`
+		TelegramLastName  string `json:"telegramLastName"`
+	}
+	if unmarshalErr := json.Unmarshal(rawPayload, &payload); unmarshalErr != nil || payload.TelegramUserID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Telegram mobile auth payload is invalid",
+		})
+	}
+
+	var existing models.User
+	if err := database.DB.Where("telegram_user_id = ?", payload.TelegramUserID).First(&existing).Error; err == nil && existing.ID != user.ID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Telegram account is already linked to another user",
+			"errorCode": "AUTH_PROVIDER_CONFLICT",
+		})
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate Telegram account",
+		})
+	}
+
+	now := time.Now().UTC()
+	telegramUserID := payload.TelegramUserID
+	updates := map[string]interface{}{
+		"telegram_user_id":    telegramUserID,
+		"telegram_username":   strings.TrimSpace(payload.TelegramUsername),
+		"telegram_first_name": strings.TrimSpace(payload.TelegramFirstName),
+		"telegram_last_name":  strings.TrimSpace(payload.TelegramLastName),
+		"telegram_linked_at":  now,
+	}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not link Telegram account",
+		})
+	}
+
+	user.TelegramUserID = &telegramUserID
+	user.TelegramUsername = strings.TrimSpace(payload.TelegramUsername)
+	user.TelegramFirstName = strings.TrimSpace(payload.TelegramFirstName)
+	user.TelegramLastName = strings.TrimSpace(payload.TelegramLastName)
+	user.TelegramLinkedAt = &now
+	sanitizeUser(user)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":   "Telegram account linked",
+		"user":      user,
+		"providers": buildLinkedAuthProvidersResponse(*user),
+	})
+}
+
+func (h *AuthHandler) TelegramMiniAppMobileLink(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	var req struct {
+		InitData        string `json:"initData"`
+		MobileAuthState string `json:"mobileAuthState"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	if strings.TrimSpace(req.InitData) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "initData is required",
+		})
+	}
+	state := strings.TrimSpace(req.MobileAuthState)
+	if state == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "mobileAuthState is required",
+		})
+	}
+
+	entry, err := h.telegramAuthService.LoadMobileAuthState(state)
+	if err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+	if entry.Purpose != "link" || entry.TargetUserID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Telegram mobile link session is invalid",
+		})
+	}
+
+	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitDataWithPurpose(req.InitData, "miniapp_mobile_link")
+	if err != nil {
+		return respondTelegramAuthError(c, err)
+	}
+
+	var existing models.User
+	if err := database.DB.Where("telegram_user_id = ?", telegramUser.ID).First(&existing).Error; err == nil && existing.ID != entry.TargetUserID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Telegram account is already linked to another user",
+			"errorCode": "TELEGRAM_LINK_CONFLICT",
+		})
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate Telegram link",
+		})
+	}
+
+	linkPayload, marshalErr := json.Marshal(fiber.Map{
+		"telegramUserId":    telegramUser.ID,
+		"telegramUsername":  telegramUser.Username,
+		"telegramFirstName": telegramUser.FirstName,
+		"telegramLastName":  telegramUser.LastName,
+	})
+	if marshalErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not prepare Telegram link payload",
+		})
+	}
+
+	if _, err := h.telegramAuthService.CompleteMobileAuthState(state, linkPayload); err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Telegram mobile link is ready",
+	})
+}
+
+func (h *AuthHandler) UnlinkAuthProvider(c *fiber.Ctx) error {
+	user, authErr := currentAuthUser(c)
+	if authErr != nil {
+		return c.Status(authErr.(*fiber.Error).Code).JSON(fiber.Map{
+			"error": authErr.Error(),
+		})
+	}
+
+	provider, ok := parseLinkedAuthProvider(c.Params("provider"))
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Unsupported auth provider",
+		})
+	}
+	if !isProviderLinked(*user, provider) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Auth provider is not linked",
+		})
+	}
+	if linkedAuthMethodCount(*user) <= 1 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Cannot unlink the last available sign-in method",
+			"errorCode": "AUTH_PROVIDER_LAST_METHOD",
+		})
+	}
+
+	updates := make(map[string]interface{})
+	clearProviderFields(updates, provider)
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not unlink auth provider",
+		})
+	}
+
+	switch provider {
+	case authProviderGoogle:
+		user.GoogleSub = ""
+		user.GoogleEmail = ""
+		user.GoogleLinkedAt = nil
+	case authProviderVK:
+		user.VKUserID = nil
+		user.VKEmail = ""
+		user.VKLinkedAt = nil
+	case authProviderTelegram:
+		user.TelegramUserID = nil
+		user.TelegramUsername = ""
+		user.TelegramFirstName = ""
+		user.TelegramLastName = ""
+		user.TelegramLinkedAt = nil
+	}
+	sanitizeUser(user)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":   "Auth provider unlinked",
+		"user":      user,
+		"providers": buildLinkedAuthProvidersResponse(*user),
+	})
 }
 
 func (h *AuthHandler) SocialAuthConfig(c *fiber.Ctx) error {
@@ -1590,16 +2227,7 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	var req struct {
-		AccessToken  string `json:"accessToken"`
-		Code         string `json:"code"`
-		DeviceID     string `json:"deviceId"`
-		Email        string `json:"email"`
-		Platform     string `json:"platform"`
-		State        string `json:"state"`
-		CodeVerifier string `json:"codeVerifier"`
-		VKDeviceID   string `json:"vkDeviceId"`
-	}
+	var req vkAuthRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
@@ -1618,38 +2246,15 @@ func (h *AuthHandler) VKLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	accessToken := req.AccessToken
-	if accessToken == "" {
-		var (
-			exchangedAccessToken string
-			exchangedEmail       string
-			exchangeErr          error
-		)
-
-		if req.Platform == "android" {
-			exchangedAccessToken, exchangedEmail, _, exchangeErr = vkAndroidCodeExchanger(vkAndroidCodeExchangeInput{
-				Code:         req.Code,
-				CodeVerifier: req.CodeVerifier,
-				VKDeviceID:   req.VKDeviceID,
-				State:        req.State,
-			})
-		} else {
-			exchangedAccessToken, exchangedEmail, _, exchangeErr = vkCodeExchanger(req.Code)
-		}
-
-		if exchangeErr != nil {
-			log.Printf("[AUTH] VK code exchange failed: %v", exchangeErr)
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid VK code",
-			})
-		}
-		accessToken = strings.TrimSpace(exchangedAccessToken)
-		if req.Email == "" {
-			req.Email = strings.TrimSpace(exchangedEmail)
-		}
+	accessToken, email, exchangeErr := resolveVKAccessToken(req)
+	if exchangeErr != nil {
+		log.Printf("[AUTH] VK code exchange failed: %v", exchangeErr)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid VK code",
+		})
 	}
 
-	payload, payloadErr := h.buildVKLoginPayload(accessToken, req.Email, req.DeviceID)
+	payload, payloadErr := h.buildVKLoginPayload(accessToken, email, req.DeviceID)
 	if payloadErr != nil {
 		return c.Status(payloadErr.Code).JSON(fiber.Map{
 			"error": payloadErr.Message,
@@ -1836,6 +2441,23 @@ func (h *AuthHandler) TelegramMobileAuthStart(c *fiber.Ctx) error {
 		"state":     state.State,
 		"launchUrl": h.telegramAuthService.ResolveMobileAuthLaunchURL(state.State),
 		"expiresAt": state.ExpiresAt.UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *AuthHandler) TelegramMobileAuthContext(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	entry, err := h.telegramAuthService.LoadMobileAuthState(c.Params("state"))
+	if err != nil {
+		return respondTelegramMobileAuthError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"state":   entry.State,
+		"purpose": entry.Purpose,
+		"status":  entry.Status,
 	})
 }
 

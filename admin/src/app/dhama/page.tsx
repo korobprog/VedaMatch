@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { Compass, Edit3, Loader2, MapPin, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { AlertCircle, Compass, Edit3, ImagePlus, Loader2, MapPin, Plus, Search, Star, Trash2, Upload } from 'lucide-react';
 import api from '@/lib/api';
+import { DhamaAdminTabs } from '@/components/DhamaAdminTabs';
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
@@ -66,6 +67,25 @@ interface YatraItem {
   startDate?: string;
 }
 
+interface DhamaFilters {
+  placeTypes: string[];
+  traditions: string[];
+  states: string[];
+  cities: string[];
+}
+
+interface HolyPlaceImportItem {
+  id: number;
+  slug: string;
+  action: 'created' | 'updated';
+}
+
+interface HolyPlaceImportSummary {
+  created: number;
+  updated: number;
+  items: HolyPlaceImportItem[];
+}
+
 const emptyForm: HolyPlace = {
   id: 0,
   slug: '',
@@ -117,43 +137,130 @@ const localeTabs = [
   { id: 'hi', label: 'HI' },
 ] as const;
 
+const emptyFilters: DhamaFilters = {
+  placeTypes: [],
+  traditions: [],
+  states: [],
+  cities: [],
+};
+
+const normalizeText = (value?: string) => (value || '').trim();
+
+const buildValidationErrors = (place: HolyPlace): string[] => {
+  const errors: string[] = [];
+  const hasAnyTitle = [place.titleRu, place.titleEn, place.titleHi].some((value) => normalizeText(value));
+  const hasAnyDescription = [place.descriptionRu, place.descriptionEn, place.descriptionHi].some((value) => normalizeText(value));
+
+  if (!hasAnyTitle) {
+    errors.push('Add at least one localized title.');
+  }
+  if (!normalizeText(place.placeType)) {
+    errors.push('Place type is required.');
+  }
+  if (!normalizeText(place.city)) {
+    errors.push('City is required.');
+  }
+  if (!normalizeText(place.state)) {
+    errors.push('State is required.');
+  }
+  if (!normalizeText(place.country) || normalizeText(place.country).toLowerCase() !== 'india') {
+    errors.push('Country must stay set to India for Dhama v1.');
+  }
+  if (!Number.isFinite(Number(place.latitude)) || Number(place.latitude) < -90 || Number(place.latitude) > 90) {
+    errors.push('Latitude must be a valid number between -90 and 90.');
+  }
+  if (!Number.isFinite(Number(place.longitude)) || Number(place.longitude) < -180 || Number(place.longitude) > 180) {
+    errors.push('Longitude must be a valid number between -180 and 180.');
+  }
+  if (place.status === 'published') {
+    if (!normalizeText(place.titleEn)) {
+      errors.push('Published places must include an English title for locale fallback.');
+    }
+    if (!hasAnyDescription) {
+      errors.push('Published places must include at least one full description.');
+    }
+    if (!normalizeText(place.heroImageUrl) && place.gallery.length === 0) {
+      errors.push('Published places need a hero image or at least one gallery image.');
+    }
+  }
+
+  return errors;
+};
+
 export default function DhamaPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | HolyPlaceStatus>('all');
+  const [placeTypeFilter, setPlaceTypeFilter] = useState('all');
+  const [stateFilter, setStateFilter] = useState('all');
+  const [featuredFilter, setFeaturedFilter] = useState<'all' | 'featured' | 'regular'>('all');
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [localeTab, setLocaleTab] = useState<'ru' | 'en' | 'hi'>('ru');
+  const [mediaSearch, setMediaSearch] = useState('');
+  const [yatraSearch, setYatraSearch] = useState('');
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importSummary, setImportSummary] = useState<HolyPlaceImportSummary | null>(null);
   const [form, setForm] = useState<HolyPlace>(emptyForm);
 
-  const placesQuery = statusFilter === 'all'
-    ? '/admin/dhama/places?limit=100'
-    : `/admin/dhama/places?limit=100&status=${statusFilter}`;
+  const placesQuery = useMemo(() => {
+    const params = new URLSearchParams({ limit: '100' });
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (placeTypeFilter !== 'all') params.set('type', placeTypeFilter);
+    if (stateFilter !== 'all') params.set('state', stateFilter);
+    if (search.trim()) params.set('search', search.trim());
+    if (featuredFilter === 'featured') params.set('featured', 'true');
+    if (featuredFilter === 'regular') params.set('featured', 'false');
+    return `/admin/dhama/places?${params.toString()}`;
+  }, [featuredFilter, placeTypeFilter, search, stateFilter, statusFilter]);
 
   const { data: placesData, mutate: mutatePlaces } = useSWR(placesQuery, fetcher);
+  const { data: filtersData } = useSWR('/dhama/filters', fetcher);
   const { data: tracksData } = useSWR('/multimedia/tracks?type=audio&limit=100', fetcher);
   const { data: yatrasData } = useSWR('/yatra?limit=100', fetcher);
 
   const places: HolyPlace[] = placesData?.places || [];
+  const filters: DhamaFilters = filtersData || emptyFilters;
   const tracks: MediaTrack[] = tracksData?.tracks || [];
   const yatras: YatraItem[] = yatrasData?.yatras || [];
 
-  const filteredPlaces = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
+  const filteredTracks = useMemo(() => {
+    const normalized = mediaSearch.trim().toLowerCase();
     if (!normalized) {
-      return places;
+      return tracks;
     }
-    return places.filter((place) =>
-      [place.titleRu, place.titleEn, place.titleHi, place.city, place.state, place.slug, place.placeType]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized),
-    );
-  }, [places, search]);
+    return tracks.filter((track) => [track.title, track.artist].join(' ').toLowerCase().includes(normalized));
+  }, [mediaSearch, tracks]);
+
+  const filteredYatras = useMemo(() => {
+    const normalized = yatraSearch.trim().toLowerCase();
+    if (!normalized) {
+      return yatras;
+    }
+    return yatras.filter((yatra) => yatra.title.toLowerCase().includes(normalized));
+  }, [yatras, yatraSearch]);
 
   const openCreate = () => {
     setForm(emptyForm);
     setLocaleTab('ru');
+    setMediaSearch('');
+    setYatraSearch('');
+    setFormErrors([]);
+    setUploadingField(null);
+    setUploadProgress(0);
     setShowModal(true);
+  };
+
+  const openImport = () => {
+    setImportError('');
+    setImportSummary(null);
+    setImportText('');
+    setShowImportModal(true);
   };
 
   const openEdit = async (id: number) => {
@@ -166,10 +273,20 @@ export default function DhamaPage() {
       linkedYatraIds: Array.isArray(data.linkedYatraIds) ? data.linkedYatraIds : [],
     });
     setLocaleTab('ru');
+    setMediaSearch('');
+    setYatraSearch('');
+    setFormErrors([]);
+    setUploadingField(null);
+    setUploadProgress(0);
     setShowModal(true);
   };
 
   const submit = async () => {
+    const nextErrors = buildValidationErrors(form);
+    setFormErrors(nextErrors);
+    if (nextErrors.length > 0) {
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -204,6 +321,182 @@ export default function DhamaPage() {
     if (!window.confirm('Delete this holy place?')) return;
     await api.delete(`/admin/dhama/places/${id}`);
     await mutatePlaces();
+  };
+
+  const parseImportPayload = (raw: string) => {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    if (parsed && Array.isArray(parsed.places)) {
+      return parsed;
+    }
+    throw new Error('JSON must be either an array of places or an object with a "places" array.');
+  };
+
+  const submitImport = async () => {
+    const normalized = importText.trim();
+    if (!normalized) {
+      setImportError('Paste JSON before importing.');
+      return;
+    }
+
+    try {
+      const payload = parseImportPayload(normalized);
+      setImporting(true);
+      setImportError('');
+      const { data } = await api.post('/admin/dhama/places/import', payload);
+      setImportSummary(data);
+      await mutatePlaces();
+    } catch (error) {
+      console.error('[DhamaAdmin] import failed', error);
+      if (error instanceof SyntaxError) {
+        setImportError('JSON is invalid. Fix syntax and try again.');
+      } else if (typeof error === 'object' && error && 'response' in error) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        setImportError(apiError.response?.data?.error || 'Import failed.');
+      } else if (error instanceof Error) {
+        setImportError(error.message);
+      } else {
+        setImportError('Import failed.');
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setImportText(text);
+      setImportError('');
+      setImportSummary(null);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const addGalleryItem = () => {
+    setForm((prev) => ({ ...prev, gallery: [...prev.gallery, ''] }));
+  };
+
+  const uploadImageFile = async (file: File, applyUrl: (url: string) => void, fieldKey: string) => {
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+    const PRESIGN_THRESHOLD = 10 * 1024 * 1024;
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert('Image is too large. Max size is 10MB.');
+      return;
+    }
+
+    setUploadingField(fieldKey);
+    setUploadProgress(0);
+
+    try {
+      if (file.size > PRESIGN_THRESHOLD) {
+        const presignRes = await api.post('/admin/multimedia/presign', {
+          filename: file.name,
+          folder: 'images',
+          contentType: file.type || 'application/octet-stream',
+        });
+
+        const { uploadUrl, finalUrl } = presignRes.data;
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', uploadUrl, true);
+          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded * 100) / event.total);
+              setUploadProgress(percent);
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`S3 upload failed: ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Network error during image upload'));
+          xhr.send(file);
+        });
+
+        applyUrl(finalUrl);
+        setUploadProgress(100);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'images');
+
+      const response = await api.post('/admin/multimedia/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          const percent = event.total ? Math.round((event.loaded * 100) / event.total) : 0;
+          setUploadProgress(percent);
+        },
+      });
+
+      applyUrl(response.data.url);
+      setUploadProgress(100);
+    } catch (error) {
+      console.error('[DhamaAdmin] image upload failed', error);
+      alert('Image upload failed. Please try again.');
+      setUploadProgress(0);
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+  const handleHeroUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await uploadImageFile(file, (url) => updateField('heroImageUrl', url), 'hero');
+    event.target.value = '';
+  };
+
+  const handleGalleryUpload = async (event: React.ChangeEvent<HTMLInputElement>, index?: number) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (typeof index === 'number') {
+      await uploadImageFile(file, (url) => updateGalleryItem(index, url), `gallery-${index}`);
+    } else {
+      await uploadImageFile(file, (url) => {
+        setForm((prev) => ({ ...prev, gallery: [...prev.gallery, url] }));
+      }, 'gallery-new');
+    }
+    event.target.value = '';
+  };
+
+  const updateGalleryItem = (index: number, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      gallery: prev.gallery.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    }));
+  };
+
+  const removeGalleryItem = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      gallery: prev.gallery.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const addHeroToGallery = () => {
+    const hero = normalizeText(form.heroImageUrl);
+    if (!hero || form.gallery.includes(hero)) {
+      return;
+    }
+    setForm((prev) => ({ ...prev, gallery: [...prev.gallery, hero] }));
   };
 
   const toggleSelection = (field: 'linkedMediaTrackIds' | 'linkedYatraIds', id: number) => {
@@ -245,22 +538,33 @@ export default function DhamaPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <DhamaAdminTabs />
+
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dhama</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">Holy places catalog, editorial content, media links and yatra links.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add place
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={openImport}
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:text-indigo-200 dark:hover:bg-slate-800"
+          >
+            <Upload className="h-4 w-4" />
+            Import JSON
+          </button>
+          <button
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add place
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[1fr,180px]">
-        <label className="relative block">
+        <label className="relative block md:col-span-2">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -279,6 +583,35 @@ export default function DhamaPage() {
           <option value="published">Published</option>
           <option value="archived">Archived</option>
         </select>
+        <select
+          value={placeTypeFilter}
+          onChange={(e) => setPlaceTypeFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+        >
+          <option value="all">All place types</option>
+          {filters.placeTypes.map((placeType) => (
+            <option key={placeType} value={placeType}>{placeType}</option>
+          ))}
+        </select>
+        <select
+          value={stateFilter}
+          onChange={(e) => setStateFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+        >
+          <option value="all">All states</option>
+          {filters.states.map((state) => (
+            <option key={state} value={state}>{state}</option>
+          ))}
+        </select>
+        <select
+          value={featuredFilter}
+          onChange={(e) => setFeaturedFilter(e.target.value as 'all' | 'featured' | 'regular')}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+        >
+          <option value="all">All feature flags</option>
+          <option value="featured">Featured only</option>
+          <option value="regular">Non-featured</option>
+        </select>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -293,7 +626,7 @@ export default function DhamaPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-            {filteredPlaces.map((place) => (
+            {places.map((place) => (
               <tr key={place.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                 <td className="px-4 py-4">
                   <div className="flex items-start gap-3">
@@ -343,6 +676,13 @@ export default function DhamaPage() {
                 </td>
               </tr>
             ))}
+            {places.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-slate-400">
+                  No holy places match the current filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -362,6 +702,20 @@ export default function DhamaPage() {
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
               <div className="space-y-4">
+                {formErrors.length > 0 && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                    <div className="mb-2 flex items-center gap-2 font-semibold">
+                      <AlertCircle className="h-4 w-4" />
+                      Fix these issues before saving
+                    </div>
+                    <ul className="space-y-1">
+                      {formErrors.map((error) => (
+                        <li key={error}>• {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-200">Slug</span>
@@ -444,22 +798,107 @@ export default function DhamaPage() {
 
               <div className="space-y-4">
                 <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-200">Hero image URL</span>
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span className="block text-sm font-medium text-gray-700 dark:text-slate-200">Hero image URL</span>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">
+                      <Upload className={`h-4 w-4 ${uploadingField === 'hero' ? 'animate-bounce' : ''}`} />
+                      {uploadingField === 'hero' ? `Uploading ${uploadProgress}%` : 'Upload hero'}
+                      <input type="file" className="hidden" accept="image/*" onChange={handleHeroUpload} />
+                    </label>
+                  </div>
                   <input value={form.heroImageUrl || ''} onChange={(e) => updateField('heroImageUrl', e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                 </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-200">Gallery URLs (one per line)</span>
-                  <textarea
-                    value={form.gallery.join('\n')}
-                    onChange={(e) => updateField('gallery', e.target.value.split('\n').map((item) => item.trim()).filter(Boolean))}
-                    className="min-h-[120px] w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                </label>
+                <div className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Gallery</h3>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Manage image URLs individually, upload files, and preview the current set.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={addHeroToGallery}
+                        className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Use hero in gallery
+                      </button>
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">
+                        <Upload className={`h-4 w-4 ${uploadingField === 'gallery-new' ? 'animate-bounce' : ''}`} />
+                        {uploadingField === 'gallery-new' ? `Uploading ${uploadProgress}%` : 'Upload image'}
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleGalleryUpload(e)} />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addGalleryItem}
+                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                        Add URL slot
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {form.gallery.length === 0 && (
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No gallery images yet.</p>
+                    )}
+                    {form.gallery.map((item, index) => (
+                      <div key={`${index}-${item}`} className="rounded-2xl border border-gray-100 p-3 dark:border-slate-800">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Image {index + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100">
+                              <Upload className={`h-3.5 w-3.5 ${uploadingField === `gallery-${index}` ? 'animate-bounce' : ''}`} />
+                              {uploadingField === `gallery-${index}` ? `${uploadProgress}%` : 'Upload'}
+                              <input type="file" className="hidden" accept="image/*" onChange={(e) => handleGalleryUpload(e, index)} />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryItem(index)}
+                              className="rounded-lg bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200 dark:bg-rose-500/10 dark:text-rose-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          value={item}
+                          onChange={(e) => updateGalleryItem(index, e.target.value)}
+                          placeholder="https://..."
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        {normalizeText(item) ? (
+                          <img
+                            src={item}
+                            alt={`Gallery ${index + 1}`}
+                            className="mt-3 h-28 w-full rounded-xl object-cover"
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {normalizeText(form.heroImageUrl) ? (
+                  <div className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
+                    <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Hero preview</h3>
+                    <img src={form.heroImageUrl} alt="Hero preview" className="h-40 w-full rounded-2xl object-cover" />
+                  </div>
+                ) : null}
 
                 <div className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Linked audio</h3>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Linked audio</h3>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{form.linkedMediaTrackIds.length} selected</span>
+                  </div>
+                  <input
+                    value={mediaSearch}
+                    onChange={(e) => setMediaSearch(e.target.value)}
+                    placeholder="Search audio by title or artist..."
+                    className="mb-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
                   <div className="max-h-56 space-y-2 overflow-auto">
-                    {tracks.map((track) => (
+                    {filteredTracks.map((track) => (
                       <label key={track.ID} className="flex items-start gap-3 rounded-xl border border-gray-100 px-3 py-2 text-sm dark:border-slate-800">
                         <input
                           type="checkbox"
@@ -472,13 +911,25 @@ export default function DhamaPage() {
                         </span>
                       </label>
                     ))}
+                    {filteredTracks.length === 0 && (
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No audio tracks match the current search.</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Linked yatras</h3>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Linked yatras</h3>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{form.linkedYatraIds.length} selected</span>
+                  </div>
+                  <input
+                    value={yatraSearch}
+                    onChange={(e) => setYatraSearch(e.target.value)}
+                    placeholder="Search yatras by title..."
+                    className="mb-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
                   <div className="max-h-56 space-y-2 overflow-auto">
-                    {yatras.map((yatra) => (
+                    {filteredYatras.map((yatra) => (
                       <label key={yatra.id} className="flex items-start gap-3 rounded-xl border border-gray-100 px-3 py-2 text-sm dark:border-slate-800">
                         <input
                           type="checkbox"
@@ -491,6 +942,9 @@ export default function DhamaPage() {
                         </span>
                       </label>
                     ))}
+                    {filteredYatras.length === 0 && (
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No yatras match the current search.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -504,6 +958,74 @@ export default function DhamaPage() {
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Save place
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Import holy places</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Supports a raw JSON array or an object with a <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">places</code> array. Existing records are updated by slug.</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="rounded-xl bg-slate-200 px-3 py-2 text-sm font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-100">
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="font-semibold">Required per place</p>
+                <p className="mt-1">At minimum send <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">titleRu</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">placeType</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">city</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">state</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">country</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">latitude</code>, <code className="rounded bg-white/80 px-1 py-0.5 dark:bg-slate-900">longitude</code>.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
+                  <Upload className="h-4 w-4" />
+                  Load file
+                  <input type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
+                </label>
+                <button
+                  onClick={submitImport}
+                  disabled={importing}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Import places
+                </button>
+              </div>
+
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder={`[\n  {\n    "titleRu": "Вриндаван",\n    "titleEn": "Vrindavan",\n    "placeType": "sacred-city",\n    "city": "Vrindavan",\n    "state": "Uttar Pradesh",\n    "country": "India",\n    "latitude": 27.58,\n    "longitude": 77.7\n  }\n]`}
+                className="min-h-[320px] w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-mono text-sm text-gray-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+
+              {importError && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                  {importError}
+                </div>
+              )}
+
+              {importSummary && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                  <p className="font-semibold">Import complete</p>
+                  <p className="mt-1">Created: {importSummary.created}. Updated: {importSummary.updated}.</p>
+                  <div className="mt-3 max-h-40 overflow-auto rounded-xl bg-white/70 p-3 dark:bg-slate-950/60">
+                    <ul className="space-y-1">
+                      {importSummary.items.map((item) => (
+                        <li key={`${item.action}-${item.slug}`} className="font-mono text-xs">
+                          {item.action} - {item.slug}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

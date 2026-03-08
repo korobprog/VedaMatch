@@ -58,11 +58,13 @@ export type RootStackParamList = {
         originServiceId?: string;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
-    DhamaHome: undefined;
-    DhamaMap: undefined;
+    DhamaHome: { collectionSlug?: string; collectionTitle?: string } | undefined;
+    DhamaMap: { collectionSlug?: string } | undefined;
+    DhamaCollectionDetail: { slug: string };
     HolyPlaceDetail: { slug: string };
     ContactProfile: { userId: number };
     AppSettings: undefined;
+    LinkedAccounts: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;
     SupportTicketForm: {
         entryPoint?: string;

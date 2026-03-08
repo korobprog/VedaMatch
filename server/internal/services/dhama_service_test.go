@@ -66,3 +66,61 @@ func TestSlugifyHolyPlace(t *testing.T) {
 		t.Fatalf("unexpected slug %q", got)
 	}
 }
+
+func TestResolveHolyPlaceSlug(t *testing.T) {
+	t.Parallel()
+
+	req := models.HolyPlaceUpsertRequest{TitleEn: "Sri Dham Mayapur"}
+	if got := resolveHolyPlaceSlug(req); got != "sri-dham-mayapur" {
+		t.Fatalf("unexpected slug %q", got)
+	}
+}
+
+func TestResolveDhamaCollectionSlug(t *testing.T) {
+	t.Parallel()
+
+	req := models.DhamaCollectionUpsertRequest{TitleEn: "Braj Mandal"}
+	if got := resolveDhamaCollectionSlug(req); got != "braj-mandal" {
+		t.Fatalf("unexpected collection slug %q", got)
+	}
+}
+
+func TestSelectHolyPlaceLocaleInitializesEmptyRelations(t *testing.T) {
+	t.Parallel()
+
+	resp := selectHolyPlaceLocale(models.HolyPlace{
+		TitleEn:            "Vrindavan",
+		ShortDescriptionEn: "Sacred city",
+	}, "en")
+
+	if resp.LinkedMedia == nil {
+		t.Fatalf("expected linkedMedia to be initialized")
+	}
+	if resp.LinkedYatras == nil {
+		t.Fatalf("expected linkedYatras to be initialized")
+	}
+	if len(resp.LinkedMedia) != 0 || len(resp.LinkedYatras) != 0 {
+		t.Fatalf("expected empty linked relations, got media=%d yatras=%d", len(resp.LinkedMedia), len(resp.LinkedYatras))
+	}
+}
+
+func TestBuildDhamaCollectionSummaryFallsBackToEnglish(t *testing.T) {
+	t.Parallel()
+
+	collection := models.DhamaCollection{
+		TitleRu:       "Сердце Кришна-лилы",
+		TitleEn:       "Heartland of Krishna-lila",
+		DescriptionEn: "English collection description",
+	}
+
+	summary := buildDhamaCollectionSummary(collection, "hi", 2)
+	if summary.Title != "Heartland of Krishna-lila" {
+		t.Fatalf("expected english title fallback, got %q", summary.Title)
+	}
+	if summary.Description != "English collection description" {
+		t.Fatalf("expected english description fallback, got %q", summary.Description)
+	}
+	if summary.PlacesCount != 2 {
+		t.Fatalf("expected placesCount=2, got %d", summary.PlacesCount)
+	}
+}

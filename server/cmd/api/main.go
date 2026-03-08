@@ -65,6 +65,7 @@ func main() {
 	// Seed map test data (users, shops, ads with coordinates)
 	database.SeedMapTestData()
 	database.SeedDhamaPlaces()
+	database.SeedDhamaCollections()
 
 	// Initialize Services
 	services.InitScheduler()
@@ -344,10 +345,12 @@ func main() {
 	api.Get("/auth/vk/web/callback", middleware.RateLimitByIP("auth_vk_web_callback", 120, 10*time.Minute), authHandler.VKWebCallback)
 	api.Get("/auth/telegram/callback", middleware.RateLimitByIP("auth_telegram_callback", 120, 10*time.Minute), authHandler.TelegramMobileCallback)
 	api.Post("/auth/telegram/mobile/start", middleware.RateLimitByIP("auth_telegram_mobile_start", 60, 10*time.Minute), authHandler.TelegramMobileAuthStart)
+	api.Get("/auth/telegram/mobile/state/:state", middleware.RateLimitByIP("auth_telegram_mobile_state", 120, 10*time.Minute), authHandler.TelegramMobileAuthContext)
 	api.Post("/auth/telegram/mobile/complete", middleware.RateLimitByIP("auth_telegram_mobile_complete", 120, 10*time.Minute), authHandler.TelegramMobileAuthComplete)
 	api.Post("/auth/telegram/mobile/exchange", middleware.RateLimitByIP("auth_telegram_mobile_exchange", 120, 10*time.Minute), authHandler.TelegramMobileAuthExchange)
 	api.Post("/auth/telegram/miniapp/login", middleware.RateLimitByIP("auth_telegram_miniapp_login", 60, 10*time.Minute), authHandler.TelegramMiniAppLogin)
 	api.Post("/auth/telegram/miniapp/link", middleware.RateLimitByIP("auth_telegram_miniapp_link", 60, 10*time.Minute), authHandler.TelegramMiniAppLink)
+	api.Post("/auth/telegram/miniapp/mobile-link", middleware.RateLimitByIP("auth_telegram_miniapp_mobile_link", 60, 10*time.Minute), authHandler.TelegramMiniAppMobileLink)
 	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)
 	api.Post("/auth/logout", middleware.OptionalAuth(), middleware.RateLimitByIdentity("auth_logout", 120, 5*time.Minute), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
@@ -501,6 +504,8 @@ func main() {
 	dhama.Use(middleware.OptionalAuth())
 	dhama.Get("/places", dhamaHandler.ListPlaces)
 	dhama.Get("/places/:slug", dhamaHandler.GetPlace)
+	dhama.Get("/collections", dhamaHandler.ListCollections)
+	dhama.Get("/collections/:slug", dhamaHandler.GetCollection)
 	dhama.Get("/map/markers", dhamaHandler.GetMapMarkers)
 	dhama.Get("/filters", dhamaHandler.GetFilters)
 
@@ -548,6 +553,13 @@ func main() {
 	protected := api.Group("/", middleware.Protected())
 
 	// Protected Support Routes (in-app tickets)
+	protected.Get("/auth/providers", authHandler.GetLinkedAuthProviders)
+	protected.Post("/auth/google/link", authHandler.GoogleLink)
+	protected.Post("/auth/vk/link", authHandler.VKLink)
+	protected.Post("/auth/telegram/link/start", authHandler.TelegramLinkStart)
+	protected.Post("/auth/telegram/link", authHandler.TelegramLink)
+	protected.Delete("/auth/providers/:provider", authHandler.UnlinkAuthProvider)
+
 	protected.Get("/support/preachers/:preacherId/questions", supportHandler.ListPreacherQuestions)
 	protected.Get("/support/tickets", supportHandler.ListMyTickets)
 	protected.Post("/support/tickets/:id/vote", supportHandler.VotePreacherQuestion)
@@ -791,6 +803,7 @@ func main() {
 	// Admin Dhama management
 	admin.Get("/dhama/places", dhamaHandler.AdminListPlaces)
 	admin.Get("/dhama/places/:id", dhamaHandler.AdminGetPlace)
+	admin.Post("/dhama/places/import", dhamaHandler.AdminImportPlaces)
 	admin.Post("/dhama/places", dhamaHandler.AdminCreatePlace)
 	admin.Put("/dhama/places/:id", dhamaHandler.AdminUpdatePlace)
 	admin.Post("/dhama/places/:id/publish", dhamaHandler.AdminPublishPlace)
@@ -800,6 +813,14 @@ func main() {
 	admin.Delete("/dhama/places/:id/media/:mediaTrackId", dhamaHandler.AdminDetachMedia)
 	admin.Post("/dhama/places/:id/yatras", dhamaHandler.AdminAttachYatra)
 	admin.Delete("/dhama/places/:id/yatras/:yatraId", dhamaHandler.AdminDetachYatra)
+	admin.Get("/dhama/collections", dhamaHandler.AdminListCollections)
+	admin.Get("/dhama/collections/:id", dhamaHandler.AdminGetCollection)
+	admin.Post("/dhama/collections/import", dhamaHandler.AdminImportCollections)
+	admin.Post("/dhama/collections", dhamaHandler.AdminCreateCollection)
+	admin.Put("/dhama/collections/:id", dhamaHandler.AdminUpdateCollection)
+	admin.Post("/dhama/collections/:id/publish", dhamaHandler.AdminPublishCollection)
+	admin.Post("/dhama/collections/:id/archive", dhamaHandler.AdminArchiveCollection)
+	admin.Delete("/dhama/collections/:id", dhamaHandler.AdminDeleteCollection)
 
 	// Notifications
 	admin.Get("/notifications", yatraAdminHandler.GetNotifications)

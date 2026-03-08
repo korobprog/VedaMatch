@@ -7,14 +7,110 @@
 - Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 
+## Mobile Navigation
+- Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.
+
 ## Dhama Service
-- Новый сервис `Dhama` пока рассматривается как candidate composition-service, а не отдельный isolated vertical.
-- Уже существующие backend-блоки, которые логично переиспользовать:
-  - `Yatra` для расписания паломнических туров и связанной орг-логистики;
-  - `MapService` для карты, геокодинга, autocomplete и маршрутов;
-  - `MultimediaService` для аудиотеки лекций и семинаров;
-  - существующая медиа-инфраструктура (`S3`/uploads) для фото-галерей.
-- Предварительная продуктовая граница `Dhama`: source-of-truth по самим святым местам, их описаниям, фото, связям с аудио и связям с турами; туры и аудио не должны дублироваться как отдельные независимые сущности внутри `Dhama`.
+- `Dhama` реализован как отдельный доменный модуль sacred places, но не как замена `Yatra`, `MapService` или `Multimedia`.
+- Source-of-truth в `Dhama`:
+  - святое место (`HolyPlace`);
+  - локализованные тексты `ru/en/hi`;
+  - editorial sections, guidance fields, hero image и gallery;
+  - связи с существующими `MediaTrack` и `Yatra` через join tables.
+- Переиспользование существующих backend-блоков зафиксировано как архитектурное правило:
+  - `Yatra` остается source-of-truth для туров;
+  - `MultimediaService` остается source-of-truth для аудио/лекций;
+  - `MapService`/geo stack используется как инфраструктура карты, без дублирования map-domain в `Dhama`.
+- Backend `Dhama`:
+  - модели: `HolyPlace`, `HolyPlaceMediaLink`, `HolyPlaceYatraLink`;
+  - public endpoints: `GET /api/dhama/places`, `GET /api/dhama/places/:slug`, `GET /api/dhama/map/markers`, `GET /api/dhama/filters`;
+  - admin endpoints: CRUD, `publish/archive`, attach/detach media, attach/detach yatra;
+  - locale resolution: explicit locale/query/header -> user language -> fallback только в `en` для пустого поля, без каскада `ru -> en -> hi`;
+  - India-only validation зафиксирована в контентном scope, но schema names оставлены нейтральными.
+- Dev seed для `Dhama` уже добавлен:
+  - `Vrindavan`;
+  - `Mayapur`.
+- `Dhama` расширен первым full-version блоком `collections`:
+  - backend добавил `DhamaCollection` и `DhamaCollectionPlaceLink`;
+  - public endpoints теперь включают `GET /api/dhama/collections`, а список мест и карта поддерживают фильтр `collection=<slug>`;
+  - `HolyPlace` detail/public payload теперь может возвращать `collections` как thematic summaries;
+  - admin получил отдельный CRUD surface для подборок на `/dhama/collections`;
+  - dev seed теперь добавляет как минимум две стартовые подборки вокруг `Vrindavan` и `Mayapur`.
+- Mobile `Dhama` v1:
+  - отдельный service entry в portal (`dhama`);
+  - экраны `DhamaHome`, `DhamaMap`, `HolyPlaceDetail`;
+  - на всех `Dhama`-экранах есть явная верхняя back button слева с fallback `goBack -> Portal`;
+  - `DhamaHome` дополнительно отполирован по spacing:
+    - featured cards получили отдельный horizontal gap и правый padding;
+    - list cards стали шире и визуально спокойнее;
+    - header и search block получили больше воздуха между секциями.
+  - detail screen умеет открывать связанные audio tracks и linked yatras;
+  - локали `ru/en/hi` синхронизированы для основных `Dhama` ключей.
+- Mobile `Dhama` после расширения `collections`:
+  - `DhamaHome` показывает thematic collections отдельной горизонтальной секцией и умеет фильтровать список мест по выбранной подборке;
+  - `DhamaMap` принимает optional filter по подборке и показывает только соответствующие markers;
+  - `HolyPlaceDetail` показывает chips подборок, в которые входит место, и может увести пользователя обратно в `DhamaHome` уже с активной подборкой.
+- Admin `Dhama` v1:
+  - раздел `/dhama` в admin navigation;
+  - list/search/filter по статусу;
+  - editor локализованного контента;
+  - gallery URLs;
+  - linking existing media/yatra records.
+- Admin workflow `Dhama` дополнительно усилен:
+  - список использует server-side filters по `status`, `type`, `state`, `featured`, `search`;
+  - editor показывает inline validation до save, включая требования для `published` places;
+  - gallery редактируется как список отдельных URL с preview и быстрым действием `Use hero in gallery`;
+  - linked media и linked yatras получили отдельный search внутри modal, чтобы удобнее работать с большим каталогом.
+- `Dhama` admin image workflow улучшен:
+  - для `heroImageUrl` теперь есть прямой upload изображения через существующий `/admin/multimedia/upload` и `/admin/multimedia/presign`;
+  - gallery теперь поддерживает не только ручной URL, но и upload в новый slot или upload поверх конкретного gallery item;
+  - текущая реализация переиспользует multimedia S3 upload flow и не вводит второй параллельный storage path.
+- `Dhama` admin получил bulk import для мест:
+  - backend route `POST /api/admin/dhama/places/import` принимает либо raw JSON array мест, либо объект `{ "places": [...] }`;
+  - import работает как `upsert by slug`: существующие holy places обновляются, новые создаются;
+  - import summary возвращает counts `created/updated` и список обработанных slug-ов;
+  - это основной путь для быстрого наполнения реальным каталогом святых мест до production.
+- Для контентного bootstrap подготовлен starter import pack:
+  - файл `docs/dhama/dhama_places_starter_import.json`;
+  - текущая стартовая волна: `Vrindavan`, `Govardhan`, `Mayapur`, `Nabadwip`, `Puri`, `Tirumala`;
+  - все записи заведены как `draft`, чтобы сначала дозаполнить изображения, media/yatra links и финально вычитать локали;
+  - краткая инструкция для команды лежит в `docs/dhama/DHAMA_IMPORT_GUIDE.md`.
+- Подготовлена и вторая волна sacred places:
+  - файл `docs/dhama/dhama_places_wave2_import.json`;
+  - состав: `Dwarka`, `Udupi`, `Pandharpur`, `Srirangam`, `Melkote`, `Nathdwara`, `Ayodhya`;
+  - цель волны: расширить `Dhama` от Браджа/Бенгалии к более широкой India-wide карте вайшнавских мест;
+  - инструкция для команды лежит в `docs/dhama/DHAMA_WAVE2_IMPORT_GUIDE.md`.
+- `Dhama collections` тоже получили bulk import:
+  - backend route `POST /api/admin/dhama/collections/import`;
+  - import принимает raw array или `{ "collections": [...] }`;
+  - связанные места задаются через `linkedPlaceSlugs`, а не через ручной поиск `id`;
+  - starter pack лежит в `docs/dhama/dhama_collections_starter_import.json`;
+  - guide для команды лежит в `docs/dhama/DHAMA_COLLECTIONS_IMPORT_GUIDE.md`.
+- Подготовлена и вторая волна тематических collections:
+  - файл `docs/dhama/dhama_collections_wave2_import.json`;
+  - фокус волны: не география, а смысловые входы в каталог (`Krishna`, `Chaitanya`, `Rama`, South India, cross-region bhakti map);
+  - guide для команды лежит в `docs/dhama/DHAMA_COLLECTIONS_WAVE2_GUIDE.md`.
+- Mobile `Dhama` получил отдельный `collection detail screen`:
+  - новый route `DhamaCollectionDetail`;
+  - backend добавил public endpoint `GET /api/dhama/collections/:slug`;
+  - `DhamaHome` теперь открывает экран подборки, а отдельной кнопкой внутри карточки можно включать/сбрасывать collection filter для списка;
+  - chips подборок в `HolyPlaceDetail` теперь тоже ведут в detail screen подборки, а не просто назад в home с фильтром.
+  - сам экран подборки дополнительно усилен как richer editorial surface:
+    - hero fallback, если нет изображения;
+    - summary stats по местам/регионам/featured;
+    - quick-access chips по местам;
+    - lead place card;
+    - более содержательный included places block.
+- Известные ограничения текущего v1:
+  - mobile map screen использует `WebView` + Leaflet CDN, то есть зависит от сетевой загрузки Leaflet;
+  - полный `frontend tsc` все еще падает на pre-existing ошибках в `frontend/components/auth/VKAuthModal.tsx`, не связанных с `Dhama`.
+- После добавления `Dhama collections` известные хвосты такие:
+  - admin collections уже умеют bulk import, но все еще без reorder UX;
+  - mobile collections пока живут на `DhamaHome` и в `HolyPlaceDetail`, но без отдельного screen для просмотра подборки как самостоятельной editorial страницы;
+  - на admin side есть pre-existing проблема запуска `biome check` в подпроекте `admin` из-за конфигурации `useIgnoreFile`, не связанная с самой `Dhama`-правкой.
+- Для `Dhama` detail screen зафиксирован и закрыт crash-risk на mobile:
+  - причина была в том, что public detail payload мог приходить без `linkedMedia` / `linkedYatras`, а экран делал `.length` по possibly-undefined полям;
+  - backend теперь инициализирует эти relation slices, а frontend `dhamaService` дополнительно нормализует detail payload в безопасную shape даже до server redeploy.
 
 ## Connect MVP
 - `Connect` введен как отдельный агрегатор поверх существующих `Yatra`, `Seva` и `Services`, а не как замена этих модулей.
@@ -2242,3 +2338,36 @@
 - SupportConversationScreen, InviteFriendModal, RoomInviteEntryScreen, and PortalChatScreen now use runtime-localized support/chat invite flow copy and locale-aware date formatting.
 
 - EditProfileScreen and PlansScreen now use runtime-localized validation, fallback success/error copy, and plan feature labels for en/ru/hi.
+## Monetization Map
+- В проекте уже есть несколько независимых контуров монетизации, а не один общий тарифный модуль.
+- Пополнение LKM:
+  - отдельный web/Telegram контур `LKM Top-up`;
+  - дефолтный номинал `1 LKM = 1 RUB`, но курс configurable через `LKMTopupGlobalConfig.NominalRubPerLKM`;
+  - пакеты: CIS `199/499/999/1999/3999`, non-CIS `499/999/1999/3999`;
+  - custom limits: CIS `199..450000 step 50`, non-CIS `499..450000 step 50`;
+  - шлюзы по seed: `yookassa`, `stripe`.
+- Платные сервисы (`Services`):
+  - тарифы хранятся в `ServiceTariff`;
+  - валюта по факту используется `LKM`;
+  - есть `MaxBonusLkmPercent` и платформенная комиссия на бронирования;
+  - seed-демо тарифы сервисов: `700`, `900`, `1500`, `1800`, `2600`, `3200`, `5200` LKM.
+- PRO подписка:
+  - оплачивается в LKM;
+  - дефолтные планы: `99 / 299 / 799 LKM` за `7 / 30 / 90` дней.
+- Shop monetization:
+  - тарифы магазинов: `basic=0`, `pro=299`, `plus=699` LKM;
+  - лимиты товаров: `20 / 200 / unlimited`;
+  - промо товаров: `24h=15`, `7d=60`, `30d=180` LKM;
+  - geo boost магазина: `24h=20` LKM;
+  - есть platform fee marketplace.
+- Chat transcribe billing:
+  - включен по умолчанию;
+  - `5` бесплатных минут в неделю;
+  - затем `3 LKM/мин`, для long audio `2 LKM/мин`, minimum charge `1 LKM`.
+- Yatra billing:
+  - в коде есть, но по seed выключен;
+  - default daily fee `10 LKM`.
+- Platform fee defaults:
+  - Services: `8%`, cap `300 LKM`, no-show configurable, rollout по seed `20%`;
+  - Market: `8%`, cap `300 LKM`, rollout `100%`;
+  - Cafe: `8%`, cap `250 LKM`, min order `100 LKM`, но по seed выключено.

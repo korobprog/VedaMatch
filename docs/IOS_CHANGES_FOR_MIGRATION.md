@@ -1,5 +1,329 @@
 # IOS Changes For Migration
 
+## 2026-03-08 (EditProfile role carousel no longer triggers accidental swipe-back to portal)
+
+### Измененные файлы
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на экране `EditProfile` iOS native-stack принимал системный `swipe back`;
+  - в секции выбора роли (`Искатель`, `В благости`, `Йог`, `Преданный`) горизонтальный свайп мог случайно интерпретироваться как уход назад;
+  - из-за этого пользователь мог непреднамеренно вернуться в `Portal`, пока листал карточки ролей.
+- Стало:
+  - для route `EditProfile` отключен `gestureEnabled`;
+  - горизонтальная карусель ролей больше не конфликтует с iOS back gesture;
+  - возврат со страницы остается только через явные UI-действия (`Отмена`, успешное сохранение, программный `goBack`).
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="EditProfile"
+  component={EditProfileScreen}
+  options={{ gestureEnabled: false }}
+/>
+```
+
+## 2026-03-08 (Dhama collections added to shared mobile discovery flow)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/types/dhama.ts`
+- `frontend/services/dhamaService.ts`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+- `frontend/screens/dhama/HolyPlaceDetailScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile `Dhama` умел показывать только flat-catalog мест, карту и detail конкретного места;
+  - у sacred places не было thematic grouping layer поверх каталога;
+  - из карточки места нельзя было перейти в curated подборку схожих/связанных святых мест;
+  - карта `Dhama` всегда показывала один и тот же общий набор markers без контекстного фильтра.
+- Стало:
+  - mobile получил typed support для `Dhama collections` через новый public endpoint `GET /api/dhama/collections`;
+  - `DhamaHome` теперь показывает горизонтальную секцию тематических подборок и умеет фильтровать каталог по выбранной подборке;
+  - `DhamaMap` принимает optional `collectionSlug` и показывает markers только по активной подборке;
+  - `HolyPlaceDetail` показывает chips подборок, в которые входит место, и может увести пользователя назад в `DhamaHome` уже с активным collection context;
+  - локали `ru/en/hi` расширены новым UI-ключом `dhama.collections`, поэтому shared mobile behavior одинаково покрыт на iOS и Android.
+
+### Сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+DhamaHome: { collectionSlug?: string; collectionTitle?: string } | undefined;
+DhamaMap: { collectionSlug?: string } | undefined;
+```
+
+`frontend/services/dhamaService.ts`:
+```ts
+async getCollections(): Promise<DhamaCollectionListResponse> {
+  const response = await apiClient.get('/dhama/collections', { params: { limit: 20 } });
+  return {
+    ...response.data,
+    collections: Array.isArray(response.data?.collections)
+      ? response.data.collections.map((collection: Partial<DhamaCollection>) => normalizeDhamaCollection(collection))
+      : [],
+  };
+}
+```
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```ts
+dhamaService.getPlaces({ search, collection: selectedCollectionSlug || undefined, limit: 50 })
+```
+
+```tsx
+onPress={() => setSelectedCollectionSlug((current) => (current === item.slug ? null : item.slug))}
+```
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```ts
+dhamaService.getMapMarkers({ collection: route.params?.collectionSlug, limit: 200 })
+```
+
+`frontend/screens/dhama/HolyPlaceDetailScreen.tsx`:
+```tsx
+onPress={() => navigation.navigate('DhamaHome', { collectionSlug: collection.slug, collectionTitle: collection.title })}
+```
+
+## 2026-03-08 (Dhama map logo overlay now blocks attribution link taps)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - overlay с логотипом на `DhamaMap` был маленьким и стоял поверх attribution только визуально;
+  - из-за `pointerEvents="none"` тапы проходили сквозь логотип в `WebView`, и ссылка под ним оставалась интерактивной;
+  - часть текста attribution все еще выглядывала слева снизу.
+- Стало:
+  - overlay расширен до более широкой нижней правой маски;
+  - вместо пассивного `View` теперь используется `Pressable` с no-op handler, поэтому тап в этот угол больше не проходит в `WebView`;
+  - логотип прижат вправо внутри широкой маски, а сама маска лучше перекрывает attribution area на iOS и Android;
+  - затем маска была дополнительно сужена, чтобы занимать меньше места, но сохранить блокировку attribution-link tap в углу карты;
+  - после этого логотип был возвращен почти к прежнему размеру, а уменьшена уже только ширина самой подложки, чтобы угол выглядел компактнее без уменьшения брендинга.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```tsx
+<Pressable onPress={() => {}} style={[styles.logoOverlay, styles.logoOverlaySurface, { borderColor: vTheme.colors.divider }]}>
+  <Image source={require('../../assets/logo_tilak_booton.png')} style={styles.logoImage} resizeMode="contain" />
+</Pressable>
+```
+
+## 2026-03-08 (Dhama collections now open a dedicated mobile detail screen)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/services/dhamaService.ts`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/DhamaCollectionDetailScreen.tsx`
+- `frontend/screens/dhama/HolyPlaceDetailScreen.tsx`
+- `frontend/screens/dhama/index.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `server/internal/services/dhama_service.go`
+- `server/internal/handlers/dhama_handler.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Dhama collections` существовали в mobile только как горизонтальные карточки и chips;
+  - нажатие по подборке фактически использовалось как фильтр списка, но не открывало полноценную editorial страницу;
+  - у mobile не было route для detail экрана подборки;
+  - backend не отдавал public detail по `collection slug`.
+- Стало:
+  - добавлен новый route `DhamaCollectionDetail`;
+  - backend теперь поддерживает `GET /api/dhama/collections/:slug`;
+  - `DhamaHome` открывает отдельный экран подборки, а фильтрация списка вынесена в отдельную кнопку внутри collection card;
+  - `HolyPlaceDetail` chips теперь ведут в полноценный `collection detail screen`;
+  - на новом экране подборки пользователь может:
+    - открыть карту только по этой подборке;
+    - открыть отфильтрованный список мест подборки;
+    - перейти в detail любого места внутри подборки.
+
+### Сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+DhamaCollectionDetail: { slug: string };
+```
+
+`server/cmd/api/main.go`:
+```go
+dhama.Get("/collections/:slug", dhamaHandler.GetCollection)
+```
+
+`frontend/services/dhamaService.ts`:
+```ts
+async getCollection(slug: string): Promise<DhamaCollection> {
+  const response = await apiClient.get(`/dhama/collections/${slug}`);
+  return normalizeDhamaCollection(response.data);
+}
+```
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+onPress={() => navigation.navigate('DhamaCollectionDetail', { slug: item.slug })}
+```
+
+`frontend/screens/dhama/HolyPlaceDetailScreen.tsx`:
+```tsx
+onPress={() => navigation.navigate('DhamaCollectionDetail', { slug: collection.slug })}
+```
+
+## 2026-03-08 (Dhama collection detail screen upgraded from simple list to richer editorial layout)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaCollectionDetailScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран подборки был функциональным, но очень плоским;
+  - пользователь видел только title, description, две CTA-кнопки и простой вертикальный список мест;
+  - если у подборки не было hero image, верх экрана выглядел пусто;
+  - подборка не давала быстрого ощущения масштаба и структуры.
+- Стало:
+  - экран получил richer editorial composition без изменения backend schema;
+  - если у подборки нет hero image, показывается branded fallback hero block с title;
+  - добавлены summary cards: число мест, число регионов, число featured places;
+  - добавлен quick-access horizontal row по местам;
+  - добавлена lead place card для главного места подборки;
+  - основной список мест теперь визуально богаче и показывает featured badge;
+  - локали `ru/en/hi` расширены новыми `dhama.*` ключами для stats, quick access и поясняющего текста.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaCollectionDetailScreen.tsx`:
+```tsx
+const uniqueStates = useMemo(
+  () => Array.from(new Set(places.map((place) => place.state).filter(Boolean))),
+  [places],
+);
+```
+
+```tsx
+{collection.heroImageUrl ? (
+  <Image source={{ uri: collection.heroImageUrl }} style={styles.hero} />
+) : (
+  <View style={[styles.heroFallback, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}>
+    <Text style={[styles.heroFallbackEyebrow, { color: vTheme.colors.primary }]}>{t('dhama.collectionLabel')}</Text>
+    <Text style={[styles.heroFallbackTitle, { color: vTheme.colors.text }]}>{collection.title}</Text>
+  </View>
+)}
+```
+
+```tsx
+<Text style={[styles.statLabel, { color: vTheme.colors.textSecondary }]}>{t('dhama.stats.places')}</Text>
+```
+
+```ts
+logoOverlay: {
+  right: 0,
+  bottom: 0,
+  width: 82,
+  height: 50,
+  alignItems: 'flex-end',
+  paddingLeft: 6,
+  paddingRight: 5,
+}
+```
+
+## 2026-03-08 (Dhama added as new shared mobile service with sacred places screens)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/types/portal.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+- `frontend/screens/dhama/DhamaMapScreen.tsx`
+- `frontend/screens/dhama/HolyPlaceDetailScreen.tsx`
+- `frontend/screens/dhama/index.ts`
+- `frontend/services/dhamaService.ts`
+- `frontend/types/dhama.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в mobile portal не было отдельного сервиса `Dhama`;
+  - не существовало typed navigation flow для каталога святых мест, карты sacred places и карточки места;
+  - мобильный клиент не умел получать `Dhama`-данные с backend и открывать связанные audio/yatra блоки;
+  - на `DhamaMap` был виден нижний угловой leaflet badge от WebView-карты.
+- Стало:
+  - в portal добавлен отдельный service entry `dhama`;
+  - navigation stack теперь содержит `DhamaHome`, `DhamaMap`, `HolyPlaceDetail`;
+  - mobile использует новый typed API client `dhamaService` для списка мест, map markers, filters и detail payload;
+  - все `Dhama`-экраны получили явную верхнюю back button слева; если back stack отсутствует, кнопка уводит в `Portal`;
+  - `DhamaHome` получил более свободный spacing: header перестал быть зажатым, featured cards разнесены явным horizontal gap, а вертикальные cards стали шире и читаемее;
+  - detail screen открывает связанные audio tracks через существующий `AudioPlayer`, а связанные туры через `YatraDetail`;
+  - detail payload дополнительно нормализуется на client-side, а backend инициализирует пустые relation arrays, поэтому переход из карты в `HolyPlaceDetail` больше не должен ронять mobile на местах без media/yatra links;
+  - на `DhamaMap` нижний угол карты перекрыт брендовым overlay с `logo_tilak_booton.png`, поэтому лишний badge больше не торчит поверх UI;
+  - UI и контентные ключи локализованы для `ru/en/hi`, поэтому shared mobile behavior одинаково поддержан на iOS и Android.
+
+### Сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+export type RootStackParamList = {
+  DhamaHome: undefined;
+  DhamaMap: undefined;
+  HolyPlaceDetail: { slug: string };
+};
+```
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'dhama') {
+  return { kind: 'navigate', screen: 'DhamaHome' };
+}
+```
+
+`frontend/screens/dhama/HolyPlaceDetailScreen.tsx`:
+```ts
+onPress={() => navigation.navigate('AudioPlayer', { track: { ...track, ID: track.id, thumbnailUrl: track.thumbnailUrl } })}
+```
+
+```ts
+onPress={() => navigation.navigate('YatraDetail', { yatraId: yatra.id })}
+```
+
+`frontend/screens/dhama/DhamaMapScreen.tsx`:
+```ts
+<View pointerEvents="none" style={[styles.logoOverlay, styles.logoOverlaySurface, { borderColor: vTheme.colors.divider }]}>
+  <Image source={require('../../assets/logo_tilak_booton.png')} style={styles.logoImage} resizeMode="contain" />
+</View>
+```
+
+`frontend/screens/dhama/DhamaBackButton.tsx`:
+```ts
+if (navigation.canGoBack()) {
+  navigation.goBack();
+  return;
+}
+navigation.navigate('Portal');
+```
+
+`frontend/services/dhamaService.ts`:
+```ts
+linkedMedia: Array.isArray(payload?.linkedMedia) ? payload!.linkedMedia : [],
+linkedYatras: Array.isArray(payload?.linkedYatras) ? payload!.linkedYatras : [],
+```
+
 ## 2026-03-08 (Backend social auth create now omits blank `google_sub` and always generates `invite_code`)
 
 ### Измененные файлы

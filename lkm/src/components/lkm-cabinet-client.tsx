@@ -464,6 +464,7 @@ export default function LkmCabinetClient({
   const [telegramInitData, setTelegramInitData] = useState('');
   const [telegramUser, setTelegramUser] = useState<TelegramMiniAppUser | null>(null);
   const [telegramMobileAuthState, setTelegramMobileAuthState] = useState('');
+  const [telegramMobileFlowPurpose, setTelegramMobileFlowPurpose] = useState('');
   const [isTelegramAuthLoading, setIsTelegramAuthLoading] = useState(false);
   const [isTelegramMobileBridgeLoading, setIsTelegramMobileBridgeLoading] = useState(false);
   const [telegramMobileDeepLink, setTelegramMobileDeepLink] = useState('');
@@ -509,6 +510,7 @@ export default function LkmCabinetClient({
   const socialAuthPopupResolvedRef = useRef(false);
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
   const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
+  const isTelegramMobileLinkFlow = telegramMobileFlowPurpose === 'link';
   const telegramMobileReturnLink = useMemo(() => {
     const explicitLink = telegramMobileDeepLink.trim();
     if (explicitLink) {
@@ -530,6 +532,38 @@ export default function LkmCabinetClient({
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
+
+  useEffect(() => {
+    if (!telegramMobileAuthState) {
+      setTelegramMobileFlowPurpose('');
+      return;
+    }
+
+    let cancelled = false;
+    const loadTelegramMobileContext = async () => {
+      try {
+        const response = await apiRequest<{ purpose?: string }>(
+          `/auth/telegram/mobile/state/${encodeURIComponent(telegramMobileAuthState)}`,
+          {
+            method: 'GET',
+            skipAuthRefresh: true,
+          },
+        );
+        if (!cancelled) {
+          setTelegramMobileFlowPurpose((response.purpose || '').trim());
+        }
+      } catch {
+        if (!cancelled) {
+          setTelegramMobileFlowPurpose('');
+        }
+      }
+    };
+
+    void loadTelegramMobileContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [telegramMobileAuthState]);
 
   useEffect(() => {
     refreshTokenRef.current = refreshToken;
@@ -1147,6 +1181,24 @@ export default function LkmCabinetClient({
       setError('');
       setSuccess('');
       try {
+        if (isTelegramMobileLinkFlow && isTelegramMobileAuthFlow) {
+          await apiRequest<{ message: string }>('/auth/telegram/miniapp/mobile-link', {
+            method: 'POST',
+            timeoutMs: 10000,
+            body: {
+              initData: telegramInitData,
+              mobileAuthState: telegramMobileAuthState,
+            },
+            skipAuthRefresh: true,
+          });
+          if (cancelled) {
+            return;
+          }
+          setTelegramLinkRequired(false);
+          await completeTelegramMobileBridge();
+          return;
+        }
+
         const response = await apiRequest<LoginResponse>('/auth/telegram/miniapp/login', {
           method: 'POST',
           timeoutMs: 10000,
@@ -1176,6 +1228,8 @@ export default function LkmCabinetClient({
         if (message.includes('TELEGRAM_LINK_REQUIRED')) {
           setTelegramLinkRequired(true);
           setError('Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.');
+        } else if (message.includes('TELEGRAM_LINK_CONFLICT')) {
+          setError('Этот Telegram уже привязан к другому аккаунту VedaMatch.');
         } else if (message.includes('TELEGRAM_INIT_DATA_REPLAY')) {
           setTelegramLinkRequired(true);
           setError('Telegram-сессия уже проверена. Выполните разовый вход email/пароль для привязки.');
@@ -1207,6 +1261,9 @@ export default function LkmCabinetClient({
     applyAuthSession,
     completeTelegramMobileBridge,
     isTelegramMobileAuthFlow,
+    isTelegramMobileLinkFlow,
+    telegramMobileAuthState,
+    telegramMobileFlowPurpose,
   ]);
 
   useEffect(() => {

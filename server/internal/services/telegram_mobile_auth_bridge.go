@@ -31,12 +31,14 @@ var (
 )
 
 type TelegramMobileAuthState struct {
-	State       string          `json:"state"`
-	DeviceID    string          `json:"deviceId,omitempty"`
-	Status      string          `json:"status"`
-	AuthPayload json.RawMessage `json:"authPayload,omitempty"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	ExpiresAt   time.Time       `json:"expiresAt"`
+	State        string          `json:"state"`
+	DeviceID     string          `json:"deviceId,omitempty"`
+	TargetUserID uint            `json:"targetUserId,omitempty"`
+	Purpose      string          `json:"purpose,omitempty"`
+	Status       string          `json:"status"`
+	AuthPayload  json.RawMessage `json:"authPayload,omitempty"`
+	CreatedAt    time.Time       `json:"createdAt"`
+	ExpiresAt    time.Time       `json:"expiresAt"`
 }
 
 type telegramMobileAuthMemoryStore struct {
@@ -120,6 +122,10 @@ func (s *TelegramAuthService) ResolveMobileAuthNativeDeepLink(state string) stri
 }
 
 func (s *TelegramAuthService) CreateMobileAuthState(deviceID string) (TelegramMobileAuthState, error) {
+	return s.CreateMobileAuthStateForPurpose(deviceID, 0, "")
+}
+
+func (s *TelegramAuthService) CreateMobileAuthStateForPurpose(deviceID string, targetUserID uint, purpose string) (TelegramMobileAuthState, error) {
 	state, err := buildTelegramMobileAuthState()
 	if err != nil {
 		return TelegramMobileAuthState{}, err
@@ -127,11 +133,13 @@ func (s *TelegramAuthService) CreateMobileAuthState(deviceID string) (TelegramMo
 
 	now := s.now().UTC()
 	entry := TelegramMobileAuthState{
-		State:     state,
-		DeviceID:  strings.TrimSpace(deviceID),
-		Status:    "pending",
-		CreatedAt: now,
-		ExpiresAt: now.Add(telegramMobileAuthTTL),
+		State:        state,
+		DeviceID:     strings.TrimSpace(deviceID),
+		TargetUserID: targetUserID,
+		Purpose:      strings.TrimSpace(strings.ToLower(purpose)),
+		Status:       "pending",
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(telegramMobileAuthTTL),
 	}
 
 	if err := s.saveMobileAuthState(entry); err != nil {
@@ -187,6 +195,10 @@ func (s *TelegramAuthService) ConsumeMobileAuthState(state string, deviceID stri
 	entry.Status = "consumed"
 	_ = s.saveMobileAuthState(entry)
 	return append(json.RawMessage(nil), entry.AuthPayload...), nil
+}
+
+func (s *TelegramAuthService) LoadMobileAuthState(state string) (TelegramMobileAuthState, error) {
+	return s.loadMobileAuthState(state)
 }
 
 func (s *TelegramAuthService) saveMobileAuthState(entry TelegramMobileAuthState) error {

@@ -48,9 +48,26 @@ export default {
         "homeSubtitle": "भारत के पवित्र स्थल, गाइड, ऑडियो और संबंधित यात्राओं के साथ।",
         "openMap": "मैप खोलें",
         "searchPlaceholder": "पवित्र स्थलों की खोज करें...",
+        "collections": "संग्रह",
+        "collectionLabel": "संग्रह",
         "featured": "प्रमुख स्थल",
         "allPlaces": "सभी स्थल",
         "empty": "अभी कोई पवित्र स्थल नहीं मिला।",
+        "showCollectionPlaces": "इस संग्रह के स्थल दिखाएँ",
+        "openCollectionMap": "संग्रह का मैप खोलें",
+        "collectionPlaces": "इस संग्रह में {{count}} स्थल",
+        "collectionPlacesHint": "स्थलों को एक-एक कर खोलें या फ़िल्टर किए गए मैप और सूची से आगे बढ़ें।",
+        "collectionEmpty": "इस संग्रह में अभी कोई प्रकाशित स्थल नहीं है।",
+        "collectionLead": "इस संग्रह का मुख्य स्थल",
+        "quickAccess": "त्वरित पहुँच",
+        "openPlace": "स्थल खोलें",
+        "filterByCollection": "संग्रह से फ़िल्टर करें",
+        "clearCollectionFilter": "फ़िल्टर हटाएँ",
+        "stats": {
+            "places": "स्थल",
+            "regions": "क्षेत्र",
+            "featured": "प्रमुख"
+        },
         "mapTitle": "धाम मैप",
         "mapSubtitle": "भारत के पवित्र स्थलों का अन्वेषण करें।",
         "audioSection": "ऑडियो लाइब्रेरी",
@@ -1071,6 +1088,44 @@ export default {
         "locationCacheDescription": "डेटा अपडेट करने हेतु देशों और शहरों का कैश साफ करें",
         "locationCacheCleared": "कैश साफ हुआ",
         "locationCacheClearedMsg": "लोकेशन कैश साफ हो गया। अगली रिक्वेस्ट पर देश और शहर फिर से लोड होंगे।",
+        "linkedAccounts": {
+            "title": "ऑथराइज़ेशन",
+            "heroTitle": "लिंक किए गए अकाउंट",
+            "heroSubtitle": "Google, VK और Telegram जोड़ें ताकि बाद में इन्हीं से ऐप में प्रवेश कर सकें।",
+            "passwordTitle": "पासवर्ड से साइन-इन उपलब्ध है",
+            "passwordDescription": "जब तक अकाउंट में कम से कम एक और साइन-इन तरीका बचा है, सोशल प्रोवाइडर हटाए जा सकते हैं।",
+            "providers": {
+                "google": "Google",
+                "vk": "VK",
+                "telegram": "Telegram"
+            },
+            "providerHints": {
+                "google": "अपना Google अकाउंट जोड़ें",
+                "vk": "अपना VK अकाउंट जोड़ें",
+                "telegram": "अपना Telegram अकाउंट जोड़ें"
+            },
+            "status": {
+                "linked": "लिंक्ड",
+                "notLinked": "लिंक्ड नहीं"
+            },
+            "actions": {
+                "link": "लिंक करें",
+                "unlink": "हटाएं"
+            },
+            "alerts": {
+                "unlinkTitle": "अकाउंट हटाएं?",
+                "unlinkMessage": "{{provider}} प्रोवाइडर को साइन-इन तरीकों से हटाया जाएगा।",
+                "unlinked": "अकाउंट सफलतापूर्वक हटाया गया",
+                "unlinkFailed": "अकाउंट हटाने में विफल",
+                "lastMethodBlocked": "अंतिम उपलब्ध साइन-इन तरीका हटाया नहीं जा सकता",
+                "googleLinked": "Google सफलतापूर्वक लिंक हुआ",
+                "googleLinkFailed": "Google लिंक नहीं हो सका",
+                "vkLinked": "VK सफलतापूर्वक लिंक हुआ",
+                "vkLinkFailed": "VK लिंक नहीं हो सका",
+                "telegramLinked": "Telegram सफलतापूर्वक लिंक हुआ",
+                "telegramLinkFailed": "Telegram लिंक नहीं हो सका"
+            }
+        },
         "appScreen": {
             "versionLabel": "संस्करण: {{version}} ({{platform}} build {{build}})",
             "intervalSeconds": "{{count}} सेक",
@@ -1081,6 +1136,8 @@ export default {
             "quickAccess": {
                 "title": "त्वरित पहुंच",
                 "subtitle": "प्रोफ़ाइल, बैलेंस और निमंत्रण",
+                "authTitle": "ऑथराइज़ेशन",
+                "authDescription": "Google, VK और Telegram अकाउंट मैनेज करें",
                 "inviteTitle": "दोस्तों को आमंत्रित करें",
                 "inviteDescription": "हर सक्रिय मित्र पर 100 LKM बोनस",
                 "supportTitle": "सहायता",

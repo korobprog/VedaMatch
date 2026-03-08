@@ -120,3 +120,91 @@ func SeedDhamaPlaces() {
 		}
 	}
 }
+
+func SeedDhamaCollections() {
+	if DB == nil {
+		return
+	}
+
+	var count int64
+	if err := DB.Model(&models.DhamaCollection{}).Count(&count).Error; err != nil {
+		log.Printf("[DhamaSeed] collection count failed: %v", err)
+		return
+	}
+	if count > 0 {
+		return
+	}
+
+	var places []models.HolyPlace
+	if err := DB.Where("slug IN ?", []string{"vrindavan", "mayapur"}).Find(&places).Error; err != nil {
+		log.Printf("[DhamaSeed] place lookup for collections failed: %v", err)
+		return
+	}
+	placeBySlug := make(map[string]models.HolyPlace, len(places))
+	for _, place := range places {
+		placeBySlug[place.Slug] = place
+	}
+
+	type collectionSeed struct {
+		Collection models.DhamaCollection
+		PlaceSlugs []string
+	}
+
+	seeds := []collectionSeed{
+		{
+			Collection: models.DhamaCollection{
+				Slug:          "krishna-lila-heartland",
+				Status:        models.DhamaCollectionStatusPublished,
+				SortOrder:     10,
+				IsFeatured:    true,
+				TitleRu:       "Сердце Кришна-лилы",
+				TitleEn:       "Heartland of Krishna-lila",
+				TitleHi:       "कृष्ण-लीला का हृदय-क्षेत्र",
+				DescriptionRu: "Подборка мест для первого глубокого знакомства с лилами Кришны и атмосферой традиционного паломничества.",
+				DescriptionEn: "A starting collection for discovering Krishna-lila places and the atmosphere of traditional pilgrimage.",
+				DescriptionHi: "कृष्ण-लीला स्थलों और पारंपरिक तीर्थ वातावरण से परिचय के लिए प्रारंभिक संग्रह।",
+				HeroImageURL:  "/uploads/travel/vrindavan.jpg",
+			},
+			PlaceSlugs: []string{"vrindavan"},
+		},
+		{
+			Collection: models.DhamaCollection{
+				Slug:          "gaudiya-pilgrimage-axis",
+				Status:        models.DhamaCollectionStatusPublished,
+				SortOrder:     20,
+				IsFeatured:    true,
+				TitleRu:       "Главные места гаудия-паломничества",
+				TitleEn:       "Core Gaudiya pilgrimage places",
+				TitleHi:       "गौड़ीय तीर्थ के प्रमुख स्थल",
+				DescriptionRu: "Ключевые святые места для паломника, который хочет пройти по главным центрам гаудия-вайшнавской традиции.",
+				DescriptionEn: "Essential sacred places for pilgrims following the main centers of the Gaudiya Vaishnava tradition.",
+				DescriptionHi: "गौड़ीय वैष्णव परंपरा के मुख्य तीर्थ-केंद्रों को जोड़ने वाला आवश्यक संग्रह।",
+				HeroImageURL:  "/uploads/travel/mayapur.jpg",
+			},
+			PlaceSlugs: []string{"mayapur", "vrindavan"},
+		},
+	}
+
+	for _, seed := range seeds {
+		collection := seed.Collection
+		if err := DB.Create(&collection).Error; err != nil {
+			log.Printf("[DhamaSeed] collection create failed slug=%s err=%v", collection.Slug, err)
+			continue
+		}
+		for idx, placeSlug := range seed.PlaceSlugs {
+			place, ok := placeBySlug[placeSlug]
+			if !ok {
+				log.Printf("[DhamaSeed] collection place missing collection=%s place=%s", collection.Slug, placeSlug)
+				continue
+			}
+			link := models.DhamaCollectionPlaceLink{
+				CollectionID: collection.ID,
+				HolyPlaceID:  place.ID,
+				SortOrder:    idx,
+			}
+			if err := DB.Create(&link).Error; err != nil {
+				log.Printf("[DhamaSeed] collection link create failed collection=%s place=%s err=%v", collection.Slug, placeSlug, err)
+			}
+		}
+	}
+}

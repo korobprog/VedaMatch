@@ -131,6 +131,7 @@ func Connect() {
 		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
 		&models.UserMediaHistory{},
 		&models.HolyPlace{}, &models.HolyPlaceMediaLink{}, &models.HolyPlaceYatraLink{},
+		&models.DhamaCollection{}, &models.DhamaCollectionPlaceLink{},
 		&models.VideoCircle{}, &models.VideoCircleInteraction{},
 		&models.VideoTariff{}, &models.VideoCircleBillingLog{},
 		// Video-specific models

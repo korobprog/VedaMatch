@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { WebView } from 'react-native-webview';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { HolyPlaceMapMarker } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { useSettings } from '../../context/SettingsContext';
+import { DhamaBackButton } from './DhamaBackButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaMap'>;
 
@@ -43,7 +44,7 @@ const buildHtml = (markers: HolyPlaceMapMarker[]) => `<!doctype html>
   </body>
 </html>`;
 
-export const DhamaMapScreen: React.FC<Props> = ({ navigation }) => {
+export const DhamaMapScreen: React.FC<Props> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const { vTheme } = useSettings();
   const [markers, setMarkers] = useState<HolyPlaceMapMarker[]>([]);
@@ -51,7 +52,8 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     let mounted = true;
-    dhamaService.getMapMarkers({ limit: 200 })
+    setLoading(true);
+    dhamaService.getMapMarkers({ collection: route.params?.collectionSlug, limit: 200 })
       .then((payload) => {
         if (mounted) {
           setMarkers(payload.markers || []);
@@ -68,12 +70,15 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation }) => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [route.params?.collectionSlug]);
 
   const html = useMemo(() => buildHtml(markers), [markers]);
 
   return (
     <ScreenScaffold contentStyle={styles.container}>
+      <View style={styles.topBar}>
+        <DhamaBackButton navigation={navigation} />
+      </View>
       <Text style={[styles.title, { color: vTheme.colors.text }]}>{t('dhama.mapTitle')}</Text>
       <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>{t('dhama.mapSubtitle')}</Text>
       <View style={[styles.mapFrame, { borderColor: vTheme.colors.divider }]}>
@@ -92,6 +97,9 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation }) => {
             }
           }}
         />
+        <Pressable onPress={() => {}} style={[styles.logoOverlay, styles.logoOverlaySurface, { borderColor: vTheme.colors.divider }]}>
+          <Image source={require('../../assets/logo_veda_match.png')} style={styles.logoImage} resizeMode="contain" />
+        </Pressable>
       </View>
 
       <View style={styles.markerList}>
@@ -112,11 +120,30 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 12 },
+  topBar: { alignItems: 'flex-start' },
   title: { fontSize: 26, fontWeight: '800' },
   subtitle: { fontSize: 14 },
   mapFrame: { borderWidth: 1, borderRadius: 20, overflow: 'hidden', height: 360, position: 'relative' },
   webview: { flex: 1, backgroundColor: 'transparent' },
   loader: { position: 'absolute', zIndex: 3, top: 16, right: 16 },
+  logoOverlay: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+    width: 60,
+    height: 40,
+    borderTopLeftRadius: 5,
+    borderWidth: 1,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingLeft: 6,
+    paddingRight: 5,
+  },
+  logoOverlaySurface: { backgroundColor: 'rgba(255, 248, 235, 0.96)' },
+  logoImage: { width: 55, height: 55, bottom: 5 },
   markerList: { gap: 10 },
   markerCard: { borderWidth: 1, borderRadius: 14, padding: 12 },
   markerTitle: { fontSize: 16, fontWeight: '700' },

@@ -22,6 +22,7 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
+import { LinkedAccountsScreen } from './screens/settings/LinkedAccountsScreen';
 import { ProPlansScreen } from './screens/settings/ProPlansScreen';
 import {
   SupportHomeScreen,
@@ -102,7 +103,7 @@ import { SellerOrdersScreen } from './screens/portal/shops/SellerOrdersScreen';
 import { MyProductsScreen } from './screens/portal/shops/MyProductsScreen';
 import { ShopsMapScreen } from './screens/portal/shops/ShopsMapScreen';
 import { MapGeoapifyScreen } from './screens/portal/map/MapGeoapifyScreen';
-import { DhamaHomeScreen, DhamaMapScreen, HolyPlaceDetailScreen } from './screens/dhama';
+import { DhamaCollectionDetailScreen, DhamaHomeScreen, DhamaMapScreen, HolyPlaceDetailScreen } from './screens/dhama';
 
 import { EducationHomeScreen } from './screens/portal/education/EducationHomeScreen';
 import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
@@ -611,12 +612,17 @@ const AppContent = () => {
                   />
                   <Stack.Screen name="Plans" component={PlansScreen} />
                   <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+                  <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportInbox" component={SupportInboxScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportConversation" component={SupportConversationScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                  <Stack.Screen
+                    name="EditProfile"
+                    component={EditProfileScreen}
+                    options={{ gestureEnabled: false }}
+                  />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
                   <Stack.Screen
                     name="ContactProfile"
@@ -666,6 +672,7 @@ const AppContent = () => {
                   <Stack.Screen name="MapGeoapify" component={MapGeoapifyScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="DhamaHome" component={DhamaHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="DhamaMap" component={DhamaMapScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="DhamaCollectionDetail" component={DhamaCollectionDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="HolyPlaceDetail" component={HolyPlaceDetailScreen} options={{ headerShown: false }} />
 
                   {/* Cafe Routes */}

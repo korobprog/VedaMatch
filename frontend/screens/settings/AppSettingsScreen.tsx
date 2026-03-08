@@ -17,7 +17,7 @@ import DeviceInfo from 'react-native-device-info';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
-import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Users, ChevronRight, LifeBuoy } from 'lucide-react-native';
+import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Users, ChevronRight, LifeBuoy, ShieldCheck } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
 import { PerformanceMode, useSettings } from '../../context/SettingsContext';
@@ -426,6 +426,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                     backgroundColor: 'rgba(34,197,94,0.1)',
                     borderColor: 'rgba(34,197,94,0.3)',
                 },
+                authCard: {
+                    backgroundColor: 'rgba(249,115,22,0.10)',
+                    borderColor: 'rgba(249,115,22,0.26)',
+                },
                 rowCenterGap8: { flexDirection: 'row', alignItems: 'center', gap: 8 },
                 optionTextMedium: { fontWeight: '500' },
                 optionTextOnAccent: { color: '#fff', fontWeight: '500' },
@@ -627,6 +631,33 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     </Text>
                                 </View>
                                 <Text style={{ color: vTheme.colors.textSecondary }}>→</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.actionButton,
+                                    themedStyles.authCard
+                                ]}
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    navigation.navigate('LinkedAccounts');
+                                }}
+                            >
+                                <View style={styles.actionContent}>
+                                    <View style={themedStyles.rowCenterGap8}>
+                                        <ShieldCheck size={20} color="#F97316" />
+                                        <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
+                                            {t('settings.appScreen.quickAccess.authTitle', { defaultValue: 'Authorization' })}
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
+                                        {t('settings.appScreen.quickAccess.authDescription', {
+                                            defaultValue: 'Manage linked Google, VK, and Telegram accounts',
+                                        })}
+                                    </Text>
+                                </View>
+                                <ChevronRight size={20} color="#F97316" />
                             </TouchableOpacity>
 
                             <TouchableOpacity

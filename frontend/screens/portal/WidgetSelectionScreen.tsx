@@ -185,6 +185,10 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             navigation.navigate('MapGeoapify');
             return;
         }
+        if (screen === 'DhamaHome') {
+            navigation.navigate('DhamaHome');
+            return;
+        }
         if (screen === 'PathTrackerHome') {
             navigation.navigate('PathTrackerHome');
             return;

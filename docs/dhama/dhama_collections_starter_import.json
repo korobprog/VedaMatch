@@ -1,0 +1,58 @@
+[
+  {
+    "slug": "braj-mandal",
+    "status": "draft",
+    "sortOrder": 10,
+    "isFeatured": true,
+    "titleRu": "Брадж-мандал",
+    "titleEn": "Braj Mandal",
+    "titleHi": "ब्रज मंडल",
+    "descriptionRu": "Подборка ключевых святых мест Браджа для паломничества, даршана и парикрамы.",
+    "descriptionEn": "A curated set of key Braj sacred places for pilgrimage, darshan, and parikrama.",
+    "descriptionHi": "तीर्थ, दर्शन और परिक्रमा के लिए ब्रज के प्रमुख पवित्र स्थलों की चयनित सूची।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["vrindavan", "govardhan"]
+  },
+  {
+    "slug": "navadvipa-dhama",
+    "status": "draft",
+    "sortOrder": 20,
+    "isFeatured": true,
+    "titleRu": "Навадвипа-дхама",
+    "titleEn": "Navadvipa Dhama",
+    "titleHi": "नवद्वीप धाम",
+    "descriptionRu": "Подборка мест, связанных с Маяпуром, Навадвипой и паломничеством по лилам Махапрабху.",
+    "descriptionEn": "A collection of places connected with Mayapur, Nabadwip, and pilgrimage through Mahaprabhu's lilas.",
+    "descriptionHi": "मायापुर, नवद्वीप और महाप्रभु की लीलाओं से जुड़े तीर्थस्थलों की подборка।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["mayapur", "nabadwip"]
+  },
+  {
+    "slug": "jagannath-ksetra",
+    "status": "draft",
+    "sortOrder": 30,
+    "isFeatured": false,
+    "titleRu": "Джаганнатха-кшетра",
+    "titleEn": "Jagannath Ksetra",
+    "titleHi": "जगन्नाथ क्षेत्र",
+    "descriptionRu": "Подборка вокруг Пури как великого центра храмового паломничества и даршана Господа Джаганнатхи.",
+    "descriptionEn": "A thematic collection around Puri as a major center of temple pilgrimage and Lord Jagannath darshan.",
+    "descriptionHi": "पुरी के इर्द-गिर्द जगन्नाथ दर्शन और मंदिर-तीर्थ की एक विषयगत चयनित सूची।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["puri"]
+  },
+  {
+    "slug": "major-vaishnava-pilgrimage-centers",
+    "status": "draft",
+    "sortOrder": 40,
+    "isFeatured": false,
+    "titleRu": "Крупные вайшнавские паломнические центры",
+    "titleEn": "Major Vaishnava Pilgrimage Centers",
+    "titleHi": "मुख्य वैष्णव तीर्थ केंद्र",
+    "descriptionRu": "Стартовая обзорная подборка для пользователя, который хочет увидеть главные направления вайшнавского паломничества в Индии.",
+    "descriptionEn": "A starter overview collection for users who want to explore the major Vaishnava pilgrimage destinations in India.",
+    "descriptionHi": "भारत के प्रमुख वैष्णव तीर्थ स्थलों को देखने के लिए यह एक प्रारंभिक परिचयात्मक चयन है।",
+    "heroImageUrl": "",
+    "linkedPlaceSlugs": ["vrindavan", "mayapur", "puri", "tirumala"]
+  }
+]

@@ -30,6 +30,17 @@ interface UserProfile {
     role?: string;
     godModeEnabled?: boolean;
     currentPlan?: string;
+    googleSub?: string;
+    googleEmail?: string;
+    googleLinkedAt?: string;
+    vkUserId?: number;
+    vkEmail?: string;
+    vkLinkedAt?: string;
+    telegramUserId?: number;
+    telegramUsername?: string;
+    telegramFirstName?: string;
+    telegramLastName?: string;
+    telegramLinkedAt?: string;
 }
 
 interface UserContextType {
@@ -43,6 +54,7 @@ interface UserContextType {
     logout: () => Promise<void>;
     deleteAccount: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
+    updateUserProfile: (patch: Partial<UserProfile>) => Promise<void>;
     setRoleDescriptor: (descriptor: PortalBlueprint | null) => void;
     setGodModeFilters: (filters: MathFilter[]) => void;
     setActiveMath: (mathId: string | null) => void;
@@ -229,6 +241,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
+    const updateUserProfile = useCallback(async (patch: Partial<UserProfile>) => {
+        setUser((currentUser) => {
+            if (!currentUser) {
+                return currentUser;
+            }
+            const updatedUser = { ...currentUser, ...patch };
+            const serialized = JSON.stringify(updatedUser);
+            mmkvSetString('user', serialized);
+            AsyncStorage.setItem('user', serialized).catch(() => undefined);
+            return updatedUser;
+        });
+    }, []);
+
     const contextValue = useMemo(
         () => ({
             user,
@@ -241,6 +266,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             logout,
             deleteAccount,
             setTourCompleted,
+            updateUserProfile,
             setRoleDescriptor,
             setGodModeFilters,
             setActiveMath: setActiveMathId,
@@ -255,6 +281,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             logout,
             deleteAccount,
             setTourCompleted,
+            updateUserProfile,
         ],
     );
 

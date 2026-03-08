@@ -46,6 +46,34 @@ export interface HolyPlaceLinkedYatra {
   coverImageUrl?: string;
 }
 
+export interface DhamaCollectionSummary {
+  id: number;
+  slug: string;
+  status?: HolyPlaceStatus;
+  sortOrder: number;
+  isFeatured: boolean;
+  title: string;
+  description: string;
+  heroImageUrl?: string;
+  locale: 'ru' | 'en' | 'hi';
+  availableLocales: string[];
+  placesCount: number;
+}
+
+export interface DhamaCollectionPlacePreview {
+  id: number;
+  slug: string;
+  title: string;
+  city: string;
+  state: string;
+  heroImageUrl?: string;
+  isFeatured: boolean;
+}
+
+export interface DhamaCollection extends DhamaCollectionSummary {
+  places: DhamaCollectionPlacePreview[];
+}
+
 export interface HolyPlaceDetail extends HolyPlaceSummary {
   description: string;
   visitRules: string;
@@ -55,6 +83,7 @@ export interface HolyPlaceDetail extends HolyPlaceSummary {
   faq: string;
   linkedMedia: HolyPlaceLinkedMedia[];
   linkedYatras: HolyPlaceLinkedYatra[];
+  collections: DhamaCollectionSummary[];
 }
 
 export interface HolyPlaceListResponse {
@@ -97,7 +126,16 @@ export interface HolyPlaceFilters {
   state?: string;
   city?: string;
   tradition?: string;
+  collection?: string;
   featured?: boolean;
   page?: number;
   limit?: number;
+}
+
+export interface DhamaCollectionListResponse {
+  collections: DhamaCollection[];
+  total: number;
+  page: number;
+  limit: number;
+  locale: 'ru' | 'en' | 'hi';
 }

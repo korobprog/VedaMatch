@@ -107,6 +107,22 @@ type SocialLoginResult = {
   authPayload: Record<string, any>;
 };
 
+export type LinkedAuthProvider = 'google' | 'vk' | 'telegram';
+
+export type LinkedProviderStatus = {
+  provider: LinkedAuthProvider;
+  linked: boolean;
+  label?: string;
+  linkedAt?: string;
+};
+
+export type LinkedAuthProvidersResponse = {
+  providers: LinkedProviderStatus[];
+  hasPassword: boolean;
+  methodCount: number;
+  canUnlinkAny: boolean;
+};
+
 type VKAuthSession = {
   authorizeUrl: string;
   state: string;
@@ -362,6 +378,77 @@ const extractVKCallbackPayload = (
   };
 };
 
+const parseTelegramCallbackState = (callbackUrl: string, expectedState?: string): string => {
+  if (!isTelegramCallbackUrl(callbackUrl)) {
+    throw new Error('TELEGRAM_CALLBACK_URL_INVALID');
+  }
+
+  const state = readConfigString(parseQueryParam(callbackUrl, 'state'));
+  if (!state) {
+    throw new Error('TELEGRAM_AUTH_STATE_MISSING');
+  }
+
+  if (readConfigString(expectedState) && state !== readConfigString(expectedState)) {
+    throw new Error('TELEGRAM_AUTH_STATE_MISMATCH');
+  }
+
+  return state;
+};
+
+const performVKAuthMutation = async (
+  endpoint: '/auth/vk/login' | '/auth/vk/link',
+  callbackUrl: string,
+  state: string,
+  skipAuthSession: boolean,
+): Promise<any> => {
+  const callbackData = extractVKCallbackPayload(callbackUrl, state);
+  const platform = resolveVKCallbackPlatform(callbackUrl);
+  const isAndroidNativeCallback = callbackUrl.startsWith(getVKAndroidRedirectUri());
+  const clientId = isAndroidNativeCallback ? getVKNativeClientId('android') : getVKMobileClientId();
+  const deviceId = await DeviceInfo.getUniqueId();
+  const payload: Record<string, any> = {
+    deviceId,
+    platform,
+    clientId,
+  };
+
+  if (isAndroidNativeCallback && callbackData.code) {
+    const pkceSession = vkPkceSessions.get(state);
+    if (!pkceSession) {
+      throw new Error('VK_PKCE_SESSION_MISSING');
+    }
+    if (!callbackData.deviceId) {
+      throw new Error('VK_DEVICE_ID_MISSING');
+    }
+
+    payload.code = callbackData.code;
+    payload.codeVerifier = pkceSession.codeVerifier;
+    payload.vkDeviceId = callbackData.deviceId;
+    payload.state = state;
+    vkPkceSessions.delete(state);
+  }
+
+  if (callbackData.accessToken) {
+    payload.accessToken = callbackData.accessToken;
+  }
+
+  if (callbackData.code && !isAndroidNativeCallback) {
+    payload.code = callbackData.code;
+  }
+
+  if (callbackData.email) {
+    payload.email = callbackData.email;
+  }
+
+  return apiClient.post(
+    endpoint,
+    payload,
+    skipAuthSession ? {
+      ...({ __skipAuthSession: true } as any),
+    } : undefined,
+  );
+};
+
 export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   console.log('[GoogleAuth] ensureGoogleConfigured:start');
   const module = await ensureGoogleConfigured();
@@ -408,6 +495,30 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   };
 };
 
+export const linkGoogleAccount = async (): Promise<{ user: Record<string, any>; providers: LinkedAuthProvidersResponse }> => {
+  const module = await ensureGoogleConfigured();
+
+  if (module.GoogleSignin.hasPlayServices) {
+    await module.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  }
+
+  const result = await module.GoogleSignin.signIn();
+  const payload = extractGoogleSignInPayload(result);
+  const idToken = readConfigString(payload?.idToken);
+  if (!idToken) {
+    throw new Error('GOOGLE_ID_TOKEN_MISSING');
+  }
+
+  const response = await apiClient.post('/auth/google/link', { idToken });
+  const user = response?.data?.user as Record<string, any> | undefined;
+  const providers = response?.data?.providers as LinkedAuthProvidersResponse | undefined;
+  if (!user || !providers) {
+    throw new Error('GOOGLE_LINK_RESPONSE_INVALID');
+  }
+
+  return { user, providers };
+};
+
 export const createVKAuthSession = (): VKAuthSession => {
   const platform = getCurrentVKAuthPlatform();
   const state = generateState();
@@ -424,54 +535,7 @@ export const finalizeVKSignIn = async (
   callbackUrl: string,
   state: string,
 ): Promise<SocialLoginResult> => {
-  const callbackData = extractVKCallbackPayload(callbackUrl, state);
-  const platform = resolveVKCallbackPlatform(callbackUrl);
-  const isAndroidNativeCallback = callbackUrl.startsWith(getVKAndroidRedirectUri());
-  const clientId = isAndroidNativeCallback ? getVKNativeClientId('android') : getVKMobileClientId();
-  const deviceId = await DeviceInfo.getUniqueId();
-  const payload: Record<string, any> = {
-    deviceId,
-    platform,
-    clientId,
-  };
-
-  if (isAndroidNativeCallback && callbackData.code) {
-    const pkceSession = vkPkceSessions.get(state);
-    if (!pkceSession) {
-      throw new Error('VK_PKCE_SESSION_MISSING');
-    }
-    if (!callbackData.deviceId) {
-      throw new Error('VK_DEVICE_ID_MISSING');
-    }
-
-    payload.code = callbackData.code;
-    payload.codeVerifier = pkceSession.codeVerifier;
-    payload.vkDeviceId = callbackData.deviceId;
-    payload.state = state;
-    vkPkceSessions.delete(state);
-  }
-
-  if (callbackData.accessToken) {
-    payload.accessToken = callbackData.accessToken;
-  }
-
-  if (callbackData.code && !isAndroidNativeCallback) {
-    payload.code = callbackData.code;
-  }
-
-  if (callbackData.email) {
-    payload.email = callbackData.email;
-  }
-
-  const response = await apiClient.post(
-    '/auth/vk/login',
-    {
-      ...payload,
-    },
-    {
-      ...({ __skipAuthSession: true } as any),
-    },
-  );
+  const response = await performVKAuthMutation('/auth/vk/login', callbackUrl, state, true);
 
   const user = response?.data?.user as Record<string, any> | undefined;
   if (!user) {
@@ -482,6 +546,20 @@ export const finalizeVKSignIn = async (
     user,
     authPayload: response.data,
   };
+};
+
+export const finalizeVKLink = async (
+  callbackUrl: string,
+  state: string,
+): Promise<{ user: Record<string, any>; providers: LinkedAuthProvidersResponse }> => {
+  const response = await performVKAuthMutation('/auth/vk/link', callbackUrl, state, false);
+  const user = response?.data?.user as Record<string, any> | undefined;
+  const providers = response?.data?.providers as LinkedAuthProvidersResponse | undefined;
+  if (!user || !providers) {
+    throw new Error('VK_LINK_RESPONSE_INVALID');
+  }
+
+  return { user, providers };
 };
 
 export const isVKAuthCallbackUrl = isVKCallbackUrl;
@@ -513,23 +591,29 @@ export const createTelegramAuthSession = async (): Promise<TelegramAuthSession> 
   };
 };
 
+export const createTelegramLinkSession = async (): Promise<TelegramAuthSession> => {
+  const deviceId = await DeviceInfo.getUniqueId();
+  const response = await apiClient.post('/auth/telegram/link/start', { deviceId });
+  const state = readConfigString(response?.data?.state);
+  const launchUrl = readConfigString(response?.data?.launchUrl);
+  const expiresAt = readConfigString(response?.data?.expiresAt);
+
+  if (!state || !launchUrl) {
+    throw new Error('TELEGRAM_LINK_START_RESPONSE_INVALID');
+  }
+
+  return {
+    state,
+    launchUrl,
+    expiresAt: expiresAt || undefined,
+  };
+};
+
 export const finalizeTelegramSignIn = async (
   callbackUrl: string,
   expectedState?: string,
 ): Promise<SocialLoginResult> => {
-  if (!isTelegramCallbackUrl(callbackUrl)) {
-    throw new Error('TELEGRAM_CALLBACK_URL_INVALID');
-  }
-
-  const state = readConfigString(parseQueryParam(callbackUrl, 'state'));
-  if (!state) {
-    throw new Error('TELEGRAM_AUTH_STATE_MISSING');
-  }
-
-  if (readConfigString(expectedState) && state !== readConfigString(expectedState)) {
-    throw new Error('TELEGRAM_AUTH_STATE_MISMATCH');
-  }
-
+  const state = parseTelegramCallbackState(callbackUrl, expectedState);
   const deviceId = await DeviceInfo.getUniqueId();
   let response: any;
 
@@ -564,6 +648,57 @@ export const finalizeTelegramSignIn = async (
     user,
     authPayload: response.data,
   };
+};
+
+export const finalizeTelegramLink = async (
+  callbackUrl: string,
+  expectedState?: string,
+): Promise<{ user: Record<string, any>; providers: LinkedAuthProvidersResponse }> => {
+  const state = parseTelegramCallbackState(callbackUrl, expectedState);
+  const deviceId = await DeviceInfo.getUniqueId();
+  let response: any;
+
+  for (let attempt = 0; attempt < TELEGRAM_MOBILE_EXCHANGE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      response = await apiClient.post('/auth/telegram/link', { state, deviceId });
+      break;
+    } catch (error) {
+      const isLastAttempt = attempt === TELEGRAM_MOBILE_EXCHANGE_MAX_ATTEMPTS - 1;
+      if (!isTelegramMobileAuthNotReadyError(error) || isLastAttempt) {
+        throw error;
+      }
+      await sleep(TELEGRAM_MOBILE_EXCHANGE_RETRY_DELAY_MS);
+    }
+  }
+
+  const user = response?.data?.user as Record<string, any> | undefined;
+  const providers = response?.data?.providers as LinkedAuthProvidersResponse | undefined;
+  if (!user || !providers) {
+    throw new Error('TELEGRAM_LINK_RESPONSE_INVALID');
+  }
+
+  return { user, providers };
+};
+
+export const getLinkedAuthProviders = async (): Promise<LinkedAuthProvidersResponse> => {
+  const response = await apiClient.get('/auth/providers');
+  const data = response?.data as LinkedAuthProvidersResponse | undefined;
+  if (!data || !Array.isArray(data.providers)) {
+    throw new Error('LINKED_AUTH_PROVIDERS_RESPONSE_INVALID');
+  }
+  return data;
+};
+
+export const unlinkAuthProvider = async (
+  provider: LinkedAuthProvider,
+): Promise<{ user: Record<string, any>; providers: LinkedAuthProvidersResponse }> => {
+  const response = await apiClient.delete(`/auth/providers/${provider}`);
+  const user = response?.data?.user as Record<string, any> | undefined;
+  const providers = response?.data?.providers as LinkedAuthProvidersResponse | undefined;
+  if (!user || !providers) {
+    throw new Error('UNLINK_AUTH_PROVIDER_RESPONSE_INVALID');
+  }
+  return { user, providers };
 };
 
 export const isTelegramAuthCallbackUrl = isTelegramCallbackUrl;

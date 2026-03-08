@@ -297,6 +297,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('MapGeoapify');
             return;
         }
+        if (screen === 'DhamaHome') {
+            navigation.navigate('DhamaHome');
+            return;
+        }
         if (screen === 'PathTrackerHome') {
             navigation.navigate('PathTrackerHome');
             return;

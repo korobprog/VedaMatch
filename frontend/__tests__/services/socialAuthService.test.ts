@@ -1,10 +1,16 @@
 import apiClient from '../../lib/apiClient';
 import {
+  createTelegramLinkSession,
   createTelegramAuthSession,
   createVKAuthSession,
+  finalizeTelegramLink,
+  finalizeVKLink,
   finalizeTelegramSignIn,
   finalizeVKSignIn,
+  getLinkedAuthProviders,
+  linkGoogleAccount,
   signInWithGoogle,
+  unlinkAuthProvider,
 } from '../../services/socialAuthService';
 
 const mockConfigure = jest.fn();
@@ -51,6 +57,8 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 }));
 
 jest.mock('../../lib/apiClient', () => ({
+  get: jest.fn(),
+  delete: jest.fn(),
   post: jest.fn(),
 }));
 
@@ -66,6 +74,8 @@ describe('socialAuthService', () => {
     mockGetUniqueId.mockResolvedValue('device-id');
     mockFetch.mockReset();
     global.fetch = mockFetch as any;
+    (apiClient.get as jest.Mock).mockReset();
+    (apiClient.delete as jest.Mock).mockReset();
     (apiClient.post as jest.Mock).mockReset();
   });
 
@@ -117,6 +127,29 @@ describe('socialAuthService', () => {
     });
 
     await expect(signInWithGoogle()).rejects.toThrow('GOOGLE_SIGNIN_CANCELLED');
+  });
+
+  it('links Google account using protected endpoint', async () => {
+    mockSignIn.mockResolvedValue({
+      type: 'success',
+      data: {
+        idToken: 'google-link-token',
+        user: { email: 'g@example.com' },
+      },
+    });
+    (apiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        user: { ID: 7, googleEmail: 'g@example.com' },
+        providers: { providers: [], hasPassword: true, methodCount: 2, canUnlinkAny: true },
+      },
+    });
+
+    const result = await linkGoogleAccount();
+
+    expect(apiClient.post).toHaveBeenCalledWith('/auth/google/link', {
+      idToken: 'google-link-token',
+    });
+    expect(result.user.googleEmail).toBe('g@example.com');
   });
 
   it('builds Android VK auth session with PKCE code flow via native callback', () => {
@@ -242,6 +275,37 @@ describe('socialAuthService', () => {
     });
   });
 
+  it('finalizes Android VK linking through protected endpoint', async () => {
+    Object.defineProperty(require('react-native').Platform, 'OS', { value: 'android', configurable: true });
+    const session = createVKAuthSession();
+    (apiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        user: { ID: 12, vkEmail: 'vk@example.com' },
+        providers: { providers: [], hasPassword: true, methodCount: 2, canUnlinkAny: true },
+      },
+    });
+
+    const result = await finalizeVKLink(
+      `vk54474353://vk.ru/blank.html?code=vk-auth-code&state=${session.state}&device_id=vk-device-id`,
+      session.state,
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/auth/vk/link',
+      expect.objectContaining({
+        clientId: '54474353',
+        code: 'vk-auth-code',
+        codeVerifier: expect.any(String),
+        deviceId: 'device-id',
+        platform: 'android',
+        state: session.state,
+        vkDeviceId: 'vk-device-id',
+      }),
+      undefined,
+    );
+    expect(result.user.vkEmail).toBe('vk@example.com');
+  });
+
   it('surfaces detailed VK OAuth errors from callback URL', async () => {
     await expect(finalizeVKSignIn(
       'https://api.vedamatch.ru/auth/vk/callback?error=invalid_request&error_description=Security%20error&state=vk-state',
@@ -270,6 +334,21 @@ describe('socialAuthService', () => {
       launchUrl: 'https://t.me/vedamatch_bot?startapp=vm_auth_telegram-state',
       expiresAt: '2026-03-07T08:00:00Z',
     });
+  });
+
+  it('starts Telegram link session via protected endpoint', async () => {
+    (apiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        state: 'telegram-link-state',
+        launchUrl: 'https://t.me/vedamatch_bot?startapp=vm_auth_telegram-link-state',
+        expiresAt: '2026-03-07T08:00:00Z',
+      },
+    });
+
+    const session = await createTelegramLinkSession();
+
+    expect(apiClient.post).toHaveBeenCalledWith('/auth/telegram/link/start', { deviceId: 'device-id' });
+    expect(session.state).toBe('telegram-link-state');
   });
 
   it('finalizes Telegram auth from callback url and exchanges bridge state for auth payload', async () => {
@@ -351,5 +430,55 @@ describe('socialAuthService', () => {
     });
 
     setTimeoutSpy.mockRestore();
+  });
+
+  it('finalizes Telegram link from callback url via protected endpoint', async () => {
+    (apiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        user: { ID: 13, telegramUsername: 'telegram_user' },
+        providers: { providers: [], hasPassword: true, methodCount: 2, canUnlinkAny: true },
+      },
+    });
+
+    const result = await finalizeTelegramLink(
+      'vedamatch://auth/telegram/callback?state=telegram-link-state',
+      'telegram-link-state',
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith('/auth/telegram/link', {
+      state: 'telegram-link-state',
+      deviceId: 'device-id',
+    });
+    expect(result.user.telegramUsername).toBe('telegram_user');
+  });
+
+  it('loads linked auth providers', async () => {
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      data: {
+        providers: [{ provider: 'google', linked: true, label: 'g@example.com' }],
+        hasPassword: true,
+        methodCount: 2,
+        canUnlinkAny: true,
+      },
+    });
+
+    const result = await getLinkedAuthProviders();
+
+    expect(apiClient.get).toHaveBeenCalledWith('/auth/providers');
+    expect(result.providers[0].provider).toBe('google');
+  });
+
+  it('unlinks auth provider via protected endpoint', async () => {
+    (apiClient.delete as jest.Mock).mockResolvedValue({
+      data: {
+        user: { ID: 7 },
+        providers: { providers: [], hasPassword: true, methodCount: 1, canUnlinkAny: false },
+      },
+    });
+
+    const result = await unlinkAuthProvider('google');
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/auth/providers/google');
+    expect(result.providers.methodCount).toBe(1);
   });
 });

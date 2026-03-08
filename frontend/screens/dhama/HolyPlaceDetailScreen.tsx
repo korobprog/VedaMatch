@@ -8,6 +8,7 @@ import { HolyPlaceDetail } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { useSettings } from '../../context/SettingsContext';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
+import { DhamaBackButton } from './DhamaBackButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HolyPlaceDetail'>;
 
@@ -63,14 +64,38 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
     { title: t('dhama.sections.practices'), body: place.practices },
     { title: t('dhama.sections.faq'), body: place.faq },
   ].filter((item) => item.body);
+  const gallery = Array.isArray(place.gallery) ? place.gallery : [];
+  const linkedMedia = Array.isArray(place.linkedMedia) ? place.linkedMedia : [];
+  const linkedYatras = Array.isArray(place.linkedYatras) ? place.linkedYatras : [];
+  const collections = Array.isArray(place.collections) ? place.collections : [];
 
   return (
     <ScreenScaffold>
       <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.topBar}>
+          <DhamaBackButton navigation={navigation} />
+        </View>
         {place.heroImageUrl ? <Image source={{ uri: place.heroImageUrl }} style={styles.hero} /> : null}
         <Text style={[styles.title, { color: vTheme.colors.text }]}>{place.title}</Text>
         <Text style={[styles.meta, { color: vTheme.colors.textSecondary }]}>{place.city}, {place.state} · {place.placeType}</Text>
         <Text style={[styles.short, { color: vTheme.colors.textSecondary }]}>{place.shortDescription}</Text>
+
+        {collections.length > 0 ? (
+          <View style={styles.collectionSection}>
+            <Text style={[styles.collectionSectionTitle, { color: vTheme.colors.text }]}>{t('dhama.collections')}</Text>
+            <View style={styles.collectionChipRow}>
+              {collections.map((collection) => (
+                <TouchableOpacity
+                  key={collection.id}
+                  onPress={() => navigation.navigate('DhamaCollectionDetail', { slug: collection.slug })}
+                  style={[styles.collectionChip, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}
+                >
+                  <Text style={[styles.collectionChipText, { color: vTheme.colors.text }]}>{collection.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <TouchableOpacity
           onPress={() => navigation.navigate('DhamaMap')}
@@ -79,9 +104,9 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
           <Text style={{ color: vTheme.colors.text }}>{t('dhama.openMap')}</Text>
         </TouchableOpacity>
 
-        {place.gallery.length > 0 ? (
+        {gallery.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-            {place.gallery.map((imageUrl, index) => (
+            {gallery.map((imageUrl, index) => (
               <Image key={`${imageUrl}-${index}`} source={{ uri: imageUrl }} style={styles.galleryImage} />
             ))}
           </ScrollView>
@@ -96,10 +121,10 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
           ))}
         </View>
 
-        {place.linkedMedia.length > 0 ? (
+        {linkedMedia.length > 0 ? (
           <View style={styles.linkSection}>
             <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('dhama.audioSection')}</Text>
-            {place.linkedMedia.map((track) => (
+            {linkedMedia.map((track) => (
               <TouchableOpacity
                 key={track.id}
                 onPress={() => navigation.navigate('AudioPlayer', { track: { ...track, ID: track.id, thumbnailUrl: track.thumbnailUrl } })}
@@ -112,10 +137,10 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
           </View>
         ) : null}
 
-        {place.linkedYatras.length > 0 ? (
+        {linkedYatras.length > 0 ? (
           <View style={styles.linkSection}>
             <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('dhama.yatraSection')}</Text>
-            {place.linkedYatras.map((yatra) => (
+            {linkedYatras.map((yatra) => (
               <TouchableOpacity
                 key={yatra.id}
                 onPress={() => navigation.navigate('YatraDetail', { yatraId: yatra.id })}
@@ -137,10 +162,16 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
 const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { padding: 16, gap: 14 },
+  topBar: { alignItems: 'flex-start' },
   hero: { width: '100%', height: 240, borderRadius: 22, backgroundColor: '#ddd' },
   title: { fontSize: 28, fontWeight: '800' },
   meta: { fontSize: 14 },
   short: { fontSize: 16, lineHeight: 23 },
+  collectionSection: { gap: 10 },
+  collectionSectionTitle: { fontSize: 16, fontWeight: '700' },
+  collectionChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  collectionChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+  collectionChipText: { fontSize: 14, fontWeight: '600' },
   secondaryButton: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
   galleryRow: { gap: 10 },
   galleryImage: { width: 180, height: 120, borderRadius: 16, backgroundColor: '#ddd' },
