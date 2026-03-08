@@ -171,6 +171,13 @@ type TelegramWebApp = {
   ready?: () => void;
   expand?: () => void;
   close?: () => void;
+  openLink?: (
+    url: string,
+    options?: {
+      try_browser?: 'external' | 'chrome' | 'safari';
+      try_instant_view?: boolean;
+    },
+  ) => void;
 };
 
 type TelegramMobileBridgeResponse = {
@@ -296,6 +303,44 @@ function getTelegramWebApp(): TelegramWebApp | null {
   }
   const maybeTelegram = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram;
   return maybeTelegram?.WebApp || null;
+}
+
+function openMobileReturnLink(url: string): void {
+  const target = url.trim();
+  if (!target || typeof window === 'undefined') {
+    return;
+  }
+
+  const telegramWebApp = getTelegramWebApp();
+  if (telegramWebApp?.openLink) {
+    try {
+      telegramWebApp.openLink(target, {
+        try_browser: 'external',
+        try_instant_view: false,
+      });
+      return;
+    } catch {
+      try {
+        telegramWebApp.openLink(target, {
+          try_instant_view: false,
+        });
+        return;
+      } catch {
+        // Fall through to browser-level navigation if Telegram WebApp API rejects the call.
+      }
+    }
+  }
+
+  try {
+    const popup = window.open(target, '_blank', 'noopener,noreferrer');
+    if (popup) {
+      return;
+    }
+  } catch {
+    // Ignore popup-blocker or unsupported window.open and fall back to same-tab navigation.
+  }
+
+  window.location.replace(target);
 }
 
 function normalizeLanguageCode(raw: string | undefined): string {
@@ -666,7 +711,7 @@ export default function LkmCabinetClient({
       setTelegramMobileDeepLink(deepLink);
       setSuccess('Авторизация завершена. Возвращаемся в приложение VedaMatch...');
       window.setTimeout(() => {
-        window.location.replace(deepLink);
+        openMobileReturnLink(deepLink);
       }, 120);
       return true;
     } catch (bridgeError) {
@@ -1982,7 +2027,15 @@ export default function LkmCabinetClient({
         <div className="flash success">
           <p>Если VedaMatch не открылся автоматически, нажмите кнопку ниже.</p>
           <p>
-            <a href={telegramMobileDeepLink}>Вернуться в приложение</a>
+            <a
+              href={telegramMobileDeepLink}
+              onClick={(event) => {
+                event.preventDefault();
+                openMobileReturnLink(telegramMobileDeepLink);
+              }}
+            >
+              Вернуться в приложение
+            </a>
           </p>
         </div>
       ) : null}

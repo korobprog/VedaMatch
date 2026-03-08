@@ -146,20 +146,32 @@
   - `Telegram` — реальный mobile auth через `@vedamatch_bot` и Telegram Mini App bridge:
     - app вызывает `POST /auth/telegram/mobile/start`, получает `t.me/...?...startapp=vm_auth_<state>` и открывает Telegram;
     - `lkm` Mini App завершает `miniapp/login` или `miniapp/link`, потом шлет `authPayload` в `POST /auth/telegram/mobile/complete`;
-    - возврат в app идет по `vedamatch://auth/telegram/callback?state=...`, после чего mobile client делает `POST /auth/telegram/mobile/exchange`.
+    - backend возвращает `https://api.vedamatch.ru/auth/telegram/callback?state=...` как основной callback URL; если app link не перехватился, fallback-page на сервере пытается открыть `vedamatch://auth/telegram/callback?...` и показывает кнопку `Открыть VedaMatch`;
+    - mobile client принимает и `https://api.vedamatch.ru/auth/telegram/callback?...`, и `vedamatch://auth/telegram/callback?...`, после чего делает `POST /auth/telegram/mobile/exchange`.
 - Telegram mobile auth зависит от того, что у `@vedamatch_bot` настроен основной Mini App, который открывает `lkm.vedamatch.ru/.com`; стартовый параметр `vm_auth_<state>` используется как bridge key.
+- Для Telegram mobile callback infrastructure:
+  - iOS AASA на `api.vedamatch.ru` должен включать путь `/auth/telegram/callback`;
+  - Android `assetlinks.json` должен содержать реальные release/debug SHA-256 fingerprints для `com.ragagent`, а manifest — `https` intent-filter на `/auth/telegram/callback`, иначе Telegram возврат через universal/app link не откроет приложение автоматически.
+  - Production verify от `2026-03-08`: после выката server commit `4a63b30f` live `https://api.vedamatch.ru/.well-known/apple-app-site-association` уже содержит `/auth/telegram/callback`, `assetlinks.json` отдает реальные fingerprints, а `GET /auth/telegram/callback?state=test-state` возвращает HTML fallback-page с автооткрытием `vedamatch://auth/telegram/callback?...`;
+  - device verify от `2026-03-08`: Android release-приложение на устройстве `R58N10182QN` перехватывает live callback URL и получает `Activity: com.ragagent/.MainActivity`; iOS simulator `D7804896-63D0-46A5-A65E-D6F26F6003CD` также открывает `com.VedaMatch.vedamatch` через universal link.
+  - Если пользователь застревает именно на `lkm`-экране с текстом `Авторизация завершена. Возвращаемся в приложение VedaMatch...`, это уже не backend callback issue: значит `Telegram Mini App` не выполнил обычный `window.location.replace(...)`. Для этого в `lkm` включен отдельный helper, который открывает callback URL через `Telegram.WebApp.openLink(..., { try_browser: 'external' })`, а затем уже через browser/system handoff уводит пользователя в приложение.
 - `lkm` wallet web теперь держит отдельный social-auth flow поверх backend:
   - `GET /api/auth/social/config` отдает публичную конфигурацию для web login;
   - `Google` в `lkm` использует browser id-token flow и шлет `credential` в существующий `POST /api/auth/google/login`;
+  - для текущего `Google GIS` web popup flow `client secret` не используется вообще; если secret был отправлен в чат или иным образом раскрыт, его нужно ротировать отдельно, но это не починит `no registered origin`;
   - backend для web может использовать отдельный `GOOGLE_LKM_WEB_CLIENT_ID`, с fallback на `GOOGLE_WEB_CLIENT_ID`;
   - для Google Web Client в консоли должны быть добавлены `Authorized JavaScript origins` как минимум для `https://lkm.vedamatch.ru` и `https://lkm.vedamatch.com`, иначе Google popup отдает `401 invalid_client / no registered origin`;
-  - live browser check `2026-03-08` подтвердил это на самом сайте: `accounts.google.com/gsi/button` отвечает `403`, а консоль пишет `The given origin is not allowed for the given client ID`.
+  - live browser checks `2026-03-08` подтвердили это на самом сайте: `accounts.google.com/gsi/button` отвечает `403`, а консоль пишет `The given origin is not allowed for the given client ID`; прямой popup Google все еще открывает `https://accounts.google.com/signin/oauth/error?...authError=invalid_client...no registered origin`.
+  - скриншоты Google Console от `2026-03-08` подтвердили корень проблемы: у `VedaMatch Web Client` блок `Authorized JavaScript origins` пуст, а `https://lkm.vedamatch.ru` и `https://lkm.vedamatch.com` по ошибке занесены в `Authorized redirect URIs`; для текущего GIS popup flow origins должны быть наверху, а redirect URIs можно оставить пустыми.
+  - после исправления `Authorized JavaScript origins` live browser check `2026-03-08` больше не показывает `invalid_client / no registered origin`: кнопка рендерится без GSI-origin ошибки, а click открывает нормальный `Google Accounts` sign-in popup (`accounts.google.com/v3/signin/identifier...`) вместо страницы ошибки.
+  - пользовательское подтверждение от `2026-03-08`: реальный вход через Google в `lkm` уже проходит; разовый сбой пришелся на момент сразу после подтверждения входа и выглядел как задержка применения изменений Google Console или transient popup/session issue, а не как устойчивый дефект текущего frontend/backend кода.
 - `VK` web login для `lkm` идет только через backend secrets:
   - `GET /api/auth/vk/web/start?origin=...&deviceId=...` создает одноразовый state, генерирует PKCE `code_verifier/code_challenge` и редиректит на `https://id.vk.com/authorize`;
   - `GET /auth/vk/web/callback` ожидает `code + device_id`, затем меняет их на `access_token` через `https://id.vk.com/oauth2/auth` с `VK_WEB_CLIENT_ID`, `VK_WEB_CLIENT_SECRET`, `VK_WEB_REDIRECT_URI` и сохраненным `code_verifier`;
   - callback отдает результат в popup opener через `window.postMessage`, без передачи auth token'ов в query string;
   - live browser check `2026-03-08` показал, что popup `id.vk.com` открывается уже с `PKCE`, но внутренняя ошибка VK сейчас точная: `redirect_uri is missing or invalid`; в server logs в этот момент есть только `GET /api/auth/vk/web/start` без callback hit, значит текущий блокер находится в настройке VK Web app `54474355`, а не в backend token exchange;
-  - для `id.vk.com` web flow убраны legacy query params `display` и `v`, чтобы authorize URL соответствовал текущему `VK ID` OAuth 2.1 flow.
+  - для `id.vk.com` web flow убраны legacy query params `display` и `v`, чтобы authorize URL соответствовал текущему `VK ID` OAuth 2.1 flow;
+  - после обновления VK кабинета live browser check `2026-03-08` больше не показывает `redirect_uri is missing or invalid`: popup доходит до реальной формы `Вход в "vedamath" / Телефон / Почта / Продолжить`, то есть внешний VK Web app blocker устранен.
 - В Dokploy `lkm.vedamatch.ru` и `lkm.vedamatch.com` сейчас обслуживаются одним приложением `lkm`, а его `NEXT_PUBLIC_API_URL` в production указывает на `https://api.vedamatch.ru/api`.
 - Production verify от `2026-03-08`:
   - live `GET https://api.vedamatch.ru/api/auth/social/config` отвечает `200` и включает `google.enabled=true`, `vk.enabled=true`;

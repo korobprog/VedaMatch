@@ -1,5 +1,130 @@
 # IOS Changes For Migration
 
+## 2026-03-08 (Backend social auth create now omits blank `google_sub` and always generates `invite_code`)
+
+### Измененные файлы
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_vk_integration_test.go`
+- `server/internal/handlers/auth_google_integration_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - production Android VK flow после исправления client-side PKCE уже доходил до backend, но `POST /api/auth/vk/login` мог завершаться `500 Could not create VK user`;
+  - live `docker logs` показали точную причину: `duplicate key value violates unique constraint "users_google_sub_key"`, потому что новые non-Google users создавались с `google_sub=''`;
+  - social signup paths также не гарантировали `invite_code`, что оставляло второй источник конфликтов на insert.
+- Стало:
+  - backend создаёт новых auth users через общий helper, который не вставляет `google_sub`, если он пустой, и всегда генерирует `invite_code` перед `Create`;
+  - это покрывает обычную регистрацию, Google login и VK login, поэтому shared mobile auth больше не падает на server insert из-за пустых optional unique полей.
+
+### Сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+func createAuthUser(user *models.User) error {
+	if strings.TrimSpace(user.InviteCode) == "" {
+		user.InviteCode = services.GenerateInviteCode()
+	}
+
+	query := database.DB
+	if strings.TrimSpace(user.GoogleSub) == "" {
+		query = query.Omit("GoogleSub")
+	}
+
+	return query.Create(user).Error
+}
+```
+
+## 2026-03-08 (Android VK code-flow switched to `id.vk.com/authorize`, dropped `URLSearchParams.set`, and fixed PKCE SHA-256)
+
+### Измененные файлы
+- `frontend/services/socialAuthService.ts`
+- `frontend/__tests__/services/socialAuthService.test.ts`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android VK code-flow собирал authorize URL на `https://oauth.vk.com/authorize` и дописывал PKCE через `URLSearchParams.set(...)`;
+  - live release на Android показал две реальные проблемы: сначала runtime `URLSearchParams.set is not implemented`, а после обхода этого падения сам VK отвечал `invalid_request: Code challenge method is unsupported` на старом authorize endpoint;
+  - прежняя handwritten SHA-256 реализация для PKCE давала неправильный `code_challenge`, из-за чего Android доходил до callback, но дальнейший `code` exchange оставался некорректным.
+- Стало:
+  - Android VK code-flow теперь использует `https://id.vk.com/authorize` для `response_type=code` + PKCE;
+  - query string собирается вручную без зависимости от `URLSearchParams.set`, поэтому release Android больше не падает до `Linking.openURL(...)`;
+  - `code_challenge` теперь считается через стандартный SHA-256 (`node-forge`), а сама зависимость зафиксирована как прямой dependency проекта;
+  - live smoke после этой правки уже проходит внешний VK launch и callback; текущий остаточный runtime сбой сместился дальше, на backend-ответ `Could not create VK user`;
+  - iOS/web flow на `oauth.vk.com/authorize` не меняется.
+
+### Сниппеты кода
+
+`frontend/services/socialAuthService.ts`:
+```ts
+const authorizeBaseUrl = isAndroid ? 'https://id.vk.com/authorize' : 'https://oauth.vk.com/authorize';
+return `${authorizeBaseUrl}?${buildQueryString(queryEntries)}`;
+```
+
+```ts
+const buildQueryString = (entries: Array<[string, string]>): string => (
+  entries
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+);
+```
+
+```ts
+const digestBytes = forge.md.sha256.create().update(value, 'utf8').digest().getBytes();
+return Buffer.from(digestBytes, 'binary')
+  .toString('base64')
+  .replace(/\+/g, '-')
+  .replace(/\//g, '_')
+  .replace(/[=]+$/g, '');
+```
+
+## 2026-03-08 (Android VK external launch now falls back to in-app modal)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/components/auth/VKAuthModal.tsx`
+- `frontend/__tests__/screens/LoginScreen.localization.test.tsx`
+- `frontend/__tests__/components/auth/VKAuthModal.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android всегда пытался открыть VK authorize URL через `Linking.openURL(...)`;
+  - если конкретное устройство не стартовало browser/VK activity, приложение сразу падало в общий alert `Не удалось выполнить вход через VK.` ещё до callback и до backend exchange.
+- Стало:
+  - Android по-прежнему сначала пробует внешний VK/browser launch;
+  - если `Linking.openURL(...)` reject, `LoginScreen` автоматически открывает уже существующий `VKAuthModal` вместо немедленного общего alert;
+  - `VKAuthModal` теперь перехватывает callback URL через `onShouldStartLoadWithRequest`, не давая WebView реально навигироваться на custom-scheme callback;
+  - iOS внешний browser flow не меняется, но shared mobile auth component теперь умеет безопаснее завершать callback.
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```ts
+try {
+  await Linking.openURL(session.authorizeUrl);
+  setSocialLoadingProvider(null);
+  return;
+} catch (launchError: any) {
+  console.warn('VK auth external launch failed:', session.authorizeUrl, launchError?.message || launchError);
+
+  if (Platform.OS === 'android') {
+    setVKAuthUrl(session.authorizeUrl);
+    setSocialLoadingProvider(null);
+    return;
+  }
+
+  throw launchError;
+}
+```
+
+`frontend/components/auth/VKAuthModal.tsx`:
+```ts
+const handleShouldStartLoadWithRequest = (request: ShouldStartLoadRequest): boolean => (
+  !interceptCallbackUrl(request.url)
+);
+```
+
 ## 2026-03-08 (Android VK PKCE exchange moved from mobile client to backend)
 
 ### Измененные файлы
@@ -324,6 +449,74 @@ const response = await apiRequest('/auth/telegram/mobile/complete', {
   skipAuthRefresh: true,
 });
 window.location.replace(response.deepLink);
+```
+
+## 2026-03-08 (Telegram mobile return switched to universal callback with browser fallback)
+
+### Измененные файлы
+- `server/internal/services/telegram_mobile_auth_bridge.go`
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/handlers/auth_telegram_miniapp_integration_test.go`
+- `server/cmd/api/main.go`
+- `frontend/android/app/src/main/AndroidManifest.xml`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Telegram mobile bridge возвращал только `vedamatch://auth/telegram/callback?state=...`;
+  - `lkm` Mini App пытался открыть приложение прямым custom-scheme redirect после `complete`;
+  - iOS AASA не включал `/auth/telegram/callback`, а Android `assetlinks.json` содержал placeholder fingerprint.
+- Стало:
+  - backend `POST /auth/telegram/mobile/complete` отдает `https://api.vedamatch.ru/auth/telegram/callback?state=...` как основной callback URL;
+  - iOS universal link и Android App Link теперь могут открыть приложение напрямую по `https` callback;
+  - если callback URL попал в браузер вместо приложения, `GET /auth/telegram/callback` рендерит fallback-page, которая пробует `vedamatch://auth/telegram/callback?...` и показывает кнопку `Открыть VedaMatch`;
+  - AASA и Android asset links теперь содержат Telegram callback path и реальные release/debug SHA-256 fingerprints для `com.ragagent`.
+
+### Сниппеты кода
+
+`server/internal/services/telegram_mobile_auth_bridge.go`:
+```go
+func (s *TelegramAuthService) ResolveMobileAuthDeepLink(state string) string {
+  return "https://api.vedamatch.ru/auth/telegram/callback?state=" + url.QueryEscape(state)
+}
+```
+
+```go
+func (s *TelegramAuthService) ResolveMobileAuthNativeDeepLink(state string) string {
+  return "vedamatch://auth/telegram/callback?state=" + url.QueryEscape(state)
+}
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+func (h *AuthHandler) TelegramMobileCallback(c *fiber.Ctx) error {
+  deepLink := "vedamatch://auth/telegram/callback?" + deepLinkQuery.Encode()
+  return renderMobileDeepLinkRedirectPage(c, deepLink, "Авторизация завершена. Возвращаемся в приложение VedaMatch...")
+}
+```
+
+`server/cmd/api/main.go`:
+```go
+"paths": ["/auth/vk/callback", "/auth/telegram/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
+```
+
+```go
+"sha256_cert_fingerprints": []string{
+  "CD:FE:7C:7A:51:BF:85:60:32:F7:B1:93:5D:D7:39:AE:7A:AC:32:BB:39:2A:E8:C1:15:89:3E:AD:75:F0:0B:C1",
+  "4E:07:51:37:28:12:DB:3D:FD:4A:5B:71:84:9B:C0:BC:AB:21:A0:2E:6C:01:E3:1A:B7:A2:6C:66:D1:CE:D4:FB",
+}
+```
+
+`frontend/android/app/src/main/AndroidManifest.xml`:
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data
+        android:scheme="https"
+        android:host="api.vedamatch.ru"
+        android:pathPrefix="/auth/telegram/callback" />
+</intent-filter>
 ```
 
 ## 2026-03-07 (VK iOS moved to universal-link code flow; Associated Domains enabled)
@@ -11509,4 +11702,35 @@ const getVKAndroidRedirectUri = (): string => {
     android:scheme="${vkAuthScheme}"
     android:host="vk.ru"
     android:path="/blank.html" />
+```
+
+## 2026-03-08 (Telegram Mini App return opens callback via Telegram WebApp API)
+
+### Измененные файлы
+- `lkm/src/components/lkm-cabinet-client.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после Telegram mobile auth `lkm` показывал `Авторизация завершена. Возвращаемся в приложение VedaMatch...`;
+  - затем страница пыталась уйти на callback только через `window.location.replace(deepLink)`;
+  - внутри Telegram Mini App такой переход мог не произойти, и пользователь застревал на `lkm`.
+- Стало:
+  - `lkm` открывает callback URL через `Telegram.WebApp.openLink(..., { try_browser: 'external' })`, если Telegram WebApp API доступен;
+  - если API недоступен или отклоняет вызов, используется fallback `window.open(..., '_blank')` и только потом `window.location.replace(...)`;
+  - кнопка `Вернуться в приложение` использует ту же логику, а не голый `href`.
+
+### Сниппеты кода
+
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```ts
+telegramWebApp.openLink(target, {
+  try_browser: 'external',
+  try_instant_view: false,
+});
+```
+
+```ts
+window.setTimeout(() => {
+  openMobileReturnLink(deepLink);
+}, 120);
 ```
