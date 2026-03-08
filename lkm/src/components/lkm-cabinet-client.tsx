@@ -343,6 +343,17 @@ function openMobileReturnLink(url: string): void {
   window.location.replace(target);
 }
 
+function buildTelegramMobileReturnLink(state: string): string {
+  const normalizedState = state.trim();
+  if (!normalizedState) {
+    return '';
+  }
+
+  const params = new URLSearchParams();
+  params.set('state', normalizedState);
+  return `https://api.vedamatch.ru/auth/telegram/callback?${params.toString()}`;
+}
+
 function normalizeLanguageCode(raw: string | undefined): string {
   const value = (raw || '').trim().toLowerCase();
   if (!value) {
@@ -503,6 +514,16 @@ export default function LkmCabinetClient({
   const socialAuthPopupResolvedRef = useRef(false);
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
   const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
+  const telegramMobileReturnLink = useMemo(() => {
+    const explicitLink = telegramMobileDeepLink.trim();
+    if (explicitLink) {
+      return explicitLink;
+    }
+    if (!isTelegramMobileAuthFlow) {
+      return '';
+    }
+    return buildTelegramMobileReturnLink(telegramMobileAuthState);
+  }, [isTelegramMobileAuthFlow, telegramMobileAuthState, telegramMobileDeepLink]);
   const canUseWebSocialAuth = !isTelegramMiniApp && !telegramLinkRequired;
   const googleClientId = (socialAuthConfig?.google?.clientId || '').trim();
   const canUseGoogleWebAuth = canUseWebSocialAuth && !!socialAuthConfig?.google?.enabled && googleClientId !== '';
@@ -1748,12 +1769,12 @@ export default function LkmCabinetClient({
                     : 'Если приложение не открылось автоматически, используйте кнопку ниже.'
                   : 'Сессия продлевается автоматически, пока действует refresh-сессия.'}
               </p>
-              {isTelegramMobileAuthFlow && telegramMobileDeepLink ? (
+              {isTelegramMobileAuthFlow && telegramMobileReturnLink ? (
                 <button
                   type="button"
                   className="secondary"
                   onClick={() => {
-                    openMobileReturnLink(telegramMobileDeepLink);
+                    openMobileReturnLink(telegramMobileReturnLink);
                   }}
                 >
                   Вернуться в приложение
