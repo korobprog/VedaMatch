@@ -31,7 +31,6 @@ import {
     Film,
 } from 'lucide-react-native';
 
-import { ContactsScreen } from './contacts/ContactsScreen';
 import { PortalChatScreen } from './chat/PortalChatScreen';
 import { MarketHomeScreen } from './shops/MarketHomeScreen';
 import { AdsScreen } from './ads/AdsScreen';
@@ -42,7 +41,6 @@ import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { CafeListScreen } from './cafe';
 import { MultimediaHubScreen } from '../multimedia/MultimediaHubScreen';
 import { TravelHomeScreen } from './travel';
-import { ServicesHomeScreen } from './services';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
@@ -311,6 +309,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('DhamaHome');
             return;
         }
+        if (screen === 'ContactsHome') {
+            navigation.navigate('ContactsHome');
+            return;
+        }
+        if (screen === 'ServicesHome') {
+            navigation.navigate('ServicesHome');
+            return;
+        }
         if (screen === 'PathTrackerHome') {
             navigation.navigate('PathTrackerHome');
             return;
@@ -467,11 +473,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return;
         }
         if (activeTab === 'calls') {
-            setActiveTab('contacts');
+            navigation.navigate('ContactsHome');
             return;
         }
         setIsMenuOpen(true);
-    }, [activeTab, setIsMenuOpen]);
+    }, [activeTab, navigation, setIsMenuOpen]);
 
     const LinkedCallContactIcon = activeTab === 'contacts'
         ? Phone
@@ -482,7 +488,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const renderContent = () => {
         const backToGrid = backFromActiveService;
         switch (activeTab) {
-            case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
             case 'rooms': return <PortalChatScreen />;
             case 'calls': return <CallHistoryScreen />;
@@ -495,7 +500,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             case 'news': return <NewsScreen />;
             case 'multimedia': return <MultimediaHubScreen onBack={backToGrid} />;
             case 'travel': return <TravelHomeScreen />;
-            case 'services': return <ServicesHomeScreen onBack={backToGrid} />;
             default:
                 return (
                     <View style={styles.fallbackContent}>

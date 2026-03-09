@@ -9,9 +9,10 @@ import { useSettings } from '../../context/SettingsContext';
 
 type Props = {
   navigation: NavigationProp<RootStackParamList>;
+  variant?: 'default' | 'hero';
 };
 
-export const DhamaBackButton: React.FC<Props> = ({ navigation }) => {
+export const DhamaBackButton: React.FC<Props> = ({ navigation, variant = 'default' }) => {
   const { t } = useTranslation();
   const { vTheme } = useSettings();
 
@@ -26,12 +27,22 @@ export const DhamaBackButton: React.FC<Props> = ({ navigation }) => {
   return (
     <TouchableOpacity
       onPress={handleBack}
-      style={[styles.button, { backgroundColor: vTheme.colors.surfaceElevated, borderColor: vTheme.colors.divider }]}
+      style={[
+        styles.button,
+        variant === 'default' ? styles.defaultButton : null,
+        variant === 'hero' ? styles.heroButton : null,
+        variant === 'hero'
+          ? styles.heroButtonSurface
+          : {
+            backgroundColor: vTheme.colors.surfaceElevated,
+            borderColor: vTheme.colors.divider,
+          },
+      ]}
       accessibilityRole="button"
       accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
       activeOpacity={0.85}
     >
-      <ArrowLeft size={20} color={vTheme.colors.text} />
+      <ArrowLeft size={variant === 'hero' ? 18 : 18} color={variant === 'hero' ? '#FFF8EA' : vTheme.colors.text} />
     </TouchableOpacity>
   );
 };
@@ -44,5 +55,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  defaultButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+  },
+  heroButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  heroButtonSurface: {
+    backgroundColor: 'rgba(255, 248, 234, 0.12)',
+    borderColor: 'rgba(255, 244, 228, 0.24)',
   },
 });

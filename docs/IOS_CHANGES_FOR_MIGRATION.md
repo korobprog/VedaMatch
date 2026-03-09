@@ -394,6 +394,161 @@ const localizedPlaceType = normalizedPlaceType
   ? t(`dhama.filterValues.placeType.${normalizedPlaceType}`, { defaultValue: humanizeDhamaValue(place.placeType) })
   : '';
 ```
+
+## 2026-03-09 (Dhama hero title no longer repeats and back button aligns with main heading)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в hero на `DhamaHome` слово `Dhama` могло визуально повторяться и в eyebrow, и в title;
+  - back button жила отдельным вертикальным блоком выше текста, из-за чего стрелка не стояла на линии основного заголовка.
+- Стало:
+  - если активной подборки нет, eyebrow больше не дублирует основной title;
+  - back button встроена в один hero header row рядом с названием;
+  - subtitle вынесен ниже header row, поэтому шапка выглядит как одна цельная композиция.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+<View style={styles.heroHeaderRow}>
+  <DhamaBackButton navigation={navigation} />
+  <View style={styles.heroTextWrap}>
+    {selectedCollection ? <Text style={styles.heroEyebrow}>{t('dhama.collectionLabel')}</Text> : null}
+    <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>
+  </View>
+</View>
+```
+
+```tsx
+heroHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+heroSubtitleWrap: { paddingLeft: 70 },
+```
+
+## 2026-03-09 (Dhama hero made less brittle on small iPhone widths)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - subtitle в hero выравнивался фиксированным `paddingLeft`;
+  - это работало на текущем размере кнопки назад, но делало композицию хрупкой на узких экранах и при будущих изменениях размеров.
+- Стало:
+  - subtitle перенесен в тот же text column, что и title;
+  - `heroHeaderRow` выровнен по `flex-start`, а title немного уменьшен;
+  - шапка стала адаптивнее и меньше зависит от магических чисел.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+<View style={styles.heroHeaderRow}>
+  <DhamaBackButton navigation={navigation} />
+  <View style={styles.heroTextWrap}>
+    <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>
+    <Text style={styles.heroSubtitle}>
+      {selectedCollection?.description || t('dhama.homeSubtitle')}
+    </Text>
+  </View>
+</View>
+```
+
+```tsx
+heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+heroTextWrap: { gap: 10, maxWidth: '88%', flex: 1, paddingTop: 8 },
+heroTitle: { fontSize: 32, lineHeight: 36, ... },
+```
+
+## 2026-03-09 (Dhama hero uses lighter back button variant)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaBackButton.tsx`
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в hero `DhamaHome` использовалась та же плотная back button, что и на обычных светлых экранах;
+  - кнопка визуально перетягивала на себя внимание и спорила с главным title.
+- Стало:
+  - `DhamaBackButton` получил `variant="hero"`;
+  - для hero-версии уменьшен размер иконки и ослаблен фон/бордер;
+  - `DhamaHome` использует именно этот облегченный вариант, а остальные `Dhama`-экраны оставляют default button.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaBackButton.tsx`:
+```tsx
+type Props = {
+  navigation: NavigationProp<RootStackParamList>;
+  variant?: 'default' | 'hero';
+};
+```
+
+```tsx
+<DhamaBackButton navigation={navigation} variant="hero" />
+```
+
+## 2026-03-09 (Dhama hero atmosphere softened for cleaner iPhone presentation)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - hero glow-формы были слишком крупными и тяжелыми;
+  - нижний CTA-блок визуально давил вниз и делал шапку чуть рыхлой.
+- Стало:
+  - верхний и нижний glow уменьшены и ослаблены по opacity;
+  - расстояние внутри hero немного собрано;
+  - CTA `Открыть карту` стал чуть компактнее и визуально поднялся.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaHomeScreen.tsx`:
+```tsx
+heroGlowTop: {
+  width: 236,
+  height: 236,
+  backgroundColor: 'rgba(252, 215, 163, 0.14)',
+}
+```
+
+```tsx
+heroFooter: { gap: 10, alignItems: 'flex-start', marginTop: -2 },
+heroMapButton: { paddingHorizontal: 18, paddingVertical: 13, ... },
+```
+
+## 2026-03-09 (Dhama back button refined on non-hero screens too)
+
+### Измененные файлы
+- `frontend/screens/dhama/DhamaBackButton.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - облегченный back button существовал только для hero-версии;
+  - на `DhamaMap`, `DhamaCollectionDetail` и `HolyPlaceDetail` кнопка оставалась более тяжелой квадратной плиткой.
+- Стало:
+  - default-вариант `DhamaBackButton` тоже облегчен;
+  - уменьшен визуальный размер, увеличен радиус иконки/контейнера под более мягкий вид;
+  - улучшение автоматически применяется на всех остальных `Dhama`-экранах, где используется default-вариант кнопки назад.
+
+### Сниппеты кода
+
+`frontend/screens/dhama/DhamaBackButton.tsx`:
+```tsx
+variant === 'default' ? styles.defaultButton : null
+```
+
+```tsx
+defaultButton: {
+  width: 42,
+  height: 42,
+  borderRadius: 16,
+},
+```
 }
 ```
 
@@ -12645,6 +12800,37 @@ const mapErrorBody = loadError
   </Text>
 </TouchableOpacity>
 ```
+
+## 2026-03-09 (WidgetSelection page indicator moved below the bottom dock)
+
+### Измененные файлы
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - индикатор текущего экрана (`dots` + `Виджеты · свайп вправо...`) стоял над нижним quick-access dock;
+  - визуально он конкурировал с canvas и баром, и воспринимался как часть верхнего контента.
+- Стало:
+  - индикатор перенесен ниже нижнего dock-бара;
+  - dock и edit-toolbar синхронно смещены, чтобы не было наложений и чтобы layout оставался стабильным на iOS/Android.
+
+### Короткий сниппет
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+const WIDGET_DOCK_BOTTOM = 52;
+const WIDGET_DOCK_HEIGHT = 108;
+const WIDGET_DOCK_GAP = 10;
+const PAGE_INDICATOR_BOTTOM = 14;
+```
+
+```tsx
+bottom: WIDGET_DOCK_BOTTOM + WIDGET_DOCK_HEIGHT + WIDGET_DOCK_GAP,
+```
+
+```tsx
+bottom: PAGE_INDICATOR_BOTTOM,
+```
 ## 2026-03-08 (Support ticket form: add back button)
 
 - Измененные файлы:
@@ -12692,4 +12878,146 @@ query := database.DB.Model(&models.Product{}).
 const summary = getRequestErrorSummary(error, 'Failed to load market data');
 const logger = __DEV__ ? console.log : console.warn;
 logger(`[MarketHomeScreen] ${summary}`);
+```
+
+## 2026-03-09 (Services portal screen: lighter list mount for Android and shared mobile navigation)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServicesHomeScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - при открытии `ServicesHomeScreen` и возврате в портал список сервисов заново проходил через более дорогой mount/render path;
+  - callbacks навигации и `renderItem` пересоздавались на каждый рендер;
+  - Android-список использовал базовую виртуализацию без дополнительной настройки batching/window.
+- Стало:
+  - navigation/list callbacks стабилизированы через `useCallback`;
+  - `renderItem` вынесен в memoized callback;
+  - для Android добавлены более агрессивные параметры виртуализации (`windowSize`, `initialNumToRender`, `maxToRenderPerBatch`, `updateCellsBatchingPeriod`) для более быстрого отклика при входе в сервисы и возврате к портальному сценарию.
+
+### Короткий сниппет
+
+`frontend/screens/portal/services/ServicesHomeScreen.tsx`:
+```tsx
+const renderServiceItem = useCallback(({ item }: { item: Service }) => (
+  <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
+), [handleServicePress, isAndroidReducedEffects]);
+
+const listTuningProps = useMemo(() => (
+  Platform.OS === 'android'
+    ? {
+        removeClippedSubviews: true,
+        windowSize: isAndroidReducedEffects ? 5 : 7,
+        initialNumToRender: isAndroidReducedEffects ? 4 : 6,
+        maxToRenderPerBatch: isAndroidReducedEffects ? 4 : 6,
+        updateCellsBatchingPeriod: isAndroidReducedEffects ? 34 : 24,
+      }
+    : {}
+), [isAndroidReducedEffects]);
+```
+
+## 2026-03-09 (Portal Services keep-alive rollback after portal interaction blocking)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - для ускорения возврата `services -> portal` `ServicesHomeScreen` держался скрыто смонтированным внутри `Portal`;
+  - на практике это дало побочный эффект: после возврата на портал grid/swipe/tap могли блокироваться на несколько секунд.
+- Стало:
+  - keep-alive для `ServicesHomeScreen` откатан;
+  - `PortalMainScreen` снова возвращается к обычному mount/unmount поведению для `services`;
+  - в силе оставлена только более безопасная оптимизация списка в самом `ServicesHomeScreen`.
+
+### Короткий сниппет
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+case 'services':
+  return <ServicesHomeScreen onBack={backToGrid} />;
+```
+
+## 2026-03-09 (PortalGrid Android fast-path after ANR on portal return)
+
+### Измененные файлы
+- `frontend/components/portal/PortalGrid.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `PortalGrid` на Android мог входить в тяжелый render path с glass/blur/decorative dock layers и `CylinderRow` эффектами;
+  - при возврате из части сервисов это совпадало с main-thread stall и могло доходить до ANR `Application Not Responding`.
+- Стало:
+  - для Android включен более жесткий fast-path: тяжелые portal effects принудительно отключаются независимо от `high_quality`;
+  - `measureInWindow` для grid/dock не выполняется на обычном входе и остается только для edit mode;
+  - dock на Android рендерится через почти непрозрачный solid background вместо прозрачного glass-композита, чтобы снизить overdraw и стоимость первого интерактивного кадра.
+
+### Короткий сниппет
+
+`frontend/components/portal/PortalGrid.tsx`:
+```tsx
+const isAndroidPortalFastPath = Platform.OS === 'android';
+const allowHeavyPortalEffects = !isAndroidPortalFastPath && !isAndroidReducedEffects;
+
+if (isAndroidPortalFastPath && !isEditMode) {
+  return;
+}
+```
+
+## 2026-03-09 (Contacts and Services catalog moved from embedded portal tabs to native stack flow)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `contacts` и `services_catalog` запускались как embedded `activeTab` внутри `PortalMainScreen`;
+  - возврат на портал требовал тяжелого внутреннего rerender большого portal tree, из-за чего на Android могли быть фризы и блокировки после части сервисов.
+- Стало:
+  - `contacts` вынесен в отдельный stack route `ContactsHome`;
+  - `services_catalog` теперь открывает уже существующий stack route `ServicesHome`;
+  - launch resolver и связанный переход `calls -> contacts` теперь используют native stack navigation, как `Dhama`, вместо возврата в embedded portal tab.
+
+### Короткий сниппет
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```tsx
+if (serviceId === 'services_catalog') {
+  return { kind: 'navigate', screen: 'ServicesHome' };
+}
+
+if (serviceId === 'contacts') {
+  return { kind: 'navigate', screen: 'ContactsHome' };
+}
+```
+
+## 2026-03-09 (ContactsHome Android stabilization after stack migration)
+
+### Измененные файлы
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после перевода `contacts` в отдельный stack route экран оставался без явной back button;
+  - на Android `ContactsScreen` продолжал использовать тяжелый visual/list path и мог доходить до ANR при входе во `FocusEvent`.
+- Стало:
+  - в `ContactsScreen` добавлена явная верхняя back button с fallback `goBack -> Portal`;
+  - для Android reduced-effects отключается photo/glass visual path, aura у scaffold и включается более агрессивная виртуализация списка (`windowSize`, `initialNumToRender`, `maxToRenderPerBatch`, `updateCellsBatchingPeriod`, `estimatedItemSize/getItemLayout`);
+  - модальное окно выбора городов на Android больше не тянет лишний blur-path по умолчанию.
+
+### Короткий сниппет
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```tsx
+const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+const usePhotoBg = isPhotoBg && !isAndroidReducedEffects;
+
+<TouchableOpacity
+  onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Portal'))}
+>
+  <ArrowLeft size={20} color={usePhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+</TouchableOpacity>
 ```

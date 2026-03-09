@@ -145,7 +145,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         [performanceMode, runtimePerformanceState],
     );
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
-    const allowHeavyPortalEffects = !isAndroidReducedEffects;
+    const isAndroidPortalFastPath = Platform.OS === 'android';
+    const allowHeavyPortalEffects = !isAndroidPortalFastPath && !isAndroidReducedEffects;
     const showDecorativeDockLayers = allowHeavyPortalEffects;
     const {
         layout,
@@ -241,6 +242,28 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const dockInnerStrokeColor = portalBackgroundType === 'image'
         ? 'rgba(255,255,255,0.2)'
         : (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.7)');
+    const compactDockStyle = useMemo(() => (
+        isAndroidPortalFastPath
+            ? {
+                backgroundColor: isDarkMode ? 'rgba(18,22,28,0.96)' : 'rgba(250,252,255,0.98)',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(31,41,55,0.08)',
+            }
+            : {
+                backgroundColor: 'transparent',
+                borderColor: 'rgba(255,255,255,0.1)',
+            }
+    ), [isAndroidPortalFastPath, isDarkMode]);
+    const emptyDockSlotStyle = useMemo(() => (
+        isAndroidPortalFastPath
+            ? {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.025)' : 'rgba(15,23,42,0.035)',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+            }
+            : {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                borderColor: 'rgba(255,255,255,0.1)',
+            }
+    ), [isAndroidPortalFastPath, isDarkMode]);
 
     const handleDropOnGridItem = useCallback((movingId: string, targetId: string) => {
         if (!page) return false;
@@ -339,6 +362,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     }, [newFolderName, createNewFolder]);
 
     const handleGridLayout = useCallback(() => {
+        if (isAndroidPortalFastPath && !isEditMode) {
+            return;
+        }
         if (gridRef.current) {
             (gridRef.current as any).measureInWindow((x: number, y: number, _w: number, _h: number) => {
                 if (x !== undefined && y !== undefined) {
@@ -346,9 +372,12 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 }
             });
         }
-    }, []);
+    }, [isAndroidPortalFastPath, isEditMode]);
 
     const handleDockLayout = useCallback(() => {
+        if (isAndroidPortalFastPath && !isEditMode) {
+            return;
+        }
         if (dockRef.current) {
             (dockRef.current as any).measureInWindow((x: number, y: number, width: number, height: number) => {
                 if (x !== undefined && y !== undefined) {
@@ -356,7 +385,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 }
             });
         }
-    }, []);
+    }, [isAndroidPortalFastPath, isEditMode]);
 
     const handleDragEnd = useCallback((itemId: string, absX: number, absY: number) => {
         setIsDraggingItem(false);
@@ -634,8 +663,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                     onScroll={allowHeavyPortalEffects ? scrollHandler : undefined}
-                    scrollEventThrottle={allowHeavyPortalEffects ? 16 : 32}
-                    onLayout={(e) => setScrollContainerHeight(e.nativeEvent.layout.height)}
+                    scrollEventThrottle={allowHeavyPortalEffects ? 16 : 64}
+                    onLayout={allowHeavyPortalEffects ? (e) => setScrollContainerHeight(e.nativeEvent.layout.height) : undefined}
                 >
                     <Pressable
                         onLongPress={handleLongPress}
@@ -715,7 +744,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             )}
 
             {/* Floating Dock Area */}
-            <View style={styles.quickAccessDock}>
+            <View style={[styles.quickAccessDock, compactDockStyle]}>
                 {androidVisualPolicy.enableBlur && allowHeavyPortalEffects && (
                     <BlurView
                         style={styles.dockBlur}
@@ -769,7 +798,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
                         <View key={`empty-${i}`} style={[
                             styles.emptyDockSlot,
-                            { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
+                            emptyDockSlotStyle,
                         ]} />
                     ))}
                 </View>

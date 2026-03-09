@@ -62,6 +62,7 @@ export type RootStackParamList = {
     DhamaMap: { collectionSlug?: string } | undefined;
     DhamaCollectionDetail: { slug: string };
     HolyPlaceDetail: { slug: string };
+    ContactsHome: undefined;
     ContactProfile: { userId: number };
     AppSettings: undefined;
     LinkedAccounts: undefined;

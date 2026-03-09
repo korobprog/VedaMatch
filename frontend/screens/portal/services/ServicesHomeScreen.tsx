@@ -130,37 +130,53 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         if (servicesQuery.isRefetching) {
             return;
         }
-        void servicesQuery.refetch();
+        servicesQuery.refetch();
     }, [servicesQuery]);
 
-    const onLoadMore = () => {
+    const onLoadMore = useCallback(() => {
         if (!servicesQuery.hasNextPage || servicesQuery.isFetchingNextPage || servicesQuery.isLoading) return;
-        void servicesQuery.fetchNextPage();
-    };
+        servicesQuery.fetchNextPage();
+    }, [servicesQuery]);
 
-    const handleServicePress = (service: Service) => {
+    const handleServicePress = useCallback((service: Service) => {
         navigation.navigate('ServiceDetail', { serviceId: service.id });
-    };
+    }, [navigation]);
 
-    const handleCreateService = () => {
+    const handleCreateService = useCallback(() => {
         navigation.navigate('CreateService');
-    };
+    }, [navigation]);
 
-    const handleMyServices = () => {
+    const handleMyServices = useCallback(() => {
         navigation.navigate('MyServices');
-    };
+    }, [navigation]);
 
-    const handleMyBookings = () => {
+    const handleMyBookings = useCallback(() => {
         navigation.navigate('MyBookings');
-    };
+    }, [navigation]);
 
-    const handleIncomingBookings = () => {
+    const handleIncomingBookings = useCallback(() => {
         navigation.navigate('IncomingBookings');
-    };
+    }, [navigation]);
 
-    const handleChannels = () => {
+    const handleChannels = useCallback(() => {
         navigation.navigate('ChannelsHub');
-    };
+    }, [navigation]);
+
+    const renderServiceItem = useCallback(({ item }: { item: Service }) => (
+        <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
+    ), [handleServicePress, isAndroidReducedEffects]);
+
+    const listTuningProps = useMemo(() => (
+        Platform.OS === 'android'
+            ? {
+                removeClippedSubviews: true,
+                windowSize: isAndroidReducedEffects ? 5 : 7,
+                initialNumToRender: isAndroidReducedEffects ? 4 : 6,
+                maxToRenderPerBatch: isAndroidReducedEffects ? 4 : 6,
+                updateCellsBatchingPeriod: isAndroidReducedEffects ? 34 : 24,
+            }
+            : {}
+    ), [isAndroidReducedEffects]);
 
     const renderHeader = () => (
         <View style={styles.header}>
@@ -414,9 +430,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     <ServicesListComponent
                         data={services}
                         keyExtractor={(item: Service) => item.id.toString()}
-                        renderItem={({ item }: { item: Service }) => (
-                            <ServiceCard service={item} onPress={handleServicePress} compact={isAndroidReducedEffects} />
-                        )}
+                        renderItem={renderServiceItem}
                         numColumns={isAndroidReducedEffects ? 1 : 2}
                         key={isAndroidReducedEffects ? 'services-flat-1col' : 'services-grid-2col'}
                         contentContainerStyle={styles.listContent}
@@ -432,7 +446,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         onEndReachedThreshold={0.5}
                         ListEmptyComponent={renderEmpty}
                         ListFooterComponent={renderFooter}
-                        removeClippedSubviews={Platform.OS === 'android'}
+                        {...listTuningProps}
                     />
                 )}
             </View>

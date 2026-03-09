@@ -286,16 +286,16 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
             >
               <View style={styles.heroGlowTop} />
               <View style={styles.heroGlowBottom} />
-              <View style={styles.heroTopBar}>
-                <DhamaBackButton navigation={navigation} />
-              </View>
               <View style={styles.heroContent}>
-                <View style={styles.heroTextWrap}>
-                  <Text style={styles.heroEyebrow}>{selectedCollection ? t('dhama.collectionLabel') : t('dhama.homeTitle')}</Text>
-                  <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>
-                  <Text style={styles.heroSubtitle}>
-                    {selectedCollection?.description || t('dhama.homeSubtitle')}
-                  </Text>
+                <View style={styles.heroHeaderRow}>
+                  <DhamaBackButton navigation={navigation} variant="hero" />
+                  <View style={styles.heroTextWrap}>
+                    {selectedCollection ? <Text style={styles.heroEyebrow}>{t('dhama.collectionLabel')}</Text> : null}
+                    <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>
+                    <Text style={styles.heroSubtitle}>
+                      {selectedCollection?.description || t('dhama.homeSubtitle')}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.heroFooter}>
@@ -580,25 +580,25 @@ const styles = StyleSheet.create({
   },
   heroGlowTop: {
     position: 'absolute',
-    width: 260,
-    height: 260,
+    width: 236,
+    height: 236,
     borderRadius: 999,
-    backgroundColor: 'rgba(252, 215, 163, 0.18)',
-    top: -92,
-    right: -28,
+    backgroundColor: 'rgba(252, 215, 163, 0.14)',
+    top: -74,
+    right: -18,
   },
   heroGlowBottom: {
     position: 'absolute',
-    width: 220,
-    height: 220,
+    width: 184,
+    height: 184,
     borderRadius: 999,
-    backgroundColor: 'rgba(15, 25, 88, 0.26)',
-    bottom: -88,
-    left: -36,
+    backgroundColor: 'rgba(15, 25, 88, 0.18)',
+    bottom: -70,
+    left: -22,
   },
-  heroTopBar: { alignItems: 'flex-start' },
-  heroContent: { flex: 1, justifyContent: 'space-between', gap: 22, paddingTop: 18 },
-  heroTextWrap: { gap: 10, maxWidth: '88%' },
+  heroContent: { flex: 1, justifyContent: 'space-between', gap: 18, paddingTop: 10 },
+  heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  heroTextWrap: { gap: 10, maxWidth: '88%', flex: 1, paddingTop: 8 },
   heroEyebrow: {
     color: 'rgba(255, 245, 228, 0.76)',
     fontSize: 12,
@@ -606,16 +606,16 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  heroTitle: { color: '#FFF8EA', fontSize: 34, lineHeight: 38, fontWeight: '900', maxWidth: '92%' },
-  heroSubtitle: { color: 'rgba(255, 244, 228, 0.9)', fontSize: 16, lineHeight: 23, maxWidth: '92%' },
-  heroFooter: { gap: 12, alignItems: 'flex-start' },
+  heroTitle: { color: '#FFF8EA', fontSize: 32, lineHeight: 36, fontWeight: '900', maxWidth: '96%', flexShrink: 1 },
+  heroSubtitle: { color: 'rgba(255, 244, 228, 0.9)', fontSize: 16, lineHeight: 23, maxWidth: '96%' },
+  heroFooter: { gap: 10, alignItems: 'flex-start', marginTop: -2 },
   heroMapButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderRadius: 999,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 13,
     backgroundColor: '#F6E7C8',
   },
   heroMapButtonText: { color: '#1F1A14', fontWeight: '800', fontSize: 15 },

@@ -46,7 +46,11 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
     }
 
     if (serviceId === 'services_catalog') {
-        return { kind: 'open_portal_tab', tab: 'services' };
+        return { kind: 'navigate', screen: 'ServicesHome' };
+    }
+
+    if (serviceId === 'contacts') {
+        return { kind: 'navigate', screen: 'ContactsHome' };
     }
 
     if (serviceId === 'connect') {

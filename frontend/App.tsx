@@ -31,6 +31,7 @@ import {
   SupportConversationScreen,
 } from './screens/support';
 // KrishnaAssistant - only used in Portal header
+import { ContactsScreen } from './screens/portal/contacts/ContactsScreen';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
@@ -674,6 +675,7 @@ const AppContent = () => {
                   <Stack.Screen name="DhamaMap" component={DhamaMapScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="DhamaCollectionDetail" component={DhamaCollectionDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="HolyPlaceDetail" component={HolyPlaceDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ContactsHome" component={ContactsScreen} options={{ headerShown: false }} />
 
                   {/* Cafe Routes */}
                   <Stack.Screen name="CafesMap" component={CafesMapScreen} options={{ headerShown: false }} />

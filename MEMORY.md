@@ -38,11 +38,34 @@
 - В `frontend/context/SettingsContext.tsx` дефолтный `portalIconStyle` должен быть `solid` (`Заливка`) для новых пользователей и при отсутствии сохраненного значения.
 - На экране `frontend/screens/settings/AppSettingsScreen.tsx` опция `Заливка` должна показываться первой в списке стилей иконок.
 
+## Android Performance
+- Для Android-отзывчивости в `frontend/screens/portal/services/ServicesHomeScreen.tsx` выгодно держать более агрессивную виртуализацию списка:
+  - стабилизировать navigation/list callbacks через `useCallback`;
+  - избегать inline `renderItem`;
+  - задавать `windowSize`, `initialNumToRender`, `maxToRenderPerBatch`, `updateCellsBatchingPeriod` под reduced-effects режим.
+- Возврат между `Portal` и встроенным экраном `Services` чувствителен к стоимости первого рендера списка и шапки сервисов даже при уже закэшированных данных `react-query`.
+- Попытка selective keep-alive для `ServicesHomeScreen` внутри `frontend/screens/portal/PortalMainScreen.tsx` дала побочный эффект: после возврата на портал часть пользователей может получить 3-4 секунды блокировки grid/swipe/tap.
+- Для `services -> portal` безопаснее не держать скрытый `ServicesHomeScreen` смонтированным, пока не будет более узкого решения без блокировки портала.
+- Для `frontend/components/portal/PortalGrid.tsx` на Android безопаснее идти через упрощенный fast-path:
+  - не включать тяжелые glass/blur/3D row effects даже если runtime policy еще не успела деградировать;
+  - не дергать `measureInWindow` для grid/dock на обычном входе, пока пользователь не вошел в edit mode;
+  - держать dock в почти непрозрачном solid background, чтобы уменьшить translucent overdraw и нагрузку на первый возврат в портал.
+- Если сервис должен возвращаться на портал быстро и без тяжелого rerender, его лучше открывать как отдельный stack screen поверх `PortalMainScreen`, как `Dhama`, а не как embedded `activeTab` внутри портала.
+- Для этого паттерна уже переведены:
+  - `contacts` -> `ContactsHome`
+  - `services_catalog` -> `ServicesHome`
+- Встроенный `activeTab` внутри `PortalMainScreen` стоит оставлять только для тех сервисов, где осознанно нужен единый portal-shell и нет main-thread freeze на возврате.
+- После выноса `Contacts` в отдельный stack screen сам `ContactsScreen` тоже потребовал Android fast-path:
+  - явная back button внутри экрана обязательна, если route идет без native header;
+  - на Android лучше отключать photo/glass path для контактов, не включать aura и давать списку более агрессивную виртуализацию/`estimatedItemSize`;
+  - иначе возможен отдельный ANR уже на входе в `ContactsHome`, даже если возврат в портал стал легче.
+
 ## Portal Widgets
 - Для роли `devotee` календарный portal widget должен стартовать сразу в режиме `ekadashi`, иначе пользователь видит обычный `Месяц` и создается ложное впечатление, что данные Экадаши не подключены.
 - После удаления последнего виджета empty-state в `WidgetSelection` не должен полагаться только на long-press: picker нужно открывать сразу, а на пустом холсте должна быть явная CTA-кнопка добавления виджета.
 - `WidgetSelection` и `WidgetCanvasGrid` должны использовать i18n для toolbar/empty-state/hint copy; не оставлять hardcoded `Done` и английские подсказки в UI.
 - Duplicate-alert при добавлении уже существующего виджета тоже должен идти через `portal.widgets.*`, а не через hardcoded English text.
+- В `WidgetSelection` индикатор текущего экрана (`page dots` + hint) должен быть ниже нижнего dock-бара, а не между canvas и dock: это согласованное расположение для portal/widgets visual hierarchy.
 
 ## Portal Service Visibility
 - Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.
@@ -135,6 +158,15 @@
   - верх экрана переведен из плоского title/subtitle блока в gradient hero-card;
   - CTA карты встроен прямо в hero;
   - это осознанный temporary visual replacement, пока реальные header-images не подготовлены.
+- `DhamaHome` hero layout:
+  - нельзя дублировать `Dhama` одновременно в eyebrow и основном title;
+  - back button должна быть встроена в общий hero header row и стоять на уровне главного title, а не отдельным верхним блоком.
+  - subtitle лучше держать в том же text column, что и title, а не выравнивать фиксированным `paddingLeft`, иначе шапка становится хрупкой на узких iPhone.
+  - для hero лучше использовать облегченный вариант back button, чтобы кнопка не спорила с заголовком по визуальному весу.
+  - декоративные glow-формы и CTA в hero лучше держать умеренными; слишком крупные круги и тяжелый нижний footer быстро делают шапку визуально рыхлой.
+- `DhamaBackButton`:
+  - обычный вариант на светлых `Dhama`-экранах тоже должен быть легче по массе, чем исходная плотная квадратная кнопка;
+  - hero-вариант остается отдельным, но общий default тоже должен выглядеть аккуратно на `DhamaMap`, `DhamaCollectionDetail`, `HolyPlaceDetail`.
 - Mobile `Dhama` localization hygiene:
   - в `DhamaHome` не оставлять raw brand string `Dhama` в hero eyebrow, использовать `t('dhama.homeTitle')`, чтобы `ru/en/hi` были синхронны;
   - в `HolyPlaceDetail` `placeType` не должен показываться как raw enum/backend value, его нужно прогонять через `dhama.filterValues.placeType.*` с humanized fallback;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView, Platform, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView, Platform, FlatList, InteractionManager } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -19,9 +19,10 @@ import { ScreenScaffold } from '../../../components/theme/ScreenScaffold';
 
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
-import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
+import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check, ArrowLeft } from 'lucide-react-native';
 import apiClient from '../../../lib/apiClient';
 import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
+import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 
 const CONTACTS_PAGE_LIMIT = 50;
 const CONTACT_ITEM_HEIGHT = 92;
@@ -45,8 +46,14 @@ export const ContactsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { setChatRecipient } = useChat();
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
+    const usePhotoBg = isPhotoBg && !isAndroidReducedEffects;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const { user: currentUser } = useUser();
@@ -78,7 +85,6 @@ export const ContactsScreen: React.FC = () => {
 
     useEffect(() => {
         return () => {
-            unblockingIdsRef.current.clear();
             if (navigationUnlockTimerRef.current) {
                 clearTimeout(navigationUnlockTimerRef.current);
             }
@@ -213,7 +219,7 @@ export const ContactsScreen: React.FC = () => {
         if (allContactsQuery.hasNextPage) {
             await allContactsQuery.fetchNextPage();
         }
-    }, [allContactsQuery.fetchNextPage, allContactsQuery.hasNextPage, allContactsQuery.refetch]);
+    }, [allContactsQuery]);
 
     const loadFriendsContacts = useCallback(async (_isRefresh = false, reset = false) => {
         if (reset) {
@@ -223,7 +229,7 @@ export const ContactsScreen: React.FC = () => {
         if (friendsContactsQuery.hasNextPage) {
             await friendsContactsQuery.fetchNextPage();
         }
-    }, [friendsContactsQuery.fetchNextPage, friendsContactsQuery.hasNextPage, friendsContactsQuery.refetch]);
+    }, [friendsContactsQuery]);
 
     const loadBlockedContacts = useCallback(async (_isRefresh = false, reset = false) => {
         if (reset) {
@@ -233,43 +239,59 @@ export const ContactsScreen: React.FC = () => {
         if (blockedContactsQuery.hasNextPage) {
             await blockedContactsQuery.fetchNextPage();
         }
-    }, [blockedContactsQuery.fetchNextPage, blockedContactsQuery.hasNextPage, blockedContactsQuery.refetch]);
+    }, [blockedContactsQuery]);
 
-    const loadFriendsAndBlocked = useCallback(async () => {
+    const loadAvailableCities = useCallback(async () => {
         try {
-            try {
-                const response = await apiClient.get<string[]>('/dating/cities');
-                if (response.data && response.data.length > 0) {
-                    setAvailableCities(response.data);
-                }
-            } catch {
-                const citiesFromContacts = Array.from(
-                    new Set(allContactsRef.current.map((contact) => contact.city).filter(Boolean))
-                ).sort();
-                setAvailableCities(citiesFromContacts);
-            }
-
-            if (currentUser?.ID) {
-                const [userFriends, blocked] = await Promise.all([
-                    contactService.getFriends(currentUser.ID),
-                    contactService.getBlockedUsers(currentUser.ID),
-                ]);
-                setFriendRelations(userFriends);
-                setBlockedRelations(blocked);
-            } else {
-                setFriendRelations([]);
-                setBlockedRelations([]);
+            const response = await apiClient.get<string[]>('/dating/cities');
+            if (response.data && response.data.length > 0) {
+                setAvailableCities(response.data);
             }
         } catch (error) {
-            console.error('Error fetching contacts:', error);
+            const citiesFromContacts = Array.from(
+                new Set(allContactsRef.current.map((contact) => contact.city).filter(Boolean))
+            ).sort();
+            setAvailableCities(citiesFromContacts);
+            console.error('Error fetching cities:', error);
+        }
+    }, []);
+
+    const refreshContactRelations = useCallback(async () => {
+        if (!currentUser?.ID) {
+            setFriendRelations([]);
+            setBlockedRelations([]);
+            return;
+        }
+        try {
+            const [userFriends, blocked] = await Promise.all([
+                contactService.getFriends(currentUser.ID),
+                contactService.getBlockedUsers(currentUser.ID),
+            ]);
+            setFriendRelations(userFriends);
+            setBlockedRelations(blocked);
+        } catch (error) {
+            console.error('Error fetching contacts relations:', error);
         }
     }, [currentUser?.ID]);
 
     useEffect(() => {
-        void loadFriendsAndBlocked();
-    }, [loadFriendsAndBlocked]);
+        const task = InteractionManager.runAfterInteractions(() => {
+            void refreshContactRelations();
+        });
+        return () => task.cancel();
+    }, [refreshContactRelations]);
 
-    const handleUnblock = async (contactId: number) => {
+    useEffect(() => {
+        if (!showCityPicker || availableCities.length > 0) {
+            return undefined;
+        }
+        const task = InteractionManager.runAfterInteractions(() => {
+            void loadAvailableCities();
+        });
+        return () => task.cancel();
+    }, [availableCities.length, loadAvailableCities, showCityPicker]);
+
+    const handleUnblock = useCallback(async (contactId: number) => {
         if (!currentUser?.ID) return;
         if (unblockingIdsRef.current.has(contactId)) return;
         unblockingIdsRef.current.add(contactId);
@@ -278,14 +300,17 @@ export const ContactsScreen: React.FC = () => {
             await Promise.all([
                 loadAllContacts(true, true),
                 loadBlockedContacts(true, true),
-                loadFriendsAndBlocked(),
             ]);
+            const relationshipsTask = InteractionManager.runAfterInteractions(() => {
+                void refreshContactRelations();
+            });
+            void relationshipsTask;
         } catch (error) {
             console.error('Error unblocking user:', error);
         } finally {
             unblockingIdsRef.current.delete(contactId);
         }
-    };
+    }, [currentUser?.ID, loadAllContacts, loadBlockedContacts, refreshContactRelations]);
 
     const handleRefresh = useCallback(() => {
         if (activeLoading || activeRefreshing) {
@@ -294,22 +319,22 @@ export const ContactsScreen: React.FC = () => {
         if (filter === 'all') {
             void Promise.all([
                 loadAllContacts(true, true),
-                loadFriendsAndBlocked(),
+                refreshContactRelations(),
             ]);
             return;
         }
         if (filter === 'friends') {
             void Promise.all([
                 loadFriendsContacts(true, true),
-                loadFriendsAndBlocked(),
+                refreshContactRelations(),
             ]);
             return;
         }
         void Promise.all([
             loadBlockedContacts(true, true),
-            loadFriendsAndBlocked(),
+            refreshContactRelations(),
         ]);
-    }, [activeLoading, activeRefreshing, filter, loadAllContacts, loadFriendsContacts, loadBlockedContacts, loadFriendsAndBlocked]);
+    }, [activeLoading, activeRefreshing, filter, loadAllContacts, loadFriendsContacts, loadBlockedContacts, refreshContactRelations]);
 
     const isOnline = (lastSeen: string) => {
         if (!lastSeen) return false;
@@ -318,7 +343,7 @@ export const ContactsScreen: React.FC = () => {
         return diffMinutes < 5; // Online if active in last 5 minutes
     };
 
-    const formatLastSeen = (lastSeen: string) => {
+    const formatLastSeen = useCallback((lastSeen: string) => {
         if (!lastSeen) return '';
         const date = new Date(lastSeen);
 
@@ -334,7 +359,7 @@ export const ContactsScreen: React.FC = () => {
                 date: date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
             });
         }
-    };
+    }, [i18n.language, t]);
 
 
     const friendIdsSet = useMemo(() => new Set(friendRelations.map((friend) => friend.ID)), [friendRelations]);
@@ -412,20 +437,20 @@ export const ContactsScreen: React.FC = () => {
         loadBlockedContacts,
     ]);
 
-    const renderItem = ({ item }: { item: UserContact }) => {
+    const renderItem = useCallback(({ item }: { item: UserContact }) => {
         const avatarUrl = getMediaUrl(item.avatarUrl);
         const online = isOnline(item.lastSeen);
         const lastSeenText = !online ? formatLastSeen(item.lastSeen) : '';
         const isBlocked = filter === 'blocked';
         const isFriend = friendIdsSet.has(item.ID);
-        const nameColor = isPhotoBg ? '#ffffff' : vTheme.colors.text;
-        const descColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
+        const nameColor = usePhotoBg ? '#ffffff' : vTheme.colors.text;
+        const descColor = usePhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
 
         return (
             <TouchableOpacity
                 style={[styles.contactItem, {
-                    backgroundColor: isPhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
-                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                    backgroundColor: usePhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
+                    borderColor: usePhotoBg ? 'rgba(255,255,255,0.3)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
                 }]}
                 onPress={() => {
                     if (isBlocked) return;
@@ -437,7 +462,7 @@ export const ContactsScreen: React.FC = () => {
                 }}
                 disabled={isBlocked}
             >
-                {(isPhotoBg || isDarkMode) && (
+                {(usePhotoBg || (isDarkMode && Platform.OS !== 'android')) && (
                     Platform.OS === 'android' ? (
                         <View
                             pointerEvents="none"
@@ -445,7 +470,7 @@ export const ContactsScreen: React.FC = () => {
                                 StyleSheet.absoluteFill,
                                 {
                                     borderRadius: 22,
-                                    backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.28)',
+                                    backgroundColor: usePhotoBg ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.28)',
                                 },
                             ]}
                         />
@@ -504,16 +529,16 @@ export const ContactsScreen: React.FC = () => {
                                 style={[
                                     styles.callBtn,
                                     {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
-                                        borderWidth: isPhotoBg ? 1 : 0
+                                        backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
+                                        borderColor: usePhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
+                                        borderWidth: usePhotoBg ? 1 : 0
                                     }
                                 ]}
                                 onPress={() => {
                                     openCall(item);
                                 }}
                             >
-                                <Phone size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />
+                                <Phone size={18} color={usePhotoBg ? '#ffffff' : theme.primary} />
                             </TouchableOpacity>
                         )}
                         {isFriend && (
@@ -521,16 +546,16 @@ export const ContactsScreen: React.FC = () => {
                                 style={[
                                     styles.callBtn,
                                     {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
-                                        borderWidth: isPhotoBg ? 1 : 0
+                                        backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
+                                        borderColor: usePhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
+                                        borderWidth: usePhotoBg ? 1 : 0
                                     }
                                 ]}
                                 onPress={() => {
                                     openChat(item);
                                 }}
                             >
-                                <MessageCircle size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />
+                                <MessageCircle size={18} color={usePhotoBg ? '#ffffff' : theme.primary} />
                             </TouchableOpacity>
                         )}
                         <ChevronRight size={20} color={theme.accent} style={{ marginLeft: 10 }} />
@@ -538,7 +563,24 @@ export const ContactsScreen: React.FC = () => {
                 )}
             </TouchableOpacity>
         );
-    };
+    }, [
+        filter,
+        friendIdsSet,
+        isDarkMode,
+        navigation,
+        openCall,
+        openChat,
+        t,
+        theme.accent,
+        theme.button,
+        theme.buttonText,
+        theme.primary,
+        usePhotoBg,
+        vTheme.colors.text,
+        vTheme.colors.textSecondary,
+        formatLastSeen,
+        handleUnblock,
+    ]);
 
     const toggleCityFilter = (city: string) => {
         setFilterCities((prev: string[]) => {
@@ -570,38 +612,82 @@ export const ContactsScreen: React.FC = () => {
         () => Array.from(new Set(allContacts.map((c: UserContact) => c.country).filter(Boolean))).sort(),
         [allContacts]
     );
-    const uniqueCities = availableCities;
+    const uniqueCities = availableCities.length > 0
+        ? availableCities
+        : Array.from(new Set(allContacts.map((c: UserContact) => c.city).filter(Boolean))).sort();
     const allCount = allContactsQuery.data?.pages?.[0]?.total ?? allContacts.length;
     const friendsCount = friendsContactsQuery.data?.pages?.[0]?.total ?? friendRelations.length;
     const blockedCount = blockedContactsQuery.data?.pages?.[0]?.total ?? blockedRelations.length;
-    const ContactsListComponent: any = shouldUseFlashList(true) ? FlashList : FlatList;
+    const useFlashList = shouldUseFlashList(true);
+    const ContactsListComponent: any = useFlashList ? FlashList : FlatList;
+    const keyExtractor = useCallback((item: UserContact) => item.ID.toString(), []);
+    const listTuningProps = useMemo(() => (
+        Platform.OS === 'android'
+            ? {
+                removeClippedSubviews: true,
+                windowSize: isAndroidReducedEffects ? 5 : 7,
+                initialNumToRender: isAndroidReducedEffects ? 6 : 8,
+                maxToRenderPerBatch: isAndroidReducedEffects ? 4 : 6,
+                updateCellsBatchingPeriod: isAndroidReducedEffects ? 40 : 28,
+            }
+            : { removeClippedSubviews: true }
+    ), [isAndroidReducedEffects]);
+    const listMeasureProps = useMemo(() => (
+        useFlashList
+            ? { estimatedItemSize: CONTACT_ITEM_HEIGHT }
+            : {
+                getItemLayout: (_data: ArrayLike<UserContact> | null | undefined, index: number) => ({
+                    index,
+                    length: CONTACT_ITEM_HEIGHT,
+                    offset: CONTACT_ITEM_HEIGHT * index,
+                }),
+            }
+    ), [useFlashList]);
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
-            <ScreenScaffold variant="chat" enableAura>
-            <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background }]}>
+            <ScreenScaffold variant="chat" enableAura={!isAndroidReducedEffects}>
+            <View style={[styles.container, { backgroundColor: usePhotoBg ? 'transparent' : vTheme.colors.background }]}>
+                <View style={styles.screenHeader}>
+                    <TouchableOpacity
+                        style={[
+                            styles.screenBackButton,
+                            {
+                                backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.14)' : vTheme.colors.backgroundSecondary,
+                                borderColor: usePhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider,
+                            },
+                        ]}
+                        onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Portal'))}
+                    >
+                        <ArrowLeft size={20} color={usePhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                    </TouchableOpacity>
+                    <Text style={[styles.screenHeaderTitle, { color: usePhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
+                        {t('contacts.title', { defaultValue: 'Contacts' })}
+                    </Text>
+                    <View style={styles.screenHeaderSpacer} />
+                </View>
                 <View style={styles.filterBar}>
                     <TouchableOpacity
                         onPress={() => setFilter('all')}
-                        style={[styles.filterBtn, filter === 'all' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
+                        style={[styles.filterBtn, filter === 'all' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
+                        <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
                             {t('contacts.all')} ({allCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('friends')}
-                        style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
+                        style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' ? theme.text : theme.subText) }]}>
+                        <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' ? theme.text : theme.subText) }]}>
                             {t('contacts.friends')} ({friendsCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('blocked')}
-                        style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
+                        style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
+                        <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
                             {t('contacts.blocked')} ({blockedCount})
                         </Text>
                     </TouchableOpacity>
@@ -615,11 +701,11 @@ export const ContactsScreen: React.FC = () => {
                             style={[
                                 styles.filterChip,
                                 filterCities.length > 0 && { backgroundColor: theme.accent + '30', borderColor: theme.accent },
-                                isPhotoBg && { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }
+                                usePhotoBg && { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }
                             ]}
                             onPress={() => setShowCityPicker(true)}
                         >
-                            <Text style={[styles.filterChipText, { color: isPhotoBg ? '#ffffff' : (filterCities.length > 0 ? theme.accent : theme.text) }]}>
+                            <Text style={[styles.filterChipText, { color: usePhotoBg ? '#ffffff' : (filterCities.length > 0 ? theme.accent : theme.text) }]}>
                                 {filterCities.length > 0 ? `${filterCities.length} ${t('contacts.cities')}` : t('contacts.city')}
                             </Text>
                             <ChevronDown size={14} color={filterCities.length > 0 ? theme.accent : theme.subText} style={{ marginLeft: 6 }} />
@@ -635,7 +721,7 @@ export const ContactsScreen: React.FC = () => {
 
                         {/* Stats */}
                         <View style={styles.statsContainer}>
-                            <Text style={[styles.statsText, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : theme.subText }]}>
+                            <Text style={[styles.statsText, { color: usePhotoBg ? 'rgba(255,255,255,0.8)' : theme.subText }]}>
                                 {uniqueCities.length} {t('contacts.cities')} • {uniqueCountries.length} {t('contacts.countries')}
                             </Text>
                         </View>
@@ -643,33 +729,34 @@ export const ContactsScreen: React.FC = () => {
                 )}
 
                 <View style={[styles.searchContainer, {
-                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : vTheme.colors.divider
+                    backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                    borderColor: usePhotoBg ? 'rgba(255,255,255,0.3)' : vTheme.colors.divider
                 }]}>
-                    <Search size={18} color={isPhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText} style={{ marginRight: 8 }} />
+                    <Search size={18} color={usePhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText} style={{ marginRight: 8 }} />
                     <TextInput
-                        style={[styles.searchInput, { color: isPhotoBg ? '#ffffff' : theme.inputText }]}
+                        style={[styles.searchInput, { color: usePhotoBg ? '#ffffff' : theme.inputText }]}
                         placeholder={filterCities.length > 0 ? t('contacts.searchingIn', { count: filterCities.length }) : t('contacts.searchBy')}
-                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
+                        placeholderTextColor={usePhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
                         value={search}
                         onChangeText={setSearch}
                     />
                     {search ? (
                         <TouchableOpacity onPress={() => setSearch('')}>
-                            <X size={20} color={isPhotoBg ? '#ffffff' : theme.accent} />
+                            <X size={20} color={usePhotoBg ? '#ffffff' : theme.accent} />
                         </TouchableOpacity>
                     ) : null}
                 </View>
                 <ContactsListComponent
                     data={displayedContacts}
-                    keyExtractor={(item: UserContact) => item.ID.toString()}
+                    keyExtractor={keyExtractor}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     refreshing={activeRefreshing}
                     onRefresh={handleRefresh}
                     onEndReached={loadMoreContacts}
                     onEndReachedThreshold={0.35}
-                    removeClippedSubviews
+                    {...listTuningProps}
+                    {...listMeasureProps}
                     ListHeaderComponent={filter === 'blocked' && displayedContacts.length > 0 ? (
                         <Text style={[styles.blockedHint, { color: theme.subText }]}>
                             {t('contacts.blockConfirmMsg')}
@@ -710,7 +797,7 @@ export const ContactsScreen: React.FC = () => {
                     onRequestClose={() => setShowCityPicker(false)}
                 >
                     <View style={styles.modalOverlay}>
-                        {(isPhotoBg || isDarkMode) && (
+                        {(usePhotoBg || (isDarkMode && Platform.OS !== 'android')) && (
                             <BlurView
                                 style={StyleSheet.absoluteFill}
                                 blurType="dark"
@@ -721,20 +808,20 @@ export const ContactsScreen: React.FC = () => {
                         <View style={[
                             styles.modalContent,
                             {
-                                backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.5)' : (isDarkMode ? 'rgba(30,30,30,0.9)' : 'rgba(255,255,255,0.95)'),
-                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor,
+                                backgroundColor: usePhotoBg ? 'rgba(0,0,0,0.5)' : (isDarkMode ? 'rgba(30,30,30,0.94)' : 'rgba(255,255,255,0.98)'),
+                                borderColor: usePhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor,
                                 borderWidth: 1,
                             }
                         ]}>
                             <TouchableOpacity
                                 onPress={() => setShowCityPicker(false)}
-                                style={[styles.closeModalBtn, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : vTheme.colors.backgroundSecondary }]}
+                                style={[styles.closeModalBtn, { backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.1)' : vTheme.colors.backgroundSecondary }]}
                             >
-                                <X size={20} color={isPhotoBg ? '#FFF' : theme.subText} />
+                                <X size={20} color={usePhotoBg ? '#FFF' : theme.subText} />
                             </TouchableOpacity>
 
                             <View style={styles.modalHeader}>
-                                <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFF' : theme.text, fontFamily: 'Cinzel-Bold' }]}>
+                                <Text style={[styles.modalTitle, { color: usePhotoBg ? '#FFF' : theme.text, fontFamily: 'Cinzel-Bold' }]}>
                                     {t('contacts.selectCities', { count: filterCities.length })}
                                 </Text>
                             </View>
@@ -743,16 +830,16 @@ export const ContactsScreen: React.FC = () => {
                                 style={[
                                     styles.input,
                                     {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.inputBackground,
-                                        color: isPhotoBg ? '#FFF' : theme.text,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor,
+                                        backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.1)' : theme.inputBackground,
+                                        color: usePhotoBg ? '#FFF' : theme.text,
+                                        borderColor: usePhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor,
                                         marginBottom: 10
                                     }
                                 ]}
                                 value={citySearchQuery}
                                 onChangeText={setCitySearchQuery}
                                 placeholder={t('dating.searchCity')}
-                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
+                                placeholderTextColor={usePhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
                             />
 
                             {filterCities.length > 0 && (
@@ -766,10 +853,10 @@ export const ContactsScreen: React.FC = () => {
                                 </TouchableOpacity>
                             )}
 
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} indicatorStyle={isDarkMode || isPhotoBg ? 'white' : 'black'}>
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} indicatorStyle={isDarkMode || usePhotoBg ? 'white' : 'black'}>
                                 {filteredCities.length === 0 ? (
                                     <View style={{ padding: 20, alignItems: 'center' }}>
-                                        <Text style={[styles.noResults, { color: isPhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
+                                        <Text style={[styles.noResults, { color: usePhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
                                             {t('contacts.noCitiesFound')}
                                         </Text>
                                     </View>
@@ -782,7 +869,7 @@ export const ContactsScreen: React.FC = () => {
                                                 key={city}
                                                 style={[
                                                     styles.cityItem,
-                                                    { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor },
+                                                    { borderBottomColor: usePhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor },
                                                     isSelected && styles.cityItemSelected
                                                 ]}
                                                 onPress={() => toggleCityFilter(city)}
@@ -791,18 +878,18 @@ export const ContactsScreen: React.FC = () => {
                                                     {/* Checkbox */}
                                                     <View style={[
                                                         styles.checkbox,
-                                                        { borderColor: isPhotoBg ? 'rgba(255,255,255,0.5)' : theme.borderColor },
+                                                        { borderColor: usePhotoBg ? 'rgba(255,255,255,0.5)' : theme.borderColor },
                                                         isSelected && { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary }
                                                     ]}>
                                                         {isSelected && (
                                                             <Check size={12} color="#FFF" strokeWidth={3} />
                                                         )}
                                                     </View>
-                                                    <Text style={[styles.cityName, { color: isPhotoBg ? '#FFF' : theme.text }]} numberOfLines={1}>
+                                                    <Text style={[styles.cityName, { color: usePhotoBg ? '#FFF' : theme.text }]} numberOfLines={1}>
                                                         {city.split(',')[0].trim()}
                                                     </Text>
                                                 </View>
-                                                <Text style={[styles.cityCount, { color: isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText, fontSize: 12 }]}>{count}</Text>
+                                                <Text style={[styles.cityCount, { color: usePhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText, fontSize: 12 }]}>{count}</Text>
                                             </TouchableOpacity>
                                         );
                                     })
@@ -835,6 +922,30 @@ export const ContactsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    screenHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 4,
+    },
+    screenBackButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    screenHeaderTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    screenHeaderSpacer: {
+        width: 38,
+        height: 38,
+    },
     modalOverlay: {
         flex: 1,
         justifyContent: 'center',

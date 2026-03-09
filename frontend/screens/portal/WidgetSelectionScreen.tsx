@@ -33,6 +33,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
 const SWIPE_MIN_DISTANCE_PX = 70;
 const SWIPE_MIN_VELOCITY_PX = 650;
 const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
+const WIDGET_DOCK_BOTTOM = 52;
+const WIDGET_DOCK_HEIGHT = 108;
+const WIDGET_DOCK_GAP = 10;
+const PAGE_INDICATOR_BOTTOM = 14;
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
@@ -609,7 +613,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 16,
         right: 16,
-        bottom: 146,
+        bottom: WIDGET_DOCK_BOTTOM + WIDGET_DOCK_HEIGHT + WIDGET_DOCK_GAP,
         borderRadius: 24,
         borderWidth: 1,
         flexDirection: 'row',
@@ -637,7 +641,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 144,
+        bottom: PAGE_INDICATOR_BOTTOM,
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
@@ -662,7 +666,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 12,
         right: 12,
-        bottom: 28,
+        bottom: WIDGET_DOCK_BOTTOM,
         borderRadius: 34,
         overflow: 'hidden',
     },
