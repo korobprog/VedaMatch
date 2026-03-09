@@ -11,6 +11,7 @@ import { UserProvider, useUser } from './context/UserContext';
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext';
 import { webRTCService } from './services/webRTCService';
 import { ChatScreen } from './screens/ChatScreen';
+import { SplashScreen } from './components/ui/SplashScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
 import PlansScreen from './screens/PlansScreen';
@@ -516,39 +517,12 @@ const AppContent = () => {
   }, [isLoggedIn]);
 
   // Show preview only for non-logged-in users
-  if (showPreview && !isLoggedIn && !isLoading) {
-    return <PreviewScreen onFinish={() => setShowPreview(false)} />;
-  }
+  // if (showPreview && !isLoggedIn && !isLoading) {
+  //   return <PreviewScreen onFinish={() => setShowPreview(false)} />;
+  // }
 
   if (isLoading || !isSettingsLoaded || !minLoadTime) {
-    return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: '#070D1A', justifyContent: 'center', alignItems: 'center' }}
-      >
-        <View
-          style={{
-            width: 148,
-            height: 148,
-            borderRadius: 28,
-            backgroundColor: 'rgba(255,255,255,0.04)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.12)',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Image
-            source={require('./assets/logo_tilak.png')}
-            style={{ width: 108, height: 108 }}
-            resizeMode="contain"
-          />
-        </View>
-        <ActivityIndicator size="small" color="#F59E0B" style={{ marginTop: 18 }} />
-        <Text style={{ marginTop: 10, color: 'rgba(255,255,255,0.92)', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 }}>
-          VedaMatch
-        </Text>
-      </SafeAreaView>
-    );
+    return <SplashScreen />;
   }
 
   return (
