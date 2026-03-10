@@ -28,8 +28,16 @@ const (
 	calendarScopeModeTimezone = "timezone"
 	calendarScopeModeLocation = "location"
 
-	defaultCalendarImportHorizonMonths = 24
+	calendarTargetStatusMissing   = "missing"
+	calendarTargetStatusQueued    = "queued"
+	calendarTargetStatusRunning   = "running"
+	calendarTargetStatusPublished = "published"
+	calendarTargetStatusFailed    = "failed"
+
+	defaultCalendarImportHorizonMonths = 12
 )
+
+var calendarImportQueue sync.Map
 
 type calendarImportTarget struct {
 	Organization models.EkadashiOrganization
@@ -273,6 +281,138 @@ func (s *CalendarImportService) buildCuratedEvents(months []time.Time, target ca
 	return result
 }
 
+func (s *CalendarImportService) upsertImportTarget(target calendarImportTarget, source string, status string, dueAt *time.Time, lastError string) (*models.CalendarImportTarget, error) {
+	if s.db == nil {
+		return nil, errors.New("calendar import db is not initialized")
+	}
+	now := s.nowFunc().UTC()
+	record := models.CalendarImportTarget{
+		OrganizationID:  target.Organization.ID,
+		ScopeKey:        target.ScopeKey,
+		ScopeMode:       target.ScopeMode,
+		City:            target.Location.City,
+		Country:         target.Location.Country,
+		Timezone:        target.Location.TimeZone,
+		Source:          strings.TrimSpace(source),
+		IsActive:        true,
+		ImportStatus:    strings.TrimSpace(status),
+		LastSeenAt:      &now,
+		NextImportDueAt: dueAt,
+		LastError:       strings.TrimSpace(lastError),
+	}
+
+	var existing models.CalendarImportTarget
+	err := s.db.Where("organization_id = ? AND scope_key = ?", target.Organization.ID, target.ScopeKey).First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if record.ImportStatus == "" {
+			record.ImportStatus = calendarTargetStatusMissing
+		}
+		if err := s.db.Create(&record).Error; err != nil {
+			return nil, err
+		}
+		return &record, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	updates := map[string]any{
+		"scope_mode":   target.ScopeMode,
+		"city":         target.Location.City,
+		"country":      target.Location.Country,
+		"timezone":     target.Location.TimeZone,
+		"source":       firstNonEmptyCalendarString(strings.TrimSpace(source), existing.Source),
+		"is_active":    true,
+		"last_seen_at": now,
+	}
+	if strings.TrimSpace(status) != "" {
+		updates["import_status"] = strings.TrimSpace(status)
+	}
+	if dueAt != nil {
+		updates["next_import_due_at"] = *dueAt
+	}
+	if strings.TrimSpace(lastError) != "" || status == calendarTargetStatusPublished {
+		updates["last_error"] = strings.TrimSpace(lastError)
+	}
+	if err := s.db.Model(&existing).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&existing, existing.ID).Error; err != nil {
+		return nil, err
+	}
+	return &existing, nil
+}
+
+func (s *CalendarImportService) markTargetImportResult(target calendarImportTarget, run *models.CalendarImportRun, status string, lastError string) {
+	if s.db == nil {
+		return
+	}
+	now := s.nowFunc().UTC()
+	updates := map[string]any{
+		"import_status":      status,
+		"last_error":         strings.TrimSpace(lastError),
+		"last_import_run_id": 0,
+	}
+	if status == calendarTargetStatusPublished {
+		updates["last_imported_at"] = now
+		updates["next_import_due_at"] = now.Add(24 * time.Hour)
+	}
+	if run != nil {
+		updates["last_import_run_id"] = run.ID
+	}
+	_ = s.db.Model(&models.CalendarImportTarget{}).
+		Where("organization_id = ? AND scope_key = ?", target.Organization.ID, target.ScopeKey).
+		Updates(updates).Error
+}
+
+func (s *CalendarImportService) enqueueImportTarget(target calendarImportTarget, source string) string {
+	if s.db == nil {
+		return calendarTargetStatusMissing
+	}
+	now := s.nowFunc().UTC()
+	_, err := s.upsertImportTarget(target, source, calendarTargetStatusQueued, &now, "")
+	if err != nil {
+		return calendarTargetStatusMissing
+	}
+
+	queueKey := target.Organization.ID + "|" + target.ScopeKey
+	if _, alreadyRunning := calendarImportQueue.LoadOrStore(queueKey, struct{}{}); alreadyRunning {
+		_ = s.db.Model(&models.CalendarImportTarget{}).
+			Where("organization_id = ? AND scope_key = ?", target.Organization.ID, target.ScopeKey).
+			Updates(map[string]any{"import_status": calendarTargetStatusRunning}).Error
+		return calendarTargetStatusRunning
+	}
+
+	go func() {
+		defer calendarImportQueue.Delete(queueKey)
+		_ = s.db.Model(&models.CalendarImportTarget{}).
+			Where("organization_id = ? AND scope_key = ?", target.Organization.ID, target.ScopeKey).
+			Updates(map[string]any{"import_status": calendarTargetStatusRunning}).Error
+		run, runErr := s.ImportAndPublish(target.Organization.ID, target.Location.City, target.Location.TimeZone, target.Location.Country, defaultCalendarImportHorizonMonths)
+		if runErr != nil {
+			s.markTargetImportResult(target, run, calendarTargetStatusFailed, runErr.Error())
+			return
+		}
+		s.markTargetImportResult(target, run, calendarTargetStatusPublished, "")
+	}()
+
+	return calendarTargetStatusQueued
+}
+
+func (s *CalendarImportService) targetFromLocation(org models.EkadashiOrganization, locData locationSnapshot) (calendarImportTarget, bool) {
+	scopeMode, scopeKey, resolvedLocation := buildCalendarScope(org, locData)
+	target := calendarImportTarget{
+		Organization: org,
+		Location:     resolvedLocation,
+		ScopeMode:    scopeMode,
+		ScopeKey:     scopeKey,
+	}
+	if isLocationScopedOrganization(org.ID) && buildVaishnavaCalendarCitySlug(resolvedLocation.City) == "" {
+		return target, false
+	}
+	return target, true
+}
+
 func (s *CalendarImportService) ImportAndPublish(organizationID, city, timezone, country string, horizonMonths int) (*models.CalendarImportRun, error) {
 	if s.db == nil {
 		return nil, errors.New("calendar import db is not initialized")
@@ -287,8 +427,17 @@ func (s *CalendarImportService) ImportAndPublish(organizationID, city, timezone,
 	if isLocationScopedOrganization(org.ID) && buildVaishnavaCalendarCitySlug(location.City) == "" {
 		return nil, errors.New("city is required for iskcon import")
 	}
-
+	target := calendarImportTarget{
+		Organization: org,
+		Location:     location,
+		ScopeMode:    scopeMode,
+		ScopeKey:     scopeKey,
+	}
 	now := s.nowFunc().UTC()
+	if _, err := s.upsertImportTarget(target, "manual", calendarTargetStatusRunning, &now, ""); err != nil {
+		return nil, err
+	}
+
 	startMonth, endMonth := calendarRangeWindow(now, horizonMonths)
 	months := iterateCalendarMonths(startMonth, endMonth)
 	importVersion := fmt.Sprintf("%s:%s:%d", org.ID, scopeKey, now.Unix())
@@ -326,6 +475,7 @@ func (s *CalendarImportService) ImportAndPublish(organizationID, city, timezone,
 				"error_message": err.Error(),
 				"finished_at":   finishedAt,
 			}).Error
+			s.markTargetImportResult(target, &run, calendarTargetStatusFailed, err.Error())
 			return nil, err
 		}
 		importedEvents = append(importedEvents, fetched.Events...)
@@ -359,6 +509,7 @@ func (s *CalendarImportService) ImportAndPublish(organizationID, city, timezone,
 			"error_message": err.Error(),
 			"finished_at":   finishedAt,
 		}).Error
+		s.markTargetImportResult(target, &run, calendarTargetStatusFailed, err.Error())
 		return nil, err
 	}
 	allEvents = append(allEvents, dedupeCalendarEvents(curatedEvents)...)
@@ -430,8 +581,11 @@ func (s *CalendarImportService) ImportAndPublish(organizationID, city, timezone,
 			"error_message": err.Error(),
 			"finished_at":   finishedAt,
 		}).Error
+		s.markTargetImportResult(target, &run, calendarTargetStatusFailed, err.Error())
 		return nil, err
 	}
+
+	s.markTargetImportResult(target, &run, calendarTargetStatusPublished, "")
 
 	if err := s.db.First(&run, run.ID).Error; err != nil {
 		return nil, err
@@ -444,14 +598,22 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 		return nil, nil, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", "db_unavailable")
 	}
 
-	scopeMode, scopeKey, resolvedLocation := buildCalendarScope(org, locData)
+	target, hasUsableLocation := s.targetFromLocation(org, locData)
+	scopeMode := target.ScopeMode
+	scopeKey := target.ScopeKey
 	var publication models.CalendarPublication
 	if err := s.db.Where("organization_id = ? AND scope_key = ? AND is_active = ?", org.ID, scopeKey, true).
 		Order("created_at DESC").
 		First(&publication).Error; err != nil {
+		if !hasUsableLocation && scopeMode == calendarScopeModeLocation {
+			return []models.EkadashiDay{}, []models.EkadashiDay{}, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", "location_required")
+		}
+		status := s.enqueueImportTarget(target, "manual")
 		reason := "no_published_data"
-		if scopeMode == calendarScopeModeLocation && buildVaishnavaCalendarCitySlug(resolvedLocation.City) == "" {
-			reason = "location_required"
+		if status == calendarTargetStatusRunning {
+			reason = "import_running"
+		} else if status == calendarTargetStatusQueued {
+			reason = "import_queued"
 		}
 		return []models.EkadashiDay{}, []models.EkadashiDay{}, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", reason)
 	}
@@ -538,25 +700,87 @@ func (s *CalendarImportService) ListRecentImportRuns(limit int) ([]models.Calend
 	return rows, err
 }
 
-func (s *CalendarImportService) discoverTargets() ([]calendarImportTarget, error) {
+func (s *CalendarImportService) ListImportTargets(limit int) ([]models.CalendarImportTarget, error) {
+	if s.db == nil {
+		return nil, errors.New("calendar import db is not initialized")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var rows []models.CalendarImportTarget
+	err := s.db.Order("organization_id ASC, scope_key ASC").Limit(limit).Find(&rows).Error
+	return rows, err
+}
+
+func (s *CalendarImportService) GetImportStatus(org models.EkadashiOrganization, locData locationSnapshot) (*models.EkadashiImportStatusResponse, error) {
+	if s.db == nil {
+		return nil, errors.New("calendar import db is not initialized")
+	}
+	target, hasUsableLocation := s.targetFromLocation(org, locData)
+	if !hasUsableLocation && target.ScopeMode == calendarScopeModeLocation {
+		return &models.EkadashiImportStatusResponse{
+			OrganizationID: org.ID,
+			ScopeKey:       target.ScopeKey,
+			ScopeMode:      target.ScopeMode,
+			City:           target.Location.City,
+			Country:        target.Location.Country,
+			Timezone:       target.Location.TimeZone,
+			TargetExists:   false,
+			Status:         "missing",
+			LastError:      "location_required",
+		}, nil
+	}
+
+	var importTarget models.CalendarImportTarget
+	err := s.db.Where("organization_id = ? AND scope_key = ?", org.ID, target.ScopeKey).First(&importTarget).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &models.EkadashiImportStatusResponse{
+			OrganizationID: org.ID,
+			ScopeKey:       target.ScopeKey,
+			ScopeMode:      target.ScopeMode,
+			City:           target.Location.City,
+			Country:        target.Location.Country,
+			Timezone:       target.Location.TimeZone,
+			TargetExists:   false,
+			Status:         "missing",
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	response := &models.EkadashiImportStatusResponse{
+		OrganizationID: org.ID,
+		ScopeKey:       target.ScopeKey,
+		ScopeMode:      importTarget.ScopeMode,
+		City:           importTarget.City,
+		Country:        importTarget.Country,
+		Timezone:       importTarget.Timezone,
+		TargetExists:   true,
+		Status:         importTarget.ImportStatus,
+		LastError:      strings.TrimSpace(importTarget.LastError),
+	}
+	if importTarget.LastImportedAt != nil {
+		response.LastImportAt = importTarget.LastImportedAt.UTC().Format(time.RFC3339)
+	}
+	return response, nil
+}
+
+func (s *CalendarImportService) SyncTargetsFromKnownLocations() ([]calendarImportTarget, error) {
 	targets := make([]calendarImportTarget, 0, 32)
 	targetMap := make(map[string]calendarImportTarget)
 
-	addTarget := func(org models.EkadashiOrganization, loc locationSnapshot) {
-		scopeMode, scopeKey, normalizedLoc := buildCalendarScope(org, loc)
-		if isLocationScopedOrganization(org.ID) && buildVaishnavaCalendarCitySlug(normalizedLoc.City) == "" {
+	addTarget := func(org models.EkadashiOrganization, loc locationSnapshot, source string) {
+		target, ok := s.targetFromLocation(org, loc)
+		if !ok {
 			return
 		}
-		key := org.ID + "|" + scopeKey
+		key := org.ID + "|" + target.ScopeKey
 		if _, exists := targetMap[key]; exists {
 			return
 		}
-		targetMap[key] = calendarImportTarget{
-			Organization: org,
-			Location:     normalizedLoc,
-			ScopeMode:    scopeMode,
-			ScopeKey:     scopeKey,
-		}
+		targetMap[key] = target
+		_, _ = s.upsertImportTarget(target, source, "", nil, "")
 	}
 
 	type prefLoc struct {
@@ -577,7 +801,7 @@ func (s *CalendarImportService) discoverTargets() ([]calendarImportTarget, error
 			TimeZone: row.Timezone,
 			City:     row.City,
 			Country:  row.Country,
-		})
+		}, "push_preference")
 	}
 
 	var userLocations []locationSnapshot
@@ -589,7 +813,7 @@ func (s *CalendarImportService) discoverTargets() ([]calendarImportTarget, error
 	}
 	for _, org := range ekadashiOrganizations {
 		for _, row := range userLocations {
-			addTarget(org, row)
+			addTarget(org, row, "user_profile")
 		}
 	}
 
@@ -602,11 +826,11 @@ func (s *CalendarImportService) discoverTargets() ([]calendarImportTarget, error
 			TimeZone: row.Timezone,
 			City:     row.City,
 			Country:  row.Country,
-		})
+		}, "publication")
 	}
 
 	for _, org := range ekadashiOrganizations {
-		addTarget(org, locationSnapshot{TimeZone: "Asia/Kolkata"})
+		addTarget(org, locationSnapshot{TimeZone: "Asia/Kolkata"}, "manual")
 	}
 
 	for _, target := range targetMap {
@@ -618,6 +842,34 @@ func (s *CalendarImportService) discoverTargets() ([]calendarImportTarget, error
 		}
 		return targets[i].ScopeKey < targets[j].ScopeKey
 	})
+	return targets, nil
+}
+
+func (s *CalendarImportService) listDueTargets() ([]calendarImportTarget, error) {
+	if s.db == nil {
+		return nil, errors.New("calendar import db is not initialized")
+	}
+	now := s.nowFunc().UTC()
+	var rows []models.CalendarImportTarget
+	if err := s.db.Where("is_active = ? AND (next_import_due_at IS NULL OR next_import_due_at <= ?)", true, now).
+		Order("organization_id ASC, scope_key ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	targets := make([]calendarImportTarget, 0, len(rows))
+	for _, row := range rows {
+		targets = append(targets, calendarImportTarget{
+			Organization: resolveEkadashiOrganization(row.OrganizationID),
+			Location: locationSnapshot{
+				TimeZone: row.Timezone,
+				City:     row.City,
+				Country:  row.Country,
+			},
+			ScopeMode: row.ScopeMode,
+			ScopeKey:  row.ScopeKey,
+		})
+	}
 	return targets, nil
 }
 
@@ -680,16 +932,19 @@ func (s *EkadashiImportSchedulerService) RunNightlyIfDue() {
 		return
 	}
 	today := now.Format("2006-01-02")
-	var count int64
-	if err := s.importer.db.Model(&models.CalendarImportRun{}).
-		Where("status = ? AND DATE(created_at) = ?", calendarImportStatusPublished, today).
-		Count(&count).Error; err == nil && count > 0 {
+	var setting models.SystemSetting
+	if err := s.importer.db.Where("key = ?", "EKADASHI_IMPORT_NIGHTLY_LAST_RUN_DATE").First(&setting).Error; err == nil && strings.TrimSpace(setting.Value) == today {
 		return
 	}
 
-	targets, err := s.importer.discoverTargets()
+	_, err := s.importer.SyncTargetsFromKnownLocations()
 	if err != nil {
-		log.Printf("[EkadashiImportScheduler] discover targets failed: %v", err)
+		log.Printf("[EkadashiImportScheduler] sync targets failed: %v", err)
+		return
+	}
+	targets, err := s.importer.listDueTargets()
+	if err != nil {
+		log.Printf("[EkadashiImportScheduler] list due targets failed: %v", err)
 		return
 	}
 	for _, target := range targets {
@@ -697,6 +952,9 @@ func (s *EkadashiImportSchedulerService) RunNightlyIfDue() {
 			log.Printf("[EkadashiImportScheduler] import failed org=%s scope=%s: %v", target.Organization.ID, target.ScopeKey, err)
 		}
 	}
+	_ = s.importer.db.Where("key = ?", "EKADASHI_IMPORT_NIGHTLY_LAST_RUN_DATE").
+		Assign(models.SystemSetting{Value: today}).
+		FirstOrCreate(&setting, models.SystemSetting{Key: "EKADASHI_IMPORT_NIGHTLY_LAST_RUN_DATE"}).Error
 }
 
 var ekadashiImportScheduler *EkadashiImportSchedulerService

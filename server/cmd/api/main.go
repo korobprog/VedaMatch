@@ -923,6 +923,7 @@ func main() {
 	protected.Get("/ekadashi/organizations", ekadashiHandler.GetOrganizations)
 	protected.Get("/ekadashi/calendar", ekadashiHandler.GetCalendar)
 	protected.Get("/ekadashi/day", ekadashiHandler.GetDay)
+	protected.Get("/ekadashi/import-status", ekadashiHandler.GetImportStatus)
 	protected.Get("/ekadashi/push-preferences", ekadashiHandler.GetPushPreference)
 	protected.Put("/ekadashi/push-preferences", ekadashiHandler.UpdatePushPreference)
 	protected.Get("/connect/profile", connectHandler.GetProfile)

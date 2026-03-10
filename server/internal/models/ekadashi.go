@@ -60,6 +60,19 @@ type EkadashiCalendarResponse struct {
 	ProviderDecision EkadashiProviderDecision `json:"providerDecision"`
 }
 
+type EkadashiImportStatusResponse struct {
+	OrganizationID string `json:"organizationId"`
+	ScopeKey       string `json:"scopeKey"`
+	ScopeMode      string `json:"scopeMode"`
+	City           string `json:"city"`
+	Country        string `json:"country"`
+	Timezone       string `json:"timezone"`
+	TargetExists   bool   `json:"targetExists"`
+	Status         string `json:"status"`
+	LastImportAt   string `json:"lastImportAt,omitempty"`
+	LastError      string `json:"lastError,omitempty"`
+}
+
 type EkadashiPushPreference struct {
 	gorm.Model
 	UserID            uint   `json:"userId" gorm:"not null;uniqueIndex"`

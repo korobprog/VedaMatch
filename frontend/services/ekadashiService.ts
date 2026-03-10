@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
-import type { EkadashiCalendarResponse, EkadashiDay, EkadashiOrganization, EkadashiPushPreference } from '../types/ekadashi';
+import type { EkadashiCalendarResponse, EkadashiDay, EkadashiImportStatus, EkadashiOrganization, EkadashiPushPreference } from '../types/ekadashi';
 import { EKADASHI_DEFAULT_ORGANIZATION_ID, EKADASHI_FALLBACK_ORGANIZATIONS } from '../utils/ekadashiCalendar';
 
 const STORAGE_KEY_SELECTED_ORGANIZATION = 'ekadashi_selected_organization';
@@ -35,6 +35,16 @@ export const ekadashiService = {
         country?: string;
     }): Promise<EkadashiDay> {
         const response = await apiClient.get('/ekadashi/day', { params });
+        return response.data;
+    },
+
+    async getImportStatus(params: {
+        organizationId?: string;
+        timezone?: string;
+        city?: string;
+        country?: string;
+    }): Promise<EkadashiImportStatus> {
+        const response = await apiClient.get('/ekadashi/import-status', { params });
         return response.data;
     },
 

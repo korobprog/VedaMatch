@@ -815,6 +815,10 @@ func (h *AdminHandler) GetEkadashiHealth(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load calendar import runs"})
 	}
+	importTargets, err := importService.ListImportTargets(100)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load calendar import targets"})
+	}
 
 	runtimeStatus := pushService.GetFCMRuntimeStatus()
 	return c.JSON(fiber.Map{
@@ -832,6 +836,7 @@ func (h *AdminHandler) GetEkadashiHealth(c *fiber.Ctx) error {
 		},
 		"publications":     publications,
 		"recentImportRuns": importRuns,
+		"importTargets":    importTargets,
 		"scheduler": fiber.Map{
 			"enabled":            true,
 			"tickMinutes":        60,
@@ -935,6 +940,8 @@ func (h *AdminHandler) RefreshAllEkadashiCalendars(c *fiber.Ctx) error {
 			"snapshotCount":  run.SnapshotCount,
 			"city":           city,
 			"timezone":       timezone,
+			"scopeKey":       run.ScopeKey,
+			"scopeMode":      run.ScopeMode,
 		})
 	}
 

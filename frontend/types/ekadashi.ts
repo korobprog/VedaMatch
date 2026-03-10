@@ -7,9 +7,22 @@ export type EkadashiOrganization = {
 };
 
 export type EkadashiProviderDecision = {
-    mode: 'live' | 'fallback' | string;
+    mode: 'live' | 'fallback' | 'db_imported' | 'db_curated' | 'db_missing' | string;
     source: string;
     reason?: string;
+};
+
+export type EkadashiImportStatus = {
+    organizationId: string;
+    scopeKey: string;
+    scopeMode: string;
+    city: string;
+    country: string;
+    timezone: string;
+    targetExists: boolean;
+    status: 'queued' | 'running' | 'published' | 'failed' | 'missing' | string;
+    lastImportAt?: string;
+    lastError?: string;
 };
 
 export type EkadashiDay = {

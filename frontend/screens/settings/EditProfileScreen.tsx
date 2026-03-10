@@ -158,6 +158,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }, [i18n.language]);
 
     useEffect(() => {
+        navigation.setOptions({
+            gestureEnabled: false,
+            fullScreenGestureEnabled: false,
+            animationMatchesGesture: false,
+        });
+    }, [navigation]);
+
+    useEffect(() => {
         loadProfile();
         fetchCountries();
         void loadProStatus();

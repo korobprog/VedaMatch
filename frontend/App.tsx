@@ -602,7 +602,11 @@ const AppContent = () => {
                   <Stack.Screen
                     name="EditProfile"
                     component={EditProfileScreen}
-                    options={{ gestureEnabled: false }}
+                    options={{
+                      gestureEnabled: false,
+                      fullScreenGestureEnabled: false,
+                      animationMatchesGesture: false,
+                    }}
                   />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
                   <Stack.Screen

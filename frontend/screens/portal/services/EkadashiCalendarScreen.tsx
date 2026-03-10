@@ -16,6 +16,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { ekadashiService } from '../../../services/ekadashiService';
+import { geoLocationService } from '../../../services/geoLocationService';
 import type { EkadashiDay, EkadashiOrganization, EkadashiPushPreference } from '../../../types/ekadashi';
 import {
     canAccessVedicCalendarRole,
@@ -75,6 +76,8 @@ const EkadashiCalendarScreen: React.FC = () => {
     const [events, setEvents] = useState<EkadashiDay[]>([]);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [providerNoticeKey, setProviderNoticeKey] = useState<string | null>(null);
+    const [providerDecisionReason, setProviderDecisionReason] = useState<string | null>(null);
+    const [providerDecisionMode, setProviderDecisionMode] = useState<string | null>(null);
     const [city, setCity] = useState(initialCity);
     const [country, setCountry] = useState(initialCountry);
     const [timezone, setTimezone] = useState(initialTimezone);
@@ -83,6 +86,7 @@ const EkadashiCalendarScreen: React.FC = () => {
     );
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [locating, setLocating] = useState(false);
 
     const monthTitle = useMemo(
         () => currentMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
@@ -118,6 +122,8 @@ const EkadashiCalendarScreen: React.FC = () => {
             const nextEvents = response.events?.length ? response.events : (response.days || []);
             setEvents(nextEvents);
             setProviderNoticeKey(getEkadashiProviderNoticeKey(response.providerDecision));
+            setProviderDecisionReason(response.providerDecision?.reason || null);
+            setProviderDecisionMode(response.providerDecision?.mode || null);
             setSelectedDate((current) => {
                 if (current && nextEvents.some((event) => event.date === current)) {
                     return current;
@@ -129,6 +135,8 @@ const EkadashiCalendarScreen: React.FC = () => {
             setEvents([]);
             setSelectedDate(null);
             setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.dataUnavailable');
+            setProviderDecisionReason('data_unavailable');
+            setProviderDecisionMode('db_missing');
         } finally {
             setLoading(false);
         }
@@ -178,6 +186,42 @@ const EkadashiCalendarScreen: React.FC = () => {
         loadCalendar(organizationId, timezone, city, country).catch(() => undefined);
     }, [canUseEkadashi, organizationId, timezone, city, country, monthKey, loadCalendar]);
 
+    useEffect(() => {
+        if (!canUseEkadashi) return undefined;
+        if (providerDecisionMode !== 'db_missing') return undefined;
+        if (providerDecisionReason !== 'import_queued' && providerDecisionReason !== 'import_running') return undefined;
+
+        const timer = setInterval(() => {
+            ekadashiService.getImportStatus({
+                organizationId,
+                timezone,
+                city,
+                country,
+            }).then((status) => {
+                if (status.status === 'published') {
+                    loadCalendar(organizationId, timezone, city, country).catch(() => undefined);
+                    return;
+                }
+                if (status.status === 'running') {
+                    setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.importRunning');
+                    setProviderDecisionReason('import_running');
+                    return;
+                }
+                if (status.status === 'queued') {
+                    setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.importQueued');
+                    setProviderDecisionReason('import_queued');
+                    return;
+                }
+                if (status.status === 'failed') {
+                    setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.dbMissing');
+                    setProviderDecisionReason('no_published_data');
+                }
+            }).catch(() => undefined);
+        }, 5000);
+
+        return () => clearInterval(timer);
+    }, [canUseEkadashi, providerDecisionMode, providerDecisionReason, organizationId, timezone, city, country, loadCalendar]);
+
     const navigateMonth = (direction: number) => {
         setCurrentMonth((prev) => {
             const next = new Date(prev);
@@ -223,6 +267,37 @@ const EkadashiCalendarScreen: React.FC = () => {
             Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.ekadashiCalendar.alerts.saveFailed'));
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleUseCurrentLocation = async () => {
+        setLocating(true);
+        try {
+            const detected = await geoLocationService.detectLocation();
+            if (!detected) {
+                Alert.alert(t('common.error'), t('portal.ekadashiCalendar.alerts.locationFailed'));
+                return;
+            }
+
+            const nextCity = detected.city || city;
+            const nextCountry = detected.country || country;
+            const payload = {
+                ...preferences,
+                organizationId,
+                city: nextCity,
+                country: nextCountry,
+                timezone,
+            };
+
+            setCity(nextCity);
+            setCountry(nextCountry);
+            setPreferences(payload);
+            await ekadashiService.updatePushPreference(payload);
+            await loadCalendar(organizationId, timezone, nextCity, nextCountry);
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.message || t('portal.ekadashiCalendar.alerts.locationFailed'));
+        } finally {
+            setLocating(false);
         }
     };
 
@@ -352,6 +427,19 @@ const EkadashiCalendarScreen: React.FC = () => {
 
                 <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                     <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.locationTitle')}</Text>
+                    {!city && organizationId === 'iskcon' ? (
+                        <TouchableOpacity
+                            style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }, locating && styles.primaryButtonDisabled]}
+                            onPress={() => {
+                                handleUseCurrentLocation().catch(() => undefined);
+                            }}
+                            disabled={locating}
+                        >
+                            <Text style={[styles.secondaryButtonText, { color: colors.textPrimary }]}>
+                                {locating ? t('common.loading') : t('portal.ekadashiCalendar.useCurrentLocation')}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
                     <TextInput
                         value={city}
                         onChangeText={setCity}
@@ -669,6 +757,18 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 15,
         fontWeight: '800',
+    },
+    secondaryButton: {
+        borderRadius: 14,
+        borderWidth: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondaryButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     switchRow: {
         flexDirection: 'row',

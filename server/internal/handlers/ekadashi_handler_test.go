@@ -46,11 +46,49 @@ func (m *mockEkadashiService) GetDay(userID uint, role, date, organizationID, ti
 	}
 	return &models.EkadashiDay{Date: "2026-03-14"}, nil
 }
+func (m *mockEkadashiService) GetImportStatus(userID uint, role, organizationID, timezone, city, country string) (*models.EkadashiImportStatusResponse, error) {
+	if !canUseMockEkadashi(userID, role) {
+		return nil, services.ErrEkadashiForbidden
+	}
+	return &models.EkadashiImportStatusResponse{
+		OrganizationID: organizationID,
+		ScopeKey:       "city:khabarovsk|tz:asia/vladivostok",
+		ScopeMode:      "location",
+		TargetExists:   true,
+		Status:         "queued",
+	}, nil
+}
 func (m *mockEkadashiService) GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error) {
 	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiPushPreferenceResponse{UserID: userID, OrganizationID: "iskcon"}, nil
+}
+
+func TestEkadashiHandlerGetImportStatus(t *testing.T) {
+	app := fiber.New()
+	handler := NewEkadashiHandlerWithService(&mockEkadashiService{})
+	app.Get("/ekadashi/import-status", func(c *fiber.Ctx) error {
+		c.Locals("userRole", models.RoleDevotee)
+		return handler.GetImportStatus(c)
+	})
+
+	req := httptest.NewRequest("GET", "/ekadashi/import-status?organizationId=iskcon&timezone=Asia%2FVladivostok&city=Khabarovsk", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+
+	var payload models.EkadashiImportStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if payload.Status != "queued" {
+		t.Fatalf("unexpected import status payload: %+v", payload)
+	}
 }
 func (m *mockEkadashiService) UpsertPushPreference(userID uint, role string, req models.EkadashiPushPreferenceUpsertRequest) (*models.EkadashiPushPreferenceResponse, error) {
 	if !canUseMockEkadashi(userID, role) {

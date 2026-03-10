@@ -203,6 +203,15 @@ func (s *EkadashiService) GetDay(userID uint, role, date, organizationID, timezo
 	return &day, nil
 }
 
+func (s *EkadashiService) GetImportStatus(userID uint, role, organizationID, timezone, city, country string) (*models.EkadashiImportStatusResponse, error) {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
+		return nil, err
+	}
+	org := resolveEkadashiOrganization(organizationID)
+	locData := s.resolveLocation(userID, timezone, city, country)
+	return NewCalendarImportService().GetImportStatus(org, locData)
+}
+
 func (s *EkadashiService) GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error) {
 	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err

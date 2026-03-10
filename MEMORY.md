@@ -171,7 +171,9 @@
   - если `api` interceptor уже получил `401` и чистит сессию, page-level `catch` не должен дополнительно заспамливать консоль как будто это отдельная функциональная поломка.
 
 ## Mobile Navigation
-- Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.
+- Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe должен быть отключен жестко и в двух местах:
+  - на уровне `EditProfile` stack screen (`gestureEnabled: false`, `fullScreenGestureEnabled: false`, `animationMatchesGesture: false`);
+  - и через `navigation.setOptions(...)` внутри самого `EditProfileScreen`, чтобы горизонтальная карусель ролей (`RoleSelectionSection`) не конфликтовала с native swipe-back и не выбрасывала пользователя назад в `Portal`.
 - Для Android в `EditProfileScreen` горизонтальный свайп карточек ролей должен временно блокировать вертикальный scroll родительского `ScrollView`, иначе parent перехватывает gesture и листание ролей вправо/влево не срабатывает.
 - Для Android в `RegistrationScreen` действует тот же паттерн: во время горизонтального свайпа карусели ролей (`RoleSelectionSection`) вертикальный scroll формы должен временно отключаться, чтобы жест не крался родителем.
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
@@ -446,6 +448,10 @@
   - `default_vaishnava` published успешно (`tz:asia/vladivostok`, 56 events, range `2026-03 -> 2028-02`);
   - `ISKCON` падал на uppercase annual header `MARCH 2026`, из-за чего parser не выставлял текущий месяц и терял все дни;
   - `sri_chaitanya_math` и `pure_bhakti` падали из-за устаревшей donor strategy `https://www.gosai.com/calendar/` с trailing slash, которая на реальном `GET` отдает `404`.
+- Commit `746ab2bd Fix calendar donor parsers` уже в `origin/main`, но production container может оставаться на старом binary:
+  - проверка GitHub API показывает `main = 746ab2bdde5444c8d53256566b4160debe1a2f64`;
+  - в running container `strings /root/server` по-прежнему содержит `https://www.gosai.com/calendar/` и не содержит `scsmath.com`;
+  - если `refresh-all` после redeploy все еще отдает старые provider URLs, проблема уже в Dokploy rollout/build path, а не в коде или git push.
 - `frontend/screens/portal/PortalMainScreen.tsx` должен явно обрабатывать `navigate('EkadashiCalendar')` в `navigateResolvedScreen`; иначе тап по сервису `Календарь` в портале визуально ничего не делает, хотя `resolveServiceLaunch('ekadashi_calendar')` уже возвращает правильный route.
 - `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.
 

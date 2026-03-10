@@ -6,8 +6,8 @@ export const EKADASHI_DEFAULT_ORGANIZATION_ID = 'iskcon';
 
 export const EKADASHI_FALLBACK_ORGANIZATIONS: EkadashiOrganization[] = [
     { id: 'iskcon', name: 'ISKCON', description: 'ISKCON observance profile', source: 'fallback_aggregator', sourceUrl: 'https://vaishnavacalendar.org' },
-    { id: 'sri_chaitanya_math', name: 'Sri Chaitanya Math', description: 'Sri Chaitanya Math observance profile', source: 'fallback_aggregator', sourceUrl: 'https://www.gosai.com/calendar/' },
-    { id: 'pure_bhakti', name: 'Pure Bhakti', description: 'Pure Bhakti observance profile', source: 'fallback_aggregator', sourceUrl: 'https://www.gosai.com/calendar/' },
+    { id: 'sri_chaitanya_math', name: 'Sri Chaitanya Math', description: 'Sri Chaitanya Math observance profile', source: 'fallback_aggregator', sourceUrl: 'https://www.scsmath.com/events/calendar/index.html' },
+    { id: 'pure_bhakti', name: 'Pure Bhakti', description: 'Pure Bhakti observance profile', source: 'fallback_aggregator', sourceUrl: 'https://gosai.com/calendar' },
     { id: 'default_vaishnava', name: 'Default Vaishnava', description: 'Default vaishnava observance profile', source: 'fallback_aggregator', sourceUrl: 'https://gcal.app' },
 ];
 
@@ -87,6 +87,12 @@ export const getEkadashiProviderNoticeKey = (providerDecision?: EkadashiProvider
     if (providerDecision.mode === 'db_missing') {
         if (providerDecision.reason === 'location_required') {
             return 'portal.ekadashiCalendar.providerNotices.cityRequiredForImport';
+        }
+        if (providerDecision.reason === 'import_queued') {
+            return 'portal.ekadashiCalendar.providerNotices.importQueued';
+        }
+        if (providerDecision.reason === 'import_running') {
+            return 'portal.ekadashiCalendar.providerNotices.importRunning';
         }
         return 'portal.ekadashiCalendar.providerNotices.dbMissing';
     }

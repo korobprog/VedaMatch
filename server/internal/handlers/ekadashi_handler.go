@@ -14,6 +14,7 @@ type ekadashiService interface {
 	ListOrganizations(userID uint, role string) ([]models.EkadashiOrganization, error)
 	GetCalendar(userID uint, role, month, organizationID, timezone, city, country string) (*models.EkadashiCalendarResponse, error)
 	GetDay(userID uint, role, date, organizationID, timezone, city, country string) (*models.EkadashiDay, error)
+	GetImportStatus(userID uint, role, organizationID, timezone, city, country string) (*models.EkadashiImportStatusResponse, error)
 	GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error)
 	UpsertPushPreference(userID uint, role string, req models.EkadashiPushPreferenceUpsertRequest) (*models.EkadashiPushPreferenceResponse, error)
 }
@@ -61,6 +62,22 @@ func (h *EkadashiHandler) GetDay(c *fiber.Ctx) error {
 		userID,
 		middleware.GetUserRole(c),
 		c.Query("date"),
+		c.Query("organizationId"),
+		c.Query("timezone"),
+		c.Query("city"),
+		c.Query("country"),
+	)
+	if err != nil {
+		return respondEkadashiError(c, err)
+	}
+	return c.JSON(result)
+}
+
+func (h *EkadashiHandler) GetImportStatus(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	result, err := h.service.GetImportStatus(
+		userID,
+		middleware.GetUserRole(c),
 		c.Query("organizationId"),
 		c.Query("timezone"),
 		c.Query("city"),

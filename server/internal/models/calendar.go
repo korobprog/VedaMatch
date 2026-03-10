@@ -1,6 +1,10 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type CalendarEvent struct {
 	gorm.Model
@@ -104,4 +108,26 @@ type CalendarPublication struct {
 
 func (CalendarPublication) TableName() string {
 	return "calendar_publications"
+}
+
+type CalendarImportTarget struct {
+	gorm.Model
+	OrganizationID  string     `json:"organizationId" gorm:"type:varchar(64);not null;index"`
+	ScopeKey        string     `json:"scopeKey" gorm:"type:varchar(191);not null;index"`
+	ScopeMode       string     `json:"scopeMode" gorm:"type:varchar(32);not null"`
+	City            string     `json:"city" gorm:"type:varchar(120)"`
+	Country         string     `json:"country" gorm:"type:varchar(120)"`
+	Timezone        string     `json:"timezone" gorm:"type:varchar(64)"`
+	Source          string     `json:"source" gorm:"type:varchar(32);not null"`
+	IsActive        bool       `json:"isActive" gorm:"default:true;index"`
+	ImportStatus    string     `json:"importStatus" gorm:"type:varchar(32);not null;default:'missing';index"`
+	LastSeenAt      *time.Time `json:"lastSeenAt"`
+	LastImportedAt  *time.Time `json:"lastImportedAt"`
+	NextImportDueAt *time.Time `json:"nextImportDueAt" gorm:"index"`
+	LastError       string     `json:"lastError" gorm:"type:text"`
+	LastImportRunID uint       `json:"lastImportRunId" gorm:"default:0"`
+}
+
+func (CalendarImportTarget) TableName() string {
+	return "calendar_import_targets"
 }

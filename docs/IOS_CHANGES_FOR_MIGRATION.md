@@ -495,6 +495,7 @@ if (serviceId === 'dating') {
 
 ### Измененные файлы
 - `frontend/App.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
 - `frontend/types/navigation.ts`
 - `frontend/screens/portal/serviceLaunchResolver.ts`
 - `frontend/screens/portal/PortalMainScreen.tsx`
@@ -615,7 +616,8 @@ if (screen === 'MarketHome') {
   - в секции выбора роли (`Искатель`, `В благости`, `Йог`, `Преданный`) горизонтальный свайп мог случайно интерпретироваться как уход назад;
   - из-за этого пользователь мог непреднамеренно вернуться в `Portal`, пока листал карточки ролей.
 - Стало:
-  - для route `EditProfile` отключен `gestureEnabled`;
+  - для route `EditProfile` отключены `gestureEnabled`, `fullScreenGestureEnabled` и `animationMatchesGesture`;
+  - внутри `EditProfileScreen` эти же опции дополнительно продублированы через `navigation.setOptions(...)`;
   - горизонтальная карусель ролей больше не конфликтует с iOS back gesture;
   - возврат со страницы остается только через явные UI-действия (`Отмена`, успешное сохранение, программный `goBack`).
 
@@ -626,7 +628,11 @@ if (screen === 'MarketHome') {
 <Stack.Screen
   name="EditProfile"
   component={EditProfileScreen}
-  options={{ gestureEnabled: false }}
+  options={{
+    gestureEnabled: false,
+    fullScreenGestureEnabled: false,
+    animationMatchesGesture: false,
+  }}
 />
 ```
 

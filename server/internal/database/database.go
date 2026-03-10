@@ -71,6 +71,7 @@ func Connect() {
 		&models.EkadashiReminderDelivery{},
 		&models.CalendarEvent{}, &models.CalendarImportRun{},
 		&models.CalendarSourceSnapshot{}, &models.CalendarPublication{},
+		&models.CalendarImportTarget{},
 		&models.PreacherProfile{}, &models.PreacherProfileEvent{},
 		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
