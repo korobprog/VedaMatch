@@ -227,6 +227,7 @@ const ACCESS_EXPIRES_AT_KEY = 'lkm_access_expires_at';
 const REFRESH_EXPIRES_AT_KEY = 'lkm_refresh_expires_at';
 const DEVICE_ID_KEY = 'lkm_device_id';
 const TELEGRAM_LAUNCH_PARAMS_KEY = 'lkm_telegram_launch_params';
+const TELEGRAM_MINI_APP_HINT_KEY = 'lkm_telegram_mini_app_hint';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
 const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
@@ -404,6 +405,28 @@ function persistTelegramLaunchParams(params: TelegramLaunchParams): void {
       startParam: params.startParam,
       user: params.user,
     }));
+  } catch {
+    // Ignore storage quota/unavailability and continue with in-memory flow.
+  }
+}
+
+function readTelegramMiniAppHint(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    return window.sessionStorage.getItem(TELEGRAM_MINI_APP_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function persistTelegramMiniAppHint(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(TELEGRAM_MINI_APP_HINT_KEY, '1');
   } catch {
     // Ignore storage quota/unavailability and continue with in-memory flow.
   }
@@ -1253,6 +1276,7 @@ export default function LkmCabinetClient({
       const telegramWebApp = getTelegramWebApp();
       const locationLaunchParams = extractTelegramLaunchParamsFromLocation(window.location);
       const savedLaunchParams = readSavedTelegramLaunchParams();
+      const hasSavedTelegramHint = readTelegramMiniAppHint();
       const telegramInitDataValue = (
         telegramWebApp?.initData?.trim()
         || locationLaunchParams.initData
@@ -1270,12 +1294,21 @@ export default function LkmCabinetClient({
       );
       const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(telegramStartParam);
       const telegramLanguageCode = normalizeLanguageCode(telegramMiniAppUser?.language_code);
+      const hasTelegramSurface = !!(telegramWebApp || telegramInitDataValue || hasSavedTelegramHint);
+
+      if (hasTelegramSurface) {
+        setIsTelegramMiniApp(true);
+        setTelegramUser(telegramMiniAppUser || null);
+        setIsBlockedInApp(false);
+      }
+
       if (!telegramInitDataValue) {
         return false;
       }
 
       // Telegram documents that launch params may arrive in the URL hash.
       // Persist them immediately so auth survives redirects/reloads inside the Mini App.
+      persistTelegramMiniAppHint();
       persistTelegramLaunchParams({
         initData: telegramInitDataValue,
         startParam: telegramStartParam,

@@ -29,6 +29,7 @@ import {
     Bot,
     Flame,
     Landmark,
+    CalendarDays,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import type { PortalIconStyle } from '../../context/SettingsContext';
@@ -71,6 +72,7 @@ const IconComponents: Record<string, any> = {
     Bot,
     Flame,
     Landmark,
+    CalendarDays,
 };
 
 const SERVICE_EMOJIS: Record<string, string> = {
@@ -89,6 +91,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     video_circles: '📹',
     channels: '📻',
     sadhu_sanga: '🪔',
+    ekadashi_calendar: '📅',
     feed: '📰',
     news: '📰',
     map: '🗺️',

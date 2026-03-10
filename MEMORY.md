@@ -40,6 +40,7 @@
 
 ## Android Performance
 - Для Android-отзывчивости в `frontend/screens/portal/services/ServicesHomeScreen.tsx` выгодно держать более агрессивную виртуализацию списка:
+- В `Adaptive` и `Battery Saver` на Android верхний portal header не должен использовать те же glass/shadow пресеты, что и high-quality режим: для круглых header-иконок нужен более спокойный reduced chrome с почти отсутствующей тенью, мягче border и менее грязной полупрозрачной подложкой.
   - стабилизировать navigation/list callbacks через `useCallback`;
   - избегать inline `renderItem`;
   - задавать `windowSize`, `initialNumToRender`, `maxToRenderPerBatch`, `updateCellsBatchingPeriod` под reduced-effects режим.
@@ -122,6 +123,10 @@
 - Внутри открытой папки сервисы должны показываться с локализованными подписями через `portal.serviceLabels.*`; внутри папки нельзя держать отдельный fallback-каталог label'ов.
 - Для Android reduced-effects path modal папки должен снижать blur/тяжелые эффекты, а не дублировать дорогой glass-path.
 - Folder modal должен рассчитывать минимальную высоту от количества рядов сервисов и держать увеличенный нижний padding у scroll content; иначе на iPhone/высоких dock layouts нижний ряд иконок визуально режется краем sheet.
+- Folder modal должен подниматься выше нижнего quick-access dock на обеих платформах; на Android для папок с несколькими рядами нужен дополнительный bottom offset, иначе sheet визуально конфликтует с нижним баром и режет нижние иконки.
+- Внутренние нижние отступы folder modal должны быть умеренными: избыточные `scrollContent/itemsGrid/iconWrapper` bottom-padding быстро создают пустой хвост внизу при папках на 4-5 сервисов.
+- Для экранов `height < 780` folder modal должен иметь отдельные compact-коэффициенты по высоте и нижним отступам; единые desktop-like значения на compact устройствах обычно создают лишний нижний зазор.
+- Для сервиса `ekadashi_calendar` в portal icon registry должен быть явный `CalendarDays` маппинг в `frontend/components/portal/portalIconShared.tsx`; иначе в iOS/Android включается fallback-глиф вместо календаря.
 
 ## Portal Service Visibility
 - Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.
@@ -490,6 +495,7 @@
         - если Telegram Mini App auth падает из-за `TELEGRAM_AUTH_BOT_TOKEN_MISSING` / `TELEGRAM_AUTH_DISABLED` или watchdog timeout, `lkm` не должен переводить пользователя в ложный `link required` flow;
         - в этом случае Mini App должен показывать честное сообщение о временной недоступности Telegram и оставлять обычные способы входа (`Google`, `VK`, `email/password`);
         - кнопка `Continue manually` должна вести в обычную форму входа, а не включать forced Telegram linking screen.
+        - внутренние переходы внутри `lkm` не должны выбивать пользователя из Telegram Mini App bootstrap: при `Cabinet -> Tariffs -> Back` кабинет должен восстанавливать Telegram-контекст из `sessionStorage` hint/launch params, а возврат из тарифов лучше делать через `router.back()`/history back, а не холодным переходом на `/`.
       - Operational follow-up:
         - чтобы Telegram mobile auth снова заработал в production, нужно заново ввести валидный BotFather token как минимум в `TELEGRAM_AUTH_BOT_TOKEN` для `@vedamatch_bot`; текущие сохраненные masked значения сами не восстановятся.
         - `2026-03-10`: production server env уже умеет принимать `TELEGRAM_AUTH_BOT_TOKEN` как быстрый runtime-override без записи в БД.
@@ -1944,6 +1950,19 @@
 ## Contacts API
 - `FF_CONTACTS_LEGACY_MODE` переведен в default `false` (`server/internal/config/feature_flags.go`), чтобы `/contacts` без query не возвращал полный список по умолчанию.
 - Для временного rollback legacy-поведение можно явно включить env-переменной `FF_CONTACTS_LEGACY_MODE=true`.
+- Mobile contacts caching:
+  - `frontend/screens/portal/contacts/ContactsScreen.tsx` использует contacts-specific `react-query` policy: `staleTime=5m`, `gcTime=60m`, `refetchOnMount=true`, `refetchOnReconnect=true`, `refetchOnWindowFocus=false`;
+  - базовые варианты `['contacts','all','','']`, `['contacts','friends','']`, `['contacts','blocked','']` прогреваются из MMKV snapshot (`frontend/lib/contactCache.ts`) с TTL `24h`;
+  - search/city-filter варианты в persistent snapshot не пишутся.
+- Contacts metadata (`friends`, `blocked`, `cities`) кэшируются отдельно:
+  - `friends` и `blocked` переведены на `useQuery(['contacts-meta', ...])`;
+  - `cities` грузятся lazy только при открытии picker и держатся `24h`.
+- Аватары контактов и профиля переведены на `FastImage` immutable cache:
+  - это безопасно, потому что backend `UploadAvatar` уже отдает versioned URL вида `avatars/<userId>_<timestamp>...`;
+  - `ContactsScreen` дополнительно preload-ит только верхние `12` аватаров списка.
+- Инвалидация contacts cache:
+  - `logout` очищает MMKV snapshots и query cache по префиксам `['contacts']` и `['contacts-meta']`;
+  - `block/unblock`, `add/remove friend` и `uploadAvatar` инвалидируют contacts cache через `frontend/lib/contactCache.ts`.
 
 ## Chat Runtime Notes
 - В P2P-чате (`frontend/context/ChatContext.tsx`) добавлен локальный optimistic append после успешного `POST /messages` с дедупом по `id`; отправитель видит свое сообщение даже при проблемах WS-эхо.
@@ -2206,6 +2225,10 @@
 - `noscript` fallback-счетчик (`https://mc.yandex.ru/watch/107021597`) добавлен в `<body>` того же layout.
 
 ## Portal UI Notes
+- Стартовая splash-последовательность должна быть без двойного брендинга:
+  - native launch screen на iOS/Android лучше держать как однотонный фон без текста/логотипа;
+  - основной видимый брендинг показывается уже во втором, JS-уровневом `frontend/components/ui/SplashScreen.tsx`.
+- Текущий JS `SplashScreen` должен использовать `frontend/assets/logo_tilak.png`, а не `logo_vedamatch.png`, чтобы стартовый бренд-экран был единым после native launch.
 - После нового интерактивного входа через `LoginScreen` (`social` и `email/password`) портал должен один раз показывать full-screen boot overlay поверх `PortalMainScreen`, пока не готовы:
   - `PortalLayoutContext.isLoading === false`,
   - текущий portal background (для remote `http/https` через `Image.prefetch`, для color/gradient/local сразу ready),
@@ -2684,3 +2707,4 @@
 - Mobile screen `EkadashiCalendarScreen` и portal `CalendarWidget` уже умеют показывать несколько событий в один день, а не только один `EkadashiDay`.
 - Для `devotee` widget calendar по-прежнему стартует сразу в ведическом режиме, но теперь этот режим охватывает весь общий календарь, а не только Экадаши.
 - В дефолтном portal layout ярлык `Календарь` вынесен в отдельную папку `Календарь`, а не лежит внутри `Практика`.
+- Существующие сохраненные portal layouts теперь тоже мягко мигрируют: если `ekadashi_calendar` лежит в дефолтной папке `Практика`, он переносится в отдельную папку `Календарь`; кастомные пользовательские папки не переставляются автоматически.

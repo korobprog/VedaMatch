@@ -13841,6 +13841,41 @@ if (portalBootBackgroundType === 'image' && /^https?:\/\//i.test(portalBootBackg
 }
 ```
 
+## 2026-03-10 (Native launch screen de-branded, JS splash switched to tilak logo)
+
+### Измененные файлы
+- `frontend/components/ui/SplashScreen.tsx`
+- `frontend/android/app/src/main/res/drawable/launch_screen.xml`
+- `frontend/ios/vedamatch/LaunchScreen.storyboard`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на старте показывались два бренд-экрана подряд: native launch screen и затем JS `SplashScreen`;
+  - JS splash использовал `logo_vedamatch.png`;
+  - iOS launch screen содержал текстовый branding, Android launch screen рендерил logo bitmap.
+- Стало:
+  - native launch screen на iOS и Android оставлен как спокойный однотонный фон без первого логотипа/текста;
+  - второй, уже JS-level splash, теперь использует `logo_tilak.png`;
+  - фон native launch screen выровнен под цвет JS splash (`#F8F3EA`) для более мягкого перехода без визуального дубля.
+
+### Короткие сниппеты кода
+
+`frontend/components/ui/SplashScreen.tsx`:
+```tsx
+<Animated.Image
+  source={require('../../assets/logo_tilak.png')}
+  style={[styles.logo, animatedStyle]}
+  resizeMode="contain"
+/>
+```
+
+`frontend/android/app/src/main/res/drawable/launch_screen.xml`:
+```xml
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="#F8F3EA" />
+</layer-list>
+```
+
 ## 2026-03-10 (Android portal startup fast-path after social login)
 
 ### Измененные файлы
@@ -14213,4 +14248,231 @@ setSelectedDate(buildIsoDate(new Date(currentMonth.getFullYear(), currentMonth.g
 ```tsx
 const dayEvents = findCalendarEventsForCell(calendarEvents, currentMonth, day);
 {dayEvents.length > 1 ? <View style={styles.countBadge}><Text>{dayEvents.length}</Text></View> : null}
+```
+
+## 2026-03-10 (Portal folder modal: lifted above quick-access dock on iOS and Android)
+
+### Измененные файлы
+- `frontend/components/portal/FolderModal.tsx`
+- `frontend/__tests__/components/portal/FolderModal.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - modal папки стоял слишком низко над экраном, визуально конфликтовал с нижним quick-access dock и на Android/iPhone мог не оставлять достаточного пространства для нижнего ряда сервисов.
+- Стало:
+  - `FolderModal` использует `safe-area insets`, увеличенный bottom offset над dock и более щедрый `maxHeight/minHeight` расчет по числу рядов;
+  - sheet теперь поднимается выше нижнего бара на обеих платформах и лучше растягивается под папки с несколькими рядами сервисов.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const bottomDockGap = Platform.OS === 'android' ? 140 : 124;
+const rowLiftBonus = gridRowCount > 1 ? (Platform.OS === 'android' ? 20 : 12) : 0;
+const sheetBottomOffset = bottomDockGap + Math.max(insets.bottom, 8) + rowLiftBonus;
+```
+
+```tsx
+<Animated.View
+  style={[
+    styles.sheetWrapper,
+    animatedContainerStyle,
+    { paddingBottom: sheetBottomOffset },
+  ]}
+>
+```
+
+## 2026-03-10 (Portal folder modal: slightly lower anchor above quick-access dock)
+
+### Измененные файлы
+- `frontend/components/portal/FolderModal.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после предыдущего подъема modal папки располагался слишком высоко относительно нижнего quick-access dock.
+- Стало:
+  - уменьшен базовый `bottomDockGap`, поэтому modal опускается немного ниже, оставаясь выше нижнего бара и не обрезая иконки в папках.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const bottomDockGap = Platform.OS === 'android' ? 124 : 108;
+```
+
+## 2026-03-10 (Portal folder modal: reduced internal bottom whitespace)
+
+### Измененные файлы
+- `frontend/components/portal/FolderModal.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - внутри modal папки был заметный пустой нижний хвост из-за завышенной расчетной высоты и избыточных нижних padding/margin у scroll/grid.
+- Стало:
+  - уменьшена оценка `estimatedContentHeight`, ослаблен `minHeight`, и сокращены нижние отступы (`container`, `scrollContent`, `itemsGrid`, `iconWrapper`), чтобы контент заканчивался плотнее без лишней пустоты.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const estimatedContentHeight = displayItems.length > 0 ? 186 + gridRowCount * 146 : 320;
+...
+minHeight: Math.max(280, targetSheetHeight),
+```
+
+## 2026-03-10 (Portal folder modal: compact-screen coefficients for tighter bottom spacing)
+
+### Измененные файлы
+- `frontend/components/portal/FolderModal.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - для маленьких экранов modal папки использовал те же коэффициенты высоты/offset, что и для обычных экранов, из-за чего мог оставаться заметный нижний пустой зазор.
+- Стало:
+  - добавлен `isCompactScreen (height < 780)` и отдельные коэффициенты для `bottomDockGap`, `rowLiftBonus`, `maxSheetHeight`, `estimatedContentHeight`, `minHeight` и внутренних bottom padding/margin;
+  - на compact-экранах окно папки рендерится плотнее, без лишнего свободного пространства внизу.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const isCompactScreen = windowHeight < 780;
+const bottomDockGap = Platform.OS === 'android'
+  ? (isCompactScreen ? 110 : 124)
+  : (isCompactScreen ? 74 : 85);
+```
+
+```tsx
+const contentBottomPadding = isCompactScreen ? 10 : 18;
+const gridBottomPadding = isCompactScreen ? 4 : 8;
+const iconRowGap = isCompactScreen ? 10 : 14;
+```
+
+## 2026-03-10 (Portal header chrome: softer Android reduced-performance icon shadows)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в `Adaptive` / `Battery Saver` на Android верхние круглые иконки portal header использовали почти тот же chrome, что и обычный режим, из-за чего translucent surface + elevation давали грубые и некрасивые тени.
+- Стало:
+  - для Android low-performance path введен отдельный reduced header chrome: более мягкий фон, спокойнее border и почти убранный shadow/elevation для header-кнопок;
+  - high-quality Android, iOS и `vedamatch` path не менялись по общему поведению.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const isAndroidReducedHeaderChrome = Platform.OS === 'android' && !androidVisualPolicy.enableBlur;
+const headerCircleSurfaceColor = portalIconStyle === 'vedamatch'
+  ? '#121212'
+  : isAndroidReducedHeaderChrome
+    ? (useLightHeaderIcons ? 'rgba(255,255,255,0.14)' : 'rgba(250,247,240,0.92)')
+    : 'rgba(255, 255, 255, 0.25)';
+```
+
+```tsx
+headerCircularButtonReduced: {
+  shadowOpacity: 0,
+  shadowRadius: 0,
+  elevation: 1,
+},
+```
+
+## 2026-03-10 (Contacts: memory cache + MMKV warm snapshot + immutable avatar cache)
+
+### Измененные файлы
+- `frontend/lib/contactCache.ts`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+- `frontend/context/UserContext.tsx`
+- `frontend/screens/RegistrationScreen.tsx`
+- `frontend/screens/ChatScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - при каждом повторном заходе в `Contacts` экран заново дергал `/contacts`, а mount-эффекты отдельно вызывали `/friends`, `/blocks` и `/dating/cities`;
+  - базовые списки контактов не восстанавливались после cold start;
+  - аватарки в списке и профиле использовали обычный `Image`, поэтому повторные открытия чаще заново прогревали сеть/диск;
+  - logout и mutation-пути (`block/unblock`, `add/remove friend`, `uploadAvatar`) не чистили общий cache contacts-flow.
+- Стало:
+  - для `Contacts` настроен отдельный query-policy: `staleTime=5m`, `gcTime=60m`, `refetchOnMount=true`, `refetchOnReconnect=true`, `refetchOnWindowFocus=false`;
+  - базовые query-варианты `all/friends/blocked` сохраняются в MMKV snapshot на `24h` и прогревают query cache на старте экрана;
+  - `friends`/`blocked` переведены на `useQuery(['contacts-meta', ...])`, `cities` грузятся lazy и кэшируются на `24h`;
+  - список контактов и профиль контакта используют `FastImage` с `immutable` cache; список дополнительно preload-ит верхние `12` аватаров;
+  - logout и contact-mutations инвалидируют/очищают contacts cache и snapshots, чтобы не держать stale data между сессиями и после мутаций.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```tsx
+const allContactsQuery = useInfiniteQuery({
+  queryKey: ['contacts', 'all', debouncedSearch, filterCities.join(',')],
+  initialData: !debouncedSearch && filterCities.length === 0
+    ? buildContactsSnapshotInitialData(allSnapshot)
+    : undefined,
+  initialDataUpdatedAt: !debouncedSearch && filterCities.length === 0
+    ? allSnapshot?.updatedAt
+    : undefined,
+  staleTime: CONTACTS_CACHE_STALE_TIME_MS,
+  gcTime: CONTACTS_CACHE_GC_TIME_MS,
+  refetchOnMount: true,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: true,
+  ...
+});
+```
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```tsx
+<FastImage
+  source={{
+    uri: avatarUrl,
+    priority: FastImage.priority.normal,
+    cache: FastImage.cacheControl.immutable,
+  }}
+  style={styles.avatar}
+/>
+```
+
+`frontend/lib/contactCache.ts`:
+```ts
+export const invalidateContactsCaches = async (queryClient: QueryClient): Promise<void> => {
+  clearContactsSnapshots();
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['contacts'], refetchType: 'none' }),
+    queryClient.invalidateQueries({ queryKey: ['contacts-meta'], refetchType: 'none' }),
+  ]);
+};
+```
+
+## 2026-03-10 (Portal calendar service icon: explicit CalendarDays glyph mapping)
+
+### Измененные файлы
+- `frontend/components/portal/portalIconShared.tsx`
+
+### Суть правки (что было -> что стало)
+- Было: сервис `ekadashi_calendar` имел `icon: 'CalendarDays'` в каталоге сервисов, но в `PortalServiceGlyph` не было соответствующего импорта/маппинга иконки, из-за чего включался fallback-глиф.
+- Стало: `CalendarDays` добавлен в lucide imports и в `IconComponents`, плюс добавлен emoji fallback `📅` для `premium3d` path.
+
+### Короткие сниппеты кода
+`frontend/components/portal/portalIconShared.tsx`:
+```tsx
+import {
+  ...,
+  Landmark,
+  CalendarDays,
+} from 'lucide-react-native';
+
+const IconComponents: Record<string, any> = {
+  ...,
+  Landmark,
+  CalendarDays,
+};
+
+const SERVICE_EMOJIS: Record<string, string> = {
+  ...,
+  ekadashi_calendar: '📅',
+};
 ```

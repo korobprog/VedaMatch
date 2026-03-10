@@ -18,6 +18,8 @@ import { contactService } from '../services/contactService';
 import { messageService, P2PMessage } from '../services/messageService';
 import LinearGradient from 'react-native-linear-gradient';
 import { isColorLight, isGradientLight } from '../utils/chatBackgroundContrast';
+import { invalidateContactsCaches } from '../lib/contactCache';
+import { queryClient } from '../lib/queryClient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -241,6 +243,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                     onPress: async () => {
                         try {
                             await contactService.blockUser(currentUser.ID!, recipientUser.ID);
+                            await invalidateContactsCaches(queryClient);
                             setShowMenu(false);
                             navigation.goBack(); // Close chat after blocking
                         } catch {

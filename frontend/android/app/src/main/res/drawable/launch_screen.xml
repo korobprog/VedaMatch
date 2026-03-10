@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- Centered Logo with specific sizing -->
-    <item
-        android:gravity="center"
-        android:width="200dp"
-        android:height="200dp">
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/assets_logo_tilak" />
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#F8F3EA" />
+        </shape>
     </item>
 </layer-list>

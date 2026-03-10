@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { LKMRegion } from '@/lib/host-config';
 import {
   formatTemplate,
@@ -84,6 +84,7 @@ export default function TariffsPageClient({
   initialGatewayCode,
   apiBaseUrl,
 }: Props) {
+  const router = useRouter();
   const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
   const [language, setLanguage] = useState<Language>('en');
   const [packages, setPackages] = useState<PackagesResponse | null>(null);
@@ -176,6 +177,20 @@ export default function TariffsPageClient({
     }
   };
 
+  const handleBackToCabinet = useCallback(() => {
+    if (typeof window === 'undefined') {
+      router.replace(`/?lang=${language}`);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.replace(`/?lang=${language}`);
+  }, [language, router]);
+
   return (
     <main className="page-shell tariffs-shell">
       <section className="hero-card">
@@ -190,9 +205,13 @@ export default function TariffsPageClient({
       </section>
 
       <section className="panel tariffs-topbar">
-        <Link href={`/?lang=${language}`} className="secondary tariffs-back-link">
+        <button
+          type="button"
+          className="secondary tariffs-back-link"
+          onClick={handleBackToCabinet}
+        >
           {dictionary.backToCabinet}
-        </Link>
+        </button>
         <label className="tariffs-language-select">
           {dictionary.languageLabel}
           <select

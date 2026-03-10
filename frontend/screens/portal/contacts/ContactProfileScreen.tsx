@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, useColorScheme, ActivityIndicator, Dimensions, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import FastImage from 'react-native-fast-image';
+import { useQueryClient } from '@tanstack/react-query';
 import { RootStackParamList } from '../../../types/navigation';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
 import { useUser } from '../../../context/UserContext';
 import { useChat } from '../../../context/ChatContext';
@@ -11,22 +11,26 @@ import { useSettings } from '../../../context/SettingsContext'; // Added useSett
 import { BlurView } from '@react-native-community/blur'; // Added BlurView
 import LinearGradient from 'react-native-linear-gradient'; // Added LinearGradient
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
-import { AtSign, ChevronLeft, Mail, MapPin, User, Shield, MessageCircle, UserPlus, UserMinus } from 'lucide-react-native'; // Icons
+import { AtSign, ChevronLeft, Mail, MapPin, Shield, MessageCircle, UserPlus, UserMinus } from 'lucide-react-native'; // Icons
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
 import OrganizerBadge from '../../../components/travel/OrganizerBadge';
+import {
+    CONTACTS_CACHE_GC_TIME_MS,
+    CONTACTS_CACHE_STALE_TIME_MS,
+    invalidateContactsCaches,
+} from '../../../lib/contactCache';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactProfile'>;
-const { width } = Dimensions.get('window');
 
 export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => {
     const { userId } = route.params;
     const { vTheme, isDarkMode, portalBackground, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user: currentUser } = useUser();
     const { setChatRecipient } = useChat();
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
 
     const [contact, setContact] = useState<UserContact | null>(null);
     const [loading, setLoading] = useState(true);
@@ -34,10 +38,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowBlurEffects = !isAndroidReducedEffects;
-
-    useEffect(() => {
-        fetchContactData();
-    }, [userId]);
 
     const handleBackNavigation = useCallback(() => {
         const state = navigation.getState();
@@ -55,7 +55,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         });
     }, [navigation]);
 
-    const fetchContactData = async () => {
+    const fetchContactData = useCallback(async () => {
         try {
             setLoading(true);
             const found = await contactService.getUserById(userId);
@@ -64,9 +64,14 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                 setContact(found);
                 if (currentUser?.ID) {
                     try {
-                        const friends = await contactService.getFriends(currentUser.ID);
+                        const friends = await queryClient.fetchQuery({
+                            queryKey: ['contacts-meta', 'friends'],
+                            queryFn: () => contactService.getFriends(currentUser.ID!),
+                            staleTime: CONTACTS_CACHE_STALE_TIME_MS,
+                            gcTime: CONTACTS_CACHE_GC_TIME_MS,
+                        });
                         setIsFriend(friends.some(f => f.ID === userId));
-                    } catch (err) {
+                    } catch {
                         console.log('Could not fetch friends list');
                     }
                 }
@@ -76,9 +81,13 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentUser?.ID, queryClient, userId]);
 
-    const toggleFriend = async () => {
+    useEffect(() => {
+        fetchContactData().catch(() => undefined);
+    }, [fetchContactData]);
+
+    const toggleFriend = useCallback(async () => {
         if (!currentUser?.ID || !contact) return;
         try {
             if (isFriend) {
@@ -88,10 +97,11 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                 await contactService.addFriend(currentUser.ID, contact.ID);
                 setIsFriend(true);
             }
+            await invalidateContactsCaches(queryClient);
         } catch (error) {
             console.error('Error toggling friend:', error);
         }
-    };
+    }, [contact, currentUser?.ID, isFriend, queryClient]);
 
     const handleSendMessage = () => {
         if (!contact) return;
@@ -180,7 +190,14 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         <View style={[styles.avatarWrapper, isAndroidReducedEffects && { elevation: 2 }]}>
                             <View style={styles.avatarContainer}>
                                 {avatarUrl ? (
-                                    <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                                    <FastImage
+                                        source={{
+                                            uri: avatarUrl,
+                                            priority: FastImage.priority.normal,
+                                            cache: FastImage.cacheControl.immutable,
+                                        }}
+                                        style={styles.avatar}
+                                    />
                                 ) : (
                                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#404040' }]}>
                                         <Text style={[styles.avatarInitial, { color: '#FFF' }]}>
@@ -214,7 +231,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         icon={<Shield size={20} color={vTheme.colors.primary} />}
                         label={t('contacts.identity') || "Identity"}
                         value={contact.identity || 'Devotee'}
-                        theme={vTheme}
                         textColor={textColor}
                         subTextColor={subTextColor}
                         bg={cardBg}
@@ -226,7 +242,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         icon={<MapPin size={20} color={vTheme.colors.primary} />}
                         label={t('contacts.location') || "Location"}
                         value={`${contact.city || ''}, ${contact.country || ''}`}
-                        theme={vTheme}
                         textColor={textColor}
                         subTextColor={subTextColor}
                         bg={cardBg}
@@ -238,7 +253,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         icon={<AtSign size={20} color={vTheme.colors.primary} />}
                         label="Nickname"
                         value={contact.nickname ? `@${contact.nickname}` : '—'}
-                        theme={vTheme}
                         textColor={textColor}
                         subTextColor={subTextColor}
                         bg={cardBg}
@@ -250,7 +264,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         icon={<Mail size={20} color={vTheme.colors.primary} />}
                         label={t('contacts.email') || "Email"}
                         value={contact.email}
-                        theme={vTheme}
                         textColor={textColor}
                         subTextColor={subTextColor}
                         bg={cardBg}
@@ -304,7 +317,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     );
 };
 
-const InfoItem = ({ icon, label, value, theme, textColor, subTextColor, bg, border, isDark, allowBlur = true }: any) => (
+const InfoItem = ({ icon, label, value, textColor, subTextColor, bg, border, isDark, allowBlur = true }: any) => (
     <View style={[styles.infoItemContainer, { backgroundColor: bg, borderColor: border }]}>
         {isDark && allowBlur && (
             <BlurView

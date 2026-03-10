@@ -7,6 +7,8 @@ import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { clearAuthTokens, getAccessToken, logoutAuthSession, refreshAuthTokens, saveAuthTokens } from '../services/authSessionService';
 import { accountService } from '../services/accountService';
 import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvStorage';
+import { clearContactsCaches } from '../lib/contactCache';
+import { queryClient } from '../lib/queryClient';
 
 interface UserProfile {
     karmicName: string;
@@ -79,6 +81,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setRoleDescriptor(null);
         setGodModeFilters([]);
         setActiveMathId(null);
+        clearContactsCaches(queryClient);
         mmkvDeleteMultiple(['user', 'pushToken', 'active_math_id']);
         await clearAuthTokens();
         await AsyncStorage.multiRemove(['user', 'pushToken', 'active_math_id']);

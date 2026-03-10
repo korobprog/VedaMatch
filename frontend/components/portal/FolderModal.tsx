@@ -24,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { X, Check, Palette } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
 import { PortalIcon } from './PortalIcon';
 import { useSettings } from '../../context/SettingsContext';
@@ -51,6 +52,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     const { t } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const { height: windowHeight } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(folder.name);
     const [showColorPicker, setShowColorPicker] = useState(false);
@@ -123,14 +125,34 @@ export const FolderModal: React.FC<FolderModalProps> = ({
             : 'rgba(255,153,51,0.18)';
     const secondaryTextColor = isPhotoBg ? 'rgba(255,255,255,0.72)' : vTheme.colors.textSecondary;
     const emptyHintColor = isPhotoBg ? 'rgba(255,255,255,0.65)' : vTheme.colors.textSecondary;
-    const maxSheetHeight = Math.round(windowHeight * 0.45);
+    const isCompactScreen = windowHeight < 780;
     const gridRowCount = Math.max(1, Math.ceil(displayItems.length / 3));
-    const estimatedContentHeight = displayItems.length > 0 ? 212 + gridRowCount * 154 : 360;
     const colorPickerHeight = showColorPicker ? 52 : 0;
+    const bottomDockGap = Platform.OS === 'android'
+        ? (isCompactScreen ? 110 : 124)
+        : (isCompactScreen ? 74 : 85);
+    const rowLiftBonus = gridRowCount > 1
+        ? (Platform.OS === 'android' ? (isCompactScreen ? 14 : 20) : (isCompactScreen ? 0 : 5))
+        : 0;
+    const sheetBottomOffset = bottomDockGap + Math.max(insets.bottom, 8) + rowLiftBonus;
+    const availableVerticalSpace = Math.max(
+        360,
+        windowHeight - sheetBottomOffset - Math.max(insets.top + 28, 88),
+    );
+    const maxSheetHeight = Math.min(
+        availableVerticalSpace,
+        Math.round(windowHeight * (Platform.OS === 'android' ? (isCompactScreen ? 0.78 : 0.76) : (isCompactScreen ? 0.68 : 0.65))),
+    );
+    const estimatedContentHeight = displayItems.length > 0
+        ? (isCompactScreen ? 172 : 186) + gridRowCount * (isCompactScreen ? 138 : 146)
+        : (isCompactScreen ? 300 : 320);
     const targetSheetHeight = Math.min(
         maxSheetHeight,
-        estimatedContentHeight + colorPickerHeight,
+        estimatedContentHeight + colorPickerHeight + Math.max(insets.bottom, 10),
     );
+    const contentBottomPadding = isCompactScreen ? 10 : 18;
+    const gridBottomPadding = isCompactScreen ? 4 : 8;
+    const iconRowGap = isCompactScreen ? 10 : 14;
 
     return (
         <Modal
@@ -144,7 +166,13 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={styles.keyboardView}
                 >
-                    <Animated.View style={[styles.sheetWrapper, animatedContainerStyle]}>
+                    <Animated.View
+                        style={[
+                            styles.sheetWrapper,
+                            animatedContainerStyle,
+                            { paddingBottom: sheetBottomOffset },
+                        ]}
+                    >
                         <Pressable
                             style={[
                                 styles.container,
@@ -152,7 +180,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                     backgroundColor: modalSurfaceColor,
                                     borderColor: modalBorderColor,
                                     maxHeight: maxSheetHeight,
-                                    minHeight: Math.max(320, targetSheetHeight),
+                                    minHeight: Math.max(isCompactScreen ? 260 : 280, targetSheetHeight),
                                 },
                             ]}
                             onPress={(event) => event.stopPropagation()}
@@ -263,13 +291,13 @@ export const FolderModal: React.FC<FolderModalProps> = ({
 
                             <ScrollView
                                 style={styles.scrollArea}
-                                contentContainerStyle={styles.scrollContent}
+                                contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomPadding }]}
                                 showsVerticalScrollIndicator={false}
                             >
                                 {displayItems.length > 0 ? (
-                                    <View style={styles.itemsGrid}>
+                                    <View style={[styles.itemsGrid, { paddingBottom: gridBottomPadding }]}>
                                         {displayItems.map(({ item, service }) => (
-                                            <View style={styles.iconWrapper} key={item.id}>
+                                            <View style={[styles.iconWrapper, { marginBottom: iconRowGap }]} key={item.id}>
                                                 <PortalIcon
                                                     service={service}
                                                     isEditMode={false}
@@ -316,7 +344,6 @@ const styles = StyleSheet.create({
         width: '100%',
         alignItems: 'center',
         paddingHorizontal: 12,
-        paddingBottom: Platform.OS === 'ios' ? 18 : 12,
     },
     container: {
         width: '100%',
@@ -326,7 +353,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         paddingHorizontal: 18,
         paddingTop: 12,
-        paddingBottom: 18,
+        paddingBottom: 16,
         overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
@@ -425,22 +452,17 @@ const styles = StyleSheet.create({
         borderColor: '#FFF',
     },
     scrollArea: {
-        flex: 1,
-        minHeight: 0,
+        flexGrow: 0,
     },
-    scrollContent: {
-        paddingBottom: 28,
-    },
+    scrollContent: {},
     itemsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         marginHorizontal: -4,
-        paddingBottom: 12,
     },
     iconWrapper: {
         width: '33.333%',
         paddingHorizontal: 4,
-        marginBottom: 18,
         alignItems: 'center',
     },
     emptyState: {

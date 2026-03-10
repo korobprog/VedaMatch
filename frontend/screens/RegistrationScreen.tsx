@@ -42,6 +42,8 @@ import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
 import { PortalRole } from '../types/portalBlueprint';
 import { useRoleTheme } from '../hooks/useRoleTheme';
 import apiClient from '../lib/apiClient';
+import { invalidateContactsCaches } from '../lib/contactCache';
+import { queryClient } from '../lib/queryClient';
 
 // Custom Components & Hooks
 import { useLocation } from '../hooks/useLocation';
@@ -434,6 +436,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     try {
                         const avatarRes = await contactService.uploadAvatar(user.ID, formData);
                         updatedUser.avatarUrl = avatarRes.avatarUrl;
+                        await invalidateContactsCaches(queryClient);
                     } catch (avatarErr) {
                         console.error('Avatar upload failed:', avatarErr);
                         // Don't block registration if only avatar fails

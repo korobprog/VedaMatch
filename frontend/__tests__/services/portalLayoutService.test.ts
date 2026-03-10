@@ -16,7 +16,7 @@ jest.mock('react-native-mmkv', () => ({
 
 import { applyRoleBlueprint } from '../../services/portalLayoutService';
 import { createDefaultLayout } from '../../types/portal';
-import { migrateLegacyFlatLayoutToDefaultFolders } from '../../context/PortalLayoutContext';
+import { migrateCalendarServiceIntoCalendarFolder, migrateLegacyFlatLayoutToDefaultFolders } from '../../context/PortalLayoutContext';
 
 describe('portal default layout folders', () => {
   it('creates first page with default thematic folders and keeps quick access unchanged', () => {
@@ -31,9 +31,11 @@ describe('portal default layout folders', () => {
       'folder',
       'folder',
       'folder',
+      'folder',
     ]);
     expect(layout.pages[0].items.map((item: any) => item.name)).toEqual([
       'Общение',
+      'Календарь',
       'Практика',
       'Контент',
       'Сервисы',
@@ -47,7 +49,7 @@ describe('portal default layout folders', () => {
       'connect',
       'history',
     ]);
-    expect((layout.pages[0].items[3] as any).items.map((item: any) => item.serviceId)).toEqual([
+    expect((layout.pages[0].items[4] as any).items.map((item: any) => item.serviceId)).toEqual([
       'services_catalog',
       'cafe',
       'shops',
@@ -76,6 +78,7 @@ describe('portalLayoutService.applyRoleBlueprint', () => {
       .map((item: any) => item.serviceId);
     expect(firstPageServices).toEqual([]);
     expect(result.pages[0].items.map((item: any) => item.type)).toEqual([
+      'folder',
       'folder',
       'folder',
       'folder',
@@ -118,5 +121,47 @@ describe('portal legacy flat layout migration', () => {
       'Путешествия',
       'Профиль',
     ]);
+  });
+
+  it('moves calendar service from practice folder into dedicated calendar folder for saved default layouts', () => {
+    const base = createDefaultLayout();
+    const savedLayout = {
+      ...base,
+      pages: [{
+        ...base.pages[0],
+        items: [
+          {
+            id: 'folder-communication',
+            name: 'Общение',
+            type: 'folder',
+            color: '#3B82F6',
+            position: 0,
+            items: [{ id: 'item-chat', serviceId: 'chat', type: 'service', position: 0 }],
+          },
+          {
+            id: 'folder-practice',
+            name: 'Практика',
+            type: 'folder',
+            color: '#10B981',
+            position: 1,
+            items: [
+              { id: 'item-path', serviceId: 'path_tracker', type: 'service', position: 0 },
+              { id: 'item-ekadashi', serviceId: 'ekadashi_calendar', type: 'service', position: 1 },
+            ],
+          },
+        ],
+      }],
+    };
+
+    const { layout, changed } = migrateCalendarServiceIntoCalendarFolder(savedLayout as any);
+
+    expect(changed).toBe(true);
+    expect(layout.pages[0].items.map((item: any) => item.name)).toEqual([
+      'Общение',
+      'Календарь',
+      'Практика',
+    ]);
+    expect((layout.pages[0].items[1] as any).items.map((item: any) => item.serviceId)).toEqual(['ekadashi_calendar']);
+    expect((layout.pages[0].items[2] as any).items.map((item: any) => item.serviceId)).toEqual(['path_tracker']);
   });
 });

@@ -221,6 +221,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const shouldUsePortalStartupReducedChrome = Platform.OS === 'android'
         && activeTab === null
         && !isPortalStartupSettled;
+    const isAndroidReducedHeaderChrome = Platform.OS === 'android' && !androidVisualPolicy.enableBlur;
     const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image' && !shouldUsePortalStartupReducedChrome;
     const useSolidServiceLayer = false;
     const serviceLayerBackgroundType = useSolidServiceLayer ? 'color' : layerBackgroundType;
@@ -234,6 +235,16 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const serviceHeaderBorderColor = shouldUseSolidServiceHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
+    const headerCircleSurfaceColor = portalIconStyle === 'vedamatch'
+        ? '#121212'
+        : isAndroidReducedHeaderChrome
+            ? (useLightHeaderIcons ? 'rgba(255,255,255,0.14)' : 'rgba(250,247,240,0.92)')
+            : 'rgba(255, 255, 255, 0.25)';
+    const headerCircleBorderColor = portalIconStyle === 'vedamatch'
+        ? '#D4AF37'
+        : isAndroidReducedHeaderChrome
+            ? (useLightHeaderIcons ? 'rgba(255,255,255,0.24)' : 'rgba(255, 153, 51, 0.22)')
+            : 'rgba(255, 255, 255, 0.4)';
     const { effectiveBackground: portalBootBackground, effectiveBackgroundType: portalBootBackgroundType } = useMemo(
         () => deriveEffectivePortalBackground(layerBackgroundType, layerBackground, layerActiveWallpaper, layerSlideshowEnabled),
         [layerBackgroundType, layerBackground, layerActiveWallpaper, layerSlideshowEnabled],
@@ -830,9 +841,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 onPress={() => navigation.navigate('InviteFriends')}
                                 style={[
                                     styles.headerCircularButton,
+                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                     {
-                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                        backgroundColor: headerCircleSurfaceColor,
+                                        borderColor: headerCircleBorderColor,
                                     },
                                 ]}
                             >
@@ -854,9 +866,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 activeOpacity={0.9}
                                 style={[
                                     styles.headerCircularButton,
+                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                     {
-                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                        backgroundColor: headerCircleSurfaceColor,
+                                        borderColor: headerCircleBorderColor,
                                     },
                                 ]}
                             >
@@ -876,9 +889,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 activeOpacity={0.9}
                                 style={[
                                     styles.headerCircularButton,
+                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                     {
-                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                        backgroundColor: headerCircleSurfaceColor,
+                                        borderColor: headerCircleBorderColor,
                                     },
                                 ]}
                             >
@@ -896,8 +910,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 onPress={() => navigation.navigate('Wallet')}
                                 size={32}
                                 borderWidth={1.5}
-                                backgroundColor={portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)'}
-                                borderColor={portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)'}
+                                backgroundColor={headerCircleSurfaceColor}
+                                borderColor={headerCircleBorderColor}
                                 textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
                                 showBlur={shouldRenderPortalHeaderBlur}
                                 blurAmount={headerBlurAmount}
@@ -912,9 +926,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             }}
                             style={[
                                 styles.headerCircularButton,
+                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                 {
-                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: headerCircleSurfaceColor,
+                                    borderColor: headerCircleBorderColor,
                                 },
                             ]}
                         >
@@ -932,9 +947,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             onPress={() => navigation.navigate('AppSettings')}
                             style={[
                                 styles.headerCircularButton,
+                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                 {
-                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: headerCircleSurfaceColor,
+                                    borderColor: headerCircleBorderColor,
                                 },
                             ]}
                         >
@@ -951,9 +967,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         <View
                             style={[
                                 styles.headerCircularButton,
+                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
                                 {
-                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: headerCircleSurfaceColor,
+                                    borderColor: headerCircleBorderColor,
                                 },
                             ]}
                         >
@@ -975,12 +992,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             <TouchableOpacity
                                 onPress={() => setShowRoleInfo(true)}
                                 style={[
-                                    styles.headerCircularButton,
-                                    {
-                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : (useLightHeaderIcons ? '#ffffff' : 'rgba(255, 153, 51, 0.42)'),
-                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.2)',
-                                    }
-                                ]}
+                                styles.headerCircularButton,
+                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                {
+                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : (useLightHeaderIcons ? '#ffffff' : 'rgba(255, 153, 51, 0.42)'),
+                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : (isAndroidReducedHeaderChrome ? (useLightHeaderIcons ? 'rgba(255,255,255,0.14)' : 'rgba(250,247,240,0.92)') : 'rgba(255, 255, 255, 0.2)'),
+                                }
+                            ]}
                             >
                                 {shouldRenderPortalHeaderBlur && (
                                     <BlurView
@@ -1268,6 +1286,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 4,
         elevation: 4,
+    },
+    headerCircularButtonReduced: {
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        elevation: 1,
     },
     headerRight: {
         flex: 1,

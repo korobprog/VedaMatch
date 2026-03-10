@@ -42,7 +42,7 @@ export const SplashScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar hidden />
       <Animated.Image
-        source={require('../../assets/logo_vedamatch.png')}
+        source={require('../../assets/logo_tilak.png')}
         style={[styles.logo, animatedStyle]}
         resizeMode="contain"
       />
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 240,
-    height: 240,
+    width: 220,
+    height: 220,
   },
 });

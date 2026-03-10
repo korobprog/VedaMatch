@@ -139,6 +139,112 @@ export const migrateLegacyFlatLayoutToDefaultFolders = (inputLayout: PortalLayou
     return { layout, changed: true };
 };
 
+export const migrateCalendarServiceIntoCalendarFolder = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...page.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
+    };
+
+    let changed = false;
+
+    layout.pages = layout.pages.map((page) => {
+        let extractedCalendarItem: PortalItem | null = null;
+        const updatedItems = page.items
+            .map((item) => {
+                if (item.type === 'service') {
+                    if (item.serviceId !== 'ekadashi_calendar') {
+                        return { ...item };
+                    }
+                    extractedCalendarItem = { ...item, position: 0 };
+                    changed = true;
+                    return null;
+                }
+
+                if (item.id !== 'folder-practice') {
+                    return { ...item, items: [...item.items] };
+                }
+
+                const remainingItems = item.items.filter((folderItem) => {
+                    if (folderItem.serviceId !== 'ekadashi_calendar') {
+                        return true;
+                    }
+                    extractedCalendarItem = { ...folderItem, position: 0 };
+                    changed = true;
+                    return false;
+                }).map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex }));
+
+                return {
+                    ...item,
+                    items: remainingItems,
+                };
+            })
+            .filter((item): item is PortalItem | PortalFolder => Boolean(item));
+
+        if (!extractedCalendarItem) {
+            return page;
+        }
+
+        const calendarFolderIndex = updatedItems.findIndex((item) => item.type === 'folder' && item.id === 'folder-calendar');
+        if (calendarFolderIndex >= 0) {
+            const calendarFolder = updatedItems[calendarFolderIndex] as PortalFolder;
+            if (!calendarFolder.items.some((folderItem) => folderItem.serviceId === 'ekadashi_calendar')) {
+                updatedItems[calendarFolderIndex] = {
+                    ...calendarFolder,
+                    items: [{ ...extractedCalendarItem, position: 0 }],
+                };
+                changed = true;
+            }
+        } else {
+            const insertIndex = Math.min(1, updatedItems.length);
+            updatedItems.splice(insertIndex, 0, {
+                id: 'folder-calendar',
+                name: 'Календарь',
+                type: 'folder',
+                color: '#D97706',
+                items: [{ ...extractedCalendarItem, position: 0 }],
+                position: insertIndex,
+            });
+            changed = true;
+        }
+
+        const reindexedItems = updatedItems
+            .filter((item) => item.type !== 'folder' || item.items.length > 0)
+            .map((item, index) => item.type === 'folder'
+                ? {
+                    ...item,
+                    position: index,
+                    items: item.items.map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex })),
+                }
+                : { ...item, position: index });
+
+        return {
+            ...page,
+            items: reindexedItems,
+        };
+    });
+
+    if (!changed) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    return {
+        layout: {
+            ...layout,
+            lastModified: Date.now(),
+            syncedWithServer: false,
+        },
+        changed: true,
+    };
+};
+
 export type AddWidgetResult = { ok: true } | { ok: false; reason: 'duplicate' };
 
 const sanitizeAllFolders = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
@@ -565,11 +671,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
                 const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
                 const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
-                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(migratedLayout);
+                const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
+                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
                 const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
-                if (widgetCanvasChanged || migratedChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+                if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                     await saveLocalLayout(filteredLayout);
                 }
                 setLayout(filteredLayout);
@@ -780,11 +887,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             const savedLayout = await initializeLayout(user?.role || 'user', undefined, visibilityMap);
             const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
             const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
-            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(migratedLayout);
+            const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
+            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
             const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
-            if (widgetCanvasChanged || migratedChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+            if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                 await saveLocalLayout(filteredLayout);
             }
             setLayout(filteredLayout);
