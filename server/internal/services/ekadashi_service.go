@@ -50,8 +50,8 @@ func NewEkadashiService() *EkadashiService {
 
 var ekadashiOrganizations = []models.EkadashiOrganization{
 	{ID: "iskcon", Name: "ISKCON", Description: "ISKCON-aligned observance profile", Source: "fallback_aggregator", SourceURL: "https://vaishnavacalendar.org"},
-	{ID: "sri_chaitanya_math", Name: "Sri Chaitanya Math", Description: "Sri Chaitanya Math observance profile", Source: "fallback_aggregator", SourceURL: "https://www.gosai.com/calendar/"},
-	{ID: "pure_bhakti", Name: "Pure Bhakti", Description: "Pure Bhakti observance profile", Source: "fallback_aggregator", SourceURL: "https://www.gosai.com/calendar/"},
+	{ID: "sri_chaitanya_math", Name: "Sri Chaitanya Math", Description: "Sri Chaitanya Math observance profile", Source: "fallback_aggregator", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
+	{ID: "pure_bhakti", Name: "Pure Bhakti", Description: "Pure Bhakti observance profile", Source: "fallback_aggregator", SourceURL: "https://gosai.com/calendar"},
 	{ID: "default_vaishnava", Name: "Default Vaishnava", Description: "Fallback vaishnava observance profile", Source: "fallback_aggregator", SourceURL: "https://gcal.app"},
 }
 
@@ -63,14 +63,14 @@ var commemorativeEventsByOrganization = map[string][]commemorativeEventSeed{
 		{Month: 9, Day: 14, EventType: "appearance", Title: "Appearance of Srila Prabhupada", Subtitle: "ISKCON commemoration", Notes: "Appearance observance remembered in the ISKCON calendar.", PersonSlug: "srila-prabhupada", ObservanceType: "appearance", SourceURL: "https://vaishnavacalendar.org"},
 	},
 	"sri_chaitanya_math": {
-		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Prabhupada", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://www.gosai.com/calendar/"},
-		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://www.gosai.com/calendar/"},
-		{Month: 10, Day: 5, EventType: "disappearance", Title: "Disappearance of Srila Gaura Kishora Dasa Babaji", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Disappearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "gaura-kishora-dasa-babaji", ObservanceType: "disappearance", SourceURL: "https://www.gosai.com/calendar/"},
+		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Prabhupada", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
+		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
+		{Month: 10, Day: 5, EventType: "disappearance", Title: "Disappearance of Srila Gaura Kishora Dasa Babaji", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Disappearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "gaura-kishora-dasa-babaji", ObservanceType: "disappearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
 	},
 	"pure_bhakti": {
-		{Month: 1, Day: 7, EventType: "appearance", Title: "Appearance of Srila Gurudeva", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "narayana-goswami", ObservanceType: "appearance", SourceURL: "https://www.gosai.com/calendar/"},
-		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Thakura", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://www.gosai.com/calendar/"},
-		{Month: 12, Day: 29, EventType: "disappearance", Title: "Disappearance of Srila Jiva Goswami", Subtitle: "Pure Bhakti commemoration", Notes: "Disappearance observance in the Pure Bhakti tradition.", PersonSlug: "jiva-goswami", ObservanceType: "disappearance", SourceURL: "https://www.gosai.com/calendar/"},
+		{Month: 1, Day: 7, EventType: "appearance", Title: "Appearance of Srila Gurudeva", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "narayana-goswami", ObservanceType: "appearance", SourceURL: "https://gosai.com/calendar"},
+		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Thakura", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://gosai.com/calendar"},
+		{Month: 12, Day: 29, EventType: "disappearance", Title: "Disappearance of Srila Jiva Goswami", Subtitle: "Pure Bhakti commemoration", Notes: "Disappearance observance in the Pure Bhakti tradition.", PersonSlug: "jiva-goswami", ObservanceType: "disappearance", SourceURL: "https://gosai.com/calendar"},
 	},
 	"default_vaishnava": {
 		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "Vaishnava commemoration", Notes: "Appearance observance in the broader Vaishnava calendar.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://gcal.app"},

@@ -47,6 +47,35 @@ func TestParseISKCONHTMLMonth(t *testing.T) {
 	}
 }
 
+func TestParseISKCONHTMLMonthUppercaseAnnualHeader(t *testing.T) {
+	html := `
+	<html><body>
+	<h2>MARCH 2026</h2>
+	<p><b>15</b>. (Sun) Krishna Ekadashi. Papa Vimochani <b>Ekadashi</b>. <b>Fast</b> .</p>
+	<p><b>16</b>. (Mon) Krishna Dvadashi. Paran between 07:13 and 11:08 .</p>
+	<p><b>29</b>. (Sun) Gaura Ekadashi. Kamada <b>Ekadashi</b>. <b>Fast</b> .</p>
+	<p><b>30</b>. (Mon) Gaura Dvadashi. Paran between 06:49 and 10:57 .</p>
+	</body></html>`
+
+	days, err := parseISKCONHTMLMonth(html, time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC), locationSnapshot{
+		TimeZone: "Asia/Vladivostok",
+		City:     "Khabarovsk",
+		Country:  "Russia",
+	}, models.EkadashiOrganization{ID: "iskcon", Name: "ISKCON"}, "https://vaishnavacalendar.org/khabarovsk/540/en/")
+	if err != nil {
+		t.Fatalf("parse annual html: %v", err)
+	}
+	if len(days) != 2 {
+		t.Fatalf("expected 2 ekadashi days, got %d", len(days))
+	}
+	if days[0].Date != "2026-03-15" {
+		t.Fatalf("unexpected first date: %s", days[0].Date)
+	}
+	if days[0].ParanaEndAt == nil || !strings.Contains(*days[0].ParanaEndAt, "11:08") {
+		t.Fatalf("expected parsed parana end on first entry")
+	}
+}
+
 func TestBuildVaishnavaCalendarCitySlug(t *testing.T) {
 	if got := buildVaishnavaCalendarCitySlug("Novgorod The Great"); got != "novgorod_the_great" {
 		t.Fatalf("unexpected slug: %s", got)

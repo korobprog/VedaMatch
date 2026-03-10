@@ -13,8 +13,11 @@ import (
 )
 
 var (
-	gosaiDatedLineRE  = regexp.MustCompile(`^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:,\s*\d{4})?\s+[—-]\s+(.+)$`)
-	gosaiParanaTimeRE = regexp.MustCompile(`paran(?: between| from)?\s+(\d{1,2}:\d{2}\s*(?:am|pm)?)\s+(?:and|to|-)\s+(\d{1,2}:\d{2}\s*(?:am|pm)?)`)
+	gosaiDatedLineRE    = regexp.MustCompile(`^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:,\s*\d{4})?\s+[—-]\s+(.+)$`)
+	gosaiShortLineRE    = regexp.MustCompile(`^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+[—-]\s+(.+)$`)
+	gosaiMonthHeaderRE  = regexp.MustCompile(`(?i)^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$`)
+	gosaiSCMEventLineRE = regexp.MustCompile(`^(\d{1,2})\.\s+\([A-Za-z]{3}\)\s+(.+)$`)
+	gosaiParanaTimeRE   = regexp.MustCompile(`paran(?: between| from)?\s+(\d{1,2}:\d{2}\s*(?:am|pm)?)\s+(?:and|to|-)\s+(\d{1,2}:\d{2}\s*(?:am|pm)?)`)
 )
 
 func fetchGosaiMonthCalendar(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, error) {
@@ -23,9 +26,15 @@ func fetchGosaiMonthCalendar(monthStart time.Time, locData locationSnapshot, org
 }
 
 func fetchGosaiMonthCalendarSnapshot(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, string, string, error) {
-	pageURL := "https://www.gosai.com/calendar/"
+	pageURL := gosaiCalendarURLForOrganization(org)
 	client := &http.Client{Timeout: 12 * time.Second}
-	resp, err := client.Get(pageURL)
+	req, err := http.NewRequest(http.MethodGet, pageURL, nil)
+	if err != nil {
+		recordEkadashiProviderStatus(org.ID, pageURL, false, err.Error())
+		return nil, "", pageURL, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; VedaMatchCalendarBot/1.0; +https://vedamatch.ru)")
+	resp, err := client.Do(req)
 	if err != nil {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, err.Error())
 		return nil, "", pageURL, err
@@ -66,26 +75,27 @@ func parseGosaiHTMLMonth(rawHTML string, monthStart time.Time, locData locationS
 	if err != nil {
 		loc = time.UTC
 	}
+	sourceName := gosaiSourceNameForOrganization(org)
 
 	targetMonth := monthStart.Month()
 	targetYear := monthStart.Year()
+	currentMonth := time.Month(0)
+	currentYear := 0
 	result := make([]models.EkadashiDay, 0, 4)
 	lastEkadashiIndex := -1
 
 	for _, line := range lines {
-		match := gosaiDatedLineRE.FindStringSubmatch(line)
-		if len(match) != 4 {
+		if gosaiMonthHeaderRE.MatchString(line) {
+			parsedMonth, parsedYear, parseErr := parseMonthHeader(line)
+			if parseErr == nil {
+				currentMonth = parsedMonth
+				currentYear = parsedYear
+			}
 			continue
 		}
 
-		parsedMonth, _, parseErr := parseMonthHeader(match[1] + " " + fmt.Sprintf("%d", targetYear))
-		if parseErr != nil {
-			continue
-		}
-		dayNumber := strings.TrimSpace(match[2])
-		dayText := strings.TrimSpace(match[3])
-		dayTime, dayErr := time.ParseInLocation("2006-1-2", fmt.Sprintf("%d-%d-%s", targetYear, int(parsedMonth), dayNumber), loc)
-		if dayErr != nil {
+		dayTime, dayText, matched := gosaiParseDayLine(line, targetYear, currentMonth, currentYear, loc)
+		if !matched {
 			continue
 		}
 
@@ -103,10 +113,14 @@ func parseGosaiHTMLMonth(rawHTML string, monthStart time.Time, locData locationS
 			continue
 		}
 
-		if parsedMonth != targetMonth {
+		if dayTime.Month() != targetMonth || dayTime.Year() != targetYear {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(dayText), "ekadasi") && !strings.Contains(strings.ToLower(dayText), "ekadashi") && !strings.Contains(strings.ToLower(dayText), "mahadvadashi") {
+		lowerDayText := strings.ToLower(dayText)
+		if !strings.Contains(lowerDayText, "ekadasi") && !strings.Contains(lowerDayText, "ekadashi") && !strings.Contains(lowerDayText, "mahadvadashi") {
+			continue
+		}
+		if strings.Contains(lowerDayText, "no fast today") && !strings.Contains(lowerDayText, "mahadvadashi") {
 			continue
 		}
 
@@ -127,8 +141,8 @@ func parseGosaiHTMLMonth(rawHTML string, monthStart time.Time, locData locationS
 			ParanaEndAt:      nil,
 			DisplayTitle:     title,
 			DisplaySubtitle:  subtitle,
-			ObservanceNotes:  fmt.Sprintf("Loaded from gosai.com for %s.", chooseLocationLabel(locData.City, locData.TimeZone)),
-			Source:           "gosai.com",
+			ObservanceNotes:  fmt.Sprintf("Loaded from %s for %s.", sourceName, chooseLocationLabel(locData.City, locData.TimeZone)),
+			Source:           sourceName,
 			SourceURL:        pageURL,
 		})
 		lastEkadashiIndex = len(result) - 1
@@ -136,6 +150,70 @@ func parseGosaiHTMLMonth(rawHTML string, monthStart time.Time, locData locationS
 
 	sort.Slice(result, func(i, j int) bool { return result[i].Date < result[j].Date })
 	return result, nil
+}
+
+func gosaiCalendarURLForOrganization(org models.EkadashiOrganization) string {
+	switch strings.TrimSpace(org.ID) {
+	case "sri_chaitanya_math":
+		return "https://www.scsmath.com/events/calendar/index.html"
+	case "pure_bhakti":
+		return "https://gosai.com/calendar"
+	default:
+		return "https://gosai.com/calendar"
+	}
+}
+
+func gosaiSourceNameForOrganization(org models.EkadashiOrganization) string {
+	switch strings.TrimSpace(org.ID) {
+	case "sri_chaitanya_math":
+		return "scsmath.com"
+	default:
+		return "gosai.com"
+	}
+}
+
+func gosaiParseDayLine(line string, fallbackYear int, currentMonth time.Month, currentYear int, loc *time.Location) (time.Time, string, bool) {
+	if match := gosaiSCMEventLineRE.FindStringSubmatch(line); len(match) == 3 && currentMonth != 0 && currentYear != 0 {
+		dayTime, err := time.ParseInLocation("2006-1-2", fmt.Sprintf("%d-%d-%s", currentYear, int(currentMonth), strings.TrimSpace(match[1])), loc)
+		if err != nil {
+			return time.Time{}, "", false
+		}
+		return dayTime, strings.TrimSpace(match[2]), true
+	}
+
+	if match := gosaiDatedLineRE.FindStringSubmatch(line); len(match) == 4 {
+		parsedMonth, _, parseErr := parseMonthHeader(match[1] + " " + fmt.Sprintf("%d", fallbackYear))
+		if parseErr != nil {
+			return time.Time{}, "", false
+		}
+		dayTime, err := time.ParseInLocation("2006-1-2", fmt.Sprintf("%d-%d-%s", fallbackYear, int(parsedMonth), strings.TrimSpace(match[2])), loc)
+		if err != nil {
+			return time.Time{}, "", false
+		}
+		return dayTime, strings.TrimSpace(match[3]), true
+	}
+
+	if match := gosaiShortLineRE.FindStringSubmatch(line); len(match) == 4 {
+		parsedMonth, err := parseShortMonth(match[1])
+		if err != nil {
+			return time.Time{}, "", false
+		}
+		dayTime, err := time.ParseInLocation("2006-1-2", fmt.Sprintf("%d-%d-%s", fallbackYear, int(parsedMonth), strings.TrimSpace(match[2])), loc)
+		if err != nil {
+			return time.Time{}, "", false
+		}
+		return dayTime, strings.TrimSpace(match[3]), true
+	}
+
+	return time.Time{}, "", false
+}
+
+func parseShortMonth(value string) (time.Month, error) {
+	parsedTime, err := time.Parse("Jan", strings.TrimSpace(value))
+	if err != nil {
+		return 0, err
+	}
+	return parsedTime.Month(), nil
 }
 
 func parseGosaiEventTitles(dayText, organizationName string) (string, string, bool) {

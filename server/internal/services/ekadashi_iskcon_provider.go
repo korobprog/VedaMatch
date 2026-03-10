@@ -33,7 +33,7 @@ type ISKCONProviderCacheEntry struct {
 
 var (
 	iskconProviderCache sync.Map
-	httpMonthHeaderRE   = regexp.MustCompile(`^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$`)
+	httpMonthHeaderRE   = regexp.MustCompile(`(?i)^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$`)
 	httpEventLineRE     = regexp.MustCompile(`^(\d{1,2})\.\s+\([A-Za-z]{3}\)\s+(.+)$`)
 	httpParanaRangeRE   = regexp.MustCompile(`Paran(?: after [^.]+ and)? between (\d{1,2}:\d{2}) and (\d{1,2}:\d{2})`)
 )
@@ -291,7 +291,9 @@ func parseMonthHeader(value string) (time.Month, int, error) {
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("invalid month header")
 	}
-	parsedTime, err := time.Parse("January 2006", strings.Join(parts, " "))
+	normalized := strings.ToLower(strings.Join(parts, " "))
+	normalized = strings.ToUpper(normalized[:1]) + normalized[1:]
+	parsedTime, err := time.Parse("January 2006", normalized)
 	if err != nil {
 		return 0, 0, err
 	}

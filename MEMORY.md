@@ -414,7 +414,15 @@
 - Для `ISKCON` добавлен live provider через официальный upstream `vaishnavacalendar.org` с безопасным fallback обратно на генератор, если upstream не дал данных или формат изменился.
 - Для операционной диагностики добавлен admin endpoint `/api/admin/push/health/ekadashi`, который показывает push health summary, последние delivery rows, snapshot live-provider cache и параметры scheduler.
 - Для `ISKCON` live-provider теперь пишет последний success/error status в `SystemSetting` (`EKADASHI_PROVIDER_STATUS_ISKCON`), а admin endpoint `/api/admin/ekadashi/refresh` позволяет вручную прогнать refresh по `month/city/timezone/organizationId`.
-- Для `Sri Chaitanya Math` и `Pure Bhakti` добавлен live provider через `gosai.com/calendar`; diagnostics теперь показывают статусы по нескольким provider keys (`ISKCON`, `SRI_CHAITANYA_MATH`, `PURE_BHAKTI`).
+- Donor source strategy для DB-import сейчас такая:
+  - `ISKCON` -> `vaishnavacalendar.org/<city>/<gaurabda>/en/`;
+  - `Sri Chaitanya Math` -> `https://www.scsmath.com/events/calendar/index.html`;
+  - `Pure Bhakti` -> `https://gosai.com/calendar`.
+- `gosai/scsmath` parser должен поддерживать три annual формата:
+  - `March 10 — ...`;
+  - `Mar 10 — ...`;
+  - `15. (Sun) Krishna Ekadashi...`.
+- Diagnostics по donor import нужно по-прежнему читать по provider keys `ISKCON`, `SRI_CHAITANYA_MATH`, `PURE_BHAKTI`.
 - `default_vaishnava` пока остаётся на fallback-агрегаторе: для него в diagnostics явно пишется provider status `no_live_source_configured`, потому что стабильный публичный server-side формат `gcal.app` пока не найден.
 - Ответы ekadashi backend теперь возвращают `providerDecision` c `mode/source/reason`: это позволяет сразу видеть, был ли использован live provider или fallback, и почему произошла деградация (`city_required_for_iskcon_live_provider`, `*_live_fetch_failed`, `no_live_source_configured`).
 - Runtime календаря переведен на модель `published DB`: `/ekadashi/calendar`, `/ekadashi/day` и scheduler уведомлений должны читать опубликованные данные из БД, а не дергать donor source на пользовательском запросе.
@@ -434,10 +442,10 @@
 - Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
 - После перехода на published DB мобильный notice о donor недоступности не должен показываться, если publication уже существует; пользователь должен видеть максимум нейтральную семантику источника данных.
 - `vaishnavacalendar.org` для `ISKCON` теперь нужно парсить по block-level HTML nodes (`h*`, `p`, `li`, `td`, `th`), а не по отдельным text tokens: upstream оборачивает день, `Ekadashi` и `Fast` в `<b>/<strong>`, и token-level tokenizer из-за этого разваливал строку на куски и давал ложный `iskcon_live_fetch_failed: no ekadashi days parsed`.
-- Production batch import от `2026-03-10` через `/api/admin/ekadashi/refresh-all?city=Khabarovsk&country=Russia&timezone=Asia/Vladivostok` дал mixed result:
+- Первый production batch import от `2026-03-10` через `/api/admin/ekadashi/refresh-all?city=Khabarovsk&country=Russia&timezone=Asia/Vladivostok` дал mixed result:
   - `default_vaishnava` published успешно (`tz:asia/vladivostok`, 56 events, range `2026-03 -> 2028-02`);
-  - `ISKCON` упал с `no ekadashi days parsed` при live URL `https://vaishnavacalendar.org/khabarovsk/540/en/`, хотя upstream отдает `200` и в HTML есть ekadashi строки; это текущий parser mismatch на реальной странице;
-  - `sri_chaitanya_math` и `pure_bhakti` упали с `unexpected status: 404`, потому что `https://www.gosai.com/calendar/` на реальном `GET` сейчас отдает `404`.
+  - `ISKCON` падал на uppercase annual header `MARCH 2026`, из-за чего parser не выставлял текущий месяц и терял все дни;
+  - `sri_chaitanya_math` и `pure_bhakti` падали из-за устаревшей donor strategy `https://www.gosai.com/calendar/` с trailing slash, которая на реальном `GET` отдает `404`.
 - `frontend/screens/portal/PortalMainScreen.tsx` должен явно обрабатывать `navigate('EkadashiCalendar')` в `navigateResolvedScreen`; иначе тап по сервису `Календарь` в портале визуально ничего не делает, хотя `resolveServiceLaunch('ekadashi_calendar')` уже возвращает правильный route.
 - `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.
 

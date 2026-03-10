@@ -244,9 +244,10 @@ func (s *CalendarImportService) fetchMonthForTarget(monthStart time.Time, target
 		if err != nil {
 			return nil, err
 		}
+		sourceName := gosaiSourceNameForOrganization(target.Organization)
 		return &calendarImportFetchResult{
 			Events:    events,
-			Source:    "gosai.com",
+			Source:    sourceName,
 			SourceURL: pageURL,
 			Payload:   payload,
 		}, nil
