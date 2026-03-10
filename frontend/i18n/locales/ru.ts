@@ -2158,6 +2158,16 @@ export default {
             create: 'Создать',
             cancel: 'Отмена',
         },
+        folderLabels: {
+            communication: 'Общение',
+            calendar: 'Календарь',
+            practice: 'Практика',
+            content: 'Контент',
+            services: 'Сервисы',
+            travel: 'Путешествия',
+            profile: 'Профиль',
+            lockedAfterProfile: 'Откроется после профиля',
+        },
         folderModal: {
             empty: 'Папка пуста',
             hint: 'Перетащите сервисы сюда или удерживайте иконку, чтобы убрать сервис из папки.',

@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
 import { PortalIcon } from './PortalIcon';
+import { resolvePortalFolderName } from './resolvePortalFolderName';
 import { useSettings } from '../../context/SettingsContext';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
@@ -54,7 +55,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     const { height: windowHeight } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const [isEditing, setIsEditing] = useState(false);
-    const [editName, setEditName] = useState(folder.name);
+    const [editName, setEditName] = useState(resolvePortalFolderName(folder, t));
     const [showColorPicker, setShowColorPicker] = useState(false);
     const isPhotoBg = portalBackgroundType === 'image';
     const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
@@ -64,11 +65,13 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     const translateY = useSharedValue(48);
     const opacity = useSharedValue(0);
 
+    const folderDisplayName = resolvePortalFolderName(folder, t);
+
     React.useEffect(() => {
         if (visible) {
             translateY.value = withSpring(0, { damping: 18, stiffness: 170 });
             opacity.value = withTiming(1, { duration: 220 });
-            setEditName(folder.name);
+            setEditName(folderDisplayName);
         } else {
             translateY.value = withTiming(48, { duration: 160 });
             opacity.value = withTiming(0, { duration: 160 });
@@ -80,7 +83,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
             cancelAnimation(translateY);
             cancelAnimation(opacity);
         };
-    }, [folder.name, opacity, translateY, visible]);
+    }, [folderDisplayName, opacity, translateY, visible]);
 
     const animatedContainerStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
@@ -235,7 +238,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                         ) : (
                                             <TouchableOpacity onPress={() => setIsEditing(true)} activeOpacity={0.82}>
                                                 <Text style={[styles.folderName, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
-                                                    {folder.name}
+                                                    {folderDisplayName}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}

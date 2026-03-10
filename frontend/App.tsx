@@ -578,7 +578,9 @@ const AppContent = () => {
                     name="Chat"
                     component={ChatScreen}
                     options={{
+                      animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
                       freezeOnBlur: Platform.OS === 'android' ? false : undefined,
+                      contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
                     }}
                   />
                   <Stack.Screen

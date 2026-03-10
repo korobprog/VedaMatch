@@ -129,6 +129,9 @@
 - Folder modal должен подниматься выше нижнего quick-access dock на обеих платформах; на Android для папок с несколькими рядами нужен дополнительный bottom offset, иначе sheet визуально конфликтует с нижним баром и режет нижние иконки.
 - Внутренние нижние отступы folder modal должны быть умеренными: избыточные `scrollContent/itemsGrid/iconWrapper` bottom-padding быстро создают пустой хвост внизу при папках на 4-5 сервисов.
 - Для экранов `height < 780` folder modal должен иметь отдельные compact-коэффициенты по высоте и нижним отступам; единые desktop-like значения на compact устройствах обычно создают лишний нижний зазор.
+- Системные папки портала должны локализоваться по `folder.id`, а не только по сохраненному `folder.name`:
+  - при смене языка должны переключаться подписи папок на grid и заголовок в `FolderModal`;
+  - пользовательские переименования папок должны оставаться как есть и не заменяться локализованным дефолтом.
 - Для сервиса `ekadashi_calendar` в portal icon registry должен быть явный `CalendarDays` маппинг в `frontend/components/portal/portalIconShared.tsx`; иначе в iOS/Android включается fallback-глиф вместо календаря.
 - В `PortalLayoutContext` нельзя принудительно подставлять роль `user`, если `user.role` еще не загружен: это удаляет `ekadashi_calendar` на этапе инициализации и визуально дает эффект «папка Календарь появилась и пропала».
 
@@ -2009,6 +2012,8 @@
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.
 - В `frontend/components/chat/MessageList.tsx` на iOS отключен `maintainVisibleContentPosition` и ограничен blur для bubble (только photo background), что снижает риск пустого/неотрисованного списка сообщений.
 - Для AI-отправки в `frontend/context/ChatContext.tsx` и `frontend/services/openaiService.ts` обработанные сетевые ошибки (`Connection error` и т.п.) логируются через `console.warn`, а не `console.error`, чтобы в iOS dev не поднимать RedBox при уже обработанном fallback.
+- Для `Stack.Screen name="Chat"` в `frontend/App.tsx` на Android зафиксированы `freezeOnBlur: false`, `animation: 'none'` и явный `contentStyle.backgroundColor` как mitigation против blank/white screen при выходе из AI Chat.
+- Для AI chat в `frontend/context/ChatContext.tsx` сырой backend/provider error text (`401/502/UNAUTHORIZED/trace_id/API key`) не должен показываться пользователю; такие сообщения маскируются в нейтральный technical-issue fallback.
 
 ## AI Assistant (Krishna Das) Runtime
 - Персона «Кришна Дас» в мобильном UI — это режим `assistantType='smiley'`, выбирается в `frontend/screens/settings/AppSettingsScreen.tsx` и сохраняется в `AsyncStorage` ключом `assistant_type` через `frontend/context/SettingsContext.tsx`.
@@ -2018,6 +2023,8 @@
 - Текущий дефолт text-stack зафиксирован как `model='auto'`, `provider='PolzaAI'` (`frontend/config/models.config.ts` + фиксация в `SettingsContext.fetchModels`).
 - Прод-инцидент 2026-02-26 (закрыт): `POST /api/v1/chat/completions` возвращал `502` из-за upstream `401 Некорректный API ключ` от Polza.
 - Причина и фиксация: в `system_settings.POLZA_API_KEY` была маска вместо реального секрета; после обновления ключа в админке `system_settings` содержит валидный `pza_...`, и продовый `POST /api/v1/chat/completions` снова отвечает `200`.
+- Регресс 2026-03-11: `system_settings.POLZA_API_KEY` снова оказался замаскированным (`************...`), что повторно ломало AI chat на проде (`502 -> upstream 401`).
+- Backend mitigation: `server/internal/services/polza_service.go` теперь игнорирует masked DB key и берет реальный secret из env (`POLZA_API_KEY`, затем `API_OPEN_AI`), включая `ReloadFromDB()`.
 
 ## Auth Login Notes
 - В `server/internal/handlers/auth_handler.go` логин поддерживает legacy-формат пароля:

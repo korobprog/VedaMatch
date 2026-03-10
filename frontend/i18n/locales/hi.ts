@@ -2153,6 +2153,16 @@ export default {
             "create": "बनाएं",
             "cancel": "रद्द करें"
         },
+        "folderLabels": {
+            "communication": "संवाद",
+            "calendar": "कैलेंडर",
+            "practice": "अभ्यास",
+            "content": "सामग्री",
+            "services": "सेवाएँ",
+            "travel": "यात्रा",
+            "profile": "प्रोफ़ाइल",
+            "lockedAfterProfile": "प्रोफ़ाइल के बाद खुलेगा"
+        },
         "folderModal": {
             "empty": "फ़ोल्डर खाली है",
             "hint": "सेवाएँ यहाँ खींचें या आइकन को दबाकर फ़ोल्डर से हटाएँ।"

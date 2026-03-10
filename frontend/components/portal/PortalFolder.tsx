@@ -16,6 +16,7 @@ import Animated, {
     withTiming,
     cancelAnimation,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { PortalFolder as PortalFolderType, DEFAULT_SERVICES } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
 import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
@@ -27,6 +28,7 @@ import {
     PortalServiceGlyph,
     PortalVedaMatchRings,
 } from './portalIconShared';
+import { resolvePortalFolderName } from './resolvePortalFolderName';
 
 interface PortalFolderProps {
     folder: PortalFolderType;
@@ -47,6 +49,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     onLayout,
     onRemove,
 }) => {
+    const { t } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
@@ -121,6 +124,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
         .slice(0, 4)
         .map((item) => DEFAULT_SERVICES.find((service) => service.id === item.serviceId))
         .filter((service): service is NonNullable<typeof service> => Boolean(service));
+    const folderDisplayName = resolvePortalFolderName(folder, t);
 
     return (
         <Animated.View
@@ -211,7 +215,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         ]}
                         numberOfLines={1}
                     >
-                        {folder.name}
+                        {folderDisplayName}
                     </Text>
                 </View>
 

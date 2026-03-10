@@ -8556,6 +8556,115 @@ CDN_BASE_URL=https://cdn.vedamatch.ru
 ### Validation
 - `pnpm -C frontend exec tsc --noEmit` — success.
 
+## 2026-03-11 (Android AI Chat: disable native-stack transition to reduce blank screen on exit)
+
+### Измененные файлы
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `Chat` на Android наследовал глобальную stack-анимацию `fade`;
+  - при возврате из AI Chat на Android возможен transition race/blank screen, несмотря на уже отключенный `freezeOnBlur`.
+- Стало:
+  - для `Stack.Screen name="Chat"` на Android принудительно задано `animation: 'none'`;
+  - для `Chat` добавлен явный `contentStyle.backgroundColor`, чтобы экран не зависел от прозрачных слоев во время pop transition.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```ts
+options={{
+  animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
+  freezeOnBlur: Platform.OS === 'android' ? false : undefined,
+  contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+}}
+```
+
+### Validation
+- `pnpm -C frontend exec tsc --noEmit` — not clean due to pre-existing unrelated TS errors in `App.tsx`, `VKAuthModal.tsx`, `PortalMainScreen.tsx`, `EditProfileScreen.tsx`, `PortalLayoutContext.tsx`.
+
+## 2026-03-11 (PolzaService: ignore masked DB key and fallback to env secret)
+
+### Измененные файлы
+- `server/internal/services/polza_service.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `PolzaService` читал `POLZA_API_KEY` из БД как есть;
+  - если админка сохраняла замаскированное значение `************...`, backend использовал его как реальный ключ и AI chat падал с `502 -> upstream 401 UNAUTHORIZED`.
+- Стало:
+  - добавлена проверка masked-sensitive значения;
+  - `PolzaService` теперь предпочитает реальный env secret (`POLZA_API_KEY`, затем `API_OPEN_AI`) и игнорирует masked DB value;
+  - та же логика применена и в `ReloadFromDB()`, чтобы runtime reload не ломал рабочий ключ.
+
+### Сниппеты кода
+
+`server/internal/services/polza_service.go`:
+```go
+func isMaskedSensitiveValue(value string) bool { ... }
+
+func resolvePolzaAPIKey() string {
+  if envKey := strings.TrimSpace(os.Getenv("POLZA_API_KEY")); envKey != "" {
+    return envKey
+  }
+  if fallbackKey := strings.TrimSpace(os.Getenv("API_OPEN_AI")); fallbackKey != "" {
+    return fallbackKey
+  }
+  ...
+}
+```
+
+```go
+if dbValue := strings.TrimSpace(apiKeySetting.Value); dbValue != "" && !isMaskedSensitiveValue(dbValue) {
+  s.apiKey = dbValue
+} else {
+  s.apiKey = resolvePolzaAPIKey()
+}
+```
+
+### Validation
+- `gofmt -w server/internal/services/polza_service.go` — success.
+- `go test ./internal/services -run '^$'` (from `server/`) — success.
+- Прод-проверка до фикса: `POST /api/v1/chat/completions` -> `502` with upstream `401 Некорректный API ключ`, while `API_OPEN_AI` in container env is valid (`/v1/models -> 200`).
+
+## 2026-03-11 (AI chat: sanitize technical error text shown to end users)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при сбое AI backend/provider чат показывал пользователю сырой текст ошибки (`502`, `401`, `UNAUTHORIZED`, `trace_id`, детали upstream);
+  - это светило внутренние технические детали и выглядело как системная утечка.
+- Стало:
+  - для технических AI/server/provider ошибок добавлен клиентский sanitize;
+  - вместо сырого ответа пользователь видит нейтральное сообщение: что произошла техническая ошибка и ведутся работы по устранению;
+  - обычные не-технические ошибки остаются как прежде.
+
+### Сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```ts
+const shouldMaskAssistantError = (message: string): boolean => {
+  return (
+    normalized.includes('ai service error') ||
+    normalized.includes('api error') ||
+    normalized.includes('trace_id') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('api key')
+  );
+};
+```
+
+```ts
+const userSafeMessage = shouldMaskAssistantError(message)
+  ? getAssistantTechnicalErrorText(i18n.language)
+  : (message || t('chat.errorFetch'));
+```
+
+### Validation
+- `pnpm -C frontend exec tsc --noEmit` — not clean due to pre-existing unrelated TS errors in `App.tsx`, `VKAuthModal.tsx`, `PortalMainScreen.tsx`, `EditProfileScreen.tsx`, `PortalLayoutContext.tsx`.
+
 ## 2026-02-25 (Feed v2 materialization: rebuild + read from feed_items)
 
 ### Changed Files
@@ -14779,4 +14888,40 @@ run, err := importService.ImportAndPublish(
 	country,
 	24,
 )
+```
+
+## 2026-03-11 (Portal system folders now follow app language on iOS/Android)
+
+### Измененные файлы
+- `frontend/components/portal/PortalFolder.tsx`
+- `frontend/components/portal/FolderModal.tsx`
+- `frontend/components/portal/resolvePortalFolderName.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было: системные папки портала хранились с русскими именами в layout и продолжали отображаться на русском после переключения приложения на английский или хинди.
+- Стало: системные папки резолвятся по `folder.id` через i18n-ключи в рантайме. Grid-подписи и заголовок `FolderModal` теперь меняют язык вместе с приложением. Пользовательские переименования папок сохраняются без перезаписи.
+
+### Короткие сниппеты кода
+`frontend/components/portal/resolvePortalFolderName.ts`:
+```ts
+const FOLDER_TRANSLATION_KEY_BY_ID: Record<string, string> = {
+  'folder-communication': 'portal.folderLabels.communication',
+  'folder-seeker-locked': 'portal.folderLabels.lockedAfterProfile',
+};
+```
+
+`frontend/components/portal/PortalFolder.tsx`:
+```tsx
+const folderDisplayName = resolvePortalFolderName(folder, t);
+...
+<Text>{folderDisplayName}</Text>
+```
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const folderDisplayName = resolvePortalFolderName(folder, t);
+const [editName, setEditName] = useState(folderDisplayName);
 ```

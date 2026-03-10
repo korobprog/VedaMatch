@@ -28,6 +28,41 @@ type PolzaService struct {
 var polzaServiceInstance *PolzaService
 var polzaOnce sync.Once
 
+func isMaskedSensitiveValue(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	for _, r := range trimmed {
+		if r != '*' && r != '.' {
+			return false
+		}
+	}
+	return strings.Contains(trimmed, "*")
+}
+
+func resolvePolzaAPIKey() string {
+	if envKey := strings.TrimSpace(os.Getenv("POLZA_API_KEY")); envKey != "" {
+		return envKey
+	}
+	if fallbackKey := strings.TrimSpace(os.Getenv("API_OPEN_AI")); fallbackKey != "" {
+		return fallbackKey
+	}
+	if database.DB == nil {
+		return ""
+	}
+
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", "POLZA_API_KEY").First(&setting).Error; err == nil {
+		dbValue := strings.TrimSpace(setting.Value)
+		if dbValue != "" && !isMaskedSensitiveValue(dbValue) {
+			return dbValue
+		}
+	}
+
+	return ""
+}
+
 // Default models for smart routing
 const (
 	DefaultPolzaFastModel      = "deepseek/deepseek-chat" // Fast, cheap
@@ -68,14 +103,8 @@ func NewPolzaService() *PolzaService {
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
-	// Get API key from env or database
-	apiKey := os.Getenv("POLZA_API_KEY")
-	if apiKey == "" && database.DB != nil {
-		var setting models.SystemSetting
-		if err := database.DB.Where("key = ?", "POLZA_API_KEY").First(&setting).Error; err == nil {
-			apiKey = setting.Value
-		}
-	}
+	// Prefer real env secrets and ignore masked values accidentally persisted from admin UI.
+	apiKey := resolvePolzaAPIKey()
 
 	// Get models from database or use defaults
 	fastModel := DefaultPolzaFastModel
@@ -443,7 +472,13 @@ func (s *PolzaService) ReloadFromDB() {
 
 	var apiKeySetting models.SystemSetting
 	if err := database.DB.Where("key = ?", "POLZA_API_KEY").First(&apiKeySetting).Error; err == nil {
-		s.apiKey = apiKeySetting.Value
+		if dbValue := strings.TrimSpace(apiKeySetting.Value); dbValue != "" && !isMaskedSensitiveValue(dbValue) {
+			s.apiKey = dbValue
+		} else {
+			s.apiKey = resolvePolzaAPIKey()
+		}
+	} else {
+		s.apiKey = resolvePolzaAPIKey()
 	}
 
 	var fastSetting models.SystemSetting

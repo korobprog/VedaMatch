@@ -1606,6 +1606,16 @@ export default {
             connect: 'Connect',
             seva: 'Seva',
         },
+        folderLabels: {
+            communication: 'Communication',
+            calendar: 'Calendar',
+            practice: 'Practice',
+            content: 'Content',
+            services: 'Services',
+            travel: 'Travel',
+            profile: 'Profile',
+            lockedAfterProfile: 'Unlocks after profile',
+        },
         connect: {
             hero: {
                 badge: 'Connect MVP',

@@ -65,6 +65,31 @@ const getErrorMessage = (error: unknown): string => {
     return 'Unknown error';
 };
 
+const shouldMaskAssistantError = (message: string): boolean => {
+    const normalized = message.toLowerCase();
+    return (
+        normalized.includes('ai service error') ||
+        normalized.includes('api error') ||
+        normalized.includes('trace_id') ||
+        normalized.includes('unauthorized') ||
+        normalized.includes('api key') ||
+        normalized.includes('некорректный api ключ') ||
+        /status\s*40\d/.test(normalized) ||
+        /status\s*50\d/.test(normalized)
+    );
+};
+
+const getAssistantTechnicalErrorText = (language: string): string => {
+    const normalized = String(language || '').toLowerCase();
+    if (normalized.startsWith('hi')) {
+        return 'तकनीकी त्रुटि हुई है. समस्या के समाधान पर काम चल रहा है. कृपया बाद में फिर प्रयास करें.';
+    }
+    if (normalized.startsWith('en')) {
+        return 'A technical issue occurred. We are already working on a fix. Please try again later.';
+    }
+    return 'Произошла техническая ошибка. Мы уже работаем над устранением проблемы. Пожалуйста, попробуйте позже.';
+};
+
 const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
     id: (m.id || m.ID || Date.now()).toString(),
     text: m.content || m.text || '',
@@ -95,7 +120,7 @@ const dedupeMessagesById = (items: Message[]): Message[] => {
 };
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { currentModel, currentProvider, isAutoMagicEnabled, assistantType } = useSettings();
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
@@ -589,9 +614,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
+            const userSafeMessage = shouldMaskAssistantError(message)
+                ? getAssistantTechnicalErrorText(i18n.language)
+                : (message || t('chat.errorFetch'));
+
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
-                text: `${t('common.error')}: ${message || t('chat.errorFetch')}`,
+                text: `${t('common.error')}: ${userSafeMessage}`,
                 sender: 'bot',
             };
             setMessages((prev) => [...prev, errorMessage]);
