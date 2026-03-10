@@ -437,6 +437,27 @@ func normalizeGoogleLocale(locale string) string {
 	}
 }
 
+func normalizeTelegramLocale(locale string) string {
+	normalized := strings.TrimSpace(strings.ToLower(locale))
+	switch {
+	case strings.HasPrefix(normalized, "ru"),
+		strings.HasPrefix(normalized, "uk"),
+		strings.HasPrefix(normalized, "be"),
+		strings.HasPrefix(normalized, "kk"),
+		strings.HasPrefix(normalized, "uz"),
+		strings.HasPrefix(normalized, "ky"),
+		strings.HasPrefix(normalized, "tg"),
+		strings.HasPrefix(normalized, "hy"),
+		strings.HasPrefix(normalized, "az"),
+		strings.HasPrefix(normalized, "mo"):
+		return "ru"
+	case strings.HasPrefix(normalized, "hi"):
+		return "hi"
+	default:
+		return "en"
+	}
+}
+
 func splitCSVEnv(raw string) []string {
 	items := strings.Split(raw, ",")
 	result := make([]string, 0, len(items))
@@ -691,6 +712,13 @@ func buildVKFallbackEmail(userID int64) string {
 		return fmt.Sprintf("vk_%d@oauth.vedamatch.local", time.Now().UTC().UnixNano())
 	}
 	return fmt.Sprintf("vk_%d@oauth.vedamatch.local", userID)
+}
+
+func buildTelegramFallbackEmail(userID int64) string {
+	if userID <= 0 {
+		return fmt.Sprintf("telegram_%d@oauth.vedamatch.local", time.Now().UTC().UnixNano())
+	}
+	return fmt.Sprintf("telegram_%d@oauth.vedamatch.local", userID)
 }
 
 func currentAuthUser(c *fiber.Ctx) (*models.User, error) {
@@ -2357,18 +2385,83 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 		return respondTelegramAuthError(c, err)
 	}
 
+	now := time.Now().UTC()
 	var user models.User
 	if err := database.DB.Where("telegram_user_id = ?", telegramUser.ID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-				"error":     "Telegram account is not linked to any VedaMatch account",
-				"errorCode": "TELEGRAM_LINK_REQUIRED",
+			passwordRaw := fmt.Sprintf("telegram:%d:%d", telegramUser.ID, now.UnixNano())
+			hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(passwordRaw), bcrypt.DefaultCost)
+			if hashErr != nil {
+				log.Printf("[AUTH] Telegram miniapp login hash password failed telegram_user_id=%d: %v", telegramUser.ID, hashErr)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not create Telegram user",
+				})
+			}
+
+			karmicName := strings.TrimSpace(strings.TrimSpace(telegramUser.FirstName + " " + telegramUser.LastName))
+			if karmicName == "" {
+				if telegramUser.Username != "" {
+					karmicName = telegramUser.Username
+				} else {
+					karmicName = "Telegram User"
+				}
+			}
+
+			spiritualName := strings.TrimSpace(telegramUser.FirstName)
+			if spiritualName == "" {
+				spiritualName = "Guest"
+			}
+
+			telegramUserID := telegramUser.ID
+			newUser := models.User{
+				Email:             buildTelegramFallbackEmail(telegramUser.ID),
+				Password:          string(hashedPassword),
+				KarmicName:        karmicName,
+				SpiritualName:     spiritualName,
+				Role:              models.RoleUser,
+				TelegramUserID:    &telegramUserID,
+				TelegramUsername:  telegramUser.Username,
+				TelegramFirstName: telegramUser.FirstName,
+				TelegramLastName:  telegramUser.LastName,
+				TelegramLinkedAt:  &now,
+				Language:          normalizeTelegramLocale(telegramUser.LanguageCode),
+			}
+
+			nicknameService := services.NewNicknameService(database.DB)
+			nickname, nicknameSetManually, nicknameErr := nicknameService.AssignForRegistration("", newUser.Email, newUser.KarmicName)
+			if nicknameErr != nil {
+				log.Printf("[AUTH] Telegram miniapp login assign nickname failed telegram_user_id=%d: %v", telegramUser.ID, nicknameErr)
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"error": "Could not assign nickname",
+				})
+			}
+			newUser.Nickname = nickname
+			newUser.NicknameSetManually = nicknameSetManually
+
+			if strings.TrimSpace(req.DeviceID) != "" {
+				newUser.DeviceID = strings.TrimSpace(req.DeviceID)
+			}
+
+			if err := createAuthUser(&newUser); err != nil {
+				log.Printf("[AUTH] Telegram miniapp login create user failed telegram_user_id=%d: %v", telegramUser.ID, err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not create Telegram user",
+				})
+			}
+
+			if h.walletService != nil {
+				if _, walletErr := h.walletService.GetOrCreateWallet(newUser.ID); walletErr != nil {
+					log.Printf("[AUTH] Failed to create wallet for Telegram user %d: %v", newUser.ID, walletErr)
+				}
+			}
+
+			user = newUser
+		} else {
+			log.Printf("[AUTH] Telegram miniapp login lookup failed telegram_user_id=%d: %v", telegramUser.ID, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not resolve Telegram account",
 			})
 		}
-		log.Printf("[AUTH] Telegram miniapp login lookup failed telegram_user_id=%d: %v", telegramUser.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not resolve Telegram account",
-		})
 	}
 
 	if user.IsBlocked {
@@ -2377,7 +2470,6 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"telegram_username":   telegramUser.Username,
 		"telegram_first_name": telegramUser.FirstName,

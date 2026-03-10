@@ -204,28 +204,41 @@ func TestAuthTelegramMiniAppLogin_CompletesMobileBridgeWhenStateProvided(t *test
 	require.Equal(t, "bridge_user", refreshed.TelegramUsername)
 }
 
-func TestAuthTelegramMiniAppLogin_ReturnsLinkRequired(t *testing.T) {
+func TestAuthTelegramMiniAppLogin_CreatesUserWhenNotLinked(t *testing.T) {
 	setupAuthTelegramMiniAppIntegrationDB(t)
 	app := newAuthTelegramMiniAppTestApp()
 
+	telegramID := int64(701111)
 	initData := buildHandlerTelegramInitData(t, "test-telegram-auth-token", time.Now().UTC().Unix()-10, map[string]string{
 		"query_id": "AAH7V6YAAAAAb8R1mQ",
-		"user":     `{"id":701111,"first_name":"NoLink","username":"nolink"}`,
+		"user":     fmt.Sprintf(`{"id":%d,"first_name":"NoLink","last_name":"Flow","username":"nolink","language_code":"ru"}`, telegramID),
 	})
 
 	payload, _ := json.Marshal(map[string]string{
 		"initData": initData,
+		"deviceId": "tg-miniapp-device-new-user",
 	})
 	req := httptest.NewRequest("POST", "/api/auth/telegram/miniapp/login", bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	require.Equal(t, fiber.StatusConflict, resp.StatusCode)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-	require.Equal(t, "TELEGRAM_LINK_REQUIRED", body["errorCode"])
+	require.NotEmpty(t, body["accessToken"])
+	require.NotEmpty(t, body["refreshToken"])
+
+	var created models.User
+	require.NoError(t, database.DB.Where("telegram_user_id = ?", telegramID).First(&created).Error)
+	require.Equal(t, "telegram_701111@oauth.vedamatch.local", created.Email)
+	require.Equal(t, "NoLink Flow", created.KarmicName)
+	require.Equal(t, "NoLink", created.SpiritualName)
+	require.Equal(t, "ru", created.Language)
+	require.Equal(t, "tg-miniapp-device-new-user", created.DeviceID)
+	require.NotNil(t, created.TelegramUserID)
+	require.EqualValues(t, telegramID, *created.TelegramUserID)
 }
 
 func TestAuthTelegramMiniAppLink_Success(t *testing.T) {
