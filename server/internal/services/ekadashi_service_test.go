@@ -1,115 +1,159 @@
 package services
 
 import (
-	"rag-agent-server/internal/models"
 	"testing"
 	"time"
+
+	"rag-agent-server/internal/models"
 )
+
+func isAcceptedDBMissingReason(reason string) bool {
+	return reason == "db_unavailable" || reason == "no_published_data"
+}
 
 func TestEkadashiServiceGetCalendarRestrictedToApprovedRoles(t *testing.T) {
 	service := &EkadashiService{}
-	if _, err := service.GetCalendar(0, "user", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia"); err == nil {
-		t.Fatalf("expected forbidden error for non-approved role")
+
+	_, err := service.GetCalendar(0, models.RoleUser, "2026-03", "iskcon", "Asia/Vladivostok", "Khabarovsk", "Russia")
+	if err != ErrEkadashiForbidden {
+		t.Fatalf("expected forbidden, got %v", err)
 	}
 }
 
 func TestEkadashiServiceGetCalendarAllowsAdminRole(t *testing.T) {
 	service := &EkadashiService{}
-	if _, err := service.GetCalendar(0, "admin", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia"); err != nil {
-		t.Fatalf("unexpected error for admin role: %v", err)
+
+	response, err := service.GetCalendar(0, models.RoleAdmin, "2026-03", "iskcon", "Asia/Vladivostok", "Khabarovsk", "Russia")
+	if err != nil {
+		t.Fatalf("expected admin access, got %v", err)
+	}
+	if response == nil {
+		t.Fatalf("expected response")
+	}
+	if response.ProviderDecision.Mode != calendarProviderModeDBMissing {
+		t.Fatalf("expected db_missing mode without publication, got %q", response.ProviderDecision.Mode)
+	}
+	if len(response.Days) != 0 {
+		t.Fatalf("expected no published ekadashi days, got %d", len(response.Days))
 	}
 }
 
 func TestHasEkadashiCalendarAccessAllowsProBypass(t *testing.T) {
-	if !hasEkadashiCalendarAccess(models.User{GodModeEnabled: true}, models.RoleUser) {
-		t.Fatalf("god mode user should have ekadashi calendar access")
-	}
-	if !hasEkadashiCalendarAccess(models.User{CurrentPlan: "pro_monthly"}, models.RoleUser) {
-		t.Fatalf("pro plan user should have ekadashi calendar access")
-	}
-	if hasEkadashiCalendarAccess(models.User{CurrentPlan: "trial"}, models.RoleUser) {
-		t.Fatalf("trial user should not have ekadashi calendar access")
+	user := models.User{CurrentPlan: "pro"}
+	if !hasEkadashiCalendarAccess(user, models.RoleUser) {
+		t.Fatalf("expected pro plan bypass to allow calendar access")
 	}
 }
 
-func TestEkadashiServiceGetCalendarReturnsMonthDaysAndEvents(t *testing.T) {
+func TestEkadashiServiceGetCalendarReturnsDBMissingWithoutPublication(t *testing.T) {
 	service := &EkadashiService{}
-	result, err := service.GetCalendar(0, "devotee", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia")
+
+	response, err := service.GetCalendar(0, models.RoleDevotee, "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("get calendar: %v", err)
 	}
-	if result.Month != "2026-03" {
-		t.Fatalf("unexpected month: %s", result.Month)
+	if response.ProviderDecision.Mode != calendarProviderModeDBMissing {
+		t.Fatalf("expected db_missing, got %q", response.ProviderDecision.Mode)
 	}
-	if len(result.Days) == 0 {
-		t.Fatalf("expected ekadashi days")
+	if !isAcceptedDBMissingReason(response.ProviderDecision.Reason) {
+		t.Fatalf("unexpected db_missing reason: %q", response.ProviderDecision.Reason)
 	}
-	if len(result.Events) < len(result.Days) {
-		t.Fatalf("expected combined calendar events, got days=%d events=%d", len(result.Days), len(result.Events))
-	}
-	if result.Days[0].OrganizationID != "iskcon" {
-		t.Fatalf("unexpected org: %s", result.Days[0].OrganizationID)
-	}
-	if result.ProviderDecision.Mode == "" || result.ProviderDecision.Source == "" {
-		t.Fatalf("expected provider decision metadata, got %+v", result.ProviderDecision)
-	}
-	foundAppearance := false
-	for _, event := range result.Events {
-		if event.EventType == "appearance" {
-			foundAppearance = true
-			break
-		}
-	}
-	if !foundAppearance {
-		t.Fatalf("expected commemorative appearance event in month response")
+	if len(response.Events) != 0 || len(response.Days) != 0 {
+		t.Fatalf("expected no events or days without publication, got events=%d days=%d", len(response.Events), len(response.Days))
 	}
 }
 
-func TestEkadashiServiceGetDayIncludesProviderDecision(t *testing.T) {
+func TestEkadashiServiceGetDayReturnsDBMissingWithoutPublication(t *testing.T) {
 	service := &EkadashiService{}
-	result, err := service.GetDay(0, "devotee", "2026-03-14", "default_vaishnava", "Asia/Vladivostok", "", "Russia")
+
+	day, err := service.GetDay(0, models.RoleDevotee, "2026-03-15", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("get day: %v", err)
 	}
-	if result.ProviderDecision == nil {
-		t.Fatalf("expected provider decision metadata")
+	if day.ProviderDecision == nil {
+		t.Fatalf("expected provider decision")
 	}
-	if result.ProviderDecision.Mode != "fallback" {
-		t.Fatalf("expected fallback provider decision, got %+v", result.ProviderDecision)
+	if day.ProviderDecision.Mode != calendarProviderModeDBMissing {
+		t.Fatalf("expected db_missing, got %q", day.ProviderDecision.Mode)
 	}
-	if result.ProviderDecision.Reason != "no_live_source_configured" {
-		t.Fatalf("unexpected provider decision reason: %+v", result.ProviderDecision)
+	if !isAcceptedDBMissingReason(day.ProviderDecision.Reason) {
+		t.Fatalf("unexpected db_missing reason: %q", day.ProviderDecision.Reason)
 	}
 }
 
-func TestEkadashiServiceGetDayReturnsCommemorativeEvent(t *testing.T) {
-	service := &EkadashiService{}
-	result, err := service.GetDay(0, "devotee", "2026-03-06", "iskcon", "Asia/Kolkata", "Mayapur", "India")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestBuildCalendarScopeForISKCONIncludesCityAndTimezone(t *testing.T) {
+	org := resolveEkadashiOrganization("iskcon")
+
+	mode, scopeKey, location := buildCalendarScope(org, locationSnapshot{
+		TimeZone: "Asia/Vladivostok",
+		City:     "Khabarovsk",
+		Country:  "Russia",
+	})
+
+	if mode != calendarScopeModeLocation {
+		t.Fatalf("expected location scope, got %q", mode)
 	}
-	if result.EventType != "appearance" {
-		t.Fatalf("expected appearance event, got %s", result.EventType)
+	if scopeKey != "city:khabarovsk|tz:asia/vladivostok" {
+		t.Fatalf("unexpected scope key: %q", scopeKey)
 	}
-	if result.PersonSlug == "" {
-		t.Fatalf("expected commemorative person slug")
+	if location.City != "Khabarovsk" || location.TimeZone != "Asia/Vladivostok" {
+		t.Fatalf("unexpected normalized location: %+v", location)
+	}
+}
+
+func TestBuildCalendarScopeForGlobalOrganizationsUsesTimezoneScope(t *testing.T) {
+	org := resolveEkadashiOrganization("pure_bhakti")
+
+	mode, scopeKey, location := buildCalendarScope(org, locationSnapshot{
+		TimeZone: "Asia/Kolkata",
+		City:     "Mayapur",
+		Country:  "India",
+	})
+
+	if mode != calendarScopeModeTimezone {
+		t.Fatalf("expected timezone scope, got %q", mode)
+	}
+	if scopeKey != "tz:asia/kolkata" {
+		t.Fatalf("unexpected scope key: %q", scopeKey)
+	}
+	if location.TimeZone != "Asia/Kolkata" {
+		t.Fatalf("unexpected normalized timezone: %q", location.TimeZone)
+	}
+}
+
+func TestValidateImportedCalendarEventsRejectsEmpty(t *testing.T) {
+	err := validateImportedCalendarEvents(nil, []time.Time{time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)})
+	if err == nil {
+		t.Fatalf("expected validation error for empty import")
+	}
+}
+
+func TestDedupeCalendarEventsRemovesDuplicate(t *testing.T) {
+	events := []models.EkadashiDay{
+		{OrganizationID: "iskcon", Date: "2026-03-15", EventType: "ekadashi", PersonSlug: "", Title: "Papa Vimochani Ekadashi"},
+		{OrganizationID: "iskcon", Date: "2026-03-15", EventType: "ekadashi", PersonSlug: "", Title: "Papa Vimochani Ekadashi"},
+		{OrganizationID: "iskcon", Date: "2026-03-16", EventType: "appearance", PersonSlug: "bhaktivinoda-thakura", Title: "Appearance of Srila Bhaktivinoda Thakura"},
+	}
+
+	result := dedupeCalendarEvents(events)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 unique events, got %d", len(result))
 	}
 }
 
 func TestBuildEkadashiSequenceIncludesMarch2026(t *testing.T) {
-	from := mustParseDate(t, "2026-03-01")
-	to := mustParseDate(t, "2026-03-31")
-	dates := buildEkadashiSequence(from, to)
-	if len(dates) < 2 {
-		t.Fatalf("expected at least two ekadashi dates in month, got %d", len(dates))
-	}
-}
+	sequence := buildEkadashiSequence(
+		time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, time.March, 31, 0, 0, 0, 0, time.UTC),
+	)
 
-func mustParseDate(t *testing.T, value string) time.Time {
-	t.Helper()
-	parsed, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
+	if len(sequence) != 2 {
+		t.Fatalf("expected 2 ekadashi dates in March 2026, got %d", len(sequence))
 	}
-	return parsed
+	if sequence[0].Format("2006-01-02") != "2026-03-13" {
+		t.Fatalf("unexpected first ekadashi date: %s", sequence[0].Format("2006-01-02"))
+	}
+	if sequence[1].Format("2006-01-02") != "2026-03-28" {
+		t.Fatalf("unexpected second ekadashi date: %s", sequence[1].Format("2006-01-02"))
+	}
 }

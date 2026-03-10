@@ -95,6 +95,8 @@ func main() {
 	services.StartRoomNotificationScheduler()
 	// Start Ekadashi reminder scheduler
 	services.StartEkadashiReminderScheduler()
+	// Start Ekadashi import scheduler (nightly donor ingest -> DB publication)
+	services.StartEkadashiImportScheduler()
 	// Start Education Tutor retention scheduler (memory cleanup by retention policy)
 	services.StartEducationTutorRetentionScheduler()
 
@@ -599,6 +601,7 @@ func main() {
 	admin.Get("/push/health/yatra", adminHandler.GetYatraPushHealth)
 	admin.Get("/push/health/ekadashi", adminHandler.GetEkadashiHealth)
 	admin.Post("/ekadashi/refresh", adminHandler.RefreshEkadashiCalendar)
+	admin.Post("/ekadashi/refresh-all", adminHandler.RefreshAllEkadashiCalendars)
 	admin.Get("/platform/health", adminHandler.GetPlatformHealth)
 	admin.Get("/education/tutor/metrics", adminHandler.GetEducationTutorMetrics)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)

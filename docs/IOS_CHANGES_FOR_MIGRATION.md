@@ -14718,3 +14718,59 @@ func extractNodeText(node *xhtml.Node) string {
 ```go
 <p class='m3 text-start fs-5'><b>15</b>. (Sun) Krishna Ekadashi. Papa Vimochani <b>Ekadashi</b>. <b>Fast</b> .</p>
 ```
+
+## 2026-03-10 (Ekadashi runtime moved to published DB import model for shared mobile behavior)
+
+### Измененные файлы
+- `server/internal/models/calendar.go`
+- `server/internal/database/database.go`
+- `server/internal/services/ekadashi_import_service.go`
+- `server/internal/services/ekadashi_service.go`
+- `server/internal/services/ekadashi_reminder_scheduler_service.go`
+- `server/internal/handlers/admin_handler.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (что было -> что стало)
+- Было: mobile calendar screen/widget зависели от runtime backend-модели `live provider -> fallback`, а push-scheduler Экадаши и экран календаря могли читать разные источники. При деградации donor source пользователь видел notice вроде `Live-источник временно недоступен...`, даже если сама бизнес-логика календаря уже могла быть импортирована заранее.
+- Стало: backend переводится на `import -> normalize -> store -> publish -> serve`. Экран `/ekadashi/calendar`, `/ekadashi/day` и scheduler напоминаний читают только опубликованные данные из БД. Donor source нужен для import job, а не для runtime mobile-запросов. Это меняет shared mobile semantics источника данных: при наличии publication клиент не должен зависеть от доступности donor сайта.
+
+### Короткие сниппеты кода
+`server/internal/services/ekadashi_service.go`:
+```go
+func (s *EkadashiService) resolveMonthCalendar(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, []models.EkadashiDay, string, models.EkadashiProviderDecision) {
+	return NewCalendarImportService().LoadPublishedMonth(monthStart, org, locData)
+}
+```
+
+`server/internal/services/ekadashi_import_service.go`:
+```go
+const (
+	calendarProviderModeDBImported = "db_imported"
+	calendarProviderModeDBCurated  = "db_curated"
+	calendarProviderModeDBMissing  = "db_missing"
+)
+```
+
+`server/internal/services/ekadashi_reminder_scheduler_service.go`:
+```go
+day, err := s.ekadashi.GetDay(
+	pref.UserID,
+	models.RoleDevotee,
+	candidateDate.Format("2006-01-02"),
+	pref.OrganizationID,
+	locData.TimeZone,
+	locData.City,
+	locData.Country,
+)
+```
+
+`server/internal/handlers/admin_handler.go`:
+```go
+run, err := importService.ImportAndPublish(
+	organization.ID,
+	city,
+	timezone,
+	country,
+	24,
+)
+```

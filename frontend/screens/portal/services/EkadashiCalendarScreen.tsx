@@ -25,6 +25,7 @@ import {
     getCalendarEventLabelKey,
     getCalendarEventMarkerColor,
     getCalendarGridDays,
+    getEkadashiProviderDetailKey,
     getEkadashiProviderNoticeKey,
     resolveOrganizationOption,
 } from '../../../utils/ekadashiCalendar';
@@ -127,7 +128,7 @@ const EkadashiCalendarScreen: React.FC = () => {
             Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.ekadashiCalendar.alerts.loadFailed'));
             setEvents([]);
             setSelectedDate(null);
-            setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.liveUnavailable');
+            setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.dataUnavailable');
         } finally {
             setLoading(false);
         }
@@ -456,11 +457,11 @@ const EkadashiCalendarScreen: React.FC = () => {
                                 ) : null}
                                 <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.observanceNotes')}</Text>
                                 <Text style={[styles.notesText, { color: colors.textPrimary }]}>{event.notes || event.observanceNotes || t('portal.ekadashiCalendar.notAvailable')}</Text>
-                                {event.providerDecision?.mode === 'fallback' ? (
+                                {getEkadashiProviderDetailKey(event.providerDecision) ? (
                                     <>
                                         <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.dataSourceTitle')}</Text>
                                         <Text style={[styles.notesText, { color: colors.textPrimary }]}>
-                                            {t(getEkadashiProviderNoticeKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.fallbackActive')}
+                                            {t(getEkadashiProviderDetailKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.dbImported')}
                                         </Text>
                                     </>
                                 ) : null}

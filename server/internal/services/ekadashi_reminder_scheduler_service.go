@@ -126,14 +126,20 @@ func (s *EkadashiReminderSchedulerService) processPreference(pref models.Ekadash
 	}
 
 	for _, candidateDate := range candidateDates {
-		day := s.ekadashi.buildEventForDate(candidateDate.UTC(), locData, org)
+		day, err := s.ekadashi.GetDay(pref.UserID, models.RoleDevotee, candidateDate.Format("2006-01-02"), org.ID, locData.TimeZone, locData.City, locData.Country)
+		if err != nil {
+			return err
+		}
+		if day == nil || (!day.IsEkadashi && !day.IsMahadvadashi) {
+			continue
+		}
 		if pref.FastStartReminder {
-			if err := s.maybeDeliverReminder(pref, day, ekadashiReminderFastStart, day.FastStartAt, nowUTC); err != nil {
+			if err := s.maybeDeliverReminder(pref, *day, ekadashiReminderFastStart, day.FastStartAt, nowUTC); err != nil {
 				return err
 			}
 		}
 		if pref.ParanaReminder {
-			if err := s.maybeDeliverReminder(pref, day, ekadashiReminderParana, day.ParanaStartAt, nowUTC); err != nil {
+			if err := s.maybeDeliverReminder(pref, *day, ekadashiReminderParana, day.ParanaStartAt, nowUTC); err != nil {
 				return err
 			}
 		}

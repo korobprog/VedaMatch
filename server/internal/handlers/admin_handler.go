@@ -806,6 +806,15 @@ func (h *AdminHandler) GetEkadashiHealth(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load ekadashi reminder deliveries"})
 	}
+	importService := services.NewCalendarImportService()
+	publications, err := importService.ListPublicationStatuses(100)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load calendar publications"})
+	}
+	importRuns, err := importService.ListRecentImportRuns(50)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load calendar import runs"})
+	}
 
 	runtimeStatus := pushService.GetFCMRuntimeStatus()
 	return c.JSON(fiber.Map{
@@ -821,11 +830,14 @@ func (h *AdminHandler) GetEkadashiHealth(c *fiber.Ctx) error {
 			"PURE_BHAKTI":        loadEkadashiProviderStatus("PURE_BHAKTI"),
 			"DEFAULT_VAISHNAVA":  loadEkadashiProviderStatus("DEFAULT_VAISHNAVA"),
 		},
+		"publications":     publications,
+		"recentImportRuns": importRuns,
 		"scheduler": fiber.Map{
 			"enabled":            true,
-			"tickMinutes":        5,
+			"tickMinutes":        60,
 			"lookbackMinutes":    15,
 			"supportedReminders": []string{"fast_start", "parana"},
+			"nightlyImport":      true,
 		},
 	})
 }
@@ -843,8 +855,9 @@ func (h *AdminHandler) RefreshEkadashiCalendar(c *fiber.Ctx) error {
 	if organizationID == "" {
 		organizationID = "iskcon"
 	}
+	org := services.ResolveEkadashiOrganizationForAdmin(organizationID)
 	city := strings.TrimSpace(c.Query("city"))
-	if city == "" {
+	if org.ID == "iskcon" && city == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "city is required"})
 	}
 	timezone := strings.TrimSpace(c.Query("timezone"))
@@ -853,25 +866,86 @@ func (h *AdminHandler) RefreshEkadashiCalendar(c *fiber.Ctx) error {
 	}
 	country := strings.TrimSpace(c.Query("country"))
 
-	service := services.NewEkadashiService()
-	result, err := service.GetCalendar(0, models.RoleDevotee, month, organizationID, timezone, city, country)
+	importService := services.NewCalendarImportService()
+	run, err := importService.ImportAndPublish(organizationID, city, timezone, country, 24)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":          "Failed to refresh ekadashi calendar",
+			"error":          "Failed to import ekadashi calendar",
 			"providerStatus": loadEkadashiProviderStatus(strings.ToUpper(strings.TrimSpace(organizationID))),
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"message":          "Ekadashi refresh completed",
-		"month":            result.Month,
-		"generatedFrom":    result.GeneratedFrom,
-		"providerDecision": result.ProviderDecision,
-		"daysCount":        len(result.Days),
-		"organizationId":   organizationID,
-		"city":             city,
-		"timezone":         timezone,
-		"providerStatus":   loadEkadashiProviderStatus(strings.ToUpper(strings.TrimSpace(organizationID))),
+		"message":        "Ekadashi import and publication completed",
+		"month":          month,
+		"importVersion":  run.ImportVersion,
+		"status":         run.Status,
+		"rangeStart":     run.RangeStart,
+		"rangeEnd":       run.RangeEnd,
+		"importedCount":  run.ImportedCount,
+		"curatedCount":   run.CuratedCount,
+		"snapshotCount":  run.SnapshotCount,
+		"organizationId": organizationID,
+		"city":           city,
+		"timezone":       timezone,
+		"providerStatus": loadEkadashiProviderStatus(strings.ToUpper(strings.TrimSpace(organizationID))),
+	})
+}
+
+func (h *AdminHandler) RefreshAllEkadashiCalendars(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	city := strings.TrimSpace(c.Query("city"))
+	timezone := strings.TrimSpace(c.Query("timezone"))
+	if timezone == "" {
+		timezone = "Asia/Kolkata"
+	}
+	country := strings.TrimSpace(c.Query("country"))
+
+	importService := services.NewCalendarImportService()
+	results := make([]fiber.Map, 0, 4)
+	successCount := 0
+	failureCount := 0
+
+	for _, org := range services.ListEkadashiOrganizationsForAdmin() {
+		run, err := importService.ImportAndPublish(org.ID, city, timezone, country, 24)
+		if err != nil {
+			failureCount++
+			results = append(results, fiber.Map{
+				"organizationId": org.ID,
+				"organization":   org.Name,
+				"status":         "failed",
+				"error":          err.Error(),
+			})
+			continue
+		}
+
+		successCount++
+		results = append(results, fiber.Map{
+			"organizationId": org.ID,
+			"organization":   org.Name,
+			"status":         run.Status,
+			"importVersion":  run.ImportVersion,
+			"rangeStart":     run.RangeStart,
+			"rangeEnd":       run.RangeEnd,
+			"importedCount":  run.ImportedCount,
+			"curatedCount":   run.CuratedCount,
+			"snapshotCount":  run.SnapshotCount,
+			"city":           city,
+			"timezone":       timezone,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":      "Ekadashi batch import completed",
+		"timezone":     timezone,
+		"city":         city,
+		"country":      country,
+		"successCount": successCount,
+		"failureCount": failureCount,
+		"results":      results,
 	})
 }
 

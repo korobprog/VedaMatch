@@ -180,7 +180,25 @@ func (s *EkadashiService) GetDay(userID uint, role, date, organizationID, timezo
 		return &result, nil
 	}
 
-	day := s.normalizeCalendarEvent(s.buildEkadashiEventForDate(targetDate, locData, org), org, nil)
+	day := s.normalizeCalendarEvent(models.EkadashiDay{
+		Date:             targetDate.Format("2006-01-02"),
+		OrganizationID:   org.ID,
+		OrganizationName: org.Name,
+		Timezone:         locData.TimeZone,
+		City:             locData.City,
+		Country:          locData.Country,
+		Source:           "calendar_db",
+		SourceURL:        org.SourceURL,
+	}, org, nil)
+	day.EventType = ""
+	day.Title = ""
+	day.Subtitle = ""
+	day.Notes = ""
+	day.DisplayTitle = ""
+	day.DisplaySubtitle = ""
+	day.ObservanceNotes = ""
+	day.IsEkadashi = false
+	day.IsMahadvadashi = false
 	day.ProviderDecision = &providerDecision
 	return &day, nil
 }
@@ -285,6 +303,16 @@ func resolveEkadashiOrganization(id string) models.EkadashiOrganization {
 	return ekadashiOrganizations[0]
 }
 
+func ResolveEkadashiOrganizationForAdmin(id string) models.EkadashiOrganization {
+	return resolveEkadashiOrganization(id)
+}
+
+func ListEkadashiOrganizationsForAdmin() []models.EkadashiOrganization {
+	items := make([]models.EkadashiOrganization, len(ekadashiOrganizations))
+	copy(items, ekadashiOrganizations)
+	return items
+}
+
 func (s *EkadashiService) resolveLocation(userID uint, timezone, city, country string) locationSnapshot {
 	location := locationSnapshot{
 		TimeZone: strings.TrimSpace(timezone),
@@ -314,39 +342,7 @@ func (s *EkadashiService) resolveLocation(userID uint, timezone, city, country s
 }
 
 func (s *EkadashiService) resolveMonthCalendar(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, []models.EkadashiDay, string, models.EkadashiProviderDecision) {
-	ekadashiDays, generatedFrom, providerDecision := s.resolveMonthDays(monthStart, locData, org)
-	events := make([]models.EkadashiDay, 0, len(ekadashiDays)+4)
-	for _, event := range ekadashiDays {
-		normalized := s.normalizeCalendarEvent(event, org, &providerDecision)
-		events = append(events, normalized)
-	}
-	for _, event := range s.buildCommemorativeEvents(monthStart, locData, org) {
-		events = append(events, s.normalizeCalendarEvent(event, org, nil))
-	}
-
-	sort.Slice(events, func(i, j int) bool {
-		if events[i].Date != events[j].Date {
-			return events[i].Date < events[j].Date
-		}
-		if events[i].Priority != events[j].Priority {
-			return events[i].Priority < events[j].Priority
-		}
-		return events[i].Title < events[j].Title
-	})
-
-	days := make([]models.EkadashiDay, 0, len(ekadashiDays))
-	for _, event := range events {
-		if event.IsEkadashi || event.IsMahadvadashi {
-			days = append(days, event)
-		}
-	}
-
-	generatedSources := []string{generatedFrom}
-	if len(commemorativeEventsByOrganization[org.ID]) > 0 {
-		generatedSources = append(generatedSources, "curated_commemorations")
-	}
-
-	return events, days, strings.Join(generatedSources, " + "), providerDecision
+	return NewCalendarImportService().LoadPublishedMonth(monthStart, org, locData)
 }
 
 func (s *EkadashiService) resolveMonthDays(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, string, models.EkadashiProviderDecision) {

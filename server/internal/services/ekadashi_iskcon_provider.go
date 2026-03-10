@@ -39,44 +39,49 @@ var (
 )
 
 func fetchISKCONMonthCalendar(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, error) {
+	days, _, _, err := fetchISKCONMonthCalendarSnapshot(monthStart, locData, org)
+	return days, err
+}
+
+func fetchISKCONMonthCalendarSnapshot(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, string, string, error) {
 	citySlug := buildVaishnavaCalendarCitySlug(locData.City)
 	if citySlug == "" {
-		return nil, fmt.Errorf("empty city slug")
+		return nil, "", "", fmt.Errorf("empty city slug")
 	}
 
 	gaurabdaYear := monthStart.Year() - 1486
 	pageURL := fmt.Sprintf("https://vaishnavacalendar.org/%s/%d/en/", citySlug, gaurabdaYear)
 	cacheKey := fmt.Sprintf("%s:%s", monthStart.Format("2006-01"), pageURL)
 	if cached, ok := loadCachedISKCONMonth(cacheKey); ok {
-		return cached, nil
+		return cached, "", pageURL, nil
 	}
 
 	client := &http.Client{Timeout: 12 * time.Second}
 	resp, err := client.Get(pageURL)
 	if err != nil {
 		recordEkadashiProviderStatus("iskcon", pageURL, false, err.Error())
-		return nil, err
+		return nil, "", pageURL, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		recordEkadashiProviderStatus("iskcon", pageURL, false, fmt.Sprintf("unexpected status: %d", resp.StatusCode))
-		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return nil, "", pageURL, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		recordEkadashiProviderStatus("iskcon", pageURL, false, err.Error())
-		return nil, err
+		return nil, "", pageURL, err
 	}
 
 	days, err := parseISKCONHTMLMonth(string(body), monthStart, locData, org, pageURL)
 	if err != nil {
 		recordEkadashiProviderStatus("iskcon", pageURL, false, err.Error())
-		return nil, err
+		return nil, string(body), pageURL, err
 	}
 	if len(days) == 0 {
 		recordEkadashiProviderStatus("iskcon", pageURL, false, "no ekadashi days parsed")
-		return nil, fmt.Errorf("no ekadashi days parsed")
+		return nil, string(body), pageURL, fmt.Errorf("no ekadashi days parsed")
 	}
 
 	iskconProviderCache.Store(cacheKey, cachedISKCONMonth{
@@ -84,7 +89,7 @@ func fetchISKCONMonthCalendar(monthStart time.Time, locData locationSnapshot, or
 		days:      days,
 	})
 	recordEkadashiProviderStatus("iskcon", pageURL, true, "")
-	return days, nil
+	return days, string(body), pageURL, nil
 }
 
 func loadCachedISKCONMonth(cacheKey string) ([]models.EkadashiDay, bool) {

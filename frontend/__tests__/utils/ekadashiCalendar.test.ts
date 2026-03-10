@@ -1,4 +1,4 @@
-import { canAccessVedicCalendarRole, findCalendarEventsForCell, findEkadashiDayForCell, getCalendarGridDays, getEkadashiProviderNoticeKey } from '../../utils/ekadashiCalendar';
+import { canAccessVedicCalendarRole, findCalendarEventsForCell, findEkadashiDayForCell, getCalendarGridDays, getEkadashiProviderDetailKey, getEkadashiProviderNoticeKey } from '../../utils/ekadashiCalendar';
 
 describe('ekadashiCalendar utils', () => {
     it('builds calendar grid for monday-first layout', () => {
@@ -123,5 +123,30 @@ describe('ekadashiCalendar utils', () => {
             source: 'fallback_aggregator',
             reason: 'iskcon_live_fetch_failed: timeout',
         })).toBe('portal.ekadashiCalendar.providerNotices.liveUnavailable');
+    });
+
+    it('maps db provider modes to localized notice keys', () => {
+        expect(getEkadashiProviderNoticeKey({
+            mode: 'db_curated',
+            source: 'calendar_db',
+        })).toBe('portal.ekadashiCalendar.providerNotices.dbCurated');
+        expect(getEkadashiProviderNoticeKey({
+            mode: 'db_missing',
+            source: 'calendar_db',
+            reason: 'location_required',
+        })).toBe('portal.ekadashiCalendar.providerNotices.cityRequiredForImport');
+        expect(getEkadashiProviderNoticeKey({
+            mode: 'db_missing',
+            source: 'calendar_db',
+            reason: 'no_published_data',
+        })).toBe('portal.ekadashiCalendar.providerNotices.dbMissing');
+        expect(getEkadashiProviderNoticeKey({
+            mode: 'db_imported',
+            source: 'calendar_db',
+        })).toBeNull();
+        expect(getEkadashiProviderDetailKey({
+            mode: 'db_imported',
+            source: 'calendar_db',
+        })).toBe('portal.ekadashiCalendar.providerNotices.dbImported');
     });
 });

@@ -69,6 +69,8 @@ func Connect() {
 		&models.ChannelSmartPushPreference{},
 		&models.EkadashiPushPreference{},
 		&models.EkadashiReminderDelivery{},
+		&models.CalendarEvent{}, &models.CalendarImportRun{},
+		&models.CalendarSourceSnapshot{}, &models.CalendarPublication{},
 		&models.PreacherProfile{}, &models.PreacherProfileEvent{},
 		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
@@ -236,6 +238,13 @@ func Connect() {
 		WHERE type IN ('text', 'audio')`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_chat_transcribe_job_status_updated
 		ON chat_transcribe_job (status, updated_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_calendar_events_org_scope_date
+		ON calendar_events (organization_id, scope_key, date)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_calendar_events_pub_scope_date
+		ON calendar_events (publication_version, scope_key, date)`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_publications_active_scope
+		ON calendar_publications (organization_id, scope_key)
+		WHERE is_active = true AND deleted_at IS NULL`)
 
 	// Hot-path feed/news/services indexes.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_posts_status_published_created

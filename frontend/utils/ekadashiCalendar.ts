@@ -72,7 +72,26 @@ export const formatEkadashiDateTime = (value?: string | null, locale = 'en-US'):
 };
 
 export const getEkadashiProviderNoticeKey = (providerDecision?: EkadashiProviderDecision | null): string | null => {
-    if (!providerDecision || providerDecision.mode !== 'fallback') {
+    if (!providerDecision) {
+        return null;
+    }
+
+    if (providerDecision.mode === 'db_imported') {
+        return null;
+    }
+
+    if (providerDecision.mode === 'db_curated') {
+        return 'portal.ekadashiCalendar.providerNotices.dbCurated';
+    }
+
+    if (providerDecision.mode === 'db_missing') {
+        if (providerDecision.reason === 'location_required') {
+            return 'portal.ekadashiCalendar.providerNotices.cityRequiredForImport';
+        }
+        return 'portal.ekadashiCalendar.providerNotices.dbMissing';
+    }
+
+    if (providerDecision.mode !== 'fallback') {
         return null;
     }
 
@@ -87,6 +106,16 @@ export const getEkadashiProviderNoticeKey = (providerDecision?: EkadashiProvider
             }
             return 'portal.ekadashiCalendar.providerNotices.fallbackActive';
     }
+};
+
+export const getEkadashiProviderDetailKey = (providerDecision?: EkadashiProviderDecision | null): string | null => {
+    if (!providerDecision) {
+        return null;
+    }
+    if (providerDecision.mode === 'db_imported') {
+        return 'portal.ekadashiCalendar.providerNotices.dbImported';
+    }
+    return getEkadashiProviderNoticeKey(providerDecision);
 };
 
 export const getCalendarEventLabelKey = (eventType?: string | null): string => {

@@ -21,6 +21,7 @@ import {
     getCalendarEventLabelKey,
     getCalendarEventMarkerColor,
     getCalendarGridDays,
+    getEkadashiProviderDetailKey,
     getEkadashiProviderNoticeKey,
     resolveOrganizationOption,
 } from '../../utils/ekadashiCalendar';
@@ -131,7 +132,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                 console.warn('Failed to load calendar widget data:', error);
                 if (mounted) {
                     setCalendarEvents([]);
-                    setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.liveUnavailable');
+                    setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.dataUnavailable');
                 }
             }
         })();
@@ -318,9 +319,9 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                                         </>
                                     ) : null}
                                     <Text style={styles.modalNotes}>{event.notes || event.observanceNotes}</Text>
-                                    {event.providerDecision?.mode === 'fallback' ? (
+                                    {getEkadashiProviderDetailKey(event.providerDecision) ? (
                                         <Text style={styles.modalNotes}>
-                                            {t(getEkadashiProviderNoticeKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.fallbackActive')}
+                                            {t(getEkadashiProviderDetailKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.dbImported')}
                                         </Text>
                                     ) : null}
                                 </View>

@@ -2195,9 +2195,14 @@ export default {
             },
             providerNotices: {
                 cityRequiredForLive: 'Select a city to enable the live Ekadashi source for this organization.',
+                cityRequiredForImport: 'Select a city and timezone to publish the ISKCON calendar scope.',
                 noLiveSource: 'This organization currently uses the server fallback calendar.',
                 liveUnavailable: 'Live source is temporarily unavailable, so fallback calendar data is shown.',
                 fallbackActive: 'Fallback calendar data is shown for this month.',
+                dbImported: 'Published calendar data from the server database is being used.',
+                dbCurated: 'Curated commemorations from the published calendar database are being used.',
+                dbMissing: 'Published calendar data for this month is not available yet.',
+                dataUnavailable: 'Failed to load published calendar data.',
             },
             alerts: {
                 loadFailed: 'Failed to load calendar',

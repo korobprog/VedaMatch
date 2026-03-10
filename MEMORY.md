@@ -417,7 +417,18 @@
 - Для `Sri Chaitanya Math` и `Pure Bhakti` добавлен live provider через `gosai.com/calendar`; diagnostics теперь показывают статусы по нескольким provider keys (`ISKCON`, `SRI_CHAITANYA_MATH`, `PURE_BHAKTI`).
 - `default_vaishnava` пока остаётся на fallback-агрегаторе: для него в diagnostics явно пишется provider status `no_live_source_configured`, потому что стабильный публичный server-side формат `gcal.app` пока не найден.
 - Ответы ekadashi backend теперь возвращают `providerDecision` c `mode/source/reason`: это позволяет сразу видеть, был ли использован live provider или fallback, и почему произошла деградация (`city_required_for_iskcon_live_provider`, `*_live_fetch_failed`, `no_live_source_configured`).
+- Runtime календаря переведен на модель `published DB`: `/ekadashi/calendar`, `/ekadashi/day` и scheduler уведомлений должны читать опубликованные данные из БД, а не дергать donor source на пользовательском запросе.
+- Для календаря добавлены persist-модели `calendar_events`, `calendar_import_runs`, `calendar_source_snapshots`, `calendar_publications`; они автосоздаются через backend migration path.
+- Новый `CalendarImportService` делает `import -> validate -> publish`:
+  - donor HTML сохраняется как snapshot;
+  - `ekadashi/mahadvadashi` пишутся как imported events;
+  - `appearance/disappearance` добавляются как curated events;
+  - runtime читает только active publication по organization/scope.
+- `providerDecision` для DB-runtime теперь имеет устойчивые режимы `db_imported`, `db_curated`, `db_missing`; старую live/fallback-семантику нужно постепенно вычищать из mobile copy.
+- `ISKCON` сейчас location-scoped (`city + timezone`), остальные организации timezone-scoped; новая локация без публикации должна возвращать `db_missing`, пока nightly/manual import не выпустит publication.
+- `/api/admin/ekadashi/refresh` теперь запускает полноценный import+publish на 24 месяца вперед, а `/api/admin/push/health/ekadashi` должен показывать `publications` и `recentImportRuns` для операционной диагностики.
 - Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
+- После перехода на published DB мобильный notice о donor недоступности не должен показываться, если publication уже существует; пользователь должен видеть максимум нейтральную семантику источника данных.
 - `vaishnavacalendar.org` для `ISKCON` теперь нужно парсить по block-level HTML nodes (`h*`, `p`, `li`, `td`, `th`), а не по отдельным text tokens: upstream оборачивает день, `Ekadashi` и `Fast` в `<b>/<strong>`, и token-level tokenizer из-за этого разваливал строку на куски и давал ложный `iskcon_live_fetch_failed: no ekadashi days parsed`.
 - `frontend/screens/portal/PortalMainScreen.tsx` должен явно обрабатывать `navigate('EkadashiCalendar')` в `navigateResolvedScreen`; иначе тап по сервису `Календарь` в портале визуально ничего не делает, хотя `resolveServiceLaunch('ekadashi_calendar')` уже возвращает правильный route.
 - `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.

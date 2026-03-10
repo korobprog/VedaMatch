@@ -34,6 +34,7 @@ import {
     Coins,
     Waves,
     PhoneCall,
+    CalendarDays,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
@@ -49,6 +50,7 @@ const menuItems = [
     { icon: Waves, label: 'Feed Posts', path: '/feed-posts' },
     { icon: PieChart, label: 'Financials (P&L)', path: '/financials' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
+    { icon: CalendarDays, label: 'Calendar', path: '/calendar' },
     { icon: MapPin, label: 'Dhama', path: '/dhama' },
     { icon: MapPin, label: '  └ Collections', path: '/dhama/collections' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
@@ -112,6 +114,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/polza',
                 '/ai-prompts',
                 '/multimedia',
+                '/calendar',
                 '/dhama',
                 '/financials'
             ];

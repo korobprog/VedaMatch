@@ -18,37 +18,42 @@ var (
 )
 
 func fetchGosaiMonthCalendar(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, error) {
+	days, _, _, err := fetchGosaiMonthCalendarSnapshot(monthStart, locData, org)
+	return days, err
+}
+
+func fetchGosaiMonthCalendarSnapshot(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) ([]models.EkadashiDay, string, string, error) {
 	pageURL := "https://www.gosai.com/calendar/"
 	client := &http.Client{Timeout: 12 * time.Second}
 	resp, err := client.Get(pageURL)
 	if err != nil {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, err.Error())
-		return nil, err
+		return nil, "", pageURL, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, fmt.Sprintf("unexpected status: %d", resp.StatusCode))
-		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return nil, "", pageURL, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, err.Error())
-		return nil, err
+		return nil, "", pageURL, err
 	}
 
 	days, err := parseGosaiHTMLMonth(string(body), monthStart, locData, org, pageURL)
 	if err != nil {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, err.Error())
-		return nil, err
+		return nil, string(body), pageURL, err
 	}
 	if len(days) == 0 {
 		recordEkadashiProviderStatus(org.ID, pageURL, false, "no ekadashi days parsed")
-		return nil, fmt.Errorf("no ekadashi days parsed")
+		return nil, string(body), pageURL, fmt.Errorf("no ekadashi days parsed")
 	}
 
 	recordEkadashiProviderStatus(org.ID, pageURL, true, "")
-	return days, nil
+	return days, string(body), pageURL, nil
 }
 
 func parseGosaiHTMLMonth(rawHTML string, monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization, pageURL string) ([]models.EkadashiDay, error) {
