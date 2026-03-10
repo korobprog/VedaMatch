@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { useRoleTheme } from './hooks/useRoleTheme';
 
-const DRAWER_WIDTH = Dimensions.get('window').width * 0.58;
+const DRAWER_WIDTH = Dimensions.get('window').width * 0.75;
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -385,7 +385,6 @@ const styles = StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
     overlayTouch: { flex: 1 },
     drawer: {
-        flex: 1,
         height: '100%',
         backgroundColor: '#F2EFE6',
         shadowColor: 'rgba(0,0,0,1)',

@@ -39,6 +39,8 @@ import { ScreenScaffold } from '../components/theme/ScreenScaffold';
 import {
     createTelegramAuthSession,
     createVKAuthSession,
+    doesTelegramAuthCallbackStateMatch,
+    doesVKAuthCallbackStateMatch,
     finalizeTelegramSignIn,
     finalizeVKSignIn,
     isTelegramAuthCallbackUrl,
@@ -445,6 +447,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             if (!nextUrl || !isVKAuthCallbackUrl(nextUrl)) {
                 return;
             }
+            if (!doesVKAuthCallbackStateMatch(nextUrl, vkAuthState)) {
+                return;
+            }
             if (lastHandledVKCallbackRef.current === nextUrl) {
                 return;
             }
@@ -477,6 +482,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         const maybeHandleTelegramCallback = (url?: string | null) => {
             const nextUrl = String(url || '').trim();
             if (!nextUrl || !isTelegramAuthCallbackUrl(nextUrl)) {
+                return;
+            }
+            if (!doesTelegramAuthCallbackStateMatch(nextUrl, telegramAuthState)) {
                 return;
             }
             if (lastHandledTelegramCallbackRef.current === nextUrl) {

@@ -3,6 +3,8 @@ import {
   createTelegramLinkSession,
   createTelegramAuthSession,
   createVKAuthSession,
+  doesTelegramAuthCallbackStateMatch,
+  doesVKAuthCallbackStateMatch,
   finalizeTelegramLink,
   finalizeVKLink,
   finalizeTelegramSignIn,
@@ -313,6 +315,18 @@ describe('socialAuthService', () => {
     )).rejects.toThrow('VK_AUTH_ERROR:invalid_request:Security error');
   });
 
+  it('detects stale VK callback states before finalize is attempted', () => {
+    expect(doesVKAuthCallbackStateMatch(
+      'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=vk-state&device_id=vk-device-id',
+      'vk-state',
+    )).toBe(true);
+
+    expect(doesVKAuthCallbackStateMatch(
+      'vk54474353://vk.ru/blank.html?code=vk-auth-code&state=old-state&device_id=vk-device-id',
+      'vk-state',
+    )).toBe(false);
+  });
+
   it('starts Telegram mobile auth session via backend and returns launch url', async () => {
     (apiClient.post as jest.Mock).mockResolvedValue({
       data: {
@@ -381,6 +395,18 @@ describe('socialAuthService', () => {
         refreshToken: 'telegram-refresh',
       },
     });
+  });
+
+  it('detects stale Telegram callback states before finalize is attempted', () => {
+    expect(doesTelegramAuthCallbackStateMatch(
+      'vedamatch://auth/telegram/callback?state=telegram-state',
+      'telegram-state',
+    )).toBe(true);
+
+    expect(doesTelegramAuthCallbackStateMatch(
+      'vedamatch://auth/telegram/callback?state=old-telegram-state',
+      'telegram-state',
+    )).toBe(false);
   });
 
   it('retries Telegram mobile exchange when backend is temporarily not ready', async () => {

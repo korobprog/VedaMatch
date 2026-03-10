@@ -66,6 +66,14 @@
   - `multimedia` -> `MultimediaHub`
   - `shops` -> `MarketHome`
   - `services_catalog` -> `ServicesHome`
+- `chat` в portal-модели не должен открывать `PortalChatScreen` с комнатами:
+  - это AI assistant shortcut;
+  - корректный путь для `chat` это тот же assistant flow, что и у `services` (`handleNewChat()` + route `Chat`);
+  - старый embedded `chat` path внутри `PortalMainScreen` был архитектурным и продуктовым mismatch.
+- `ChatProvider` не должен тянуть не-критичные startup задачи в горячий путь первого рендера:
+  - чтение `chat_history` из `AsyncStorage` лучше откладывать через `InteractionManager.runAfterInteractions`;
+  - загрузку `ragService.getDomains()` тоже лучше откладывать после переходов;
+  - сохранение истории AI-чата в `AsyncStorage` лучше батчить и переносить после interactions, чтобы не добавлять лишнюю нагрузку в момент открытия assistant/portal.
 - Встроенный `activeTab` внутри `PortalMainScreen` стоит оставлять только для тех сервисов, где осознанно нужен единый portal-shell и нет main-thread freeze на возврате.
 - После выноса `Contacts` в отдельный stack screen сам `ContactsScreen` тоже потребовал Android fast-path:
   - явная back button внутри экрана обязательна, если route идет без native header;
@@ -94,9 +102,6 @@
   - `cafe`: длинный список карточек с изображениями, поиском и hero-layout;
   - `news`: feed с категориями, personalized state, subscriptions/favorites и infinite pagination;
   - `library`: blur/gradient cards и offline-book state, но риск ниже чем у multimedia/market/dating;
-- `chat` переносить осторожнее:
-  - там больше навигационного и realtime-state контекста, чем в каталожных сервисах;
-  - `rooms` уже вынесен в `RoomsHome`, но сам `chat` еще остается embedded внутри `PortalMainScreen`.
 - После выноса `rooms` в отдельный stack screen invite-flow тоже должен возвращать не в `Portal(initialTab='rooms')`, а в `RoomsHome`, иначе back из `RoomChat` снова упирается в тяжелый portal rerender.
 
 ## Portal Widgets
@@ -846,11 +851,13 @@
 - Причина: при частичной ошибке одного collector дефолтный режим может отдавать `500` на весь scrape; `ContinueOnError` сохраняет доступность `/metrics` и публикует ошибки в payload без полного падения endpoint.
 
 ## Portal Service UI
-- После выноса `ads` и `travel` в отдельные stack screen их больше не нужно поддерживать как visual special-case внутри `PortalMainScreen`.
-- После выноса `rooms` в отдельный stack screen отдельный непрозрачный service-header в `PortalMainScreen` нужен только для встроенного `chat`.
-- Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
+- После выноса `ads`, `travel`, `rooms` и остальных сервисов в отдельные stack screen их больше не нужно поддерживать как visual special-case внутри `PortalMainScreen`.
+- `chat` shortcut теперь тоже не должен открывать embedded service-shell: он идет прямо в assistant route `Chat`.
+- Для портальной сетки header остается прозрачным, система смены обоев портала не отключается.
 - iOS debug-предупреждение `RCTView has a shadow set but cannot calculate shadow efficiently` для back-кнопки в `PortalMainScreen` устраняется переносом `shadow*` с прозрачного `View` на `TouchableOpacity` с непрозрачным `backgroundColor`; shadow на внутреннем прозрачном icon-wrapper не использовать.
 - Для `frontend/components/portal/PortalIcon.tsx` на iOS shadow для иконок теперь разрешен только на непрозрачных поверхностях (`portalIconStyle === 'vedamatch' || 'solid'`); на glass/полупрозрачных режимах (`image`, `premium3d`, rgba-сurface) shadow отключается, чтобы убрать массовый warning `RCTView has a shadow set but cannot calculate shadow efficiently`.
+- Для двухколоночной сетки услуг в `frontend/screens/portal/services/ServicesHomeScreen.tsx` spacing должен задаваться через `columnWrapperStyle` с симметричными боковыми отступами и вертикальным зазором между рядами.
+- В `frontend/screens/portal/services/components/ServiceCard.tsx` ширина карточки должна считаться из `screenWidth - 2 * outerPadding - interColumnGap`; вертикальный gap для grid не держать в `marginBottom` самой карточки.
 
 ## Cafe List Performance
 - Экран `frontend/screens/portal/cafe/CafeListScreen.tsx` оптимизирован под меньший объем лишних ререндеров:
@@ -1151,6 +1158,7 @@
   - ширина уменьшена до `58%` экрана вместо широкого drawer;
   - из шапки убран быстрый вход в настройки, оставлен только edit-mode;
   - карточки истории, кнопка `Новый чат` и header уменьшены по высоте и отступам для более плотного списка.
+  - для реального half-width drawer нельзя оставлять `flex: 1` на контейнере самого drawer, иначе он растягивается на весь экран и съедает overlay-область для закрытия по тапу.
 - Фон чата отделен от portal-фона:
   - в `frontend/context/SettingsContext.tsx` добавлены отдельные chat keys (`chat_background*`, `chat_wallpaper_slides*`);
   - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
@@ -2148,6 +2156,19 @@
 - `noscript` fallback-счетчик (`https://mc.yandex.ru/watch/107021597`) добавлен в `<body>` того же layout.
 
 ## Portal UI Notes
+- После нового интерактивного входа через `LoginScreen` (`social` и `email/password`) портал должен один раз показывать full-screen boot overlay поверх `PortalMainScreen`, пока не готовы:
+  - `PortalLayoutContext.isLoading === false`,
+  - текущий portal background (для remote `http/https` через `Image.prefetch`, для color/gradient/local сразу ready),
+  - первый layout кадр портала.
+- Этот portal boot overlay не должен повторяться:
+  - при cold start с восстановленной сессией из storage;
+  - при обычной навигации внутри уже открытой авторизованной сессии;
+  - после возврата в портал из внутренних экранов.
+- Для этого в `UserContext` нужен одноразовый session-scoped флаг `shouldShowPortalBootLoader`, который:
+  - выставляется только в `login()`,
+  - сбрасывается после первого готового portal paint через `completePortalBootLoader()`,
+  - также сбрасывается на logout / clearLocalSession.
+- Иконки портала отдельно не прелоадятся: они локальные vector icons, поэтому критерием готовности считается layout/background, а не сетевой preload icon assets.
 - Экран `WidgetSelection` (`frontend/screens/portal/WidgetSelectionScreen.tsx`) приведен к визуалу главной портала:
   - верхняя шапка в портал-стиле (круглые кнопки, быстрые действия, круглая кнопка `LKM`, `BellButton`);
   - фон теперь рендерится тем же shared-слоем, что и на главном портале (`PortalBackgroundLayer`), включая slideshow/crossfade/fallback.
@@ -2602,6 +2623,5 @@
 
 - Map language priority fixed: app i18n language now overrides profile language, profile value is used only as fallback in MapGeoapifyScreen.
 
-- Added contacts.title localization key to ru/en/hi locale files so Contacts header no longer falls back to English default.
-
-- Added contacts.title key in ru/en/hi locales to prevent Contacts screen header fallback to English when Russian is active.
+- Added `contacts.title` localization key in `ru/en/hi` locales to prevent Contacts header fallback to English.
+- Added `common.got_it` in `ru/en/hi` locales so role modal CTA no longer falls back to English (`Got it`) when Russian/Hindi is active.

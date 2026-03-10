@@ -123,6 +123,7 @@ interface PortalGridProps {
     godModeEnabled?: boolean;
     activeMathLabel?: string;
     serviceBadges?: Record<string, number>;
+    onInitialLayoutReady?: () => void;
 }
 
 export const PortalGrid: React.FC<PortalGridProps> = ({
@@ -132,6 +133,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     godModeEnabled = false,
     activeMathLabel,
     serviceBadges = {},
+    onInitialLayoutReady,
 }) => {
     const { t } = useTranslation();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -188,6 +190,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const dockOffset = useRef<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
     const widgetNavLockRef = useRef(false);
     const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const initialLayoutNotifiedRef = useRef(false);
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => {
@@ -373,6 +376,15 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             });
         }
     }, [isAndroidPortalFastPath, isEditMode]);
+
+    const handleGridReadyLayout = useCallback(() => {
+        handleGridLayout();
+        if (initialLayoutNotifiedRef.current) {
+            return;
+        }
+        initialLayoutNotifiedRef.current = true;
+        onInitialLayoutReady?.();
+    }, [handleGridLayout, onInitialLayoutReady]);
 
     const handleDockLayout = useCallback(() => {
         if (isAndroidPortalFastPath && !isEditMode) {
@@ -673,7 +685,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     >
                         <View
                             ref={gridRef}
-                            onLayout={handleGridLayout}
+                            onLayout={handleGridReadyLayout}
                             style={styles.grid}
                         >
                             {itemRows.map((row, rowIndex) => (

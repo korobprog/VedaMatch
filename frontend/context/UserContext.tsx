@@ -47,10 +47,12 @@ interface UserContextType {
     user: UserProfile | null;
     isLoggedIn: boolean;
     isLoading: boolean;
+    shouldShowPortalBootLoader: boolean;
     roleDescriptor: PortalBlueprint | null;
     godModeFilters: MathFilter[];
     activeMathId: string | null;
     login: (profile: UserProfile, authPayload?: any) => Promise<void>;
+    completePortalBootLoader: () => void;
     logout: () => Promise<void>;
     deleteAccount: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
@@ -65,6 +67,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [shouldShowPortalBootLoader, setShouldShowPortalBootLoader] = useState(false);
     const [roleDescriptor, setRoleDescriptor] = useState<PortalBlueprint | null>(null);
     const [godModeFilters, setGodModeFilters] = useState<MathFilter[]>([]);
     const [activeMathId, setActiveMathId] = useState<string | null>(null);
@@ -72,6 +75,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const clearLocalSession = useCallback(async () => {
         setUser(null);
+        setShouldShowPortalBootLoader(false);
         setRoleDescriptor(null);
         setGodModeFilters([]);
         setActiveMathId(null);
@@ -222,8 +226,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log('[GoogleAuth] UserContext.login:mmkvSetUser:done');
         await AsyncStorage.setItem('user', JSON.stringify(profile));
         console.log('[GoogleAuth] UserContext.login:asyncStorageSetUser:done');
+        setShouldShowPortalBootLoader(true);
         setUser(profile);
         console.log('[GoogleAuth] UserContext.login:setUser:done');
+    }, []);
+
+    const completePortalBootLoader = useCallback(() => {
+        setShouldShowPortalBootLoader(false);
     }, []);
 
     const deleteAccount = useCallback(async () => {
@@ -259,10 +268,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             user,
             isLoggedIn: !!user,
             isLoading,
+            shouldShowPortalBootLoader,
             roleDescriptor,
             godModeFilters,
             activeMathId,
             login,
+            completePortalBootLoader,
             logout,
             deleteAccount,
             setTourCompleted,
@@ -274,10 +285,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         [
             user,
             isLoading,
+            shouldShowPortalBootLoader,
             roleDescriptor,
             godModeFilters,
             activeMathId,
             login,
+            completePortalBootLoader,
             logout,
             deleteAccount,
             setTourCompleted,

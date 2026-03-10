@@ -36,7 +36,9 @@ import {
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 44) / 2; // Adjusted for better spacing
+const GRID_HORIZONTAL_PADDING = 16;
+const GRID_GAP = 14;
+const CARD_WIDTH = (width - (GRID_HORIZONTAL_PADDING * 2) - GRID_GAP) / 2;
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -224,7 +226,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.08)',
         overflow: 'hidden',
-        marginBottom: 20,
         shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.2,

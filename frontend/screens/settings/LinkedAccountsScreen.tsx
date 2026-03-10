@@ -23,6 +23,8 @@ import type { RootStackParamList } from '../../types/navigation';
 import {
     createTelegramLinkSession,
     createVKAuthSession,
+    doesTelegramAuthCallbackStateMatch,
+    doesVKAuthCallbackStateMatch,
     finalizeTelegramLink,
     finalizeVKLink,
     getLinkedAuthProviders,
@@ -224,7 +226,12 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
 
         const maybeHandleVKCallback = (url?: string | null) => {
             const nextUrl = String(url || '').trim();
-            if (!nextUrl || !isVKAuthCallbackUrl(nextUrl) || lastHandledVKCallbackRef.current === nextUrl) {
+            if (
+                !nextUrl
+                || !isVKAuthCallbackUrl(nextUrl)
+                || !doesVKAuthCallbackStateMatch(nextUrl, vkAuthState)
+                || lastHandledVKCallbackRef.current === nextUrl
+            ) {
                 return;
             }
             lastHandledVKCallbackRef.current = nextUrl;
@@ -244,7 +251,12 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
 
         const maybeHandleTelegramCallback = (url?: string | null) => {
             const nextUrl = String(url || '').trim();
-            if (!nextUrl || !isTelegramAuthCallbackUrl(nextUrl) || lastHandledTelegramCallbackRef.current === nextUrl) {
+            if (
+                !nextUrl
+                || !isTelegramAuthCallbackUrl(nextUrl)
+                || !doesTelegramAuthCallbackStateMatch(nextUrl, telegramAuthState)
+                || lastHandledTelegramCallbackRef.current === nextUrl
+            ) {
                 return;
             }
             lastHandledTelegramCallbackRef.current = nextUrl;

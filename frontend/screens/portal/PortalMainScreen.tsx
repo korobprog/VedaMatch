@@ -10,6 +10,7 @@ import {
     Animated,
     AppState,
     BackHandler,
+    Image,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
@@ -39,6 +40,7 @@ import { PortalGrid } from '../../components/portal';
 import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
 import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
+import { SplashScreen } from '../../components/ui/SplashScreen';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
@@ -64,8 +66,16 @@ const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { handleNewChat } = useChat();
-    const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
-    const { isServiceVisible, getServiceMaintenanceMessage } = usePortalLayout();
+    const {
+        user,
+        roleDescriptor,
+        godModeFilters,
+        activeMathId,
+        setActiveMath,
+        shouldShowPortalBootLoader,
+        completePortalBootLoader,
+    } = useUser();
+    const { isServiceVisible, getServiceMaintenanceMessage, isLoading: isPortalLayoutLoading } = usePortalLayout();
     const {
         vTheme,
         isDarkMode,
@@ -97,10 +107,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+    const [isPortalBootOverlayVisible, setIsPortalBootOverlayVisible] = useState(false);
+    const [isPortalBackgroundReady, setIsPortalBackgroundReady] = useState(true);
+    const [isPortalFirstLayoutReady, setIsPortalFirstLayoutReady] = useState(false);
     const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const widgetNavLockRef = useRef(false);
     const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const portalBootFinishRequestedRef = useRef(false);
 
     const showServiceUnavailableAlert = useCallback((serviceId: string) => {
         const maintenanceMessage = getServiceMaintenanceMessage(serviceId);
@@ -209,6 +223,110 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const serviceHeaderBorderColor = shouldUseSolidServiceHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
     const giftAnim = useRef(new Animated.Value(1)).current;
+    const { effectiveBackground: portalBootBackground, effectiveBackgroundType: portalBootBackgroundType } = useMemo(
+        () => deriveEffectivePortalBackground(layerBackgroundType, layerBackground, layerActiveWallpaper, layerSlideshowEnabled),
+        [layerBackgroundType, layerBackground, layerActiveWallpaper, layerSlideshowEnabled],
+    );
+
+    const handlePortalFirstLayoutReady = useCallback(() => {
+        setIsPortalFirstLayoutReady(true);
+    }, []);
+
+    const finishPortalBootOverlay = useCallback(() => {
+        if (portalBootFinishRequestedRef.current) {
+            return;
+        }
+        portalBootFinishRequestedRef.current = true;
+        setIsPortalBootOverlayVisible(false);
+        completePortalBootLoader();
+    }, [completePortalBootLoader]);
+
+    useEffect(() => {
+        portalBootFinishRequestedRef.current = false;
+        if (!shouldShowPortalBootLoader) {
+            setIsPortalBootOverlayVisible(false);
+            setIsPortalBackgroundReady(true);
+            setIsPortalFirstLayoutReady(false);
+            return;
+        }
+
+        setIsPortalBootOverlayVisible(true);
+        setIsPortalFirstLayoutReady(false);
+    }, [shouldShowPortalBootLoader, user?.ID]);
+
+    useEffect(() => {
+        if (!shouldShowPortalBootLoader) {
+            setIsPortalBackgroundReady(true);
+            return;
+        }
+
+        const isRemoteBackground = (
+            portalBootBackgroundType === 'image'
+            && Boolean(portalBootBackground)
+            && /^https?:\/\//i.test(portalBootBackground)
+        );
+
+        if (!isRemoteBackground) {
+            setIsPortalBackgroundReady(true);
+            return;
+        }
+
+        let cancelled = false;
+        setIsPortalBackgroundReady(false);
+
+        Image.prefetch(portalBootBackground)
+            .catch(() => undefined)
+            .finally(() => {
+                if (!cancelled) {
+                    setIsPortalBackgroundReady(true);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [portalBootBackground, portalBootBackgroundType, shouldShowPortalBootLoader]);
+
+    useEffect(() => {
+        if (!shouldShowPortalBootLoader || !isPortalBootOverlayVisible) {
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            finishPortalBootOverlay();
+        }, 2000);
+
+        return () => {
+            clearTimeout(timeout);
+        };
+    }, [finishPortalBootOverlay, isPortalBootOverlayVisible, shouldShowPortalBootLoader]);
+
+    useEffect(() => {
+        if (!shouldShowPortalBootLoader || !isPortalBootOverlayVisible) {
+            return;
+        }
+        if (isPortalLayoutLoading || !isPortalBackgroundReady || !isPortalFirstLayoutReady) {
+            return;
+        }
+
+        let cancelled = false;
+        requestAnimationFrame(() => {
+            if (!cancelled) {
+                finishPortalBootOverlay();
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        finishPortalBootOverlay,
+        isPortalBackgroundReady,
+        isPortalBootOverlayVisible,
+        isPortalFirstLayoutReady,
+        isPortalLayoutLoading,
+        shouldShowPortalBootLoader,
+    ]);
 
     useEffect(() => {
         if (!androidVisualPolicy.allowGiftPulse || !isAppActive || activeTab !== null) {
@@ -516,6 +634,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     };
 
+    const renderPortalBootOverlay = () => {
+        if (!isPortalBootOverlayVisible) {
+            return null;
+        }
+        return (
+            <View pointerEvents="auto" style={styles.portalBootOverlay}>
+                <SplashScreen />
+            </View>
+        );
+    };
+
     // Show grid view if no active tab
     if (!activeTab) {
         return (
@@ -770,6 +899,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         godModeEnabled={!!user?.godModeEnabled}
                         activeMathLabel={godModeFilters.find((f) => f.mathId === activeMathId)?.mathName}
                         serviceBadges={{ support: supportUnreadCount }}
+                        onInitialLayoutReady={handlePortalFirstLayoutReady}
                     />
                 </View>
 
@@ -814,6 +944,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     }}
                 />
                 <NotificationPanel />
+                {renderPortalBootOverlay()}
                 </View>
                 </GestureDetector>
                 </ScreenScaffold>
@@ -941,10 +1072,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             )}
 
             {/* Content Area */}
-            <View style={styles.content}>
+            <View style={styles.content} onLayout={handlePortalFirstLayoutReady}>
                 {renderContent()}
             </View>
             <NotificationPanel />
+            {renderPortalBootOverlay()}
             </ScreenScaffold>
         </PortalBackgroundLayer>
     );
@@ -1004,6 +1136,10 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    portalBootOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 100,
     },
     gridContent: {
         flex: 1,

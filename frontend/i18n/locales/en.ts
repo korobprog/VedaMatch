@@ -10,6 +10,7 @@ export default {
         delete: 'Delete',
         edit: 'Edit',
         ok: 'OK',
+        got_it: 'Got it',
         loading: 'Loading...',
         confirm: 'Confirm',
         camera: 'Camera',

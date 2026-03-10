@@ -10,6 +10,7 @@ export default {
         "delete": "हटाएं",
         "edit": "संपादित करें",
         "ok": "ठीक है",
+        "got_it": "समझ गया",
         "loading": "लोड हो रहा है...",
         "confirm": "पुष्टि करें",
         "camera": "कैमरा",

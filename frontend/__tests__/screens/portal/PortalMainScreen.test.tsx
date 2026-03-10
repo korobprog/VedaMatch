@@ -175,6 +175,23 @@ describe('PortalMainScreen', () => {
         expect(navigation.navigate).toHaveBeenCalledWith('Chat');
     });
 
+    it('opens chat assistant for chat shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('chat');
+        });
+
+        expect(mockHandleNewChat).toHaveBeenCalledTimes(1);
+        expect(navigation.navigate).toHaveBeenCalledWith('Chat');
+    });
+
     it('opens services home screen for services_catalog shortcut', () => {
         const navigation = createNavigation();
         render(

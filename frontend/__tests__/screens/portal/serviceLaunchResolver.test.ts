@@ -1,6 +1,10 @@
 import { resolvePortalInitialTabLaunch, resolveServiceLaunch } from '../../../screens/portal/serviceLaunchResolver';
 
 describe('serviceLaunchResolver', () => {
+    it('routes chat shortcut to assistant chat', () => {
+        expect(resolveServiceLaunch('chat')).toEqual({ kind: 'assistant_chat' });
+    });
+
     it('routes services shortcut to assistant chat', () => {
         expect(resolveServiceLaunch('services')).toEqual({ kind: 'assistant_chat' });
     });

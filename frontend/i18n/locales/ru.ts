@@ -10,6 +10,7 @@ export default {
         delete: 'Удалить',
         edit: 'Изменить',
         ok: 'ОК',
+        got_it: 'Понятно',
         loading: 'Загрузка...',
         confirm: 'Подтверждение',
         camera: 'Камера',

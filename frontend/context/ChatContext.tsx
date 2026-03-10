@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, useRef, ReactNode, useEffect } from 'react';
-import { Alert } from 'react-native';
+import React, { createContext, useState, useContext, useRef, ReactNode, useEffect, useCallback } from 'react';
+import { Alert, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
@@ -118,14 +118,31 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { addListener } = useWebSocket();
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recordingStartedAtRef = useRef<number | null>(null);
+    const historyPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isFirstRun = useRef(true);
 
+    const persistChatHistory = useCallback((nextHistory: ChatHistory[]) => {
+        if (historyPersistTimeoutRef.current) {
+            clearTimeout(historyPersistTimeoutRef.current);
+        }
+
+        historyPersistTimeoutRef.current = setTimeout(() => {
+            InteractionManager.runAfterInteractions(() => {
+                AsyncStorage.setItem('chat_history', JSON.stringify(nextHistory))
+                    .catch((e) => console.error('Failed to persist chat history', e));
+            });
+        }, 120);
+    }, []);
+
     // Initial load
     useEffect(() => {
-        const init = async () => {
+        let isActive = true;
+        const task = InteractionManager.runAfterInteractions(async () => {
             try {
                 const savedHistory = await AsyncStorage.getItem('chat_history');
+                if (!isActive) return;
+
                 if (savedHistory && savedHistory !== 'undefined' && savedHistory !== 'null') {
                     const parsed = JSON.parse(savedHistory);
                     if (Array.isArray(parsed)) {
@@ -154,10 +171,21 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             } catch (e) {
                 console.error('Failed to load history', e);
             } finally {
-                isFirstRun.current = false;
+                if (isActive) {
+                    isFirstRun.current = false;
+                }
+            }
+        });
+
+        return () => {
+            isActive = false;
+            task.cancel();
+            isFirstRun.current = false;
+            if (historyPersistTimeoutRef.current) {
+                clearTimeout(historyPersistTimeoutRef.current);
+                historyPersistTimeoutRef.current = null;
             }
         };
-        init();
     }, [t]);
 
     useEffect(() => {
@@ -170,7 +198,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             };
         }
 
-        const loadRagDomains = async () => {
+        const task = InteractionManager.runAfterInteractions(async () => {
             try {
                 const domains = await ragService.getDomains();
                 if (!isMounted) return;
@@ -179,10 +207,10 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             } catch (error) {
                 console.warn('[RAG] Failed to load domains:', error);
             }
-        };
-        loadRagDomains();
+        });
         return () => {
             isMounted = false;
+            task.cancel();
         };
     }, [currentUser?.ID]);
 
@@ -255,16 +283,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
                 return updatedHistory;
             });
-            try {
-                await AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory));
-            } catch (e) {
-                console.error('Failed to save history', e);
-            }
+            persistChatHistory(updatedHistory);
         };
 
         const timer = setTimeout(saveMessages, 1000);
         return () => clearTimeout(timer);
-    }, [messages, currentChatId, recipientId, t]);
+    }, [messages, currentChatId, recipientId, t, persistChatHistory]);
 
     // Load P2P messages when recipient changes
     useEffect(() => {
@@ -704,8 +728,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setCurrentChatId(chatId);
         setHistory((prevHistory) => {
             const updatedHistory = [newChat, ...prevHistory];
-            AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory))
-                .catch((e) => console.error('Failed to save new chat history', e));
+            persistChatHistory(updatedHistory);
             return updatedHistory;
         });
         setRecipientId(null);
@@ -749,11 +772,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setHasOlderMessages(false);
             setIsLoadingOlderMessages(false);
         }
-        try {
-            await AsyncStorage.setItem('chat_history', JSON.stringify(updated));
-        } catch (e) {
-            console.error('Failed to delete history', e);
-        }
+        persistChatHistory(updated);
     };
 
     const deleteChats = async (ids: string[]) => {
@@ -778,11 +797,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setIsLoadingOlderMessages(false);
         }
 
-        try {
-            await AsyncStorage.setItem('chat_history', JSON.stringify(updated));
-        } catch (e) {
-            console.error('Failed to delete history', e);
-        }
+        persistChatHistory(updated);
     };
 
     const handleSendMedia = async (media: MediaFile) => {

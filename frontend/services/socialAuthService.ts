@@ -395,6 +395,51 @@ const parseTelegramCallbackState = (callbackUrl: string, expectedState?: string)
   return state;
 };
 
+const doesIncomingStateMatchExpectedState = (
+  incomingState: string,
+  expectedState?: string,
+  requireIncomingState = false,
+): boolean => {
+  const normalizedIncomingState = readConfigString(incomingState);
+  const normalizedExpectedState = readConfigString(expectedState);
+
+  if (requireIncomingState && !normalizedIncomingState) {
+    return false;
+  }
+
+  if (!normalizedExpectedState) {
+    return true;
+  }
+
+  if (!normalizedIncomingState) {
+    return !requireIncomingState;
+  }
+
+  return normalizedIncomingState === normalizedExpectedState;
+};
+
+export const doesVKAuthCallbackStateMatch = (
+  callbackUrl: string,
+  expectedState?: string,
+): boolean => {
+  if (!isVKCallbackUrl(callbackUrl)) {
+    return false;
+  }
+
+  return doesIncomingStateMatchExpectedState(parseQueryParam(callbackUrl, 'state'), expectedState, false);
+};
+
+export const doesTelegramAuthCallbackStateMatch = (
+  callbackUrl: string,
+  expectedState?: string,
+): boolean => {
+  if (!isTelegramCallbackUrl(callbackUrl)) {
+    return false;
+  }
+
+  return doesIncomingStateMatchExpectedState(parseQueryParam(callbackUrl, 'state'), expectedState, true);
+};
+
 const performVKAuthMutation = async (
   endpoint: '/auth/vk/login' | '/auth/vk/link',
   callbackUrl: string,

@@ -1,3 +1,41 @@
+## 2026-03-10 (Services grid spacing: add side gutters and inter-card gap)
+
+### Измененные файлы
+- `frontend/screens/portal/services/ServicesHomeScreen.tsx`
+- `frontend/screens/portal/services/components/ServiceCard.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - двухколоночная сетка услуг рендерилась без `columnWrapperStyle`;
+  - карточки визуально прижимались друг к другу и к краям экрана;
+  - вертикальный зазор частично задавался `marginBottom` самой карточки, из-за чего spacing был несимметричным.
+- Стало:
+  - в `ServicesHomeScreen` добавлен `columnWrapperStyle` с `paddingHorizontal: 16` и `marginBottom: 18`;
+  - ширина `ServiceCard` пересчитана от реальных внешних полей и межколоночного зазора;
+  - `marginBottom` убран из самой grid-карточки, чтобы расстояния задавались уровнем списка и выглядели ровно со всех сторон.
+
+### Сниппеты кода
+
+`frontend/screens/portal/services/ServicesHomeScreen.tsx`:
+```tsx
+columnWrapperStyle={!isAndroidReducedEffects ? styles.gridRow : undefined}
+```
+
+```tsx
+gridRow: {
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  marginBottom: 18,
+}
+```
+
+`frontend/screens/portal/services/components/ServiceCard.tsx`:
+```tsx
+const GRID_HORIZONTAL_PADDING = 16;
+const GRID_GAP = 14;
+const CARD_WIDTH = (width - (GRID_HORIZONTAL_PADDING * 2) - GRID_GAP) / 2;
+```
+
 ## 2026-03-08 (Portal service visibility control added to shared mobile portal runtime)
 
 ### Измененные файлы
@@ -3823,7 +3861,8 @@ const historyColors = React.useMemo(() => ({
 - Стало:
   - ширина drawer уменьшена до `58%` экрана;
   - из header удален shortcut в настройки, оставлен только toggle edit-mode;
-  - header, CTA `Новый чат` и элементы списка истории уплотнены под более компактный mobile layout.
+  - header, CTA `Новый чат` и элементы списка истории уплотнены под более компактный mobile layout;
+  - у drawer убран `flex: 1`, чтобы справа оставалась overlay-область и tap-outside снова закрывал историю и возвращал пользователя в чат.
 
 ### Сниппеты кода
 
@@ -13591,4 +13630,99 @@ navigation.reset({
     { name: 'RoomChat', params: { roomId: joinedRoomID, roomName: joinedRoomName } },
   ],
 });
+```
+
+## 2026-03-10 (Portal chat shortcut aligned with assistant flow)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - portal shortcut `chat` открывал embedded `PortalChatScreen`, который фактически показывал комнаты;
+  - это не совпадало с продуктовым смыслом `chat` как AI assistant shortcut и держало лишний embedded path в `PortalMainScreen`.
+- Стало:
+  - `chat` теперь резолвится в `assistant_chat`, как и `services`;
+  - `PortalMainScreen` больше не рендерит embedded `chat` tab;
+  - тур/shortcut `chat` теперь всегда открывает route `Chat`, а не screen комнат.
+
+### Короткий сниппет
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```tsx
+if (serviceId === 'chat') {
+  return { kind: 'assistant_chat' };
+}
+```
+
+## 2026-03-10 (Deferred ChatContext startup work)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `ChatProvider` на старте сразу читал `chat_history` из `AsyncStorage`;
+  - сразу же выполнял `ragService.getDomains()`;
+  - сохранение AI chat history писалось в storage прямо в горячем path открытия assistant/new chat.
+- Стало:
+  - первичное чтение `chat_history` и загрузка RAG domains перенесены в `InteractionManager.runAfterInteractions`;
+  - запись истории теперь батчится через `persistChatHistory()` и тоже откладывается до завершения текущих UI interactions;
+  - это снижает конкуренцию за main-thread/bridge в момент входа на портал и первого открытия assistant.
+
+### Короткий сниппет
+
+`frontend/context/ChatContext.tsx`:
+```tsx
+const task = InteractionManager.runAfterInteractions(async () => {
+  const savedHistory = await AsyncStorage.getItem('chat_history');
+  ...
+});
+
+const persistChatHistory = useCallback((nextHistory: ChatHistory[]) => {
+  historyPersistTimeoutRef.current = setTimeout(() => {
+    InteractionManager.runAfterInteractions(() => {
+      AsyncStorage.setItem('chat_history', JSON.stringify(nextHistory));
+    });
+  }, 120);
+}, []);
+```
+
+## 2026-03-10 (One-shot portal boot loader after interactive login)
+
+### Измененные файлы
+- `frontend/context/UserContext.tsx`
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после нового login пользователь сразу видел `PortalMainScreen`, пока `PortalLayoutProvider` еще догружал layout/visibility;
+  - при remote wallpaper первый кадр портала мог появляться раньше прогрева background;
+  - портал не имел отдельного session-scoped gate между `login()` и первым готовым paint.
+- Стало:
+  - `UserContext` хранит одноразовый флаг `shouldShowPortalBootLoader`, который ставится только при новом `login()` и сбрасывается после первого готового portal paint;
+  - `PortalMainScreen` монтирует портал сразу, но держит поверх full-screen `SplashScreen` overlay, пока не готовы layout, background и первый layout кадр;
+  - `PortalGrid` отдает одноразовый `onInitialLayoutReady`, чтобы overlay снимался после реального первого layout, а не только после auth-state change;
+  - добавлен fail-safe timeout `2000ms`, чтобы loader не зависал при ошибке preload background.
+
+### Короткие сниппеты кода
+
+`frontend/context/UserContext.tsx`:
+```tsx
+const [shouldShowPortalBootLoader, setShouldShowPortalBootLoader] = useState(false);
+
+const completePortalBootLoader = useCallback(() => {
+  setShouldShowPortalBootLoader(false);
+}, []);
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+if (portalBootBackgroundType === 'image' && /^https?:\/\//i.test(portalBootBackground)) {
+  Image.prefetch(portalBootBackground).catch(() => undefined).finally(() => {
+    setIsPortalBackgroundReady(true);
+  });
+}
 ```

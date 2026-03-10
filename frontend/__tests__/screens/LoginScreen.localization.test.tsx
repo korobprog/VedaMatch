@@ -53,6 +53,12 @@ jest.mock('../../services/socialAuthService', () => ({
   finalizeVKSignIn: (...args: any[]) => mockFinalizeVKSignIn(...args),
   createTelegramAuthSession: (...args: any[]) => mockCreateTelegramAuthSession(...args),
   finalizeTelegramSignIn: (...args: any[]) => mockFinalizeTelegramSignIn(...args),
+  doesVKAuthCallbackStateMatch: (url: string, expectedState?: string) => (
+    !expectedState || url.includes(`state=${expectedState}`)
+  ),
+  doesTelegramAuthCallbackStateMatch: (url: string, expectedState?: string) => (
+    Boolean(expectedState) && url.includes(`state=${expectedState}`)
+  ),
   isVKAuthCallbackUrl: (url: string) => (
     url.startsWith('https://oauth.vk.com/blank.html')
     || url.startsWith('vk54474353://vk.ru/blank.html')
@@ -208,6 +214,47 @@ describe('LoginScreen localization and social auth', () => {
     });
   });
 
+  it('ignores stale VK initial callback url from the previous attempt and waits for the fresh state', async () => {
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(
+      'vk54474353://vk.ru/blank.html?code=old-code&state=old-state&device_id=vk-device-id',
+    );
+    mockCreateVKAuthSession.mockReturnValue({
+      authorizeUrl: 'https://oauth.vk.com/authorize?state=fresh-state',
+      state: 'fresh-state',
+      presentation: 'external',
+    });
+    mockFinalizeVKSignIn.mockResolvedValue({
+      user: { ID: 28, email: 'vk-fresh@example.com' },
+      authPayload: { accessToken: 'vk-fresh-token' },
+    });
+
+    const screen = render(<LoginScreen navigation={navigation} route={route} />);
+    fireEvent.press(screen.getByText('VK'));
+
+    await waitFor(() => {
+      expect(linkingOpenURLSpy).toHaveBeenCalledWith('https://oauth.vk.com/authorize?state=fresh-state');
+    });
+
+    expect(mockFinalizeVKSignIn).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vkUrlListeners.forEach((listener) => {
+        listener({ url: 'vk54474353://vk.ru/blank.html?code=fresh-code&state=fresh-state&device_id=vk-device-id' });
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockFinalizeVKSignIn).toHaveBeenCalledWith(
+        'vk54474353://vk.ru/blank.html?code=fresh-code&state=fresh-state&device_id=vk-device-id',
+        'fresh-state',
+      );
+      expect(mockLogin).toHaveBeenCalledWith(
+        { ID: 28, email: 'vk-fresh@example.com' },
+        { accessToken: 'vk-fresh-token' },
+      );
+    });
+  });
+
   it('falls back to VK modal on Android when external launch fails and completes login from modal callback', async () => {
     linkingOpenURLSpy.mockRejectedValueOnce(new Error('No activity found to handle VK auth'));
     mockFinalizeVKSignIn.mockResolvedValue({
@@ -265,6 +312,46 @@ describe('LoginScreen localization and social auth', () => {
       expect(mockLogin).toHaveBeenCalledWith(
         { ID: 10, email: 'telegram@example.com' },
         { accessToken: 'telegram-token' },
+      );
+    });
+  });
+
+  it('ignores stale Telegram initial callback url from the previous attempt and waits for the fresh state', async () => {
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(
+      'vedamatch://auth/telegram/callback?state=old-telegram-state',
+    );
+    mockCreateTelegramAuthSession.mockResolvedValue({
+      state: 'fresh-telegram-state',
+      launchUrl: 'https://t.me/vedamatch_bot?startapp=vm_auth_fresh-telegram-state',
+    });
+    mockFinalizeTelegramSignIn.mockResolvedValue({
+      user: { ID: 29, email: 'telegram-fresh@example.com' },
+      authPayload: { accessToken: 'telegram-fresh-token' },
+    });
+
+    const screen = render(<LoginScreen navigation={navigation} route={route} />);
+    fireEvent.press(screen.getByText('Telegram'));
+
+    await waitFor(() => {
+      expect(linkingOpenURLSpy).toHaveBeenCalledWith('https://t.me/vedamatch_bot?startapp=vm_auth_fresh-telegram-state');
+    });
+
+    expect(mockFinalizeTelegramSignIn).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vkUrlListeners.forEach((listener) => {
+        listener({ url: 'vedamatch://auth/telegram/callback?state=fresh-telegram-state' });
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockFinalizeTelegramSignIn).toHaveBeenCalledWith(
+        'vedamatch://auth/telegram/callback?state=fresh-telegram-state',
+        'fresh-telegram-state',
+      );
+      expect(mockLogin).toHaveBeenCalledWith(
+        { ID: 29, email: 'telegram-fresh@example.com' },
+        { accessToken: 'telegram-fresh-token' },
       );
     });
   });

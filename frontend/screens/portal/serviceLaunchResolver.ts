@@ -1,7 +1,6 @@
 import { PortalInitialTab, RootStackParamList } from '../../types/navigation';
 
 export type EmbeddedPortalTab =
-    | 'chat'
     | 'services';
 
 export type ServiceLaunchResolution =
@@ -12,11 +11,14 @@ export type ServiceLaunchResolution =
     | { kind: 'unsupported' };
 
 export const EMBEDDED_PORTAL_TABS = new Set<EmbeddedPortalTab>([
-    'chat',
     'services',
 ]);
 
 export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution => {
+    if (serviceId === 'chat') {
+        return { kind: 'assistant_chat' };
+    }
+
     if (serviceId === 'services') {
         return { kind: 'assistant_chat' };
     }

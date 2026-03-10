@@ -434,6 +434,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         numColumns={isAndroidReducedEffects ? 1 : 2}
                         key={isAndroidReducedEffects ? 'services-flat-1col' : 'services-grid-2col'}
                         contentContainerStyle={styles.listContent}
+                        columnWrapperStyle={!isAndroidReducedEffects ? styles.gridRow : undefined}
                         ListHeaderComponent={renderHeader}
                         refreshControl={
                             <RefreshControl
@@ -674,11 +675,13 @@ const styles = StyleSheet.create({
     activeCategoryLabel: {
         color: 'rgba(245,158,11,1)',
     },
-    row: {
+    gridRow: {
         justifyContent: 'space-between',
-        paddingHorizontal: 18,
+        paddingHorizontal: 16,
+        marginBottom: 18,
     },
     listContent: {
+        paddingHorizontal: 0,
         paddingBottom: 40,
     },
     loaderContainer: {
