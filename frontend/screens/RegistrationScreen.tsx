@@ -142,6 +142,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
+    const [isRoleCarouselInteracting, setIsRoleCarouselInteracting] = useState(false);
     const isMountedRef = useRef(true);
     const latestSubmitRequestRef = useRef(0);
     const latestDetectRequestRef = useRef(0);
@@ -578,6 +579,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             )}
                         </View>
                         <ScrollView
+                            scrollEnabled={!isRoleCarouselInteracting}
                             contentContainerStyle={styles.content}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
@@ -634,6 +636,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     <RoleSelectionSection
                                         selectedRole={role}
                                         onSelectRole={setRole}
+                                        onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
                                     />
 
                                     <View style={styles.switchRow}>

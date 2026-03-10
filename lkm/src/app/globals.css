@@ -165,6 +165,13 @@ code {
   margin-top: 18px;
 }
 
+.hero-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
 .hero-action-link {
   display: inline-flex;
   align-items: center;
@@ -172,6 +179,26 @@ code {
   border-radius: var(--radius-md);
   padding: 10px 16px;
   font-weight: 600;
+}
+
+.hero-language-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #F9FAFB;
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.hero-language-picker select {
+  min-width: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(17, 24, 39, 0.7);
+  color: #FFFFFF;
+  padding: 8px 10px;
 }
 
 .grid-two {
@@ -269,6 +296,46 @@ code {
 .stack {
   display: grid;
   gap: 16px;
+}
+
+.wallet-pro-preview {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.wallet-pro-preview-header {
+  display: grid;
+  gap: 4px;
+}
+
+.wallet-pro-preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.wallet-pro-preview-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.wallet-pro-preview-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wallet-pro-preview-name {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 label {
@@ -792,6 +859,15 @@ button.secondary:hover:not(:disabled) {
     align-items: stretch;
   }
 
+  .hero-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-language-picker {
+    justify-content: space-between;
+  }
+
   .tariffs-language-select {
     justify-content: space-between;
   }
@@ -808,6 +884,11 @@ button.secondary:hover:not(:disabled) {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .wallet-pro-preview-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .history-meta {

@@ -3,22 +3,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { render, waitFor } from '@testing-library/react-native';
 import { RoomInviteEntryScreen } from '../../../../screens/portal/chat/RoomInviteEntryScreen';
 
-const mockAuthorizedFetch = jest.fn();
+const mockPost = jest.fn();
 const mockUseUser = jest.fn();
 
-jest.mock('../../../../services/authSessionService', () => ({
-  authorizedFetch: (...args: any[]) => mockAuthorizedFetch(...args),
+jest.mock('../../../../lib/apiClient', () => ({
+  __esModule: true,
+  default: {
+    post: (...args: any[]) => mockPost(...args),
+  },
 }));
 
 jest.mock('../../../../context/UserContext', () => ({
   useUser: () => mockUseUser(),
 }));
 
-const jsonResponse = (body: any, status = 200) => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: jest.fn().mockResolvedValue(body),
-});
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    i18n: { language: 'en' },
+  }),
+}));
 
 describe('RoomInviteEntryScreen', () => {
   beforeEach(() => {
@@ -45,10 +48,12 @@ describe('RoomInviteEntryScreen', () => {
 
   it('joins by token and navigates to RoomChat when authenticated', async () => {
     mockUseUser.mockReturnValue({ isLoggedIn: true });
-    mockAuthorizedFetch.mockResolvedValueOnce(jsonResponse({
-      roomId: 12,
-      roomName: 'Bhakti room',
-    }));
+    mockPost.mockResolvedValueOnce({
+      data: {
+        roomId: 12,
+        roomName: 'Bhakti room',
+      },
+    });
 
     const navigation = {
       replace: jest.fn(),
@@ -61,19 +66,13 @@ describe('RoomInviteEntryScreen', () => {
     render(<RoomInviteEntryScreen navigation={navigation} route={route} />);
 
     await waitFor(() => {
-      expect(mockAuthorizedFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/rooms/join-by-token'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ token: 'join-token' }),
-        }),
-      );
+      expect(mockPost).toHaveBeenCalledWith('/rooms/join-by-token', { token: 'join-token' });
     });
 
     expect(navigation.reset).toHaveBeenCalledWith({
       index: 1,
       routes: [
-        { name: 'Portal', params: { initialTab: 'rooms' } },
+        { name: 'RoomsHome' },
         { name: 'RoomChat', params: { roomId: 12, roomName: 'Bhakti room' } },
       ],
     });

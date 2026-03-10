@@ -106,6 +106,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
+    const [isRoleCarouselInteracting, setIsRoleCarouselInteracting] = useState(false);
     // const [openTimePicker, setOpenTimePicker] = useState(false);
     const isMountedRef = useRef(true);
     const latestLoadRequestRef = useRef(0);
@@ -529,6 +530,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 styles.content,
                                 { paddingBottom: Math.max(insets.bottom + 140, 180) },
                             ]}
+                            scrollEnabled={!isRoleCarouselInteracting}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="always"
                             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -539,6 +541,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 selectedRole={role}
                                 onSelectRole={setRole}
                                 autoOpenHint={!user?.isProfileComplete}
+                                onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
                             />
 
                             <View style={styles.proCard}>

@@ -31,6 +31,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { ReferralRulesModal } from '../../../components/wallet/ReferralRulesModal';
+import { useTranslation } from 'react-i18next';
 import {
     ReferralInfo,
     ReferralStats,
@@ -42,6 +43,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function InviteFriendsScreen({ navigation }: any) {
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation();
     const [sharingImage, setSharingImage] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showRules, setShowRules] = useState(false);
@@ -51,7 +53,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
     const overviewQuery = useReferralOverviewQuery(50);
     const loading = overviewQuery.isLoading;
     const refreshing = overviewQuery.isRefetching && !overviewQuery.isLoading;
-    const error = overviewQuery.error ? 'Failed to load data' : null;
+    const error = overviewQuery.error ? t('referralScreen.loadError') : null;
     const inviteData: InviteData | null = overviewQuery.data?.invite || null;
     const stats: ReferralStats | null = overviewQuery.data?.stats || null;
     const referrals: ReferralInfo[] = overviewQuery.data?.referrals || [];
@@ -84,13 +86,13 @@ export default function InviteFriendsScreen({ navigation }: any) {
         if (!inviteData) return;
         try {
             const safeShareMessage = [
-                'Join VedaMatch with my invite code.',
-                `Code: ${inviteData.inviteCode}`,
-                'Get bonus LKM for activity in the app.',
+                t('referralScreen.shareMessageLine1'),
+                t('referralScreen.shareMessageCode', { code: inviteData.inviteCode }),
+                t('referralScreen.shareMessageLine3'),
             ].join('\n');
 
             await Share.open({
-                title: 'Invite to VedaMatch',
+                title: t('referralScreen.shareTitle'),
                 message: safeShareMessage,
                 url: inviteData.webLink,
             });
@@ -113,7 +115,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
             });
 
             await Share.open({
-                title: 'My Sangha',
+                title: t('referralScreen.shareImageTitle'),
                 url: uri,
                 type: 'image/png',
             });
@@ -137,7 +139,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 </View>
                 <View style={styles.referralInfo}>
                     <Text style={styles.referralName}>{item.name}</Text>
-                    <Text style={styles.referralDate}>Joined: {item.joinedAt}</Text>
+                    <Text style={styles.referralDate}>{t('referralScreen.joinedLabel', { date: item.joinedAt })}</Text>
                 </View>
                 <View style={[styles.statusBadge, isActive ? styles.activeBadge : styles.pendingBadge]}>
                     {isActive ? (
@@ -146,7 +148,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                         <Clock size={12} color="#9CA3AF" />
                     )}
                     <Text style={[styles.statusText, isActive ? styles.activeText : styles.pendingText]}>
-                        {isActive ? '+100' : 'Pending'}
+                        {isActive ? '+100' : t('referralScreen.pending')}
                     </Text>
                 </View>
             </View>
@@ -171,7 +173,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     }}
                     style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
                 >
-                    <Text style={{ color: '#FFF' }}>Retry</Text>
+                    <Text style={{ color: '#FFF' }}>{t('referralScreen.retry')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -192,7 +194,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 >
                     <ArrowLeft color="#FFF" size={24} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Sangha</Text>
+                <Text style={styles.headerTitle}>{t('referralScreen.title')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -211,16 +213,16 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 >
                     <View style={styles.heroContent}>
                         <Gift size={32} color="#FFF" />
-                        <Text style={styles.heroTitle}>Invite friends</Text>
+                        <Text style={styles.heroTitle}>{t('referralScreen.heroTitle')}</Text>
                         <Text style={styles.heroSubtitle}>
-                            Get bonus LKM for every active friend!
+                            {t('referralScreen.heroSubtitle')}
                         </Text>
                     </View>
                 </LinearGradient>
 
                 {/* QR Code Card */}
                 <View style={styles.qrCard}>
-                    <Text style={styles.sectionTitle}>Your QR code</Text>
+                    <Text style={styles.sectionTitle}>{t('referralScreen.qrTitle')}</Text>
                     <View style={styles.qrContainer}>
                         {inviteData && (
                             <QRCode
@@ -231,12 +233,12 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             />
                         )}
                     </View>
-                    <Text style={styles.qrHint}>Show it to friends to scan</Text>
+                    <Text style={styles.qrHint}>{t('referralScreen.qrHint')}</Text>
                 </View>
 
                 {/* Invite Code */}
                 <View style={styles.codeCard}>
-                    <Text style={styles.codeLabel}>Your invite code</Text>
+                    <Text style={styles.codeLabel}>{t('referralScreen.inviteCodeTitle')}</Text>
                     <View style={styles.codeRow}>
                         <Text style={styles.codeText}>{inviteData?.inviteCode || '...'}</Text>
                         <TouchableOpacity onPress={handleCopyCode} style={styles.copyButton}>
@@ -258,7 +260,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             style={styles.shareGradient}
                         >
                             <Share2 size={20} color="#FFF" />
-                            <Text style={styles.shareButtonText}>Link</Text>
+                            <Text style={styles.shareButtonText}>{t('referralScreen.linkButton')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
 
@@ -270,7 +272,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             style={styles.shareGradient}
                         >
                             {sharingImage ? <ActivityIndicator size="small" color="#FFF" /> : <Sparkles size={20} color="#FFF" />}
-                            <Text style={styles.shareButtonText}>Story</Text>
+                            <Text style={styles.shareButtonText}>{t('referralScreen.storyButton')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
@@ -280,24 +282,24 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     onPress={() => setShowRules(true)}
                     style={styles.rulesLink}
                 >
-                    <Text style={styles.rulesLinkText}>Referral program terms</Text>
+                    <Text style={styles.rulesLinkText}>{t('referralScreen.terms')}</Text>
                 </TouchableOpacity>
 
                 {/* Stats */}
                 {stats && (
                     <View style={styles.statsCard}>
-                        <Text style={styles.sectionTitle}>My Sangha</Text>
+                        <Text style={styles.sectionTitle}>{t('referralScreen.mySangha')}</Text>
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
                                 <Users size={24} color="#9CA3AF" />
                                 <Text style={styles.statValue}>{stats.totalInvited}</Text>
-                                <Text style={styles.statLabel}>Invited</Text>
+                                <Text style={styles.statLabel}>{t('referralScreen.invited')}</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
                                 <UserPlus size={24} color="#10B981" />
                                 <Text style={styles.statValue}>{stats.activeInvited}</Text>
-                                <Text style={styles.statLabel}>Active</Text>
+                                <Text style={styles.statLabel}>{t('referralScreen.active')}</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
@@ -305,7 +307,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                                 <Text style={[styles.statValue, styles.earnedValue]}>
                                     {stats.totalEarned}
                                 </Text>
-                                <Text style={styles.statLabel}>Earned</Text>
+                                <Text style={styles.statLabel}>{t('referralScreen.earned')}</Text>
                             </View>
                         </View>
                     </View>
@@ -314,7 +316,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 {/* Referrals List */}
                 {referrals.length > 0 && (
                     <View style={styles.listCard}>
-                        <Text style={styles.sectionTitle}>Friends ({referrals.length})</Text>
+                        <Text style={styles.sectionTitle}>{t('referralScreen.friendsCount', { count: referrals.length })}</Text>
                         {referrals.map((item) => (
                             <View key={item.id}>
                                 {renderReferralItem({ item })}
@@ -325,23 +327,23 @@ export default function InviteFriendsScreen({ navigation }: any) {
 
                 {/* Rules Summary */}
                 <View style={styles.rulesCard}>
-                    <Text style={styles.rulesTitle}>How does it work?</Text>
+                    <Text style={styles.rulesTitle}>{t('referralScreen.howItWorksTitle')}</Text>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>1</Text>
                         <Text style={styles.ruleText}>
-                            Share your code or QR with a friend
+                            {t('referralScreen.steps.one')}
                         </Text>
                     </View>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>2</Text>
                         <Text style={styles.ruleText}>
-                            Your friend signs up and gets 50 LKM
+                            {t('referralScreen.steps.two')}
                         </Text>
                     </View>
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>3</Text>
                         <Text style={styles.ruleText}>
-                            When your friend becomes active for the first time, you get 100 bonus LKM.
+                            {t('referralScreen.steps.three')}
                         </Text>
                     </View>
                 </View>
@@ -378,7 +380,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                             </View>
 
                             <View style={styles.cardMain}>
-                                <Text style={styles.cardTitle}>Become part of my Sangha!</Text>
+                                <Text style={styles.cardTitle}>{t('referralScreen.cardTitle')}</Text>
                                 <View style={styles.cardUserBadge}>
                                     <Text style={styles.cardUserName}>{currentUser?.spiritualName || currentUser?.karmicName}</Text>
                                 </View>
@@ -397,12 +399,12 @@ export default function InviteFriendsScreen({ navigation }: any) {
 
                                 <View style={styles.cardBonus}>
                                     <Gift size={24} color="#F59E0B" />
-                                    <Text style={styles.cardBonusText}>+50 LKM welcome bonus</Text>
+                                    <Text style={styles.cardBonusText}>{t('referralScreen.welcomeBonus')}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.cardFooter}>
-                                <Text style={styles.cardTagline}>Connecting Souls • Finding Your People</Text>
+                                <Text style={styles.cardTagline}>{t('referralScreen.cardTagline')}</Text>
                                 <Text style={styles.cardUrl}>vedamatch.ru</Text>
                             </View>
                         </ImageBackground>

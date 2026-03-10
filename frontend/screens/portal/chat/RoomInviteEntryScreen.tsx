@@ -57,7 +57,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
         const token = String(route.params?.token || '').trim();
         if (!token) {
             if (isLoggedIn) {
-                navigation.replace('Portal', { initialTab: 'rooms' });
+                navigation.replace('RoomsHome');
             } else {
                 navigation.replace('Login');
             }
@@ -91,14 +91,14 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                     : copy.room;
 
                 if (!Number.isFinite(joinedRoomID) || joinedRoomID <= 0) {
-                    navigation.replace('Portal', { initialTab: 'rooms' });
+                    navigation.replace('RoomsHome');
                     return;
                 }
 
                 navigation.reset({
                     index: 1,
                     routes: [
-                        { name: 'Portal', params: { initialTab: 'rooms' } },
+                        { name: 'RoomsHome' },
                         {
                             name: 'RoomChat',
                             params: {
@@ -115,7 +115,7 @@ export const RoomInviteEntryScreen: React.FC<Props> = ({ route, navigation }) =>
                     ? responseData.error.trim()
                     : copy.failedToJoin;
                 Alert.alert(copy.error, errorMessage);
-                navigation.replace('Portal', { initialTab: 'rooms' });
+                navigation.replace('RoomsHome');
             }
         };
 

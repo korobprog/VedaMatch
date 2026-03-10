@@ -8,7 +8,6 @@ import { DhamaCollection } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { useSettings } from '../../context/SettingsContext';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
-import { DhamaBackButton } from './DhamaBackButton';
 import { DhamaSkeletonBlock } from './DhamaSkeleton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaCollectionDetail'>;
@@ -65,9 +64,6 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
     return (
       <ScreenScaffold>
         <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.topBar}>
-            <DhamaBackButton navigation={navigation} />
-          </View>
           <DhamaSkeletonBlock color={skeletonColor} style={styles.hero} />
           <View style={styles.headerBlock}>
             <DhamaSkeletonBlock color={skeletonColor} style={styles.eyebrowSkeleton} />
@@ -128,10 +124,6 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
   return (
     <ScreenScaffold>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.topBar}>
-          <DhamaBackButton navigation={navigation} />
-        </View>
-
         {collection.heroImageUrl ? (
           <Image source={{ uri: collection.heroImageUrl }} style={styles.hero} />
         ) : (
@@ -249,7 +241,6 @@ export const DhamaCollectionDetailScreen: React.FC<Props> = ({ route, navigation
 const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { padding: 16, gap: 16 },
-  topBar: { alignItems: 'flex-start' },
   hero: { width: '100%', height: 220, borderRadius: 22, backgroundColor: '#ddd' },
   heroFallback: { width: '100%', minHeight: 220, borderRadius: 22, borderWidth: 1, padding: 22, justifyContent: 'flex-end', gap: 8 },
   heroFallbackEyebrow: { fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, InteractionManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GestureResponderEvent, Image, InteractionManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Compass, HelpCircle, Heart, Infinity, Leaf } from 'lucide-react-native';
 import { ROLE_OPTIONS } from '../../constants/roleOptions';
 import { PortalBlueprint, PortalRole } from '../../types/portalBlueprint';
@@ -12,6 +12,7 @@ interface RoleSelectionSectionProps {
   onSelectRole: (role: PortalRole) => void;
   blueprints?: Record<string, PortalBlueprint>;
   autoOpenHint?: boolean;
+  onHorizontalSwipeActiveChange?: (active: boolean) => void;
 }
 
 const roleIcon = (role: string, color: string) => {
@@ -26,6 +27,7 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   onSelectRole,
   blueprints,
   autoOpenHint = false,
+  onHorizontalSwipeActiveChange,
 }) => {
   const { i18n } = useTranslation();
   const { colors } = useRoleTheme(selectedRole, true);
@@ -66,11 +68,19 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   } as const;
   const language = i18n.language === 'ru' ? 'ru' : i18n.language === 'hi' ? 'hi' : 'en';
   const localized = roleCopy[language];
-  const resolveLocalizedRole = (role: string) => (
+  const resolveLocalizedRole = useCallback((role: string) => (
     localized.roles[role as keyof typeof localized.roles] || localized.roles.user
-  );
+  ), [localized]);
   const [infoRole, setInfoRole] = useState<PortalRole | null>(null);
   const autoOpenedRef = useRef(false);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const horizontalSwipeActiveRef = useRef(false);
+
+  const setHorizontalSwipeActive = useCallback((active: boolean) => {
+    if (horizontalSwipeActiveRef.current === active) return;
+    horizontalSwipeActiveRef.current = active;
+    onHorizontalSwipeActiveChange?.(active);
+  }, [onHorizontalSwipeActiveChange]);
 
   useEffect(() => {
     if (!autoOpenHint || infoRole || autoOpenedRef.current) {
@@ -83,6 +93,12 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
     return () => task.cancel();
   }, [autoOpenHint, infoRole, selectedRole]);
 
+  useEffect(() => {
+    return () => {
+      setHorizontalSwipeActive(false);
+    };
+  }, [setHorizontalSwipeActive]);
+
   const activeOption = useMemo(
     () => ROLE_OPTIONS.find((o) => o.id === infoRole) || ROLE_OPTIONS[0],
     [infoRole]
@@ -93,7 +109,29 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
     const fromBlueprint = blueprints?.[infoRole]?.servicesHint;
     if (fromBlueprint && fromBlueprint.length > 0) return [...fromBlueprint];
     return [...(resolveLocalizedRole(infoRole).servicesHint || [])];
-  }, [blueprints, infoRole, localized.roles]);
+  }, [blueprints, infoRole, resolveLocalizedRole]);
+
+  const handleHorizontalTouchStart = (event: GestureResponderEvent) => {
+    const { pageX, pageY } = event.nativeEvent;
+    swipeStartRef.current = { x: pageX, y: pageY };
+    setHorizontalSwipeActive(false);
+  };
+
+  const handleHorizontalTouchMove = (event: GestureResponderEvent) => {
+    const start = swipeStartRef.current;
+    if (!start) return;
+    const { pageX, pageY } = event.nativeEvent;
+    const dx = Math.abs(pageX - start.x);
+    const dy = Math.abs(pageY - start.y);
+    if (dx > 6 && dx > dy) {
+      setHorizontalSwipeActive(true);
+    }
+  };
+
+  const handleHorizontalTouchEnd = () => {
+    swipeStartRef.current = null;
+    setHorizontalSwipeActive(false);
+  };
 
   return (
     <View style={styles.section}>
@@ -104,7 +142,21 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
         </Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        directionalLockEnabled
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.row}
+        onTouchStart={handleHorizontalTouchStart}
+        onTouchMove={handleHorizontalTouchMove}
+        onTouchEnd={handleHorizontalTouchEnd}
+        onTouchCancel={handleHorizontalTouchEnd}
+        onScrollBeginDrag={() => setHorizontalSwipeActive(true)}
+        onScrollEndDrag={handleHorizontalTouchEnd}
+        onMomentumScrollEnd={handleHorizontalTouchEnd}
+      >
         {ROLE_OPTIONS.map((option) => {
           const selected = selectedRole === option.id;
           const optionCopy = resolveLocalizedRole(option.id);

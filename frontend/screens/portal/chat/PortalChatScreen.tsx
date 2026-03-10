@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { MessageCircle, Plus, ChevronRight, Users } from 'lucide-react-native';
+import { MessageCircle, Plus, ChevronRight, Users, ArrowLeft } from 'lucide-react-native';
 
 import apiClient from '../../../lib/apiClient';
 import { useUser } from '../../../context/UserContext';
@@ -34,7 +34,11 @@ const EMOJI_MAP: any = {
     'general': '🕉️',
 };
 
-export const PortalChatScreen: React.FC = () => {
+type PortalChatScreenProps = {
+    onBackPress?: () => void;
+};
+
+export const PortalChatScreen: React.FC<PortalChatScreenProps> = ({ onBackPress }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { t, i18n } = useTranslation();
     const { isDarkMode, vTheme, portalBackgroundType } = useSettings();
@@ -162,6 +166,11 @@ export const PortalChatScreen: React.FC = () => {
             setPreJoinLoading(false);
         }
     };
+
+    const handleBackPress = useCallback(() => {
+        triggerTapFeedback();
+        onBackPress?.();
+    }, [onBackPress, triggerTapFeedback]);
 
     const renderItem = ({ item }: { item: any }) => {
         const isPreset = !!EMOJI_MAP[item.imageUrl];
@@ -297,17 +306,38 @@ export const PortalChatScreen: React.FC = () => {
                     }
                     ListHeaderComponent={
                         <View style={styles.headerBlock}>
-                            <View>
-                            <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{copy.rooms}</Text>
-                                <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                    {visibleRooms.length
-                                        ? `${t(activeTab === 'my' ? 'chat.myRoomsTab' : 'chat.openRoomsTab')}: ${visibleRooms.length}`
-                                        : (activeTab === 'my' ? (t('chat.noRooms') || 'No rooms found') : (t('chat.openRoomsEmpty') || 'No open rooms yet'))}
-                                </Text>
-                            </View>
-                            <View style={[styles.countBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
-                                <MessageCircle size={14} color={isPhotoBg ? '#FFFFFF' : colors.accent} />
-                                <Text style={[styles.countText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{visibleRooms.length}</Text>
+                            <View style={styles.headerTopRow}>
+                                <View style={styles.headerCopyRow}>
+                                    {onBackPress ? (
+                                        <TouchableOpacity
+                                            activeOpacity={0.88}
+                                            onPress={handleBackPress}
+                                            style={[
+                                                styles.backButton,
+                                                {
+                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
+                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border,
+                                                },
+                                            ]}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={t('common.back') || 'Back'}
+                                        >
+                                            <ArrowLeft size={18} color={isPhotoBg ? '#FFFFFF' : colors.textPrimary} />
+                                        </TouchableOpacity>
+                                    ) : null}
+                                    <View style={styles.headerCopy}>
+                                        <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{copy.rooms}</Text>
+                                        <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
+                                            {visibleRooms.length
+                                                ? `${t(activeTab === 'my' ? 'chat.myRoomsTab' : 'chat.openRoomsTab')}: ${visibleRooms.length}`
+                                                : (activeTab === 'my' ? (t('chat.noRooms') || 'No rooms found') : (t('chat.openRoomsEmpty') || 'No open rooms yet'))}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={[styles.countBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
+                                    <MessageCircle size={14} color={isPhotoBg ? '#FFFFFF' : colors.accent} />
+                                    <Text style={[styles.countText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{visibleRooms.length}</Text>
+                                </View>
                             </View>
                             <View style={[styles.tabBar, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
                                 <TouchableOpacity
@@ -440,6 +470,28 @@ const styles = StyleSheet.create({
     headerBlock: {
         marginBottom: 14,
         gap: 10,
+    },
+    headerTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    headerCopyRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    headerCopy: {
+        flex: 1,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     tabBar: {
         minHeight: 46,

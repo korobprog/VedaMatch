@@ -10,7 +10,6 @@ import { HolyPlaceMapMarker } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { useSettings } from '../../context/SettingsContext';
-import { DhamaBackButton } from './DhamaBackButton';
 import { DhamaSkeletonBlock } from './DhamaSkeleton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaMap'>;
@@ -179,9 +178,6 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <ScreenScaffold contentStyle={styles.container}>
-      <View style={styles.topBar}>
-        <DhamaBackButton navigation={navigation} />
-      </View>
       <Text style={[styles.title, { color: vTheme.colors.text }]}>{t('dhama.mapTitle')}</Text>
       <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>{t('dhama.mapSubtitle')}</Text>
       {mapFailure ? (
@@ -290,7 +286,6 @@ export const DhamaMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 12 },
-  topBar: { alignItems: 'flex-start', marginBottom: 18 },
   title: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
   subtitle: { fontSize: 14, lineHeight: 21, marginTop: 2, marginBottom: 4 },
   mapFrame: { borderWidth: 1, borderRadius: 20, overflow: 'hidden', height: 360, position: 'relative' },

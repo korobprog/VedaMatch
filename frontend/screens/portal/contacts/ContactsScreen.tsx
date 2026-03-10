@@ -446,11 +446,23 @@ export const ContactsScreen: React.FC = () => {
         const nameColor = usePhotoBg ? '#ffffff' : vTheme.colors.text;
         const descColor = usePhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
 
+        const stringToColor = (str: string) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+            return '#' + '00000'.substring(0, 6 - c.length) + c;
+        };
+        const displayName = item.spiritualName || item.karmicName || item.nickname || '';
+        const avatarLetter = displayName ? displayName.replace('@', '').charAt(0).toUpperCase() : '?';
+        const avatarBgColor = stringToColor(displayName || item.ID.toString());
+
         return (
             <TouchableOpacity
                 style={[styles.contactItem, {
-                    backgroundColor: usePhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
-                    borderColor: usePhotoBg ? 'rgba(255,255,255,0.3)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                    backgroundColor: usePhotoBg ? 'transparent' : vTheme.colors.background,
+                    borderBottomColor: usePhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.divider,
                 }]}
                 onPress={() => {
                     if (isBlocked) return;
@@ -487,9 +499,9 @@ export const ContactsScreen: React.FC = () => {
                     {avatarUrl ? (
                         <Image source={{ uri: avatarUrl }} style={styles.avatar} />
                     ) : (
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: theme.button }]}>
-                            <Text style={{ color: theme.buttonText, fontWeight: 'bold' }}>
-                                {(item.spiritualName || item.karmicName || '?')[0]}
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: avatarBgColor }]}>
+                            <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                                {avatarLetter}
                             </Text>
                         </View>
                     )}
@@ -650,16 +662,10 @@ export const ContactsScreen: React.FC = () => {
             <View style={[styles.container, { backgroundColor: usePhotoBg ? 'transparent' : vTheme.colors.background }]}>
                 <View style={styles.screenHeader}>
                     <TouchableOpacity
-                        style={[
-                            styles.screenBackButton,
-                            {
-                                backgroundColor: usePhotoBg ? 'rgba(255,255,255,0.14)' : vTheme.colors.backgroundSecondary,
-                                borderColor: usePhotoBg ? 'rgba(255,255,255,0.28)' : vTheme.colors.divider,
-                            },
-                        ]}
+                        style={styles.screenBackButton}
                         onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Portal'))}
                     >
-                        <ArrowLeft size={20} color={usePhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                        <ArrowLeft size={24} color={usePhotoBg ? '#FFFFFF' : vTheme.colors.text} />
                     </TouchableOpacity>
                     <Text style={[styles.screenHeaderTitle, { color: usePhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
                         {t('contacts.title', { defaultValue: 'Contacts' })}
@@ -931,20 +937,19 @@ const styles = StyleSheet.create({
         paddingBottom: 4,
     },
     screenBackButton: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        borderWidth: 1,
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
+        marginLeft: -8, // Compensate for padding to align with edge
     },
     screenHeaderTitle: {
         fontSize: 18,
         fontWeight: '700',
     },
     screenHeaderSpacer: {
-        width: 38,
-        height: 38,
+        width: 40,
+        height: 40,
     },
     modalOverlay: {
         flex: 1,
@@ -1113,9 +1118,9 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginVertical: 12,
         paddingHorizontal: 16,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 1,
+        height: 44,
+        borderRadius: 12,
+        borderWidth: 0,
     },
     searchInput: {
         flex: 1,
@@ -1133,11 +1138,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 14,
         paddingHorizontal: 16,
-        marginHorizontal: 16,
-        marginVertical: 6,
-        borderRadius: 22,
-        borderWidth: 1,
-        overflow: 'hidden',
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     avatarContainer: {
         width: 50,
@@ -1172,7 +1173,7 @@ const styles = StyleSheet.create({
     },
     contactName: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '600',
     },
     nameRow: {
         flexDirection: 'row',
@@ -1191,7 +1192,7 @@ const styles = StyleSheet.create({
     },
     contactDesc: {
         fontSize: 13,
-        marginTop: 2,
+        marginTop: 4,
     },
     emptyContainer: {
         alignItems: 'center',

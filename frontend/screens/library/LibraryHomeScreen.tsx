@@ -1,20 +1,161 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, InteractionManager, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import { libraryService } from '../../services/libraryService';
-import { offlineBookService, formatBytes, SavedBookInfo } from '../../services/offlineBookService';
+import { offlineBookService, formatBytes } from '../../services/offlineBookService';
 import { ScriptureBook } from '../../types/library';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { BookOpenText, Download, CheckCircle, Sparkles, ChevronRight } from 'lucide-react-native';
+import { BookOpenText, Sparkles, ChevronRight } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
+
+type BookCardProps = {
+    item: ScriptureBook;
+    isSaved: boolean;
+    isSaving: boolean;
+    bookSize?: number;
+    saveProgress: number;
+    saveStatus: string;
+    isPhotoBg: boolean;
+    isDarkMode: boolean;
+    roleColors: ReturnType<typeof useRoleTheme>['colors'];
+    getBookTitle: (book: ScriptureBook) => string;
+    getBookDescription: (book: ScriptureBook) => string;
+    onPress: (book: ScriptureBook) => void;
+    onLongPress: (book: ScriptureBook) => void;
+    t: ReturnType<typeof useTranslation>['t'];
+    reducedVisuals: boolean;
+};
+
+const BookCard = React.memo<BookCardProps>(({
+    item,
+    isSaved,
+    isSaving,
+    bookSize,
+    saveProgress,
+    saveStatus,
+    isPhotoBg,
+    isDarkMode,
+    roleColors,
+    getBookTitle,
+    getBookDescription,
+    onPress,
+    onLongPress,
+    t,
+    reducedVisuals,
+}) => {
+    const titleColor = isPhotoBg ? '#FFFFFF' : roleColors.textPrimary;
+    const subColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : roleColors.textSecondary;
+    const cardBackground = isPhotoBg
+        ? 'rgba(255,255,255,0.12)'
+        : (isDarkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.82)');
+    const cardBorder = isPhotoBg
+        ? 'rgba(255,255,255,0.22)'
+        : roleColors.border;
+    const accentColor = roleColors.accent;
+    const iconBackground = reducedVisuals
+        ? (isDarkMode ? 'rgba(255,255,255,0.04)' : roleColors.surface)
+        : (isDarkMode ? 'rgba(255,255,255,0.05)' : roleColors.surfaceElevated);
+    const chevronBackground = reducedVisuals
+        ? 'transparent'
+        : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)');
+
+    return (
+        <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
+            onPress={() => onPress(item)}
+            onLongPress={() => onLongPress(item)}
+            delayLongPress={500}
+            activeOpacity={0.8}
+        >
+            {!reducedVisuals && (isPhotoBg || isDarkMode) && (
+                <BlurView
+                    style={StyleSheet.absoluteFill}
+                    blurType={isDarkMode ? 'dark' : 'light'}
+                    blurAmount={20}
+                    reducedTransparencyFallbackColor={roleColors.surfaceElevated}
+                />
+            )}
+
+            {!reducedVisuals && (
+                <LinearGradient
+                    colors={isDarkMode ? ['rgba(255,255,255,0.05)', 'transparent'] : ['rgba(255,255,255,0.8)', 'transparent']}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                />
+            )}
+
+            <View style={[styles.iconContainer, { backgroundColor: iconBackground, borderColor: cardBorder }]}>
+                <BookOpenText size={24} color={accentColor} />
+            </View>
+
+            <View style={styles.textContainer}>
+                <View style={styles.titleRow}>
+                    <Text
+                        style={[styles.cardTitle, { color: titleColor }]}
+                        numberOfLines={1}
+                    >
+                        {getBookTitle(item)}
+                    </Text>
+                    {isSaved && <View style={[styles.dot, styles.savedDot]} />}
+                </View>
+                <Text
+                    style={[styles.cardDescription, { color: subColor }]}
+                    numberOfLines={2}
+                >
+                    {getBookDescription(item) || t('library.scripture', 'Sacred scripture')}
+                </Text>
+
+                {bookSize && (
+                    <Text style={[styles.sizeText, styles.sizeTextSaved, { color: accentColor }]}>
+                        {formatBytes(bookSize)} • {t('library.saved', 'Saved')}
+                    </Text>
+                )}
+
+                {isSaving && (
+                    <View style={styles.progressContainer}>
+                        <View style={[styles.progressBar, { width: `${saveProgress}%`, backgroundColor: accentColor }]} />
+                        <Text style={styles.progressText}>{saveStatus}</Text>
+                    </View>
+                )}
+            </View>
+
+            <View style={styles.actions}>
+                {isSaving ? (
+                    <ActivityIndicator size="small" color={accentColor} />
+                ) : (
+                    <View style={[styles.chevronBtn, { backgroundColor: chevronBackground }]}>
+                        <ChevronRight size={18} color={roleColors.textSecondary} />
+                    </View>
+                )}
+            </View>
+        </TouchableOpacity>
+    );
+}, (prevProps, nextProps) => (
+    prevProps.item === nextProps.item
+    && prevProps.isSaved === nextProps.isSaved
+    && prevProps.isSaving === nextProps.isSaving
+    && prevProps.bookSize === nextProps.bookSize
+    && prevProps.saveProgress === nextProps.saveProgress
+    && prevProps.saveStatus === nextProps.saveStatus
+    && prevProps.isPhotoBg === nextProps.isPhotoBg
+    && prevProps.isDarkMode === nextProps.isDarkMode
+    && prevProps.roleColors === nextProps.roleColors
+    && prevProps.getBookTitle === nextProps.getBookTitle
+    && prevProps.getBookDescription === nextProps.getBookDescription
+    && prevProps.onPress === nextProps.onPress
+    && prevProps.onLongPress === nextProps.onLongPress
+    && prevProps.t === nextProps.t
+    && prevProps.reducedVisuals === nextProps.reducedVisuals
+));
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -38,40 +179,31 @@ export const LibraryHomeScreen = () => {
     const [saveProgress, setSaveProgress] = useState<number>(0);
     const [saveStatus, setSaveStatus] = useState<string>('');
     const isPhotoBg = portalBackgroundType === 'image' && isDarkMode;
+    const isMountedRef = useRef(true);
+    const savedBooksSet = useMemo(() => new Set(savedBooks), [savedBooks]);
+    const reducedVisuals = Platform.OS === 'android';
+    const listTuning = useMemo(() => (
+        Platform.OS === 'android'
+            ? {
+                initialNumToRender: 5,
+                maxToRenderPerBatch: 5,
+                windowSize: 5,
+                updateCellsBatchingPeriod: 80,
+            }
+            : {
+                initialNumToRender: 8,
+                maxToRenderPerBatch: 8,
+                windowSize: 7,
+                updateCellsBatchingPeriod: 50,
+            }
+    ), []);
 
-    useEffect(() => {
-        loadBooks();
-    }, []);
-
-    // Reload saved books status when screen is focused
-    useFocusEffect(
-        useCallback(() => {
-            loadSavedBooksInfo();
-        }, [])
-    );
-
-    const loadBooks = async () => {
-        try {
-            setLoading(true);
-            setLoadError(null);
-            const data = await libraryService.getBooks();
-            const normalizedBooks = Array.isArray(data)
-                ? data
-                : (Array.isArray((data as any)?.items) ? (data as any).items : []);
-            setBooks(normalizedBooks);
-            await loadSavedBooksInfo();
-        } catch (error) {
-            console.error('Failed to load books', error);
-            setBooks([]);
-            setLoadError(t('library.load_error', 'Failed to load the library. Check your internet and try again.'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadSavedBooksInfo = async () => {
+    const loadSavedBooksInfo = useCallback(async () => {
         try {
             const saved = await offlineBookService.getSavedBooks();
+            if (!isMountedRef.current) {
+                return;
+            }
             const codes = saved.map(b => b.code);
             setSavedBooks(codes);
 
@@ -83,13 +215,74 @@ export const LibraryHomeScreen = () => {
         } catch (error) {
             console.error('Failed to load saved books info', error);
         }
-    };
+    }, []);
 
-    const handleBookPress = (book: ScriptureBook) => {
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    // Reload saved books status when screen is focused
+    useFocusEffect(
+        useCallback(() => {
+            const task = InteractionManager.runAfterInteractions(() => {
+                loadSavedBooksInfo().catch((error) => {
+                    console.error('Failed to refresh saved books info after interactions', error);
+                });
+            });
+            return () => task.cancel();
+        }, [loadSavedBooksInfo])
+    );
+
+    const scheduleSavedBooksInfoLoad = useCallback(() => {
+        const task = InteractionManager.runAfterInteractions(() => {
+            loadSavedBooksInfo().catch((error) => {
+                console.error('Failed to schedule saved books info load', error);
+            });
+        });
+        return () => task.cancel();
+    }, [loadSavedBooksInfo]);
+
+    const loadBooks = useCallback(async () => {
+        try {
+            setLoading(true);
+            setLoadError(null);
+            const data = await libraryService.getBooks();
+            const normalizedBooks = Array.isArray(data)
+                ? data
+                : (Array.isArray((data as any)?.items) ? (data as any).items : []);
+            if (!isMountedRef.current) {
+                return;
+            }
+            setBooks(normalizedBooks);
+            scheduleSavedBooksInfoLoad();
+        } catch (error) {
+            console.error('Failed to load books', error);
+            if (!isMountedRef.current) {
+                return;
+            }
+            setBooks([]);
+            setLoadError(t('library.load_error', 'Failed to load the library. Check your internet and try again.'));
+        } finally {
+            if (isMountedRef.current) {
+                setLoading(false);
+            }
+        }
+    }, [scheduleSavedBooksInfoLoad, t]);
+
+    useEffect(() => {
+        loadBooks().catch((error) => {
+            console.error('Failed to load library books', error);
+        });
+    }, [loadBooks]);
+
+    const handleBookPress = useCallback((book: ScriptureBook) => {
         navigation.navigate('Reader', { bookCode: book.code, title: getBookTitle(book) });
-    };
+    }, [getBookTitle, navigation]);
 
-    const handleSaveBook = async (book: ScriptureBook) => {
+    const handleSaveBook = useCallback(async (book: ScriptureBook) => {
         if (savingBook) return; // Already saving
 
         setSavingBook(book.code);
@@ -113,9 +306,9 @@ export const LibraryHomeScreen = () => {
         setSavingBook(null);
         setSaveProgress(0);
         setSaveStatus('');
-    };
+    }, [loadSavedBooksInfo, savingBook, t]);
 
-    const handleRemoveBook = (book: ScriptureBook) => {
+    const handleRemoveBook = useCallback((book: ScriptureBook) => {
         Alert.alert(
             t('library.delete_title', 'Delete book?'),
             t('library.delete_message', 'The book will be removed from local storage. You can download it again later.'),
@@ -125,16 +318,20 @@ export const LibraryHomeScreen = () => {
                     text: t('common.delete', 'Delete'),
                     style: 'destructive',
                     onPress: async () => {
-                        await offlineBookService.removeBook(book.code);
-                        await loadSavedBooksInfo();
+                        try {
+                            await offlineBookService.removeBook(book.code);
+                            await loadSavedBooksInfo();
+                        } catch (error) {
+                            console.error('Failed to remove saved book', error);
+                        }
                     }
                 }
             ]
         );
-    };
+    }, [loadSavedBooksInfo, t]);
 
-    const handleLongPress = (book: ScriptureBook) => {
-        const isSaved = savedBooks.includes(book.code);
+    const handleLongPress = useCallback((book: ScriptureBook) => {
+        const isSaved = savedBooksSet.has(book.code);
 
         const options = [];
 
@@ -160,98 +357,55 @@ export const LibraryHomeScreen = () => {
                 : t('library.not_saved_info', 'The book is not downloaded'),
             options
         );
-    };
+    }, [getBookTitle, handleRemoveBook, handleSaveBook, savedBooksSet, t]);
 
-    const renderBookItem = ({ item, index }: { item: ScriptureBook, index: number }) => {
-        const isSaved = savedBooks.includes(item.code);
-        const isSaving = savingBook === item.code;
-        const bookSize = bookSizes[item.code];
-        const titleColor = isPhotoBg ? '#FFFFFF' : roleColors.textPrimary;
-        const subColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : roleColors.textSecondary;
-        const cardBackground = isPhotoBg
-            ? 'rgba(255,255,255,0.12)'
-            : (isDarkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.82)');
-        const cardBorder = isPhotoBg
-            ? 'rgba(255,255,255,0.22)'
-            : roleColors.border;
-        const accentColor = roleColors.accent;
+    const keyExtractor = useCallback((item: ScriptureBook) => item.code, []);
 
-        return (
-            <View>
-                <TouchableOpacity
-                    style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
-                    onPress={() => handleBookPress(item)}
-                    onLongPress={() => handleLongPress(item)}
-                    delayLongPress={500}
-                    activeOpacity={0.8}
-                >
-                    {(isPhotoBg || isDarkMode) && (
-                        <BlurView
-                            style={StyleSheet.absoluteFill}
-                            blurType={isDarkMode ? 'dark' : 'light'}
-                            blurAmount={20}
-                            reducedTransparencyFallbackColor={roleColors.surfaceElevated}
-                        />
-                    )}
+    const renderBookItem = useCallback(({ item }: { item: ScriptureBook }) => (
+        <BookCard
+            item={item}
+            isSaved={savedBooksSet.has(item.code)}
+            isSaving={savingBook === item.code}
+            bookSize={bookSizes[item.code]}
+            saveProgress={saveProgress}
+            saveStatus={saveStatus}
+            isPhotoBg={isPhotoBg}
+            isDarkMode={isDarkMode}
+            roleColors={roleColors}
+            getBookTitle={getBookTitle}
+            getBookDescription={getBookDescription}
+            onPress={handleBookPress}
+            onLongPress={handleLongPress}
+            t={t}
+            reducedVisuals={reducedVisuals}
+        />
+    ), [
+        bookSizes,
+        getBookDescription,
+        getBookTitle,
+        handleBookPress,
+        handleLongPress,
+        isDarkMode,
+        isPhotoBg,
+        reducedVisuals,
+        roleColors,
+        saveProgress,
+        saveStatus,
+        savedBooksSet,
+        savingBook,
+        t,
+    ]);
 
-                    <LinearGradient
-                        colors={isDarkMode ? ['rgba(255,255,255,0.05)', 'transparent'] : ['rgba(255,255,255,0.8)', 'transparent']}
-                        style={StyleSheet.absoluteFill}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    />
-
-                    {/* Book icon */}
-                    <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : roleColors.surfaceElevated, borderColor: cardBorder }]}>
-                        <BookOpenText size={24} color={accentColor} />
-                    </View>
-
-                    {/* Book info */}
-                    <View style={styles.textContainer}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                            <Text
-                                style={[styles.cardTitle, { color: titleColor }]}
-                                numberOfLines={1}
-                            >
-                                {getBookTitle(item)}
-                            </Text>
-                            {isSaved && <View style={[styles.dot, { backgroundColor: '#10B981' }]} />}
-                        </View>
-                        <Text
-                            style={[styles.cardDescription, { color: subColor }]}
-                            numberOfLines={2}
-                        >
-                            {getBookDescription(item) || t('library.scripture', 'Sacred scripture')}
-                        </Text>
-
-                        {bookSize && (
-                            <Text style={[styles.sizeText, { color: accentColor, opacity: 0.8 }]}>
-                                {formatBytes(bookSize)} • {t('library.saved', 'Saved')}
-                            </Text>
-                        )}
-
-                        {isSaving && (
-                            <View style={styles.progressContainer}>
-                                <View style={[styles.progressBar, { width: `${saveProgress}%`, backgroundColor: accentColor }]} />
-                                <Text style={styles.progressText}>{saveStatus}</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Action button */}
-                    <View style={styles.actions}>
-                        {isSaving ? (
-                            <ActivityIndicator size="small" color={accentColor} />
-                        ) : (
-                            <View style={[styles.chevronBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
-                                <ChevronRight size={18} color={roleColors.textSecondary} />
-                            </View>
-                        )}
-                    </View>
-                </TouchableOpacity>
-            </View>
-        );
-    };
+    const listEmptyComponent = useMemo(() => (
+        <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                {t('library.empty_title', 'No books yet')}
+            </Text>
+            <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
+                {t('library.empty_message', 'Books will appear here after syncing with the server.')}
+            </Text>
+        </View>
+    ), [isPhotoBg, roleColors.textPrimary, roleColors.textSecondary, t]);
 
     if (loading) {
         return (
@@ -294,19 +448,15 @@ export const LibraryHomeScreen = () => {
                 <FlatList<ScriptureBook>
                     data={books}
                     renderItem={renderBookItem}
-                    keyExtractor={(item: ScriptureBook) => item.code}
+                    keyExtractor={keyExtractor}
                     contentContainerStyle={books.length === 0 ? styles.emptyListContainer : styles.list}
                     showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <View style={styles.emptyState}>
-                            <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
-                                {t('library.empty_title', 'No books yet')}
-                            </Text>
-                            <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
-                                {t('library.empty_message', 'Books will appear here after syncing with the server.')}
-                            </Text>
-                        </View>
-                    }
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    initialNumToRender={listTuning.initialNumToRender}
+                    maxToRenderPerBatch={listTuning.maxToRenderPerBatch}
+                    windowSize={listTuning.windowSize}
+                    updateCellsBatchingPeriod={listTuning.updateCellsBatchingPeriod}
+                    ListEmptyComponent={listEmptyComponent}
                 />
             )}
         </View>
@@ -409,6 +559,11 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingRight: 8,
     },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
     cardTitle: {
         fontSize: 19,
         fontWeight: '800',
@@ -420,6 +575,9 @@ const styles = StyleSheet.create({
         borderRadius: 3,
         marginLeft: 8,
     },
+    savedDot: {
+        backgroundColor: '#10B981',
+    },
     cardDescription: {
         fontSize: 14,
         lineHeight: 20,
@@ -429,6 +587,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 8,
         fontWeight: '700',
+    },
+    sizeTextSaved: {
+        opacity: 0.8,
     },
     progressContainer: {
         marginTop: 10,

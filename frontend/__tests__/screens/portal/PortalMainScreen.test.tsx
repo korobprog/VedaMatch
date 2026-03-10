@@ -73,6 +73,13 @@ jest.mock('../../../context/SettingsContext', () => ({
     }),
 }));
 
+jest.mock('../../../context/PortalLayoutContext', () => ({
+    usePortalLayout: () => ({
+        isServiceVisible: () => true,
+        getServiceMaintenanceMessage: () => '',
+    }),
+}));
+
 jest.mock('../../../context/ChatContext', () => ({
     useChat: () => ({
         handleNewChat: mockHandleNewChat,
@@ -112,24 +119,12 @@ jest.mock('../../../screens/portal/chat/PortalChatScreen', () => ({ PortalChatSc
 jest.mock('../../../screens/portal/shops/MarketHomeScreen', () => ({ MarketHomeScreen: () => null }));
 jest.mock('../../../screens/portal/ads/AdsScreen', () => ({ AdsScreen: () => null }));
 jest.mock('../../../screens/portal/news/NewsScreen', () => ({ NewsScreen: () => null }));
-jest.mock('../../../screens/portal/dating/DatingScreen', () => ({ DatingScreen: ({ onBack }: { onBack: () => void }) => null }));
+jest.mock('../../../screens/portal/dating/DatingScreen', () => ({ DatingScreen: ({ onBack: _onBack }: { onBack: () => void }) => null }));
 jest.mock('../../../screens/library/LibraryHomeScreen', () => ({ LibraryHomeScreen: () => null }));
 jest.mock('../../../screens/portal/education/EducationHomeScreen', () => ({ EducationHomeScreen: () => null }));
-jest.mock('../../../screens/portal/cafe', () => ({ CafeListScreen: ({ onBack }: { onBack: () => void }) => null }));
-jest.mock('../../../screens/multimedia/MultimediaHubScreen', () => ({ MultimediaHubScreen: ({ onBack }: { onBack: () => void }) => null }));
+jest.mock('../../../screens/portal/cafe', () => ({ CafeListScreen: ({ onBack: _onBack }: { onBack: () => void }) => null }));
+jest.mock('../../../screens/multimedia/MultimediaHubScreen', () => ({ MultimediaHubScreen: ({ onBack: _onBack }: { onBack: () => void }) => null }));
 jest.mock('../../../screens/portal/travel', () => ({ TravelHomeScreen: () => null }));
-jest.mock('../../../screens/portal/services', () => {
-    const ReactNative = require('react-native');
-    return {
-        ServicesHomeScreen: ({ onBack }: { onBack: () => void }) => (
-            <ReactNative.TouchableOpacity testID="services-back" onPress={onBack}>
-                <ReactNative.Text>SERVICES_HOME</ReactNative.Text>
-            </ReactNative.TouchableOpacity>
-        ),
-    };
-});
-jest.mock('../../../screens/calls/CallHistoryScreen', () => ({ CallHistoryScreen: () => null }));
-
 const { PortalMainScreen } = require('../../../screens/portal/PortalMainScreen');
 
 const createNavigation = () => ({
@@ -180,9 +175,9 @@ describe('PortalMainScreen', () => {
         expect(navigation.navigate).toHaveBeenCalledWith('Chat');
     });
 
-    it('opens services catalog tab for services_catalog shortcut', () => {
+    it('opens services home screen for services_catalog shortcut', () => {
         const navigation = createNavigation();
-        const screen = render(
+        render(
             <PortalMainScreen
                 navigation={navigation}
                 route={{ params: {} }}
@@ -193,24 +188,183 @@ describe('PortalMainScreen', () => {
             latestOnServicePress?.('services_catalog');
         });
 
-        expect(screen.getByText('SERVICES_HOME')).toBeTruthy();
+        expect(navigation.navigate).toHaveBeenCalledWith('ServicesHome');
     });
 
-    it('returns to widgets on back when service was opened from widget dock', () => {
+    it('opens calls home screen for calls shortcut', () => {
         const navigation = createNavigation();
-        const screen = render(
+        render(
             <PortalMainScreen
                 navigation={navigation}
-                route={{ params: { returnToWidget: true } }}
+                route={{ params: {} }}
             />,
         );
 
         act(() => {
-            latestOnServicePress?.('services_catalog');
+            latestOnServicePress?.('calls');
         });
 
-        fireEvent.press(screen.getByTestId('services-back'));
-        expect(navigation.goBack).toHaveBeenCalledTimes(1);
+        expect(navigation.navigate).toHaveBeenCalledWith('CallsHome');
+    });
+
+    it('opens rooms home screen for rooms shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('rooms');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('RoomsHome');
+    });
+
+    it('opens multimedia hub screen for multimedia shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('multimedia');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('MultimediaHub');
+    });
+
+    it('opens market home screen for shops shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('shops');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('MarketHome');
+    });
+
+    it('opens dating home screen for dating shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('dating');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('DatingHome');
+    });
+
+    it('opens cafe home screen for cafe shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('cafe');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('CafeHome');
+    });
+
+    it('opens news home screen for news shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('news');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('NewsHome');
+    });
+
+    it('opens library home screen for library shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('library');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('LibraryHome');
+    });
+
+    it('opens education home screen for education shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('education');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('EducationHome');
+    });
+
+    it('opens travel home screen for travel shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('travel');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('TravelHome');
+    });
+
+    it('opens ads screen for ads shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('ads');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('Ads');
     });
 
     it('shows profile completion CTA in locked service hint and opens EditProfile', () => {

@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Dimensions,
     ImageBackground,
+    InteractionManager,
     Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -57,6 +58,7 @@ interface CafeCardProps {
     textSecondaryColor: string;
     deliveryLabel: string;
     minLabel: string;
+    reducedVisuals: boolean;
     onPress: (cafe: Cafe) => void;
 }
 
@@ -67,12 +69,23 @@ const CafeCard = React.memo<CafeCardProps>(({
     textSecondaryColor,
     deliveryLabel,
     minLabel,
+    reducedVisuals,
     onPress,
 }) => {
     if (!item || item.id === undefined) return null;
 
     const rating = item.rating ?? 0;
     const reviewsCount = item.reviewsCount ?? 0;
+    const imageSource = {
+        uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200',
+        priority: FastImage.priority.normal,
+        cache: FastImage.cacheControl.immutable,
+    };
+    const logoSource = item.logoUrl ? {
+        uri: item.logoUrl,
+        priority: FastImage.priority.low,
+        cache: FastImage.cacheControl.immutable,
+    } : null;
 
     return (
         <TouchableOpacity
@@ -82,27 +95,29 @@ const CafeCard = React.memo<CafeCardProps>(({
         >
             <View style={styles.cardImageContainer}>
                 <FastImage
-                    source={{
-                        uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200',
-                        priority: FastImage.priority.normal,
-                        cache: FastImage.cacheControl.immutable,
-                    }}
+                    source={imageSource}
                     style={styles.cardImage}
                     resizeMode={FastImage.resizeMode.cover}
                 />
-                <LinearGradient
-                    colors={['transparent', 'rgba(10, 10, 20, 0.9)']}
-                    style={styles.cardImageOverlay}
-                />
+                {reducedVisuals ? (
+                    <View style={styles.cardImageOverlayReduced} />
+                ) : (
+                    <LinearGradient
+                        colors={['transparent', 'rgba(10, 10, 20, 0.9)']}
+                        style={styles.cardImageOverlay}
+                    />
+                )}
 
                 <View style={styles.cardTopBadges}>
                     <View style={styles.ratingBadge}>
                         <Star size={10} color={accentColor} fill={accentColor} />
                         <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-                        <Text style={styles.reviewsText}>({reviewsCount})</Text>
+                        {!reducedVisuals && (
+                            <Text style={styles.reviewsText}>({reviewsCount})</Text>
+                        )}
                     </View>
 
-                    {item.hasDelivery && (
+                    {!reducedVisuals && item.hasDelivery && (
                         <View style={styles.deliveryBadge}>
                             <Car size={10} color={accentColor} />
                             <Text style={styles.deliveryBadgeText}>{deliveryLabel}</Text>
@@ -110,14 +125,10 @@ const CafeCard = React.memo<CafeCardProps>(({
                     )}
                 </View>
 
-                {item.logoUrl && (
+                {!reducedVisuals && logoSource && (
                     <View style={styles.cardLogoContainer}>
                         <FastImage
-                            source={{
-                                uri: item.logoUrl,
-                                priority: FastImage.priority.low,
-                                cache: FastImage.cacheControl.immutable,
-                            }}
+                            source={logoSource}
                             style={styles.cardLogo}
                             resizeMode={FastImage.resizeMode.cover}
                         />
@@ -137,12 +148,12 @@ const CafeCard = React.memo<CafeCardProps>(({
 
                 <View style={styles.cardFooter}>
                     <View style={styles.badgesRow}>
-                        {item.hasDineIn && (
+                        {!reducedVisuals && item.hasDineIn && (
                             <View style={styles.miniBadge}>
                                 <Utensils size={10} color={textSecondaryColor} />
                             </View>
                         )}
-                        {item.hasTakeaway && (
+                        {!reducedVisuals && item.hasTakeaway && (
                             <View style={styles.miniBadge}>
                                 <ShoppingBag size={10} color={textSecondaryColor} />
                             </View>
@@ -166,6 +177,7 @@ const CafeCard = React.memo<CafeCardProps>(({
     && prevProps.textSecondaryColor === nextProps.textSecondaryColor
     && prevProps.deliveryLabel === nextProps.deliveryLabel
     && prevProps.minLabel === nextProps.minLabel
+    && prevProps.reducedVisuals === nextProps.reducedVisuals
     && prevProps.onPress === nextProps.onPress
 ));
 
@@ -269,11 +281,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [filters, setFilters] = useState<CafeFilters>({
-        sort: 'rating',
-        page: 1,
-        limit: 20,
-    });
+    const [activeSort, setActiveSort] = useState<CafeSortType>('rating');
     const [hasMore, setHasMore] = useState(true);
     const [myCafe, setMyCafe] = useState<Cafe | null>(null);
     const didInitialLoad = useRef(false);
@@ -282,9 +290,31 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const loadMoreInProgressRef = useRef(false);
     const isMountedRef = useRef(true);
     const searchRef = useRef('');
+    const filtersRef = useRef<CafeFilters>({
+        sort: 'rating',
+        page: 1,
+        limit: 20,
+    });
     const loadCafesRef = useRef<((reset?: boolean, overrides?: Partial<CafeFilters>, searchOverride?: string) => Promise<void>) | null>(null);
 
-    const checkMyCafe = async () => {
+    const listTuning = useMemo(() => (
+        Platform.OS === 'android'
+            ? {
+                initialNumToRender: 4,
+                maxToRenderPerBatch: 4,
+                windowSize: 5,
+                updateCellsBatchingPeriod: 80,
+            }
+            : {
+                initialNumToRender: 6,
+                maxToRenderPerBatch: 8,
+                windowSize: 7,
+                updateCellsBatchingPeriod: 50,
+            }
+    ), []);
+    const useReducedCardVisuals = Platform.OS === 'android';
+
+    const checkMyCafe = useCallback(async () => {
         const requestId = ++latestMyCafeRequestRef.current;
         try {
             const response = await cafeService.getMyCafe();
@@ -301,19 +331,27 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 setMyCafe(null);
             }
         }
-    };
+    }, []);
 
     useEffect(() => {
-        checkMyCafe();
-    }, []);
+        const task = InteractionManager.runAfterInteractions(() => {
+            checkMyCafe();
+        });
+
+        return () => {
+            task.cancel();
+        };
+    }, [checkMyCafe]);
 
     const loadCafes = useCallback(async (reset = false, overrides: Partial<CafeFilters> = {}, searchOverride?: string) => {
         const requestId = ++latestCafesRequestRef.current;
+        const baseFilters = filtersRef.current;
         const nextFilters: CafeFilters = {
-            ...filters,
+            ...baseFilters,
             ...overrides,
-            page: reset ? 1 : (overrides.page ?? filters.page ?? 1),
+            page: reset ? 1 : (overrides.page ?? baseFilters.page ?? 1),
         };
+        filtersRef.current = nextFilters;
         try {
             if (reset) {
                 if (isMountedRef.current && !initialLoadCompleted) {
@@ -355,7 +393,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             }
             loadMoreInProgressRef.current = false;
         }
-    }, [filters, initialLoadCompleted]);
+    }, [initialLoadCompleted]);
 
     useEffect(() => {
         loadCafesRef.current = loadCafes;
@@ -381,22 +419,19 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             return;
         }
         setRefreshing(true);
-        setFilters(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
         loadCafes(true);
     };
 
     const handleLoadMore = () => {
         if (!loading && !refreshing && !loadingMore && hasMore && !loadMoreInProgressRef.current) {
             loadMoreInProgressRef.current = true;
-            const nextPage = (filters.page || 1) + 1;
-            setFilters(prev => ({ ...prev, page: nextPage }));
+            const nextPage = (filtersRef.current.page || 1) + 1;
             loadCafes(false, { page: nextPage });
         }
     };
 
     const triggerSearch = useCallback((query: string) => {
         searchRef.current = query;
-        setFilters(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
         loadCafesRef.current?.(true, { page: 1 }, query);
     }, []);
 
@@ -425,14 +460,13 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     }, [navigation]);
 
     const handleSortChange = useCallback((sort: CafeSortType) => {
-        const currentSort = filters.sort ?? 'rating';
-        if (currentSort === sort) {
+        if (activeSort === sort) {
             return;
         }
 
-        setFilters(prev => ({ ...prev, sort, page: 1 }));
+        setActiveSort(sort);
         loadCafes(true, { sort, page: 1 });
-    }, [filters.sort, loadCafes]);
+    }, [activeSort, loadCafes]);
 
     const sortOptions = useMemo(() => ([
         { type: 'rating' as CafeSortType, label: t('cafe.list.rating'), icon: Star, color: colors.accent },
@@ -440,9 +474,9 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         { type: 'newest' as CafeSortType, label: t('cafe.list.newest'), icon: Sparkles, color: colors.warning },
     ]), [colors.accent, colors.warning, roleTheme.accentStrong, t]);
 
-    const activeSort = filters.sort ?? 'rating';
     const deliveryLabel = t('cafe.form.delivery');
     const minLabel = t('common.min');
+    const keyExtractor = useCallback((item: Cafe) => item.id.toString(), []);
 
     const renderCafeCard = useCallback(({ item }: { item: Cafe }) => (
         <CafeCard
@@ -452,9 +486,24 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             textSecondaryColor={colors.textSecondary}
             deliveryLabel={deliveryLabel}
             minLabel={minLabel}
+            reducedVisuals={useReducedCardVisuals}
             onPress={handleCafePress}
         />
-    ), [colors.accent, colors.textSecondary, deliveryLabel, handleCafePress, minLabel, styles]);
+    ), [colors.accent, colors.textSecondary, deliveryLabel, handleCafePress, minLabel, styles, useReducedCardVisuals]);
+
+    const listFooterComponent = useMemo(() => (
+        loadingMore && cafes.length > 0 ? (
+            <ActivityIndicator size="small" color={colors.accent} style={styles.footerLoader} />
+        ) : null
+    ), [cafes.length, colors.accent, loadingMore, styles.footerLoader]);
+
+    const listEmptyComponent = useMemo(() => (
+        <View style={styles.emptyContainer}>
+            <Coffee size={64} color={colors.textSecondary} />
+            <Text style={styles.emptyTitle}>{t('cafe.list.empty')}</Text>
+            <Text style={styles.emptySubtitle}>{t('cafe.list.emptySubtext')}</Text>
+        </View>
+    ), [colors.textSecondary, styles.emptyContainer, styles.emptySubtitle, styles.emptyTitle, t]);
 
     const listHeaderComponent = useMemo(() => (
         <View style={styles.header}>
@@ -593,32 +642,22 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     <FlatList
                         data={cafes}
                         renderItem={renderCafeCard}
-                        keyExtractor={item => item.id.toString()}
+                        keyExtractor={keyExtractor}
                         ListHeaderComponent={fullHeaderComponent}
                         contentContainerStyle={styles.listContent}
                         numColumns={2}
                         columnWrapperStyle={styles.columnWrapper}
                         removeClippedSubviews
-                        initialNumToRender={6}
-                        maxToRenderPerBatch={8}
-                        windowSize={7}
-                        updateCellsBatchingPeriod={50}
+                        initialNumToRender={listTuning.initialNumToRender}
+                        maxToRenderPerBatch={listTuning.maxToRenderPerBatch}
+                        windowSize={listTuning.windowSize}
+                        updateCellsBatchingPeriod={listTuning.updateCellsBatchingPeriod}
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
-                        ListFooterComponent={
-                            loadingMore && cafes.length > 0 ? (
-                                <ActivityIndicator size="small" color={colors.accent} style={styles.footerLoader} />
-                            ) : null
-                        }
-                        ListEmptyComponent={
-                            <View style={styles.emptyContainer}>
-                                <Coffee size={64} color={colors.textSecondary} />
-                                <Text style={styles.emptyTitle}>{t('cafe.list.empty')}</Text>
-                                <Text style={styles.emptySubtitle}>{t('cafe.list.emptySubtext')}</Text>
-                            </View>
-                        }
+                        ListFooterComponent={listFooterComponent}
+                        ListEmptyComponent={listEmptyComponent}
                     />
                 )}
             </View>
@@ -854,6 +893,10 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     },
     cardImageOverlay: {
         ...StyleSheet.absoluteFillObject,
+    },
+    cardImageOverlayReduced: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(10, 10, 20, 0.18)',
     },
     cardTopBadges: {
         position: 'absolute',

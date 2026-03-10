@@ -462,6 +462,20 @@ export default function MonetizationPage() {
                 onSave={() => saveSection('pro', '/admin/monetization/pro', { plans: proPlans })}
             >
                 <div className="space-y-3">
+                    <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border)] bg-[var(--secondary)]/10 p-4 text-sm text-[var(--muted-foreground)] md:flex-row md:items-center md:justify-between">
+                        <p>
+                            Эти цены показываются на публичной странице LKM тарифов и используются при покупке подписки PRO.
+                        </p>
+                        <a
+                            href="https://lkm.vedamatch.ru/tariffs"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 font-semibold text-[var(--primary)]"
+                        >
+                            <ExternalLink className="h-4 w-4" />
+                            Открыть public tariffs
+                        </a>
+                    </div>
                     {proPlans.map((plan, index) => (
                         <div key={plan.code} className="grid gap-3 rounded-2xl border border-[var(--border)] p-4 md:grid-cols-6">
                             <Field label="Code" value={plan.code} onChange={(value) => updateAt(setProPlans, index, 'code', value)} />

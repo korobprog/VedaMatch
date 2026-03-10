@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, ActivityIndicator, Image } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
-import { ArrowDownLeft, ArrowUpRight, PhoneMissed, Phone } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, PhoneMissed, Phone, ArrowLeft, PhoneOff, Contact } from 'lucide-react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../context/SettingsContext';
@@ -185,6 +185,15 @@ export const CallHistoryScreen = () => {
         });
     };
 
+    const stringToColor = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        return '#' + '00000'.substring(0, 6 - c.length) + c;
+    };
+
     const renderItem = ({ item }: { item: CallHistoryEntry }) => {
         const contact = typeof item.userId === 'number' ? contactsById[item.userId] ?? null : null;
         const online = isOnline(contact?.lastSeen);
@@ -202,18 +211,14 @@ export const CallHistoryScreen = () => {
         const canCallBack = typeof item.userId === 'number' && Number.isFinite(item.userId);
         const canOpenProfile = typeof item.userId === 'number' && Number.isFinite(item.userId);
         const titleInitial = (enrichedItem.displayName[0] || '?').toUpperCase();
+        const avatarBgColor = stringToColor(enrichedItem.displayName || item.userId?.toString() || item.id);
 
         return (
             <View style={[
                 styles.callItemContainer,
                 {
-                    backgroundColor: 'transparent', // The shadow caster needs to be transparent here to let inner content show, but it might not cast shadow if purely transparent?
-                    // Actually, for shadow to be cast, the view casting it needs a background. 
-                    // But we want the shadow to appear 'around' the item.
-                    // If we set backgroundColor to 'transparent', iOS shadow works if shadowOpacity is set.
-                    // But React Native warns about efficiency.
-                    // We can set a very low opacity background for the shadow caster or just ignore the warning if it works.
-                    // However, we can also use the inner view's layout for shadow by not clipping overflow on the wrapper.
+                    backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background,
+                    borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.divider,
                 }
             ]}>
                 <TouchableOpacity
@@ -223,13 +228,7 @@ export const CallHistoryScreen = () => {
                         navigation.navigate('ContactProfile', { userId: item.userId });
                     }}
                     disabled={!canOpenProfile}
-                    style={[
-                    styles.callItem,
-                    {
-                        backgroundColor: isPhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
-                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
-                    }
-                ]}>
+                    style={[styles.callItem]}>
                     {(isPhotoBg || isDarkMode) && (
                         <BlurView
                             style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
@@ -239,11 +238,11 @@ export const CallHistoryScreen = () => {
                         />
                     )}
 
-                    <View style={[styles.avatarContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={styles.avatarContainer}>
                         {enrichedItem.avatarUrl ? (
                             <Image source={{ uri: enrichedItem.avatarUrl }} style={styles.avatarImage} />
                         ) : (
-                            <View style={[styles.avatarPlaceholder, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : vTheme.colors.primary }]}>
+                            <View style={[styles.avatarPlaceholder, { backgroundColor: avatarBgColor }]}>
                                 <Text style={styles.avatarPlaceholderText}>{titleInitial}</Text>
                             </View>
                         )}
@@ -306,12 +305,30 @@ export const CallHistoryScreen = () => {
     return (
         <View style={styles.container}>
             <View style={styles.headerContainer}>
+                <TouchableOpacity
+                    style={styles.screenBackButton}
+                    onPress={() => {
+                        if (navigation.canGoBack()) {
+                            navigation.goBack();
+                            return;
+                        }
+                        navigation.navigate('Portal', { resetToGridAt: Date.now() });
+                    }}
+                >
+                    <ArrowLeft size={24} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                </TouchableOpacity>
                 <Text style={[styles.header, {
                     color: isPhotoBg ? '#ffffff' : vTheme.colors.text,
                     fontFamily: 'Cinzel-Bold',
                 }]}>
                     {t('calls.history')}
                 </Text>
+                <TouchableOpacity
+                    style={styles.screenHeaderAction}
+                    onPress={() => navigation.navigate('ContactsHome')}
+                >
+                    <Contact size={24} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                </TouchableOpacity>
             </View>
 
             <FlatList
@@ -329,9 +346,12 @@ export const CallHistoryScreen = () => {
                         {isLoading ? (
                             <ActivityIndicator color={vTheme.colors.primary} />
                         ) : (
-                            <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
-                                {t('calls.empty')}
-                            </Text>
+                            <>
+                                <PhoneOff size={48} color={isPhotoBg ? 'rgba(255,255,255,0.5)' : vTheme.colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
+                                <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
+                                    {t('calls.empty')}
+                                </Text>
+                            </>
                         )}
                     </View>
                 )}
@@ -346,49 +366,50 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     headerContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 4,
+    },
+    screenBackButton: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: -8, // Compensate for padding to align with edge
+    },
+    screenHeaderAction: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     header: {
-        fontSize: 28,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '700',
     },
     list: {
-        paddingHorizontal: 16,
         paddingBottom: 40,
-        gap: 16,
     },
     emptyWrap: {
-        paddingTop: 48,
+        paddingTop: 100,
         alignItems: 'center',
         justifyContent: 'center',
     },
     emptyText: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '500',
     },
     callItemContainer: {
-        borderRadius: 22,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 10,
-            },
-            android: {
-                elevation: 4,
-            }
-        })
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     callItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
-        borderRadius: 22,
-        borderWidth: 1,
-        overflow: 'hidden',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
     },
     avatarContainer: {
         width: 54,

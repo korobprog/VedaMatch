@@ -542,6 +542,10 @@ func main() {
 	// Public referral validation endpoint.
 	api.Get("/referral/validate/:code", referralHandler.ValidateInviteCode)
 
+	// Public monetization read-only endpoints for LKM web.
+	api.Get("/lkm/packages", lkmTopupHandler.GetPackages)
+	api.Get("/pro/plans", proHandler.GetPlans)
+
 	// Public charity endpoints.
 	publicCharity := api.Group("/charity")
 	publicCharity.Get("/projects", charityHandler.GetProjects)
@@ -1241,7 +1245,6 @@ func main() {
 	protected.Get("/calendar/busy", bookingHandler.GetBusyTimes)
 
 	// Wallet (Лакшми)
-	protected.Get("/lkm/packages", lkmTopupHandler.GetPackages)
 	protected.Post("/lkm/quote", lkmTopupHandler.CreateQuote)
 	protected.Get("/lkm/topups", lkmTopupHandler.GetMyTopups)
 	protected.Post("/lkm/topups", lkmTopupHandler.CreateTopup)
@@ -1251,7 +1254,6 @@ func main() {
 	protected.Post("/wallet/transfer", walletHandler.Transfer)
 	protected.Post("/calls/feedback", callFeedbackHandler.CreateFeedback)
 	protected.Post("/calls/support-transfer", callFeedbackHandler.SupportTransfer)
-	protected.Get("/pro/plans", proHandler.GetPlans)
 	protected.Get("/pro/status", proHandler.GetStatus)
 	protected.Post("/pro/purchase", proHandler.Purchase)
 

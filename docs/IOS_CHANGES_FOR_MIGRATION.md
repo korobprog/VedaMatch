@@ -116,6 +116,456 @@ if (!isServiceVisible(serviceId)) {
 ```
 # IOS Changes For Migration
 
+## 2026-03-10 (Library moved to native stack, knowledge base shortcut aligned)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `library` открывался как embedded-tab внутри `PortalMainScreen`;
+  - shortcut `knowledge_base` тоже вел в embedded `library`;
+  - возврат назад требовал тяжелого portal rerender.
+- Стало:
+  - `library` теперь идет в отдельный native stack route `LibraryHome`;
+  - `knowledge_base` выровнен и ведет в тот же `LibraryHome`;
+  - `PortalMainScreen` больше не рендерит `LibraryHomeScreen` как `activeTab`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'library') {
+  return { kind: 'navigate', screen: 'LibraryHome' };
+}
+
+if (serviceId === 'knowledge_base') {
+  return { kind: 'navigate', screen: 'LibraryHome' };
+}
+```
+
+`frontend/App.tsx`:
+```ts
+<Stack.Screen name="LibraryHome" component={LibraryHomeScreen} options={{ headerShown: false }} />
+```
+
+## 2026-03-10 (Library first-paint optimization after stack migration)
+
+### Измененные файлы
+- `frontend/screens/library/LibraryHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `LibraryHomeScreen` ждал не только каталог книг, но и офлайн-статусы/размеры, что удлиняло первый paint;
+  - карточки книг всегда рендерились с `BlurView` и `LinearGradient`, что особенно тяжело для Android;
+  - список не имел отдельного Android fast-path по виртуализации.
+- Стало:
+  - secondary загрузка офлайн-статусов отложена через `InteractionManager.runAfterInteractions`;
+  - карточки книг вынесены в memoized `BookCard`;
+  - Android получил reduced-visuals path без blur/gradient overlays и более жесткую list virtualization.
+
+### Сниппеты кода
+
+`frontend/screens/library/LibraryHomeScreen.tsx`:
+```ts
+const task = InteractionManager.runAfterInteractions(() => {
+  void loadSavedBooksInfo();
+});
+```
+
+```ts
+const reducedVisuals = Platform.OS === 'android';
+```
+
+```ts
+removeClippedSubviews={Platform.OS === 'android'}
+initialNumToRender={listTuning.initialNumToRender}
+maxToRenderPerBatch={listTuning.maxToRenderPerBatch}
+```
+
+## 2026-03-10 (Education moved to native stack like library and news)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `education` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад требовал повторного portal rerender внутри того же shell.
+- Стало:
+  - shortcut `education` теперь ведет в отдельный native stack route `EducationHome`;
+  - `PortalMainScreen` больше не рендерит `EducationHomeScreen` как `activeTab`;
+  - возврат из обучения теперь идет по обычному stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'education') {
+  return { kind: 'navigate', screen: 'EducationHome' };
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'EducationHome') {
+  navigation.navigate('EducationHome');
+  return;
+}
+```
+
+## 2026-03-10 (Travel moved to native stack like education)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `travel` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад требовал повторного portal rerender внутри того же shell.
+- Стало:
+  - shortcut `travel` теперь ведет в отдельный native stack route `TravelHome`;
+  - `PortalMainScreen` больше не рендерит `TravelHomeScreen` как `activeTab`;
+  - возврат из travel теперь идет по обычному stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'travel') {
+  return { kind: 'navigate', screen: 'TravelHome' };
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'TravelHome') {
+  navigation.navigate('TravelHome');
+  return;
+}
+```
+
+## 2026-03-10 (Travel first-paint optimization after stack migration)
+
+### Измененные файлы
+- `frontend/screens/portal/travel/TravelHomeScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `TravelHomeScreen` держал тяжелые travel/stay cards с image badges и нестабильными render callbacks;
+  - header и empty-state пересоздавались вместе с list props, а Android не имел отдельного fast-path по виртуализации.
+- Стало:
+  - `YatraCard` и `ShelterCard` вынесены в memoized components;
+  - Android получил reduced-visuals path без secondary badges поверх изображений и с более короткой card image;
+  - list/header/refresh callbacks стабилизированы, а list virtualization усилена через `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `updateCellsBatchingPeriod`, `estimatedItemSize`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/travel/TravelHomeScreen.tsx`:
+```ts
+const reducedVisuals = Platform.OS === 'android';
+```
+
+```ts
+const listTuning = reducedVisuals
+  ? { initialNumToRender: 3, maxToRenderPerBatch: 3, windowSize: 4, updateCellsBatchingPeriod: 80, estimatedItemSize: 320 }
+  : { initialNumToRender: 5, maxToRenderPerBatch: 5, windowSize: 6, updateCellsBatchingPeriod: 50, estimatedItemSize: 360 };
+```
+
+```ts
+{!reducedVisuals && item.sevaExchange && (
+  <View style={[styles.cardBadge, styles.sevaBadge, { backgroundColor: colors.danger }]}>
+```
+
+## 2026-03-10 (Ads moved to native stack like travel and education)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `ads` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад требовал повторного portal rerender внутри того же shell.
+- Стало:
+  - shortcut `ads` теперь ведет в отдельный native stack route `Ads`;
+  - `PortalMainScreen` больше не рендерит `AdsScreen` как `activeTab`;
+  - возврат из объявлений теперь идет по обычному stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'ads') {
+  return { kind: 'navigate', screen: 'Ads' };
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'Ads') {
+  navigation.navigate('Ads');
+  return;
+}
+```
+
+## 2026-03-10 (News moved to native stack like cafe, dating and contacts)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `news` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад требовал тяжелого portal rerender.
+- Стало:
+  - shortcut `news` теперь идет в отдельный native stack route `NewsHome`;
+  - `PortalMainScreen` больше не рендерит `NewsScreen` как `activeTab`;
+  - возврат из новостей теперь идет по обычному stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'news') {
+  return { kind: 'navigate', screen: 'NewsHome' };
+}
+```
+
+`frontend/App.tsx`:
+```ts
+<Stack.Screen name="NewsHome" component={NewsScreen} options={{ headerShown: false }} />
+```
+
+## 2026-03-10 (Cafe list first-paint optimization after stack migration)
+
+### Измененные файлы
+- `frontend/screens/portal/cafe/CafeListScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `CafeListScreen` держал `filters` в state, поэтому pagination/search reset провоцировали лишние rerender'ы всей шапки и списка;
+  - secondary запрос `getMyCafe()` запускался сразу на mount и мог конкурировать с first paint;
+  - Android и iOS использовали одинаковую виртуализацию списка, хотя для Android нужен более жесткий fast-path.
+- Стало:
+  - pagination filters переведены в `ref`, а UI sort оставлен в отдельном state;
+  - `getMyCafe()` отложен через `InteractionManager.runAfterInteractions`;
+  - footer/empty components и `keyExtractor` стабилизированы;
+  - Android получил более агрессивные list virtualization параметры, чем iOS.
+  - Android `CafeCard` получил reduced-visuals path: простой overlay вместо gradient и меньше secondary badges/logo.
+
+### Сниппеты кода
+
+`frontend/screens/portal/cafe/CafeListScreen.tsx`:
+```ts
+const filtersRef = useRef<CafeFilters>({
+  sort: 'rating',
+  page: 1,
+  limit: 20,
+});
+```
+
+```ts
+const task = InteractionManager.runAfterInteractions(() => {
+  checkMyCafe();
+});
+```
+
+```ts
+const listTuning = Platform.OS === 'android'
+  ? { initialNumToRender: 4, maxToRenderPerBatch: 4, windowSize: 5, updateCellsBatchingPeriod: 80 }
+  : { initialNumToRender: 6, maxToRenderPerBatch: 8, windowSize: 7, updateCellsBatchingPeriod: 50 };
+```
+
+```ts
+{reducedVisuals ? <View style={styles.cardImageOverlayReduced} /> : <LinearGradient ... />}
+```
+
+## 2026-03-10 (Cafe moved to native stack like contacts, calls, dating and multimedia)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `cafe` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад шел через тяжелый portal rerender;
+  - это повышало риск лагов и блокировки `Portal` после выхода из кафе.
+- Стало:
+  - shortcut `cafe` теперь идет в отдельный native stack route `CafeHome`;
+  - `PortalMainScreen` больше не рендерит `CafeListScreen` как `activeTab`;
+  - возврат из `CafeListScreen` снова идет как обычный stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'cafe') {
+  return { kind: 'navigate', screen: 'CafeHome' };
+}
+```
+
+`frontend/App.tsx`:
+```ts
+<Stack.Screen name="CafeHome" component={CafeListScreen} options={{ headerShown: false }} />
+```
+
+## 2026-03-10 (Dating moved to native stack like contacts, calls and multimedia)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/App.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `dating` открывался как embedded-tab внутри `PortalMainScreen`;
+  - возврат назад требовал тяжелого portal rerender;
+  - это повышало риск лагов и блокировки `Portal` после возврата.
+- Стало:
+  - shortcut `dating` теперь идет в отдельный native stack route `DatingHome`;
+  - `PortalMainScreen` больше не рендерит `DatingScreen` как `activeTab`;
+  - возврат из `DatingScreen` снова идет как обычный stack back path.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'dating') {
+  return { kind: 'navigate', screen: 'DatingHome' };
+}
+```
+
+`frontend/App.tsx`:
+```ts
+<Stack.Screen name="DatingHome" component={DatingScreen} options={{ headerShown: false }} />
+```
+
+## 2026-03-10 (Call history moved to native stack like contacts and services catalog)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `calls` открывался как embedded `activeTab` внутри `PortalMainScreen`;
+  - на экране истории звонков одновременно могли рендериться portal service-header и собственная стрелка экрана;
+  - возврат в портал отличался по поведению от `Dhama` и `ContactsHome`.
+- Стало:
+  - shortcut `calls` теперь ведет в отдельный native stack screen `CallsHome`;
+  - `PortalMainScreen` больше не рендерит `CallHistoryScreen` как embedded-tab;
+  - `CallHistoryScreen` использует только свою стрелку назад и fallback-навигацию в `Portal`, если stack-back недоступен;
+  - в правой части header добавлен быстрый переход в `ContactsHome`, чтобы связанный contacts-flow открывался без возврата в портал.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'calls') {
+  return { kind: 'navigate', screen: 'CallsHome' };
+}
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="CallsHome" component={CallHistoryScreen} options={{ headerShown: false }} />
+```
+
+`frontend/screens/calls/CallHistoryScreen.tsx`:
+```tsx
+if (navigation.canGoBack()) {
+  navigation.goBack();
+  return;
+}
+navigation.navigate('Portal', { resetToGridAt: Date.now() });
+```
+
+## 2026-03-10 (Multimedia moved out of embedded portal tab into native stack route)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/__tests__/screens/portal/serviceLaunchResolver.test.ts`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `multimedia` открывался как embedded `activeTab` внутри `PortalMainScreen`;
+  - возврат в портал проходил через внутренний rerender portal-shell, а не через stack back;
+  - это оставляло тот же structural-risk на лаг возврата, что раньше был у `contacts` и `calls`.
+- Стало:
+  - shortcut `multimedia` теперь ведет в уже существующий stack screen `MultimediaHub`;
+  - `PortalMainScreen` больше не рендерит `MultimediaHubScreen` как embedded-tab;
+  - возврат из мультимедиа теперь идет через обычный stack path, без удержания мультимедийного экрана внутри portal activeTab.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'multimedia') {
+  return { kind: 'navigate', screen: 'MultimediaHub' };
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'MultimediaHub') {
+  navigation.navigate('MultimediaHub');
+  return;
+}
+```
+
+## 2026-03-10 (Shops moved out of embedded portal tab into market stack route)
+
+### Измененные файлы
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/__tests__/screens/portal/serviceLaunchResolver.test.ts`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `shops` открывался как embedded `activeTab` внутри `PortalMainScreen`;
+  - возврат в портал проходил через внутренний rerender portal-shell;
+  - на тяжелом market home это оставляло тот же perf-risk, что раньше был у `contacts`, `calls` и `multimedia`.
+- Стало:
+  - shortcut `shops` теперь ведет в существующий stack screen `MarketHome`;
+  - `PortalMainScreen` больше не рендерит `MarketHomeScreen` как embedded-tab;
+  - возврат из market home теперь идет через stack navigation, без удержания market экрана внутри portal activeTab.
+
+### Сниппеты кода
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'shops') {
+  return { kind: 'navigate', screen: 'MarketHome' };
+}
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'MarketHome') {
+  navigation.navigate('MarketHome');
+  return;
+}
+```
+
 ## 2026-03-08 (EditProfile role carousel no longer triggers accidental swipe-back to portal)
 
 ### Измененные файлы
@@ -3358,6 +3808,49 @@ const historyColors = React.useMemo(() => ({
 }), []);
 
 <View style={[StyleSheet.absoluteFill, { backgroundColor: historyColors.background }]} />
+```
+
+## 2026-03-10 (Chat history drawer compact layout and settings shortcut removal)
+
+### Измененные файлы
+- `frontend/SettingsDrawer.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - drawer истории чатов занимал около `80%` ширины экрана;
+  - в header была отдельная иконка перехода в настройки;
+  - карточки истории и кнопка `Новый чат` были крупнее и визуально тяжелее.
+- Стало:
+  - ширина drawer уменьшена до `58%` экрана;
+  - из header удален shortcut в настройки, оставлен только toggle edit-mode;
+  - header, CTA `Новый чат` и элементы списка истории уплотнены под более компактный mobile layout.
+
+### Сниппеты кода
+
+`frontend/SettingsDrawer.tsx`:
+```tsx
+const DRAWER_WIDTH = Dimensions.get('window').width * 0.58;
+
+{history.length > 0 && (
+  <TouchableOpacity
+    onPress={() => setIsEditMode((prev) => !prev)}
+    style={styles.headerActionBtn}
+  >
+    {isEditMode ? <X size={20} /> : <Edit3 size={20} />}
+  </TouchableOpacity>
+)}
+```
+
+```tsx
+newChatButton: {
+  minHeight: 48,
+  borderRadius: 16,
+},
+historyItem: {
+  minHeight: 62,
+  borderRadius: 14,
+  marginBottom: 8,
+}
 ```
 
 ## 2026-03-03 (Chat messages contrast fix on light chat background)
@@ -13020,4 +13513,82 @@ const usePhotoBg = isPhotoBg && !isAndroidReducedEffects;
 >
   <ArrowLeft size={20} color={usePhotoBg ? '#FFFFFF' : vTheme.colors.text} />
 </TouchableOpacity>
+```
+## 2026-03-10 (Role carousel swipe reliability on mobile profile screen)
+
+- Измененные файлы:
+  - `frontend/components/roles/RoleSelectionSection.tsx`
+  - `frontend/screens/settings/EditProfileScreen.tsx`
+- Суть правки:
+  - Было: на Android горизонтальный свайп карточек ролей внутри `EditProfile` часто перехватывался родительским вертикальным `ScrollView`, из-за чего листание ролей вправо/влево не срабатывало.
+  - Стало: `RoleSelectionSection` сообщает о старте/окончании горизонтального жеста, а `EditProfileScreen` на это время отключает вертикальный скролл родителя.
+- Код:
+```tsx
+<RoleSelectionSection
+  selectedRole={role}
+  onSelectRole={setRole}
+  onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
+/>
+
+<ScrollView scrollEnabled={!isRoleCarouselInteracting} ... />
+```
+
+## 2026-03-10 (Registration role carousel: Android horizontal swipe conflict fix)
+
+- Измененные файлы:
+  - `frontend/screens/RegistrationScreen.tsx`
+- Суть правки:
+  - Было: в profile-phase регистрации горизонтальный свайп ролей на Android мог перехватываться родительским вертикальным `ScrollView`.
+  - Стало: `RegistrationScreen` подписан на `onHorizontalSwipeActiveChange` из `RoleSelectionSection` и временно выключает вертикальный скролл формы при активном горизонтальном жесте.
+- Код:
+```tsx
+<RoleSelectionSection
+  selectedRole={role}
+  onSelectRole={setRole}
+  onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
+/>
+
+<ScrollView scrollEnabled={!isRoleCarouselInteracting} ... />
+```
+
+## 2026-03-10 (Rooms stack migration and invite/back flow)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/chat/PortalChatScreen.tsx`
+- `frontend/screens/portal/chat/RoomsHomeScreen.tsx`
+- `frontend/screens/portal/chat/RoomInviteEntryScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `rooms` открывался как embedded `activeTab` внутри `PortalMainScreen`;
+  - `RoomInviteEntryScreen` после join/invalid token возвращал в `Portal` с `initialTab: 'rooms'`;
+  - back из `RoomChat` в итоге мог возвращать пользователя в тяжелый portal-shell path.
+- Стало:
+  - `rooms` открывается отдельным stack route `RoomsHome`;
+  - `PortalMainScreen` больше не держит `rooms` как embedded-tab;
+  - `RoomInviteEntryScreen` теперь ведет в `RoomsHome`, а `reset()` после join строит стек `RoomsHome -> RoomChat`;
+  - для `RoomsHome` добавлен собственный back path `goBack -> Portal`.
+
+### Короткий сниппет
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```tsx
+if (serviceId === 'rooms') {
+  return { kind: 'navigate', screen: 'RoomsHome' };
+}
+```
+
+`frontend/screens/portal/chat/RoomInviteEntryScreen.tsx`:
+```tsx
+navigation.reset({
+  index: 1,
+  routes: [
+    { name: 'RoomsHome' },
+    { name: 'RoomChat', params: { roomId: joinedRoomID, roomName: joinedRoomName } },
+  ],
+});
 ```

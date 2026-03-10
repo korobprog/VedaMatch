@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -7,8 +7,8 @@ import {
     TextInput,
     ActivityIndicator,
     RefreshControl,
-    ScrollView,
     FlatList,
+    Platform,
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
@@ -28,164 +28,208 @@ import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 
 type TabType = 'yatras' | 'shelters';
 
+type TravelCardCommonProps = {
+    colors: ReturnType<typeof useRoleTheme>['colors'];
+    reducedVisuals: boolean;
+};
+
+type YatraCardProps = TravelCardCommonProps & {
+    item: Yatra;
+    language: string;
+    onPress: (yatra: Yatra) => void;
+};
+
+type ShelterCardProps = TravelCardCommonProps & {
+    item: Shelter;
+    language: string;
+    onPress: (shelter: Shelter) => void;
+};
+
+const YatraCard = React.memo<YatraCardProps>(({ item, language, onPress, colors, reducedVisuals }) => {
+    const daysUntil = yatraService.getDaysUntilStart(item.startDate);
+    const duration = yatraService.getTripDuration(item.startDate, item.endDate);
+
+    return (
+        <TouchableOpacity
+            style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+            onPress={() => onPress(item)}
+            activeOpacity={0.8}
+        >
+            <FastImage
+                source={{ uri: yatraService.getImageUrl(item.coverImageUrl || null), priority: FastImage.priority.normal }}
+                style={[styles.cardImage, reducedVisuals && styles.cardImageReduced, { backgroundColor: colors.surface }]}
+                resizeMode={FastImage.resizeMode.cover}
+            />
+            {!reducedVisuals && (
+                <View style={[styles.cardBadge, { backgroundColor: colors.accent }]}>
+                    <Text style={styles.cardBadgeText}>
+                        {getYatraThemeLabel(item.theme, language)}
+                    </Text>
+                </View>
+            )}
+            <View style={styles.cardContent}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
+
+                <View style={styles.cardRow}>
+                    <MapPin size={14} color={colors.accent} strokeWidth={2} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
+                        {item.startCity} → {item.endCity}
+                    </Text>
+                </View>
+
+                <View style={styles.cardRow}>
+                    <Calendar size={14} color={colors.warning} strokeWidth={2} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
+                        {yatraService.formatDateRange(item.startDate, item.endDate, language)} ({duration} days)
+                    </Text>
+                </View>
+
+                <View style={styles.cardRow}>
+                    <Users size={14} color={colors.success} strokeWidth={2} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
+                        {item.participantCount}/{item.maxParticipants} participants
+                    </Text>
+                </View>
+
+                <View style={styles.cardFooter}>
+                    {daysUntil > 0 ? (
+                        <View style={[styles.daysChip, { backgroundColor: colors.surface }]}>
+                            <Text style={[styles.daysChipText, { color: colors.textSecondary }]}>
+                                In {daysUntil} days
+                            </Text>
+                        </View>
+                    ) : daysUntil === 0 ? (
+                        <View style={[styles.daysChip, styles.todayChip, { backgroundColor: colors.success }]}>
+                            <Text style={[styles.daysChipText, { color: colors.background }]}>Today!</Text>
+                        </View>
+                    ) : (
+                        <View style={[styles.daysChip, styles.activeChip, { backgroundColor: colors.warning }]}>
+                            <Text style={[styles.daysChipText, { color: colors.background }]}>In progress</Text>
+                        </View>
+                    )}
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
+const ShelterCard = React.memo<ShelterCardProps>(({ item, language, onPress, colors, reducedVisuals }) => {
+    const photos = yatraService.parsePhotos(item.photos);
+    const imageUrl = photos.length > 0 ? photos[0] : null;
+
+    return (
+        <TouchableOpacity
+            style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+            onPress={() => onPress(item)}
+            activeOpacity={0.8}
+        >
+            <FastImage
+                source={{ uri: yatraService.getImageUrl(imageUrl), priority: FastImage.priority.normal }}
+                style={[styles.cardImage, reducedVisuals && styles.cardImageReduced, { backgroundColor: colors.surface }]}
+                resizeMode={FastImage.resizeMode.cover}
+            />
+            {!reducedVisuals && item.sevaExchange && (
+                <View style={[styles.cardBadge, styles.sevaBadge, { backgroundColor: colors.danger }]}>
+                    <Heart size={12} color="white" fill="white" />
+                    <Text style={styles.cardBadgeText}>Seva</Text>
+                </View>
+            )}
+            {!reducedVisuals && (
+                <View style={[styles.typeBadge, { backgroundColor: colors.overlay }]}>
+                    <Text style={styles.typeBadgeText}>
+                        {getShelterTypeLabel(item.type, language)}
+                    </Text>
+                </View>
+            )}
+            <View style={styles.cardContent}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
+
+                <View style={styles.cardRow}>
+                    <MapPin size={14} color={colors.accent} strokeWidth={2} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {item.city}{item.nearTemple ? ` • ${item.nearTemple}` : ''}
+                    </Text>
+                </View>
+
+                <View style={styles.cardRow}>
+                    <Star size={14} color={colors.warning} fill={colors.warning} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
+                        {item.rating.toFixed(1)} ({item.reviewsCount} reviews)
+                    </Text>
+                </View>
+
+                <View style={styles.cardRow}>
+                    <Users size={14} color={colors.success} strokeWidth={2} />
+                    <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
+                        Up to {item.capacity} guests • {item.rooms} rooms
+                    </Text>
+                </View>
+
+                <View style={styles.cardFooter}>
+                    <Text style={[styles.priceText, { color: colors.success }]}>
+                        {item.pricePerNight || 'Contact for details'}
+                    </Text>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
 const TravelHomeScreen: React.FC = () => {
     const navigation = useNavigation<any>();
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const [activeTab, setActiveTab] = useState<TabType>('yatras');
     const [search, setSearch] = useState('');
     const [submittedSearch, setSubmittedSearch] = useState('');
+    const reducedVisuals = Platform.OS === 'android';
+    const listTuning = useMemo(() => (
+        reducedVisuals
+            ? {
+                initialNumToRender: 3,
+                maxToRenderPerBatch: 3,
+                windowSize: 4,
+                updateCellsBatchingPeriod: 80,
+                estimatedItemSize: 320,
+            }
+            : {
+                initialNumToRender: 5,
+                maxToRenderPerBatch: 5,
+                windowSize: 6,
+                updateCellsBatchingPeriod: 50,
+                estimatedItemSize: 360,
+            }
+    ), [reducedVisuals]);
 
     const yatrasQuery = useYatrasQuery({ search: submittedSearch, limit: 20 });
     const sheltersQuery = useSheltersQuery({ search: submittedSearch, limit: 20 });
 
-    const handleSearch = () => {
+    const handleSearch = useCallback(() => {
         setSubmittedSearch(search.trim());
-    };
+    }, [search]);
 
-    const handleYatraPress = (yatra: Yatra) => {
+    const handleYatraPress = useCallback((yatra: Yatra) => {
         navigation.navigate('YatraDetail', { yatraId: yatra.id });
-    };
+    }, [navigation]);
 
-    const handleShelterPress = (shelter: Shelter) => {
+    const handleShelterPress = useCallback((shelter: Shelter) => {
         navigation.navigate('ShelterDetail', { shelterId: shelter.id });
-    };
+    }, [navigation]);
 
-    const renderYatraCard = ({ item }: { item: Yatra }) => {
-        if (!item || item.id === undefined) return null;
+    const handleCreatePress = useCallback(() => {
+        navigation.navigate(activeTab === 'yatras' ? 'CreateYatra' : 'CreateShelter');
+    }, [activeTab, navigation]);
 
-        const daysUntil = yatraService.getDaysUntilStart(item.startDate);
-        const duration = yatraService.getTripDuration(item.startDate, item.endDate);
+    const clearSearch = useCallback(() => {
+        setSearch('');
+        setSubmittedSearch('');
+    }, []);
 
-        return (
-            <TouchableOpacity
-                style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-                onPress={() => handleYatraPress(item)}
-                activeOpacity={0.8}
-            >
-                <FastImage
-                    source={{ uri: yatraService.getImageUrl(item.coverImageUrl || null), priority: FastImage.priority.normal }}
-                    style={[styles.cardImage, { backgroundColor: colors.surface }]}
-                    resizeMode={FastImage.resizeMode.cover}
-                />
-                <View style={[styles.cardBadge, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.cardBadgeText}>
-                        {getYatraThemeLabel(item.theme, i18n.language)}
-                    </Text>
-                </View>
-                <View style={styles.cardContent}>
-                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
-
-                    <View style={styles.cardRow}>
-                        <MapPin size={14} color={colors.accent} strokeWidth={2} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {item.startCity} → {item.endCity}
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardRow}>
-                        <Calendar size={14} color={colors.warning} strokeWidth={2} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {yatraService.formatDateRange(item.startDate, item.endDate, i18n.language)} ({duration} days)
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardRow}>
-                        <Users size={14} color={colors.success} strokeWidth={2} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {item.participantCount}/{item.maxParticipants} participants
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardFooter}>
-                        {daysUntil > 0 ? (
-                            <View style={[styles.daysChip, { backgroundColor: colors.surface }]}>
-                                <Text style={[styles.daysChipText, { color: colors.textSecondary }]}>
-                                    In {daysUntil} days
-                                </Text>
-                            </View>
-                        ) : daysUntil === 0 ? (
-                            <View style={[styles.daysChip, styles.todayChip, { backgroundColor: colors.success }]}>
-                                <Text style={[styles.daysChipText, { color: colors.background }]}>Today!</Text>
-                            </View>
-                        ) : (
-                            <View style={[styles.daysChip, styles.activeChip, { backgroundColor: colors.warning }]}>
-                                <Text style={[styles.daysChipText, { color: colors.background }]}>In progress</Text>
-                            </View>
-                        )}
-                        <ChevronRight size={20} color={colors.textSecondary} />
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderShelterCard = ({ item }: { item: Shelter }) => {
-        if (!item || item.id === undefined) return null;
-
-        const photos = yatraService.parsePhotos(item.photos);
-        const imageUrl = photos.length > 0 ? photos[0] : null;
-
-        return (
-            <TouchableOpacity
-                style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-                onPress={() => handleShelterPress(item)}
-                activeOpacity={0.8}
-            >
-                <FastImage
-                    source={{ uri: yatraService.getImageUrl(imageUrl), priority: FastImage.priority.normal }}
-                    style={[styles.cardImage, { backgroundColor: colors.surface }]}
-                    resizeMode={FastImage.resizeMode.cover}
-                />
-                {item.sevaExchange && (
-                    <View style={[styles.cardBadge, styles.sevaBadge, { backgroundColor: colors.danger }]}>
-                        <Heart size={12} color="white" fill="white" />
-                        <Text style={styles.cardBadgeText}>Seva</Text>
-                    </View>
-                )}
-                <View style={[styles.typeBadge, { backgroundColor: colors.overlay }]}>
-                    <Text style={styles.typeBadgeText}>
-                        {getShelterTypeLabel(item.type, i18n.language)}
-                    </Text>
-                </View>
-                <View style={styles.cardContent}>
-                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
-
-                    <View style={styles.cardRow}>
-                        <MapPin size={14} color={colors.accent} strokeWidth={2} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]} numberOfLines={1}>
-                            {item.city}{item.nearTemple ? ` • ${item.nearTemple}` : ''}
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardRow}>
-                        <Star size={14} color={colors.warning} fill={colors.warning} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            {item.rating.toFixed(1)} ({item.reviewsCount} reviews)
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardRow}>
-                        <Users size={14} color={colors.success} strokeWidth={2} />
-                        <Text style={[styles.cardRowText, { color: colors.textSecondary }]}>
-                            Up to {item.capacity} guests • {item.rooms} rooms
-                        </Text>
-                    </View>
-
-                    <View style={styles.cardFooter}>
-                        <Text style={[styles.priceText, { color: colors.success }]}>
-                            {item.pricePerNight || 'Contact for details'}
-                        </Text>
-                        <ChevronRight size={20} color={colors.textSecondary} />
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderHeader = () => (
+    const renderHeader = useMemo(() => (
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <View>
@@ -197,7 +241,7 @@ const TravelHomeScreen: React.FC = () => {
                     </View>
                     <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                    onPress={() => navigation.navigate(activeTab === 'yatras' ? 'CreateYatra' : 'CreateShelter')}
+                    onPress={handleCreatePress}
                 >
                     <Plus size={24} color="white" strokeWidth={2} />
                 </TouchableOpacity>
@@ -215,10 +259,7 @@ const TravelHomeScreen: React.FC = () => {
                     returnKeyType="search"
                 />
                 {search.length > 0 && (
-                    <TouchableOpacity onPress={() => {
-                        setSearch('');
-                        setSubmittedSearch('');
-                    }}>
+                    <TouchableOpacity onPress={clearSearch}>
                         <XCircle size={20} color={colors.textSecondary} strokeWidth={1.5} />
                     </TouchableOpacity>
                 )}
@@ -245,7 +286,7 @@ const TravelHomeScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
         </View>
-    );
+    ), [activeTab, clearSearch, colors.accent, colors.border, colors.surfaceElevated, colors.textPrimary, colors.textSecondary, handleCreatePress, handleSearch, search]);
 
     const yatras = yatrasQuery.data?.yatras || [];
     const shelters = sheltersQuery.data?.shelters || [];
@@ -256,27 +297,24 @@ const TravelHomeScreen: React.FC = () => {
         : (sheltersQuery.isRefetching && !sheltersQuery.isLoading);
     const data = activeTab === 'yatras' ? yatras : shelters;
 
-    if (isLoading && data.length === 0) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.accent} />
-                <Text style={[styles.loadingText, { color: colors.textPrimary }]}>Loading...</Text>
-            </View>
-        );
-    }
-
-    const refreshControlProps = {
-        refreshing: isRefreshing,
-        onRefresh: () => {
-            if (activeTab === 'yatras') {
-                void yatrasQuery.refetch();
-            } else {
-                void sheltersQuery.refetch();
-            }
+    const handleRefresh = useCallback(() => {
+        if (activeTab === 'yatras') {
+            yatrasQuery.refetch().catch((error) => {
+                console.warn('[travel] failed to refresh yatras', error);
+            });
+        } else {
+            sheltersQuery.refetch().catch((error) => {
+                console.warn('[travel] failed to refresh shelters', error);
+            });
         }
-    };
+    }, [activeTab, sheltersQuery, yatrasQuery]);
 
-    const emptyComponent = (
+    const refreshControlProps = useMemo(() => ({
+        refreshing: isRefreshing,
+        onRefresh: handleRefresh,
+    }), [handleRefresh, isRefreshing]);
+
+    const emptyComponent = useMemo(() => (
         <View style={styles.emptyContainer}>
             {activeTab === 'yatras' ? (
                 <Tent size={80} color={colors.border} strokeWidth={1} />
@@ -293,7 +331,7 @@ const TravelHomeScreen: React.FC = () => {
             </Text>
             <TouchableOpacity
                 style={[styles.emptyButton, { backgroundColor: colors.accent }]}
-                onPress={() => navigation.navigate(activeTab === 'yatras' ? 'CreateYatra' : 'CreateShelter')}
+                onPress={handleCreatePress}
             >
                 <Plus size={20} color="white" strokeWidth={2} />
                 <Text style={styles.emptyButtonText}>
@@ -301,7 +339,55 @@ const TravelHomeScreen: React.FC = () => {
                 </Text>
             </TouchableOpacity>
         </View>
-    );
+    ), [activeTab, colors.accent, colors.border, colors.textPrimary, colors.textSecondary, handleCreatePress]);
+
+    const keyExtractor = useCallback((item: Yatra | Shelter) => (
+        `${activeTab === 'yatras' ? 'yatra' : 'shelter'}-${item.id}`
+    ), [activeTab]);
+
+    const renderYatraCard = useCallback(({ item }: { item: Yatra }) => {
+        if (!item || item.id === undefined) return null;
+
+        return (
+            <YatraCard
+                item={item}
+                language={i18n.language}
+                onPress={handleYatraPress}
+                colors={colors}
+                reducedVisuals={reducedVisuals}
+            />
+        );
+    }, [colors, handleYatraPress, i18n.language, reducedVisuals]);
+
+    const renderShelterCard = useCallback(({ item }: { item: Shelter }) => {
+        if (!item || item.id === undefined) return null;
+
+        return (
+            <ShelterCard
+                item={item}
+                language={i18n.language}
+                onPress={handleShelterPress}
+                colors={colors}
+                reducedVisuals={reducedVisuals}
+            />
+        );
+    }, [colors, handleShelterPress, i18n.language, reducedVisuals]);
+
+    const listHeaderComponent = useMemo(() => (
+        <>
+            <GodModeStatusBanner />
+            {renderHeader}
+        </>
+    ), [renderHeader]);
+
+    if (isLoading && data.length === 0) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={[styles.loadingText, { color: colors.textPrimary }]}>Loading...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -309,31 +395,33 @@ const TravelHomeScreen: React.FC = () => {
                 <TravelListComponent
                     data={yatras}
                     renderItem={renderYatraCard}
-                    keyExtractor={(item: Yatra) => `yatra-${item.id}`}
-                    ListHeaderComponent={
-                        <>
-                            <GodModeStatusBanner />
-                            {renderHeader()}
-                        </>
-                    }
+                    keyExtractor={keyExtractor}
+                    ListHeaderComponent={listHeaderComponent}
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl {...refreshControlProps} tintColor={colors.accent} />}
                     ListEmptyComponent={emptyComponent}
+                    removeClippedSubviews={reducedVisuals}
+                    initialNumToRender={listTuning.initialNumToRender}
+                    maxToRenderPerBatch={listTuning.maxToRenderPerBatch}
+                    windowSize={listTuning.windowSize}
+                    updateCellsBatchingPeriod={listTuning.updateCellsBatchingPeriod}
+                    estimatedItemSize={listTuning.estimatedItemSize}
                 />
             ) : (
                 <TravelListComponent
                     data={shelters}
                     renderItem={renderShelterCard}
-                    keyExtractor={(item: Shelter) => `shelter-${item.id}`}
-                    ListHeaderComponent={
-                        <>
-                            <GodModeStatusBanner />
-                            {renderHeader()}
-                        </>
-                    }
+                    keyExtractor={keyExtractor}
+                    ListHeaderComponent={listHeaderComponent}
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl {...refreshControlProps} tintColor={colors.accent} />}
                     ListEmptyComponent={emptyComponent}
+                    removeClippedSubviews={reducedVisuals}
+                    initialNumToRender={listTuning.initialNumToRender}
+                    maxToRenderPerBatch={listTuning.maxToRenderPerBatch}
+                    windowSize={listTuning.windowSize}
+                    updateCellsBatchingPeriod={listTuning.updateCellsBatchingPeriod}
+                    estimatedItemSize={listTuning.estimatedItemSize}
                 />
             )}
         </View>
@@ -449,6 +537,9 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 160,
         backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    cardImageReduced: {
+        height: 136,
     },
     cardBadge: {
         position: 'absolute',

@@ -77,17 +77,22 @@ const getUUID = () => {
 
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
 import { RoomInviteEntryScreen } from './screens/portal/chat/RoomInviteEntryScreen';
+import { RoomsHomeScreen } from './screens/portal/chat/RoomsHomeScreen';
 import { CallScreen } from './screens/calls/CallScreen';
+import { CallHistoryScreen } from './screens/calls/CallHistoryScreen';
 import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
 import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
 import { DatingFavoritesScreen } from './screens/portal/dating/DatingFavoritesScreen';
+import { DatingScreen } from './screens/portal/dating/DatingScreen';
 
 import { AdsScreen } from './screens/portal/ads/AdsScreen';
 import { CreateAdScreen } from './screens/portal/ads/CreateAdScreen';
 import { AdDetailScreen } from './screens/portal/ads/AdDetailScreen';
 import { AdsFiltersScreen } from './screens/portal/ads/AdsFiltersScreen';
+import { LibraryHomeScreen } from './screens/library/LibraryHomeScreen';
 import { BookListScreen } from './screens/library/BookListScreen';
 import { ReaderScreen } from './screens/library/ReaderScreen';
+import { NewsScreen } from './screens/portal/news/NewsScreen';
 import { NewsDetailScreen } from './screens/portal/news/NewsDetailScreen';
 import PreviewScreen from './screens/PreviewScreen';
 
@@ -113,6 +118,7 @@ import { ExamTrainerScreen } from './screens/portal/education/ExamTrainerScreen'
 import { AITutorScreen } from './screens/portal/education/AITutorScreen';
 
 import {
+  CafeListScreen,
   CafeDetailScreen,
   DishDetailScreen,
   CafeCartScreen,
@@ -621,8 +627,10 @@ const AppContent = () => {
                   <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
 
                   {/* Library Routes */}
+                  <Stack.Screen name="LibraryHome" component={LibraryHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: t('portal.appNavigation.books') }} />
                   <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: t('portal.appNavigation.reader') }} />
+                  <Stack.Screen name="NewsHome" component={NewsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
 
                   {/* Market Routes */}
@@ -645,11 +653,15 @@ const AppContent = () => {
 
                   {/* Map Routes */}
                   <Stack.Screen name="MapGeoapify" component={MapGeoapifyScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="DhamaHome" component={DhamaHomeScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="DhamaMap" component={DhamaMapScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="DhamaCollectionDetail" component={DhamaCollectionDetailScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="HolyPlaceDetail" component={HolyPlaceDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="DhamaHome" component={DhamaHomeScreen} options={{ headerShown: true, title: t('dhama.homeTitle') }} />
+                  <Stack.Screen name="DhamaMap" component={DhamaMapScreen} options={{ headerShown: true, title: t('dhama.mapTitle') }} />
+                  <Stack.Screen name="DhamaCollectionDetail" component={DhamaCollectionDetailScreen} options={{ headerShown: true, title: t('dhama.collectionDetailTitle') }} />
+                  <Stack.Screen name="HolyPlaceDetail" component={HolyPlaceDetailScreen} options={{ headerShown: true, title: t('dhama.placeDetailTitle') }} />
+                  <Stack.Screen name="DatingHome" component={DatingScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CafeHome" component={CafeListScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ContactsHome" component={ContactsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CallsHome" component={CallHistoryScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="RoomsHome" component={RoomsHomeScreen} options={{ headerShown: false }} />
 
                   {/* Cafe Routes */}
                   <Stack.Screen name="CafesMap" component={CafesMapScreen} options={{ headerShown: false }} />

@@ -3,6 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { LKMRegion } from '@/lib/host-config';
+import { formatCabinetCopy, LKM_CABINET_I18N, type CabinetDictionary } from '@/lib/cabinet-i18n';
+import {
+  LANGUAGE_LABELS,
+  LANGUAGE_LOCALES,
+  type Language,
+} from '@/lib/tariffs-i18n';
+import {
+  getLanguageFromSearch,
+  resolveTariffsLanguage,
+  saveTariffsLanguage,
+} from '@/lib/tariffs-language';
 
 type WalletBalance = {
   balance: number;
@@ -79,6 +90,15 @@ type TopupHistoryResponse = {
   total: number;
   page: number;
   limit: number;
+};
+
+type ProPlan = {
+  code: string;
+  days: number;
+  priceLkm: number;
+  title?: string;
+  badge?: string;
+  isPopular?: boolean;
 };
 
 type TopupStatusFilter =
@@ -255,39 +275,43 @@ function channelBlockedByUA(userAgent: string): boolean {
   );
 }
 
-function buildErrorMessage(error: unknown): string {
+function buildErrorMessage(error: unknown, copy: CabinetDictionary): string {
   if (error instanceof Error) {
     const message = error.message || '';
     if (message.includes('TELEGRAM_ALREADY_LINKED')) {
-      return 'К этому аккаунту уже был привязан другой Telegram. Выполните вход еще раз: привязка будет обновлена.';
+      return copy.errorTelegramAlreadyLinked;
     }
     if (message.includes('TELEGRAM_LINK_CONFLICT')) {
-      return 'Этот Telegram уже привязан к другому аккаунту VedaMatch.';
+      return copy.errorTelegramConflict;
     }
     if (message.includes('TELEGRAM_LINK_REQUIRED')) {
-      return 'Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.';
+      return copy.errorTelegramRequired;
     }
     return message;
   }
-  return 'Неизвестная ошибка';
+  return copy.errorUnknown;
 }
 
-function buildSocialPopupErrorMessage(provider: 'vk', rawError: string | undefined): string {
+function buildSocialPopupErrorMessage(
+  provider: 'vk',
+  rawError: string | undefined,
+  copy: CabinetDictionary,
+): string {
   const normalized = (rawError || '').trim();
   if (!normalized) {
-    return provider === 'vk' ? 'Не удалось выполнить вход через VK' : 'Не удалось выполнить social login';
+    return provider === 'vk' ? copy.errorSocialLoginVK : copy.errorSocialLoginGeneric;
   }
   if (normalized === 'access_denied') {
-    return 'Вход через VK был отменен';
+    return copy.errorSocialVKCancelled;
   }
   if (normalized === 'exchange_failed') {
-    return 'VK не выдал access token. Проверьте настройки web-приложения и попробуйте снова.';
+    return copy.errorSocialVKExchange;
   }
   if (normalized === 'missing_code') {
-    return 'VK не вернул код авторизации';
+    return copy.errorSocialVKMissingCode;
   }
   if (normalized === 'Invalid VK token') {
-    return 'VK вернул невалидный токен';
+    return copy.errorSocialVKInvalidToken;
   }
   return normalized;
 }
@@ -413,18 +437,18 @@ function sanitizeApiBaseUrl(rawBaseUrl: string): string {
   return rawBaseUrl.trim().replace(/\\+/g, '/').replace(/\/+$/, '');
 }
 
-function humanTopupStatus(status: string): string {
+function humanTopupStatus(status: string, copy: CabinetDictionary): string {
   switch (status) {
     case 'pending_payment':
-      return 'Ожидает оплату';
+      return copy.statusLabels.pending_payment;
     case 'paid':
-      return 'Оплачено';
+      return copy.statusLabels.paid;
     case 'manual_review':
-      return 'На ручной проверке';
+      return copy.statusLabels.manual_review;
     case 'credited':
-      return 'Зачислено';
+      return copy.statusLabels.credited;
     case 'rejected':
-      return 'Отклонено';
+      return copy.statusLabels.rejected;
     default:
       return status;
   }
@@ -445,6 +469,9 @@ export default function LkmCabinetClient({
   apiBaseUrl,
 }: Props) {
   const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
+  const [language, setLanguage] = useState<Language>('en');
+  const copy = useMemo(() => LKM_CABINET_I18N[language], [language]);
+  const locale = LANGUAGE_LOCALES[language];
   const apiOrigin = useMemo(() => {
     try {
       return new URL(normalizedApiBaseUrl).origin;
@@ -484,6 +511,7 @@ export default function LkmCabinetClient({
   const [paymentMethod, setPaymentMethod] = useState('default');
 
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
+  const [proPlans, setProPlans] = useState<ProPlan[]>([]);
   const [packages, setPackages] = useState<PackageResponse | null>(null);
   const [topupHistory, setTopupHistory] = useState<TopupHistoryItem[]>([]);
   const [topupHistoryTotal, setTopupHistoryTotal] = useState(0);
@@ -528,6 +556,24 @@ export default function LkmCabinetClient({
   const showSocialAuthOptions = !token && canUseWebSocialAuth && (canUseGoogleWebAuth || canUseVKWebAuth || isSocialAuthConfigLoading);
 
   const canTopup = !!token && !isBlockedInApp;
+  const formatNumber = useCallback((value: number, digits = 2) => {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value);
+  }, [locale]);
+  const getProPlanDisplayTitle = useCallback((plan: ProPlan) => {
+    return `PRO ${formatCabinetCopy(copy.proPreviewDaysTemplate, { days: plan.days })}`;
+  }, [copy.proPreviewDaysTemplate]);
+  const setLanguageInUrl = useCallback((nextLanguage: Language) => {
+    saveTariffsLanguage(nextLanguage);
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', nextLanguage);
+    window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+  }, []);
 
   useEffect(() => {
     tokenRef.current = token;
@@ -595,7 +641,7 @@ export default function LkmCabinetClient({
   const applyAuthSession = useCallback((payload: LoginResponse): string => {
     const accessToken = (payload.accessToken || payload.token || '').trim();
     if (!accessToken) {
-      throw new Error('Не удалось получить access token');
+      throw new Error(copy.errorAccessTokenMissing);
     }
 
     const normalizedRefreshToken = (payload.refreshToken || '').trim();
@@ -650,7 +696,7 @@ export default function LkmCabinetClient({
     }
 
     return accessToken;
-  }, []);
+  }, [copy.errorAccessTokenMissing]);
 
   const performPublicSocialLogin = useCallback(async (path: string, body: unknown): Promise<LoginResponse> => {
     const response = await fetch(`${normalizedApiBaseUrl}${path}`, {
@@ -746,22 +792,22 @@ export default function LkmCabinetClient({
     try {
       const deepLink = buildTelegramMobileReturnLink(telegramMobileAuthState);
       if (!deepLink) {
-        throw new Error('Не удалось подготовить возврат в приложение');
+        throw new Error(copy.errorPrepareAppReturn);
       }
 
       setTelegramMobileDeepLink(deepLink);
-      setSuccess('Авторизация завершена. Возвращаемся в приложение VedaMatch...');
+      setSuccess(copy.successReturningToApp);
       window.setTimeout(() => {
         openMobileReturnLink(deepLink);
       }, 120);
       return true;
     } catch (bridgeError) {
-      setError(buildErrorMessage(bridgeError));
+      setError(buildErrorMessage(bridgeError, copy));
       return false;
     } finally {
       setIsTelegramMobileBridgeLoading(false);
     }
-  }, [isTelegramMobileAuthFlow, telegramMobileAuthState]);
+  }, [copy, isTelegramMobileAuthFlow, telegramMobileAuthState]);
 
   const finalizeSocialLogin = useCallback(async (authPayload: LoginResponse, providerLabel: string) => {
     applyAuthSession(authPayload);
@@ -770,14 +816,14 @@ export default function LkmCabinetClient({
     if (isTelegramMobileAuthFlow) {
       await completeTelegramMobileBridge();
     } else {
-      setSuccess(`Вход через ${providerLabel} выполнен`);
+      setSuccess(formatCabinetCopy(copy.successLoginViaProviderTemplate, { provider: providerLabel }));
     }
-  }, [applyAuthSession, completeTelegramMobileBridge, isTelegramMobileAuthFlow]);
+  }, [applyAuthSession, completeTelegramMobileBridge, copy, isTelegramMobileAuthFlow]);
 
   const handleGoogleCredentialResponse = useCallback(async (response: GoogleCredentialResponse) => {
     const idToken = (response.credential || '').trim();
     if (!idToken) {
-      setError('Google не вернул id token');
+      setError(copy.errorGoogleMissingToken);
       return;
     }
 
@@ -797,21 +843,21 @@ export default function LkmCabinetClient({
       });
       await finalizeSocialLogin(authPayload, 'Google');
     } catch (googleError) {
-      setError(buildErrorMessage(googleError));
+      setError(buildErrorMessage(googleError, copy));
     } finally {
       setIsGoogleAuthLoading(false);
     }
-  }, [finalizeSocialLogin, performPublicSocialLogin]);
+  }, [copy, finalizeSocialLogin, performPublicSocialLogin]);
 
   const openVKWebPopup = useCallback(() => {
     if (!socialAuthConfig?.vk?.enabled) {
-      setError('VK web авторизация пока не настроена');
+      setError(copy.errorVKNotConfigured);
       return;
     }
 
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     if (!currentOrigin) {
-      setError('Не удалось определить origin текущего сайта');
+      setError(copy.errorOriginMissing);
       return;
     }
 
@@ -835,7 +881,7 @@ export default function LkmCabinetClient({
 
     if (!popup) {
       setIsVKAuthLoading(false);
-      setError('Браузер заблокировал окно VK авторизации. Разрешите popup и попробуйте снова.');
+      setError(copy.errorVKPopupBlocked);
       return;
     }
 
@@ -854,13 +900,13 @@ export default function LkmCabinetClient({
           socialAuthPopupPollRef.current = null;
         }
         if (!socialAuthPopupResolvedRef.current) {
-          setError(`VK popup закрылся до callback. Проверьте redirect URI в VK ID Web app: ${VK_WEB_REDIRECT_URI_HINT}`);
+          setError(formatCabinetCopy(copy.errorVKPopupClosedTemplate, { uri: VK_WEB_REDIRECT_URI_HINT }));
         }
         socialAuthPopupRef.current = null;
         setIsVKAuthLoading(false);
       }
     }, 400);
-  }, [normalizedApiBaseUrl, socialAuthConfig?.vk?.enabled]);
+  }, [copy, normalizedApiBaseUrl, socialAuthConfig?.vk?.enabled]);
 
   useEffect(() => {
     if (token || isTelegramMiniApp) {
@@ -876,7 +922,7 @@ export default function LkmCabinetClient({
       .then(async (response) => {
         const payload = (await response.json()) as SocialAuthConfigResponse;
         if (!response.ok) {
-          throw new Error('Не удалось загрузить social auth config');
+          throw new Error(copy.errorSocialConfigLoad);
         }
         if (!cancelled) {
           setSocialAuthConfig(payload);
@@ -896,7 +942,7 @@ export default function LkmCabinetClient({
     return () => {
       cancelled = true;
     };
-  }, [isTelegramMiniApp, normalizedApiBaseUrl, token]);
+  }, [copy.errorSocialConfigLoad, isTelegramMiniApp, normalizedApiBaseUrl, token]);
 
   useEffect(() => {
     if (!apiOrigin) {
@@ -928,14 +974,42 @@ export default function LkmCabinetClient({
         return;
       }
 
-      setError(buildSocialPopupErrorMessage('vk', message.error));
+      setError(buildSocialPopupErrorMessage('vk', message.error, copy));
     };
 
     window.addEventListener('message', handleSocialPopupMessage);
     return () => {
       window.removeEventListener('message', handleSocialPopupMessage);
     };
-  }, [apiOrigin, finalizeSocialLogin]);
+  }, [apiOrigin, copy, finalizeSocialLogin]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`${normalizedApiBaseUrl}/pro/plans`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP_${response.status}`);
+        }
+        const payload = (await response.json()) as { plans?: ProPlan[] };
+        if (!cancelled) {
+          const plans = Array.isArray(payload.plans) ? payload.plans : [];
+          setProPlans(plans.slice().sort((a, b) => a.days - b.days));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProPlans([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedApiBaseUrl]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1049,9 +1123,17 @@ export default function LkmCabinetClient({
     const savedSessionID = normalizeSessionID(localStorage.getItem(SESSION_ID_KEY));
     const savedDeviceID = getOrCreateLkmDeviceID();
     const params = new URLSearchParams(window.location.search);
+    const resolvedLanguage = resolveTariffsLanguage();
     const queryToken = params.get('token') || '';
     const normalizedQueryToken = queryToken.trim();
     const bootToken = normalizedQueryToken || savedToken.trim();
+
+    setLanguage(resolvedLanguage);
+    if (!getLanguageFromSearch(window.location.search)) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', resolvedLanguage);
+      window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+    }
 
     if (savedDeviceID) {
       setDeviceId(savedDeviceID);
@@ -1172,7 +1254,7 @@ export default function LkmCabinetClient({
       }
       setIsTelegramAuthLoading(false);
       setTelegramLinkRequired(true);
-      setError('Проверка Telegram заняла слишком много времени. Выполните разовый вход email/пароль для привязки.');
+      setError(copy.errorTelegramAuthTimeout);
     }, 12000);
 
     const loginViaTelegramMiniApp = async () => {
@@ -1218,23 +1300,23 @@ export default function LkmCabinetClient({
         if (isTelegramMobileAuthFlow) {
           await completeTelegramMobileBridge();
         } else {
-          setSuccess('Вход через Telegram выполнен');
+        setSuccess(copy.successTelegramLogin);
         }
       } catch (telegramLoginError) {
         if (cancelled) {
           return;
         }
-        const message = buildErrorMessage(telegramLoginError);
+        const message = buildErrorMessage(telegramLoginError, copy);
         if (message.includes('TELEGRAM_LINK_REQUIRED')) {
           setTelegramLinkRequired(true);
-          setError('Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.');
+          setError(copy.errorTelegramRequired);
         } else if (message.includes('TELEGRAM_LINK_CONFLICT')) {
-          setError('Этот Telegram уже привязан к другому аккаунту VedaMatch.');
+          setError(copy.errorTelegramConflict);
         } else if (message.includes('TELEGRAM_INIT_DATA_REPLAY')) {
           setTelegramLinkRequired(true);
-          setError('Telegram-сессия уже проверена. Выполните разовый вход email/пароль для привязки.');
+          setError(copy.errorTelegramSessionChecked);
         } else if (message.includes('TELEGRAM_INIT_DATA_EXPIRED')) {
-          setError('Данные Telegram устарели. Закройте Mini App и откройте снова из бота.');
+          setError(copy.errorTelegramDataExpired);
         } else {
           setError(message);
         }
@@ -1328,7 +1410,7 @@ export default function LkmCabinetClient({
         }
       } catch (fetchError) {
         if (!isCancelled) {
-          setError(buildErrorMessage(fetchError));
+          setError(buildErrorMessage(fetchError, copy));
         }
       } finally {
         if (!isCancelled) {
@@ -1360,12 +1442,12 @@ export default function LkmCabinetClient({
         setTopupHistory(response.items || []);
         setTopupHistoryTotal(response.total || 0);
       } catch (historyError) {
-        setError(buildErrorMessage(historyError));
+        setError(buildErrorMessage(historyError, copy));
       } finally {
         setIsLoadingHistory(false);
       }
     },
-    [],
+    [copy],
   );
 
   useEffect(() => {
@@ -1391,7 +1473,7 @@ export default function LkmCabinetClient({
     window.history.replaceState(null, '', nextUrl);
   }, [historyStatus, historyPage, historyLimit]);
 
-  const regionLabel = region === 'cis' ? 'СНГ' : 'вне СНГ';
+  const regionLabel = region === 'cis' ? copy.regionCis : copy.regionNonCis;
   const isTelegramAuthorizedSession = isTelegramMiniApp && !!token;
   const telegramDisplayName = useMemo(() => {
     if (!telegramUser) {
@@ -1460,6 +1542,7 @@ export default function LkmCabinetClient({
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
+      url.searchParams.set('lang', language);
       url.searchParams.set('historyStatus', historyStatus);
       url.searchParams.set('historyPage', String(historyPage));
       url.searchParams.set('historyLimit', String(historyLimit));
@@ -1467,21 +1550,21 @@ export default function LkmCabinetClient({
 
       if (typeof navigator.share === 'function') {
         await navigator.share({
-          title: 'История пополнений LKM',
-          text: 'Ссылка на текущий фильтр истории пополнений',
+          title: copy.shareTitle,
+          text: copy.shareText,
           url: shareUrl,
         });
-        setHistoryShareFeedback('Ссылка отправлена');
+        setHistoryShareFeedback(copy.shareSent);
       } else if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(shareUrl);
-        setHistoryShareFeedback('Ссылка скопирована');
+        setHistoryShareFeedback(copy.shareCopied);
       } else {
-        setHistoryShareFeedback('Копирование не поддерживается браузером');
+        setHistoryShareFeedback(copy.shareUnsupported);
       }
     } catch (shareError) {
       const isAbortError = shareError instanceof DOMException && shareError.name === 'AbortError';
       if (!isAbortError) {
-        setHistoryShareFeedback('Не удалось поделиться ссылкой');
+        setHistoryShareFeedback(copy.shareFailed);
       }
     } finally {
       window.setTimeout(() => setHistoryShareFeedback(''), 2500);
@@ -1491,7 +1574,7 @@ export default function LkmCabinetClient({
   const onLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setError('Введите email и пароль');
+      setError(copy.errorEnterEmailPassword);
       return;
     }
 
@@ -1527,10 +1610,10 @@ export default function LkmCabinetClient({
       if (isTelegramMobileAuthFlow) {
         await completeTelegramMobileBridge();
       } else {
-        setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
+        setSuccess(isTelegramLinkFlow ? copy.successTelegramLinked : copy.successAuthorized);
       }
     } catch (loginError) {
-      setError(buildErrorMessage(loginError));
+      setError(buildErrorMessage(loginError, copy));
     } finally {
       setIsLoggingIn(false);
     }
@@ -1576,25 +1659,29 @@ export default function LkmCabinetClient({
 
   const createQuote = async () => {
     if (!canTopup) {
-      setError('Пополнение доступно только на web и в Telegram-боте');
+      setError(copy.errorTopupOnlyWeb);
       return;
     }
     if (!token) {
-      setError('Требуется авторизация');
+      setError(copy.errorAuthRequired);
       return;
     }
     if (!packages) {
-      setError('Пакеты не загружены');
+      setError(copy.errorPackagesNotLoaded);
       return;
     }
     if (selectedAmount && selectedAmount > 0) {
       if (!isValidFixedPackageAmount(selectedAmount)) {
-        setError('Выбранный пакет недоступен. Обновите страницу и выберите пакет заново.');
+        setError(copy.errorPackageUnavailable);
         return;
       }
     } else {
       if (!amountToQuote || !isValidCustomAmount(amountToQuote)) {
-        setError(`Введите корректную сумму: ${packages.customMinLkm}..${packages.customMaxLkm}, шаг ${packages.customStepLkm}`);
+        setError(formatCabinetCopy(copy.errorInvalidAmountTemplate, {
+          min: packages.customMinLkm,
+          max: packages.customMaxLkm,
+          step: packages.customStepLkm,
+        }));
         return;
       }
     }
@@ -1617,9 +1704,9 @@ export default function LkmCabinetClient({
       });
       setQuote(response);
       setTopup(null);
-      setSuccess('Расчет сформирован');
+      setSuccess(copy.successQuoteCreated);
     } catch (quoteError) {
-      setError(buildErrorMessage(quoteError));
+      setError(buildErrorMessage(quoteError, copy));
     } finally {
       setIsCreatingQuote(false);
     }
@@ -1627,11 +1714,11 @@ export default function LkmCabinetClient({
 
   const createTopup = async () => {
     if (!quote) {
-      setError('Сначала сформируйте quote');
+      setError(copy.errorCreateQuoteFirst);
       return;
     }
     if (!token) {
-      setError('Требуется авторизация');
+      setError(copy.errorAuthRequired);
       return;
     }
 
@@ -1657,38 +1744,54 @@ export default function LkmCabinetClient({
           // Top-up creation should not fail because history refresh failed.
         }
       }
-      setSuccess('Пополнение создано, ожидается оплата через выбранный платежный шлюз');
+      setSuccess(copy.successTopupCreated);
     } catch (topupError) {
-      setError(buildErrorMessage(topupError));
+      setError(buildErrorMessage(topupError, copy));
     } finally {
       setIsCreatingTopup(false);
     }
+  };
+
+  const onLanguageChange = (nextLanguage: Language) => {
+    setLanguage(nextLanguage);
+    setLanguageInUrl(nextLanguage);
   };
 
   return (
     <main className="page-shell">
       <section className="hero-card">
         <p className="hero-domain"><IconGlobe /> {initialHost || 'lkm.vedamatch'}</p>
-        <h1>Кабинет LKM</h1>
+        <h1>{copy.heroTitle}</h1>
         <p className="hero-subtitle">
-          Пополнение баланса LKM для экосистемы VedaMatch. Доступно на сайте и в Telegram-боте.
+          {copy.heroSubtitle}
         </p>
-        <div className="hero-actions">
-          <Link href="/tariffs" className="secondary hero-action-link">
-            Тарифы
+        <div className="hero-actions hero-actions-row">
+          <Link href={`/tariffs?lang=${language}`} className="secondary hero-action-link">
+            {copy.tariffsLink}
           </Link>
+          <label className="hero-language-picker">
+            <span>{copy.languageLabel}</span>
+            <select
+              value={language}
+              onChange={(event) => onLanguageChange(event.target.value as Language)}
+            >
+              <option value="ru">{LANGUAGE_LABELS.ru}</option>
+              <option value="en">{LANGUAGE_LABELS.en}</option>
+              <option value="hi">{LANGUAGE_LABELS.hi}</option>
+            </select>
+          </label>
         </div>
         <div className="hero-meta">
-          <span>Регион: {regionLabel}</span>
-          <span>Шлюз оплаты: {gatewayCode}</span>
-          <span>Валюта: {currency}</span>
+          <span>{copy.regionLabel}: {regionLabel}</span>
+          <span>{copy.gatewayLabel}: {gatewayCode}</span>
+          <span>{copy.currencyLabel}: {currency}</span>
         </div>
       </section>
 
       <section className="grid-two">
         <article className="panel">
           <div className="panel-heading">
-            <h2><IconLock /> Авторизация</h2>
+            <h2><IconLock /> {copy.authTitle}</h2>
             {isTelegramMiniApp && telegramUser ? (
               <div className="tg-user-badge" title={telegramDisplayName || 'Telegram'}>
                 {telegramUser.photo_url ? (
@@ -1707,20 +1810,20 @@ export default function LkmCabinetClient({
               <div className="stack">
                 <p className="note">
                   {isTelegramMobileAuthFlow
-                    ? 'Проверяем вход через Telegram и готовим возврат в приложение VedaMatch...'
-                    : 'Проверяем вход через Telegram Mini App...'}
+                    ? copy.authCheckingTelegramReturn
+                    : copy.authCheckingTelegramMiniApp}
                 </p>
-                <p className="note">Обычно это занимает до 10 секунд.</p>
+                <p className="note">{copy.authUsuallyTakes}</p>
                 <button
                   type="button"
                   className="secondary"
                   onClick={() => {
                     setIsTelegramAuthLoading(false);
                     setTelegramLinkRequired(true);
-                    setError('Выберите разовый вход email/пароль для привязки Telegram.');
+                    setError(copy.errorTelegramRequired);
                   }}
                 >
-                  Продолжить вручную
+                  {copy.continueManually}
                 </button>
               </div>
             ) : (
@@ -1728,14 +1831,14 @@ export default function LkmCabinetClient({
                 {isTelegramMiniApp && telegramLinkRequired ? (
                   <p className="note">
                     {isTelegramMobileAuthFlow
-                      ? 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch и вернуть вас в приложение.'
-                      : 'Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.'}
+                      ? copy.authLinkNoteMobile
+                      : copy.authLinkNote}
                   </p>
                 ) : null}
                 {showSocialAuthOptions ? (
                   <div className="social-auth-stack">
                     <p className="note">
-                      Войти можно через Google или VK. Email и пароль остаются как резервный способ.
+                      {copy.authSocialHint}
                     </p>
                     {canUseGoogleWebAuth ? (
                       <div className="google-auth-slot-wrap">
@@ -1745,7 +1848,7 @@ export default function LkmCabinetClient({
                           aria-live="polite"
                         />
                         {isGoogleAuthLoading ? (
-                          <p className="note">Подтверждаем вход через Google...</p>
+                          <p className="note">{copy.authGooglePending}</p>
                         ) : null}
                       </div>
                     ) : null}
@@ -1756,45 +1859,45 @@ export default function LkmCabinetClient({
                         onClick={openVKWebPopup}
                         disabled={isVKAuthLoading || isGoogleAuthLoading || isLoggingIn}
                       >
-                        {isVKAuthLoading ? 'Открываем VK...' : 'Войти через VK'}
+                        {isVKAuthLoading ? 'VK...' : copy.authLoginWithVK}
                       </button>
                     ) : null}
                     <div className="social-auth-divider" aria-hidden="true">
-                      <span>или</span>
+                      <span>{copy.authOr}</span>
                     </div>
                   </div>
                 ) : null}
                 <label>
-                  Email
+                  {copy.emailLabel}
                   <input
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
+                    placeholder={copy.emailPlaceholder}
                   />
                 </label>
                 <label>
-                  Пароль
+                  {copy.passwordLabel}
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="••••••••"
+                    placeholder={copy.passwordPlaceholder}
                   />
                 </label>
                 <button type="submit" disabled={isLoggingIn}>
                   {isLoggingIn
                     ? telegramLinkRequired && isTelegramMiniApp
                       ? isTelegramMobileAuthFlow
-                        ? 'Подтверждаем...'
-                        : 'Привязываем...'
-                      : 'Вход...'
+                        ? copy.authVerifying
+                        : copy.authLinkingTelegram
+                      : copy.authLoggingIn
                     : telegramLinkRequired && isTelegramMiniApp
-                      ? 'Привязать Telegram'
-                      : 'Войти'}
+                      ? copy.authLinkTelegram
+                      : copy.authLogin}
                 </button>
                 <p className="note">
-                  После первого входа сессия сохраняется, повторный вход обычно не требуется.
+                  {copy.authSessionAutoRefresh}
                 </p>
               </form>
             )
@@ -1802,17 +1905,17 @@ export default function LkmCabinetClient({
             <div className="stack">
               <p className="ok">
                 {isTelegramMobileAuthFlow
-                  ? 'Авторизация завершена. Возвращаемся в приложение VedaMatch...'
+                  ? copy.authReturningToApp
                   : isTelegramAuthorizedSession
-                    ? 'Авторизовано через Telegram'
-                    : 'Авторизовано'}
+                    ? copy.authAuthorizedTelegram
+                    : copy.authAuthorized}
               </p>
               <p className="note">
                 {isTelegramMobileAuthFlow
                   ? isTelegramMobileBridgeLoading
-                    ? 'Подготавливаем возврат в приложение...'
-                    : 'Если приложение не открылось автоматически, используйте кнопку ниже.'
-                  : 'Сессия продлевается автоматически, пока действует refresh-сессия.'}
+                    ? copy.authReturningToApp
+                    : copy.authReturnHint
+                  : copy.authSessionAutoRefresh}
               </p>
               {isTelegramMobileAuthFlow && telegramMobileReturnLink ? (
                 <button
@@ -1822,7 +1925,7 @@ export default function LkmCabinetClient({
                     openMobileReturnLink(telegramMobileReturnLink);
                   }}
                 >
-                  Вернуться в приложение
+                  {copy.authReturnToApp}
                 </button>
               ) : null}
               <button
@@ -1832,37 +1935,58 @@ export default function LkmCabinetClient({
                   void logout();
                 }}
               >
-                Выйти
+                {copy.authLogout}
               </button>
             </div>
           )}
         </article>
 
         <article className="panel">
-          <h2><IconWallet /> Кошелек</h2>
+          <h2><IconWallet /> {copy.walletTitle}</h2>
           <div className="stack">
             <p>
-              Текущий активный баланс:{' '}
-              <strong>{wallet ? `${wallet.balance} LKM` : '—'}</strong>
+              {copy.walletBalance}:{' '}
+              <strong>{wallet ? `${wallet.balance} LKM` : '-'}</strong>
             </p>
             <p>
-              Номинальный курс:{' '}
+              {copy.walletNominalRate}:{' '}
               <strong>
-                1 LKM = {packages?.nominalRubPerLkm?.toFixed(2) ?? '1.00'} RUB
+                1 LKM = {packages ? formatNumber(packages.nominalRubPerLkm) : '1.00'} RUB
               </strong>
             </p>
             {!isTelegramAuthorizedSession ? (
               <p className="note">
-                Для верификации можно использовать бота: <code>@vedamatch_bot</code>
+                {copy.walletVerificationBot}: <code>@vedamatch_bot</code>
               </p>
             ) : null}
+            <div className="wallet-pro-preview">
+              <div className="wallet-pro-preview-header">
+                <strong>{copy.proPreviewTitle}</strong>
+                <span className="note">{copy.proPreviewSubtitle}</span>
+              </div>
+              {proPlans.length > 0 ? (
+                <div className="wallet-pro-preview-list">
+                  {proPlans.map((plan) => (
+                    <div key={plan.code} className="wallet-pro-preview-item">
+                      <div className="wallet-pro-preview-main">
+                        <span className="wallet-pro-preview-name">{getProPlanDisplayTitle(plan)}</span>
+                        {plan.badge ? <span className="status-pill">{plan.badge}</span> : null}
+                      </div>
+                      <strong>{formatNumber(plan.priceLkm, 0)} LKM</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="note">{copy.proPreviewEmpty}</p>
+              )}
+            </div>
           </div>
         </article>
       </section>
 
       <section className="panel">
-        <h2><IconZap /> Пополнение счета</h2>
-        {isLoading ? <p>Загрузка пакетов...</p> : null}
+        <h2><IconZap /> {copy.topupTitle}</h2>
+        {isLoading ? <p>{copy.topupLoadingPackages}</p> : null}
 
         {packages ? (
           <>
@@ -1879,7 +2003,7 @@ export default function LkmCabinetClient({
                   >
                     <span className="pkg-amount">{pkg.lkmAmount} LKM</span>
                     <span className="pkg-price">
-                      {pkg.totalPayAmount.toFixed(2)} {pkg.payCurrency}
+                      {formatNumber(pkg.totalPayAmount)} {pkg.payCurrency}
                     </span>
                   </button>
                 );
@@ -1888,7 +2012,7 @@ export default function LkmCabinetClient({
 
             <div className="custom-row">
               <label>
-                Произвольная сумма
+                {copy.topupCustomAmount}
                 <input
                   type="number"
                   value={customAmount}
@@ -1901,13 +2025,17 @@ export default function LkmCabinetClient({
                 />
               </label>
               <p className="note">
-                Диапазон: {packages.customMinLkm}..{packages.customMaxLkm} LKM, шаг {packages.customStepLkm}
+                {formatCabinetCopy(copy.topupRangeTemplate, {
+                  min: packages.customMinLkm,
+                  max: packages.customMaxLkm,
+                  step: packages.customStepLkm,
+                })}
               </p>
             </div>
 
             <div className="selectors">
               <label>
-                Платежный шлюз
+                {copy.topupGateway}
                 <select
                   value={gatewayCode}
                   onChange={(event) => {
@@ -1922,7 +2050,7 @@ export default function LkmCabinetClient({
                 </select>
               </label>
               <label>
-                Валюта
+                {copy.topupCurrency}
                 <input
                   value={currency}
                   onChange={(event) => {
@@ -1936,40 +2064,40 @@ export default function LkmCabinetClient({
             </div>
           </>
         ) : (
-          <p className="note">После авторизации загрузятся пакеты региона.</p>
+          <p className="note">{copy.topupPackagesAfterAuth}</p>
         )}
       </section>
 
       <section className="panel">
-        <h2><IconCalculator /> Расчет и создание</h2>
+        <h2><IconCalculator /> {copy.calculatorTitle}</h2>
         {isBlockedInApp ? (
           <p className="warn">
-            Обнаружен встроенный канал приложения. Пополнение в приложении запрещено. Используйте сайт или Telegram-бот.
+            {copy.calculatorBlockedInApp}
           </p>
         ) : null}
 
         <div className="stack">
           <button type="button" onClick={createQuote} disabled={!canTopup || isCreatingQuote}>
-            {isCreatingQuote ? 'Считаем...' : 'Получить расчет'}
+            {isCreatingQuote ? copy.calculatorWorking : copy.calculatorGetQuote}
           </button>
 
           {quote ? (
             <div className="quote-box">
               <p>
-                Вы получите: <strong>{quote.receiveLkm} LKM</strong>
+                {copy.calculatorYouReceive}: <strong>{quote.receiveLkm} LKM</strong>
               </p>
               <p>
-                Итого к оплате:{' '}
+                {copy.calculatorYouPay}:{' '}
                 <strong>
-                  {quote.totalPayAmount.toFixed(2)} {quote.payCurrency}
+                  {formatNumber(quote.totalPayAmount)} {quote.payCurrency}
                 </strong>
               </p>
               <p className="note">{quote.disclaimer}</p>
               <p className="note">
-                Расчет действует до: {new Date(quote.quoteExpiresAt).toLocaleString()}
+                {copy.calculatorQuoteValidUntil}: {new Date(quote.quoteExpiresAt).toLocaleString(locale)}
               </p>
               <button type="button" onClick={createTopup} disabled={isCreatingTopup}>
-                {isCreatingTopup ? 'Создаем...' : 'Создать пополнение'}
+                {isCreatingTopup ? copy.calculatorCreatingTopup : copy.calculatorCreateTopup}
               </button>
             </div>
           ) : null}
@@ -1977,13 +2105,13 @@ export default function LkmCabinetClient({
           {topup ? (
             <div className="topup-box">
               <p>
-                ID пополнения: <code>{topup.topupId}</code>
+                {copy.calculatorTopupId}: <code>{topup.topupId}</code>
               </p>
               <p>
-                Статус: <strong>{topup.status}</strong> · Риск-маршрут: <strong>{topup.riskAction}</strong>
+                {copy.calculatorStatus}: <strong>{topup.status}</strong> · {copy.calculatorRiskRoute}: <strong>{topup.riskAction}</strong>
               </p>
               <p className="note">
-                После подтвержденного webhook начисляется ровно {topup.receiveLkm} LKM в кошелек.
+                {formatCabinetCopy(copy.calculatorWebhookNote, { amount: topup.receiveLkm })}
               </p>
             </div>
           ) : null}
@@ -1991,14 +2119,14 @@ export default function LkmCabinetClient({
       </section>
 
       <section className="panel">
-        <h2><IconHistory /> История пополнений</h2>
-        {!token ? <p className="note">История доступна после авторизации.</p> : null}
+        <h2><IconHistory /> {copy.historyTitle}</h2>
+        {!token ? <p className="note">{copy.historyNeedsAuth}</p> : null}
 
         {token ? (
           <div className="history-toolbar">
             <div className="history-filters">
               <label>
-                Статус
+                {copy.historyStatusLabel}
                 <select
                   value={historyStatus}
                   onChange={(event) => {
@@ -2006,16 +2134,16 @@ export default function LkmCabinetClient({
                     setHistoryPage(1);
                   }}
                 >
-                  <option value="all">Все</option>
-                  <option value="pending_payment">Ожидает оплату</option>
-                  <option value="paid">Оплачено</option>
-                  <option value="manual_review">На ручной проверке</option>
-                  <option value="credited">Зачислено</option>
-                  <option value="rejected">Отклонено</option>
+                  <option value="all">{copy.statusLabels.all}</option>
+                  <option value="pending_payment">{copy.statusLabels.pending_payment}</option>
+                  <option value="paid">{copy.statusLabels.paid}</option>
+                  <option value="manual_review">{copy.statusLabels.manual_review}</option>
+                  <option value="credited">{copy.statusLabels.credited}</option>
+                  <option value="rejected">{copy.statusLabels.rejected}</option>
                 </select>
               </label>
               <label>
-                На странице
+                {copy.historyPerPage}
                 <select
                   value={historyLimit}
                   onChange={(event) => {
@@ -2036,10 +2164,10 @@ export default function LkmCabinetClient({
                 onClick={() => setHistoryPage((prev) => Math.max(1, prev - 1))}
                 disabled={isLoadingHistory || historyPage <= 1}
               >
-                Назад
+                {copy.historyBack}
               </button>
               <span className="note">
-                Страница {historyPage} / {historyPages}
+                {formatCabinetCopy(copy.historyPageTemplate, { page: historyPage, pages: historyPages })}
               </span>
               <button
                 type="button"
@@ -2047,7 +2175,7 @@ export default function LkmCabinetClient({
                 onClick={() => setHistoryPage((prev) => Math.min(historyPages, prev + 1))}
                 disabled={isLoadingHistory || historyPage >= historyPages}
               >
-                Вперед
+                {copy.historyNext}
               </button>
             </div>
             <div className="history-actions">
@@ -2056,7 +2184,7 @@ export default function LkmCabinetClient({
                 className="secondary"
                 onClick={shareHistoryLink}
               >
-                Поделиться ссылкой
+                {copy.historyShare}
               </button>
               {historyShareFeedback ? (
                 <span className="note">{historyShareFeedback}</span>
@@ -2065,10 +2193,10 @@ export default function LkmCabinetClient({
           </div>
         ) : null}
 
-        {token && isLoadingHistory ? <p>Загрузка истории...</p> : null}
+        {token && isLoadingHistory ? <p>{copy.historyLoading}</p> : null}
 
         {token && !isLoadingHistory && topupHistory.length === 0 ? (
-          <p className="note">Пополнений пока нет.</p>
+          <p className="note">{copy.historyEmpty}</p>
         ) : null}
 
         {token && !isLoadingHistory && topupHistory.length > 0 ? (
@@ -2077,16 +2205,16 @@ export default function LkmCabinetClient({
               <div key={item.topupId} className="history-row">
                 <div className="history-main">
                   <p>
-                    <strong>{item.receiveLkm} LKM</strong> · {item.totalPayAmount.toFixed(2)} {item.payCurrency}
+                    <strong>{item.receiveLkm} LKM</strong> · {formatNumber(item.totalPayAmount)} {item.payCurrency}
                   </p>
                   <p className="note">
                     <code>{item.topupId}</code>
                   </p>
                 </div>
                 <div className="history-meta">
-                  <span className="status-pill">{humanTopupStatus(item.status)}</span>
-                  <span className="note">Риск: {item.riskAction}</span>
-                  <span className="note">{new Date(item.createdAt).toLocaleString()}</span>
+                  <span className="status-pill">{humanTopupStatus(item.status, copy)}</span>
+                  <span className="note">{copy.historyRiskLabel}: {item.riskAction}</span>
+                  <span className="note">{new Date(item.createdAt).toLocaleString(locale)}</span>
                 </div>
               </div>
             ))}
@@ -2094,7 +2222,7 @@ export default function LkmCabinetClient({
         ) : null}
 
         {token && topupHistoryTotal > 0 ? (
-          <p className="note">Всего записей: {topupHistoryTotal}</p>
+          <p className="note">{formatCabinetCopy(copy.historyTotalTemplate, { total: topupHistoryTotal })}</p>
         ) : null}
       </section>
 
@@ -2148,10 +2276,12 @@ export default function LkmCabinetClient({
           window.clearTimeout(timeoutId);
         }
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          throw new Error(`Запрос превысил таймаут ${Math.round(timeoutMs / 1000)}с`);
+          throw new Error(formatCabinetCopy(copy.errorTimeoutTemplate, {
+            seconds: Math.round(timeoutMs / 1000),
+          }));
         }
         if (fetchError instanceof TypeError) {
-          throw new Error(`Сетевая ошибка при обращении к ${requestUrl}`);
+          throw new Error(formatCabinetCopy(copy.errorNetworkTemplate, { url: requestUrl }));
         }
         throw fetchError;
       }

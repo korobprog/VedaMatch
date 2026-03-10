@@ -38,10 +38,23 @@ export default {
     },
     "map": {
         "location_error": "लोकेशन पहचान त्रुटि",
+        "location_error_title": "लोकेशन त्रुटि",
+        "location_error_body": "आपका वर्तमान स्थान पता नहीं चल सका।",
+        "permission_denied_title": "अनुमति अस्वीकृत",
+        "permission_denied_body": "सेटिंग्स में लोकेशन अनुमति सक्षम करें।",
         "navigate": "नेविगेट करें",
+        "route": "रूट",
+        "people": "लोग",
+        "shops": "दुकानें",
+        "ads": "विज्ञापन",
+        "cafes": "कैफे",
         "near_objects": "पास के स्थान",
         "no_markers_visible": "कोई मार्कर दिखाई नहीं दे रहा",
-        "search_placeholder": "नक्शे में खोजें..."
+        "search_placeholder": "नक्शे में खोजें...",
+        "route_determine_error": "रूट निर्धारित नहीं किया जा सका",
+        "route_build_error": "रूट बनाया नहीं जा सका",
+        "load_error_title": "मानचित्र लोड नहीं हो सका",
+        "load_error_body": "इंटरनेट कनेक्शन जांचें और फिर से प्रयास करें"
     },
     "dhama": {
         "homeTitle": "धाम",
@@ -982,6 +995,40 @@ export default {
         "locationPlaceholder": "Location (City, Yatra)",
         "selectScripture": "शास्त्र चुनें:"
     },
+    "referralScreen": {
+        "title": "संग",
+        "loadError": "डेटा लोड नहीं हो सका",
+        "retry": "पुनः प्रयास करें",
+        "shareMessageLine1": "मेरे आमंत्रण कोड से VedaMatch जॉइन करें।",
+        "shareMessageCode": "कोड: {{code}}",
+        "shareMessageLine3": "ऐप में सक्रियता पर बोनस LKM पाएं।",
+        "shareTitle": "VedaMatch के लिए आमंत्रण",
+        "shareImageTitle": "मेरी संग",
+        "joinedLabel": "जुड़े: {{date}}",
+        "pending": "लंबित",
+        "heroTitle": "दोस्तों को आमंत्रित करें",
+        "heroSubtitle": "हर सक्रिय मित्र पर बोनस LKM पाएं!",
+        "qrTitle": "आपका QR कोड",
+        "qrHint": "स्कैन करने के लिए इसे दोस्तों को दिखाएं",
+        "inviteCodeTitle": "आपका आमंत्रण कोड",
+        "linkButton": "लिंक",
+        "storyButton": "स्टोरी",
+        "terms": "रेफरल प्रोग्राम की शर्तें",
+        "mySangha": "मेरी संग",
+        "invited": "आमंत्रित",
+        "active": "सक्रिय",
+        "earned": "अर्जित",
+        "friendsCount": "मित्र ({{count}})",
+        "howItWorksTitle": "यह कैसे काम करता है?",
+        "steps": {
+            "one": "अपना कोड या QR किसी मित्र के साथ साझा करें",
+            "two": "आपका मित्र साइन अप करता है और 50 LKM पाता है",
+            "three": "जब आपका मित्र पहली बार सक्रिय होता है, आपको 100 बोनस LKM मिलता है।"
+        },
+        "cardTitle": "मेरी संग का हिस्सा बनें!",
+        "welcomeBonus": "+50 LKM वेलकम बोनस",
+        "cardTagline": "आत्माओं को जोड़ें • अपने लोगों को पाएँ"
+    },
     "file": {
         "shareMessage": "Check out this image!",
         "shareTitle": "Image",
@@ -1335,6 +1382,7 @@ export default {
         }
     },
     "contacts": {
+        "title": "संपर्क",
         "sendMessage": "संदेश भेजें",
         "friendsOnly": "केवल मित्र",
         "viewProfile": "प्रोफ़ाइल देखें",

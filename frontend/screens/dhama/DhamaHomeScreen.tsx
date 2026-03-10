@@ -10,7 +10,6 @@ import { DhamaCollection, HolyPlaceFiltersResponse, HolyPlaceSummary } from '../
 import { dhamaService } from '../../services/dhamaService';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { useSettings } from '../../context/SettingsContext';
-import { DhamaBackButton } from './DhamaBackButton';
 import { DhamaSkeletonBlock } from './DhamaSkeleton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DhamaHome'>;
@@ -288,7 +287,6 @@ export const DhamaHomeScreen: React.FC<Props> = ({ navigation, route }) => {
               <View style={styles.heroGlowBottom} />
               <View style={styles.heroContent}>
                 <View style={styles.heroHeaderRow}>
-                  <DhamaBackButton navigation={navigation} variant="hero" />
                   <View style={styles.heroTextWrap}>
                     {selectedCollection ? <Text style={styles.heroEyebrow}>{t('dhama.collectionLabel')}</Text> : null}
                     <Text style={styles.heroTitle}>{selectedCollection ? selectedCollection.title : t('dhama.homeTitle')}</Text>

@@ -25,6 +25,16 @@ export type TariffsDictionary = {
   receiveColumn: string;
   payColumn: string;
   pricePerLkmColumn: string;
+  sectionProTitle: string;
+  sectionProSubtitle: string;
+  proPlanColumn: string;
+  proDurationColumn: string;
+  proPriceColumn: string;
+  proBadgeColumn: string;
+  proEmpty: string;
+  sectionProBenefitsTitle: string;
+  sectionProBenefitsSubtitle: string;
+  proBenefits: string[];
   sectionExampleTitle: string;
   exampleLead: string;
   sectionImportantTitle: string;
@@ -79,6 +89,20 @@ export const TARIFFS_I18N: Record<Language, TariffsDictionary> = {
     receiveColumn: 'К получению',
     payColumn: 'К оплате',
     pricePerLkmColumn: 'Цена за 1 LKM',
+    sectionProTitle: 'Тарифы PRO',
+    sectionProSubtitle: 'Подписка PRO оплачивается из кошелька LKM. Актуальные цены задаются в админке монетизации.',
+    proPlanColumn: 'План',
+    proDurationColumn: 'Срок',
+    proPriceColumn: 'Цена',
+    proBadgeColumn: 'Метка',
+    proEmpty: 'Планы PRO временно недоступны.',
+    sectionProBenefitsTitle: 'Что дает PRO',
+    sectionProBenefitsSubtitle: 'PRO нужен пользователям, которым важен расширенный доступ внутри VedaMatch.',
+    proBenefits: [
+      'Открывает платные PRO-возможности и специальные сценарии использования внутри экосистемы.',
+      'Дает понятный фиксированный срок доступа: 7, 30 или 90 дней в зависимости от плана.',
+      'Оплачивается напрямую из LKM-кошелька без отдельной внешней подписки.',
+    ],
     sectionExampleTitle: 'Пример расчета',
     exampleLead: 'Для пакета',
     sectionImportantTitle: 'Важно',
@@ -135,6 +159,20 @@ export const TARIFFS_I18N: Record<Language, TariffsDictionary> = {
     receiveColumn: 'You receive',
     payColumn: 'You pay',
     pricePerLkmColumn: 'Price per 1 LKM',
+    sectionProTitle: 'PRO tariffs',
+    sectionProSubtitle: 'PRO subscription is paid from the LKM wallet. Current prices are managed in the monetization admin.',
+    proPlanColumn: 'Plan',
+    proDurationColumn: 'Duration',
+    proPriceColumn: 'Price',
+    proBadgeColumn: 'Badge',
+    proEmpty: 'PRO plans are temporarily unavailable.',
+    sectionProBenefitsTitle: 'What PRO gives',
+    sectionProBenefitsSubtitle: 'PRO is for users who need extended access inside VedaMatch.',
+    proBenefits: [
+      'Unlocks paid PRO capabilities and special usage scenarios inside the ecosystem.',
+      'Gives a fixed access period: 7, 30, or 90 days depending on the plan.',
+      'Paid directly from the LKM wallet without a separate external subscription.',
+    ],
     sectionExampleTitle: 'Calculation example',
     exampleLead: 'For package',
     sectionImportantTitle: 'Important',
@@ -191,6 +229,20 @@ export const TARIFFS_I18N: Record<Language, TariffsDictionary> = {
     receiveColumn: 'आपको मिलेगा',
     payColumn: 'आप भुगतान करेंगे',
     pricePerLkmColumn: '1 LKM की कीमत',
+    sectionProTitle: 'PRO टैरिफ',
+    sectionProSubtitle: 'PRO subscription का भुगतान LKM wallet से किया जाता है। वर्तमान कीमतें monetization admin में नियंत्रित होती हैं।',
+    proPlanColumn: 'प्लान',
+    proDurationColumn: 'अवधि',
+    proPriceColumn: 'कीमत',
+    proBadgeColumn: 'बैज',
+    proEmpty: 'PRO प्लान फिलहाल उपलब्ध नहीं हैं।',
+    sectionProBenefitsTitle: 'PRO क्या देता है',
+    sectionProBenefitsSubtitle: 'PRO उन उपयोगकर्ताओं के लिए है जिन्हें VedaMatch के अंदर विस्तारित access चाहिए।',
+    proBenefits: [
+      'इकोसिस्टम के भीतर paid PRO features और special usage scenarios को unlock करता है।',
+      'चुने गए प्लान के अनुसार 7, 30 या 90 दिनों का साफ access period देता है।',
+      'अलग external subscription के बिना सीधे LKM wallet से भुगतान होता है।',
+    ],
     sectionExampleTitle: 'कैलकुलेशन उदाहरण',
     exampleLead: 'पैकेज',
     sectionImportantTitle: 'महत्वपूर्ण',

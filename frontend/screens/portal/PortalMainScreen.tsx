@@ -20,8 +20,6 @@ import {
     List,
     Settings,
     MessageSquare,
-    Contact,
-    Phone,
     Gift,
     LayoutGrid,
     Compass,
@@ -32,19 +30,9 @@ import {
 } from 'lucide-react-native';
 
 import { PortalChatScreen } from './chat/PortalChatScreen';
-import { MarketHomeScreen } from './shops/MarketHomeScreen';
-import { AdsScreen } from './ads/AdsScreen';
-import { NewsScreen } from './news/NewsScreen';
-import { DatingScreen } from './dating/DatingScreen';
-import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
-import { EducationHomeScreen } from './education/EducationHomeScreen';
-import { CafeListScreen } from './cafe';
-import { MultimediaHubScreen } from '../multimedia/MultimediaHubScreen';
-import { TravelHomeScreen } from './travel';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
-import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { BellButton } from '../../components/portal/BellButton';
 import { NotificationPanel } from '../../components/portal/NotificationPanel';
 import { PortalGrid } from '../../components/portal';
@@ -209,19 +197,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
     const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
     const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image';
-    const isEducationTabActive = activeTab === 'education';
-    const isAdsTabActive = activeTab === 'ads';
-    const isTravelTabActive = activeTab === 'travel';
-    const useSolidServiceLayer = isEducationTabActive || isAdsTabActive || isTravelTabActive;
+    const useSolidServiceLayer = false;
     const serviceLayerBackgroundType = useSolidServiceLayer ? 'color' : layerBackgroundType;
     const serviceLayerBackground = useSolidServiceLayer ? vTheme.colors.background : layerBackground;
     const serviceLayerActiveWallpaper = useSolidServiceLayer ? '' : layerActiveWallpaper;
     const serviceLayerSlideshowEnabled = useSolidServiceLayer ? false : layerSlideshowEnabled;
     const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
     const useLightServiceHeaderIcons = useSolidServiceLayer ? false : useLightHeaderIcons;
-    const shouldUseSolidContactsHeader = activeTab === 'contacts';
-    const shouldUseSolidRoomsHeader = activeTab === 'rooms' || activeTab === 'chat';
-    const shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader;
+    const shouldUseSolidServiceHeader = activeTab === 'chat';
     const serviceHeaderBackgroundColor = shouldUseSolidServiceHeader ? vTheme.colors.background : 'transparent';
     const serviceHeaderBorderColor = shouldUseSolidServiceHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
@@ -313,8 +296,52 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('ContactsHome');
             return;
         }
+        if (screen === 'CallsHome') {
+            navigation.navigate('CallsHome');
+            return;
+        }
+        if (screen === 'RoomsHome') {
+            navigation.navigate('RoomsHome');
+            return;
+        }
         if (screen === 'ServicesHome') {
             navigation.navigate('ServicesHome');
+            return;
+        }
+        if (screen === 'MultimediaHub') {
+            navigation.navigate('MultimediaHub');
+            return;
+        }
+        if (screen === 'MarketHome') {
+            navigation.navigate('MarketHome');
+            return;
+        }
+        if (screen === 'DatingHome') {
+            navigation.navigate('DatingHome');
+            return;
+        }
+        if (screen === 'CafeHome') {
+            navigation.navigate('CafeHome');
+            return;
+        }
+        if (screen === 'NewsHome') {
+            navigation.navigate('NewsHome');
+            return;
+        }
+        if (screen === 'LibraryHome') {
+            navigation.navigate('LibraryHome');
+            return;
+        }
+        if (screen === 'EducationHome') {
+            navigation.navigate('EducationHome');
+            return;
+        }
+        if (screen === 'TravelHome') {
+            navigation.navigate('TravelHome');
+            return;
+        }
+        if (screen === 'Ads') {
+            navigation.navigate('Ads');
             return;
         }
         if (screen === 'PathTrackerHome') {
@@ -468,38 +495,15 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen, isServiceVisible, showServiceUnavailableAlert]);
 
     const handleLinkedCallContactPress = useCallback(() => {
-        if (activeTab === 'contacts') {
-            setActiveTab('calls');
-            return;
-        }
-        if (activeTab === 'calls') {
-            navigation.navigate('ContactsHome');
-            return;
-        }
         setIsMenuOpen(true);
-    }, [activeTab, navigation, setIsMenuOpen]);
+    }, [setIsMenuOpen]);
 
-    const LinkedCallContactIcon = activeTab === 'contacts'
-        ? Phone
-        : activeTab === 'calls'
-            ? Contact
-            : MessageSquare;
+    const LinkedCallContactIcon = MessageSquare;
 
     const renderContent = () => {
         const backToGrid = backFromActiveService;
         switch (activeTab) {
             case 'chat': return <PortalChatScreen />;
-            case 'rooms': return <PortalChatScreen />;
-            case 'calls': return <CallHistoryScreen />;
-            case 'dating': return <DatingScreen onBack={backToGrid} />;
-            case 'cafe': return <CafeListScreen onBack={backToGrid} />;
-            case 'shops': return <MarketHomeScreen onBack={backToGrid} />;
-            case 'ads': return <AdsScreen />;
-            case 'library': return <LibraryHomeScreen />;
-            case 'education': return <EducationHomeScreen />;
-            case 'news': return <NewsScreen />;
-            case 'multimedia': return <MultimediaHubScreen onBack={backToGrid} />;
-            case 'travel': return <TravelHomeScreen />;
             default:
                 return (
                     <View style={styles.fallbackContent}>
@@ -843,8 +847,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             >
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-            {/* Header with back - Hidden if service manages its own header (like Dating) */}
-            {(activeTab !== 'dating' && activeTab !== 'cafe' && activeTab !== 'services' && activeTab !== 'shops' && activeTab !== 'multimedia') && (
+            {/* Header with back - Hidden if service manages its own header */}
+            {(activeTab !== 'services') && (
                 <View style={[styles.header, { backgroundColor: serviceHeaderBackgroundColor }]}>
                     <View style={styles.headerLeft}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

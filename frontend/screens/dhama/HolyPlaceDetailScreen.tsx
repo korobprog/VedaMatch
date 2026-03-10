@@ -8,7 +8,6 @@ import { HolyPlaceDetail } from '../../types/dhama';
 import { dhamaService } from '../../services/dhamaService';
 import { useSettings } from '../../context/SettingsContext';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
-import { DhamaBackButton } from './DhamaBackButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HolyPlaceDetail'>;
 
@@ -83,9 +82,6 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
   return (
     <ScreenScaffold>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.topBar}>
-          <DhamaBackButton navigation={navigation} />
-        </View>
         {place.heroImageUrl ? <Image source={{ uri: place.heroImageUrl }} style={styles.hero} /> : null}
         <Text style={[styles.title, { color: vTheme.colors.text }]}>{place.title}</Text>
         <Text style={[styles.meta, { color: vTheme.colors.textSecondary }]}>{metaParts.join(' · ')}</Text>
@@ -173,7 +169,6 @@ export const HolyPlaceDetailScreen: React.FC<Props> = ({ route, navigation }) =>
 const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { padding: 16, gap: 14 },
-  topBar: { alignItems: 'flex-start' },
   hero: { width: '100%', height: 240, borderRadius: 22, backgroundColor: '#ddd' },
   title: { fontSize: 28, fontWeight: '800' },
   meta: { fontSize: 14 },

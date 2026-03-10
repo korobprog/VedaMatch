@@ -39,6 +39,15 @@ export type PackagesResponse = {
   disclaimer: string;
 };
 
+export type ProPlan = {
+  code: string;
+  days: number;
+  priceLkm: number;
+  title: string;
+  badge?: string;
+  isPopular?: boolean;
+};
+
 type Props = {
   initialHost: string;
   initialRegion: LKMRegion;
@@ -46,8 +55,6 @@ type Props = {
   initialGatewayCode: string;
   apiBaseUrl: string;
 };
-
-const TOKEN_KEY = 'lkm_access_token';
 
 function sanitizeApiBaseUrl(rawBaseUrl: string): string {
   return rawBaseUrl.trim().replace(/\\+/g, '/').replace(/\/+$/, '');
@@ -60,6 +67,16 @@ function formatNumber(language: Language, value: number, digits = 2): string {
   }).format(value);
 }
 
+function formatProPlanTitle(language: Language, days: number): string {
+  if (language === 'ru') {
+    return `PRO ${days} дней`;
+  }
+  if (language === 'hi') {
+    return `PRO ${days} दिन`;
+  }
+  return `PRO ${days} days`;
+}
+
 export default function TariffsPageClient({
   initialHost,
   initialRegion,
@@ -70,11 +87,12 @@ export default function TariffsPageClient({
   const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
   const [language, setLanguage] = useState<Language>('en');
   const [packages, setPackages] = useState<PackagesResponse | null>(null);
+  const [proPlans, setProPlans] = useState<ProPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const dictionary = TARIFFS_I18N[language];
 
-  const fetchPackages = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
@@ -84,19 +102,42 @@ export default function TariffsPageClient({
         gatewayCode: initialGatewayCode,
         paymentMethod: 'default',
       });
-      const token =
-        typeof window === 'undefined' ? '' : (window.localStorage.getItem(TOKEN_KEY) || '').trim();
-      const response = await fetch(`${normalizedApiBaseUrl}/lkm/packages?${params.toString()}`, {
-        cache: 'no-store',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP_${response.status}`);
+
+      const [packagesResult, proResult] = await Promise.allSettled([
+        fetch(`${normalizedApiBaseUrl}/lkm/packages?${params.toString()}`, {
+          cache: 'no-store',
+        }),
+        fetch(`${normalizedApiBaseUrl}/pro/plans`, {
+          cache: 'no-store',
+        }),
+      ]);
+
+      let nextPackages: PackagesResponse | null = null;
+      let nextProPlans: ProPlan[] = [];
+      let fatalError = '';
+
+      if (packagesResult.status === 'fulfilled') {
+        if (!packagesResult.value.ok) {
+          fatalError = `HTTP_${packagesResult.value.status}`;
+        } else {
+          nextPackages = (await packagesResult.value.json()) as PackagesResponse;
+        }
+      } else {
+        fatalError = packagesResult.reason instanceof Error ? packagesResult.reason.message : 'NETWORK_ERROR';
       }
-      const payload = (await response.json()) as PackagesResponse;
-      setPackages(payload);
+
+      if (proResult.status === 'fulfilled' && proResult.value.ok) {
+        const payload = (await proResult.value.json()) as { plans?: ProPlan[] };
+        nextProPlans = Array.isArray(payload.plans) ? payload.plans : [];
+      }
+      setPackages(nextPackages);
+      setProPlans(nextProPlans);
+      if (!nextPackages && nextProPlans.length === 0 && fatalError) {
+        throw new Error(fatalError);
+      }
     } catch (fetchError) {
       setPackages(null);
+      setProPlans([]);
       setError(fetchError instanceof Error ? fetchError.message : 'NETWORK_ERROR');
     } finally {
       setIsLoading(false);
@@ -115,8 +156,8 @@ export default function TariffsPageClient({
   }, []);
 
   useEffect(() => {
-    void fetchPackages();
-  }, [fetchPackages]);
+    void fetchData();
+  }, [fetchData]);
 
   const examplePackage = useMemo(() => {
     if (!packages || packages.packages.length === 0) {
@@ -175,20 +216,20 @@ export default function TariffsPageClient({
         <section className="panel">
           <h2>{dictionary.errorTitle}</h2>
           <p className="note">{dictionary.errorDescription}</p>
-          <button type="button" onClick={() => void fetchPackages()}>
+          <button type="button" onClick={() => void fetchData()}>
             {dictionary.retry}
           </button>
         </section>
       ) : null}
 
-      {!isLoading && !error && (!packages || packages.packages.length === 0) ? (
+      {!isLoading && !error && !packages && proPlans.length === 0 ? (
         <section className="panel">
           <h2>{dictionary.emptyTitle}</h2>
           <p className="note">{dictionary.emptyDescription}</p>
         </section>
       ) : null}
 
-      {!isLoading && !error && packages ? (
+      {!isLoading && !error && (packages || proPlans.length > 0) ? (
         <>
           <section className="panel">
             <h2>{dictionary.sectionHowTitle}</h2>
@@ -199,74 +240,121 @@ export default function TariffsPageClient({
             </ol>
           </section>
 
-          <section className="panel">
-            <h2>{dictionary.sectionTariffsTitle}</h2>
-            <p className="note">{dictionary.sectionTariffsSubtitle}</p>
-            <div className="tariffs-meta-grid">
-              <p><strong>{dictionary.paymentMethodLabel}:</strong> {packages.paymentMethod}</p>
-              <p>
-                <strong>{dictionary.limitsLabel}:</strong>{' '}
-                {formatTemplate(dictionary.limitsTemplate, {
-                  min: packages.customMinLkm,
-                  max: packages.customMaxLkm,
-                  step: packages.customStepLkm,
-                })}
-              </p>
-            </div>
-
-            <div className="tariffs-table-wrap">
-              <table className="tariffs-table">
-                <thead>
-                  <tr>
-                    <th>{dictionary.lkmColumn}</th>
-                    <th>{dictionary.receiveColumn}</th>
-                    <th>{dictionary.payColumn}</th>
-                    <th>{dictionary.pricePerLkmColumn}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {packages.packages.map((pkg) => {
-                    const pricePerLkmPay = pkg.receiveLkm > 0 ? pkg.totalPayAmount / pkg.receiveLkm : 0;
-                    return (
-                      <tr key={`${pkg.lkmAmount}-${pkg.totalPayAmount}`}>
-                        <td>{pkg.lkmAmount}</td>
-                        <td>{pkg.receiveLkm} LKM</td>
-                        <td>{formatNumber(language, pkg.totalPayAmount)} {pkg.payCurrency}</td>
-                        <td>
-                          {formatNumber(language, pricePerLkmPay)} {pkg.payCurrency}
-                        </td>
-                      </tr>
-                    );
+          {packages ? (
+            <section className="panel">
+              <h2>{dictionary.sectionTariffsTitle}</h2>
+              <p className="note">{dictionary.sectionTariffsSubtitle}</p>
+              <div className="tariffs-meta-grid">
+                <p><strong>{dictionary.paymentMethodLabel}:</strong> {packages.paymentMethod}</p>
+                <p>
+                  <strong>{dictionary.limitsLabel}:</strong>{' '}
+                  {formatTemplate(dictionary.limitsTemplate, {
+                    min: packages.customMinLkm,
+                    max: packages.customMaxLkm,
+                    step: packages.customStepLkm,
                   })}
-                </tbody>
-              </table>
-            </div>
+                </p>
+              </div>
+
+              <div className="tariffs-table-wrap">
+                <table className="tariffs-table">
+                  <thead>
+                    <tr>
+                      <th>{dictionary.lkmColumn}</th>
+                      <th>{dictionary.receiveColumn}</th>
+                      <th>{dictionary.payColumn}</th>
+                      <th>{dictionary.pricePerLkmColumn}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packages.packages.map((pkg) => {
+                      const pricePerLkmPay = pkg.receiveLkm > 0 ? pkg.totalPayAmount / pkg.receiveLkm : 0;
+                      return (
+                        <tr key={`${pkg.lkmAmount}-${pkg.totalPayAmount}`}>
+                          <td>{pkg.lkmAmount}</td>
+                          <td>{pkg.receiveLkm} LKM</td>
+                          <td>{formatNumber(language, pkg.totalPayAmount)} {pkg.payCurrency}</td>
+                          <td>
+                            {formatNumber(language, pricePerLkmPay)} {pkg.payCurrency}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="panel">
+            <h2>{dictionary.sectionProTitle}</h2>
+            <p className="note">{dictionary.sectionProSubtitle}</p>
+            {proPlans.length > 0 ? (
+              <div className="tariffs-table-wrap">
+                <table className="tariffs-table">
+                  <thead>
+                    <tr>
+                      <th>{dictionary.proPlanColumn}</th>
+                      <th>{dictionary.proDurationColumn}</th>
+                      <th>{dictionary.proPriceColumn}</th>
+                      <th>{dictionary.proBadgeColumn}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proPlans.map((plan) => (
+                      <tr key={plan.code}>
+                        <td>{formatProPlanTitle(language, plan.days)}</td>
+                        <td>{plan.days}</td>
+                        <td>{formatNumber(language, plan.priceLkm, 0)} LKM</td>
+                        <td>{plan.badge || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="note">{dictionary.proEmpty}</p>
+            )}
           </section>
 
           <section className="panel">
-            <h2>{dictionary.sectionExampleTitle}</h2>
-            {examplePackage ? (
-              <p>
-                {dictionary.exampleLead} <strong>{examplePackage.lkmAmount} LKM</strong>:{' '}
-                {formatNumber(language, examplePackage.totalPayAmount)} {examplePackage.payCurrency}
-                {' '}→ {examplePackage.receiveLkm} LKM.
-              </p>
-            ) : null}
-          </section>
-
-          <section className="panel">
-            <h2>{dictionary.sectionImportantTitle}</h2>
+            <h2>{dictionary.sectionProBenefitsTitle}</h2>
+            <p className="note">{dictionary.sectionProBenefitsSubtitle}</p>
             <ul className="tariffs-list">
-              {dictionary.importantItems.map((item) => (
+              {dictionary.proBenefits.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
-            {packages.disclaimer ? (
-              <p className="note">
-                <strong>{dictionary.backendDisclaimerLabel}:</strong> {packages.disclaimer}
-              </p>
-            ) : null}
           </section>
+
+          {packages ? (
+            <section className="panel">
+              <h2>{dictionary.sectionExampleTitle}</h2>
+              {examplePackage ? (
+                <p>
+                  {dictionary.exampleLead} <strong>{examplePackage.lkmAmount} LKM</strong>:{' '}
+                  {formatNumber(language, examplePackage.totalPayAmount)} {examplePackage.payCurrency}
+                  {' '}→ {examplePackage.receiveLkm} LKM.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {packages ? (
+            <section className="panel">
+              <h2>{dictionary.sectionImportantTitle}</h2>
+              <ul className="tariffs-list">
+                {dictionary.importantItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              {packages.disclaimer ? (
+                <p className="note">
+                  <strong>{dictionary.backendDisclaimerLabel}:</strong> {packages.disclaimer}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="panel">
             <h2>{dictionary.sectionFaqTitle}</h2>

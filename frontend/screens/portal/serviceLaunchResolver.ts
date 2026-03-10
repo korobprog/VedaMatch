@@ -1,19 +1,7 @@
 import { PortalInitialTab, RootStackParamList } from '../../types/navigation';
 
 export type EmbeddedPortalTab =
-    | 'contacts'
     | 'chat'
-    | 'rooms'
-    | 'dating'
-    | 'cafe'
-    | 'shops'
-    | 'ads'
-    | 'news'
-    | 'calls'
-    | 'multimedia'
-    | 'library'
-    | 'education'
-    | 'travel'
     | 'services';
 
 export type ServiceLaunchResolution =
@@ -24,19 +12,7 @@ export type ServiceLaunchResolution =
     | { kind: 'unsupported' };
 
 export const EMBEDDED_PORTAL_TABS = new Set<EmbeddedPortalTab>([
-    'contacts',
     'chat',
-    'rooms',
-    'dating',
-    'cafe',
-    'shops',
-    'ads',
-    'news',
-    'calls',
-    'multimedia',
-    'library',
-    'education',
-    'travel',
     'services',
 ]);
 
@@ -51,6 +27,50 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
 
     if (serviceId === 'contacts') {
         return { kind: 'navigate', screen: 'ContactsHome' };
+    }
+
+    if (serviceId === 'calls') {
+        return { kind: 'navigate', screen: 'CallsHome' };
+    }
+
+    if (serviceId === 'rooms') {
+        return { kind: 'navigate', screen: 'RoomsHome' };
+    }
+
+    if (serviceId === 'multimedia') {
+        return { kind: 'navigate', screen: 'MultimediaHub' };
+    }
+
+    if (serviceId === 'shops') {
+        return { kind: 'navigate', screen: 'MarketHome' };
+    }
+
+    if (serviceId === 'dating') {
+        return { kind: 'navigate', screen: 'DatingHome' };
+    }
+
+    if (serviceId === 'cafe') {
+        return { kind: 'navigate', screen: 'CafeHome' };
+    }
+
+    if (serviceId === 'news') {
+        return { kind: 'navigate', screen: 'NewsHome' };
+    }
+
+    if (serviceId === 'library') {
+        return { kind: 'navigate', screen: 'LibraryHome' };
+    }
+
+    if (serviceId === 'education') {
+        return { kind: 'navigate', screen: 'EducationHome' };
+    }
+
+    if (serviceId === 'travel') {
+        return { kind: 'navigate', screen: 'TravelHome' };
+    }
+
+    if (serviceId === 'ads') {
+        return { kind: 'navigate', screen: 'Ads' };
     }
 
     if (serviceId === 'connect') {
@@ -106,7 +126,7 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
     }
 
     if (serviceId === 'knowledge_base') {
-        return { kind: 'open_portal_tab', tab: 'library' };
+        return { kind: 'navigate', screen: 'LibraryHome' };
     }
 
     if (EMBEDDED_PORTAL_TABS.has(serviceId as EmbeddedPortalTab)) {

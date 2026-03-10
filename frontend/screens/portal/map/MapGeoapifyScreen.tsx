@@ -67,13 +67,27 @@ interface SearchResultItem {
 }
 
 export const MapGeoapifyScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const navigation = useNavigation<MapGeoapifyNavigationProp>();
     const route = useRoute<MapGeoapifyRouteProp>();
     const routeParams = route.params as MapGeoapifyRouteParams | undefined;
+    const effectiveMapLanguage = useMemo(() => {
+        const appLanguage = String(i18n.language || '').trim().toLowerCase();
+        if (appLanguage.startsWith('ru')) return 'ru';
+        if (appLanguage.startsWith('hi')) return 'hi';
+        if (appLanguage.startsWith('en')) return 'en';
+        const profileLanguage = String(user?.language || '').trim().toLowerCase();
+        if (profileLanguage.startsWith('ru')) return 'ru';
+        if (profileLanguage.startsWith('hi')) return 'hi';
+        if (profileLanguage.startsWith('en')) return 'en';
+        return 'en';
+    }, [i18n.language, user?.language]);
+    const tMap = useCallback((key: string, defaultValue: string) => (
+        t(key, { defaultValue, lng: effectiveMapLanguage })
+    ), [effectiveMapLanguage, t]);
 
     const webViewRef = useRef<WebView>(null);
     const bottomSheetRef = useRef<BottomSheet>(null);
@@ -111,6 +125,8 @@ export const MapGeoapifyScreen: React.FC = () => {
     const latestSummaryRequestRef = useRef(0);
     const latestLocateRequestRef = useRef(0);
     const isMountedRef = useRef(true);
+    const userLatitude = user?.latitude;
+    const userLongitude = user?.longitude;
 
     const [filters, setFilters] = useState<MapFilters>({
         showUsers: routeParams?.filters?.showUsers ?? true,
@@ -397,11 +413,17 @@ export const MapGeoapifyScreen: React.FC = () => {
                     true;
                 `);
             } else if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
-                Alert.alert('Location Error', 'Could not detect your current location.');
+                Alert.alert(
+                    tMap('map.location_error_title', 'Location Error'),
+                    tMap('map.location_error_body', 'Could not detect your current location.')
+                );
             }
         } catch {
             if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
-                Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
+                Alert.alert(
+                    tMap('map.permission_denied_title', 'Permission Denied'),
+                    tMap('map.permission_denied_body', 'Please enable location permissions in settings.')
+                );
             }
         } finally {
             if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
@@ -433,21 +455,27 @@ export const MapGeoapifyScreen: React.FC = () => {
         }
     };
 
-    const handleBuildRoute = async (targetMarker?: MapMarker) => {
+    const handleBuildRoute = useCallback(async (targetMarker?: MapMarker) => {
         const marker = targetMarker || selectedMarker;
         const hasUserCoords =
-            typeof user?.latitude === 'number' &&
-            typeof user?.longitude === 'number';
+            typeof userLatitude === 'number' &&
+            typeof userLongitude === 'number';
         if (!marker || !hasUserCoords) {
-            Alert.alert('Error', 'Failed to determine the route');
+            Alert.alert(
+                tMap('common.error', 'Error'),
+                tMap('map.route_determine_error', 'Failed to determine the route')
+            );
             return;
         }
 
         try {
-            const startLat = user?.latitude;
-            const startLng = user?.longitude;
+            const startLat = userLatitude;
+            const startLng = userLongitude;
             if (typeof startLat !== 'number' || typeof startLng !== 'number') {
-                Alert.alert('Error', 'Failed to determine the route');
+                Alert.alert(
+                    tMap('common.error', 'Error'),
+                    tMap('map.route_determine_error', 'Failed to determine the route')
+                );
                 return;
             }
             const result = await mapService.getRoute({
@@ -467,9 +495,12 @@ export const MapGeoapifyScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to build route:', error);
-            Alert.alert('Error', 'Failed to build the route');
+            Alert.alert(
+                tMap('common.error', 'Error'),
+                tMap('map.route_build_error', 'Failed to build the route')
+            );
         }
-    };
+    }, [selectedMarker, tMap, userLatitude, userLongitude]);
 
     const getMarkerColor = (type: string): string => {
         const markerKey = type as keyof MarkerConfig['markers'];
@@ -956,7 +987,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     <Search size={18} color={colors.textSecondary} style={styles.searchIcon} />
                     <TextInput
                         style={[styles.searchInput, { color: colors.textPrimary }]}
-                        placeholder={t('map.search_placeholder', 'Search by address...')}
+                        placeholder={tMap('map.search_placeholder', 'Search on map...')}
                         placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={handleSearch}
@@ -1025,7 +1056,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Users size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            People
+                            {tMap('map.people', 'People')}
                         </Text>
                     </TouchableOpacity>
 
@@ -1039,7 +1070,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Store size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Shops
+                            {tMap('map.shops', 'Shops')}
                         </Text>
                     </TouchableOpacity>
 
@@ -1053,7 +1084,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Tag size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Ads
+                            {tMap('map.ads', 'Ads')}
                         </Text>
                     </TouchableOpacity>
 
@@ -1067,7 +1098,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                     >
                         <Coffee size={14} color={colors.textPrimary} />
                         <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                            Cafes
+                            {tMap('map.cafes', 'Cafes')}
                         </Text>
                     </TouchableOpacity>
                 </ScrollView>
@@ -1122,7 +1153,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                             onPress={() => handleBuildRoute()}
                         >
                             <Route size={16} color={colors.textPrimary} />
-                            <Text style={styles.actionButtonText}>Route</Text>
+                            <Text style={styles.actionButtonText}>{tMap('map.route', 'Route')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionButton, styles.borderedButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -1138,7 +1169,9 @@ export const MapGeoapifyScreen: React.FC = () => {
                                 }
                             }}
                         >
-                            <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>Details</Text>
+                            <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>
+                                {tMap('common.details', 'Details')}
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1154,7 +1187,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             >
                 <View style={styles.sheetContainer}>
                     <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
-                        {t('map.near_objects', 'Nearby objects')} ({markers.length})
+                        {t('map.near_objects', { defaultValue: 'Nearby objects', lng: effectiveMapLanguage })} ({markers.length})
                     </Text>
                     <BottomSheetFlatList
                         data={markers}
@@ -1206,14 +1239,16 @@ export const MapGeoapifyScreen: React.FC = () => {
                                         }}
                                     >
                                         <Route size={16} color={colors.textPrimary} />
-                                        <Text style={styles.smallActionButtonText}>Route</Text>
+                                        <Text style={styles.smallActionButtonText}>{tMap('map.route', 'Route')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.smallActionButton, styles.borderedButton, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
                                         onPress={() => handleDetails(item)}
                                     >
                                         <ExternalLink size={16} color={colors.textPrimary} />
-                                        <Text style={[styles.smallActionButtonText, { color: colors.textPrimary }]}>Info</Text>
+                                        <Text style={[styles.smallActionButtonText, { color: colors.textPrimary }]}>
+                                            {tMap('common.info', 'Info')}
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
@@ -1222,7 +1257,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
                                 <Text style={{ color: colors.textSecondary }}>
-                                    {t('map.no_markers_visible', 'No objects in this area')}
+                                    {t('map.no_markers_visible', { defaultValue: 'No objects in this area', lng: effectiveMapLanguage })}
                                 </Text>
                             </View>
                         }
@@ -1233,16 +1268,16 @@ export const MapGeoapifyScreen: React.FC = () => {
             {webViewError && (
                 <View style={styles.mapErrorOverlay}>
                     <Text style={[styles.mapErrorTitle, { color: colors.textPrimary }]}>
-                        Failed to load the map
+                        {tMap('map.load_error_title', 'Failed to load the map')}
                     </Text>
                     <Text style={[styles.mapErrorSubtitle, { color: colors.textSecondary }]}>
-                        Check your internet connection and try again
+                        {tMap('map.load_error_body', 'Check your internet connection and try again')}
                     </Text>
                     <TouchableOpacity
                         style={[styles.mapRetryButton, { backgroundColor: colors.accent }]}
                         onPress={handleRetryMap}
                     >
-                        <Text style={styles.mapRetryButtonText}>Retry</Text>
+                        <Text style={styles.mapRetryButtonText}>{tMap('common.retry', 'Retry')}</Text>
                     </TouchableOpacity>
                 </View>
             )}

@@ -9,7 +9,6 @@ import {
     Modal,
     Pressable,
     FlatList,
-    Image,
     Alert,
     Platform,
 } from 'react-native';
@@ -27,10 +26,6 @@ import {
     Plus,
     MessageSquare,
     Trash2,
-    User,
-    LogIn,
-    Settings,
-    Check,
     Square,
     CheckSquare,
     Edit3,
@@ -43,7 +38,7 @@ import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { useRoleTheme } from './hooks/useRoleTheme';
 
-const DRAWER_WIDTH = Dimensions.get('window').width * 0.8;
+const DRAWER_WIDTH = Dimensions.get('window').width * 0.58;
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -56,21 +51,17 @@ interface SettingsDrawerProps {
     onNavigateToChat: () => void;
 }
 
-export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
-    isVisible,
-    onClose,
-    isDarkMode,
-    currentModel,
-    onSelectModel,
-    onNavigateToSettings,
-    onNavigateToRegistration,
-    onNavigateToChat,
-}) => {
+export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
+    const {
+        isVisible,
+        onClose,
+        onNavigateToChat,
+    } = props;
     const {
         fetchModels,
         isDarkMode: isPortalDarkMode,
     } = useSettings();
-    const { user, isLoggedIn, roleDescriptor } = useUser();
+    const { user } = useUser();
     const { history, loadChat, deleteChat, deleteChats, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isPortalDarkMode);
@@ -80,7 +71,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         border: 'rgba(15,23,42,0.14)',
         textPrimary: '#1F2937',
         textSecondary: '#64748B',
-        iconSurface: 'rgba(15,23,42,0.08)',
+        iconSurface: 'rgba(15,23,42,0.06)',
         actionSurface: 'rgba(15,23,42,0.08)',
     }), []);
 
@@ -96,7 +87,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         } else {
             drawerProgress.value = withTiming(0, { duration: 300 });
         }
-    }, [isVisible]);
+    }, [drawerProgress, fetchModels, isVisible]);
 
     const handleClose = () => {
         setIsEditMode(false);
@@ -178,33 +169,25 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                     <View style={[styles.tabAccentLine, { backgroundColor: roleColors.accent }]} />
                                 </View>
 
-                                <View style={styles.headerActions}>
-                                    {history.length > 0 && (
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                if (isEditMode) {
-                                                    setIsEditMode(false);
-                                                    setSelectedIds([]);
-                                                } else {
-                                                    setIsEditMode(true);
-                                                }
-                                            }}
-                                            style={[styles.headerActionBtn, { backgroundColor: historyColors.actionSurface }]}
-                                        >
-                                            {isEditMode ? (
-                                                <X size={24} color={historyColors.textPrimary} />
-                                            ) : (
-                                                <Edit3 size={24} color={historyColors.textPrimary} />
-                                            )}
-                                        </TouchableOpacity>
-                                    )}
+                                {history.length > 0 && (
                                     <TouchableOpacity
+                                        onPress={() => {
+                                            if (isEditMode) {
+                                                setIsEditMode(false);
+                                                setSelectedIds([]);
+                                            } else {
+                                                setIsEditMode(true);
+                                            }
+                                        }}
                                         style={[styles.headerActionBtn, { backgroundColor: historyColors.actionSurface }]}
-                                        onPress={() => { handleClose(); onNavigateToSettings(); }}
                                     >
-                                        <Settings size={24} color={historyColors.textPrimary} />
+                                        {isEditMode ? (
+                                            <X size={20} color={historyColors.textPrimary} />
+                                        ) : (
+                                            <Edit3 size={20} color={historyColors.textPrimary} />
+                                        )}
                                     </TouchableOpacity>
-                                </View>
+                                )}
                             </View>
                         </View>
 
@@ -226,7 +209,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                         end={{ x: 1, y: 1 }}
                                         style={styles.newChatButton}
                                     >
-                                        <Plus size={20} color={historyColors.textPrimary} style={{ marginRight: 10 }} strokeWidth={3} />
+                                        <Plus size={18} color={historyColors.textPrimary} style={styles.newChatButtonIcon} strokeWidth={3} />
                                         <Text style={[styles.newChatButtonText, { color: historyColors.textPrimary }]}>{t('chat.newChatBtn')}</Text>
                                     </LinearGradient>
                                 </TouchableOpacity>
@@ -308,7 +291,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                             <BlurView
                                                 style={styles.historyItemBlur}
                                                 blurType="light"
-                                                blurAmount={16}
+                                                blurAmount={10}
                                                 reducedTransparencyFallbackColor={historyColors.card}
                                             />
                                             {isEditMode && (
@@ -346,11 +329,15 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                 }}
                                             >
                                                 <View style={[styles.historyIcon, { backgroundColor: historyColors.iconSurface }]}>
-                                                    <MessageSquare size={20} color={roleColors.accent} />
+                                                    <MessageSquare size={18} color={roleColors.accent} />
                                                 </View>
-                                                <View style={{ flex: 1 }}>
+                                                <View style={styles.historyTextWrap}>
                                                     <Text
-                                                        style={[styles.historyItemTitle, { color: historyColors.textPrimary, fontWeight: currentChatId === item.id ? '700' : '600' }]}
+                                                        style={[
+                                                            styles.historyItemTitle,
+                                                            currentChatId === item.id ? styles.historyItemTitleActive : styles.historyItemTitleInactive,
+                                                            { color: historyColors.textPrimary },
+                                                        ]}
                                                         numberOfLines={1}
                                                         ellipsizeMode="tail"
                                                     >
@@ -371,7 +358,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                     }}
                                                     style={[styles.deleteBtn, { borderColor: roleColors.danger }]}
                                                 >
-                                                    <Trash2 size={18} color={roleColors.danger} />
+                                                    <Trash2 size={16} color={roleColors.danger} />
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -379,7 +366,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                     ListEmptyComponent={
                                         <View style={styles.emptyContainer}>
                                             <MessageSquare size={34} color={historyColors.textSecondary} />
-                                            <Text style={{ color: historyColors.textSecondary, opacity: 0.8, marginTop: 10 }}>{t('chat.noHistory')}</Text>
+                                            <Text style={[styles.emptyText, { color: historyColors.textSecondary }]}>{t('chat.noHistory')}</Text>
                                         </View>
                                     }
                                 />
@@ -402,67 +389,72 @@ const styles = StyleSheet.create({
         height: '100%',
         backgroundColor: '#F2EFE6',
         shadowColor: 'rgba(0,0,0,1)',
-        shadowOffset: { width: -10, height: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 30,
-        elevation: 24,
+        shadowOffset: { width: -6, height: 0 },
+        shadowOpacity: 0.14,
+        shadowRadius: 18,
+        elevation: 16,
     },
     tabBar: {
-        minHeight: 88,
+        minHeight: 76,
         justifyContent: 'flex-end',
         borderBottomWidth: 1,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingHorizontal: 20,
-        paddingBottom: 12,
+        paddingTop: Platform.OS === 'ios' ? 44 : 18,
+        paddingHorizontal: 16,
+        paddingBottom: 10,
     },
     tabTitleWrap: { alignItems: 'center' },
     tabText: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: '800',
-        textShadowColor: 'rgba(0, 0, 0, 0.4)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.18)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
-    tabAccentLine: { marginTop: 12, width: 120, height: 4, borderRadius: 999 },
+    tabAccentLine: { marginTop: 8, width: 82, height: 3, borderRadius: 999 },
     content: { flex: 1 },
-    historyContainer: { flex: 1, padding: 18 },
+    historyContainer: { flex: 1, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12 },
     newChatButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 56,
-        paddingHorizontal: 18,
-        borderRadius: 18,
-        marginBottom: 18,
+        minHeight: 48,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        marginBottom: 14,
     },
-    newChatButtonText: { fontSize: 19, fontWeight: '800' },
+    newChatButtonText: { fontSize: 17, fontWeight: '800' },
+    newChatButtonIcon: { marginRight: 8 },
     historyItem: {
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,
-        borderRadius: 16,
-        marginBottom: 10,
-        paddingHorizontal: 10,
-        minHeight: 72,
+        borderRadius: 14,
+        marginBottom: 8,
+        paddingHorizontal: 8,
+        minHeight: 62,
         overflow: 'hidden',
     },
     historyItemBlur: {
         ...StyleSheet.absoluteFillObject,
     },
     historyItemMain: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-    historyIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    historyItemTitle: { fontSize: 17, marginBottom: 2 },
-    historyItemDate: { fontSize: 13 },
+    historyTextWrap: { flex: 1 },
+    historyIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    historyItemTitle: { fontSize: 15, marginBottom: 1 },
+    historyItemTitleActive: { fontWeight: '700' },
+    historyItemTitleInactive: { fontWeight: '600' },
+    historyItemDate: { fontSize: 12 },
     deleteBtn: {
-        padding: 10,
-        width: 40,
-        height: 40,
-        borderRadius: 12,
+        padding: 8,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
     emptyContainer: { padding: 40, alignItems: 'center' },
+    emptyText: { opacity: 0.8, marginTop: 10 },
     menuContainer: { flex: 1, padding: 16 },
     menuItem: {
         flexDirection: 'row',
@@ -512,59 +504,48 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         width: '100%',
     },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
     headerActionBtn: {
-        padding: 8,
+        width: 38,
+        height: 38,
         borderRadius: 12,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        minWidth: 44,
         alignItems: 'center',
-        marginLeft: 8,
-    },
-    editButton: {
-        padding: 8,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        minWidth: 44,
-        alignItems: 'center',
+        justifyContent: 'center',
     },
     checkboxContainer: {
-        paddingRight: 12,
+        paddingRight: 10,
         justifyContent: 'center',
     },
     bulkActionsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 16,
-        paddingHorizontal: 4,
+        marginBottom: 12,
+        paddingHorizontal: 2,
     },
     bulkActionItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: 6,
     },
     bulkActionText: {
         marginLeft: 8,
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '700',
-        textShadowColor: 'rgba(0, 0, 0, 0.4)',
+        textShadowColor: 'rgba(0, 0, 0, 0.18)',
         textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 3,
+        textShadowRadius: 1,
     },
     bulkDeleteBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 10,
     },
     bulkDeleteText: {
         marginLeft: 6,
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: '700',
     },
 });

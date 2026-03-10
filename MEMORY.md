@@ -52,13 +52,52 @@
   - держать dock в почти непрозрачном solid background, чтобы уменьшить translucent overdraw и нагрузку на первый возврат в портал.
 - Если сервис должен возвращаться на портал быстро и без тяжелого rerender, его лучше открывать как отдельный stack screen поверх `PortalMainScreen`, как `Dhama`, а не как embedded `activeTab` внутри портала.
 - Для этого паттерна уже переведены:
+  - `dating` -> `DatingHome`
+  - `cafe` -> `CafeHome`
+  - `news` -> `NewsHome`
+  - `library` -> `LibraryHome`
+  - `knowledge_base` -> `LibraryHome`
+  - `education` -> `EducationHome`
+  - `travel` -> `TravelHome`
+  - `ads` -> `Ads`
   - `contacts` -> `ContactsHome`
+  - `calls` -> `CallsHome`
+  - `rooms` -> `RoomsHome`
+  - `multimedia` -> `MultimediaHub`
+  - `shops` -> `MarketHome`
   - `services_catalog` -> `ServicesHome`
 - Встроенный `activeTab` внутри `PortalMainScreen` стоит оставлять только для тех сервисов, где осознанно нужен единый portal-shell и нет main-thread freeze на возврате.
 - После выноса `Contacts` в отдельный stack screen сам `ContactsScreen` тоже потребовал Android fast-path:
   - явная back button внутри экрана обязательна, если route идет без native header;
   - на Android лучше отключать photo/glass path для контактов, не включать aura и давать списку более агрессивную виртуализацию/`estimatedItemSize`;
   - иначе возможен отдельный ANR уже на входе в `ContactsHome`, даже если возврат в портал стал легче.
+- После выноса `Cafe` в отдельный stack screen сам `CafeListScreen` тоже стоит держать в fast-path:
+  - pagination/sort state лучше не хранить так, чтобы каждый `page++` вызывал полный rerender header/search/sort;
+  - `myCafe` secondary request лучше откладывать через `InteractionManager.runAfterInteractions`, чтобы не бить по first paint;
+  - на Android полезна более жесткая виртуализация списка (`initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `updateCellsBatchingPeriod`), чем на iOS.
+  - для самих `CafeCard` на Android полезен отдельный reduced-visuals path: простой overlay вместо `LinearGradient`, без delivery/logo/secondary badges, чтобы удешевить первый рендер списка.
+- После выноса `LibraryHome` в отдельный stack screen сам `LibraryHomeScreen` тоже стоит держать в fast-path:
+  - офлайн-статусы и размеры книг через `offlineBookService.getSavedBooks()` не должны блокировать первый paint каталога;
+  - их лучше догружать через `InteractionManager.runAfterInteractions`;
+  - карточки книг на Android выгодно упрощать: без blur/gradient overlays и с более легкой виртуализацией списка.
+  - текущий безопасный fast-path уже внедрен: memoized `BookCard`, deferred refresh saved-books info, Android reduced-visuals и более жесткая virtualization для `FlatList`.
+- После выноса `TravelHome` в отдельный stack screen сам `TravelHomeScreen` тоже стоит держать в fast-path:
+  - Android-путь лучше рендерить с более легкими travel cards, без secondary badges поверх изображений;
+  - header/empty/list callbacks и `ListHeaderComponent` лучше стабилизировать, чтобы смена таба и refetch не провоцировали лишние full rerender;
+  - для travel list полезны более жесткие `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `updateCellsBatchingPeriod` и `estimatedItemSize`.
+- `CallHistoryScreen` не должен рендериться внутри service-header `PortalMainScreen`:
+  - embedded-режим давал дублирующий portal-header с круглой кнопкой слева и отдельную стрелку самого экрана;
+  - для `calls` нужен отдельный stack screen с собственным back path в `Portal`.
+  - в собственной шапке `CallsHome` полезно держать быстрый action справа для перехода в `ContactsHome`, без возврата в portal grid.
+- Следующие кандидаты на такую же оптимизацию по структурному риску `embedded tab -> тяжелый возврат в портал`:
+  - `dating`: очень тяжелый экран с большим количеством state, modals, blur/gradient/photo cards;
+  - `cafe`: длинный список карточек с изображениями, поиском и hero-layout;
+  - `news`: feed с категориями, personalized state, subscriptions/favorites и infinite pagination;
+  - `library`: blur/gradient cards и offline-book state, но риск ниже чем у multimedia/market/dating;
+- `chat` переносить осторожнее:
+  - там больше навигационного и realtime-state контекста, чем в каталожных сервисах;
+  - `rooms` уже вынесен в `RoomsHome`, но сам `chat` еще остается embedded внутри `PortalMainScreen`.
+- После выноса `rooms` в отдельный stack screen invite-flow тоже должен возвращать не в `Portal(initialTab='rooms')`, а в `RoomsHome`, иначе back из `RoomChat` снова упирается в тяжелый portal rerender.
 
 ## Portal Widgets
 - Для роли `devotee` календарный portal widget должен стартовать сразу в режиме `ekadashi`, иначе пользователь видит обычный `Месяц` и создается ложное впечатление, что данные Экадаши не подключены.
@@ -107,7 +146,14 @@
 
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe отключен на уровне `EditProfile` stack screen, потому что горизонтальная карусель ролей (`RoleSelectionSection`) конфликтует с native swipe-back и может случайно выбрасывать пользователя назад в `Portal`.
+- Для Android в `EditProfileScreen` горизонтальный свайп карточек ролей должен временно блокировать вертикальный scroll родительского `ScrollView`, иначе parent перехватывает gesture и листание ролей вправо/влево не срабатывает.
+- Для Android в `RegistrationScreen` действует тот же паттерн: во время горизонтального свайпа карусели ролей (`RoleSelectionSection`) вертикальный scroll формы должен временно отключаться, чтобы жест не крался родителем.
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
+
+## Referral / Sangha Localization
+- Экран `frontend/screens/portal/referral/InviteFriendsScreen.tsx` должен быть полностью на i18n-ключах, без hardcoded English строк в UI и share-тексте.
+- Для этого экрана используется namespace `referralScreen` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`.
+- Ключи покрывают header/hero/QR/invite code/share buttons/rules/stats/list/how-it-works/card-preview и сообщение шаринга.
 
 ## Dhama Service
 - `Dhama` реализован как отдельный доменный модуль sacred places, но не как замена `Yatra`, `MapService` или `Multimedia`.
@@ -800,18 +846,8 @@
 - Причина: при частичной ошибке одного collector дефолтный режим может отдавать `500` на весь scrape; `ContinueOnError` сохраняет доступность `/metrics` и публикует ошибки в payload без полного падения endpoint.
 
 ## Portal Service UI
-- Для сервисов объявлений и путешествий (`activeTab === 'ads' || activeTab === 'travel'`) в `frontend/screens/portal/PortalMainScreen.tsx` service-layer принудительно однотонный:
-  - `serviceLayerBackgroundType='color'`,
-  - `serviceLayerActiveWallpaper=''`,
-  - `serviceLayerSlideshowEnabled=false`,
-  - `serviceLayerOverlayColor='transparent'`.
-- Это убирает фото-фон в верхнем `header` при открытых сервисах объявлений/путешествий и сохраняет стабильную читаемость иконок.
-- Для `contacts` и сервиса комнат (`rooms` и `chat`) в `PortalMainScreen` включен отдельный непрозрачный header:
-  - `shouldUseSolidContactsHeader = activeTab === 'contacts'`,
-  - `shouldUseSolidRoomsHeader = activeTab === 'rooms' || activeTab === 'chat'`,
-  - `shouldUseSolidServiceHeader = shouldUseSolidContactsHeader || shouldUseSolidRoomsHeader`,
-  - `serviceHeaderBackgroundColor = vTheme.colors.background` (непрозрачный, без просвечивания обоев),
-  - `serviceHeaderBorderColor = vTheme.colors.divider`.
+- После выноса `ads` и `travel` в отдельные stack screen их больше не нужно поддерживать как visual special-case внутри `PortalMainScreen`.
+- После выноса `rooms` в отдельный stack screen отдельный непрозрачный service-header в `PortalMainScreen` нужен только для встроенного `chat`.
 - Для остальных service tabs и портальной сетки header остается прозрачным, система смены обоев портала не отключается.
 - iOS debug-предупреждение `RCTView has a shadow set but cannot calculate shadow efficiently` для back-кнопки в `PortalMainScreen` устраняется переносом `shadow*` с прозрачного `View` на `TouchableOpacity` с непрозрачным `backgroundColor`; shadow на внутреннем прозрачном icon-wrapper не использовать.
 - Для `frontend/components/portal/PortalIcon.tsx` на iOS shadow для иконок теперь разрешен только на непрозрачных поверхностях (`portalIconStyle === 'vedamatch' || 'solid'`); на glass/полупрозрачных режимах (`image`, `premium3d`, rgba-сurface) shadow отключается, чтобы убрать массовый warning `RCTView has a shadow set but cannot calculate shadow efficiently`.
@@ -960,7 +996,12 @@
 ## LKM Web Tariffs
 - Для `lkm` (`/Users/mamu/Documents/vedicai/lkm`) тарифы реализуются отдельным route `/tariffs`, без изменений backend API.
 - Источник тарифов: `GET /lkm/packages`; используем response как source-of-truth для цен, лимитов и disclaimer.
+- Страница `/tariffs` должна также показывать `PRO`-планы как часть пользовательской монетизации, а не только пакеты пополнения LKM.
+- На `/tariffs` нужен отдельный объясняющий блок “что дает PRO”, а не только таблица с ценой.
+- Для публичного показа тарифов на `lkm` допустимо открывать read-only endpoints с ценами (`GET /lkm/packages`, `GET /pro/plans`) без авторизации, если ответы не содержат пользовательских данных.
 - Языки страницы тарифов: `ru`, `en`, `hi`; покрытие локализации ограничено только новой страницей тарифов и связанными UI-строками.
+- Языковой переключатель нужен не только на `/tariffs`, но и на главной странице кабинета `lkm`; переключение должно менять query `?lang=` и переиспользовать тот же persisted language.
+- На главной странице `lkm` нужен quick preview текущих `PRO`-планов, чтобы пользователь видел цену и срок еще до перехода на `/tariffs`.
 - Логика языка для `lkm` тарифов:
   - приоритет `?lang=`,
   - затем сохраненный выбор в `localStorage`,
@@ -1106,6 +1147,10 @@
 - Экран истории чатов (`frontend/SettingsDrawer.tsx`) больше не использует фото/градиент portal-фона:
   - фон принудительно однотонный `#F2EFE6`;
   - карточки и текст в истории чатов переведены на контрастные цвета (`textPrimary #1F2937`, `textSecondary #64748B`) для стабильной читаемости.
+- Drawer истории чатов (`frontend/SettingsDrawer.tsx`) уплотнен под паттерн Contacts:
+  - ширина уменьшена до `58%` экрана вместо широкого drawer;
+  - из шапки убран быстрый вход в настройки, оставлен только edit-mode;
+  - карточки истории, кнопка `Новый чат` и header уменьшены по высоте и отступам для более плотного списка.
 - Фон чата отделен от portal-фона:
   - в `frontend/context/SettingsContext.tsx` добавлены отдельные chat keys (`chat_background*`, `chat_wallpaper_slides*`);
   - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
@@ -2552,3 +2597,11 @@
   - Services: `8%`, cap `300 LKM`, no-show configurable, rollout по seed `20%`;
   - Market: `8%`, cap `300 LKM`, rollout `100%`;
   - Cafe: `8%`, cap `250 LKM`, min order `100 LKM`, но по seed выключено.
+
+- MapGeoapifyScreen now resolves UI language from profile (user.language) with app-language fallback and localizes map chips, actions, alerts, and map error overlay using map/common i18n keys.
+
+- Map language priority fixed: app i18n language now overrides profile language, profile value is used only as fallback in MapGeoapifyScreen.
+
+- Added contacts.title localization key to ru/en/hi locale files so Contacts header no longer falls back to English default.
+
+- Added contacts.title key in ru/en/hi locales to prevent Contacts screen header fallback to English when Russian is active.
