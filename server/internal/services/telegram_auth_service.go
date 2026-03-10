@@ -85,14 +85,16 @@ func NewTelegramAuthServiceWithDeps(
 }
 
 func (s *TelegramAuthService) ResolveAuthBotToken() string {
-	candidates := []string{
-		s.getSetting("TELEGRAM_AUTH_BOT_TOKEN"),
-		s.getSetting("TELEGRAM_BOT_TOKEN"),
-		s.getSetting("SUPPORT_TELEGRAM_BOT_TOKEN"),
+	keys := []string{
+		"TELEGRAM_AUTH_BOT_TOKEN",
+		"TELEGRAM_BOT_TOKEN",
+		"SUPPORT_TELEGRAM_BOT_TOKEN",
 	}
-	for _, candidate := range candidates {
-		if token := normalizeTelegramBotToken(candidate); token != "" {
-			return token
+	for _, key := range keys {
+		for _, candidate := range s.telegramSettingCandidates(key) {
+			if token := normalizeTelegramBotToken(candidate); token != "" {
+				return token
+			}
 		}
 	}
 	return ""
@@ -314,6 +316,29 @@ func normalizeTelegramBotToken(raw string) string {
 		return ""
 	}
 	return value
+}
+
+func (s *TelegramAuthService) telegramSettingCandidates(key string) []string {
+	candidates := make([]string, 0, 2)
+
+	if s.settingsProvider != nil {
+		if value := strings.TrimSpace(s.settingsProvider(key)); value != "" {
+			candidates = append(candidates, value)
+		}
+	} else if s.db != nil {
+		var setting models.SystemSetting
+		if err := s.db.Where("key = ?", key).First(&setting).Error; err == nil {
+			if value := strings.TrimSpace(setting.Value); value != "" {
+				candidates = append(candidates, value)
+			}
+		}
+	}
+
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		candidates = append(candidates, value)
+	}
+
+	return candidates
 }
 
 func buildTelegramDataCheckString(values url.Values) string {

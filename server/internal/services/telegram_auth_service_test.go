@@ -171,6 +171,21 @@ func TestTelegramAuthService_ResolveAuthBotToken_IgnoresMaskedAndMalformedValues
 	}
 }
 
+func TestTelegramAuthService_ResolveAuthBotToken_FallsBackToEnvWhenStoredValueMasked(t *testing.T) {
+	t.Setenv("TELEGRAM_AUTH_BOT_TOKEN", "999999:env-auth-token_abcdefghijklmnopqrstuvwxyz")
+
+	now := time.Unix(1700000000, 0).UTC()
+	settings := map[string]string{
+		"TELEGRAM_AUTH_ENABLED":   "true",
+		"TELEGRAM_AUTH_BOT_TOKEN": "************",
+	}
+	svc := newTestTelegramAuthService(settings, now, nil)
+
+	if token := svc.ResolveAuthBotToken(); token != "999999:env-auth-token_abcdefghijklmnopqrstuvwxyz" {
+		t.Fatalf("ResolveAuthBotToken=%q want env fallback token", token)
+	}
+}
+
 func newTestTelegramAuthService(
 	settings map[string]string,
 	now time.Time,

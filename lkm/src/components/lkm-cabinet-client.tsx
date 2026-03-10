@@ -285,6 +285,9 @@ function channelBlockedByUA(userAgent: string): boolean {
 function buildErrorMessage(error: unknown, copy: CabinetDictionary): string {
   if (error instanceof Error) {
     const message = error.message || '';
+    if (message.includes('TELEGRAM_AUTH_BOT_TOKEN_MISSING') || message.includes('TELEGRAM_AUTH_DISABLED')) {
+      return copy.errorTelegramUnavailable;
+    }
     if (message.includes('TELEGRAM_ALREADY_LINKED')) {
       return copy.errorTelegramAlreadyLinked;
     }
@@ -1347,8 +1350,8 @@ export default function LkmCabinetClient({
         return;
       }
       setIsTelegramAuthLoading(false);
-      setTelegramLinkRequired(true);
-      setError(copy.errorTelegramAuthTimeout);
+      setTelegramLinkRequired(false);
+      setError(copy.errorTelegramFallbackLogin);
     }, 12000);
 
     const loginViaTelegramMiniApp = async () => {
@@ -1394,25 +1397,31 @@ export default function LkmCabinetClient({
         if (isTelegramMobileAuthFlow) {
           await completeTelegramMobileBridge();
         } else {
-        setSuccess(copy.successTelegramLogin);
+          setSuccess(copy.successTelegramLogin);
         }
       } catch (telegramLoginError) {
         if (cancelled) {
           return;
         }
-        const message = buildErrorMessage(telegramLoginError, copy);
-        if (message.includes('TELEGRAM_LINK_REQUIRED')) {
+        const rawMessage = telegramLoginError instanceof Error ? telegramLoginError.message || '' : '';
+        if (rawMessage.includes('TELEGRAM_AUTH_BOT_TOKEN_MISSING') || rawMessage.includes('TELEGRAM_AUTH_DISABLED')) {
+          setTelegramLinkRequired(false);
+          setError(copy.errorTelegramUnavailable);
+        } else if (rawMessage.includes('TELEGRAM_LINK_REQUIRED')) {
           setTelegramLinkRequired(true);
           setError(copy.errorTelegramRequired);
-        } else if (message.includes('TELEGRAM_LINK_CONFLICT')) {
+        } else if (rawMessage.includes('TELEGRAM_LINK_CONFLICT')) {
+          setTelegramLinkRequired(false);
           setError(copy.errorTelegramConflict);
-        } else if (message.includes('TELEGRAM_INIT_DATA_REPLAY')) {
-          setTelegramLinkRequired(true);
+        } else if (rawMessage.includes('TELEGRAM_INIT_DATA_REPLAY')) {
+          setTelegramLinkRequired(false);
           setError(copy.errorTelegramSessionChecked);
-        } else if (message.includes('TELEGRAM_INIT_DATA_EXPIRED')) {
+        } else if (rawMessage.includes('TELEGRAM_INIT_DATA_EXPIRED')) {
+          setTelegramLinkRequired(false);
           setError(copy.errorTelegramDataExpired);
         } else {
-          setError(message);
+          setTelegramLinkRequired(false);
+          setError(buildErrorMessage(telegramLoginError, copy));
         }
       } finally {
         window.clearTimeout(watchdogId);
@@ -1913,8 +1922,8 @@ export default function LkmCabinetClient({
                   className="secondary"
                   onClick={() => {
                     setIsTelegramAuthLoading(false);
-                    setTelegramLinkRequired(true);
-                    setError(copy.errorTelegramRequired);
+                    setTelegramLinkRequired(false);
+                    setError(copy.errorTelegramFallbackLogin);
                   }}
                 >
                   {copy.continueManually}

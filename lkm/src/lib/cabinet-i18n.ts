@@ -89,6 +89,8 @@ export type CabinetDictionary = {
   errorTelegramAlreadyLinked: string;
   errorTelegramConflict: string;
   errorTelegramRequired: string;
+  errorTelegramUnavailable: string;
+  errorTelegramFallbackLogin: string;
   errorSocialLoginVK: string;
   errorSocialLoginGeneric: string;
   errorSocialVKCancelled: string;
@@ -215,6 +217,8 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     errorTelegramAlreadyLinked: 'К этому аккаунту уже был привязан другой Telegram. Выполните вход еще раз: привязка будет обновлена.',
     errorTelegramConflict: 'Этот Telegram уже привязан к другому аккаунту VedaMatch.',
     errorTelegramRequired: 'Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.',
+    errorTelegramUnavailable: 'Вход через Telegram временно недоступен. Используйте Google, VK или email/пароль.',
+    errorTelegramFallbackLogin: 'Автоматический вход через Telegram не завершился. Используйте Google, VK или email/пароль.',
     errorSocialLoginVK: 'Не удалось выполнить вход через VK',
     errorSocialLoginGeneric: 'Не удалось выполнить social login',
     errorSocialVKCancelled: 'Вход через VK был отменен',
@@ -346,6 +350,8 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     errorTelegramAlreadyLinked: 'Another Telegram account had already been linked here. Sign in again to refresh the link.',
     errorTelegramConflict: 'This Telegram account is already linked to another VedaMatch account.',
     errorTelegramRequired: 'Telegram is not linked. Use one email/password sign-in to link it.',
+    errorTelegramUnavailable: 'Telegram sign-in is temporarily unavailable. Use Google, VK, or email/password.',
+    errorTelegramFallbackLogin: 'Telegram auto sign-in did not complete. Use Google, VK, or email/password.',
     errorSocialLoginVK: 'VK sign-in failed',
     errorSocialLoginGeneric: 'Social login failed',
     errorSocialVKCancelled: 'VK sign-in was cancelled',
@@ -477,6 +483,8 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     errorTelegramAlreadyLinked: 'यहाँ पहले कोई दूसरा Telegram खाता जुड़ा था। लिंक ताज़ा करने के लिए फिर से साइन इन करें।',
     errorTelegramConflict: 'यह Telegram खाता पहले से किसी दूसरे VedaMatch खाते से जुड़ा है।',
     errorTelegramRequired: 'Telegram लिंक नहीं है। इसे जोड़ने के लिए एक बार email/password साइन-इन करें।',
+    errorTelegramUnavailable: 'Telegram से साइन-इन फिलहाल उपलब्ध नहीं है। Google, VK या email/password का उपयोग करें।',
+    errorTelegramFallbackLogin: 'Telegram auto sign-in पूरा नहीं हुआ। Google, VK या email/password का उपयोग करें।',
     errorSocialLoginVK: 'VK sign-in विफल हुआ',
     errorSocialLoginGeneric: 'Social login विफल हुआ',
     errorSocialVKCancelled: 'VK sign-in रद्द कर दिया गया',
