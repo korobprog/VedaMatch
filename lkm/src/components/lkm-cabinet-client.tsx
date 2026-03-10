@@ -182,6 +182,12 @@ type TelegramMiniAppUser = {
   photo_url?: string;
 };
 
+type TelegramLaunchParams = {
+  initData: string;
+  startParam: string;
+  user: TelegramMiniAppUser | null;
+};
+
 type TelegramWebApp = {
   initData?: string;
   initDataUnsafe?: {
@@ -220,6 +226,7 @@ const SESSION_ID_KEY = 'lkm_session_id';
 const ACCESS_EXPIRES_AT_KEY = 'lkm_access_expires_at';
 const REFRESH_EXPIRES_AT_KEY = 'lkm_refresh_expires_at';
 const DEVICE_ID_KEY = 'lkm_device_id';
+const TELEGRAM_LAUNCH_PARAMS_KEY = 'lkm_telegram_launch_params';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
 const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
@@ -324,6 +331,81 @@ function getTelegramWebApp(): TelegramWebApp | null {
   return maybeTelegram?.WebApp || null;
 }
 
+function parseTelegramMiniAppUser(raw: string | null | undefined): TelegramMiniAppUser | null {
+  const normalized = (raw || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(normalized) as TelegramMiniAppUser;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTelegramParams(raw: string): URLSearchParams {
+  const normalized = raw.startsWith('?') || raw.startsWith('#') ? raw.slice(1) : raw;
+  return new URLSearchParams(normalized);
+}
+
+function extractTelegramLaunchParamsFromLocation(location: Location): TelegramLaunchParams {
+  const hashParams = readTelegramParams(location.hash);
+  const searchParams = readTelegramParams(location.search);
+  const initData = (
+    hashParams.get('tgWebAppData')?.trim()
+    || searchParams.get('tgWebAppData')?.trim()
+    || ''
+  );
+  const startParam = (
+    hashParams.get('tgWebAppStartParam')?.trim()
+    || searchParams.get('tgWebAppStartParam')?.trim()
+    || searchParams.get('startapp')?.trim()
+    || searchParams.get('startattach')?.trim()
+    || ''
+  );
+  return {
+    initData,
+    startParam,
+    user: parseTelegramMiniAppUser(readTelegramParams(initData).get('user')),
+  };
+}
+
+function readSavedTelegramLaunchParams(): TelegramLaunchParams {
+  if (typeof window === 'undefined') {
+    return { initData: '', startParam: '', user: null };
+  }
+  try {
+    const raw = window.sessionStorage.getItem(TELEGRAM_LAUNCH_PARAMS_KEY) || '';
+    if (!raw) {
+      return { initData: '', startParam: '', user: null };
+    }
+    const parsed = JSON.parse(raw) as Partial<TelegramLaunchParams>;
+    return {
+      initData: typeof parsed?.initData === 'string' ? parsed.initData.trim() : '',
+      startParam: typeof parsed?.startParam === 'string' ? parsed.startParam.trim() : '',
+      user: parsed?.user && typeof parsed.user === 'object' ? parsed.user as TelegramMiniAppUser : null,
+    };
+  } catch {
+    return { initData: '', startParam: '', user: null };
+  }
+}
+
+function persistTelegramLaunchParams(params: TelegramLaunchParams): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(TELEGRAM_LAUNCH_PARAMS_KEY, JSON.stringify({
+      initData: params.initData,
+      startParam: params.startParam,
+      user: params.user,
+    }));
+  } catch {
+    // Ignore storage quota/unavailability and continue with in-memory flow.
+  }
+}
+
 function openMobileReturnLink(url: string): void {
   const target = url.trim();
   if (!target || typeof window === 'undefined') {
@@ -403,16 +485,6 @@ function extractTelegramMobileAuthStateFromStartParam(raw: string | null | undef
     return '';
   }
   return value.slice('vm_auth_'.length).trim();
-}
-
-function extractTelegramStartParamFromLocation(search: string): string {
-  const params = new URLSearchParams(search);
-  return (
-    params.get('tgWebAppStartParam')?.trim()
-    || params.get('startapp')?.trim()
-    || params.get('startattach')?.trim()
-    || ''
-  );
 }
 
 function normalizeSessionID(value: string | null): number | null {
@@ -1176,14 +1248,36 @@ export default function LkmCabinetClient({
 
     const bootstrapTelegramContext = () => {
       const telegramWebApp = getTelegramWebApp();
-      const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
-      const telegramMiniAppUser = telegramWebApp?.initDataUnsafe?.user;
-      const telegramStartParam = telegramWebApp?.initDataUnsafe?.start_param?.trim() || extractTelegramStartParamFromLocation(window.location.search);
+      const locationLaunchParams = extractTelegramLaunchParamsFromLocation(window.location);
+      const savedLaunchParams = readSavedTelegramLaunchParams();
+      const telegramInitDataValue = (
+        telegramWebApp?.initData?.trim()
+        || locationLaunchParams.initData
+        || savedLaunchParams.initData
+      );
+      const telegramMiniAppUser = (
+        telegramWebApp?.initDataUnsafe?.user
+        || locationLaunchParams.user
+        || savedLaunchParams.user
+      );
+      const telegramStartParam = (
+        telegramWebApp?.initDataUnsafe?.start_param?.trim()
+        || locationLaunchParams.startParam
+        || savedLaunchParams.startParam
+      );
       const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(telegramStartParam);
       const telegramLanguageCode = normalizeLanguageCode(telegramMiniAppUser?.language_code);
       if (!telegramInitDataValue) {
         return false;
       }
+
+      // Telegram documents that launch params may arrive in the URL hash.
+      // Persist them immediately so auth survives redirects/reloads inside the Mini App.
+      persistTelegramLaunchParams({
+        initData: telegramInitDataValue,
+        startParam: telegramStartParam,
+        user: telegramMiniAppUser || null,
+      });
 
       setIsTelegramMiniApp(true);
       setTelegramInitData(telegramInitDataValue);
