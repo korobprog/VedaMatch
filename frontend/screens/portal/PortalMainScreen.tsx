@@ -594,6 +594,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('SevaHub');
             return;
         }
+        if (screen === 'EkadashiCalendar') {
+            navigation.navigate('EkadashiCalendar');
+            return;
+        }
         if (screen === 'ConnectHome') {
             navigation.navigate('ConnectHome');
         }

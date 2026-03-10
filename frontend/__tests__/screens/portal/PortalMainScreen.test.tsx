@@ -384,6 +384,22 @@ describe('PortalMainScreen', () => {
         expect(navigation.navigate).toHaveBeenCalledWith('Ads');
     });
 
+    it('opens ekadashi calendar screen for calendar shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('ekadashi_calendar');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('EkadashiCalendar');
+    });
+
     it('shows profile completion CTA in locked service hint and opens EditProfile', () => {
         mockUserState.isProfileComplete = false;
         mockUserState.godModeEnabled = false;

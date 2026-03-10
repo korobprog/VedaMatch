@@ -14654,3 +14654,31 @@ func hasEkadashiCalendarAccess(user models.User, role string) bool {
 	return user.GodModeEnabled || isProPlanBypass(user.CurrentPlan)
 }
 ```
+
+## 2026-03-10 (Portal calendar launch fix: handle EkadashiCalendar route in PortalMainScreen)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было: portal service resolver уже возвращал `{ kind: 'navigate', screen: 'EkadashiCalendar' }` для `ekadashi_calendar`, но `PortalMainScreen.navigateResolvedScreen(...)` не содержал ветку для `EkadashiCalendar`. В результате на iOS/Android тап по папке `Календарь`/ярлыку календаря визуально ничего не делал.
+- Стало: `PortalMainScreen` явно обрабатывает `EkadashiCalendar` и открывает экран календаря; добавлен regression test на `onServicePress('ekadashi_calendar')`.
+
+### Короткие сниппеты кода
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```ts
+if (screen === 'EkadashiCalendar') {
+  navigation.navigate('EkadashiCalendar');
+  return;
+}
+```
+
+`frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`:
+```ts
+act(() => {
+  latestOnServicePress?.('ekadashi_calendar');
+});
+
+expect(navigation.navigate).toHaveBeenCalledWith('EkadashiCalendar');
+```

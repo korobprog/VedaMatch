@@ -403,7 +403,7 @@
 - `LKM` не является условием доступа к `Connect`, отклику или матчингу в `v1`; экономическая часть пока только soft-support outside core gating.
 
 ## Ekadashi Calendar
-- Новый сервис `ekadashi_calendar` предназначен только для роли `devotee`.
+- Доступ к `ekadashi_calendar` больше не `devotee`-only: сервис разрешен для `devotee`, `admin`, `superadmin`, а также для `user` с `godModeEnabled=true` или `currentPlan`, содержащим `pro`/`admin`.
 - Обычный portal calendar widget не удаляется: для `devotee` он получает переключение `gregorian / ekadashi`, для остальных остается обычным календарем.
 - Backend-контракт экадаши должен скрывать различия источников и организаций за единым DTO дня и отдельным списком организаций.
 - `v1` организаций: `iskcon`, `sri_chaitanya_math`, `pure_bhakti`, `default_vaishnava`.
@@ -418,6 +418,7 @@
 - `default_vaishnava` пока остаётся на fallback-агрегаторе: для него в diagnostics явно пишется provider status `no_live_source_configured`, потому что стабильный публичный server-side формат `gcal.app` пока не найден.
 - Ответы ekadashi backend теперь возвращают `providerDecision` c `mode/source/reason`: это позволяет сразу видеть, был ли использован live provider или fallback, и почему произошла деградация (`city_required_for_iskcon_live_provider`, `*_live_fetch_failed`, `no_live_source_configured`).
 - Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
+- `frontend/screens/portal/PortalMainScreen.tsx` должен явно обрабатывать `navigate('EkadashiCalendar')` в `navigateResolvedScreen`; иначе тап по сервису `Календарь` в портале визуально ничего не делает, хотя `resolveServiceLaunch('ekadashi_calendar')` уже возвращает правильный route.
 - `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.
 
 ## Support (Telegram + In-App + Multilingual)
@@ -2714,3 +2715,4 @@
 - Для `PRO/godMode` portal layout больше не загоняет `ekadashi_calendar` в seeker-locked flow: папка `Календарь` не должна пропадать даже если базовая роль остается `user`.
 - В дефолтном portal layout ярлык `Календарь` вынесен в отдельную папку `Календарь`, а не лежит внутри `Практика`.
 - Существующие сохраненные portal layouts теперь тоже мягко мигрируют: если `ekadashi_calendar` лежит в дефолтной папке `Практика`, он переносится в отдельную папку `Календарь`; кастомные пользовательские папки не переставляются автоматически.
+- Если iOS/Android экран календаря открывается, но backend все еще отвечает старым текстом `available only for devotees`, сначала проверять не клиент, а production runtime: Dokploy app `Vedamatch -> Server` может отставать по deployment от текущего `main`, даже когда локальный код уже содержит новый guard.
