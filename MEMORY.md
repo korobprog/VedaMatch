@@ -418,6 +418,7 @@
 - `default_vaishnava` пока остаётся на fallback-агрегаторе: для него в diagnostics явно пишется provider status `no_live_source_configured`, потому что стабильный публичный server-side формат `gcal.app` пока не найден.
 - Ответы ekadashi backend теперь возвращают `providerDecision` c `mode/source/reason`: это позволяет сразу видеть, был ли использован live provider или fallback, и почему произошла деградация (`city_required_for_iskcon_live_provider`, `*_live_fetch_failed`, `no_live_source_configured`).
 - Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
+- `vaishnavacalendar.org` для `ISKCON` теперь нужно парсить по block-level HTML nodes (`h*`, `p`, `li`, `td`, `th`), а не по отдельным text tokens: upstream оборачивает день, `Ekadashi` и `Fast` в `<b>/<strong>`, и token-level tokenizer из-за этого разваливал строку на куски и давал ложный `iskcon_live_fetch_failed: no ekadashi days parsed`.
 - `frontend/screens/portal/PortalMainScreen.tsx` должен явно обрабатывать `navigate('EkadashiCalendar')` в `navigateResolvedScreen`; иначе тап по сервису `Календарь` в портале визуально ничего не делает, хотя `resolveServiceLaunch('ekadashi_calendar')` уже возвращает правильный route.
 - `frontend` снова проходит `tsc --noEmit`; текущий крупный остаток по клиенту после Ekadashi — это в основном общий `eslint` техдолг, а не compile/blocking errors.
 

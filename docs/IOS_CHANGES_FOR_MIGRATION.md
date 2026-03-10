@@ -14682,3 +14682,39 @@ act(() => {
 
 expect(navigation.navigate).toHaveBeenCalledWith('EkadashiCalendar');
 ```
+
+## 2026-03-10 (ISKCON live calendar parser: preserve inline markup text for iOS/Android fallback removal)
+
+### Измененные файлы
+- `server/internal/services/ekadashi_iskcon_provider.go`
+- `server/internal/services/ekadashi_iskcon_provider_test.go`
+
+### Суть правки (что было -> что стало)
+- Было: `extractHTMLTextLines(...)` разбирал HTML по отдельным `TextToken`. На актуальном `vaishnavacalendar.org` день месяца, слово `Ekadashi` и `Fast` обернуты в `<b>/<strong>`, поэтому строка вроде `15. (Sun) Krishna Ekadashi...` разваливалась на отдельные фрагменты и live-parser `ISKCON` возвращал `no ekadashi days parsed`. На iOS/Android это проявлялось как notice `Live-источник временно недоступен...` при валидном upstream.
+- Стало: строки собираются по block-level DOM nodes (`h1-h6`, `p`, `li`, `td`, `th`) с полным descendant text content; inline markup больше не ломает regex-разбор дней и live `ISKCON`-календарь снова должен приходить без ложного fallback.
+
+### Короткие сниппеты кода
+`server/internal/services/ekadashi_iskcon_provider.go`:
+```go
+if node.Type == xhtml.ElementNode && isHTMLLineNode(node.Data) {
+	text := strings.TrimSpace(extractNodeText(node))
+	text = strings.Join(strings.Fields(text), " ")
+	...
+}
+```
+
+`server/internal/services/ekadashi_iskcon_provider.go`:
+```go
+func extractNodeText(node *xhtml.Node) string {
+	var builder strings.Builder
+	...
+	if current.Type == xhtml.TextNode {
+		builder.WriteString(stdhtml.UnescapeString(current.Data))
+	}
+}
+```
+
+`server/internal/services/ekadashi_iskcon_provider_test.go`:
+```go
+<p class='m3 text-start fs-5'><b>15</b>. (Sun) Krishna Ekadashi. Papa Vimochani <b>Ekadashi</b>. <b>Fast</b> .</p>
+```

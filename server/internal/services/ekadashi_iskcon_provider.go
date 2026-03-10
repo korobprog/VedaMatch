@@ -226,28 +226,59 @@ func parseISKCONHTMLMonth(rawHTML string, monthStart time.Time, locData location
 }
 
 func extractHTMLTextLines(rawHTML string) ([]string, error) {
-	tokenizer := xhtml.NewTokenizer(strings.NewReader(rawHTML))
+	root, err := xhtml.Parse(strings.NewReader(rawHTML))
+	if err != nil {
+		return nil, err
+	}
 	lines := make([]string, 0, 256)
 
-	for {
-		switch tokenizer.Next() {
-		case xhtml.ErrorToken:
-			if tokenizer.Err() == io.EOF {
-				return lines, nil
-			}
-			return nil, tokenizer.Err()
-		case xhtml.TextToken:
-			text := strings.TrimSpace(stdhtml.UnescapeString(string(tokenizer.Text())))
+	var walk func(*xhtml.Node)
+	walk = func(node *xhtml.Node) {
+		if node == nil {
+			return
+		}
+		if node.Type == xhtml.ElementNode && isHTMLLineNode(node.Data) {
+			text := strings.TrimSpace(extractNodeText(node))
 			text = strings.Join(strings.Fields(text), " ")
-			if text == "" {
-				continue
+			if text != "" && (len(lines) == 0 || lines[len(lines)-1] != text) {
+				lines = append(lines, text)
 			}
-			if len(lines) > 0 && lines[len(lines)-1] == text {
-				continue
-			}
-			lines = append(lines, text)
+			return
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
 		}
 	}
+	walk(root)
+	return lines, nil
+}
+
+func isHTMLLineNode(tag string) bool {
+	switch tag {
+	case "h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td", "th":
+		return true
+	default:
+		return false
+	}
+}
+
+func extractNodeText(node *xhtml.Node) string {
+	var builder strings.Builder
+	var collect func(*xhtml.Node)
+	collect = func(current *xhtml.Node) {
+		if current == nil {
+			return
+		}
+		if current.Type == xhtml.TextNode {
+			builder.WriteString(stdhtml.UnescapeString(current.Data))
+			return
+		}
+		for child := current.FirstChild; child != nil; child = child.NextSibling {
+			collect(child)
+		}
+	}
+	collect(node)
+	return builder.String()
 }
 
 func parseMonthHeader(value string) (time.Month, int, error) {
