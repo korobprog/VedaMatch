@@ -53,7 +53,7 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     heroServices: ['path_tracker', 'ekadashi_calendar', 'seva', 'travel', 'news'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Daily Path', filters: ['service_focus', 'community'] },
-      { serviceId: 'ekadashi_calendar', title: 'Ekadashi', filters: ['fasting', 'parana', 'vaishnava_calendar'] },
+      { serviceId: 'ekadashi_calendar', title: 'Calendar', filters: ['fasting', 'parana', 'vaishnava_calendar'] },
       { serviceId: 'seva', title: 'Seva', filters: ['projects', 'donation_flow'] },
       { serviceId: 'charity', title: 'Charity', filters: ['verified_orgs', 'math_projects'] },
       { serviceId: 'travel', title: 'Yatra', filters: ['holy_places', 'group_tours'] },

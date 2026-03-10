@@ -25,19 +25,35 @@ export const getCalendarGridDays = (date: Date): Array<number | null> => {
     return days;
 };
 
-export const findEkadashiDayForCell = (
-    days: EkadashiDay[],
-    monthDate: Date,
-    dayNumber: number | null,
-): EkadashiDay | null => {
+const buildIsoDate = (monthDate: Date, dayNumber: number | null): string | null => {
     if (!dayNumber) return null;
-    const iso = [
+    return [
         monthDate.getFullYear(),
         String(monthDate.getMonth() + 1).padStart(2, '0'),
         String(dayNumber).padStart(2, '0'),
     ].join('-');
-    return days.find((item) => item.date === iso) || null;
 };
+
+export const findCalendarEventsForCell = (
+    events: EkadashiDay[],
+    monthDate: Date,
+    dayNumber: number | null,
+): EkadashiDay[] => {
+    const iso = buildIsoDate(monthDate, dayNumber);
+    if (!iso) return [];
+    return events
+        .filter((item) => item.date === iso)
+        .sort((a, b) => {
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return a.title.localeCompare(b.title);
+        });
+};
+
+export const findEkadashiDayForCell = (
+    events: EkadashiDay[],
+    monthDate: Date,
+    dayNumber: number | null,
+): EkadashiDay | null => findCalendarEventsForCell(events, monthDate, dayNumber)[0] || null;
 
 export const resolveOrganizationOption = (organizationId?: string | null): EkadashiOrganization => (
     EKADASHI_FALLBACK_ORGANIZATIONS.find((item) => item.id === organizationId) || EKADASHI_FALLBACK_ORGANIZATIONS[0]
@@ -70,5 +86,49 @@ export const getEkadashiProviderNoticeKey = (providerDecision?: EkadashiProvider
                 return 'portal.ekadashiCalendar.providerNotices.liveUnavailable';
             }
             return 'portal.ekadashiCalendar.providerNotices.fallbackActive';
+    }
+};
+
+export const getCalendarEventLabelKey = (eventType?: string | null): string => {
+    switch (eventType) {
+        case 'mahadvadashi':
+            return 'portal.ekadashiCalendar.eventTypes.mahadvadashi';
+        case 'appearance':
+            return 'portal.ekadashiCalendar.eventTypes.appearance';
+        case 'disappearance':
+            return 'portal.ekadashiCalendar.eventTypes.disappearance';
+        case 'ekadashi':
+        default:
+            return 'portal.ekadashiCalendar.eventTypes.ekadashi';
+    }
+};
+
+export const getCalendarEventMarkerColor = (event: Pick<EkadashiDay, 'eventType' | 'isMahadvadashi' | 'markerStyleKey'>): string => {
+    const marker = event.markerStyleKey || event.eventType;
+    switch (marker) {
+        case 'mahadvadashi':
+            return '#F59E0B';
+        case 'appearance':
+            return '#2563EB';
+        case 'disappearance':
+            return '#7C3AED';
+        case 'ekadashi':
+        default:
+            return event.isMahadvadashi ? '#F59E0B' : '#D4AF37';
+    }
+};
+
+export const getCalendarEventBackgroundColor = (event: Pick<EkadashiDay, 'eventType' | 'isMahadvadashi' | 'markerStyleKey'>): string => {
+    const marker = event.markerStyleKey || event.eventType;
+    switch (marker) {
+        case 'mahadvadashi':
+            return 'rgba(245,158,11,0.22)';
+        case 'appearance':
+            return 'rgba(37,99,235,0.18)';
+        case 'disappearance':
+            return 'rgba(124,58,237,0.18)';
+        case 'ekadashi':
+        default:
+            return event.isMahadvadashi ? 'rgba(245,158,11,0.22)' : 'rgba(212,175,55,0.22)';
     }
 };

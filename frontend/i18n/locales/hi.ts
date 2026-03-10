@@ -1590,7 +1590,7 @@ export default {
             "video_circles": "सर्कल्स",
             "channels": "चैनल्स",
             "sadhu_sanga": "साधु-संग",
-            "ekadashi_calendar": "एकादशी",
+            "ekadashi_calendar": "कैलेंडर",
             "feed": "फीड",
             "news": "समाचार",
             "map": "मैप",
@@ -2120,10 +2120,10 @@ export default {
             },
             "calendar": {
                 "title": "कैलेंडर",
-                "description": "माह का दृश्य, आज की तारीख और भक्तों के लिए एकादशी मोड",
+                "description": "भक्तों के लिए वैदिक कार्यक्रमों के साथ माह का दृश्य",
                 "modes": {
                     "gregorian": "महीना",
-                    "ekadashi": "एकादशी"
+                    "ekadashi": "वैदिक"
                 }
             },
             "circlesQuick": {
@@ -2164,8 +2164,8 @@ export default {
             "addStay": "आवास जोड़ें"
         },
         "ekadashiCalendar": {
-            "title": "एकादशी कैलेंडर",
-            "subtitle": "भक्तों के लिए संगठन-आधारित उपवास कैलेंडर",
+            "title": "कैलेंडर",
+            "subtitle": "भक्तों के लिए संगठन-आधारित वैदिक कैलेंडर: एकादशी, प्रकट्य और तिरोभाव",
             "onlyForDevotees": "यह कैलेंडर केवल भक्तों के लिए उपलब्ध है।",
             "organizationLabel": "संस्था",
             "locationTitle": "स्थान और समय क्षेत्र",
@@ -2182,6 +2182,14 @@ export default {
             "notAvailable": "उपलब्ध नहीं",
             "observanceNotes": "पालन संबंधी टिप्पणियाँ",
             "dataSourceTitle": "डेटा स्रोत",
+            "dayEventsTitle": "{{date}} के कार्यक्रम",
+            "emptyDay": "चुनी गई तिथि पर कोई कार्यक्रम नहीं है",
+            "eventTypes": {
+                "ekadashi": "एकादशी",
+                "mahadvadashi": "महा-द्वादशी",
+                "appearance": "प्रकट्य",
+                "disappearance": "तिरोभाव"
+            },
             "providerNotices": {
                 "cityRequiredForLive": "इस संस्था के लिए लाइव एकादशी स्रोत चालू करने हेतु शहर चुनें।",
                 "noLiveSource": "इस संस्था के लिए अभी सर्वर fallback कैलेंडर उपयोग हो रहा है।",
@@ -2189,9 +2197,9 @@ export default {
                 "fallbackActive": "इस महीने के लिए fallback कैलेंडर डेटा दिखाया जा रहा है।"
             },
             "alerts": {
-                "loadFailed": "एकादशी कैलेंडर लोड नहीं हो सका",
-                "saveFailed": "एकादशी प्राथमिकताएँ सेव नहीं हो सकीं",
-                "preferencesSaved": "एकादशी प्राथमिकताएँ सेव हो गईं"
+                "loadFailed": "कैलेंडर लोड नहीं हो सका",
+                "saveFailed": "कैलेंडर प्राथमिकताएँ सेव नहीं हो सकीं",
+                "preferencesSaved": "कैलेंडर प्राथमिकताएँ सेव हो गईं"
             }
         },
         "channelCta": {

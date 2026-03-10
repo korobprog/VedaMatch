@@ -18,8 +18,11 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { ekadashiService } from '../../../services/ekadashiService';
 import type { EkadashiDay, EkadashiOrganization, EkadashiPushPreference } from '../../../types/ekadashi';
 import {
-    findEkadashiDayForCell,
+    findCalendarEventsForCell,
     formatEkadashiDateTime,
+    getCalendarEventBackgroundColor,
+    getCalendarEventLabelKey,
+    getCalendarEventMarkerColor,
     getCalendarGridDays,
     getEkadashiProviderNoticeKey,
     isDevoteeRole,
@@ -33,6 +36,7 @@ const localeFromLanguage = (language: string): string => {
 };
 
 const buildMonthKey = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+const buildIsoDate = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 const defaultPreference = (organizationId: string, city: string, country: string, timezone: string): Omit<EkadashiPushPreference, 'userId'> => ({
     enabled: false,
@@ -46,6 +50,8 @@ const defaultPreference = (organizationId: string, city: string, country: string
     quietStartHour: 22,
     quietEndHour: 7,
 });
+
+const CALENDAR_LEGEND_TYPES = ['ekadashi', 'mahadvadashi', 'appearance', 'disappearance'] as const;
 
 const EkadashiCalendarScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -62,8 +68,8 @@ const EkadashiCalendarScreen: React.FC = () => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [organizations, setOrganizations] = useState<EkadashiOrganization[]>([resolveOrganizationOption('iskcon')]);
     const [organizationId, setOrganizationId] = useState('iskcon');
-    const [days, setDays] = useState<EkadashiDay[]>([]);
-    const [selectedDay, setSelectedDay] = useState<EkadashiDay | null>(null);
+    const [events, setEvents] = useState<EkadashiDay[]>([]);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [providerNoticeKey, setProviderNoticeKey] = useState<string | null>(null);
     const [city, setCity] = useState(initialCity);
     const [country, setCountry] = useState(initialCountry);
@@ -90,6 +96,11 @@ const EkadashiCalendarScreen: React.FC = () => {
         t('portal.serviceCalendar.days.sun'),
     ]), [t]);
 
+    const selectedEvents = useMemo(
+        () => events.filter((event) => event.date === selectedDate),
+        [events, selectedDate],
+    );
+
     const loadCalendar = useCallback(async (nextOrganizationId: string, nextTimezone: string, nextCity: string, nextCountry: string) => {
         setLoading(true);
         try {
@@ -100,11 +111,19 @@ const EkadashiCalendarScreen: React.FC = () => {
                 city: nextCity,
                 country: nextCountry,
             });
-            setDays(response.days || []);
+            const nextEvents = response.events?.length ? response.events : (response.days || []);
+            setEvents(nextEvents);
             setProviderNoticeKey(getEkadashiProviderNoticeKey(response.providerDecision));
+            setSelectedDate((current) => {
+                if (current && nextEvents.some((event) => event.date === current)) {
+                    return current;
+                }
+                return nextEvents[0]?.date || null;
+            });
         } catch (error: any) {
             Alert.alert(t('common.error'), error?.response?.data?.error || t('portal.ekadashiCalendar.alerts.loadFailed'));
-            setDays([]);
+            setEvents([]);
+            setSelectedDate(null);
             setProviderNoticeKey('portal.ekadashiCalendar.providerNotices.liveUnavailable');
         } finally {
             setLoading(false);
@@ -205,7 +224,7 @@ const EkadashiCalendarScreen: React.FC = () => {
 
     if (!canUseEkadashi) {
         return (
-            <View style={[styles.centered, { backgroundColor: colors.background }]}>
+            <View style={[styles.centered, { backgroundColor: colors.background }]}> 
                 <TouchableOpacity style={[styles.headerButton, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
                     <ArrowLeft size={18} color={colors.textPrimary} />
                 </TouchableOpacity>
@@ -216,8 +235,8 @@ const EkadashiCalendarScreen: React.FC = () => {
     }
 
     return (
-        <View style={[styles.screen, { backgroundColor: colors.background }]}>
-            <View style={[styles.topBar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
+        <View style={[styles.screen, { backgroundColor: colors.background }]}> 
+            <View style={[styles.topBar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}> 
                 <TouchableOpacity style={[styles.headerButton, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
                     <ArrowLeft size={18} color={colors.textPrimary} />
                 </TouchableOpacity>
@@ -228,7 +247,7 @@ const EkadashiCalendarScreen: React.FC = () => {
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                     <View style={styles.monthRow}>
                         <TouchableOpacity style={[styles.monthButton, { borderColor: colors.border }]} onPress={() => navigateMonth(-1)}>
                             <ChevronLeft size={18} color={colors.textPrimary} />
@@ -251,6 +270,15 @@ const EkadashiCalendarScreen: React.FC = () => {
                         </Text>
                     </TouchableOpacity>
 
+                    <View style={styles.legendRow}>
+                        {CALENDAR_LEGEND_TYPES.map((eventType) => (
+                            <View key={eventType} style={[styles.legendChip, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                                <View style={[styles.legendDot, { backgroundColor: getCalendarEventMarkerColor({ eventType, isMahadvadashi: eventType === 'mahadvadashi', markerStyleKey: eventType }) }]} />
+                                <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t(getCalendarEventLabelKey(eventType))}</Text>
+                            </View>
+                        ))}
+                    </View>
+
                     <View style={styles.weekRow}>
                         {weekDays.map((day) => (
                             <Text key={day} style={[styles.weekDay, { color: colors.textSecondary }]}>
@@ -261,7 +289,8 @@ const EkadashiCalendarScreen: React.FC = () => {
 
                     <View style={styles.grid}>
                         {gridDays.map((day, index) => {
-                            const entry = findEkadashiDayForCell(days, currentMonth, day);
+                            const dayEvents = findCalendarEventsForCell(events, currentMonth, day);
+                            const primaryEvent = dayEvents[0] || null;
                             const isToday =
                                 day != null &&
                                 day === new Date().getDate() &&
@@ -269,11 +298,11 @@ const EkadashiCalendarScreen: React.FC = () => {
                                 currentMonth.getFullYear() === new Date().getFullYear();
                             const dayCircleStyle = isToday
                                 ? { backgroundColor: colors.accent }
-                                : entry?.isEkadashi
+                                : primaryEvent
                                     ? {
-                                        backgroundColor: entry.isMahadvadashi ? '#F59E0B22' : colors.accentSoft,
+                                        backgroundColor: getCalendarEventBackgroundColor(primaryEvent),
                                         borderWidth: 1,
-                                        borderColor: entry.isMahadvadashi ? '#F59E0B' : colors.accent,
+                                        borderColor: getCalendarEventMarkerColor(primaryEvent),
                                     }
                                     : null;
                             const dayTextStyle = {
@@ -288,17 +317,21 @@ const EkadashiCalendarScreen: React.FC = () => {
                                     key={`${day}-${index}`}
                                     style={styles.dayButton}
                                     disabled={!day}
-                                    onPress={() => setSelectedDay(entry)}
+                                    onPress={() => {
+                                        if (!day) return;
+                                        setSelectedDate(buildIsoDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)));
+                                    }}
                                 >
-                                    <View
-                                        style={[
-                                            styles.dayCircle,
-                                            dayCircleStyle,
-                                        ]}
-                                    >
-                                        <Text style={[styles.dayText, dayTextStyle]}>
-                                            {day ?? ''}
-                                        </Text>
+                                    <View style={[styles.dayCircle, dayCircleStyle]}>
+                                        <Text style={[styles.dayText, dayTextStyle]}>{day ?? ''}</Text>
+                                        {primaryEvent ? (
+                                            <View style={[styles.markerDot, { backgroundColor: getCalendarEventMarkerColor(primaryEvent) }]} />
+                                        ) : null}
+                                        {dayEvents.length > 1 ? (
+                                            <View style={[styles.countBadge, { backgroundColor: colors.accent }]}>
+                                                <Text style={styles.countBadgeText}>{dayEvents.length}</Text>
+                                            </View>
+                                        ) : null}
                                     </View>
                                 </TouchableOpacity>
                             );
@@ -313,7 +346,7 @@ const EkadashiCalendarScreen: React.FC = () => {
                     ) : null}
                 </View>
 
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                     <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.locationTitle')}</Text>
                     <TextInput
                         value={city}
@@ -347,7 +380,7 @@ const EkadashiCalendarScreen: React.FC = () => {
                     </TouchableOpacity>
                 </View>
 
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                     <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.notificationTitle')}</Text>
                     <View style={styles.switchRow}>
                         <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.subscribe')}</Text>
@@ -384,29 +417,52 @@ const EkadashiCalendarScreen: React.FC = () => {
                     </TouchableOpacity>
                 </View>
 
-                {selectedDay ? (
-                    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{selectedDay.displayTitle}</Text>
-                        <Text style={[styles.detailLine, { color: colors.textSecondary }]}>{selectedDay.organizationName}</Text>
-                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
-                            {t('portal.ekadashiCalendar.fastStarts')}: {formatEkadashiDateTime(selectedDay.fastStartAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
+                {selectedDate ? (
+                    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                            {t('portal.ekadashiCalendar.dayEventsTitle', {
+                                date: new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString(locale, { month: 'long', day: 'numeric' }),
+                            })}
                         </Text>
-                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
-                            {t('portal.ekadashiCalendar.parana')}: {formatEkadashiDateTime(selectedDay.paranaStartAt, locale) || t('portal.ekadashiCalendar.noParanaTime')}
-                        </Text>
-                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
-                            {t('portal.ekadashiCalendar.paranaWindowEnd')}: {formatEkadashiDateTime(selectedDay.paranaEndAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
-                        </Text>
-                        <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.observanceNotes')}</Text>
-                        <Text style={[styles.notesText, { color: colors.textPrimary }]}>{selectedDay.observanceNotes || t('portal.ekadashiCalendar.notAvailable')}</Text>
-                        {selectedDay.providerDecision?.mode === 'fallback' ? (
-                            <>
-                                <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.dataSourceTitle')}</Text>
-                                <Text style={[styles.notesText, { color: colors.textPrimary }]}>
-                                    {t(getEkadashiProviderNoticeKey(selectedDay.providerDecision) || 'portal.ekadashiCalendar.providerNotices.fallbackActive')}
-                                </Text>
-                            </>
-                        ) : null}
+                        {selectedEvents.length === 0 ? (
+                            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.emptyDay')}</Text>
+                        ) : selectedEvents.map((event) => (
+                            <View key={event.eventId} style={[styles.eventCard, { borderColor: colors.border, backgroundColor: colors.background }]}> 
+                                <View style={styles.eventHeader}>
+                                    <View style={[styles.eventMarker, { backgroundColor: getCalendarEventMarkerColor(event) }]} />
+                                    <View style={styles.eventHeaderText}>
+                                        <Text style={[styles.eventType, { color: colors.textSecondary }]}>{t(getCalendarEventLabelKey(event.eventType))}</Text>
+                                        <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>{event.title || event.displayTitle}</Text>
+                                        {!!(event.subtitle || event.displaySubtitle) && (
+                                            <Text style={[styles.detailLine, { color: colors.textSecondary }]}>{event.subtitle || event.displaySubtitle}</Text>
+                                        )}
+                                    </View>
+                                </View>
+                                {(event.isEkadashi || event.isMahadvadashi) ? (
+                                    <>
+                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                            {t('portal.ekadashiCalendar.fastStarts')}: {formatEkadashiDateTime(event.fastStartAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
+                                        </Text>
+                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                            {t('portal.ekadashiCalendar.parana')}: {formatEkadashiDateTime(event.paranaStartAt, locale) || t('portal.ekadashiCalendar.noParanaTime')}
+                                        </Text>
+                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                            {t('portal.ekadashiCalendar.paranaWindowEnd')}: {formatEkadashiDateTime(event.paranaEndAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
+                                        </Text>
+                                    </>
+                                ) : null}
+                                <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.observanceNotes')}</Text>
+                                <Text style={[styles.notesText, { color: colors.textPrimary }]}>{event.notes || event.observanceNotes || t('portal.ekadashiCalendar.notAvailable')}</Text>
+                                {event.providerDecision?.mode === 'fallback' ? (
+                                    <>
+                                        <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.dataSourceTitle')}</Text>
+                                        <Text style={[styles.notesText, { color: colors.textPrimary }]}>
+                                            {t(getEkadashiProviderNoticeKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.fallbackActive')}
+                                        </Text>
+                                    </>
+                                ) : null}
+                            </View>
+                        ))}
                     </View>
                 ) : null}
             </ScrollView>
@@ -495,6 +551,29 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
+    legendRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    legendChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    legendDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    legendText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
     weekRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -520,10 +599,34 @@ const styles = StyleSheet.create({
         borderRadius: 19,
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
     },
     dayText: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    markerDot: {
+        position: 'absolute',
+        bottom: 3,
+        width: 5,
+        height: 5,
+        borderRadius: 3,
+    },
+    countBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        minWidth: 14,
+        height: 14,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 3,
+    },
+    countBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: '800',
     },
     helperText: {
         fontSize: 13,
@@ -573,6 +676,36 @@ const styles = StyleSheet.create({
         marginRight: 12,
         fontSize: 15,
         fontWeight: '600',
+    },
+    eventCard: {
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
+        gap: 8,
+    },
+    eventHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+    },
+    eventHeaderText: {
+        flex: 1,
+        gap: 2,
+    },
+    eventMarker: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginTop: 5,
+    },
+    eventType: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+    },
+    eventTitle: {
+        fontSize: 16,
+        fontWeight: '800',
     },
     detailLine: {
         fontSize: 14,

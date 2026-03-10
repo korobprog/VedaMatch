@@ -11,25 +11,34 @@ type EkadashiOrganization struct {
 }
 
 type EkadashiDay struct {
-	Date             string                    `json:"date"`
-	OrganizationID   string                    `json:"organizationId"`
-	OrganizationName string                    `json:"organizationName"`
-	Timezone         string                    `json:"timezone"`
-	City             string                    `json:"city"`
-	Country          string                    `json:"country"`
-	EventType        string                    `json:"eventType"`
-	IsEkadashi       bool                      `json:"isEkadashi"`
-	IsMahadvadashi   bool                      `json:"isMahadvadashi"`
-	FastStartAt      *string                   `json:"fastStartAt"`
-	FastEndAt        *string                   `json:"fastEndAt"`
-	ParanaStartAt    *string                   `json:"paranaStartAt"`
-	ParanaEndAt      *string                   `json:"paranaEndAt"`
-	DisplayTitle     string                    `json:"displayTitle"`
-	DisplaySubtitle  string                    `json:"displaySubtitle"`
-	ObservanceNotes  string                    `json:"observanceNotes"`
-	Source           string                    `json:"source"`
-	SourceURL        string                    `json:"sourceUrl"`
-	ProviderDecision *EkadashiProviderDecision `json:"providerDecision,omitempty"`
+	EventID           string                    `json:"eventId"`
+	Date              string                    `json:"date"`
+	OrganizationID    string                    `json:"organizationId"`
+	OrganizationName  string                    `json:"organizationName"`
+	OrganizationScope string                    `json:"organizationScope,omitempty"`
+	PersonSlug        string                    `json:"personSlug,omitempty"`
+	ObservanceType    string                    `json:"observanceType,omitempty"`
+	Timezone          string                    `json:"timezone"`
+	City              string                    `json:"city"`
+	Country           string                    `json:"country"`
+	EventType         string                    `json:"eventType"`
+	Priority          int                       `json:"priority"`
+	MarkerStyleKey    string                    `json:"markerStyleKey,omitempty"`
+	IsEkadashi        bool                      `json:"isEkadashi"`
+	IsMahadvadashi    bool                      `json:"isMahadvadashi"`
+	FastStartAt       *string                   `json:"fastStartAt"`
+	FastEndAt         *string                   `json:"fastEndAt"`
+	ParanaStartAt     *string                   `json:"paranaStartAt"`
+	ParanaEndAt       *string                   `json:"paranaEndAt"`
+	Title             string                    `json:"title"`
+	Subtitle          string                    `json:"subtitle"`
+	Notes             string                    `json:"notes"`
+	DisplayTitle      string                    `json:"displayTitle"`
+	DisplaySubtitle   string                    `json:"displaySubtitle"`
+	ObservanceNotes   string                    `json:"observanceNotes"`
+	Source            string                    `json:"source"`
+	SourceURL         string                    `json:"sourceUrl"`
+	ProviderDecision  *EkadashiProviderDecision `json:"providerDecision,omitempty"`
 }
 
 type EkadashiProviderDecision struct {
@@ -45,6 +54,7 @@ type EkadashiCalendarResponse struct {
 	City             string                   `json:"city"`
 	Country          string                   `json:"country"`
 	Days             []EkadashiDay            `json:"days"`
+	Events           []EkadashiDay            `json:"events"`
 	Accuracy         string                   `json:"accuracy"`
 	GeneratedFrom    string                   `json:"generatedFrom"`
 	ProviderDecision EkadashiProviderDecision `json:"providerDecision"`

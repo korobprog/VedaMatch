@@ -23,7 +23,9 @@ func (m *mockEkadashiService) GetCalendar(userID uint, role, month, organization
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiCalendarResponse{
-		Month: "2026-03",
+		Month:  "2026-03",
+		Days:   []models.EkadashiDay{{Date: "2026-03-14", EventType: "ekadashi"}},
+		Events: []models.EkadashiDay{{Date: "2026-03-06", EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura"}},
 		ProviderDecision: models.EkadashiProviderDecision{
 			Mode:   "fallback",
 			Source: "fallback_aggregator",
@@ -93,7 +95,7 @@ func TestEkadashiHandlerGetOrganizationsSuccess(t *testing.T) {
 	}
 }
 
-func TestEkadashiHandlerGetCalendarIncludesProviderDecision(t *testing.T) {
+func TestEkadashiHandlerGetCalendarIncludesProviderDecisionAndEvents(t *testing.T) {
 	app := fiber.New()
 	handler := NewEkadashiHandlerWithService(&mockEkadashiService{})
 	app.Get("/ekadashi/calendar", func(c *fiber.Ctx) error {
@@ -120,5 +122,9 @@ func TestEkadashiHandlerGetCalendarIncludesProviderDecision(t *testing.T) {
 	}
 	if providerDecision["reason"] != "test_reason" {
 		t.Fatalf("unexpected provider decision: %#v", providerDecision)
+	}
+	events, ok := payload["events"].([]any)
+	if !ok || len(events) != 1 {
+		t.Fatalf("expected events array, got %#v", payload["events"])
 	}
 }

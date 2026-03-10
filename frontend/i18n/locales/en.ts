@@ -1593,7 +1593,7 @@ export default {
             video_circles: 'Circles',
             channels: 'Channels',
             sadhu_sanga: 'Sadhu-Sanga',
-            ekadashi_calendar: 'Ekadashi',
+            ekadashi_calendar: 'Calendar',
             feed: 'Feed',
             news: 'News',
             map: 'Map',
@@ -2123,10 +2123,10 @@ export default {
             },
             calendar: {
                 title: 'Calendar',
-                description: 'Month overview with today and Ekadashi mode for devotees',
+                description: 'Month overview with Vedic observances for devotees',
                 modes: {
                     gregorian: 'Month',
-                    ekadashi: 'Ekadashi',
+                    ekadashi: 'Vedic',
                 },
             },
             circlesQuick: {
@@ -2167,8 +2167,8 @@ export default {
             addStay: 'Add stay',
         },
         ekadashiCalendar: {
-            title: 'Ekadashi Calendar',
-            subtitle: 'Devotee-only fasting calendar by organization',
+            title: 'Calendar',
+            subtitle: 'Devotee-only Vedic calendar with Ekadashi and commemorations by organization',
             onlyForDevotees: 'This calendar is available only for devotees.',
             organizationLabel: 'Organization',
             locationTitle: 'Location and timezone',
@@ -2185,6 +2185,14 @@ export default {
             notAvailable: 'Not available',
             observanceNotes: 'Observance notes',
             dataSourceTitle: 'Data source',
+            dayEventsTitle: 'Events for {{date}}',
+            emptyDay: 'No events on the selected date',
+            eventTypes: {
+                ekadashi: 'Ekadashi',
+                mahadvadashi: 'Mahadvadashi',
+                appearance: 'Appearance',
+                disappearance: 'Disappearance',
+            },
             providerNotices: {
                 cityRequiredForLive: 'Select a city to enable the live Ekadashi source for this organization.',
                 noLiveSource: 'This organization currently uses the server fallback calendar.',
@@ -2192,9 +2200,9 @@ export default {
                 fallbackActive: 'Fallback calendar data is shown for this month.',
             },
             alerts: {
-                loadFailed: 'Failed to load Ekadashi calendar',
-                saveFailed: 'Failed to save Ekadashi preferences',
-                preferencesSaved: 'Ekadashi preferences saved',
+                loadFailed: 'Failed to load calendar',
+                saveFailed: 'Failed to save calendar preferences',
+                preferencesSaved: 'Calendar preferences saved',
             },
         },
         channelCta: {

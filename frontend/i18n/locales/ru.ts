@@ -1595,7 +1595,7 @@ export default {
             video_circles: 'Кружки',
             channels: 'Каналы',
             sadhu_sanga: 'Садху-санга',
-            ekadashi_calendar: 'Экадаши',
+            ekadashi_calendar: 'Календарь',
             feed: 'Лента',
             news: 'Новости',
             map: 'Карта',
@@ -2125,10 +2125,10 @@ export default {
             },
             calendar: {
                 title: 'Календарь',
-                description: 'Обзор месяца с текущей датой и режимом Экадаши для преданных',
+                description: 'Обзор месяца с ведическими событиями для преданных',
                 modes: {
                     gregorian: 'Месяц',
-                    ekadashi: 'Экадаши',
+                    ekadashi: 'Ведический',
                 },
             },
             circlesQuick: {
@@ -2169,8 +2169,8 @@ export default {
             addStay: 'Добавить жильё',
         },
         ekadashiCalendar: {
-            title: 'Календарь Экадаши',
-            subtitle: 'Календарь постов для преданных по организациям',
+            title: 'Календарь',
+            subtitle: 'Ведический календарь для преданных: Экадаши, явления и уходы по организациям',
             onlyForDevotees: 'Этот календарь доступен только для преданных.',
             organizationLabel: 'Организация',
             locationTitle: 'Локация и часовой пояс',
@@ -2187,6 +2187,14 @@ export default {
             notAvailable: 'Недоступно',
             observanceNotes: 'Примечания',
             dataSourceTitle: 'Источник данных',
+            dayEventsTitle: 'События на {{date}}',
+            emptyDay: 'На выбранную дату событий нет',
+            eventTypes: {
+                ekadashi: 'Экадаши',
+                mahadvadashi: 'Махадвадаши',
+                appearance: 'Явление',
+                disappearance: 'Уход',
+            },
             providerNotices: {
                 cityRequiredForLive: 'Выберите город, чтобы включить live-источник Экадаши для этой организации.',
                 noLiveSource: 'Для этой организации сейчас используется серверный fallback-календарь.',
@@ -2194,9 +2202,9 @@ export default {
                 fallbackActive: 'Для этого месяца показаны fallback-данные календаря.',
             },
             alerts: {
-                loadFailed: 'Не удалось загрузить календарь Экадаши',
-                saveFailed: 'Не удалось сохранить настройки Экадаши',
-                preferencesSaved: 'Настройки Экадаши сохранены',
+                loadFailed: 'Не удалось загрузить календарь',
+                saveFailed: 'Не удалось сохранить настройки календаря',
+                preferencesSaved: 'Настройки календаря сохранены',
             },
         },
         channelCta: {

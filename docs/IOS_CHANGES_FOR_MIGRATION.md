@@ -14160,3 +14160,57 @@ style={[
   },
 ]}
 ```
+
+## 2026-03-10 (Vedic calendar: shared events model + multi-event mobile UI)
+
+### Измененные файлы
+- `server/internal/models/ekadashi.go`
+- `server/internal/services/ekadashi_service.go`
+- `frontend/types/ekadashi.ts`
+- `frontend/utils/ekadashiCalendar.ts`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `frontend/types/portal.ts`
+- `frontend/constants/portalRoles.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - backend-календарь отдавал только `days[]` с Экадаши/Махадвадаши;
+  - mobile screen и widget умели показывать только одно событие на дату;
+  - user-facing service label в портале был `Ekadashi` / `Экадаши`.
+- Стало:
+  - backend `/ekadashi/*` отдает общий `events[]` для ведического календаря и сохраняет `days[]` как совместимое legacy-поле только для экадаши-событий;
+  - в `events[]` вошли `ekadashi`, `mahadvadashi`, `appearance`, `disappearance`, все под единым фильтром организации;
+  - mobile screen и widget показывают несколько событий в один день и рендерят разные marker styles для разных типов событий;
+  - сервис в user-facing UI переименован в `Calendar` / `Календарь` / `कैलेंडर` без жесткого rename внутренних route/service ids.
+
+### Короткие сниппеты кода
+
+`server/internal/models/ekadashi.go`:
+```go
+type EkadashiCalendarResponse struct {
+    Month  string        `json:"month"`
+    Days   []EkadashiDay `json:"days"`
+    Events []EkadashiDay `json:"events"`
+}
+```
+
+`server/internal/services/ekadashi_service.go`:
+```go
+events, days, generatedFrom, providerDecision := s.resolveMonthCalendar(monthStart, locData, org)
+```
+
+`frontend/screens/portal/services/EkadashiCalendarScreen.tsx`:
+```tsx
+const dayEvents = findCalendarEventsForCell(events, currentMonth, day);
+setSelectedDate(buildIsoDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)));
+```
+
+`frontend/components/portal/CalendarWidget.tsx`:
+```tsx
+const dayEvents = findCalendarEventsForCell(calendarEvents, currentMonth, day);
+{dayEvents.length > 1 ? <View style={styles.countBadge}><Text>{dayEvents.length}</Text></View> : null}
+```

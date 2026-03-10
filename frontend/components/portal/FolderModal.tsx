@@ -123,7 +123,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
             : 'rgba(255,153,51,0.18)';
     const secondaryTextColor = isPhotoBg ? 'rgba(255,255,255,0.72)' : vTheme.colors.textSecondary;
     const emptyHintColor = isPhotoBg ? 'rgba(255,255,255,0.65)' : vTheme.colors.textSecondary;
-    const maxSheetHeight = Math.round(windowHeight * 0.40);
+    const maxSheetHeight = Math.round(windowHeight * 0.45);
     const gridRowCount = Math.max(1, Math.ceil(displayItems.length / 3));
     const estimatedContentHeight = displayItems.length > 0 ? 212 + gridRowCount * 154 : 360;
     const colorPickerHeight = showColorPicker ? 52 : 0;

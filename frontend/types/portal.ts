@@ -80,10 +80,16 @@ export const DEFAULT_PORTAL_FOLDER_DEFINITIONS = [
         serviceIds: ['chat', 'rooms', 'channels', 'connect', 'history'],
     },
     {
+        id: 'folder-calendar',
+        name: 'Календарь',
+        color: '#D97706',
+        serviceIds: ['ekadashi_calendar'],
+    },
+    {
         id: 'folder-practice',
         name: 'Практика',
         color: '#10B981',
-        serviceIds: ['path_tracker', 'ekadashi_calendar', 'sadhu_sanga', 'seva', 'education', 'library'],
+        serviceIds: ['path_tracker', 'sadhu_sanga', 'seva', 'education', 'library'],
     },
     {
         id: 'folder-content',
@@ -128,7 +134,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'video_circles', label: 'Circles', icon: 'Clapperboard', color: '#EA580C' },
     { id: 'channels', label: 'Channels', icon: 'Radio', color: '#0EA5A4' },
     { id: 'sadhu_sanga', label: 'Sadhu-Sanga', icon: 'Flame', color: '#F59E0B' },
-    { id: 'ekadashi_calendar', label: 'Ekadashi', icon: 'CalendarDays', color: '#D97706' },
+    { id: 'ekadashi_calendar', label: 'Calendar', icon: 'CalendarDays', color: '#D97706' },
     { id: 'feed', label: 'Feed', icon: 'PlayCircle', color: '#0EA5E9' },
     { id: 'news', label: 'News', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Map', icon: 'Map', color: '#7C3AED' },

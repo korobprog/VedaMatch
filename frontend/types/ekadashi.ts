@@ -13,19 +13,28 @@ export type EkadashiProviderDecision = {
 };
 
 export type EkadashiDay = {
+    eventId: string;
     date: string;
     organizationId: string;
     organizationName: string;
+    organizationScope?: string;
+    personSlug?: string;
+    observanceType?: 'appearance' | 'disappearance' | string;
     timezone: string;
     city: string;
     country: string;
-    eventType: 'ekadashi' | 'mahadvadashi' | string;
+    eventType: 'ekadashi' | 'mahadvadashi' | 'appearance' | 'disappearance' | string;
+    priority: number;
+    markerStyleKey?: string;
     isEkadashi: boolean;
     isMahadvadashi: boolean;
     fastStartAt: string | null;
     fastEndAt: string | null;
     paranaStartAt: string | null;
     paranaEndAt: string | null;
+    title: string;
+    subtitle: string;
+    notes: string;
     displayTitle: string;
     displaySubtitle: string;
     observanceNotes: string;
@@ -41,6 +50,7 @@ export type EkadashiCalendarResponse = {
     city: string;
     country: string;
     days: EkadashiDay[];
+    events: EkadashiDay[];
     accuracy: 'timezone_only' | 'city_plus_timezone' | string;
     generatedFrom: string;
     providerDecision: EkadashiProviderDecision;

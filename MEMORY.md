@@ -2675,3 +2675,12 @@
 
 - Added `contacts.title` localization key in `ru/en/hi` locales to prevent Contacts header fallback to English.
 - Added `common.got_it` in `ru/en/hi` locales so role modal CTA no longer falls back to English (`Got it`) when Russian/Hindi is active.
+
+## Vedic Calendar
+- Сервис `ekadashi_calendar` в user-facing UI переименован в `Календарь` / `Calendar`, но internal `serviceId` и route пока сохранены для совместимости.
+- Backend `/ekadashi/*` теперь возвращает общий массив `events` для ведического календаря и совместимое legacy-поле `days` только для `ekadashi` / `mahadvadashi`.
+- В `v1` календарь объединяет два типа данных под одним фильтром организации: `ekadashi|mahadvadashi` и памятные даты `appearance|disappearance`.
+- Источник памятных дат для `v1` curated/static на backend; push-настройки и напоминания остаются только для Экадаши.
+- Mobile screen `EkadashiCalendarScreen` и portal `CalendarWidget` уже умеют показывать несколько событий в один день, а не только один `EkadashiDay`.
+- Для `devotee` widget calendar по-прежнему стартует сразу в ведическом режиме, но теперь этот режим охватывает весь общий календарь, а не только Экадаши.
+- В дефолтном portal layout ярлык `Календарь` вынесен в отдельную папку `Календарь`, а не лежит внутри `Практика`.

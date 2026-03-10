@@ -12,7 +12,7 @@ func TestEkadashiServiceGetCalendarDevoteeOnly(t *testing.T) {
 	}
 }
 
-func TestEkadashiServiceGetCalendarReturnsMonthDays(t *testing.T) {
+func TestEkadashiServiceGetCalendarReturnsMonthDaysAndEvents(t *testing.T) {
 	service := &EkadashiService{}
 	result, err := service.GetCalendar(0, "devotee", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia")
 	if err != nil {
@@ -24,11 +24,24 @@ func TestEkadashiServiceGetCalendarReturnsMonthDays(t *testing.T) {
 	if len(result.Days) == 0 {
 		t.Fatalf("expected ekadashi days")
 	}
+	if len(result.Events) < len(result.Days) {
+		t.Fatalf("expected combined calendar events, got days=%d events=%d", len(result.Days), len(result.Events))
+	}
 	if result.Days[0].OrganizationID != "iskcon" {
 		t.Fatalf("unexpected org: %s", result.Days[0].OrganizationID)
 	}
 	if result.ProviderDecision.Mode == "" || result.ProviderDecision.Source == "" {
 		t.Fatalf("expected provider decision metadata, got %+v", result.ProviderDecision)
+	}
+	foundAppearance := false
+	for _, event := range result.Events {
+		if event.EventType == "appearance" {
+			foundAppearance = true
+			break
+		}
+	}
+	if !foundAppearance {
+		t.Fatalf("expected commemorative appearance event in month response")
 	}
 }
 
@@ -46,6 +59,20 @@ func TestEkadashiServiceGetDayIncludesProviderDecision(t *testing.T) {
 	}
 	if result.ProviderDecision.Reason != "no_live_source_configured" {
 		t.Fatalf("unexpected provider decision reason: %+v", result.ProviderDecision)
+	}
+}
+
+func TestEkadashiServiceGetDayReturnsCommemorativeEvent(t *testing.T) {
+	service := &EkadashiService{}
+	result, err := service.GetDay(0, "devotee", "2026-03-06", "iskcon", "Asia/Kolkata", "Mayapur", "India")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.EventType != "appearance" {
+		t.Fatalf("expected appearance event, got %s", result.EventType)
+	}
+	if result.PersonSlug == "" {
+		t.Fatalf("expected commemorative person slug")
 	}
 }
 
