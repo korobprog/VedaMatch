@@ -72,6 +72,45 @@ export const isServiceAllowedForRole = (serviceId: string, role?: string | null)
 
 export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['contacts', 'calls', 'services'] as const;
 
+export const DEFAULT_PORTAL_FOLDER_DEFINITIONS = [
+    {
+        id: 'folder-communication',
+        name: 'Общение',
+        color: '#3B82F6',
+        serviceIds: ['chat', 'rooms', 'channels', 'connect', 'history'],
+    },
+    {
+        id: 'folder-practice',
+        name: 'Практика',
+        color: '#10B981',
+        serviceIds: ['path_tracker', 'ekadashi_calendar', 'sadhu_sanga', 'seva', 'education', 'library'],
+    },
+    {
+        id: 'folder-content',
+        name: 'Контент',
+        color: '#8B5CF6',
+        serviceIds: ['feed', 'news', 'multimedia', 'video_circles'],
+    },
+    {
+        id: 'folder-services',
+        name: 'Сервисы',
+        color: '#F59E0B',
+        serviceIds: ['services_catalog', 'cafe', 'shops', 'ads', 'dating'],
+    },
+    {
+        id: 'folder-travel',
+        name: 'Путешествия',
+        color: '#D67D3E',
+        serviceIds: ['travel', 'map', 'dhama'],
+    },
+    {
+        id: 'folder-profile',
+        name: 'Профиль',
+        color: '#6B7280',
+        serviceIds: ['support', 'settings'],
+    },
+] as const;
+
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'path_tracker', label: 'Daily Path', icon: 'Sun', color: '#0F766E' },
@@ -127,12 +166,18 @@ export const createDefaultLayout = (): PortalLayout => {
         position: index,
     }));
 
-    const defaultItems: PortalItem[] = DEFAULT_SERVICES
-        .filter(s => !quickAccessIds.includes(s.id))
-        .map((service, index) => ({
-            id: `item-${service.id}`,
-            serviceId: service.id,
-            type: 'service' as const,
+    const defaultItems: PortalFolder[] = DEFAULT_PORTAL_FOLDER_DEFINITIONS
+        .map((folder, index) => ({
+            id: folder.id,
+            name: folder.name,
+            type: 'folder' as const,
+            color: folder.color,
+            items: folder.serviceIds.map((serviceId, itemIndex) => ({
+                id: `item-${serviceId}`,
+                serviceId,
+                type: 'service' as const,
+                position: itemIndex,
+            })),
             position: index,
         }));
 

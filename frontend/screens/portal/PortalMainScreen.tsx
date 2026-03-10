@@ -11,6 +11,8 @@ import {
     AppState,
     BackHandler,
     Image,
+    ActivityIndicator,
+    InteractionManager,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
@@ -110,6 +112,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [isPortalBootOverlayVisible, setIsPortalBootOverlayVisible] = useState(false);
     const [isPortalBackgroundReady, setIsPortalBackgroundReady] = useState(true);
     const [isPortalFirstLayoutReady, setIsPortalFirstLayoutReady] = useState(false);
+    const [isPortalGridMounted, setIsPortalGridMounted] = useState(Platform.OS !== 'android');
+    const [isPortalStartupSettled, setIsPortalStartupSettled] = useState(Platform.OS !== 'android');
     const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
     const widgetNavLockRef = useRef(false);
@@ -196,8 +200,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
     useFocusEffect(
         useCallback(() => {
+            if (Platform.OS === 'android' && activeTab === null && !isPortalStartupSettled) {
+                return undefined;
+            }
             refreshSupportUnread();
-        }, [refreshSupportUnread])
+            return undefined;
+        }, [activeTab, isPortalStartupSettled, refreshSupportUnread])
     );
 
     const { effectiveBackgroundType: effectiveBgType } = useMemo(
@@ -210,7 +218,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const layerActiveWallpaper = useClassicWallpaper ? activeWallpaper : '';
     const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
     const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';
-    const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image';
+    const shouldUsePortalStartupReducedChrome = Platform.OS === 'android'
+        && activeTab === null
+        && !isPortalStartupSettled;
+    const useLightHeaderIcons = isDarkMode && effectiveBgType === 'image' && !shouldUsePortalStartupReducedChrome;
     const useSolidServiceLayer = false;
     const serviceLayerBackgroundType = useSolidServiceLayer ? 'color' : layerBackgroundType;
     const serviceLayerBackground = useSolidServiceLayer ? vTheme.colors.background : layerBackground;
@@ -250,9 +261,99 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return;
         }
 
+        if (Platform.OS === 'android') {
+            setIsPortalGridMounted(false);
+            setIsPortalStartupSettled(false);
+        }
         setIsPortalBootOverlayVisible(true);
         setIsPortalFirstLayoutReady(false);
     }, [shouldShowPortalBootLoader, user?.ID]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android') {
+            setIsPortalGridMounted(true);
+            return;
+        }
+
+        if (!user?.ID) {
+            setIsPortalGridMounted(false);
+            return;
+        }
+
+        if (activeTab !== null || isPortalGridMounted) {
+            return;
+        }
+
+        if (shouldShowPortalBootLoader || isPortalBootOverlayVisible || isPortalLayoutLoading) {
+            return;
+        }
+
+        let cancelled = false;
+        const interactionTask = InteractionManager.runAfterInteractions(() => {
+            requestAnimationFrame(() => {
+                if (!cancelled) {
+                    setIsPortalGridMounted(true);
+                }
+            });
+        });
+
+        return () => {
+            cancelled = true;
+            interactionTask.cancel();
+        };
+    }, [
+        activeTab,
+        isPortalBootOverlayVisible,
+        isPortalGridMounted,
+        isPortalLayoutLoading,
+        shouldShowPortalBootLoader,
+        user?.ID,
+    ]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android') {
+            setIsPortalStartupSettled(true);
+            return;
+        }
+
+        if (!user?.ID) {
+            setIsPortalStartupSettled(false);
+            return;
+        }
+
+        if (
+            activeTab !== null
+            || shouldShowPortalBootLoader
+            || isPortalBootOverlayVisible
+            || !isPortalGridMounted
+            || isPortalLayoutLoading
+            || isPortalStartupSettled
+        ) {
+            return;
+        }
+
+        let cancelled = false;
+        const interactionTask = InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => {
+                if (!cancelled) {
+                    setIsPortalStartupSettled(true);
+                }
+            }, 350);
+        });
+
+        return () => {
+            cancelled = true;
+            interactionTask.cancel();
+        };
+    }, [
+        activeTab,
+        isPortalBootOverlayVisible,
+        isPortalGridMounted,
+        isPortalLayoutLoading,
+        isPortalStartupSettled,
+        shouldShowPortalBootLoader,
+        user?.ID,
+    ]);
 
     useEffect(() => {
         if (!shouldShowPortalBootLoader) {
@@ -329,7 +430,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     ]);
 
     useEffect(() => {
-        if (!androidVisualPolicy.allowGiftPulse || !isAppActive || activeTab !== null) {
+        if (!androidVisualPolicy.allowGiftPulse || !isAppActive || activeTab !== null || !isPortalStartupSettled) {
             giftAnim.setValue(1);
             return;
         }
@@ -351,7 +452,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
         startGiftPulse();
         return () => giftAnim.stopAnimation();
-    }, [giftAnim, androidVisualPolicy.allowGiftPulse, isAppActive, activeTab]);
+    }, [giftAnim, androidVisualPolicy.allowGiftPulse, isAppActive, activeTab, isPortalStartupSettled]);
 
     useEffect(() => {
         if (Platform.OS !== 'android' || performanceMode !== 'adaptive' || !isAppActive || activeTab !== null) return;
@@ -645,26 +746,76 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         );
     };
 
+    const shouldUsePortalStartupFastPath = Platform.OS === 'android'
+        && activeTab === null
+        && (!isPortalGridMounted || isPortalBootOverlayVisible || shouldShowPortalBootLoader);
+    const shouldUsePortalStartupPlainChrome = Platform.OS === 'android'
+        && activeTab === null
+        && !shouldUsePortalStartupFastPath
+        && !isPortalStartupSettled;
+    const gridLayerBackgroundType = shouldUsePortalStartupPlainChrome ? 'color' : layerBackgroundType;
+    const gridLayerBackground = shouldUsePortalStartupPlainChrome ? vTheme.colors.background : layerBackground;
+    const gridLayerActiveWallpaper = shouldUsePortalStartupPlainChrome ? '' : layerActiveWallpaper;
+    const gridLayerSlideshowEnabled = shouldUsePortalStartupPlainChrome ? false : layerSlideshowEnabled;
+    const gridLayerOverlayColor = shouldUsePortalStartupPlainChrome ? 'transparent' : layerOverlayColor;
+    const shouldRenderPortalHeaderBlur = portalIconStyle !== 'vedamatch'
+        && androidVisualPolicy.enableBlur
+        && !shouldUsePortalStartupPlainChrome;
+
     // Show grid view if no active tab
     if (!activeTab) {
+        if (shouldUsePortalStartupFastPath) {
+            return (
+                <PortalBackgroundLayer
+                    portalBackgroundType="color"
+                    portalBackground={vTheme.colors.background}
+                    activeWallpaper=""
+                    isSlideshowEnabled={false}
+                    fallbackColor={vTheme.colors.background}
+                    isAppActive={isAppActive}
+                    allowCrossfade={false}
+                    crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
+                    pauseTransitions={false}
+                    overlayColor="transparent"
+                >
+                    <ScreenScaffold
+                        variant="portal"
+                        enableAura={false}
+                        transparentBackground={false}
+                        headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
+                    >
+                        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+                        <View style={styles.portalStartupShell} onLayout={handlePortalFirstLayoutReady}>
+                            <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                        </View>
+                        {renderPortalBootOverlay()}
+                    </ScreenScaffold>
+                </PortalBackgroundLayer>
+            );
+        }
+
         return (
             <PortalBackgroundLayer
-                portalBackgroundType={layerBackgroundType}
-                portalBackground={layerBackground}
-                activeWallpaper={layerActiveWallpaper}
-                isSlideshowEnabled={layerSlideshowEnabled}
+                portalBackgroundType={gridLayerBackgroundType}
+                portalBackground={gridLayerBackground}
+                activeWallpaper={gridLayerActiveWallpaper}
+                isSlideshowEnabled={gridLayerSlideshowEnabled}
                 fallbackColor={vTheme.colors.background}
                 isAppActive={isAppActive}
                 allowCrossfade={androidVisualPolicy.allowCrossfade}
                 crossfadeDurationMs={androidVisualPolicy.crossfadeDurationMs}
                 pauseTransitions={activeTab !== null}
-                overlayColor={layerOverlayColor}
-                onBackgroundLoadError={useClassicWallpaper ? handleWallpaperLoadError : undefined}
+                overlayColor={gridLayerOverlayColor}
+                onBackgroundLoadError={
+                    useClassicWallpaper && !shouldUsePortalStartupPlainChrome
+                        ? handleWallpaperLoadError
+                        : undefined
+                }
             >
                 <ScreenScaffold
                     variant="portal"
-                    enableAura={!useClassicWallpaper}
-                    transparentBackground={useClassicWallpaper}
+                    enableAura={!useClassicWallpaper && !shouldUsePortalStartupPlainChrome}
+                    transparentBackground={useClassicWallpaper && !shouldUsePortalStartupPlainChrome}
                     headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
                 >
                 <GestureDetector gesture={portalSwipeGesture}>
@@ -685,7 +836,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     },
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                                {shouldRenderPortalHeaderBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
@@ -709,7 +860,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     },
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                                {shouldRenderPortalHeaderBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
@@ -731,7 +882,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     },
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                                {shouldRenderPortalHeaderBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
@@ -748,7 +899,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 backgroundColor={portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)'}
                                 borderColor={portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)'}
                                 textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
-                                showBlur={portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur}
+                                showBlur={shouldRenderPortalHeaderBlur}
                                 blurAmount={headerBlurAmount}
                             />
                         </View>
@@ -767,7 +918,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                            {shouldRenderPortalHeaderBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
@@ -787,7 +938,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                            {shouldRenderPortalHeaderBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
@@ -806,7 +957,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                            {shouldRenderPortalHeaderBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
@@ -831,7 +982,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     }
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
+                                {shouldRenderPortalHeaderBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
@@ -862,14 +1013,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 {/* Grid View */}
                 <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
 
-                    {user?.godModeEnabled && (
+                    {user?.godModeEnabled && !shouldUsePortalStartupPlainChrome && (
                         <GodModeFiltersPanel
                             filters={godModeFilters}
                             activeMathId={activeMathId || undefined}
                             onSelectMath={(mathId) => setActiveMath(mathId)}
                         />
                     )}
-                    {seekerTravelLocked && (
+                    {seekerTravelLocked && !shouldUsePortalStartupPlainChrome && (
                         <View style={styles.lockedServiceHint}>
                             <Text style={styles.lockedServiceHintTitle}>
                                 {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
@@ -893,6 +1044,36 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         </View>
                     )}
 
+                    {!shouldUsePortalStartupPlainChrome && (
+                    <View pointerEvents="none" style={styles.pageIndicatorContainer}>
+                        <View style={styles.pageIndicatorDots}>
+                            <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
+                            <View
+                                style={[
+                                    styles.pageIndicatorDot,
+                                    {
+                                        backgroundColor: effectiveBgType === 'image' && isDarkMode
+                                            ? 'rgba(255,255,255,0.45)'
+                                            : 'rgba(15,23,42,0.28)',
+                                    },
+                                ]}
+                            />
+                        </View>
+                        <Text
+                            style={[
+                                styles.pageIndicatorText,
+                                {
+                                    color: effectiveBgType === 'image' && isDarkMode
+                                        ? '#FFFFFF'
+                                        : vTheme.colors.textSecondary,
+                                },
+                            ]}
+                        >
+                            {t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' })}
+                        </Text>
+                    </View>
+                    )}
+
                     <PortalGrid
                         onServicePress={handleServicePress}
                         roleHighlights={roleDescriptor?.heroServices || []}
@@ -901,35 +1082,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         serviceBadges={{ support: supportUnreadCount }}
                         onInitialLayoutReady={handlePortalFirstLayoutReady}
                     />
-                </View>
-
-                {/* Hint text */}
-                <View style={styles.pageIndicatorContainer}>
-                    <View style={styles.pageIndicatorDots}>
-                        <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
-                        <View
-                            style={[
-                                styles.pageIndicatorDot,
-                                {
-                                    backgroundColor: effectiveBgType === 'image' && isDarkMode
-                                        ? 'rgba(255,255,255,0.45)'
-                                        : 'rgba(15,23,42,0.28)',
-                                },
-                            ]}
-                        />
-                    </View>
-                    <Text
-                        style={[
-                            styles.pageIndicatorText,
-                            {
-                                color: effectiveBgType === 'image' && isDarkMode
-                                    ? '#FFFFFF'
-                                    : vTheme.colors.textSecondary,
-                            },
-                        ]}
-                    >
-                        {t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' })}
-                    </Text>
                 </View>
 
                 <RoleInfoModal
@@ -943,7 +1095,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         navigation.navigate('EditProfile');
                     }}
                 />
-                <NotificationPanel />
+                {!shouldUsePortalStartupPlainChrome && <NotificationPanel />}
                 {renderPortalBootOverlay()}
                 </View>
                 </GestureDetector>
@@ -1147,6 +1299,12 @@ const styles = StyleSheet.create({
     gridRoot: {
         flex: 1,
     },
+    portalStartupShell: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F8F3EA',
+    },
     roleDescriptorCard: {
         marginHorizontal: 12,
         marginBottom: 10,
@@ -1214,7 +1372,7 @@ const styles = StyleSheet.create({
     },
     pageIndicatorContainer: {
         position: 'absolute',
-        bottom: 116,
+        bottom: 10,
         left: 0,
         right: 0,
         alignItems: 'center',

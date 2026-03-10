@@ -455,7 +455,7 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             />
 
             {!isEditMode && (
-                <View style={styles.pageIndicatorContainer}>
+                <View pointerEvents="none" style={styles.pageIndicatorContainer}>
                     <View style={styles.pageIndicatorDots}>
                         <View
                             style={[

@@ -1,12 +1,12 @@
 // Portal Icon Component - service icon with iOS-style wiggle animation
 import React, { useEffect, useMemo } from 'react';
 import {
-    View,
     Text,
     TouchableOpacity,
     StyleSheet,
     Pressable,
     Platform,
+    View,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -16,39 +16,17 @@ import Animated, {
     withTiming,
     cancelAnimation,
 } from 'react-native-reanimated';
-import {
-    Users,
-    MessageCircle,
-    Phone,
-    Sparkles,
-    ShoppingBag,
-    Megaphone,
-    Book,
-    GraduationCap,
-    Newspaper,
-    Settings,
-    MessageSquare,
-    Map,
-    Coffee,
-    Utensils,
-    Music,
-    Film,
-    Compass,
-    Briefcase,
-    Heart,
-    Contact,
-    PlayCircle,
-    Clapperboard,
-    Radio,
-    LifeBuoy,
-    Sun,
-    Bot,
-    Flame,
-    Landmark,
-} from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
 import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
+import {
+    getPortalIconChrome,
+    getPortalLabelVisuals,
+    getPortalSurfaceRadius,
+    PortalServiceGlyph,
+    PortalVedaMatchRings,
+    PORTAL_ICON_SIZES,
+} from './portalIconShared';
 
 interface PortalIconProps {
     service: ServiceDefinition;
@@ -63,72 +41,9 @@ interface PortalIconProps {
     mathBadge?: string;
     onSecondaryLongPress?: () => void;
     onRemove?: () => void;
+    labelNumberOfLines?: number;
+    labelMaxWidth?: number;
 }
-
-const ICON_SIZES = {
-    small: { container: 52, icon: 24, fontSize: 10 },
-    medium: { container: 64, icon: 28, fontSize: 11 },
-    large: { container: 76, icon: 32, fontSize: 12 },
-};
-
-const IconComponents: Record<string, any> = {
-    Users,
-    MessageCircle,
-    Phone,
-    Sparkles,
-    ShoppingBag,
-    Megaphone,
-    Book,
-    GraduationCap,
-    Newspaper,
-    Settings,
-    MessageSquare,
-    Map,
-    Coffee,
-    Utensils,
-    Music,
-    Film,
-    Compass,
-    Briefcase,
-    Heart,
-    Contact,
-    PlayCircle,
-    Clapperboard,
-    Radio,
-    LifeBuoy,
-    Sun,
-    Bot,
-    Flame,
-    Landmark,
-};
-
-const SERVICE_EMOJIS: Record<string, string> = {
-    'path_tracker': '🧭',
-    'contacts': '📇',
-    'chat': '💬',
-    'rooms': '👥',
-    'calls': '📞',
-    'dating': '💍',
-    'cafe': '☕️',
-    'shops': '🛍️',
-    'ads': '📢',
-    'library': '📚',
-    'education': '🎓',
-    'multimedia': '🎵',
-    'video_circles': '📹',
-    'channels': '📻',
-    'sadhu_sanga': '🪔',
-    'feed': '📰',
-    'news': '📰',
-    'map': '🗺️',
-    'support': '🛟',
-    'history': '🕰️',
-    'settings': '⚙️',
-    'travel': '✈️',
-    'services': '🤖',
-    'services_catalog': '🧰',
-    'seva': '🤲',
-};
 
 export const PortalIcon: React.FC<PortalIconProps> = ({
     service,
@@ -142,6 +57,8 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     roleHighlight = false,
     mathBadge,
     onRemove,
+    labelNumberOfLines = 1,
+    labelMaxWidth = 70,
 }) => {
     const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
@@ -152,37 +69,23 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     );
     const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
-    const isImageOrPremiumSurface = portalBackgroundType === 'image' || portalIconStyle === 'premium3d';
-    const iconBackgroundColor = portalIconStyle === 'vedamatch'
-        ? '#121212'
-        : portalIconStyle === 'solid'
-            ? service.color
-            : isImageOrPremiumSurface
-                ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)')
-                : isDarkMode
-                    ? 'rgba(30,30,30,0.85)'
-                    : 'rgba(255,255,255,0.9)';
-    const iconBorderColor = portalIconStyle === 'vedamatch'
-        ? '#D4AF37'
-        : portalIconStyle === 'solid'
-            ? 'rgba(255,255,255,0.25)'
-            : isImageOrPremiumSurface
-                ? 'rgba(255,255,255,0.3)'
-                : `${service.color}30`;
-    const iconBorderWidth = portalIconStyle === 'vedamatch'
-        ? 1
-        : roleHighlight
-            ? 2
-            : isImageOrPremiumSurface || portalIconStyle === 'solid'
-                ? 1.5
-                : 1;
-    const iconSurfaceHasEfficientShadow = portalIconStyle === 'vedamatch' || portalIconStyle === 'solid';
-    const shouldRenderIconShadow = (roleHighlight || portalIconStyle === 'vedamatch')
-        && !isAndroidReducedEffects
-        && (Platform.OS !== 'ios' || iconSurfaceHasEfficientShadow);
-
-    const sizeConfig = ICON_SIZES[size];
-    const IconComponent = IconComponents[service.icon] || Users;
+    const sizeConfig = PORTAL_ICON_SIZES[size];
+    const iconChrome = useMemo(
+        () => getPortalIconChrome({
+            accentColor: service.color,
+            portalIconStyle,
+            portalBackgroundType,
+            isDarkMode,
+            reducedEffects: isAndroidReducedEffects,
+            roleHighlight,
+        }),
+        [isAndroidReducedEffects, isDarkMode, portalBackgroundType, portalIconStyle, roleHighlight, service.color],
+    );
+    const labelVisuals = useMemo(
+        () => getPortalLabelVisuals(portalBackgroundType, isDarkMode, vTheme.colors.text),
+        [isDarkMode, portalBackgroundType, vTheme.colors.text],
+    );
+    const iconRadius = getPortalSurfaceRadius(sizeConfig.container);
 
     // iOS-style wiggle animation
     useEffect(() => {
@@ -243,37 +146,20 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: iconBackgroundColor,
-                            borderColor: iconBorderColor,
-                            borderWidth: iconBorderWidth,
-                            ...(shouldRenderIconShadow ? {
-                                shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
-                                shadowOpacity: portalIconStyle === 'vedamatch' ? 0.5 : 0.35,
-                                shadowRadius: portalIconStyle === 'vedamatch' ? 10 : 8,
-                                shadowOffset: { width: 0, height: 2 },
-                                elevation: 6,
-                            } : {}),
+                            borderRadius: iconRadius,
                             marginBottom: showLabel ? 6 : 0,
                         },
+                        iconChrome.containerStyle,
                     ]}
                 >
-                    {portalIconStyle === 'vedamatch' && !isAndroidReducedEffects && (
-                        <View style={[StyleSheet.absoluteFill, { borderRadius: 22, overflow: 'hidden' }]}>
-                            <View style={{ position: 'absolute', top: -10, left: -10, right: -10, bottom: -10, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.2 }} />
-                            <View style={{ position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.3 }} />
-                        </View>
-                    )}
-                    {portalIconStyle === 'premium3d' ? (
-                        <Text style={{ fontSize: sizeConfig.icon + 4, lineHeight: sizeConfig.icon + 8, marginTop: 4 }}>
-                            {SERVICE_EMOJIS[service.id] || '✨'}
-                        </Text>
-                    ) : (
-                        <IconComponent
-                            size={portalIconStyle === 'vedamatch' ? sizeConfig.icon - 2 : sizeConfig.icon}
-                            color={portalIconStyle === 'vedamatch' ? '#FFDF00' : portalIconStyle === 'solid' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
-                            strokeWidth={portalIconStyle === 'solid' ? 2.5 : 2}
-                        />
-                    )}
+                    {iconChrome.shouldRenderVedaGlow && <PortalVedaMatchRings borderRadius={iconRadius} />}
+                    <PortalServiceGlyph
+                        service={service}
+                        iconSize={sizeConfig.icon}
+                        portalIconStyle={portalIconStyle}
+                        portalBackgroundType={portalBackgroundType}
+                        chrome={iconChrome}
+                    />
                     {badge != null && badge > 0 && (
                         <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
                             <Text style={styles.badgeText}>
@@ -289,46 +175,18 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                 </View>
                 {showLabel && (
                     <>
-                        <View style={
-                            portalBackgroundType === 'image'
-                                ? styles.labelPill
-                                : portalBackgroundType === 'gradient'
-                                    ? [styles.labelPillGradient, {
-                                        backgroundColor: isDarkMode
-                                            ? 'rgba(0,0,0,0.35)'
-                                            : 'rgba(255,255,255,0.65)',
-                                    }]
-                                    : undefined
-                        }>
+                        <View style={labelVisuals.pillStyle ? [styles.labelPillBase, labelVisuals.pillStyle] : undefined}>
                             <Text
                                 style={[
                                     styles.label,
                                     {
                                         fontSize: sizeConfig.fontSize,
                                         fontWeight: roleHighlight ? '700' : '600',
-                                        ...(portalBackgroundType === 'image'
-                                            ? {
-                                                color: '#ffffff',
-                                                textShadowColor: 'rgba(0,0,0,0.95)',
-                                                textShadowOffset: { width: 0, height: 2 },
-                                                textShadowRadius: 6,
-                                            }
-                                            : portalBackgroundType === 'gradient'
-                                                ? {
-                                                    color: isDarkMode ? '#ffffff' : vTheme.colors.text,
-                                                    textShadowColor: isDarkMode
-                                                        ? 'rgba(0,0,0,0.6)'
-                                                        : 'rgba(255,255,255,0.8)',
-                                                    textShadowOffset: { width: 0, height: 0.5 },
-                                                    textShadowRadius: 2,
-                                                }
-                                                : {
-                                                    color: vTheme.colors.text,
-                                                    // Clean text, no shadow on solid backgrounds
-                                                }),
+                                        maxWidth: labelMaxWidth,
                                     },
+                                    labelVisuals.textStyle,
                                 ]}
-                                numberOfLines={1}
+                                numberOfLines={labelNumberOfLines}
                             >
                                 {service.label}
                             </Text>
@@ -381,16 +239,8 @@ const styles = StyleSheet.create({
     label: {
         fontWeight: '500',
         textAlign: 'center',
-        maxWidth: 70,
     },
-    labelPill: {
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        borderRadius: 8,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        marginTop: 4,
-    },
-    labelPillGradient: {
+    labelPillBase: {
         borderRadius: 8,
         paddingHorizontal: 8,
         paddingVertical: 3,

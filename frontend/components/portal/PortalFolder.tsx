@@ -16,22 +16,17 @@ import Animated, {
     withTiming,
     cancelAnimation,
 } from 'react-native-reanimated';
-import {
-    Users,
-    MessageCircle,
-    Phone,
-    Sparkles,
-    ShoppingBag,
-    Megaphone,
-    Book,
-    GraduationCap,
-    Newspaper,
-    Bot,
-    Briefcase,
-} from 'lucide-react-native';
 import { PortalFolder as PortalFolderType, DEFAULT_SERVICES } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
 import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
+import {
+    getPortalIconChrome,
+    getPortalLabelVisuals,
+    getPortalSurfaceRadius,
+    PORTAL_ICON_SIZES,
+    PortalServiceGlyph,
+    PortalVedaMatchRings,
+} from './portalIconShared';
 
 interface PortalFolderProps {
     folder: PortalFolderType;
@@ -43,26 +38,6 @@ interface PortalFolderProps {
     onRemove?: () => void;
 }
 
-const FOLDER_SIZES = {
-    small: { container: 52, preview: 12, fontSize: 10 },
-    medium: { container: 64, preview: 14, fontSize: 11 },
-    large: { container: 76, preview: 16, fontSize: 12 },
-};
-
-const IconComponents: Record<string, any> = {
-    Users,
-    MessageCircle,
-    Phone,
-    Sparkles,
-    ShoppingBag,
-    Megaphone,
-    Book,
-    GraduationCap,
-    Newspaper,
-    Bot,
-    Briefcase,
-};
-
 export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     folder,
     isEditMode,
@@ -72,7 +47,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     onLayout,
     onRemove,
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
     const effectivePerformanceMode = useMemo(
@@ -80,10 +55,26 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
         [performanceMode, runtimePerformanceState],
     );
     const allowEditWiggle = !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality');
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
-    const sizeConfig = FOLDER_SIZES[size];
+    const sizeConfig = PORTAL_ICON_SIZES[size];
+    const folderChrome = useMemo(
+        () => getPortalIconChrome({
+            accentColor: folder.color,
+            portalIconStyle,
+            portalBackgroundType,
+            isDarkMode,
+            reducedEffects: isAndroidReducedEffects,
+        }),
+        [folder.color, isAndroidReducedEffects, isDarkMode, portalBackgroundType, portalIconStyle],
+    );
+    const labelVisuals = useMemo(
+        () => getPortalLabelVisuals(portalBackgroundType, isDarkMode, vTheme.colors.text),
+        [isDarkMode, portalBackgroundType, vTheme.colors.text],
+    );
+    const folderRadius = getPortalSurfaceRadius(sizeConfig.container);
+    const previewTileSize = size === 'small' ? 16 : size === 'large' ? 22 : 18;
 
-    // iOS-style wiggle animation
     useEffect(() => {
         if (isEditMode && allowEditWiggle) {
             rotation.value = withRepeat(
@@ -92,7 +83,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                     withTiming(2, { duration: 80 }),
                 ),
                 -1,
-                true
+                true,
             );
             scale.value = withRepeat(
                 withSequence(
@@ -100,7 +91,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                     withTiming(1.02, { duration: 100 }),
                 ),
                 -1,
-                true
+                true,
             );
         } else {
             cancelAnimation(rotation);
@@ -123,28 +114,13 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     }));
 
     const validItems = folder.items.filter((item) =>
-        DEFAULT_SERVICES.some((service) => service.id === item.serviceId)
+        DEFAULT_SERVICES.some((service) => service.id === item.serviceId),
     );
 
-    // Get preview icons (max 4)
-    const previewItems = validItems.slice(0, 4);
-    const previewIcons = previewItems.map(item => {
-        const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
-        return service;
-    }).filter(Boolean);
-
-    const renderPreviewIcon = (iconName: string, color: string, index: number) => {
-        const IconComponent = IconComponents[iconName] || Users;
-        return (
-            <View key={index} style={styles.previewIconWrapper}>
-                <IconComponent
-                    size={sizeConfig.preview}
-                    color={portalBackgroundType === 'image' ? '#ffffff' : color}
-                    strokeWidth={2}
-                />
-            </View>
-        );
-    };
+    const previewServices = validItems
+        .slice(0, 4)
+        .map((item) => DEFAULT_SERVICES.find((service) => service.id === item.serviceId))
+        .filter((service): service is NonNullable<typeof service> => Boolean(service));
 
     return (
         <Animated.View
@@ -166,72 +142,72 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalBackgroundType === 'image'
-                                ? 'rgba(0,0,0,0.5)'
-                                : isDarkMode
-                                    ? `${folder.color}30`
-                                    : `${folder.color}20`,
-                            borderColor: portalBackgroundType === 'image'
-                                ? `${folder.color}80`
-                                : `${folder.color}50`,
-                            borderWidth: portalBackgroundType === 'image' ? 1.5 : 1,
+                            borderRadius: folderRadius,
                         },
+                        folderChrome.containerStyle,
                     ]}
                 >
+                    {folderChrome.shouldRenderVedaGlow && <PortalVedaMatchRings borderRadius={folderRadius} />}
+
                     <View style={styles.previewGrid}>
-                        {previewIcons.map((service, index) =>
-                            service && renderPreviewIcon(service.icon, service.color, index)
-                        )}
-                        {/* Fill empty slots */}
-                        {Array(4 - previewIcons.length).fill(null).map((_, index) => (
+                        {previewServices.map((service) => {
+                            const previewChrome = getPortalIconChrome({
+                                accentColor: service.color,
+                                portalIconStyle,
+                                portalBackgroundType,
+                                isDarkMode,
+                                reducedEffects: isAndroidReducedEffects,
+                            });
+                            const previewRadius = getPortalSurfaceRadius(previewTileSize);
+                            return (
+                                <View
+                                    key={service.id}
+                                    style={[
+                                        styles.previewIconWrapper,
+                                        {
+                                            width: previewTileSize,
+                                            height: previewTileSize,
+                                            borderRadius: previewRadius,
+                                        },
+                                        previewChrome.containerStyle,
+                                    ]}
+                                >
+                                    {previewChrome.shouldRenderVedaGlow && <PortalVedaMatchRings borderRadius={previewRadius} />}
+                                    <PortalServiceGlyph
+                                        service={service}
+                                        iconSize={Math.max(10, previewTileSize - 8)}
+                                        portalIconStyle={portalIconStyle}
+                                        portalBackgroundType={portalBackgroundType}
+                                        chrome={previewChrome}
+                                    />
+                                </View>
+                            );
+                        })}
+                        {Array(4 - previewServices.length).fill(null).map((_, index) => (
                             <View
                                 key={`empty-${index}`}
                                 style={[
                                     styles.previewIconWrapper,
                                     styles.emptySlot,
-                                    { backgroundColor: isDarkMode ? '#333' : '#E0E0E0' }
+                                    {
+                                        width: previewTileSize,
+                                        height: previewTileSize,
+                                        borderRadius: getPortalSurfaceRadius(previewTileSize),
+                                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)',
+                                        borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.08)',
+                                    },
                                 ]}
                             />
                         ))}
                     </View>
                 </View>
-                <View style={
-                    portalBackgroundType === 'image'
-                        ? styles.labelPill
-                        : portalBackgroundType === 'gradient'
-                            ? [styles.labelPillGradient, {
-                                backgroundColor: isDarkMode
-                                    ? 'rgba(0,0,0,0.35)'
-                                    : 'rgba(255,255,255,0.65)',
-                            }]
-                            : undefined
-                }>
+
+                <View style={labelVisuals.pillStyle ? [styles.labelPillBase, labelVisuals.pillStyle] : undefined}>
                     <Text
                         style={[
                             styles.label,
-                            {
-                                fontSize: sizeConfig.fontSize,
-                                fontWeight: '600',
-                                ...(portalBackgroundType === 'image'
-                                    ? {
-                                        color: '#ffffff',
-                                        textShadowColor: 'rgba(0,0,0,0.75)',
-                                        textShadowOffset: { width: 0, height: 1 },
-                                        textShadowRadius: 4,
-                                    }
-                                    : portalBackgroundType === 'gradient'
-                                        ? {
-                                            color: isDarkMode ? '#ffffff' : vTheme.colors.text,
-                                            textShadowColor: isDarkMode
-                                                ? 'rgba(0,0,0,0.6)'
-                                                : 'rgba(255,255,255,0.8)',
-                                            textShadowOffset: { width: 0, height: 0.5 },
-                                            textShadowRadius: 2,
-                                        }
-                                        : {
-                                            color: vTheme.colors.text,
-                                        }),
-                            },
+                            { fontSize: sizeConfig.fontSize, fontWeight: '600' },
+                            labelVisuals.textStyle,
                         ]}
                         numberOfLines={1}
                     >
@@ -239,7 +215,6 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                     </Text>
                 </View>
 
-                {/* Delete button in edit mode */}
                 {isEditMode && (
                     <TouchableOpacity
                         style={styles.deleteButton}
@@ -252,7 +227,6 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                     </TouchableOpacity>
                 )}
 
-                {/* Item count badge */}
                 {validItems.length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: folder.color }]}>
                         <Text style={styles.countText}>{validItems.length}</Text>
@@ -276,13 +250,11 @@ const styles = StyleSheet.create({
         transform: [{ scale: 0.95 }],
     },
     folderContainer: {
-        borderRadius: 16,
-        borderWidth: 1.5,
-        borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 6,
         padding: 6,
+        overflow: 'hidden',
     },
     previewGrid: {
         flexDirection: 'row',
@@ -291,31 +263,23 @@ const styles = StyleSheet.create({
         height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
+        gap: 4,
     },
     previewIconWrapper: {
-        width: '45%',
-        height: '45%',
         justifyContent: 'center',
         alignItems: 'center',
-        margin: 1,
+        overflow: 'hidden',
     },
     emptySlot: {
-        borderRadius: 4,
-        opacity: 0.3,
+        borderWidth: 1,
+        opacity: 0.9,
     },
     label: {
         fontWeight: '500',
         textAlign: 'center',
-        maxWidth: 70,
+        maxWidth: 74,
     },
-    labelPill: {
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        borderRadius: 8,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        marginTop: 1,
-    },
-    labelPillGradient: {
+    labelPillBase: {
         borderRadius: 8,
         paddingHorizontal: 6,
         paddingVertical: 2,

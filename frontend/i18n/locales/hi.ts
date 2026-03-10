@@ -1377,8 +1377,15 @@ export default {
                 "fillRequired": "कृपया ईमेल और पासवर्ड भरें",
                 "loginFailed": "लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
                 "googleFailed": "Google लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
+                "googleConfiguration": "इस Android build में Google लॉगिन फिलहाल उपलब्ध नहीं है। ऐप की OAuth configuration ठीक करनी होगी।",
                 "vkFailed": "VK लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
                 "telegramFailed": "Telegram लॉगिन असफल रहा। बॉट Mini App फिर से खोलें और दोबारा प्रयास करें।"
+            },
+            "progress": {
+                "google": "Google लॉगिन की जांच की जा रही है...",
+                "vk": "VK लॉगिन पूरा किया जा रहा है...",
+                "telegram": "Telegram लॉगिन पूरा किया जा रहा है...",
+                "subtitle": "कृपया ऐप बंद न करें।"
             }
         }
     },
@@ -2145,6 +2152,10 @@ export default {
             "folderNamePlaceholder": "फ़ोल्डर का नाम...",
             "create": "बनाएं",
             "cancel": "रद्द करें"
+        },
+        "folderModal": {
+            "empty": "फ़ोल्डर खाली है",
+            "hint": "सेवाएँ यहाँ खींचें या आइकन को दबाकर फ़ोल्डर से हटाएँ।"
         },
         "appNavigation": {
             "books": "पुस्तकें",

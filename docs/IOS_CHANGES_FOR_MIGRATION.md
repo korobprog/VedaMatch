@@ -13363,6 +13363,120 @@ bottom: WIDGET_DOCK_BOTTOM + WIDGET_DOCK_HEIGHT + WIDGET_DOCK_GAP,
 ```tsx
 bottom: PAGE_INDICATOR_BOTTOM,
 ```
+
+## 2026-03-10 (Portal and WidgetSelection swipe hint moved under bottom dock layer)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - swipe-hint (`page dots` + текст-подсказка) на `Portal` и частично в `WidgetSelection` визуально находился над нижним bar/dock;
+  - подсказка конкурировала с нижней навигацией и воспринималась как более верхний UI-слой.
+- Стало:
+  - swipe-hint на обоих экранах закреплен как нижний overlay под dock/bar;
+  - в `PortalMainScreen` hint рендерится раньше `PortalGrid`, поэтому нижний dock всегда лежит поверх него;
+  - в `WidgetSelectionScreen` hint оставлен под dock и переведен в `pointerEvents="none"`, чтобы не перехватывать касания.
+
+### Короткий сниппет
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<View pointerEvents="none" style={styles.pageIndicatorContainer}>
+  ...
+</View>
+
+<PortalGrid ... />
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+<View pointerEvents="none" style={styles.pageIndicatorContainer}>
+  ...
+</View>
+```
+
+## 2026-03-10 (Default portal layout now starts with thematic folders)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/__tests__/services/portalLayoutService.test.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на новой установке первая страница портала создавалась плоским списком почти всех сервисов;
+  - пользователь сразу видел перегруженную сетку из множества отдельных иконок.
+- Стало:
+  - default layout создает 6 тематических папок: `Общение`, `Практика`, `Контент`, `Сервисы`, `Путешествия`, `Профиль`;
+  - нижний quick access остается прежним: `Контакты`, `Звонки`, `AI-чат`;
+  - структура применяется именно к новому default layout, без автоматической миграции существующих пользовательских раскладок.
+
+### Короткий сниппет
+
+`frontend/types/portal.ts`:
+```tsx
+const DEFAULT_PORTAL_FOLDER_DEFINITIONS = [
+  { id: 'folder-communication', name: 'Общение', serviceIds: ['chat', 'rooms', 'channels', 'connect', 'history'] },
+  { id: 'folder-practice', name: 'Практика', serviceIds: ['path_tracker', 'ekadashi_calendar', 'sadhu_sanga', 'seva', 'education', 'library'] },
+]
+```
+
+```tsx
+const defaultItems: PortalFolder[] = DEFAULT_PORTAL_FOLDER_DEFINITIONS.map(...)
+```
+
+## 2026-03-10 (Legacy flat portal layout migrates into thematic folders on init)
+
+### Измененные файлы
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/__tests__/services/portalLayoutService.test.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - если у пользователя уже был сохранен старый flat portal layout, простой рестарт эмулятора не показывал новые папки;
+  - новая структура папок применялась только на чистом default layout.
+- Стало:
+  - при инициализации портала legacy single-page layout без папок автоматически группируется в тематические папки;
+  - миграция затрагивает только простой старый layout без папок и не перестраивает уже кастомизированные папочные / многосекционные раскладки;
+  - seeker locked-folder logic обновлена для работы с сервисами внутри обычных папок.
+
+### Короткий сниппет
+
+`frontend/context/PortalLayoutContext.tsx`:
+```tsx
+if (hasAnyFolder || !hasOnlyServices) {
+  return { layout: inputLayout, changed: false };
+}
+```
+
+```tsx
+const groupedFolders: PortalFolder[] = DEFAULT_PORTAL_FOLDER_DEFINITIONS
+  .map((folder) => ...)
+  .filter(Boolean);
+```
+
+## 2026-03-10 (PRO mode no longer flattens portal folders)
+
+### Измененные файлы
+- `frontend/components/portal/PortalGrid.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - при `godModeEnabled` / `PRO` portal grid специально разворачивал папки в плоский список сервисов;
+  - из-за этого даже после успешной миграции layout пользователь визуально не видел папки.
+- Стало:
+  - `PortalGrid` рендерит реальные `page.items` и в `PRO`-режиме тоже;
+  - папки остаются видимыми для аккаунтов с `PRO`/god mode и больше не маскируются плоским списком.
+
+### Короткий сниппет
+
+`frontend/components/portal/PortalGrid.tsx`:
+```tsx
+const items = useMemo(() => {
+  return page?.items ?? [];
+}, [page]);
+```
 ## 2026-03-08 (Support ticket form: add back button)
 
 - Измененные файлы:
@@ -13725,4 +13839,324 @@ if (portalBootBackgroundType === 'image' && /^https?:\/\//i.test(portalBootBackg
     setIsPortalBackgroundReady(true);
   });
 }
+```
+
+## 2026-03-10 (Android portal startup fast-path after social login)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на Android после успешного `VK` login `PortalMainScreen` продолжал монтировать тяжелый portal tree под full-screen boot overlay;
+  - пользователь видел уже успешную авторизацию, но main thread мог зависнуть на первом portal mount и система показывала `Application Not Responding`.
+- Стало:
+  - в Android startup-path `PortalMainScreen` сначала рендерит облегченный shell с `ActivityIndicator`;
+  - полноценный `PortalGrid` откладывается через `InteractionManager.runAfterInteractions()` и монтируется только после завершения boot overlay и layout init;
+  - первый portal paint после social login идет в reduced-chrome режиме: без wallpaper/slideshow, blur и тяжелых панелей, пока стартовые interactions не закончатся;
+  - iOS-поведение не менялось, но shared mobile navigation/boot logic теперь безопаснее для Android social-login startup.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const [isPortalGridMounted, setIsPortalGridMounted] = useState(Platform.OS !== 'android');
+```
+
+```tsx
+const interactionTask = InteractionManager.runAfterInteractions(() => {
+  requestAnimationFrame(() => {
+    setIsPortalGridMounted(true);
+  });
+});
+```
+
+```tsx
+if (shouldUsePortalStartupFastPath || shouldUsePortalStartupPlainChrome) {
+  return (
+    <PortalBackgroundLayer portalBackgroundType="color" ...>
+      <View style={styles.portalStartupShell}>
+        <ActivityIndicator size="large" color={vTheme.colors.primary} />
+      </View>
+    </PortalBackgroundLayer>
+  );
+}
+```
+
+## 2026-03-10 (Shared social auth UX + Telegram first login)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `server/internal/handlers/auth_handler.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после возврата из `VK` / `Telegram` пользователь видел только долгий переход без явного статуса;
+  - `Google` на Android при `DEVELOPER_ERROR` показывал общий fallback alert;
+  - `TelegramMiniAppLogin` возвращал `TELEGRAM_LINK_REQUIRED`, если `telegram_user_id` еще не был привязан к существующему пользователю.
+- Стало:
+  - `LoginScreen` показывает shared progress overlay для `Google` / `VK` / `Telegram`, пока social auth flow еще завершается;
+  - `Google` `DEVELOPER_ERROR` теперь маппится в отдельное user-facing сообщение про OAuth configuration mismatch;
+  - backend `TelegramMiniAppLogin` на первом успешном входе через Telegram создает нового пользователя автоматически и возвращает стандартный auth payload, как `Google` / `VK`.
+  - `2026-03-10` device verify: `Google` login проходит на Android release-сборке `1.1.26 (28)`;
+  - `2026-03-10` production verify: backend Telegram first-login fix задеплоен на `Vedamatch -> Server` (commit `ad7c6b6e4b473f9d2561032012e079c54c8e1f54`).
+
+### Короткие сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+{socialProgressText && !vkAuthUrl && (
+  <View pointerEvents="none" style={styles.socialLoadingOverlay}>
+    <ActivityIndicator color={ModernVedicTheme.colors.primary} size="large" />
+    <Text style={styles.socialLoadingTitle}>{socialProgressText.title}</Text>
+  </View>
+)}
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if errors.Is(err, gorm.ErrRecordNotFound) {
+    newUser := models.User{
+        Email: buildTelegramFallbackEmail(telegramUser.ID),
+        TelegramUserID: &telegramUserID,
+        Language: normalizeTelegramLocale(telegramUser.LanguageCode),
+    }
+    if err := createAuthUser(&newUser); err != nil { ... }
+    user = newUser
+}
+```
+
+## 2026-03-10 (LKM Telegram launch params bootstrap hardening)
+
+### Измененные файлы
+- `lkm/src/components/lkm-cabinet-client.tsx`
+- `lkm/package.json`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `lkm` Mini App определял Telegram-контекст почти только через `window.Telegram.WebApp.initData`;
+  - если клиент Telegram не успевал отдать `initData` в глобальный объект, экран падал в обычный email-login вместо auto login;
+  - production build `lkm` шел через дефолтный `next build`, который локально падал на Turbopack panic.
+- Стало:
+  - bootstrap `lkm` читает `tgWebAppData` и `tgWebAppStartParam` из URL hash/search, что соответствует официальной модели launch params Telegram Mini Apps;
+  - launch params сразу сохраняются в `sessionStorage`, чтобы не теряться на redirect/reload внутри Mini App;
+  - production build `lkm` закреплен на `next build --webpack`, потому что этот путь стабильно собирается и локально, и в Dokploy.
+
+### Короткие сниппеты кода
+
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```tsx
+const locationLaunchParams = extractTelegramLaunchParamsFromLocation(window.location);
+const telegramInitDataValue = (
+  telegramWebApp?.initData?.trim()
+  || locationLaunchParams.initData
+  || savedLaunchParams.initData
+);
+```
+
+```tsx
+persistTelegramLaunchParams({
+  initData: telegramInitDataValue,
+  startParam: telegramStartParam,
+  user: telegramMiniAppUser || null,
+});
+```
+
+`lkm/package.json`:
+```json
+"build": "next build --webpack"
+```
+
+## 2026-03-10 (Shared Telegram auth settings hardening against masked secret overwrite)
+
+### Измененные файлы
+- `server/internal/handlers/admin_handler.go`
+- `server/internal/handlers/admin_handler_test.go`
+- `server/internal/services/telegram_auth_service.go`
+- `server/internal/services/telegram_auth_service_test.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - admin backend маскировал чувствительные `system_settings` как `********`, но при сохранении принимал эти masked placeholders как реальные значения и писал их обратно в БД;
+  - из-за этого production `TELEGRAM_BOT_TOKEN` / `SUPPORT_TELEGRAM_BOT_TOKEN` могли быть уничтожены маской;
+  - Telegram auth service брал первый непустой token без попытки отличить masked placeholder от реального bot token.
+- Стало:
+  - `UpdateSystemSettings` игнорирует masked значения для чувствительных ключей и не затирает реальные секреты звездочками;
+  - `ResolveAuthBotToken()` игнорирует masked Telegram token values и ищет первый usable candidate среди `TELEGRAM_AUTH_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SUPPORT_TELEGRAM_BOT_TOKEN`;
+  - shared mobile Telegram auth больше не должен ломаться после обычного открытия/сохранения admin settings.
+
+### Короткие сниппеты кода
+
+`server/internal/handlers/admin_handler.go`:
+```go
+if isMaskedSensitiveSystemSettingValue(k, v) {
+    continue
+}
+setting.Value = v
+```
+
+`server/internal/services/telegram_auth_service.go`:
+```go
+for _, candidate := range []string{
+    s.getSetting("TELEGRAM_AUTH_BOT_TOKEN"),
+    s.getSetting("TELEGRAM_BOT_TOKEN"),
+    s.getSetting("SUPPORT_TELEGRAM_BOT_TOKEN"),
+} {
+    if token := normalizeTelegramBotToken(candidate); token != "" {
+        return token
+    }
+}
+```
+
+## 2026-03-10 (Telegram Mini App graceful fallback + env token fallback)
+
+### Измененные файлы
+- `lkm/src/components/lkm-cabinet-client.tsx`
+- `lkm/src/lib/cabinet-i18n.ts`
+- `server/internal/services/telegram_auth_service.go`
+- `server/internal/services/telegram_auth_service_test.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - если Telegram Mini App login падал из-за отсутствующего bot token или из-за timeout, `lkm` уводил пользователя в misleading `Telegram not linked` flow;
+  - `Continue manually` тоже принудительно включал linking-state вместо обычной формы входа;
+  - `ResolveAuthBotToken()` умел игнорировать masked значения, но не пробовал env fallback после испорченного stored setting.
+- Стало:
+  - `lkm` различает `TELEGRAM_AUTH_BOT_TOKEN_MISSING` / `TELEGRAM_AUTH_DISABLED` и показывает честное сообщение о временной недоступности Telegram, оставляя обычные варианты входа;
+  - `Continue manually` и watchdog timeout теперь возвращают пользователя в normal login fallback, без ложной привязки Telegram;
+  - backend `ResolveAuthBotToken()` перебирает кандидаты по каждому ключу из settings и затем из env, чтобы переживать masked/corrupted stored values, если валидный token есть в environment.
+
+### Короткие сниппеты кода
+
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```tsx
+if (rawMessage.includes('TELEGRAM_AUTH_BOT_TOKEN_MISSING') || rawMessage.includes('TELEGRAM_AUTH_DISABLED')) {
+  setTelegramLinkRequired(false);
+  setError(copy.errorTelegramUnavailable);
+}
+```
+
+```tsx
+onClick={() => {
+  setIsTelegramAuthLoading(false);
+  setTelegramLinkRequired(false);
+  setError(copy.errorTelegramFallbackLogin);
+}}
+```
+
+`server/internal/services/telegram_auth_service.go`:
+```go
+for _, key := range []string{
+    "TELEGRAM_AUTH_BOT_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "SUPPORT_TELEGRAM_BOT_TOKEN",
+} {
+    for _, candidate := range s.telegramSettingCandidates(key) {
+        if token := normalizeTelegramBotToken(candidate); token != "" {
+            return token
+        }
+    }
+}
+```
+
+## 2026-03-10 (Portal folders: shared icon chrome + portal-style modal sheet)
+
+### Измененные файлы
+- `frontend/components/portal/portalIconShared.tsx`
+- `frontend/components/portal/PortalIcon.tsx`
+- `frontend/components/portal/PortalFolder.tsx`
+- `frontend/components/portal/FolderModal.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `frontend/__tests__/components/portal/portalIconShared.test.ts`
+- `frontend/__tests__/components/portal/FolderModal.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - закрытая папка рисовала preview иконок своей отдельной логикой и визуально расходилась с обычными portal icons;
+  - смена `portalIconStyle` и background mode не полностью применялась к preview внутри папки и к содержимому открытой папки;
+  - открытая папка показывала иконки без подписей сервисов;
+  - folder modal был более узким и менее согласованным с portal-shell.
+- Стало:
+  - theme-aware рендер иконок вынесен в shared слой `portalIconShared`, который используют и `PortalIcon`, и `PortalFolder`;
+  - закрытая папка, preview-иконки, label pill и veda/glass chrome синхронно реагируют на `portalIconStyle`, `portalBackgroundType` и dark/light режим;
+  - открытая папка осталась modal, но стала portal-style bottom sheet с адаптивной 3-column grid и локализованными названиями сервисов под иконками;
+  - reduced Android path использует более легкий visual fallback без обязательного тяжелого blur.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/PortalIcon.tsx`:
+```tsx
+const iconChrome = useMemo(
+  () => getPortalIconChrome({
+    accentColor: service.color,
+    portalIconStyle,
+    portalBackgroundType,
+    isDarkMode,
+    reducedEffects: isAndroidReducedEffects,
+    roleHighlight,
+  }),
+  [isAndroidReducedEffects, isDarkMode, portalBackgroundType, portalIconStyle, roleHighlight, service.color],
+);
+```
+
+`frontend/components/portal/PortalFolder.tsx`:
+```tsx
+<PortalServiceGlyph
+  service={service}
+  iconSize={Math.max(10, previewTileSize - 8)}
+  portalIconStyle={portalIconStyle}
+  portalBackgroundType={portalBackgroundType}
+  chrome={previewChrome}
+/>
+```
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+<PortalIcon
+  service={service}
+  isEditMode={false}
+  onPress={() => onItemPress(item)}
+  onLongPress={() => onRemoveItem(item.id)}
+  size="medium"
+  showLabel
+  labelNumberOfLines={2}
+  labelMaxWidth={92}
+/>
+```
+
+## 2026-03-10 (Portal folder modal: dynamic sheet height to avoid clipped bottom row)
+
+### Измененные файлы
+- `frontend/components/portal/FolderModal.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - для папок с 4-5 сервисами нижний ряд иконок в modal-sheet мог визуально обрезаться нижней границей sheet на iPhone, потому что scroll-area и минимальная высота контейнера не подстраивались под реальное число рядов.
+- Стало:
+  - `FolderModal` теперь рассчитывает целевую минимальную высоту sheet от количества рядов (`3` колонки), увеличивает доступную высоту до `86%` экрана и добавляет больший нижний padding для scroll content/grid, чтобы нижний ряд полностью помещался или корректно скроллился без визуального обрезания.
+
+### Короткие сниппеты кода
+
+`frontend/components/portal/FolderModal.tsx`:
+```tsx
+const maxSheetHeight = Math.round(windowHeight * 0.86);
+const gridRowCount = Math.max(1, Math.ceil(displayItems.length / 3));
+const estimatedContentHeight = displayItems.length > 0 ? 212 + gridRowCount * 154 : 360;
+```
+
+```tsx
+style={[
+  styles.container,
+  {
+    backgroundColor: modalSurfaceColor,
+    borderColor: modalBorderColor,
+    maxHeight: maxSheetHeight,
+    minHeight: Math.max(320, targetSheetHeight),
+  },
+]}
 ```

@@ -8,6 +8,7 @@ import {
     PortalWidget,
     createDefaultLayout,
     DEFAULT_SERVICES,
+    DEFAULT_PORTAL_FOLDER_DEFINITIONS,
     FOLDER_COLORS,
     isServiceAllowedForRole,
 } from '../types/portal';
@@ -48,10 +49,95 @@ const normalizeRu = (value: string) =>
         .replace(/ё/g, 'е')
         .trim();
 
+const isLockedFolderCandidate = (folder: PortalFolder) => {
+    const n = normalizeRu(folder.name);
+    return folder.id === SEEKER_LOCKED_FOLDER_ID || (n.includes('откро') && n.includes('проф'));
+};
+
 const cloneWidgetCanvas = (layout: PortalLayout) => ({
     widgets: [...(layout.widgetCanvas?.widgets || [])],
     lastModified: layout.widgetCanvas?.lastModified || 0,
 });
+
+export const migrateLegacyFlatLayoutToDefaultFolders = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    if (inputLayout.pages.length !== 1) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const page = inputLayout.pages[0];
+    if (!page || page.items.length === 0) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const hasAnyFolder = page.items.some((item) => item.type === 'folder');
+    const hasOnlyServices = page.items.every((item) => item.type === 'service');
+    if (hasAnyFolder || !hasOnlyServices) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const serviceItems = page.items.filter((item): item is PortalItem => item.type === 'service');
+    const serviceIds = serviceItems.map((item) => item.serviceId);
+    const hasLegacyFlatServices = serviceIds.some((serviceId) =>
+        DEFAULT_PORTAL_FOLDER_DEFINITIONS.some((folder) => folder.serviceIds.some((id) => id === serviceId)),
+    );
+    if (!hasLegacyFlatServices) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const serviceMap = new Map(serviceItems.map((item) => [item.serviceId, item]));
+    const groupedFolders = DEFAULT_PORTAL_FOLDER_DEFINITIONS.reduce<PortalFolder[]>((acc, folder, folderIndex) => {
+            const folderItems = folder.serviceIds
+                .map((serviceId) => serviceMap.get(serviceId))
+                .filter((item): item is PortalItem => Boolean(item))
+                .map((item, itemIndex) => ({ ...item, position: itemIndex }));
+
+            if (folderItems.length === 0) {
+                return acc;
+            }
+
+            acc.push({
+                id: folder.id,
+                name: folder.name,
+                type: 'folder' as const,
+                color: folder.color,
+                items: folderItems,
+                position: folderIndex,
+            });
+            return acc;
+        }, []);
+
+    const groupedServiceIds = new Set(groupedFolders.flatMap((folder) => folder.items.map((item) => item.serviceId)));
+    const remainingItems = serviceItems
+        .filter((item) => !groupedServiceIds.has(item.serviceId))
+        .map((item, index) => ({ ...item, position: groupedFolders.length + index }));
+
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((currentPage, index) => {
+            if (index !== 0) {
+                return {
+                    ...currentPage,
+                    items: currentPage.items.map((item) => item.type === 'folder'
+                        ? { ...item, items: [...item.items] }
+                        : { ...item }),
+                    widgets: [...currentPage.widgets],
+                };
+            }
+
+            return {
+                ...currentPage,
+                items: [...groupedFolders, ...remainingItems],
+                widgets: [...currentPage.widgets],
+            };
+        }),
+        quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
+        lastModified: Date.now(),
+        syncedWithServer: false,
+    };
+
+    return { layout, changed: true };
+};
 
 export type AddWidgetResult = { ok: true } | { ok: false; reason: 'duplicate' };
 
@@ -168,10 +254,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     const firstPage = layout.pages[0];
     const lockedCandidates = firstPage.items.filter((item) => {
         if (item.type !== 'folder') return false;
-        const n = normalizeRu(item.name);
-        const isById = item.id === SEEKER_LOCKED_FOLDER_ID;
-        const isByName = n.includes('откро') && n.includes('проф');
-        return isById || isByName;
+        return isLockedFolderCandidate(item);
     }) as PortalFolder[];
 
     let lockedFolder: PortalFolder;
@@ -197,14 +280,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     }
 
     const lockedByServiceId = new Map<string, PortalItem>();
-    const existingMainServiceIds = new Set<string>();
-    layout.pages.forEach((page) => {
-        page.items.forEach((item) => {
-            if (item.type === 'service') {
-                existingMainServiceIds.add(item.serviceId);
-            }
-        });
-    });
+    const existingVisibleServiceIds = new Set<string>();
 
     const allowedFromLocked: PortalItem[] = [];
     const mergedLockedItems = lockedCandidates.flatMap((folder) => folder.items);
@@ -220,13 +296,43 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     layout.pages.forEach((page) => {
         const keptItems: (PortalItem | PortalFolder)[] = [];
         page.items.forEach((item) => {
-            if (item.type !== 'service') {
-                keptItems.push(item);
+            if (item.type === 'folder') {
+                if (isLockedFolderCandidate(item)) {
+                    keptItems.push(item);
+                    return;
+                }
+
+                const visibleFolderItems: PortalItem[] = [];
+                item.items.forEach((folderItem) => {
+                    if (SEEKER_ALWAYS_ACCESSIBLE.has(folderItem.serviceId)) {
+                        visibleFolderItems.push({
+                            ...folderItem,
+                            position: visibleFolderItems.length,
+                        });
+                        existingVisibleServiceIds.add(folderItem.serviceId);
+                        return;
+                    }
+
+                    if (!lockedByServiceId.has(folderItem.serviceId)) {
+                        lockedByServiceId.set(folderItem.serviceId, { ...folderItem, position: 0 });
+                    }
+                    changed = true;
+                });
+
+                if (visibleFolderItems.length > 0) {
+                    keptItems.push({
+                        ...item,
+                        items: visibleFolderItems,
+                    });
+                } else {
+                    changed = true;
+                }
                 return;
             }
 
             if (SEEKER_ALWAYS_ACCESSIBLE.has(item.serviceId)) {
                 keptItems.push(item);
+                existingVisibleServiceIds.add(item.serviceId);
                 return;
             }
 
@@ -269,7 +375,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
 
     if (allowedFromLocked.length > 0) {
         allowedFromLocked.forEach((item) => {
-            if (existingMainServiceIds.has(item.serviceId)) {
+            if (existingVisibleServiceIds.has(item.serviceId)) {
                 return;
             }
             firstPage.items.push({
@@ -278,7 +384,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
                 type: 'service',
                 position: firstPage.items.length,
             });
-            existingMainServiceIds.add(item.serviceId);
+            existingVisibleServiceIds.add(item.serviceId);
             changed = true;
         });
     }
@@ -299,9 +405,7 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     firstPage.items = firstPage.items.filter((item) => {
         if (item.type !== 'folder') return true;
         if (item.id === lockedFolder.id) return true;
-        const n = normalizeRu(item.name);
-        const isLegacyLocked = n.includes('откро') && n.includes('проф');
-        if (isLegacyLocked) {
+        if (isLockedFolderCandidate(item)) {
             changed = true;
             return false;
         }
@@ -460,11 +564,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 setServiceVisibilityMap(visibilityMap);
                 const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
                 const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
-                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
+                const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
+                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(migratedLayout);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
                 const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
-                if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+                if (widgetCanvasChanged || migratedChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                     await saveLocalLayout(filteredLayout);
                 }
                 setLayout(filteredLayout);
@@ -674,11 +779,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             setServiceVisibilityMap(visibilityMap);
             const savedLayout = await initializeLayout(user?.role || 'user', undefined, visibilityMap);
             const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
-            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(layoutWithWidgetCanvas);
+            const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
+            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(migratedLayout);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
             const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
-            if (widgetCanvasChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+            if (widgetCanvasChanged || migratedChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                 await saveLocalLayout(filteredLayout);
             }
             setLayout(filteredLayout);

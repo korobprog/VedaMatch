@@ -194,21 +194,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => {
-        const pageItems = page?.items ?? [];
-        if (!godModeEnabled) return pageItems;
-        // In PRO mode, flatten folders: replace each folder with its items
-        const flattened: (PortalItem | PortalFolderType)[] = [];
-        for (const item of pageItems) {
-            if (item.type === 'folder') {
-                for (const child of (item as PortalFolderType).items) {
-                    flattened.push(child);
-                }
-            } else {
-                flattened.push(item);
-            }
-        }
-        return flattened;
-    }, [page, godModeEnabled]);
+        return page?.items ?? [];
+    }, [page]);
 
     // Group items into rows for cylinder effect
     const itemRows = useMemo(() => {

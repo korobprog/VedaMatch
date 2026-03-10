@@ -33,8 +33,13 @@ const translations: Record<string, string> = {
   'common.error': 'Ошибка',
   'common.loading': 'Загрузка...',
   'auth.loginScreen.errors.googleFailed': 'Не удалось выполнить вход через Google.',
+  'auth.loginScreen.errors.googleConfiguration': 'Вход через Google временно недоступен в этой Android-сборке. Требуется корректная OAuth-настройка приложения.',
   'auth.loginScreen.errors.vkFailed': 'Не удалось выполнить вход через VK.',
   'auth.loginScreen.errors.telegramFailed': 'Не удалось выполнить вход через Telegram. Откройте Mini App бота еще раз и повторите попытку.',
+  'auth.loginScreen.progress.google': 'Проверяем вход через Google...',
+  'auth.loginScreen.progress.vk': 'Завершаем вход через VK...',
+  'auth.loginScreen.progress.telegram': 'Завершаем вход через Telegram...',
+  'auth.loginScreen.progress.subtitle': 'Пожалуйста, не закрывайте приложение.',
 };
 
 jest.mock('react-native-linear-gradient', () => 'LinearGradient');
@@ -178,6 +183,20 @@ describe('LoginScreen localization and social auth', () => {
       expect(mockLogin).toHaveBeenCalledWith(
         { ID: 7, email: 'g@example.com' },
         { accessToken: 'token' },
+      );
+    });
+  });
+
+  it('shows a specific alert when Google returns DEVELOPER_ERROR', async () => {
+    mockGoogleSignIn.mockRejectedValue(new Error('DEVELOPER_ERROR: code 10'));
+
+    const screen = render(<LoginScreen navigation={navigation} route={route} />);
+    fireEvent.press(screen.getByText('Google'));
+
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Ошибка',
+        'Вход через Google временно недоступен в этой Android-сборке. Требуется корректная OAuth-настройка приложения.',
       );
     });
   });

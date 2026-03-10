@@ -1,5 +1,5 @@
 // Folder Modal - opens when folder is tapped, shows contents
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,9 @@ import {
     Pressable,
     KeyboardAvoidingView,
     Platform,
+    ScrollView,
     StyleSheet as RNStyleSheet,
+    useWindowDimensions,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import Animated, {
@@ -46,75 +48,89 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     onItemPress,
     onRemoveItem,
 }) => {
-    const { i18n } = useTranslation();
+    const { t } = useTranslation();
     const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
+    const { height: windowHeight } = useWindowDimensions();
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(folder.name);
+    const [showColorPicker, setShowColorPicker] = useState(false);
     const isPhotoBg = portalBackgroundType === 'image';
     const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
     const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowModalBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
-    const [showColorPicker, setShowColorPicker] = useState(false);
-    const copy =
-        i18n.language === 'ru'
-            ? {
-                  empty: 'Папка пуста',
-                  hint: 'Перетащите сервисы сюда',
-              }
-            : i18n.language === 'hi'
-              ? {
-                    empty: 'फ़ोल्डर खाली है',
-                    hint: 'सेवाएँ यहाँ खींचें',
-                }
-              : {
-                    empty: 'Folder is empty',
-                    hint: 'Drag services here',
-                };
-
-    const scale = useSharedValue(0.8);
+    const translateY = useSharedValue(48);
     const opacity = useSharedValue(0);
 
     React.useEffect(() => {
         if (visible) {
-            scale.value = withSpring(1, { damping: 15 });
-            opacity.value = withTiming(1, { duration: 200 });
+            translateY.value = withSpring(0, { damping: 18, stiffness: 170 });
+            opacity.value = withTiming(1, { duration: 220 });
             setEditName(folder.name);
         } else {
-            scale.value = withTiming(0.8, { duration: 150 });
-            opacity.value = withTiming(0, { duration: 150 });
+            translateY.value = withTiming(48, { duration: 160 });
+            opacity.value = withTiming(0, { duration: 160 });
+            setIsEditing(false);
+            setShowColorPicker(false);
         }
 
         return () => {
-            cancelAnimation(scale);
+            cancelAnimation(translateY);
             cancelAnimation(opacity);
         };
-    }, [visible, folder.name]);
+    }, [folder.name, opacity, translateY, visible]);
 
     const animatedContainerStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
+        transform: [{ translateY: translateY.value }],
         opacity: opacity.value,
     }));
 
     const handleSaveName = () => {
-        if (editName.trim()) {
-            onRename(editName.trim());
+        const trimmed = editName.trim();
+        if (trimmed) {
+            onRename(trimmed);
         }
         setIsEditing(false);
     };
 
-    const getServiceForItem = (item: PortalItem) => {
-        return DEFAULT_SERVICES.find(s => s.id === item.serviceId);
-    };
+    const displayItems = useMemo(
+        () => folder.items.reduce<Array<{ item: PortalItem; service: typeof DEFAULT_SERVICES[number] }>>((acc, item) => {
+            const service = DEFAULT_SERVICES.find((entry) => entry.id === item.serviceId);
+            if (!service || acc.some((entry) => entry.item.serviceId === item.serviceId)) {
+                return acc;
+            }
+            acc.push({
+                item,
+                service: {
+                    ...service,
+                    label: t(`portal.serviceLabels.${service.id}`, { defaultValue: service.label }),
+                },
+            });
+            return acc;
+        }, []),
+        [folder.items, t],
+    );
 
-    const displayItems = folder.items.reduce<PortalItem[]>((acc, item) => {
-        const isValid = !!getServiceForItem(item);
-        const duplicate = acc.some((x) => x.serviceId === item.serviceId);
-        if (isValid && !duplicate) {
-            acc.push(item);
-        }
-        return acc;
-    }, []);
+    const modalSurfaceColor = isPhotoBg
+        ? 'rgba(15,23,42,0.92)'
+        : isDarkMode
+            ? 'rgba(28,28,30,0.96)'
+            : 'rgba(250,247,240,0.97)';
+    const modalBorderColor = isPhotoBg
+        ? 'rgba(255,255,255,0.18)'
+        : isDarkMode
+            ? 'rgba(255,255,255,0.08)'
+            : 'rgba(255,153,51,0.18)';
+    const secondaryTextColor = isPhotoBg ? 'rgba(255,255,255,0.72)' : vTheme.colors.textSecondary;
+    const emptyHintColor = isPhotoBg ? 'rgba(255,255,255,0.65)' : vTheme.colors.textSecondary;
+    const maxSheetHeight = Math.round(windowHeight * 0.40);
+    const gridRowCount = Math.max(1, Math.ceil(displayItems.length / 3));
+    const estimatedContentHeight = displayItems.length > 0 ? 212 + gridRowCount * 154 : 360;
+    const colorPickerHeight = showColorPicker ? 52 : 0;
+    const targetSheetHeight = Math.min(
+        maxSheetHeight,
+        estimatedContentHeight + colorPickerHeight,
+    );
 
     return (
         <Modal
@@ -128,77 +144,104 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={styles.keyboardView}
                 >
-                    <Animated.View style={[animatedContainerStyle]}>
+                    <Animated.View style={[styles.sheetWrapper, animatedContainerStyle]}>
                         <Pressable
                             style={[
                                 styles.container,
                                 {
-                                    backgroundColor: isPhotoBg
-                                        ? '#1A1A1A'
-                                        : (isDarkMode ? '#1E1E1E' : '#F5F5F5'),
-                                    borderWidth: 0,
+                                    backgroundColor: modalSurfaceColor,
+                                    borderColor: modalBorderColor,
+                                    maxHeight: maxSheetHeight,
+                                    minHeight: Math.max(320, targetSheetHeight),
                                 },
                             ]}
-                            onPress={(e) => e.stopPropagation()}
+                            onPress={(event) => event.stopPropagation()}
                         >
                             {(isPhotoBg || isDarkMode) && allowModalBlur && (
                                 <BlurView
-                                    style={[RNStyleSheet.absoluteFill, { borderRadius: 32 }]}
-                                    blurType={isDarkMode ? "dark" : "light"}
-                                    blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 15)}
-                                    reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                                    style={[RNStyleSheet.absoluteFill, { borderRadius: 30 }]}
+                                    blurType={isDarkMode ? 'dark' : 'light'}
+                                    blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 16)}
+                                    reducedTransparencyFallbackColor={modalSurfaceColor}
                                 />
                             )}
-                            {/* Header */}
-                            <View style={styles.header}>
-                                {isEditing ? (
-                                    <View style={styles.editContainer}>
-                                        <TextInput
-                                            style={[
-                                                styles.nameInput,
-                                                {
-                                                    color: vTheme.colors.text,
-                                                    borderColor: folder.color,
-                                                },
-                                            ]}
-                                            value={editName}
-                                            onChangeText={setEditName}
-                                            autoFocus
-                                            selectTextOnFocus
-                                            onSubmitEditing={handleSaveName}
-                                        />
-                                        <TouchableOpacity
-                                            onPress={handleSaveName}
-                                            style={[styles.saveButton, { backgroundColor: folder.color }]}
-                                        >
-                                            <Check size={14} color="#FFF" />
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity
-                                        onPress={() => setIsEditing(true)}
-                                        onLongPress={() => setShowColorPicker(!showColorPicker)}
-                                        style={styles.nameContainer}
-                                    >
-                                        <Text style={[styles.folderName, { color: isPhotoBg ? '#ffffff' : vTheme.colors.text }]}>
-                                            {folder.name}
+
+                            <View style={styles.handle} />
+
+                            <View style={styles.headerRow}>
+                                <View style={styles.titleBlock}>
+                                    <View
+                                        style={[
+                                            styles.folderAccent,
+                                            {
+                                                backgroundColor: `${folder.color}20`,
+                                                borderColor: `${folder.color}55`,
+                                            },
+                                        ]}
+                                    />
+                                    <View style={styles.titleTextBlock}>
+                                        {isEditing ? (
+                                            <View style={styles.editContainer}>
+                                                <TextInput
+                                                    style={[
+                                                        styles.nameInput,
+                                                        {
+                                                            color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text,
+                                                            borderColor: folder.color,
+                                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)',
+                                                        },
+                                                    ]}
+                                                    value={editName}
+                                                    onChangeText={setEditName}
+                                                    autoFocus
+                                                    selectTextOnFocus
+                                                    onSubmitEditing={handleSaveName}
+                                                />
+                                                <TouchableOpacity
+                                                    onPress={handleSaveName}
+                                                    style={[styles.saveButton, { backgroundColor: folder.color }]}
+                                                >
+                                                    <Check size={14} color="#FFF" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity onPress={() => setIsEditing(true)} activeOpacity={0.82}>
+                                                <Text style={[styles.folderName, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
+                                                    {folder.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        <Text style={[styles.folderMeta, { color: secondaryTextColor }]}>
+                                            {t('portal.grid.folder')} · {displayItems.length}
                                         </Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.headerActions}>
+                                    <TouchableOpacity
+                                        onPress={() => setShowColorPicker((prev) => !prev)}
+                                        style={[
+                                            styles.actionButton,
+                                            { backgroundColor: `${folder.color}20`, borderColor: `${folder.color}55` },
+                                        ]}
+                                    >
+                                        <Palette size={16} color={folder.color} />
                                     </TouchableOpacity>
-                                )}
+                                    <TouchableOpacity
+                                        onPress={onClose}
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.06)',
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.08)',
+                                            },
+                                        ]}
+                                    >
+                                        <X size={18} color={isPhotoBg ? '#FFFFFF' : vTheme.colors.text} />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
-                            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                {allowModalBlur && (
-                                    <BlurView
-                                        style={RNStyleSheet.absoluteFill}
-                                        blurType={isDarkMode ? "light" : "dark"}
-                                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 10)}
-                                    />
-                                )}
-                                <X size={18} color="#ffffff" />
-                            </TouchableOpacity>
-
-                            {/* Color picker */}
                             {showColorPicker && (
                                 <View style={styles.colorPicker}>
                                     {FOLDER_COLORS.map((color) => (
@@ -218,36 +261,39 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                 </View>
                             )}
 
-                            {/* Items grid */}
-                            <View style={styles.itemsGrid}>
+                            <ScrollView
+                                style={styles.scrollArea}
+                                contentContainerStyle={styles.scrollContent}
+                                showsVerticalScrollIndicator={false}
+                            >
                                 {displayItems.length > 0 ? (
-                                    displayItems.map((item) => {
-                                        const service = getServiceForItem(item);
-                                        if (!service) return null;
-                                        return (
+                                    <View style={styles.itemsGrid}>
+                                        {displayItems.map(({ item, service }) => (
                                             <View style={styles.iconWrapper} key={item.id}>
                                                 <PortalIcon
                                                     service={service}
                                                     isEditMode={false}
                                                     onPress={() => onItemPress(item)}
                                                     onLongPress={() => onRemoveItem(item.id)}
-                                                    size="small"
-                                                    showLabel={false}
+                                                    size="medium"
+                                                    showLabel
+                                                    labelNumberOfLines={2}
+                                                    labelMaxWidth={92}
                                                 />
                                             </View>
-                                        );
-                                    })
+                                        ))}
+                                    </View>
                                 ) : (
                                     <View style={styles.emptyState}>
-                                        <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
-                                            {copy.empty}
+                                        <Text style={[styles.emptyText, { color: isPhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
+                                            {t('portal.folderModal.empty')}
                                         </Text>
-                                        <Text style={[styles.emptyHint, { color: isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary }]}>
-                                            {copy.hint}
+                                        <Text style={[styles.emptyHint, { color: emptyHintColor }]}>
+                                            {t('portal.folderModal.hint')}
                                         </Text>
                                     </View>
                                 )}
-                            </View>
+                            </ScrollView>
                         </Pressable>
                     </Animated.View>
                 </KeyboardAvoidingView>
@@ -259,102 +305,115 @@ export const FolderModal: React.FC<FolderModalProps> = ({
 const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: 'rgba(10,12,18,0.42)',
+        justifyContent: 'flex-end',
     },
     keyboardView: {
         width: '100%',
+        justifyContent: 'flex-end',
+    },
+    sheetWrapper: {
+        width: '100%',
         alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingBottom: Platform.OS === 'ios' ? 18 : 12,
     },
     container: {
-        width: 320,
-        minHeight: 200,
-        borderRadius: 32,
-        padding: 20,
-        backgroundColor: '#1E1E1E',
+        width: '100%',
+        maxWidth: 520,
+        minHeight: 260,
+        borderRadius: 30,
+        borderWidth: 1,
+        paddingHorizontal: 18,
+        paddingTop: 12,
+        paddingBottom: 18,
+        overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.35,
-        shadowRadius: 24,
-        elevation: 20,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 18,
     },
-    header: {
+    handle: {
+        alignSelf: 'center',
+        width: 42,
+        height: 5,
+        borderRadius: 999,
+        backgroundColor: 'rgba(148,163,184,0.45)',
+        marginBottom: 14,
+    },
+    headerRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
-        marginBottom: 16,
+        gap: 12,
+        marginBottom: 14,
     },
-    colorButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    nameContainer: {
+    titleBlock: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 4,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 12,
+    },
+    folderAccent: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        borderWidth: 1,
+        marginTop: 5,
+    },
+    titleTextBlock: {
+        flex: 1,
     },
     folderName: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: '800',
-        textAlign: 'center',
-        letterSpacing: -0.6,
-        textShadowColor: 'rgba(0,0,0,0.1)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
+        letterSpacing: -0.7,
+    },
+    folderMeta: {
+        marginTop: 4,
+        fontSize: 13,
+        fontWeight: '600',
     },
     editContainer: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        marginHorizontal: 8,
+        gap: 8,
     },
     nameInput: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 17,
         borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        marginRight: 8,
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     },
     saveButton: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    closeButton: {
-        position: 'absolute',
-        top: -12,
-        right: -12,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    actionButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(80,80,80,1)',
-        borderWidth: 1.2,
-        borderColor: 'rgba(255,255,255,0.45)',
-        overflow: 'hidden',
-        zIndex: 1000,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 12,
     },
     colorPicker: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'center',
-        marginBottom: 12,
-        gap: 8,
+        gap: 10,
+        paddingTop: 2,
+        paddingBottom: 14,
     },
     colorOption: {
         width: 28,
@@ -365,29 +424,38 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: '#FFF',
     },
+    scrollArea: {
+        flex: 1,
+        minHeight: 0,
+    },
+    scrollContent: {
+        paddingBottom: 28,
+    },
     itemsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        paddingVertical: 8,
+        marginHorizontal: -4,
+        paddingBottom: 12,
+    },
+    iconWrapper: {
+        width: '33.333%',
+        paddingHorizontal: 4,
+        marginBottom: 18,
+        alignItems: 'center',
     },
     emptyState: {
-        flex: 1,
+        minHeight: 180,
         justifyContent: 'center',
         alignItems: 'center',
         paddingVertical: 40,
     },
     emptyText: {
-        fontSize: 16,
-        fontWeight: '500',
+        fontSize: 17,
+        fontWeight: '700',
     },
     emptyHint: {
-        fontSize: 12,
-        marginTop: 4,
-    },
-    iconWrapper: {
-        width: '20%',
-        alignItems: 'center',
-        marginBottom: 4,
+        fontSize: 13,
+        marginTop: 6,
+        textAlign: 'center',
     },
 });

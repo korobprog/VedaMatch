@@ -1381,8 +1381,15 @@ export default {
                 fillRequired: 'Заполните email и пароль',
                 loginFailed: 'Не удалось войти. Попробуйте еще раз.',
                 googleFailed: 'Не удалось выполнить вход через Google.',
+                googleConfiguration: 'Вход через Google временно недоступен в этой Android-сборке. Требуется корректная OAuth-настройка приложения.',
                 vkFailed: 'Не удалось выполнить вход через VK.',
                 telegramFailed: 'Не удалось выполнить вход через Telegram. Откройте Mini App бота еще раз и повторите попытку.',
+            },
+            progress: {
+                google: 'Проверяем вход через Google...',
+                vk: 'Завершаем вход через VK...',
+                telegram: 'Завершаем вход через Telegram...',
+                subtitle: 'Пожалуйста, не закрывайте приложение.',
             },
         },
     },
@@ -2150,6 +2157,10 @@ export default {
             folderNamePlaceholder: 'Название папки...',
             create: 'Создать',
             cancel: 'Отмена',
+        },
+        folderModal: {
+            empty: 'Папка пуста',
+            hint: 'Перетащите сервисы сюда или удерживайте иконку, чтобы убрать сервис из папки.',
         },
         appNavigation: {
             books: 'Книги',

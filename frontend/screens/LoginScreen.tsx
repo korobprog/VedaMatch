@@ -78,6 +78,20 @@ const extractDetailedVKError = (rawMessage: string): string => {
     return '';
 };
 
+const isGoogleDeveloperConfigError = (rawMessage: string): boolean => {
+    const normalized = rawMessage.trim().toUpperCase();
+    return normalized.includes('DEVELOPER_ERROR')
+        || normalized.includes('CODE: 10')
+        || normalized.includes('DEVELOPER CONSOLE IS NOT SET UP CORRECTLY');
+};
+
+const isGoogleCancelledError = (rawMessage: string): boolean => {
+    const normalized = rawMessage.trim().toUpperCase();
+    return normalized.includes('GOOGLE_SIGNIN_CANCELLED')
+        || normalized.includes('SIGN_IN_CANCELLED')
+        || normalized === 'CANCELLED';
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
@@ -109,6 +123,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     const { login } = useUser();
     const activeLanguage = normalizeLanguageCode(i18n.language);
+    const socialProgressText = useMemo(() => {
+        if (!socialLoadingProvider) {
+            return null;
+        }
+
+        return {
+            title: t(`auth.loginScreen.progress.${socialLoadingProvider}`),
+            subtitle: t('auth.loginScreen.progress.subtitle'),
+        };
+    }, [socialLoadingProvider, t]);
     const loginCopy = useMemo(() => {
         if (activeLanguage === 'hi') {
             return {
@@ -314,9 +338,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             await login(response.user as Parameters<typeof login>[0], response.authPayload);
             console.log('[GoogleAuth] handleGoogleSignIn:login:done');
         } catch (_error: any) {
-            console.warn('[GoogleAuth] handleGoogleSignIn:error', _error?.message || _error);
+            const rawMessage = String(_error?.message || '');
+            console.warn('[GoogleAuth] handleGoogleSignIn:error', rawMessage || _error);
+            if (isGoogleCancelledError(rawMessage)) {
+                return;
+            }
             const backendMessage = _error?.response?.data?.error;
-            const fallbackMessage = t('auth.loginScreen.errors.googleFailed');
+            const fallbackMessage = isGoogleDeveloperConfigError(rawMessage)
+                ? t('auth.loginScreen.errors.googleConfiguration')
+                : t('auth.loginScreen.errors.googleFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
         } finally {
             console.log('[GoogleAuth] handleGoogleSignIn:finally');
@@ -386,25 +416,31 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [t, trackSocialClick]);
 
-    const closeVKAuthModal = useCallback(() => {
+    const resetVKAuthSession = useCallback((clearLoading: boolean) => {
         setVKAuthState('');
         setVKAuthUrl('');
-        setSocialLoadingProvider(null);
+        if (clearLoading) {
+            setSocialLoadingProvider(null);
+        }
     }, []);
+
+    const closeVKAuthModal = useCallback(() => {
+        resetVKAuthSession(true);
+    }, [resetVKAuthSession]);
 
     const handleVKAuthComplete = useCallback(async (callbackUrl: string) => {
         if (!vkAuthState) {
-            closeVKAuthModal();
+            resetVKAuthSession(true);
             return;
         }
 
         try {
             setSocialLoadingProvider('vk');
             const response = await finalizeVKSignIn(callbackUrl, vkAuthState);
-            closeVKAuthModal();
+            resetVKAuthSession(false);
             await login(response.user as Parameters<typeof login>[0], response.authPayload);
         } catch (_error: any) {
-            closeVKAuthModal();
+            resetVKAuthSession(false);
             const backendMessage = _error?.response?.data?.error;
             const rawMessage = String(_error?.message || '');
             const detailedVKError = extractDetailedVKError(rawMessage);
@@ -413,8 +449,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             }
             const fallbackMessage = detailedVKError || backendMessage || t('auth.loginScreen.errors.vkFailed');
             Alert.alert(t('common.error'), fallbackMessage);
+        } finally {
+            setSocialLoadingProvider(null);
         }
-    }, [closeVKAuthModal, login, t, vkAuthState]);
+    }, [login, resetVKAuthSession, t, vkAuthState]);
 
     const handleTelegramAuthComplete = useCallback(async (callbackUrl: string) => {
         if (!telegramAuthState) {
@@ -942,6 +980,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             onClose={closeVKAuthModal}
             onComplete={handleVKAuthComplete}
         />
+        {socialProgressText && !vkAuthUrl && (
+            <View pointerEvents="none" style={styles.socialLoadingOverlay}>
+                <View style={styles.socialLoadingCard}>
+                    <ActivityIndicator color={ModernVedicTheme.colors.primary} size="large" />
+                    <Text style={styles.socialLoadingTitle}>{socialProgressText.title}</Text>
+                    <Text style={styles.socialLoadingSubtitle}>{socialProgressText.subtitle}</Text>
+                </View>
+            </View>
+        )}
         </ScreenScaffold>
     );
 };
@@ -1191,6 +1238,40 @@ const styles = StyleSheet.create({
     supportLinkBold: {
         color: ModernVedicTheme.colors.primary,
         fontWeight: '700',
+    },
+    socialLoadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(248, 243, 234, 0.82)',
+        paddingHorizontal: 24,
+        zIndex: 120,
+    },
+    socialLoadingCard: {
+        width: '100%',
+        maxWidth: 320,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        paddingHorizontal: 24,
+        paddingVertical: 26,
+        borderRadius: 28,
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.border,
+        backgroundColor: 'rgba(255, 253, 248, 0.96)',
+        ...ModernVedicTheme.shadows.medium,
+    },
+    socialLoadingTitle: {
+        color: ModernVedicTheme.colors.text,
+        fontSize: 17,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    socialLoadingSubtitle: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 13,
+        lineHeight: 18,
+        textAlign: 'center',
     },
     eyeButton: {
         padding: 4,

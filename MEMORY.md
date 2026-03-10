@@ -110,6 +110,18 @@
 - `WidgetSelection` и `WidgetCanvasGrid` должны использовать i18n для toolbar/empty-state/hint copy; не оставлять hardcoded `Done` и английские подсказки в UI.
 - Duplicate-alert при добавлении уже существующего виджета тоже должен идти через `portal.widgets.*`, а не через hardcoded English text.
 - В `WidgetSelection` индикатор текущего экрана (`page dots` + hint) должен быть ниже нижнего dock-бара, а не между canvas и dock: это согласованное расположение для portal/widgets visual hierarchy.
+- И на `Portal`, и на `WidgetSelection` swipe-hint с `page dots` должен рендериться нижним слоем под быстрым нижним bar/dock, а не поверх него.
+
+## Portal Layout
+- Для новых установок дефолтный портал должен создаваться не россыпью сервисов, а с 6 предсозданными тематическими папками: `Общение`, `Практика`, `Контент`, `Сервисы`, `Путешествия`, `Профиль`.
+- Нижний quick access по умолчанию не меняется: `contacts`, `calls`, `services`.
+- Legacy single-page flat layout без папок должен мягко мигрировать в эти 6 тематических папок при следующей инициализации портала; уже существующие пользовательские папки и многосекционные кастомные layout автоматически не перестраиваются.
+- `PRO` / `godModeEnabled` не должен визуально разворачивать папки обратно в плоский список: иначе пользователь видит старую россыпь иконок даже после успешной папочной миграции.
+- Закрытая папка и открытая папка должны использовать тот же theme-aware icon layer, что и обычные portal icons: смена `portalIconStyle`, `portalBackgroundType` и dark/light режима должна одинаково влиять на preview внутри папки, count badge и иконки в modal.
+- Папка в портале остается modal-sheet, а не отдельным экраном: это дешевле по navigation/state overhead для текущего объема (`5-7` сервисов) и сохраняет ощущение единого portal-shell.
+- Внутри открытой папки сервисы должны показываться с локализованными подписями через `portal.serviceLabels.*`; внутри папки нельзя держать отдельный fallback-каталог label'ов.
+- Для Android reduced-effects path modal папки должен снижать blur/тяжелые эффекты, а не дублировать дорогой glass-path.
+- Folder modal должен рассчитывать минимальную высоту от количества рядов сервисов и держать увеличенный нижний padding у scroll content; иначе на iPhone/высоких dock layouts нижний ряд иконок визуально режется краем sheet.
 
 ## Portal Service Visibility
 - Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.
@@ -437,15 +449,53 @@
 - Глобальный переключатель языка добавлен в правый верхний угол login (`RU | EN | हिंदी`) и вызывает `i18n.changeLanguage(...)` без перезапуска экрана.
 - Соц-кнопки login:
   - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
+    - Android `DEVELOPER_ERROR / code 10` на этом потоке не является UI-багом: по официальной документации `@react-native-google-signin/google-signin` это всегда серверный OAuth mismatch между приложением, package/signing и Google Console.
+    - Локальный Android build уже вшивает актуальный `default_web_client_id`, поэтому если ошибка повторяется на устройстве, дальше нужно сверять реальные OAuth clients / SHA в Google Console или тестировать release-подпись, а не искать проблему только в JS.
+    - Локальный `./gradlew signingReport` подтверждает, что проект реально подписывается теми SHA-1, которые уже зашиты в `google-services.json`:
+      - debug: `8D:F1:2B:BF:FA:1D:84:2E:40:77:29:08:91:6D:DE:98:DD:AF:77:3C`
+      - release: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`
+    - Актуальный release APK собирается как `1.1.26 (28)` в `frontend/android/app/build/outputs/apk/release/app-release.apk`; это правильный артефакт для device-проверки `Google` на release-подписи.
+    - Device verify от `2026-03-10`: на release-сборке `1.1.26 (28)` Google login на Android проходит успешно; значит production release OAuth-контур исправен, а проблема была в debug/dev path, а не в release-пользовательском приложении.
+    - Если `DEVELOPER_ERROR` снова появится только на debug-сборке, искать нужно в debug OAuth client / local test setup, а не в release login screen.
   - `VK` — реальный вход через platform-specific browser/native OAuth flow:
     - Android: `createVKAuthSession` открывает внешний authorize URL с `response_type=code` + PKCE и native callback `vk54474353://vk.ru/blank.html`;
     - iOS: `createVKAuthSession` открывает внешний authorize URL с `response_type=code` и universal callback `https://api.vedamatch.ru/auth/vk/callback`;
     - оба пути завершаются через `finalizeVKSignIn` -> `POST /auth/vk/login`.
+    - `LoginScreen` должен фильтровать stale callback из `Linking.getInitialURL()` по ожидаемому `state`, иначе повторная попытка после прошлого VK-flow может съесть старый deep link и сломать свежую авторизацию.
+    - После возврата из VK пользователю нужен явный progress overlay поверх login-экрана, пока `finalizeVKSignIn()` и `login()` еще не закончились; одного spinner в кнопке недостаточно.
+    - На Android после успешного VK login нельзя монтировать тяжелый portal tree под boot overlay: `PortalMainScreen` должен сначала показать облегченный startup shell и отложить `PortalGrid` через `InteractionManager`, иначе возможен main-thread freeze/ANR уже после успешной авторизации.
+    - Даже после deferred mount первый portal paint после social login лучше держать в reduced-chrome режиме: без wallpaper/slideshow, blur, `NotificationPanel`, `GodModeFiltersPanel` и page-indicator до тех пор, пока стартовые interactions не завершатся.
   - `Telegram` — реальный mobile auth через `@vedamatch_bot` и Telegram Mini App bridge:
     - app вызывает `POST /auth/telegram/mobile/start`, получает `t.me/...?...startapp=vm_auth_<state>` и открывает Telegram;
     - `lkm` Mini App завершает `miniapp/login` или `miniapp/link` и передает `mobileAuthState` прямо в этот запрос; backend в том же handler сразу помечает mobile bridge state как `ready`, без отдельного обязательного `POST /auth/telegram/mobile/complete` из WebView;
     - backend возвращает `https://api.vedamatch.ru/auth/telegram/callback?state=...` как основной callback URL; если app link не перехватился, fallback-page на сервере пытается открыть `vedamatch://auth/telegram/callback?...` и показывает кнопку `Открыть VedaMatch`;
     - mobile client принимает и `https://api.vedamatch.ru/auth/telegram/callback?...`, и `vedamatch://auth/telegram/callback?...`, после чего делает `POST /auth/telegram/mobile/exchange`.
+    - `LoginScreen` должен так же фильтровать stale Telegram callback по ожидаемому `state`, иначе повторный вход может обработать старый `initialURL`.
+    - `TelegramMiniAppLogin` больше не должен требовать заранее привязанный аккаунт: если `telegram_user_id` не найден, backend должен создать нового пользователя (`telegram_<id>@oauth.vedamatch.local`, nickname assignment, language from Telegram profile) и вернуть обычный auth payload, как это уже делают `Google` и `VK`.
+    - Для UX после возврата из Telegram нужен тот же progress overlay, что и для VK, пока mobile exchange и `login()` еще выполняются.
+    - Если телефон видит `manual link required`, первым делом проверять production backend `api.vedamatch.ru`, а не mobile APK: это server-side поведение `TelegramMiniAppLogin`.
+    - Production fix от `2026-03-10`: server commit `ad7c6b6e4b473f9d2561032012e079c54c8e1f54` отправлен в `main`, Dokploy `Vedamatch -> Server` пересобрал backend и swarm поднял новый task `vedamatch-server-dnkxc8.1` (`Running about a minute ago` на момент проверки).
+    - Локальный backend-фикс проверяется тестом `go test ./internal/handlers -run 'TestAuthTelegramMiniAppLogin_CreatesUserWhenNotLinked|TestAuthTelegramMiniAppLink'` из директории `server/`; этот блок уже проходит локально.
+    - Production web fix от `2026-03-10`: `lkm` commit `23a77306e3d1a302a09c216f6f31530c0d066c12` читает `tgWebAppData` и `tgWebAppStartParam` из `window.location.hash/search`, а не только из `window.Telegram.WebApp`, и сохраняет launch params в `sessionStorage` сразу при первом bootstrap. Это нужно, потому что по официальным Telegram Mini Apps docs launch params могут приходить именно через URL hash и теряться при внутренних reload/redirect.
+    - `lkm` production container `vedamatch-lkm-oye85b.1` был обновлен после этого фикса; swarm поднял новый task `wakou61sb1uejf1l1qh2fufed` (`Running 43 seconds ago` на момент проверки).
+    - Для `lkm` build script принудительно переведен на `next build --webpack`: локальный Turbopack на `Next.js 16.1.1-canary.5` падал panic `creating new process`, тогда как webpack build проходит чисто.
+    - Production auth outage root cause от `2026-03-10`: Telegram auto-login ломался из-за corrupted `system_settings`, а не из-за APK.
+      - `GetSystemSettings` маскирует чувствительные ключи как `********`, а `UpdateSystemSettings` раньше сохранял эти masked placeholders обратно в БД.
+      - В production оба ключа `TELEGRAM_BOT_TOKEN` и `SUPPORT_TELEGRAM_BOT_TOKEN` оказались реально перезаписаны звездочками; `TELEGRAM_AUTH_BOT_TOKEN` при этом пустой.
+      - Из-за этого `ResolveAuthBotToken()` получал masked garbage вместо реального BotFather token, а `POST /api/auth/telegram/miniapp/login` стабильно падал на server-side verify.
+      - Backend fix:
+        - `server/internal/handlers/admin_handler.go` больше не сохраняет masked sensitive values обратно в `system_settings`;
+        - `server/internal/services/telegram_auth_service.go` игнорирует masked Telegram token values и ищет usable candidate по каждому ключу (`TELEGRAM_AUTH_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SUPPORT_TELEGRAM_BOT_TOKEN`) сначала в settings, затем в env fallback.
+      - UX fix:
+        - если Telegram Mini App auth падает из-за `TELEGRAM_AUTH_BOT_TOKEN_MISSING` / `TELEGRAM_AUTH_DISABLED` или watchdog timeout, `lkm` не должен переводить пользователя в ложный `link required` flow;
+        - в этом случае Mini App должен показывать честное сообщение о временной недоступности Telegram и оставлять обычные способы входа (`Google`, `VK`, `email/password`);
+        - кнопка `Continue manually` должна вести в обычную форму входа, а не включать forced Telegram linking screen.
+      - Operational follow-up:
+        - чтобы Telegram mobile auth снова заработал в production, нужно заново ввести валидный BotFather token как минимум в `TELEGRAM_AUTH_BOT_TOKEN` для `@vedamatch_bot`; текущие сохраненные masked значения сами не восстановятся.
+        - `2026-03-10`: production server env уже умеет принимать `TELEGRAM_AUTH_BOT_TOKEN` как быстрый runtime-override без записи в БД.
+        - `2026-03-10`: один вручную переданный token был записан в Dokploy env и подхватился контейнером, но проверка `getMe` вернула `HTTP 404 Not Found`, то есть сам token оказался невалидным/устаревшим для Telegram Bot API.
+        - После этой проверки невалидный token был удален из production env, чтобы сервер вернулся в безопасный fallback-режим (`temporarily unavailable`), а не ломал Telegram login как `invalid initData`.
+        - Для проверки следующего токена надежнее использовать прямой `getMe` к Telegram API и/или безопасный hash-сравнитель значения в container env; внутренняя проверка через container `wget` дала ложный `404`, хотя прямой запрос `curl` к Telegram API вернул `ok=true`.
 - Telegram mobile auth зависит от того, что у `@vedamatch_bot` настроен основной Mini App, который открывает `lkm.vedamatch.ru/.com`; стартовый параметр `vm_auth_<state>` используется как bridge key.
 - Для Telegram mobile callback infrastructure:
   - iOS AASA на `api.vedamatch.ru` должен включать путь `/auth/telegram/callback`;
