@@ -147,12 +147,27 @@ func TestTelegramAuthService_ResolveAuthBotToken_FallbackToSupportToken(t *testi
 	now := time.Unix(1700000000, 0).UTC()
 	settings := map[string]string{
 		"TELEGRAM_AUTH_ENABLED":      "true",
-		"SUPPORT_TELEGRAM_BOT_TOKEN": "support-token",
+		"SUPPORT_TELEGRAM_BOT_TOKEN": "123456:valid-support-token-value_1234567890",
 	}
 	svc := newTestTelegramAuthService(settings, now, nil)
 
-	if token := svc.ResolveAuthBotToken(); token != "support-token" {
-		t.Fatalf("ResolveAuthBotToken=%q want=support-token", token)
+	if token := svc.ResolveAuthBotToken(); token != "123456:valid-support-token-value_1234567890" {
+		t.Fatalf("ResolveAuthBotToken=%q want valid support token", token)
+	}
+}
+
+func TestTelegramAuthService_ResolveAuthBotToken_IgnoresMaskedAndMalformedValues(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	settings := map[string]string{
+		"TELEGRAM_AUTH_ENABLED":      "true",
+		"TELEGRAM_AUTH_BOT_TOKEN":    "****************",
+		"TELEGRAM_BOT_TOKEN":         "777777:valid-public-token_abcdefghijklmnopqrstuvwxyz",
+		"SUPPORT_TELEGRAM_BOT_TOKEN": "invalid-support-token-without-colon",
+	}
+	svc := newTestTelegramAuthService(settings, now, nil)
+
+	if token := svc.ResolveAuthBotToken(); token != "777777:valid-public-token_abcdefghijklmnopqrstuvwxyz" {
+		t.Fatalf("ResolveAuthBotToken=%q want TELEGRAM_BOT_TOKEN fallback", token)
 	}
 }
 

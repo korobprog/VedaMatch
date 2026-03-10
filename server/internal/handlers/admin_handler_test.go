@@ -91,6 +91,18 @@ func TestIsSensitiveSystemSettingKey(t *testing.T) {
 	}
 }
 
+func TestIsMaskedSensitiveSystemSettingValue(t *testing.T) {
+	if !isMaskedSensitiveSystemSettingValue("TELEGRAM_AUTH_BOT_TOKEN", "************") {
+		t.Fatalf("expected masked Telegram auth token to be detected")
+	}
+	if isMaskedSensitiveSystemSettingValue("PUBLIC_SITE_NAME", "************") {
+		t.Fatalf("expected public setting mask-like value to be treated as normal value")
+	}
+	if isMaskedSensitiveSystemSettingValue("TELEGRAM_AUTH_BOT_TOKEN", "123456:real-token-value") {
+		t.Fatalf("expected real Telegram auth token to pass through")
+	}
+}
+
 func TestParsePositiveAdminParamInt(t *testing.T) {
 	app := fiber.New()
 	app.Get("/:userId", func(c *fiber.Ctx) error {

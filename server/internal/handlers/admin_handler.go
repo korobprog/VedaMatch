@@ -72,6 +72,17 @@ func isSensitiveSystemSettingKey(key string) bool {
 	return false
 }
 
+func isMaskedSensitiveSystemSettingValue(key string, value string) bool {
+	if !isSensitiveSystemSettingKey(key) {
+		return false
+	}
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	return strings.Trim(trimmed, "*") == ""
+}
+
 func isYouTubeSystemSettingKey(key string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(key))
 	return strings.HasPrefix(normalized, "YOUTUBE_")
@@ -544,6 +555,9 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 		var setting models.SystemSetting
 		if err := database.DB.Where("key = ?", k).FirstOrCreate(&setting, models.SystemSetting{Key: k}).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to upsert setting: " + k})
+		}
+		if isMaskedSensitiveSystemSettingValue(k, v) {
+			continue
 		}
 		setting.Value = v
 		if err := database.DB.Save(&setting).Error; err != nil {

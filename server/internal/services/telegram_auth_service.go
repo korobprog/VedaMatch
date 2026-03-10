@@ -85,11 +85,17 @@ func NewTelegramAuthServiceWithDeps(
 }
 
 func (s *TelegramAuthService) ResolveAuthBotToken() string {
-	token := strings.TrimSpace(s.getSetting("TELEGRAM_AUTH_BOT_TOKEN"))
-	if token != "" {
-		return token
+	candidates := []string{
+		s.getSetting("TELEGRAM_AUTH_BOT_TOKEN"),
+		s.getSetting("TELEGRAM_BOT_TOKEN"),
+		s.getSetting("SUPPORT_TELEGRAM_BOT_TOKEN"),
 	}
-	return strings.TrimSpace(s.getSetting("SUPPORT_TELEGRAM_BOT_TOKEN"))
+	for _, candidate := range candidates {
+		if token := normalizeTelegramBotToken(candidate); token != "" {
+			return token
+		}
+	}
+	return ""
 }
 
 func (s *TelegramAuthService) IsCISLanguage(code string) bool {
@@ -297,6 +303,17 @@ func parseBoolSetting(raw string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func normalizeTelegramBotToken(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+	if strings.Trim(value, "*") == "" {
+		return ""
+	}
+	return value
 }
 
 func buildTelegramDataCheckString(values url.Values) string {
