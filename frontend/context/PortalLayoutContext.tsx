@@ -536,6 +536,11 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     return { layout, changed };
 };
 
+const hasPortalBypass = (godModeEnabled?: boolean, currentPlan?: string | null): boolean => {
+    const normalizedPlan = String(currentPlan || '').trim().toLowerCase();
+    return Boolean(godModeEnabled) || normalizedPlan === 'admin' || normalizedPlan.includes('pro');
+};
+
 const ensureVideoCirclesShortcut = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
     const hasShortcutInQuickAccess = inputLayout.quickAccess.some((item) => item.serviceId === 'video_circles');
     const hasShortcutInPages = inputLayout.pages.some((page) =>
@@ -653,7 +658,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
 
         const init = async () => {
             try {
-                const role = user?.role || 'user';
+                const normalizedRole = typeof user?.role === 'string' ? user.role.trim() : '';
+                const role = normalizedRole.length > 0 ? normalizedRole : undefined;
+                const accessOptions = {
+                    godModeEnabled: user?.godModeEnabled,
+                    currentPlan: user?.currentPlan,
+                };
                 const blueprint = await fetchPortalBlueprint(role);
                 setRoleDescriptor(blueprint);
 
@@ -668,12 +678,14 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
 
                 const visibilityMap = await fetchPortalServiceVisibility();
                 setServiceVisibilityMap(visibilityMap);
-                const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
+                const savedLayout = await initializeLayout(role, blueprint, visibilityMap, accessOptions);
                 const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
                 const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
                 const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
                 const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
-                const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
+                const { layout: adjustedLayout, changed } = hasPortalBypass(user?.godModeEnabled, user?.currentPlan)
+                    ? { layout: sanitizedLayout, changed: false }
+                    : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
                 const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
                 if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
@@ -688,7 +700,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             }
         };
         init();
-    }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.role, user?.isProfileComplete]);
+    }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.currentPlan, user?.role, user?.isProfileComplete]);
 
     // Save layout whenever it changes
     const updateLayout = useCallback((newLayout: PortalLayout) => {
@@ -884,12 +896,20 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         try {
             const visibilityMap = await fetchPortalServiceVisibility();
             setServiceVisibilityMap(visibilityMap);
-            const savedLayout = await initializeLayout(user?.role || 'user', undefined, visibilityMap);
+            const normalizedRole = typeof user?.role === 'string' ? user.role.trim() : '';
+            const role = normalizedRole.length > 0 ? normalizedRole : undefined;
+            const accessOptions = {
+                godModeEnabled: user?.godModeEnabled,
+                currentPlan: user?.currentPlan,
+            };
+            const savedLayout = await initializeLayout(role, undefined, visibilityMap, accessOptions);
             const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
             const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
             const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
             const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
-            const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
+            const { layout: adjustedLayout, changed } = hasPortalBypass(user?.godModeEnabled, user?.currentPlan)
+                ? { layout: sanitizedLayout, changed: false }
+                : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
             const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
             if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
@@ -899,7 +919,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         } finally {
             setIsLoading(false);
         }
-    }, [user?.isProfileComplete, user?.role]);
+    }, [user?.currentPlan, user?.godModeEnabled, user?.isProfileComplete, user?.role]);
 
     const isServiceVisible = useCallback((serviceId: string) => (
         isPortalServiceVisibleForUser(serviceId, serviceVisibilityMap)

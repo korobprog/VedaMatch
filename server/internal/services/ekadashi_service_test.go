@@ -1,14 +1,34 @@
 package services
 
 import (
+	"rag-agent-server/internal/models"
 	"testing"
 	"time"
 )
 
-func TestEkadashiServiceGetCalendarDevoteeOnly(t *testing.T) {
+func TestEkadashiServiceGetCalendarRestrictedToApprovedRoles(t *testing.T) {
 	service := &EkadashiService{}
 	if _, err := service.GetCalendar(0, "user", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia"); err == nil {
-		t.Fatalf("expected forbidden error for non-devotee")
+		t.Fatalf("expected forbidden error for non-approved role")
+	}
+}
+
+func TestEkadashiServiceGetCalendarAllowsAdminRole(t *testing.T) {
+	service := &EkadashiService{}
+	if _, err := service.GetCalendar(0, "admin", "2026-03", "iskcon", "Asia/Vladivostok", "Vladivostok", "Russia"); err != nil {
+		t.Fatalf("unexpected error for admin role: %v", err)
+	}
+}
+
+func TestHasEkadashiCalendarAccessAllowsProBypass(t *testing.T) {
+	if !hasEkadashiCalendarAccess(models.User{GodModeEnabled: true}, models.RoleUser) {
+		t.Fatalf("god mode user should have ekadashi calendar access")
+	}
+	if !hasEkadashiCalendarAccess(models.User{CurrentPlan: "pro_monthly"}, models.RoleUser) {
+		t.Fatalf("pro plan user should have ekadashi calendar access")
+	}
+	if hasEkadashiCalendarAccess(models.User{CurrentPlan: "trial"}, models.RoleUser) {
+		t.Fatalf("trial user should not have ekadashi calendar access")
 	}
 }
 

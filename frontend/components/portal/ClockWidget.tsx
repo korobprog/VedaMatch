@@ -43,6 +43,7 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
     const allowColonAnimation = !isAndroidReducedEffects;
+    const isLightCanvasTheme = !isPhotoBg && !isDarkMode && !isVedaMatch;
 
     // Update time every second
     useEffect(() => {
@@ -113,13 +114,20 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
                         ? '#121212'
                         : isPhotoBg
                             ? 'transparent'
-                            : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                            : (isDarkMode ? 'rgba(255,255,255,0.1)' : '#FFFFFF'),
                     borderColor: isVedaMatch
                         ? '#D4AF37'
                         : isPhotoBg
                             ? 'rgba(255,255,255,0.3)'
-                            : (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                            : (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.14)'),
                     borderWidth: isVedaMatch ? 1 : 1,
+                    ...(isLightCanvasTheme ? {
+                        shadowColor: '#0F172A',
+                        shadowOpacity: 0.08,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 4 },
+                        elevation: 3,
+                    } : {}),
                     ...(isVedaMatch ? {
                         shadowColor: '#D4AF37',
                         shadowOpacity: 0.5,

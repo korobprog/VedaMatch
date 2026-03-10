@@ -7,8 +7,11 @@ import { useTranslation } from 'react-i18next';
 
 export const FeedMixWidget: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { vTheme } = useSettings();
+  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
   const { i18n } = useTranslation();
+  const isPhotoBg = portalBackgroundType === 'image';
+  const isVedaMatch = portalIconStyle === 'vedamatch';
+  const isLightCanvasTheme = !isPhotoBg && !isDarkMode && !isVedaMatch;
   const copy = i18n.language?.startsWith('ru')
     ? { title: 'Лента', empty: 'Пусто' }
     : i18n.language?.startsWith('hi')
@@ -25,7 +28,7 @@ export const FeedMixWidget: React.FC = () => {
         if (mounted) {
           setItems(response.items || []);
         }
-      } catch (error) {
+      } catch {
         if (mounted) {
           setItems([]);
         }
@@ -43,7 +46,25 @@ export const FeedMixWidget: React.FC = () => {
 
   return (
     <TouchableOpacity
-      style={[styles.container, { backgroundColor: vTheme.colors.surface }]}
+      style={[styles.container, {
+        backgroundColor: isVedaMatch
+          ? '#121212'
+          : isPhotoBg
+            ? 'transparent'
+            : (isDarkMode ? vTheme.colors.surface : '#FFFFFF'),
+        borderColor: isVedaMatch
+          ? '#D4AF37'
+          : isPhotoBg
+            ? 'rgba(255,255,255,0.3)'
+            : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(15,23,42,0.14)'),
+        ...(isLightCanvasTheme ? {
+          shadowColor: '#0F172A',
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 3,
+        } : {}),
+      }]}
       activeOpacity={0.9}
       onPress={() => navigation.navigate('ChannelsHub')}
     >
@@ -81,7 +102,6 @@ const styles = StyleSheet.create({
     padding: 10,
     margin: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
   },
   title: {
     fontSize: 13,

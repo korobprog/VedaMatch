@@ -1,7 +1,7 @@
 // Portal Layout Service - Hybrid storage (AsyncStorage + Server)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../lib/apiClient';
-import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, PortalServiceVisibilityMap, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS, isServiceAllowedForRole } from '../types/portal';
+import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, PortalServiceAccessOptions, PortalServiceVisibilityMap, createDefaultLayout, DEFAULT_SERVICES, DEFAULT_QUICK_ACCESS_SERVICE_IDS, isServiceAllowedForRole } from '../types/portal';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
@@ -129,8 +129,11 @@ const hasServiceInLayout = (layout: PortalLayout, serviceId: string): boolean =>
     }))
 );
 
-const filterLayoutByRole = (layout: PortalLayout, role?: string): PortalLayout => {
-    const normalizedRole = (role || 'user').toLowerCase();
+const filterLayoutByRole = (layout: PortalLayout, role?: string, accessOptions?: PortalServiceAccessOptions): PortalLayout => {
+    const normalizedRole = (role || '').trim().toLowerCase();
+    if (!normalizedRole && !accessOptions?.godModeEnabled && !accessOptions?.currentPlan) {
+        return layout;
+    }
     return {
         ...layout,
         pages: layout.pages.map((page) => ({
@@ -140,17 +143,17 @@ const filterLayoutByRole = (layout: PortalLayout, role?: string): PortalLayout =
                     if (item.type === 'service') return item;
                     return {
                         ...item,
-                        items: item.items.filter((folderItem) => isServiceAllowedForRole(folderItem.serviceId, normalizedRole)),
+                        items: item.items.filter((folderItem) => isServiceAllowedForRole(folderItem.serviceId, normalizedRole, accessOptions)),
                     };
                 })
                 .filter((item) => {
-                    if (item.type === 'service') return isServiceAllowedForRole(item.serviceId, normalizedRole);
+                    if (item.type === 'service') return isServiceAllowedForRole(item.serviceId, normalizedRole, accessOptions);
                     return item.items.length > 0;
                 })
                 .map((item, index) => ({ ...item, position: index })),
         })),
         quickAccess: layout.quickAccess
-            .filter((item) => isServiceAllowedForRole(item.serviceId, normalizedRole))
+            .filter((item) => isServiceAllowedForRole(item.serviceId, normalizedRole, accessOptions))
             .map((item, index) => ({ ...item, position: index })),
     };
 };
@@ -294,7 +297,7 @@ export const fetchServerLayout = async (): Promise<PortalLayout | null> => {
 };
 
 // Ensure all default services are present in the layout
-const ensureDefaultServices = (layout: PortalLayout, role?: string): PortalLayout => {
+const ensureDefaultServices = (layout: PortalLayout, role?: string, accessOptions?: PortalServiceAccessOptions): PortalLayout => {
     const existingServiceIds = new Set<string>();
 
     layout.pages.forEach(page => {
@@ -323,7 +326,7 @@ const ensureDefaultServices = (layout: PortalLayout, role?: string): PortalLayou
         if (service.id === 'services_catalog') {
             return;
         }
-        if (!isServiceAllowedForRole(service.id, role)) {
+        if (!isServiceAllowedForRole(service.id, role, accessOptions)) {
             return;
         }
         if (!existingServiceIds.has(service.id)) {
@@ -435,6 +438,7 @@ export const initializeLayout = async (
     role?: string,
     blueprint?: PortalBlueprint,
     visibilityMap: PortalServiceVisibilityMap = {},
+    accessOptions?: PortalServiceAccessOptions,
 ): Promise<PortalLayout> => {
     let localLayout = await loadLocalLayout();
 
@@ -445,11 +449,11 @@ export const initializeLayout = async (
             // Server has newer data
             if (serverLayout.lastModified > localLayout.lastModified) {
                 let updatedServer = ensureQuickAccess(serverLayout);
-                updatedServer = ensureDefaultServices(updatedServer, role);
+                updatedServer = ensureDefaultServices(updatedServer, role, accessOptions);
                 updatedServer = ensureFeedShortcut(updatedServer);
                 updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
-                updatedServer = filterLayoutByRole(updatedServer, role);
+                updatedServer = filterLayoutByRole(updatedServer, role, accessOptions);
                 updatedServer = filterLayoutByPortalVisibility(updatedServer, visibilityMap);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
@@ -464,14 +468,14 @@ export const initializeLayout = async (
     }
 
     let updatedLocal = ensureQuickAccess(localLayout);
-    updatedLocal = ensureDefaultServices(updatedLocal, role);
+    updatedLocal = ensureDefaultServices(updatedLocal, role, accessOptions);
     updatedLocal = ensureFeedShortcut(updatedLocal);
     updatedLocal = ensureServicesCatalogShortcut(updatedLocal);
     if (!blueprint && role) {
         blueprint = await fetchPortalBlueprint(role);
     }
     updatedLocal = applyRoleBlueprint(updatedLocal, blueprint);
-    updatedLocal = filterLayoutByRole(updatedLocal, role);
+    updatedLocal = filterLayoutByRole(updatedLocal, role, accessOptions);
     updatedLocal = filterLayoutByPortalVisibility(updatedLocal, visibilityMap);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);

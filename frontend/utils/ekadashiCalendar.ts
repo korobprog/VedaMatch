@@ -1,5 +1,7 @@
 import type { EkadashiDay, EkadashiOrganization, EkadashiProviderDecision } from '../types/ekadashi';
 
+export { canAccessVedicCalendarRole } from '../types/portal';
+
 export const EKADASHI_DEFAULT_ORGANIZATION_ID = 'iskcon';
 
 export const EKADASHI_FALLBACK_ORGANIZATIONS: EkadashiOrganization[] = [
@@ -8,8 +10,6 @@ export const EKADASHI_FALLBACK_ORGANIZATIONS: EkadashiOrganization[] = [
     { id: 'pure_bhakti', name: 'Pure Bhakti', description: 'Pure Bhakti observance profile', source: 'fallback_aggregator', sourceUrl: 'https://www.gosai.com/calendar/' },
     { id: 'default_vaishnava', name: 'Default Vaishnava', description: 'Default vaishnava observance profile', source: 'fallback_aggregator', sourceUrl: 'https://gcal.app' },
 ];
-
-export const isDevoteeRole = (role?: string | null): boolean => String(role || '').trim().toLowerCase() === 'devotee';
 
 export const getCalendarGridDays = (date: Date): Array<number | null> => {
     const year = date.getFullYear();

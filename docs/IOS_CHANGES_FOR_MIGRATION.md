@@ -2263,6 +2263,71 @@ const handleRemoveWidget = useCallback((widgetId: string) => {
 </Pressable>
 ```
 
+## 2026-03-10 (Widgets page: higher contrast cards in light theme)
+
+### Измененные файлы
+- `frontend/components/portal/ClockWidget.tsx`
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/components/portal/CirclesQuickWidget.tsx`
+- `frontend/components/portal/CirclesPanelWidget.tsx`
+- `frontend/components/portal/FeedQuickWidget.tsx`
+- `frontend/components/portal/FeedMixWidget.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в light theme карточки виджетов использовали очень слабый surface/border и визуально терялись на светлом фоне страницы `Widgets`;
+  - отдельные 1x1 и 2x2 widgets выглядели почти как продолжение фона.
+- Стало:
+  - для light theme виджеты используют более контрастный белый surface;
+  - границы усилены до тёмно-нейтрального `rgba(15,23,42,0.14)`;
+  - добавлена лёгкая тень, чтобы карточки визуально отделялись от полотна `Widgets`.
+
+### Короткий сниппет
+
+`frontend/components/portal/ClockWidget.tsx`:
+```tsx
+const isLightCanvasTheme = !isPhotoBg && !isDarkMode && !isVedaMatch;
+
+backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.14)',
+...(isLightCanvasTheme ? {
+  shadowColor: '#0F172A',
+  shadowOpacity: 0.08,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 3,
+} : {}),
+```
+
+## 2026-03-10 (WidgetSelection: remove page dots and normalize quick-access dock)
+
+### Измененные файлы
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на странице `Widgets` показывался отдельный блок с двумя точками и текстом свайпа, которого нет на основном `Portal`;
+  - нижний dock с тремя quick-access слотами имел менее ровную геометрию, чем portal chrome.
+- Стало:
+  - page-indicator на `WidgetSelection` убран полностью;
+  - нижний dock получил более симметричную раскладку: три слота теперь делят ширину равномерно и лучше совпадают по ощущению с портальной секцией.
+
+### Короткий сниппет
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+quickAccessItem: {
+  flex: 1,
+  minWidth: 0,
+  alignItems: 'center',
+},
+quickAccessEmpty: {
+  flex: 1,
+  height: 76,
+  borderRadius: 26,
+},
+```
+
 ## 2026-03-06 (Chat open-at-bottom stabilization + large history virtualization)
 
 ### Измененные файлы
@@ -14475,4 +14540,117 @@ const SERVICE_EMOJIS: Record<string, string> = {
   ...,
   ekadashi_calendar: '📅',
 };
+```
+
+## 2026-03-10 (Portal calendar folder persistence: avoid role fallback race)
+
+### Измененные файлы
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/services/portalLayoutService.ts`
+
+### Суть правки (что было -> что стало)
+- Было: при init/refresh в `PortalLayoutContext` роль принудительно подставлялась как `user`, если `user.role` еще не успел загрузиться; далее `initializeLayout` применял role-filter и вырезал `ekadashi_calendar`, после чего папка `Календарь` могла исчезать как пустая.
+- Стало: если роль еще не определена, в init/refresh передается `undefined` (без fallback к `user`), а `filterLayoutByRole` в сервисе не применяется до появления валидной роли.
+
+### Короткие сниппеты кода
+`frontend/context/PortalLayoutContext.tsx`:
+```tsx
+const normalizedRole = typeof user?.role === 'string' ? user.role.trim() : '';
+const role = normalizedRole.length > 0 ? normalizedRole : undefined;
+const savedLayout = await initializeLayout(role, blueprint, visibilityMap);
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+const filterLayoutByRole = (layout: PortalLayout, role?: string): PortalLayout => {
+  const normalizedRole = (role || '').trim().toLowerCase();
+  if (!normalizedRole) {
+    return layout;
+  }
+  ...
+};
+```
+
+## 2026-03-10 (Vedic calendar access: allow internal admin roles on mobile)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/utils/ekadashiCalendar.ts`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+- `server/internal/services/ekadashi_service.go`
+
+### Суть правки (что было -> что стало)
+- Было: календарь был доступен только при `role=devotee`, поэтому `admin/superadmin` не видели папку `Календарь` в портале, widget не включал ведический режим, а backend `/ekadashi/*` отвечал `forbidden`.
+- Стало: доступ расширен до `devotee | admin | superadmin` во frontend role-gating и backend guard, при этом обычные роли по-прежнему не имеют доступа.
+
+### Короткие сниппеты кода
+`frontend/types/portal.ts`:
+```ts
+const VEDIC_CALENDAR_ALLOWED_ROLES = new Set(['devotee', 'admin', 'superadmin']);
+
+export const canAccessVedicCalendarRole = (role?: string | null): boolean => (
+  VEDIC_CALENDAR_ALLOWED_ROLES.has(String(role || '').trim().toLowerCase())
+);
+```
+
+`server/internal/services/ekadashi_service.go`:
+```go
+func (s *EkadashiService) ensureCalendarAccess(role string) error {
+	normalizedRole := strings.TrimSpace(strings.ToLower(role))
+	if normalizedRole == models.RoleDevotee || models.IsAdminRole(normalizedRole) {
+		return nil
+	}
+	return ErrEkadashiForbidden
+}
+```
+
+## 2026-03-10 (Vedic calendar access: allow PRO mode and Vaishnava users with bypass)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/components/portal/CalendarWidget.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+- `server/internal/services/ekadashi_service.go`
+- `server/internal/services/ekadashi_service_test.go`
+- `server/internal/handlers/ekadashi_handler.go`
+- `server/internal/handlers/ekadashi_handler_test.go`
+
+### Суть правки (что было -> что стало)
+- Было: даже после открытия доступа для `admin/superadmin` календарь все еще скрывался для обычной роли `user` в `PRO` режиме, потому что portal gating смотрел только на `role`, seeker-lock не знал про `currentPlan/godModeEnabled`, а backend `/ekadashi/organizations` и `/ekadashi/calendar` не считали `PRO` валидным доступом.
+- Стало: календарь доступен также при `godModeEnabled=true` или `currentPlan`, содержащем `pro`/`admin`; это правило применяется одинаково в portal layout, screen, widget и backend guard, включая загрузку списка организаций.
+
+### Короткие сниппеты кода
+`frontend/types/portal.ts`:
+```ts
+export const canAccessVedicCalendarRole = (role?: string | null, options?: PortalServiceAccessOptions): boolean => (
+  VEDIC_CALENDAR_ALLOWED_ROLES.has(String(role || '').trim().toLowerCase())
+  || Boolean(options?.godModeEnabled)
+  || hasProPlanBypass(options?.currentPlan)
+);
+```
+
+`frontend/context/PortalLayoutContext.tsx`:
+```ts
+const { layout: adjustedLayout, changed } = hasPortalBypass(user?.godModeEnabled, user?.currentPlan)
+  ? { layout: sanitizedLayout, changed: false }
+  : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
+```
+
+`server/internal/services/ekadashi_service.go`:
+```go
+func hasEkadashiCalendarAccess(user models.User, role string) bool {
+	if normalizedRole == models.RoleDevotee || models.IsAdminRole(normalizedRole) {
+		return true
+	}
+	return user.GodModeEnabled || isProPlanBypass(user.CurrentPlan)
+}
 ```

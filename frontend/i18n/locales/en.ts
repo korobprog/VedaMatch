@@ -2168,8 +2168,8 @@ export default {
         },
         ekadashiCalendar: {
             title: 'Calendar',
-            subtitle: 'Devotee-only Vedic calendar with Ekadashi and commemorations by organization',
-            onlyForDevotees: 'This calendar is available only for devotees.',
+            subtitle: 'Vedic calendar with Ekadashi and commemorations by organization',
+            onlyForDevotees: 'This calendar is available for devotees, administrators, and PRO mode users.',
             organizationLabel: 'Organization',
             locationTitle: 'Location and timezone',
             cityPlaceholder: 'City',

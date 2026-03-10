@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrEkadashiForbidden      = errors.New("ekadashi calendar is available only for devotees")
+	ErrEkadashiForbidden      = errors.New("ekadashi calendar is available only for devotees, admins, and pro mode")
 	ErrEkadashiInvalidPayload = errors.New("invalid ekadashi payload")
 	ErrEkadashiInvalidMonth   = errors.New("invalid month")
 )
@@ -87,15 +87,37 @@ func newEkadashiProviderDecision(mode, source, reason string) models.EkadashiPro
 	}
 }
 
-func (s *EkadashiService) ensureDevotee(role string) error {
-	if strings.TrimSpace(strings.ToLower(role)) != models.RoleDevotee {
-		return ErrEkadashiForbidden
+func hasEkadashiCalendarAccess(user models.User, role string) bool {
+	normalizedRole := strings.TrimSpace(strings.ToLower(role))
+	if normalizedRole == models.RoleDevotee || models.IsAdminRole(normalizedRole) {
+		return true
 	}
-	return nil
+	return user.GodModeEnabled || isProPlanBypass(user.CurrentPlan)
 }
 
-func (s *EkadashiService) ListOrganizations(role string) ([]models.EkadashiOrganization, error) {
-	if err := s.ensureDevotee(role); err != nil {
+func (s *EkadashiService) ensureCalendarAccess(userID uint, role string) error {
+	if hasEkadashiCalendarAccess(models.User{}, role) {
+		return nil
+	}
+	if userID == 0 || s.db == nil {
+		return ErrEkadashiForbidden
+	}
+
+	var user models.User
+	if err := s.db.Select("id", "current_plan", "god_mode_enabled").First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrEkadashiForbidden
+		}
+		return err
+	}
+	if hasEkadashiCalendarAccess(user, role) {
+		return nil
+	}
+	return ErrEkadashiForbidden
+}
+
+func (s *EkadashiService) ListOrganizations(userID uint, role string) ([]models.EkadashiOrganization, error) {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err
 	}
 	items := make([]models.EkadashiOrganization, len(ekadashiOrganizations))
@@ -104,7 +126,7 @@ func (s *EkadashiService) ListOrganizations(role string) ([]models.EkadashiOrgan
 }
 
 func (s *EkadashiService) GetCalendar(userID uint, role, month, organizationID, timezone, city, country string) (*models.EkadashiCalendarResponse, error) {
-	if err := s.ensureDevotee(role); err != nil {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err
 	}
 
@@ -137,7 +159,7 @@ func (s *EkadashiService) GetCalendar(userID uint, role, month, organizationID, 
 }
 
 func (s *EkadashiService) GetDay(userID uint, role, date, organizationID, timezone, city, country string) (*models.EkadashiDay, error) {
-	if err := s.ensureDevotee(role); err != nil {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err
 	}
 
@@ -164,7 +186,7 @@ func (s *EkadashiService) GetDay(userID uint, role, date, organizationID, timezo
 }
 
 func (s *EkadashiService) GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error) {
-	if err := s.ensureDevotee(role); err != nil {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err
 	}
 	if userID == 0 {
@@ -196,7 +218,7 @@ func (s *EkadashiService) GetPushPreference(userID uint, role string) (*models.E
 }
 
 func (s *EkadashiService) UpsertPushPreference(userID uint, role string, req models.EkadashiPushPreferenceUpsertRequest) (*models.EkadashiPushPreferenceResponse, error) {
-	if err := s.ensureDevotee(role); err != nil {
+	if err := s.ensureCalendarAccess(userID, role); err != nil {
 		return nil, err
 	}
 	if userID == 0 {

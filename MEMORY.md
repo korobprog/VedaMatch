@@ -6,6 +6,7 @@
 - Не назначать один и тот же файл нескольким агентам.
 - Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
+- Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
 ## MVP Readiness
 - На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.
@@ -110,6 +111,8 @@
 - После удаления последнего виджета empty-state в `WidgetSelection` не должен полагаться только на long-press: picker нужно открывать сразу, а на пустом холсте должна быть явная CTA-кнопка добавления виджета.
 - `WidgetSelection` и `WidgetCanvasGrid` должны использовать i18n для toolbar/empty-state/hint copy; не оставлять hardcoded `Done` и английские подсказки в UI.
 - Duplicate-alert при добавлении уже существующего виджета тоже должен идти через `portal.widgets.*`, а не через hardcoded English text.
+- Для светлой темы на странице `WidgetSelection` виджеты должны иметь более контрастный surface: белый фон, заметную границу и лёгкую тень, иначе карточки сливаются с бежевым portal background.
+- На `WidgetSelection` не нужен отдельный page-indicator с двумя точками и текстом свайпа; нижний dock с тремя quick-access слотами должен быть симметричным и по размерам ближе к портальному chrome.
 - В `WidgetSelection` индикатор текущего экрана (`page dots` + hint) должен быть ниже нижнего dock-бара, а не между canvas и dock: это согласованное расположение для portal/widgets visual hierarchy.
 - И на `Portal`, и на `WidgetSelection` swipe-hint с `page dots` должен рендериться нижним слоем под быстрым нижним bar/dock, а не поверх него.
 
@@ -127,6 +130,7 @@
 - Внутренние нижние отступы folder modal должны быть умеренными: избыточные `scrollContent/itemsGrid/iconWrapper` bottom-padding быстро создают пустой хвост внизу при папках на 4-5 сервисов.
 - Для экранов `height < 780` folder modal должен иметь отдельные compact-коэффициенты по высоте и нижним отступам; единые desktop-like значения на compact устройствах обычно создают лишний нижний зазор.
 - Для сервиса `ekadashi_calendar` в portal icon registry должен быть явный `CalendarDays` маппинг в `frontend/components/portal/portalIconShared.tsx`; иначе в iOS/Android включается fallback-глиф вместо календаря.
+- В `PortalLayoutContext` нельзя принудительно подставлять роль `user`, если `user.role` еще не загружен: это удаляет `ekadashi_calendar` на этапе инициализации и визуально дает эффект «папка Календарь появилась и пропала».
 
 ## Portal Service Visibility
 - Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.
@@ -1848,7 +1852,7 @@
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
 - Текущие версии (2026-03-07):
   - Android: `versionCode=19`, `versionName=1.1.17`
-  - iOS: `MARKETING_VERSION=1.1.16`, `CURRENT_PROJECT_VERSION=8`
+  - iOS: `MARKETING_VERSION=1.1.17`, `CURRENT_PROJECT_VERSION=9`
 - Статус production-сборок (2026-03-07):
   - Android: `./gradlew app:assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
   - Android metadata (`output-metadata.json`): `applicationId=com.ragagent`, `versionCode=19`, `versionName=1.1.17`.
@@ -2706,5 +2710,7 @@
 - Источник памятных дат для `v1` curated/static на backend; push-настройки и напоминания остаются только для Экадаши.
 - Mobile screen `EkadashiCalendarScreen` и portal `CalendarWidget` уже умеют показывать несколько событий в один день, а не только один `EkadashiDay`.
 - Для `devotee` widget calendar по-прежнему стартует сразу в ведическом режиме, но теперь этот режим охватывает весь общий календарь, а не только Экадаши.
+- Доступ к календарю в runtime теперь разрешен ролям `devotee`, `admin`, `superadmin`, а также пользователям с `godModeEnabled=true` или `currentPlan`, содержащим `pro`/`admin`; это правило синхронизировано между portal layout, widget, экраном календаря и backend `/ekadashi/*`.
+- Для `PRO/godMode` portal layout больше не загоняет `ekadashi_calendar` в seeker-locked flow: папка `Календарь` не должна пропадать даже если базовая роль остается `user`.
 - В дефолтном portal layout ярлык `Календарь` вынесен в отдельную папку `Календарь`, а не лежит внутри `Практика`.
 - Существующие сохраненные portal layouts теперь тоже мягко мигрируют: если `ekadashi_calendar` лежит в дефолтной папке `Практика`, он переносится в отдельную папку `Календарь`; кастомные пользовательские папки не переставляются автоматически.

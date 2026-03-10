@@ -17,6 +17,7 @@ export const CirclesQuickWidget: React.FC = () => {
   const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
   const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
   const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
+  const isLightCanvasTheme = !isPhotoBg && !isDarkMode && !isVedaMatch;
   const copy = i18n.language?.startsWith('ru')
     ? { title: 'Кружки', footer: 'Запись' }
     : i18n.language?.startsWith('hi')
@@ -36,13 +37,20 @@ export const CirclesQuickWidget: React.FC = () => {
             ? '#121212'
             : isPhotoBg
               ? 'transparent'
-              : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+              : (isDarkMode ? 'rgba(255,255,255,0.08)' : '#FFFFFF'),
           borderColor: isVedaMatch
             ? '#D4AF37'
             : isPhotoBg
               ? 'rgba(255,255,255,0.3)'
-              : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+              : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(15,23,42,0.14)'),
           borderWidth: isVedaMatch ? 1 : 1,
+          ...(isLightCanvasTheme ? {
+            shadowColor: '#0F172A',
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 3,
+          } : {}),
           ...(isVedaMatch ? {
             shadowColor: '#D4AF37',
             shadowOpacity: 0.5,

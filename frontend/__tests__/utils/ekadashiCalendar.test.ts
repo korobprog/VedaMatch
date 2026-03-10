@@ -1,4 +1,4 @@
-import { findCalendarEventsForCell, findEkadashiDayForCell, getCalendarGridDays, getEkadashiProviderNoticeKey, isDevoteeRole } from '../../utils/ekadashiCalendar';
+import { canAccessVedicCalendarRole, findCalendarEventsForCell, findEkadashiDayForCell, getCalendarGridDays, getEkadashiProviderNoticeKey } from '../../utils/ekadashiCalendar';
 
 describe('ekadashiCalendar utils', () => {
     it('builds calendar grid for monday-first layout', () => {
@@ -103,9 +103,13 @@ describe('ekadashiCalendar utils', () => {
         expect(result[0]?.eventType).toBe('ekadashi');
     });
 
-    it('gates ekadashi mode to devotee role', () => {
-        expect(isDevoteeRole('devotee')).toBe(true);
-        expect(isDevoteeRole('user')).toBe(false);
+    it('gates ekadashi mode to devotee, internal admin roles, and pro bypass', () => {
+        expect(canAccessVedicCalendarRole('devotee')).toBe(true);
+        expect(canAccessVedicCalendarRole('admin')).toBe(true);
+        expect(canAccessVedicCalendarRole('superadmin')).toBe(true);
+        expect(canAccessVedicCalendarRole('user', { godModeEnabled: true })).toBe(true);
+        expect(canAccessVedicCalendarRole('user', { currentPlan: 'pro_monthly' })).toBe(true);
+        expect(canAccessVedicCalendarRole('user')).toBe(false);
     });
 
     it('maps provider fallback reasons to localized notice keys', () => {

@@ -60,14 +60,36 @@ export interface PortalServiceVisibilityEntry {
 }
 
 export type PortalServiceVisibilityMap = Record<string, PortalServiceVisibilityEntry>;
+export interface PortalServiceAccessOptions {
+    godModeEnabled?: boolean | null;
+    currentPlan?: string | null;
+}
 
-const DEVOTEE_ONLY_SERVICE_IDS = new Set(['ekadashi_calendar']);
+const VEDIC_CALENDAR_ALLOWED_ROLES = new Set(['devotee', 'admin', 'superadmin']);
 
-export const isServiceAllowedForRole = (serviceId: string, role?: string | null): boolean => {
-    if (!DEVOTEE_ONLY_SERVICE_IDS.has(serviceId)) {
+const hasProPlanBypass = (plan?: string | null): boolean => {
+    const normalizedPlan = String(plan || '').trim().toLowerCase();
+    return normalizedPlan === 'admin' || normalizedPlan.includes('pro');
+};
+
+export const canAccessVedicCalendarRole = (
+    role?: string | null,
+    options?: PortalServiceAccessOptions,
+): boolean => (
+    VEDIC_CALENDAR_ALLOWED_ROLES.has(String(role || '').trim().toLowerCase())
+    || Boolean(options?.godModeEnabled)
+    || hasProPlanBypass(options?.currentPlan)
+);
+
+export const isServiceAllowedForRole = (
+    serviceId: string,
+    role?: string | null,
+    options?: PortalServiceAccessOptions,
+): boolean => {
+    if (serviceId !== 'ekadashi_calendar') {
         return true;
     }
-    return String(role || '').trim().toLowerCase() === 'devotee';
+    return canAccessVedicCalendarRole(role, options);
 };
 
 export const DEFAULT_QUICK_ACCESS_SERVICE_IDS = ['contacts', 'calls', 'services'] as const;

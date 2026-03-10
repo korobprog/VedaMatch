@@ -14,6 +14,7 @@ import { useUser } from '../../context/UserContext';
 import { ekadashiService } from '../../services/ekadashiService';
 import type { EkadashiDay, EkadashiOrganization } from '../../types/ekadashi';
 import {
+    canAccessVedicCalendarRole,
     findCalendarEventsForCell,
     formatEkadashiDateTime,
     getCalendarEventBackgroundColor,
@@ -21,7 +22,6 @@ import {
     getCalendarEventMarkerColor,
     getCalendarGridDays,
     getEkadashiProviderNoticeKey,
-    isDevoteeRole,
     resolveOrganizationOption,
 } from '../../utils/ekadashiCalendar';
 
@@ -44,7 +44,10 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     const { user } = useUser();
     const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const canUseEkadashi = isDevoteeRole(user?.role);
+    const canUseEkadashi = canAccessVedicCalendarRole(user?.role, {
+        godModeEnabled: user?.godModeEnabled,
+        currentPlan: user?.currentPlan,
+    });
     const [mode, setMode] = useState<'gregorian' | 'ekadashi'>(canUseEkadashi ? 'ekadashi' : 'gregorian');
     const [calendarEvents, setCalendarEvents] = useState<EkadashiDay[]>([]);
     const [selectedEvents, setSelectedEvents] = useState<EkadashiDay[]>([]);
@@ -54,6 +57,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     const today = useMemo(() => new Date(), []);
     const isPhotoBg = portalBackgroundType === 'image';
     const isVedaMatch = portalIconStyle === 'vedamatch';
+    const isLightCanvasTheme = !isPhotoBg && !isDarkMode && !isVedaMatch;
     const locale = localeFromLanguage(i18n.language);
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
     const textColor = isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text;
@@ -63,12 +67,19 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
             ? '#121212'
             : isPhotoBg
                 ? 'transparent'
-                : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+                : (isDarkMode ? 'rgba(255,255,255,0.08)' : '#FFFFFF'),
         borderColor: isVedaMatch
             ? '#D4AF37'
             : isPhotoBg
                 ? 'rgba(255,255,255,0.3)'
-                : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+                : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(15,23,42,0.14)'),
+        ...(isLightCanvasTheme ? {
+            shadowColor: '#0F172A',
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 3,
+        } : {}),
     };
     const modalCardStyle = { backgroundColor: isDarkMode ? '#101828' : '#FFFFFF' };
 

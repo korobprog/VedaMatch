@@ -36,7 +36,6 @@ const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
 const WIDGET_DOCK_BOTTOM = 52;
 const WIDGET_DOCK_HEIGHT = 108;
 const WIDGET_DOCK_GAP = 10;
-const PAGE_INDICATOR_BOTTOM = 14;
 
 const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
@@ -454,32 +453,6 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 onReorderWidgets={reorderWidgets}
             />
 
-            {!isEditMode && (
-                <View pointerEvents="none" style={styles.pageIndicatorContainer}>
-                    <View style={styles.pageIndicatorDots}>
-                        <View
-                            style={[
-                                styles.pageIndicatorDot,
-                                {
-                                    backgroundColor: (isPhotoBg || isDarkMode)
-                                        ? 'rgba(255,255,255,0.45)'
-                                        : 'rgba(15,23,42,0.28)',
-                                },
-                            ]}
-                        />
-                        <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
-                    </View>
-                    <Text
-                        style={[
-                            styles.pageIndicatorText,
-                            { color: (isPhotoBg || isDarkMode) ? '#FFFFFF' : vTheme.colors.textSecondary },
-                        ]}
-                    >
-                        {t('portal.widgets.returnHint')}
-                    </Text>
-                </View>
-            )}
-
             {isEditMode && (
                 <View
                     style={[
@@ -637,31 +610,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
-    pageIndicatorContainer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: PAGE_INDICATOR_BOTTOM,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-    },
-    pageIndicatorDots: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    pageIndicatorDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    pageIndicatorText: {
-        fontSize: 12,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
     quickAccessDock: {
         position: 'absolute',
         left: 12,
@@ -671,23 +619,25 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     quickAccessInner: {
-        minHeight: 108,
+        minHeight: 112,
         borderWidth: 1,
         borderRadius: 34,
-        paddingHorizontal: 20,
+        paddingHorizontal: 18,
         paddingVertical: 14,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        gap: 8,
     },
     quickAccessItem: {
-        width: 86,
+        flex: 1,
+        minWidth: 0,
         alignItems: 'center',
     },
     quickAccessEmpty: {
-        width: 64,
-        height: 64,
-        borderRadius: 22,
+        flex: 1,
+        height: 76,
+        borderRadius: 26,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.22)',
         backgroundColor: 'rgba(0,0,0,0.08)',

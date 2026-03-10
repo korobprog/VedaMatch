@@ -18,6 +18,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { ekadashiService } from '../../../services/ekadashiService';
 import type { EkadashiDay, EkadashiOrganization, EkadashiPushPreference } from '../../../types/ekadashi';
 import {
+    canAccessVedicCalendarRole,
     findCalendarEventsForCell,
     formatEkadashiDateTime,
     getCalendarEventBackgroundColor,
@@ -25,7 +26,6 @@ import {
     getCalendarEventMarkerColor,
     getCalendarGridDays,
     getEkadashiProviderNoticeKey,
-    isDevoteeRole,
     resolveOrganizationOption,
 } from '../../../utils/ekadashiCalendar';
 
@@ -60,7 +60,10 @@ const EkadashiCalendarScreen: React.FC = () => {
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
 
-    const canUseEkadashi = isDevoteeRole(user?.role);
+    const canUseEkadashi = canAccessVedicCalendarRole(user?.role, {
+        godModeEnabled: user?.godModeEnabled,
+        currentPlan: user?.currentPlan,
+    });
     const locale = localeFromLanguage(i18n.language);
     const initialCity = user?.city || '';
     const initialCountry = '';

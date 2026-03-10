@@ -11,7 +11,7 @@ import (
 )
 
 type ekadashiService interface {
-	ListOrganizations(role string) ([]models.EkadashiOrganization, error)
+	ListOrganizations(userID uint, role string) ([]models.EkadashiOrganization, error)
 	GetCalendar(userID uint, role, month, organizationID, timezone, city, country string) (*models.EkadashiCalendarResponse, error)
 	GetDay(userID uint, role, date, organizationID, timezone, city, country string) (*models.EkadashiDay, error)
 	GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error)
@@ -31,7 +31,7 @@ func NewEkadashiHandlerWithService(service ekadashiService) *EkadashiHandler {
 }
 
 func (h *EkadashiHandler) GetOrganizations(c *fiber.Ctx) error {
-	items, err := h.service.ListOrganizations(middleware.GetUserRole(c))
+	items, err := h.service.ListOrganizations(middleware.GetUserID(c), middleware.GetUserRole(c))
 	if err != nil {
 		return respondEkadashiError(c, err)
 	}

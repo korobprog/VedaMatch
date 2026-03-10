@@ -12,14 +12,21 @@ import (
 
 type mockEkadashiService struct{}
 
-func (m *mockEkadashiService) ListOrganizations(role string) ([]models.EkadashiOrganization, error) {
-	if role != models.RoleDevotee {
+func canUseMockEkadashi(userID uint, role string) bool {
+	if role == models.RoleDevotee || models.IsAdminRole(role) {
+		return true
+	}
+	return userID == 77
+}
+
+func (m *mockEkadashiService) ListOrganizations(userID uint, role string) ([]models.EkadashiOrganization, error) {
+	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return []models.EkadashiOrganization{{ID: "iskcon", Name: "ISKCON"}}, nil
 }
 func (m *mockEkadashiService) GetCalendar(userID uint, role, month, organizationID, timezone, city, country string) (*models.EkadashiCalendarResponse, error) {
-	if role != models.RoleDevotee {
+	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiCalendarResponse{
@@ -34,19 +41,19 @@ func (m *mockEkadashiService) GetCalendar(userID uint, role, month, organization
 	}, nil
 }
 func (m *mockEkadashiService) GetDay(userID uint, role, date, organizationID, timezone, city, country string) (*models.EkadashiDay, error) {
-	if role != models.RoleDevotee {
+	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiDay{Date: "2026-03-14"}, nil
 }
 func (m *mockEkadashiService) GetPushPreference(userID uint, role string) (*models.EkadashiPushPreferenceResponse, error) {
-	if role != models.RoleDevotee {
+	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiPushPreferenceResponse{UserID: userID, OrganizationID: "iskcon"}, nil
 }
 func (m *mockEkadashiService) UpsertPushPreference(userID uint, role string, req models.EkadashiPushPreferenceUpsertRequest) (*models.EkadashiPushPreferenceResponse, error) {
-	if role != models.RoleDevotee {
+	if !canUseMockEkadashi(userID, role) {
 		return nil, services.ErrEkadashiForbidden
 	}
 	return &models.EkadashiPushPreferenceResponse{UserID: userID, OrganizationID: req.OrganizationID}, nil
@@ -74,7 +81,7 @@ func TestEkadashiHandlerGetOrganizationsSuccess(t *testing.T) {
 	app := fiber.New()
 	handler := NewEkadashiHandlerWithService(&mockEkadashiService{})
 	app.Get("/ekadashi/organizations", func(c *fiber.Ctx) error {
-		c.Locals("userRole", models.RoleDevotee)
+		c.Locals("userRole", models.RoleAdmin)
 		return handler.GetOrganizations(c)
 	})
 
@@ -92,6 +99,43 @@ func TestEkadashiHandlerGetOrganizationsSuccess(t *testing.T) {
 	}
 	if len(payload["organizations"]) != 1 {
 		t.Fatalf("unexpected organizations payload")
+	}
+}
+
+func TestEkadashiHandlerGetOrganizationsAllowsProViewer(t *testing.T) {
+	app := fiber.New()
+	handler := NewEkadashiHandlerWithService(&mockEkadashiService{})
+	app.Get("/ekadashi/organizations", func(c *fiber.Ctx) error {
+		c.Locals("userRole", models.RoleUser)
+		c.Locals("userID", uint(77))
+		return handler.GetOrganizations(c)
+	})
+
+	req := httptest.NewRequest("GET", "/ekadashi/organizations", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+}
+
+func TestEkadashiHandlerGetCalendarAllowsAdminRole(t *testing.T) {
+	app := fiber.New()
+	handler := NewEkadashiHandlerWithService(&mockEkadashiService{})
+	app.Get("/ekadashi/calendar", func(c *fiber.Ctx) error {
+		c.Locals("userRole", models.RoleSuperadmin)
+		return handler.GetCalendar(c)
+	})
+
+	req := httptest.NewRequest("GET", "/ekadashi/calendar?month=2026-03", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
 	}
 }
 
