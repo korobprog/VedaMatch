@@ -308,6 +308,15 @@ func respondTelegramAuthError(c *fiber.Ctx, err error) error {
 	}
 }
 
+func telegramInitDataFingerprint(raw string) string {
+	normalized := strings.TrimSpace(raw)
+	if normalized == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(normalized))
+	return fmt.Sprintf("%x", sum[:6])
+}
+
 func respondTelegramMobileAuthError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, services.ErrTelegramMobileAuthStateExpired):
@@ -2382,6 +2391,17 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 
 	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitDataWithPurpose(req.InitData, "miniapp_login")
 	if err != nil {
+		log.Printf(
+			"[AUTH] Telegram miniapp login verify failed err=%v init_hash=%s mobile_state=%t device_id=%t host=%s origin=%s referer=%s ua=%q",
+			err,
+			telegramInitDataFingerprint(req.InitData),
+			strings.TrimSpace(req.MobileAuthState) != "",
+			strings.TrimSpace(req.DeviceID) != "",
+			c.Hostname(),
+			strings.TrimSpace(c.Get("Origin")),
+			strings.TrimSpace(c.Get("Referer")),
+			strings.TrimSpace(c.Get("User-Agent")),
+		)
 		return respondTelegramAuthError(c, err)
 	}
 
