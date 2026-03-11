@@ -195,10 +195,16 @@ code {
 
 .hero-language-picker select {
   min-width: 100px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(17, 24, 39, 0.7);
-  color: #FFFFFF;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: #FFFFFF;
+  color: #111827;
   padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.hero-language-picker select option {
+  color: #111827;
+  background: #FFFFFF;
 }
 
 .grid-two {
@@ -705,17 +711,36 @@ button.secondary:hover:not(:disabled) {
 .tariffs-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
 
-.tariffs-back-link {
+.tariffs-hero-actions {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+.tariffs-back-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(17, 24, 39, 0.55);
+  color: #FFFFFF;
+  font-size: 1.1rem;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tariffs-back-icon:hover {
+  background: rgba(17, 24, 39, 0.75);
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 .tariffs-language-select {
@@ -726,6 +751,16 @@ button.secondary:hover:not(:disabled) {
 
 .tariffs-language-select select {
   min-width: 110px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: #FFFFFF;
+  color: #111827;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.tariffs-language-select select option {
+  color: #111827;
+  background: #FFFFFF;
 }
 
 .tariffs-steps {

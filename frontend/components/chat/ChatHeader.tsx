@@ -64,7 +64,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     const iconButtonBg = isVedaMatch
         ? (useLightVedaContrast ? 'rgba(255,248,220,0.94)' : '#121212')
         : isImageBg ? 'rgba(255,255,255,0.16)' : colors.surface;
-    const headerTopInset = Platform.OS === 'ios' ? Math.max(topInset - 6, 0) : 0;
+    const headerTopInset = Platform.OS === 'ios' ? Math.max(topInset - 55, 0) : 0;
     const headerHeight = Platform.OS === 'ios' ? 58 : 52;
 
     const displayTitle = recipientUser
@@ -137,9 +137,27 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                             </View>
                         </View>
                     ) : (
-                        <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton} activeOpacity={0.86}>
-                            <Menu color={iconColor} size={20} />
-                        </TouchableOpacity>
+                        <View style={styles.leftGroup}>
+                            <TouchableOpacity
+                                onPress={onBackPress}
+                                style={[styles.backButton, { backgroundColor: iconButtonBg, borderColor: headerBorder }]}
+                                activeOpacity={0.86}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.back')}
+                                accessibilityHint={t('chat.backToPortal')}
+                            >
+                                <ChevronLeft color={iconColor} size={20} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={onSettingsPress}
+                                style={[styles.menuButton, { backgroundColor: iconButtonBg, borderColor: headerBorder }]}
+                                activeOpacity={0.86}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.menu', { defaultValue: 'Меню' })}
+                            >
+                                <Menu color={iconColor} size={20} />
+                            </TouchableOpacity>
+                        </View>
                     )}
 
                     <View style={styles.titleContainer}>
@@ -154,7 +172,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                             </View>
                         ) : (
                             <TouchableOpacity
-                                onPress={() => navigation.navigate('Portal')}
+                                onPress={onBackPress}
                                 activeOpacity={0.8}
                                 style={[
                                     styles.aiTitleWrap,
@@ -247,6 +265,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 4,
+        borderWidth: 1,
     },
     menuButton: {
         width: 28,
@@ -255,6 +274,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 4,
+        borderWidth: 1,
     },
     avatarContainer: {
         width: 32,

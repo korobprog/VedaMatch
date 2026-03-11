@@ -12,7 +12,6 @@ import {
     Alert,
     Platform,
 } from 'react-native';
-import { BlurView } from '@react-native-community/blur';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -67,12 +66,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isPortalDarkMode);
     const historyColors = React.useMemo(() => ({
         background: '#F2EFE6',
-        card: 'rgba(255,255,255,0.92)',
+        card: 'transparent',
         border: 'rgba(15,23,42,0.14)',
         textPrimary: '#1F2937',
         textSecondary: '#64748B',
         iconSurface: 'rgba(15,23,42,0.06)',
-        actionSurface: 'rgba(15,23,42,0.08)',
+        actionSurface: 'rgba(15,23,42,0.04)',
     }), []);
 
     const [isEditMode, setIsEditMode] = React.useState(false);
@@ -284,16 +283,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                 styles.historyItem,
                                                 {
                                                     backgroundColor: historyColors.card,
-                                                    borderColor: currentChatId === item.id ? roleColors.accentSoft : historyColors.border,
+                                                    borderBottomColor: currentChatId === item.id ? roleColors.accent : historyColors.border,
                                                 },
                                             ]}
                                         >
-                                            <BlurView
-                                                style={styles.historyItemBlur}
-                                                blurType="light"
-                                                blurAmount={10}
-                                                reducedTransparencyFallbackColor={historyColors.card}
-                                            />
                                             {isEditMode && (
                                                 <TouchableOpacity
                                                     style={styles.checkboxContainer}
@@ -356,7 +349,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                             { text: t('common.delete'), style: 'destructive', onPress: () => deleteChat(item.id) },
                                                         ]);
                                                     }}
-                                                    style={[styles.deleteBtn, { borderColor: roleColors.danger }]}
+                                                    style={styles.deleteBtn}
                                                 >
                                                     <Trash2 size={16} color={roleColors.danger} />
                                                 </TouchableOpacity>
@@ -426,29 +419,23 @@ const styles = StyleSheet.create({
     historyItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderWidth: 1,
-        borderRadius: 14,
-        marginBottom: 8,
-        paddingHorizontal: 8,
-        minHeight: 62,
-        overflow: 'hidden',
-    },
-    historyItemBlur: {
-        ...StyleSheet.absoluteFillObject,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        paddingHorizontal: 2,
+        paddingVertical: 12,
+        minHeight: 60,
     },
     historyItemMain: { flexDirection: 'row', alignItems: 'center', flex: 1 },
     historyTextWrap: { flex: 1 },
-    historyIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-    historyItemTitle: { fontSize: 15, marginBottom: 1 },
+    historyIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    historyItemTitle: { fontSize: 16, marginBottom: 1 },
     historyItemTitleActive: { fontWeight: '700' },
     historyItemTitleInactive: { fontWeight: '600' },
-    historyItemDate: { fontSize: 12 },
+    historyItemDate: { fontSize: 13 },
     deleteBtn: {
         padding: 8,
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        borderWidth: 1,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
     },

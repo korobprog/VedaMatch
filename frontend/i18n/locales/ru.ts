@@ -915,6 +915,7 @@ export default {
         history: 'История чатов',
         noHistory: 'История пуста',
         newChatBtn: 'Новый чат',
+        backToPortal: 'Вернуться на портал',
         deleteConfirm: 'Вы уверены, что хотите удалить этот чат?',
         deleteMultipleConfirm: 'Удалить выбранные чаты?',
         noRooms: 'Комнаты не найдены',

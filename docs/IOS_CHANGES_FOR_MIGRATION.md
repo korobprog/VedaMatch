@@ -14925,3 +14925,63 @@ const folderDisplayName = resolvePortalFolderName(folder, t);
 const folderDisplayName = resolvePortalFolderName(folder, t);
 const [editName, setEditName] = useState(folderDisplayName);
 ```
+
+## 2026-03-11 (Polza runtime refresh after admin key updates)
+
+### Измененные файлы
+- `server/internal/handlers/admin_handler.go`
+- `server/internal/handlers/admin_handler_test.go`
+
+### Суть правки (что было -> что стало)
+- Было: при обновлении `POLZA_*` через общую админку значение сохранялось в БД, но runtime `PolzaService` не перезагружался сразу. Из-за этого mobile AI chat и support bot могли продолжать работать на старом ключе до рестарта сервера.
+- Стало: после обновления `POLZA_API_KEY`, `POLZA_FAST_MODEL`, `POLZA_REASONING_MODEL`, `POLZA_BASE_URL` админка теперь сразу вызывает `ReloadFromDB()` для `PolzaService`, чтобы shared mobile/backend AI-поведение обновлялось без рестарта.
+
+### Короткие сниппеты кода
+`server/internal/handlers/admin_handler.go`:
+```go
+if k == "POLZA_API_KEY" && v != "" {
+	os.Setenv("POLZA_API_KEY", v)
+	shouldReloadPolza = true
+}
+
+if shouldReloadPolza {
+	services.GetPolzaService().ReloadFromDB()
+}
+```
+
+`server/internal/handlers/admin_handler_test.go`:
+```go
+if !isPolzaSystemSettingKey("polza_fast_model") {
+	t.Fatalf("expected polza_fast_model to be treated as polza setting")
+}
+```
+
+## 2026-03-11 (AI chat header raised and explicit portal back button)
+
+### Измененные файлы
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/components/chat/ChatHeader.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было: в AI-чате верхняя панель визуально сидела слишком низко из-за лишнего safe-area отступа, а в assistant mode не было явной кнопки возврата на портал.
+- Стало: header поднят выше, AI chat получил отдельную back-кнопку с возвратом именно в `Portal`, а не только menu affordance. Подсказка для кнопки локализована в `ru/en/hi`.
+
+### Короткие сниппеты кода
+`frontend/screens/ChatScreen.tsx`:
+```tsx
+const handleBackToPortal = React.useCallback(() => {
+  navigation.reset({ index: 0, routes: [{ name: 'Portal' }] });
+}, [navigation]);
+```
+
+`frontend/components/chat/ChatHeader.tsx`:
+```tsx
+const headerTopInset = Platform.OS === 'ios' ? Math.max(topInset - 28, 0) : 0;
+...
+<TouchableOpacity onPress={onBackPress} accessibilityHint={t('chat.backToPortal')}>
+  <ChevronLeft color={iconColor} size={20} />
+</TouchableOpacity>
+```

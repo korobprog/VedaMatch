@@ -172,6 +172,12 @@
 - `admin/src/app/settings/page.tsx` не должен считать `401` рабочей ошибкой страницы:
   - при отсутствии локального admin token страница должна сразу редиректить на `/login` без API-запросов;
   - если `api` interceptor уже получил `401` и чистит сессию, page-level `catch` не должен дополнительно заспамливать консоль как будто это отдельная функциональная поломка.
+- В `server/internal/handlers/admin_handler.go` обновление `POLZA_API_KEY`, `POLZA_FAST_MODEL`, `POLZA_REASONING_MODEL`, `POLZA_BASE_URL` через общую админку должно немедленно вызывать `services.GetPolzaService().ReloadFromDB()`, иначе AI chat и support bot продолжают работать на старом runtime-ключе до рестарта.
+
+## AI / Support Runtime
+- `SupportAIService` использует тот же singleton `PolzaService`, что и основной AI chat; поломка `POLZA_API_KEY` одновременно ломает `/api/v1/chat/completions` и AI-ответы в support flow.
+- На проде по состоянию на `2026-03-11` ключ из Docker service `API_OPEN_AI` и синхронизированный `POLZA_API_KEY` проходят `GET https://api.polza.ai/api/v1/models` (`HTTP 200`), но прямой `POST https://api.polza.ai/api/v1/chat/completions` с ними возвращает `401 UNAUTHORIZED`.
+- Следствие: текущий продовый Polza-ключ нельзя считать рабочим для chat completions; для восстановления AI chat/support bot нужен новый реальный ключ с доступом к chat endpoint либо смена upstream-конфигурации.
 
 ## Mobile Navigation
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe должен быть отключен жестко и в двух местах:
@@ -180,6 +186,8 @@
 - Для Android в `EditProfileScreen` горизонтальный свайп карточек ролей должен временно блокировать вертикальный scroll родительского `ScrollView`, иначе parent перехватывает gesture и листание ролей вправо/влево не срабатывает.
 - Для Android в `RegistrationScreen` действует тот же паттерн: во время горизонтального свайпа карусели ролей (`RoleSelectionSection`) вертикальный scroll формы должен временно отключаться, чтобы жест не крался родителем.
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
+- В `frontend/components/chat/ChatHeader.tsx` для AI assistant mode должен быть явный back affordance в `Portal`, а не только menu icon или кликабельный title chip: это accessibility/navigation требование для assistant entry point.
+- AI chat header в `ChatHeader` не должен дублировать safe-area верхний отступ поверх уже существующего top-safe-area контейнера из app shell; иначе панель визуально опускается слишком низко.
 
 ## Referral / Sangha Localization
 - Экран `frontend/screens/portal/referral/InviteFriendsScreen.tsx` должен быть полностью на i18n-ключах, без hardcoded English строк в UI и share-тексте.

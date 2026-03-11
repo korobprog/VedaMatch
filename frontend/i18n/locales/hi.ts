@@ -912,6 +912,7 @@ export default {
         "history": "चैट इतिहास",
         "noHistory": "अभी कोई इतिहास नहीं",
         "newChatBtn": "नई चैट",
+        "backToPortal": "पोर्टल पर लौटें",
         "deleteConfirm": "क्या आप इस चैट को हटाना चाहते हैं?",
         "noRooms": "कोई कक्ष नहीं मिला",
         "noDescription": "कोई विवरण नहीं",

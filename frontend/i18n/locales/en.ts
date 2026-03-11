@@ -913,6 +913,7 @@ export default {
         history: 'Chat History',
         noHistory: 'No history yet',
         newChatBtn: 'New Chat',
+        backToPortal: 'Back to portal',
         deleteConfirm: 'Are you sure you want to delete this chat?',
         noRooms: 'No rooms found',
         noDescription: 'No description',

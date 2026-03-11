@@ -103,6 +103,17 @@ func TestIsMaskedSensitiveSystemSettingValue(t *testing.T) {
 	}
 }
 
+func TestIsPolzaSystemSettingKey(t *testing.T) {
+	for _, key := range []string{"POLZA_API_KEY", "polza_fast_model", " Polza_Reasoning_Model "} {
+		if !isPolzaSystemSettingKey(key) {
+			t.Fatalf("expected %q to be treated as polza setting", key)
+		}
+	}
+	if isPolzaSystemSettingKey("API_OPEN_AI") {
+		t.Fatalf("expected API_OPEN_AI to stay outside dedicated polza runtime refresh list")
+	}
+}
+
 func TestParsePositiveAdminParamInt(t *testing.T) {
 	app := fiber.New()
 	app.Get("/:userId", func(c *fiber.Ctx) error {

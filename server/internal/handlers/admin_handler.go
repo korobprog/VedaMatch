@@ -88,6 +88,14 @@ func isYouTubeSystemSettingKey(key string) bool {
 	return strings.HasPrefix(normalized, "YOUTUBE_")
 }
 
+func isPolzaSystemSettingKey(key string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(key))
+	return normalized == "POLZA_API_KEY" ||
+		normalized == "POLZA_FAST_MODEL" ||
+		normalized == "POLZA_REASONING_MODEL" ||
+		normalized == "POLZA_BASE_URL"
+}
+
 func validateAdminCredentials(email, password string) error {
 	if strings.TrimSpace(email) == "" || strings.TrimSpace(password) == "" {
 		return errors.New("email and password are required")
@@ -548,6 +556,7 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
+	shouldReloadPolza := false
 	for k, v := range updates {
 		if isYouTubeSystemSettingKey(k) && !isSuperadmin {
 			continue
@@ -568,6 +577,13 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 		if k == "API_OPEN_AI" && v != "" {
 			os.Setenv("API_OPEN_AI", v)
 		}
+		if k == "POLZA_API_KEY" && v != "" {
+			os.Setenv("POLZA_API_KEY", v)
+			shouldReloadPolza = true
+		}
+		if isPolzaSystemSettingKey(k) {
+			shouldReloadPolza = true
+		}
 		// Also update Gemini keys in env
 		if strings.HasPrefix(k, "GEMINI_API_KEY") && v != "" {
 			os.Setenv(k, v)
@@ -586,6 +602,10 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 			k == "SUPPORT_CHANNEL_URL" {
 			os.Setenv(k, v)
 		}
+	}
+
+	if shouldReloadPolza {
+		services.GetPolzaService().ReloadFromDB()
 	}
 
 	return c.JSON(fiber.Map{"message": "Settings updated"})

@@ -172,6 +172,13 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     }, [navigation]);
 
+    const handleBackToPortal = React.useCallback(() => {
+        navigation.reset({
+            index: 0,
+            routes: [{ name: 'Portal' }],
+        });
+    }, [navigation]);
+
     useFocusEffect(
         React.useCallback(() => {
             const onBackPress = () => {
@@ -411,9 +418,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 onSettingsPress={() => setIsMenuOpen(true)}
                 onCallPress={handleCallPress}
                 topInset={insets.top}
-                onBackPress={() => {
-                    handleBackNavigation();
-                }}
+                onBackPress={recipientUser ? handleBackNavigation : handleBackToPortal}
             />
 
             <View style={styles.messagesWrap}>

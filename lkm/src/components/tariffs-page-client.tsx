@@ -178,22 +178,23 @@ export default function TariffsPageClient({
   };
 
   const handleBackToCabinet = useCallback(() => {
-    if (typeof window === 'undefined') {
-      router.replace(`/?lang=${language}`);
-      return;
-    }
-
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-
     router.replace(`/?lang=${language}`);
   }, [language, router]);
 
   return (
     <main className="page-shell tariffs-shell">
       <section className="hero-card">
+        <div className="tariffs-hero-actions">
+          <button
+            type="button"
+            className="tariffs-back-icon"
+            onClick={handleBackToCabinet}
+            aria-label={dictionary.backToCabinet}
+            title={dictionary.backToCabinet}
+          >
+            ←
+          </button>
+        </div>
         <p className="hero-domain">{initialHost || 'lkm.vedamatch'}</p>
         <h1>{dictionary.pageTitle}</h1>
         <p className="hero-subtitle">{dictionary.pageSubtitle}</p>
@@ -205,13 +206,6 @@ export default function TariffsPageClient({
       </section>
 
       <section className="panel tariffs-topbar">
-        <button
-          type="button"
-          className="secondary tariffs-back-link"
-          onClick={handleBackToCabinet}
-        >
-          {dictionary.backToCabinet}
-        </button>
         <label className="tariffs-language-select">
           {dictionary.languageLabel}
           <select
