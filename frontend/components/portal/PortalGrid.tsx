@@ -11,8 +11,6 @@ import {
     Platform,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import Animated, {
     SharedValue,
@@ -28,7 +26,6 @@ import { useSettings } from '../../context/SettingsContext';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { DEFAULT_SERVICES, PortalItem, PortalFolder as PortalFolderType, FOLDER_COLORS } from '../../types/portal';
-import { RootStackParamList } from '../../types/navigation';
 import { PortalIcon } from './PortalIcon';
 import { PortalFolderComponent } from './PortalFolder';
 import { FolderModal } from './FolderModal';
@@ -118,25 +115,32 @@ const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY,
 
 interface PortalGridProps {
     onServicePress: (serviceId: string) => void;
+    onOpenWidgets?: () => void;
     onCloseDrawer?: () => void; // Optional callback to close drawer when navigating
     roleHighlights?: string[];
     godModeEnabled?: boolean;
     activeMathLabel?: string;
     serviceBadges?: Record<string, number>;
     onInitialLayoutReady?: () => void;
+    hideQuickAccessDock?: boolean;
+    onDraggingStateChange?: (value: boolean) => void;
+    onBlockingOverlayChange?: (value: boolean) => void;
 }
 
 export const PortalGrid: React.FC<PortalGridProps> = ({
     onServicePress,
+    onOpenWidgets,
     onCloseDrawer,
     roleHighlights = [],
     godModeEnabled = false,
     activeMathLabel,
     serviceBadges = {},
     onInitialLayoutReady,
+    hideQuickAccessDock = false,
+    onDraggingStateChange,
+    onBlockingOverlayChange,
 }) => {
     const { t } = useTranslation();
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const androidVisualPolicy = useMemo(
         () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
@@ -188,8 +192,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Dock references
     const dockRef = useRef<View>(null);
     const dockOffset = useRef<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
-    const widgetNavLockRef = useRef(false);
-    const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const initialLayoutNotifiedRef = useRef(false);
 
     const page = layout.pages[currentPage];
@@ -272,34 +274,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         onDropOnItem: handleDropOnGridItem,
     });
 
-    const releaseWidgetNavigationLock = useCallback(() => {
-        widgetNavLockRef.current = false;
-        if (widgetNavUnlockTimerRef.current) {
-            clearTimeout(widgetNavUnlockTimerRef.current);
-            widgetNavUnlockTimerRef.current = null;
-        }
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            releaseWidgetNavigationLock();
-        };
-    }, [releaseWidgetNavigationLock]);
-
     const openWidgetSelection = useCallback(() => {
-        if (widgetNavLockRef.current) {
-            return;
-        }
-        widgetNavLockRef.current = true;
         onCloseDrawer?.();
         console.log('[portal_widgets_open] source=edit_toolbar');
-        requestAnimationFrame(() => {
-            navigation.navigate('WidgetSelection', { source: 'edit_toolbar' });
-        });
-        widgetNavUnlockTimerRef.current = setTimeout(() => {
-            releaseWidgetNavigationLock();
-        }, 450);
-    }, [navigation, onCloseDrawer, releaseWidgetNavigationLock]);
+        onOpenWidgets?.();
+    }, [onCloseDrawer, onOpenWidgets]);
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -311,8 +290,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Handle drag start - don't enter edit mode, just start dragging
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
+        onDraggingStateChange?.(true);
         gridDnd.onDragStart();
-    }, [gridDnd]);
+    }, [gridDnd, onDraggingStateChange]);
 
     // Handle tap outside to exit edit mode
     const handleBackgroundTap = useCallback(() => {
@@ -388,6 +368,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     const handleDragEnd = useCallback((itemId: string, absX: number, absY: number) => {
         setIsDraggingItem(false);
+        onDraggingStateChange?.(false);
 
         if (!page) return;
 
@@ -421,7 +402,18 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             return;
         }
         gridDnd.onDragEnd(itemId, absX, absY);
-    }, [gridDnd, page, quickAccess, moveItemToQuickAccess, items]);
+    }, [gridDnd, items, moveItemToQuickAccess, onDraggingStateChange, page, quickAccess]);
+
+    useEffect(() => {
+        return () => {
+            onDraggingStateChange?.(false);
+        };
+    }, [onDraggingStateChange]);
+
+    useEffect(() => {
+        onBlockingOverlayChange?.(showFolderModal);
+        return () => onBlockingOverlayChange?.(false);
+    }, [onBlockingOverlayChange, showFolderModal]);
 
 
 
@@ -731,7 +723,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             </View>
 
             {/* Elegant Divider Line */}
-            {showDecorativeDockLayers && (
+            {(!hideQuickAccessDock || isEditMode) && showDecorativeDockLayers && (
                 <LinearGradient
                     start={{ x: 0, y: 0.5 }}
                     end={{ x: 1, y: 0.5 }}
@@ -743,6 +735,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             )}
 
             {/* Floating Dock Area */}
+            {(!hideQuickAccessDock || isEditMode) && (
             <View style={[styles.quickAccessDock, compactDockStyle]}>
                 {androidVisualPolicy.enableBlur && allowHeavyPortalEffects && (
                     <BlurView
@@ -802,6 +795,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     ))}
                 </View>
             </View>
+            )}
 
             {layout.pages.length > 1 && renderPageDots()}
 

@@ -15,6 +15,8 @@ interface WidgetCanvasGridProps {
     onRequestWidgetMenu?: () => void;
     onRemoveWidget: (widgetId: string) => void;
     onReorderWidgets: (fromIndex: number, toIndex: number) => void;
+    onDragStateChange?: (value: boolean) => void;
+    onInitialLayoutReady?: () => void;
 }
 
 const WIDGET_GRID_ROW_STEP = 92;
@@ -27,6 +29,8 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     onRequestWidgetMenu,
     onRemoveWidget,
     onReorderWidgets,
+    onDragStateChange,
+    onInitialLayoutReady,
 }) => {
     const { t } = useTranslation();
     const { vTheme, portalBackgroundType, isDarkMode, screenVisualStyle } = useSettings();
@@ -35,6 +39,7 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
     const [isDraggingItem, setIsDraggingItem] = useState(false);
     const canvasRef = useRef<View | null>(null);
     const canvasBoundsRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+    const initialLayoutNotifiedRef = useRef(false);
     const canvasMinHeight = useMemo(() => Math.max(320, viewportHeight - 330), [viewportHeight]);
     const orderedWidgets = useMemo(
         () => [...widgets].sort((a, b) => a.position - b.position),
@@ -56,7 +61,12 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
 
     const handleCanvasLayout = useCallback(() => {
         measureCanvasBounds();
-    }, [measureCanvasBounds]);
+        if (initialLayoutNotifiedRef.current) {
+            return;
+        }
+        initialLayoutNotifiedRef.current = true;
+        onInitialLayoutReady?.();
+    }, [measureCanvasBounds, onInitialLayoutReady]);
 
     const handleCanvasLongPress = useCallback(() => {
         if (dnd.isDragging || isDraggingItem) return;
@@ -72,13 +82,15 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
 
     const handleDragStart = useCallback(() => {
         setIsDraggingItem(true);
+        onDragStateChange?.(true);
         onSetEditMode(true);
         measureCanvasBounds();
         dnd.onDragStart();
-    }, [dnd, measureCanvasBounds, onSetEditMode]);
+    }, [dnd, measureCanvasBounds, onDragStateChange, onSetEditMode]);
 
     const handleDragEnd = useCallback((id: string, x: number, y: number) => {
         setIsDraggingItem(false);
+        onDragStateChange?.(false);
         if (singleWidget && singleWidget.id === id && canvasBoundsRef.current.width > 0) {
             const bounds = canvasBoundsRef.current;
             const clampedX = Math.max(bounds.x, Math.min(bounds.x + bounds.width - 1, x));
@@ -102,7 +114,13 @@ export const WidgetCanvasGrid: React.FC<WidgetCanvasGridProps> = ({
             return;
         }
         dnd.onDragEnd(id, x, y);
-    }, [canvasMinHeight, dnd, onReorderWidgets, singleWidget]);
+    }, [canvasMinHeight, dnd, onDragStateChange, onReorderWidgets, singleWidget]);
+
+    React.useEffect(() => {
+        return () => {
+            onDragStateChange?.(false);
+        };
+    }, [onDragStateChange]);
 
     const singleWidgetOffsetStyle = useMemo<ViewStyle | undefined>(() => {
         if (!singleWidget) return undefined;

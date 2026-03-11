@@ -15422,3 +15422,162 @@ export function resolveTelegramBootstrapContext(location: Location): TelegramBoo
   // WebApp initData + URL hash/search + sessionStorage fallback
 }
 ```
+
+## 2026-03-11 (Portal/Widgets shared pager shell)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/WidgetSelectionScreen.tsx`
+- `frontend/components/portal/PortalGrid.tsx`
+- `frontend/components/portal/PortalQuickAccessDock.tsx`
+- `frontend/components/portal/widgets/WidgetPageContent.tsx`
+- `frontend/components/portal/widgets/WidgetCanvasGrid.tsx`
+- `frontend/components/portal/portalWorkspaceConstants.ts`
+- `frontend/types/navigation.ts`
+- `frontend/App.tsx`
+- `frontend/jest.setup.js`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+
+### Суть правки (что было -> что стало)
+- Было: свайп `Portal -> WidgetSelection` открывал второй полноценный screen с повторным mount `PortalBackgroundLayer`, `ScreenScaffold`, header, dock и widget state.
+- Стало: `PortalMainScreen` стал единым workspace-shell, а `Portal` и `Widgets` переключаются как две страницы `react-native-pager-view`.
+- Было: `WidgetSelectionScreen` рендерил собственный shell.
+- Стало: `WidgetSelectionScreen` оставлен только как compat-wrapper и сразу делает `replace('Portal', { initialPage: 'widgets', returnToWidget: true })`.
+- Было: нижний dock существовал отдельно в `PortalGrid` и отдельно в screen виджетов.
+- Стало: общий dock вынесен в `frontend/components/portal/PortalQuickAccessDock.tsx`; на widget page он работает в read-only режиме.
+- Было: drag/edit overlay состояния не были частью shell-level swipe policy.
+- Стало: pager swipe блокируется при `edit mode`, DnD, `WidgetPickerSheet` и открытом portal folder modal.
+- Было: сервис `travel` резолвился в `TravelHome`, но route отсутствовал в stack/navigation types.
+- Стало: `TravelHome` добавлен в `RootStackParamList` и `App.tsx`, чтобы resolver и navigation были согласованы.
+
+### Короткие сниппеты кода
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+<PagerView
+  ref={pagerRef}
+  initialPage={workspacePage === 'widgets' ? 1 : 0}
+  scrollEnabled={workspaceSwipeEnabled}
+  offscreenPageLimit={1}
+  onPageSelected={handleWorkspacePageSelected}
+  onPageScrollStateChanged={handleWorkspacePageScrollStateChanged}
+>
+```
+
+`frontend/screens/portal/WidgetSelectionScreen.tsx`:
+```tsx
+navigation.replace('Portal', {
+  initialPage: 'widgets',
+  returnToWidget: true,
+});
+```
+
+`frontend/components/portal/PortalQuickAccessDock.tsx`:
+```tsx
+const effectiveIsEditMode = forceReadOnly ? false : isEditMode;
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="TravelHome" component={TravelHomeScreen} options={{ headerShown: false }} />
+```
+
+## 2026-03-11
+
+### Измененные файлы
+- `frontend/ios/Podfile.lock`
+
+### Суть правки
+- Было: после перевода `Portal ↔ Widgets` на `react-native-pager-view` iOS runtime падал с `No component found for view with name "RNCViewPager"`, потому что native pod еще не был установлен в workspace.
+- Стало: в `frontend/ios` выполнен `pod install`, `react-native-pager-view` добавлен в CocoaPods graph и iOS debug build успешно линкует `react_native_pager_view.framework`.
+
+### Короткие сниппеты кода
+`frontend/ios/Podfile.lock`:
+```txt
+- react-native-pager-view (6.9.1):
+- react-native-pager-view (from `../node_modules/react-native-pager-view`)
+react-native-pager-view:
+  :path: "../node_modules/react-native-pager-view"
+```
+
+### Проверка
+- `pod install` в `frontend/ios` завершился успешно.
+- `xcodebuild -workspace vedamatch.xcworkspace -scheme vedamatch -configuration Debug -sdk iphonesimulator ... build` -> `BUILD SUCCEEDED`.
+
+## 2026-03-11
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки
+- Было: у app target `vedamatch` в `Debug` был задан `DEVELOPMENT_TEAM = CVW85BZU5Z`, а в `Release` стояла пустая строка.
+- Стало: `Release` использует тот же `DEVELOPMENT_TEAM = CVW85BZU5Z`, что и `Debug`, поэтому Xcode больше не должен падать с `Signing for "vedamatch" requires a development team`.
+
+### Короткие сниппеты кода
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+13B07F951A680F5B00A75B9A /* Release */ = {
+  buildSettings = {
+    DEVELOPMENT_TEAM = CVW85BZU5Z;
+  };
+};
+```
+
+## 2026-03-11
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки
+- Было: iOS project находился в несогласованном локальном signing state:
+  - `Debug` и `Release` app target использовали разные `DEVELOPMENT_TEAM`;
+  - tests target оставался на другом team;
+  - локальный bundle id был частично изменен и в одном из build configurations стал битым (`com.korobkov.vedamatch-`).
+- Стало: app и tests выровнены на один локальный Personal Team и один набор локальных bundle id:
+  - `DEVELOPMENT_TEAM = MS49D4HQV9`
+  - `com.korobkov.vedamatch`
+  - `com.korobkov.vedamatchTests`
+- Дополнительно очищено локальное Xcode state:
+  - удалены `frontend/ios/build` и app-specific `DerivedData`;
+  - повторно выполнен `pod install`;
+  - workspace заново открыт через `frontend/ios/vedamatch.xcworkspace`.
+
+### Короткие сниппеты кода
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+DEVELOPMENT_TEAM = MS49D4HQV9;
+PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch;
+```
+
+```pbxproj
+DEVELOPMENT_TEAM = MS49D4HQV9;
+PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatchTests;
+```
+
+## 2026-03-11
+
+### Измененные файлы
+- `frontend/node_modules/react-native-voip-push-notification/ios/RNVoipPushNotification/RNVoipPushNotificationManager.h`
+- `frontend/node_modules/react-native-voip-push-notification/ios/RNVoipPushNotification/RNVoipPushNotificationManager.m`
+
+### Суть правки
+- Было: на iOS app мог упасть сразу после запуска или при регистрации VoIP push с `NSInvalidArgumentException`:
+  - `-[RNVoipPushNotificationManager pushRegistry:didUpdatePushCredentials:forType:]: unrecognized selector`
+- Причина: модуль назначал `RNVoipPushNotificationManager` делегатом `PKPushRegistry`, но сам класс не реализовывал instance-методы `PKPushRegistryDelegate`.
+- Стало: `RNVoipPushNotificationManager` явно реализует `PKPushRegistryDelegate` и прокидывает instance callbacks в существующие class-level handlers модуля.
+
+### Короткие сниппеты кода
+`frontend/node_modules/react-native-voip-push-notification/ios/RNVoipPushNotification/RNVoipPushNotificationManager.h`:
+```objc
+@interface RNVoipPushNotificationManager : RCTEventEmitter <RCTBridgeModule, PKPushRegistryDelegate>
+```
+
+`frontend/node_modules/react-native-voip-push-notification/ios/RNVoipPushNotification/RNVoipPushNotificationManager.m`:
+```objc
+- (void)pushRegistry:(PKPushRegistry *)registry
+didUpdatePushCredentials:(PKPushCredentials *)credentials
+             forType:(PKPushType)type
+{
+    [[self class] didUpdatePushCredentials:credentials forType:(NSString *)type];
+}
+```

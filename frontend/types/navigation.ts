@@ -52,6 +52,7 @@ export type RootStackParamList = {
     Plans: undefined;
     Portal: {
         initialTab?: PortalInitialTab;
+        initialPage?: 'portal' | 'widgets';
         resetToGridAt?: number;
         returnToWidget?: boolean;
         origin?: 'widget_dock';
@@ -180,6 +181,7 @@ export type RootStackParamList = {
     TVPlayer: { channel: any };
 
     // Travel Routes
+    TravelHome: undefined;
     YatraDetail: { yatraId: number };
     YatraPublish: { yatraId: number };
     ShelterDetail: { shelterId: number };

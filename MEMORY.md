@@ -210,6 +210,25 @@
 - В `frontend/components/chat/MessageList.tsx` internal source routes VedaMatch должны открываться через app navigation не только для library, но и для `products`, `shops`, `services`, `news`, `ads`, `education`, `yatra`, `shelter`, `cafes`, `dating profile`. Иначе citation ведет в никуда даже при корректном `sourceUrl`.
 - Для AI chat bubble в `frontend/components/chat/MessageList.tsx` `maxWidth: 85%` оказался слишком узким для длинных ответов на мобильных экранах. Для читаемости лучше держать bubble ближе к краям, чтобы текст ломался реже.
 
+## iOS Build / Signing
+- После подключения `react-native-pager-view` для iOS нужно открывать именно `frontend/ios/vedamatch.xcworkspace`, а не `.xcodeproj`; иначе Xcode легко показывает ложные module-ошибки по Pods (`SDWebImage`, `SDWebImageWebPCoder`) даже при валидном pod graph.
+- Для локальной сборки на personal team проект сейчас должен быть выровнен на один dev-config:
+  - `DEVELOPMENT_TEAM = MS49D4HQV9`
+  - app bundle id: `com.korobkov.vedamatch`
+  - tests bundle id: `com.korobkov.vedamatchTests`
+- Смешанный state, где `Debug` и `Release` используют разные team id или битый bundle id вроде `com.korobkov.vedamatch-`, ломает provisioning и затем дает вторичные IDE-ошибки по pod modules.
+- После правок signing/bundle id безопасный recovery path для Xcode:
+  - закрыть Xcode;
+  - удалить `frontend/ios/build`;
+  - удалить app-specific `DerivedData/vedamatch-*`;
+  - выполнить `pod install` в `frontend/ios`;
+  - заново открыть `vedamatch.xcworkspace`.
+- В текущей версии `react-native-voip-push-notification` iOS native-модуль может крашиться на startup/runtime с:
+  - `NSInvalidArgumentException`
+  - `-[RNVoipPushNotificationManager pushRegistry:didUpdatePushCredentials:forType:]: unrecognized selector`
+- Причина: модуль назначает `RNVoipPushNotificationManager` делегатом `PKPushRegistry`, но не реализует instance-методы `PKPushRegistryDelegate`.
+- Локальный фикс: добавить `PKPushRegistryDelegate` conformance и instance bridge-методы в `frontend/node_modules/react-native-voip-push-notification/ios/RNVoipPushNotification/RNVoipPushNotificationManager.{h,m}`.
+
 ## Referral / Sangha Localization
 - Экран `frontend/screens/portal/referral/InviteFriendsScreen.tsx` должен быть полностью на i18n-ключах, без hardcoded English строк в UI и share-тексте.
 - Для этого экрана используется namespace `referralScreen` в `frontend/i18n/locales/en.ts`, `frontend/i18n/locales/ru.ts`, `frontend/i18n/locales/hi.ts`.
@@ -1993,30 +2012,35 @@
 - `PortalLayoutContext` обновлен:
   - `addWidget` возвращает `{ ok: boolean; reason?: 'duplicate' }`;
   - `add/remove/reorder` работают только с `layout.widgetCanvas.widgets`.
-- Экран виджетов переписан в compose-подход (`frontend/screens/portal/WidgetSelectionScreen.tsx` + `WidgetCanvasGrid` + `WidgetPickerSheet`):
-  - одна страница виджетов без дока/папок/page dots;
-  - long-press edit-mode;
-  - добавление через `+` в toolbar;
-  - `Готово` выключает edit-mode;
-  - открытие сервисов из нижнего dock через `push('Portal', { returnToWidget: true, origin: 'widget_dock' })`.
+- `PortalMainScreen` теперь является единым workspace-shell для `Portal` и `Widgets`:
+  - общий `PortalBackgroundLayer`, `ScreenScaffold`, header, нижний dock и swipe-hint живут один раз;
+  - переключение `Portal ↔ Widgets` делается через `react-native-pager-view`, а не через второй полноценный screen.
+- `frontend/components/portal/widgets/WidgetPageContent.tsx` содержит только page-specific слой виджетов:
+  - `WidgetCanvasGrid`;
+  - widget toolbar;
+  - `WidgetPickerSheet`;
+  - widget add/remove/reorder logic.
+- `frontend/screens/portal/WidgetSelectionScreen.tsx` больше не рендерит собственный shell:
+  - route сохранен только как compat-wrapper;
+  - на mount делает `replace('Portal', { initialPage: 'widgets', returnToWidget: true })`.
+- Shell-level swipe между порталoм и виджетами должен блокироваться, если:
+  - включен edit mode;
+  - идет DnD в `PortalGrid` или `WidgetCanvasGrid`;
+  - открыт widget picker;
+  - открыт folder modal на странице портала.
+- Общий нижний dock вынесен в `frontend/components/portal/PortalQuickAccessDock.tsx`:
+  - один и тот же dock используется на portal/widgets page;
+  - на странице виджетов dock работает в read-only режиме и не показывает delete affordances даже если глобальный `isEditMode=true`.
+- Для замера отклика page-switch используются perf-логи:
+  - `portal_widgets_switch_start/page_selected/page_ready`;
+  - `widgets_portal_switch_start/page_selected/page_ready`.
 - UX-фикс для экрана виджетов (2026-02-24):
   - `WidgetCanvasGrid`: убран конфликт tap/drag (без автовыхода из edit-mode по случайному tap), скролл блокируется только в момент drag.
   - `useGridReorderDnd`: добавлен fallback drop на ближайший элемент (если нет точной коллизии), с защитой от reorder при отпускании на исходном элементе.
   - `WidgetPickerSheet`: листание списка работает стабильно (backdrop больше не перехватывает scroll), sheet не закрывается после каждого добавления.
-  - `WidgetSelectionScreen`: добавлен нижний dock как на главном портале (3 сервиса из `layout.quickAccess`), edit-toolbar оставлен отдельным слоем (`Виджет`, `Готово`) над dock.
-  - `WidgetSelectionScreen`: `LKM` в верхнем баре заменен на круглую кнопку того же размера, что и остальные header-иконки, с компактным форматом суммы (`K/M`).
   - `WidgetCanvasGrid`: зона long-press растянута на весь canvas; drag-start фиксированно включает edit-mode перед перетаскиванием (устранен срыв DnD на Android).
-  - `WidgetSelectionScreen` и `PortalMainScreen` используют общий рендер фоновых режимов (`image/gradient/color/slideshow`) через `frontend/components/portal/PortalBackgroundLayer.tsx`.
-  - `PortalMainScreen`: при `returnToWidget=true` back из встроенного сервиса возвращает в `WidgetSelection` (UI back, embedded `onBack`, Android hardware back).
-- Android white-screen/black-screen на входе в `WidgetSelection` (2026-02-24):
-  - Наблюдение: в `adb logcat` нет `FATAL EXCEPTION`/`ReactNativeJS` ошибок после `[portal_widgets_open]`; `MainActivity` остается `mResumed=true`, но поверхность может оставаться пустой.
-  - Вероятная причина: transition freeze/race в `native-stack` на Android (глобальные `animation: fade` + `freezeOnBlur`) в сочетании с повторными `navigate` и heavy blur-слоем.
-  - Примененные фиксы:
-    - Для `WidgetSelection` в `frontend/App.tsx` задано `animation: 'none'` (Android), `freezeOnBlur: false`, явный `contentStyle`.
-    - Добавлен navigation-lock (как в кейсе звонков/чатов) перед `navigate('WidgetSelection')` в:
-      - `frontend/screens/portal/PortalMainScreen.tsx` (header icon)
-      - `frontend/components/portal/PortalGrid.tsx` (edit toolbar)
-    - В `frontend/screens/portal/WidgetSelectionScreen.tsx` `BlurView` переведен на `androidVisualPolicy` (без принудительного blur на reduced Android mode).
+- `PortalMainScreen` и widget page используют общий рендер фоновых режимов (`image/gradient/color/slideshow`) через `frontend/components/portal/PortalBackgroundLayer.tsx`, поэтому page-switch не должен перезапускать slideshow/crossfade.
+- Android white-screen/black-screen на входе в старый `WidgetSelection` был архитектурно связан с переходом на второй тяжелый portal-shell; после перехода на pager-shell основным путем входа считается `Portal(initialPage='widgets')`, а не отдельный screen.
   - `frontend/screens/RegistrationScreen.tsx` (2026-03-08): на Android сочетание full-screen dark overlay + header `BlurView` давало визуально "тусклый/под фильтром" фон; для registration-screen нужен более слабый Android overlay и статичный header fallback вместо blur-fallback.
 
 ## Calls Architecture (Contacts + Rooms)
@@ -2821,3 +2845,9 @@
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
   - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.27`, `versionCode=29`.
 - Публичная ссылка на текущий test-group APK: `https://api.vedamatch.ru/uploads/apk/vedamatch-1.1.27-29.apk`.
+
+## iOS Native Modules
+- После добавления `react-native-pager-view` в mobile workspace iOS runtime может падать с `No component found for view with name "RNCViewPager"`, если в `frontend/ios` не выполнен `pod install`.
+- Признак правильной фиксации: `frontend/ios/Podfile.lock` содержит `react-native-pager-view (6.9.1)` и iOS `xcodebuild` успешно линкует `react_native_pager_view.framework`.
+- Это не JS-регрессия. После такого изменения нужно пересобрать и переустановить iOS app; уже установленная старая сборка продолжит падать до нового build/install.
+- В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` `Debug` и `Release` конфигурации app target должны использовать один и тот же `DEVELOPMENT_TEAM = CVW85BZU5Z`; если у `Release` пустая строка, Xcode показывает `Signing for "vedamatch" requires a development team`.

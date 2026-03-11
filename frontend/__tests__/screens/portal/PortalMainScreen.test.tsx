@@ -3,6 +3,7 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 
 const mockHandleNewChat = jest.fn();
 const mockSetIsMenuOpen = jest.fn();
+const mockSetEditMode = jest.fn();
 const mockGetUnreadCount = jest.fn().mockResolvedValue({ unreadCount: 0 });
 let latestOnServicePress: ((serviceId: string) => void) | null = null;
 const mockUserState = {
@@ -42,6 +43,8 @@ jest.mock('../../../context/UserContext', () => ({
         godModeFilters: [{ mathId: 'gauranga', mathName: 'Gauranga Org.', filters: ['kirtan'] }],
         activeMathId: 'gauranga',
         setActiveMath: jest.fn(),
+        shouldShowPortalBootLoader: false,
+        completePortalBootLoader: jest.fn(),
     }),
 }));
 
@@ -75,8 +78,17 @@ jest.mock('../../../context/SettingsContext', () => ({
 
 jest.mock('../../../context/PortalLayoutContext', () => ({
     usePortalLayout: () => ({
+        layout: {
+            quickAccess: [],
+            pages: [{ items: [] }],
+            widgetCanvas: { widgets: [], lastModified: 0 },
+            iconSize: 'medium',
+        },
+        isEditMode: false,
+        setEditMode: mockSetEditMode,
         isServiceVisible: () => true,
         getServiceMaintenanceMessage: () => '',
+        isLoading: false,
     }),
 }));
 
@@ -89,9 +101,36 @@ jest.mock('../../../context/ChatContext', () => ({
 jest.mock('../../../components/portal', () => {
     const ReactNative = require('react-native');
     return {
-        PortalGrid: ({ onServicePress }: { onServicePress: (serviceId: string) => void }) => {
+        PortalGrid: ({
+            onServicePress,
+            onOpenWidgets,
+        }: {
+            onServicePress: (serviceId: string) => void;
+            onOpenWidgets?: () => void;
+        }) => {
             latestOnServicePress = onServicePress;
-            return <ReactNative.View />;
+            return (
+                <ReactNative.View testID="portal-grid">
+                    <ReactNative.TouchableOpacity testID="open-widgets" onPress={() => onOpenWidgets?.()} />
+                </ReactNative.View>
+            );
+        },
+    };
+});
+
+jest.mock('../../../components/portal/PortalQuickAccessDock', () => ({
+    PortalQuickAccessDock: () => null,
+}));
+
+jest.mock('../../../components/portal/widgets/WidgetPageContent', () => {
+    const ReactLib = require('react');
+    const ReactNative = require('react-native');
+    return {
+        WidgetPageContent: ({ onPageReady }: { onPageReady?: () => void }) => {
+            ReactLib.useEffect(() => {
+                onPageReady?.();
+            }, [onPageReady]);
+            return <ReactNative.View testID="widget-page-content" />;
         },
     };
 });
@@ -116,6 +155,7 @@ jest.mock('../../../services/supportService', () => ({
 
 jest.mock('../../../screens/portal/contacts/ContactsScreen', () => ({ ContactsScreen: () => null }));
 jest.mock('../../../screens/portal/chat/PortalChatScreen', () => ({ PortalChatScreen: () => null }));
+jest.mock('../../../screens/portal/services/ServicesHomeScreen', () => () => null);
 jest.mock('../../../screens/portal/shops/MarketHomeScreen', () => ({ MarketHomeScreen: () => null }));
 jest.mock('../../../screens/portal/ads/AdsScreen', () => ({ AdsScreen: () => null }));
 jest.mock('../../../screens/portal/news/NewsScreen', () => ({ NewsScreen: () => null }));
@@ -139,6 +179,7 @@ describe('PortalMainScreen', () => {
         latestOnServicePress = null;
         mockHandleNewChat.mockClear();
         mockSetIsMenuOpen.mockClear();
+        mockSetEditMode.mockClear();
         mockGetUnreadCount.mockClear();
         mockUserState.isProfileComplete = true;
         mockUserState.godModeEnabled = true;
@@ -415,5 +456,37 @@ describe('PortalMainScreen', () => {
 
         expect(screen.getByText('portal.seekerTravelLocked.title')).toBeTruthy();
         expect(navigation.navigate).toHaveBeenCalledWith('EditProfile');
+    });
+
+    it('switches to widgets page inside the shared pager shell', () => {
+        const navigation = createNavigation();
+        const screen = render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        expect(screen.queryByTestId('widget-page-content')).toBeNull();
+
+        fireEvent.press(screen.getByTestId('open-widgets'));
+
+        expect(screen.getByTestId('widget-page-content')).toBeTruthy();
+    });
+
+    it('opens shared workspace directly on widgets page from route params', () => {
+        const navigation = createNavigation();
+        const screen = render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: { initialPage: 'widgets' } }}
+            />,
+        );
+
+        expect(screen.getByTestId('widget-page-content')).toBeTruthy();
+        expect(navigation.setParams).toHaveBeenCalledWith({
+            initialPage: undefined,
+            returnToWidget: undefined,
+        });
     });
 });

@@ -14,7 +14,6 @@ import {
     ActivityIndicator,
     InteractionManager,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,8 +30,9 @@ import {
     Heart,
     Film,
 } from 'lucide-react-native';
+import PagerView, { PageScrollStateChangedNativeEvent, PagerViewOnPageSelectedEvent } from 'react-native-pager-view';
 
-import { PortalChatScreen } from './chat/PortalChatScreen';
+import ServicesHomeScreen from './services/ServicesHomeScreen';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
@@ -40,6 +40,7 @@ import { BellButton } from '../../components/portal/BellButton';
 import { NotificationPanel } from '../../components/portal/NotificationPanel';
 import { PortalGrid } from '../../components/portal';
 import { PortalBackgroundLayer, deriveEffectivePortalBackground } from '../../components/portal/PortalBackgroundLayer';
+import { PortalQuickAccessDock } from '../../components/portal/PortalQuickAccessDock';
 import { PortalLkmCircleButton } from '../../components/wallet/PortalLkmCircleButton';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
 import { SplashScreen } from '../../components/ui/SplashScreen';
@@ -49,6 +50,8 @@ import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 import { useChat } from '../../context/ChatContext';
+import { WidgetPageContent } from '../../components/portal/widgets/WidgetPageContent';
+import { PortalWorkspacePage } from '../../components/portal/portalWorkspaceConstants';
 import {
     EMBEDDED_PORTAL_TABS,
     EmbeddedPortalTab,
@@ -60,9 +63,7 @@ import {
 type ServiceTab = EmbeddedPortalTab;
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
 type WidgetSelectionSource = Exclude<NonNullable<RootStackParamList['WidgetSelection']>['source'], undefined>;
-const SWIPE_MIN_DISTANCE_PX = 70;
-const SWIPE_MIN_VELOCITY_PX = 650;
-const SWIPE_MAX_VERTICAL_DELTA_PX = 48;
+type WorkspaceSwitchSource = WidgetSelectionSource | 'widget_header' | 'route_param' | 'reset_to_grid' | 'legacy_return' | 'widget_swipe';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
@@ -77,7 +78,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         shouldShowPortalBootLoader,
         completePortalBootLoader,
     } = useUser();
-    const { isServiceVisible, getServiceMaintenanceMessage, isLoading: isPortalLayoutLoading } = usePortalLayout();
+    const {
+        isEditMode,
+        isServiceVisible,
+        getServiceMaintenanceMessage,
+        isLoading: isPortalLayoutLoading,
+    } = usePortalLayout();
     const {
         vTheme,
         isDarkMode,
@@ -106,7 +112,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const initialServiceTab = initialLaunch?.kind === 'open_portal_tab'
         ? initialLaunch.tab
         : null;
+    const initialWorkspacePage: PortalWorkspacePage = route.params?.initialPage === 'widgets' || route.params?.returnToWidget
+        ? 'widgets'
+        : 'portal';
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
+    const [workspacePage, setWorkspacePage] = useState<PortalWorkspacePage>(initialWorkspacePage);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
     const [isPortalBootOverlayVisible, setIsPortalBootOverlayVisible] = useState(false);
@@ -114,11 +124,25 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [isPortalFirstLayoutReady, setIsPortalFirstLayoutReady] = useState(false);
     const [isPortalGridMounted, setIsPortalGridMounted] = useState(Platform.OS !== 'android');
     const [isPortalStartupSettled, setIsPortalStartupSettled] = useState(Platform.OS !== 'android');
+    const [isPortalDragging, setIsPortalDragging] = useState(false);
+    const [isWidgetDragging, setIsWidgetDragging] = useState(false);
+    const [isWidgetPickerOpen, setIsWidgetPickerOpen] = useState(false);
+    const [isPortalOverlayOpen, setIsPortalOverlayOpen] = useState(false);
     const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
     const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
-    const widgetNavLockRef = useRef(false);
-    const widgetNavUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const portalBootFinishRequestedRef = useRef(false);
+    const pagerRef = useRef<PagerView>(null);
+    const workspacePageRef = useRef<PortalWorkspacePage>(initialWorkspacePage);
+    const activeServiceReturnPageRef = useRef<PortalWorkspacePage>(initialWorkspacePage);
+    const workspaceSwitchPerfRef = useRef<{
+        targetPage: PortalWorkspacePage;
+        source: string;
+        startedAt: number;
+        selectedLogged: boolean;
+        readyLogged: boolean;
+    } | null>(null);
+    const portalPageReadyRef = useRef(false);
+    const widgetPageReadyRef = useRef(false);
 
     const showServiceUnavailableAlert = useCallback((serviceId: string) => {
         const maintenanceMessage = getServiceMaintenanceMessage(serviceId);
@@ -135,54 +159,79 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         return () => subscription.remove();
     }, []);
 
-    const releaseWidgetNavigationLock = useCallback(() => {
-        widgetNavLockRef.current = false;
-        if (widgetNavUnlockTimerRef.current) {
-            clearTimeout(widgetNavUnlockTimerRef.current);
-            widgetNavUnlockTimerRef.current = null;
-        }
+    const logWorkspacePerfEvent = useCallback((
+        phase: 'switch_start' | 'page_selected' | 'page_ready',
+        targetPage: PortalWorkspacePage,
+        source: WorkspaceSwitchSource,
+        startedAt?: number,
+    ) => {
+        const prefix = targetPage === 'widgets' ? 'portal_widgets' : 'widgets_portal';
+        const suffix = phase === 'switch_start'
+            ? 'switch_start'
+            : phase === 'page_selected'
+                ? 'page_selected'
+                : 'page_ready';
+        const elapsedMs = typeof startedAt === 'number' ? Math.max(0, Date.now() - startedAt) : 0;
+        const elapsedPart = phase === 'switch_start' ? '' : ` elapsedMs=${elapsedMs}`;
+        console.log(`[${prefix}_${suffix}] source=${source}${elapsedPart}`);
     }, []);
 
-    useEffect(() => {
-        return () => {
-            releaseWidgetNavigationLock();
-        };
-    }, [releaseWidgetNavigationLock]);
-
-    const openWidgetSelection = useCallback((source: WidgetSelectionSource = 'portal_header') => {
-        if (widgetNavLockRef.current) {
+    const markWorkspacePageReady = useCallback((page: PortalWorkspacePage) => {
+        if (page === 'portal') {
+            portalPageReadyRef.current = true;
+        } else {
+            widgetPageReadyRef.current = true;
+        }
+        const perf = workspaceSwitchPerfRef.current;
+        if (!perf || perf.targetPage !== page || !perf.selectedLogged || perf.readyLogged) {
             return;
         }
-        widgetNavLockRef.current = true;
-        console.log(`[portal_widgets_open] source=${source}`);
-        requestAnimationFrame(() => {
-            navigation.navigate('WidgetSelection', { source });
-        });
-        widgetNavUnlockTimerRef.current = setTimeout(() => {
-            releaseWidgetNavigationLock();
-        }, 450);
-    }, [navigation, releaseWidgetNavigationLock]);
+        perf.readyLogged = true;
+        logWorkspacePerfEvent('page_ready', page, perf.source as WorkspaceSwitchSource, perf.startedAt);
+        workspaceSwitchPerfRef.current = null;
+    }, [logWorkspacePerfEvent]);
 
-    const portalSwipeGesture = useMemo(
-        () => Gesture.Pan()
-            .runOnJS(true)
-            .maxPointers(1)
-            .activeOffsetX([-16, 16])
-            .failOffsetY([-32, 32])
-            .onEnd((event) => {
-                if (activeTab !== null) {
-                    return;
-                }
-                const isHorizontalSwipe =
-                    event.translationX <= -SWIPE_MIN_DISTANCE_PX ||
-                    event.velocityX <= -SWIPE_MIN_VELOCITY_PX;
-                const isMostlyHorizontal = Math.abs(event.translationY) <= SWIPE_MAX_VERTICAL_DELTA_PX;
-                if (isHorizontalSwipe && isMostlyHorizontal) {
-                    openWidgetSelection('portal_swipe');
-                }
-            }),
-        [activeTab, openWidgetSelection],
-    );
+    const applyWorkspacePage = useCallback((targetPage: PortalWorkspacePage) => {
+        workspacePageRef.current = targetPage;
+        setWorkspacePage(targetPage);
+    }, []);
+
+    const switchWorkspacePage = useCallback((
+        targetPage: PortalWorkspacePage,
+        source: WorkspaceSwitchSource,
+        animated: boolean = true,
+    ) => {
+        const currentPage = workspacePageRef.current;
+        if (currentPage === targetPage) {
+            applyWorkspacePage(targetPage);
+            return;
+        }
+
+        const startedAt = Date.now();
+        workspaceSwitchPerfRef.current = {
+            targetPage,
+            source,
+            startedAt,
+            selectedLogged: false,
+            readyLogged: false,
+        };
+        logWorkspacePerfEvent('switch_start', targetPage, source, startedAt);
+        applyWorkspacePage(targetPage);
+
+        const pager = pagerRef.current;
+        if (pager) {
+            const pageIndex = targetPage === 'widgets' ? 1 : 0;
+            if (animated) {
+                pager.setPage(pageIndex);
+            } else {
+                pager.setPageWithoutAnimation(pageIndex);
+            }
+        }
+    }, [applyWorkspacePage, logWorkspacePerfEvent]);
+
+    const openWidgetPage = useCallback((source: WidgetSelectionSource = 'portal_header') => {
+        switchWorkspacePage('widgets', source);
+    }, [switchWorkspacePage]);
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID || user.ID === 999999) {
@@ -230,7 +279,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const serviceLayerSlideshowEnabled = useSolidServiceLayer ? false : layerSlideshowEnabled;
     const serviceLayerOverlayColor = useSolidServiceLayer ? 'transparent' : layerOverlayColor;
     const useLightServiceHeaderIcons = useSolidServiceLayer ? false : useLightHeaderIcons;
-    const shouldUseSolidServiceHeader = activeTab === 'chat';
+    const shouldUseSolidServiceHeader = false;
     const serviceHeaderBackgroundColor = shouldUseSolidServiceHeader ? vTheme.colors.background : 'transparent';
     const serviceHeaderBorderColor = shouldUseSolidServiceHeader ? vTheme.colors.divider : 'transparent';
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
@@ -251,8 +300,58 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     );
 
     const handlePortalFirstLayoutReady = useCallback(() => {
+        portalPageReadyRef.current = true;
         setIsPortalFirstLayoutReady(true);
-    }, []);
+        markWorkspacePageReady('portal');
+    }, [markWorkspacePageReady]);
+
+    const handleWidgetPageReady = useCallback(() => {
+        widgetPageReadyRef.current = true;
+        markWorkspacePageReady('widgets');
+    }, [markWorkspacePageReady]);
+
+    const handleWorkspacePageSelected = useCallback((event: PagerViewOnPageSelectedEvent) => {
+        const selectedPage: PortalWorkspacePage = event.nativeEvent.position === 1 ? 'widgets' : 'portal';
+        workspacePageRef.current = selectedPage;
+        setWorkspacePage(selectedPage);
+        const perf = workspaceSwitchPerfRef.current;
+        if (!perf || perf.targetPage !== selectedPage || perf.selectedLogged) {
+            return;
+        }
+        perf.selectedLogged = true;
+        logWorkspacePerfEvent('page_selected', selectedPage, perf.source as WorkspaceSwitchSource, perf.startedAt);
+        if ((selectedPage === 'portal' ? portalPageReadyRef.current : widgetPageReadyRef.current) && !perf.readyLogged) {
+            perf.readyLogged = true;
+            logWorkspacePerfEvent('page_ready', selectedPage, perf.source as WorkspaceSwitchSource, perf.startedAt);
+            workspaceSwitchPerfRef.current = null;
+        }
+    }, [logWorkspacePerfEvent]);
+
+    const handleWorkspacePageScrollStateChanged = useCallback((event: PageScrollStateChangedNativeEvent) => {
+        const scrollState = event.nativeEvent.pageScrollState;
+        if (scrollState === 'dragging' && !workspaceSwitchPerfRef.current) {
+            const currentPage = workspacePageRef.current;
+            const targetPage: PortalWorkspacePage = currentPage === 'portal' ? 'widgets' : 'portal';
+            const source: WorkspaceSwitchSource = currentPage === 'portal' ? 'portal_swipe' : 'widget_swipe';
+            const startedAt = Date.now();
+            workspaceSwitchPerfRef.current = {
+                targetPage,
+                source,
+                startedAt,
+                selectedLogged: false,
+                readyLogged: false,
+            };
+            logWorkspacePerfEvent('switch_start', targetPage, source, startedAt);
+            return;
+        }
+
+        if (scrollState === 'idle') {
+            const perf = workspaceSwitchPerfRef.current;
+            if (perf && !perf.selectedLogged) {
+                workspaceSwitchPerfRef.current = null;
+            }
+        }
+    }, [logWorkspacePerfEvent]);
 
     const finishPortalBootOverlay = useCallback(() => {
         if (portalBootFinishRequestedRef.current) {
@@ -616,6 +715,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
 
         if (launch.kind === 'open_portal_tab') {
+            activeServiceReturnPageRef.current = workspacePageRef.current;
             setActiveTab(launch.tab);
         } else if (launch.kind === 'navigate') {
             navigateResolvedScreen(launch.screen);
@@ -629,23 +729,55 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, [route.params?.initialTab, navigation, navigateResolvedScreen, setIsMenuOpen, handleNewChat, isServiceVisible, showServiceUnavailableAlert]);
 
     useEffect(() => {
-        if (route.params?.resetToGridAt) {
-            setActiveTab(null);
-            navigation.setParams({ initialTab: undefined, resetToGridAt: undefined });
-        }
-    }, [route.params?.resetToGridAt, navigation]);
-
-    const backFromActiveService = useCallback(() => {
-        if (route.params?.returnToWidget) {
-            if (navigation.canGoBack()) {
-                navigation.goBack();
-            } else {
-                navigation.navigate('WidgetSelection', { source: 'widget_dock_return' });
-            }
+        const targetPage = route.params?.initialPage
+            || (route.params?.returnToWidget ? 'widgets' : undefined);
+        if (!targetPage) {
             return;
         }
+
+        activeServiceReturnPageRef.current = targetPage;
+        if (activeTab === null) {
+            switchWorkspacePage(targetPage, route.params?.returnToWidget ? 'legacy_return' : 'route_param', false);
+        } else {
+            applyWorkspacePage(targetPage);
+        }
+
+        navigation.setParams({
+            initialPage: undefined,
+            returnToWidget: undefined,
+        });
+    }, [activeTab, applyWorkspacePage, navigation, route.params?.initialPage, route.params?.returnToWidget, switchWorkspacePage]);
+
+    useEffect(() => {
+        if (route.params?.resetToGridAt) {
+            activeServiceReturnPageRef.current = 'portal';
+            applyWorkspacePage('portal');
+            setActiveTab(null);
+            navigation.setParams({
+                initialTab: undefined,
+                initialPage: undefined,
+                returnToWidget: undefined,
+                resetToGridAt: undefined,
+            });
+        }
+    }, [applyWorkspacePage, navigation, route.params?.resetToGridAt]);
+
+    useEffect(() => {
+        if (activeTab !== null) {
+            return;
+        }
+        const pager = pagerRef.current;
+        if (!pager) {
+            return;
+        }
+        pager.setPageWithoutAnimation(workspacePageRef.current === 'widgets' ? 1 : 0);
+    }, [activeTab]);
+
+    const backFromActiveService = useCallback(() => {
+        const returnPage = activeServiceReturnPageRef.current || 'portal';
+        applyWorkspacePage(returnPage);
         setActiveTab(null);
-    }, [navigation, route.params?.returnToWidget]);
+    }, [applyWorkspacePage]);
 
     useFocusEffect(
         useCallback(() => {
@@ -724,6 +856,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return;
         }
         if (EMBEDDED_PORTAL_TABS.has(launch.tab)) {
+            activeServiceReturnPageRef.current = workspacePageRef.current;
             setActiveTab(launch.tab);
         }
     }, [user, navigation, setIsMenuOpen, handleNewChat, navigateResolvedScreen, isServiceVisible, showServiceUnavailableAlert]);
@@ -737,7 +870,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const renderContent = () => {
         const backToGrid = backFromActiveService;
         switch (activeTab) {
-            case 'chat': return <PortalChatScreen />;
+            case 'services':
+                return <ServicesHomeScreen onBack={backToGrid} />;
             default:
                 return (
                     <View style={styles.fallbackContent}>
@@ -776,6 +910,36 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const shouldRenderPortalHeaderBlur = portalIconStyle !== 'vedamatch'
         && androidVisualPolicy.enableBlur
         && !shouldUsePortalStartupPlainChrome;
+    const workspaceSwipeEnabled = activeTab === null
+        && !isEditMode
+        && !isPortalDragging
+        && !isWidgetDragging
+        && !isWidgetPickerOpen
+        && !isPortalOverlayOpen;
+    const workspaceHintText = workspacePage === 'widgets'
+        ? t('portal.widgets.returnHint', { defaultValue: 'Widgets · swipe right to return to portal' })
+        : t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' });
+    const secondaryPageIndicatorColor = effectiveBgType === 'image' && isDarkMode
+        ? 'rgba(255,255,255,0.45)'
+        : 'rgba(15,23,42,0.28)';
+    const activeMathLabel = godModeFilters.find((filter) => filter.mathId === activeMathId)?.mathName;
+    const workspaceOrgMathBadge = useMemo(() => {
+        if (!user?.godModeEnabled || !activeMathLabel) {
+            return undefined;
+        }
+        return t('portal.orgBadge', {
+            name: activeMathLabel,
+            defaultValue: `Org: ${activeMathLabel}`,
+        });
+    }, [activeMathLabel, t, user?.godModeEnabled]);
+
+    const handleWorkspaceTogglePress = useCallback(() => {
+        if (workspacePage === 'widgets') {
+            switchWorkspacePage('portal', 'widget_header');
+            return;
+        }
+        openWidgetPage('portal_header');
+    }, [openWidgetPage, switchWorkspacePage, workspacePage]);
 
     // Show grid view if no active tab
     if (!activeTab) {
@@ -833,294 +997,326 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     transparentBackground={useClassicWallpaper && !shouldUsePortalStartupPlainChrome}
                     headerStyle={{ backgroundColor: 'transparent', borderBottomColor: 'transparent' }}
                 >
-                <GestureDetector gesture={portalSwipeGesture}>
-                <View style={styles.gridRoot}>
-                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+                    <View style={styles.gridRoot}>
+                        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-                {/* Header */}
-                <View style={[styles.header, { backgroundColor: 'transparent' }]}>
-                    <View style={styles.headerLeft}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <TouchableOpacity
-                                onPress={() => navigation.navigate('InviteFriends')}
-                                style={[
-                                    styles.headerCircularButton,
-                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                    {
-                                        backgroundColor: headerCircleSurfaceColor,
-                                        borderColor: headerCircleBorderColor,
-                                    },
-                                ]}
-                            >
-                                {shouldRenderPortalHeaderBlur && (
-                                    <BlurView
-                                        style={StyleSheet.absoluteFill}
-                                        blurType="light"
+                        <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+                            <View style={styles.headerLeft}>
+                                <View style={styles.headerButtonRow}>
+                                    <TouchableOpacity
+                                        onPress={() => navigation.navigate('InviteFriends')}
+                                        style={[
+                                            styles.headerCircularButton,
+                                            isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                            {
+                                                backgroundColor: headerCircleSurfaceColor,
+                                                borderColor: headerCircleBorderColor,
+                                            },
+                                        ]}
+                                    >
+                                        {shouldRenderPortalHeaderBlur && (
+                                            <BlurView
+                                                style={StyleSheet.absoluteFill}
+                                                blurType="light"
+                                                blurAmount={headerBlurAmount}
+                                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                            />
+                                        )}
+                                        <Animated.View style={{ transform: [{ scale: giftAnim }] }}>
+                                            <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
+                                        </Animated.View>
+                                    </TouchableOpacity>
+                                    {isServiceVisible('video_circles') && (
+                                        <TouchableOpacity
+                                            onPress={() => handleServicePress('video_circles')}
+                                            activeOpacity={0.9}
+                                            style={[
+                                                styles.headerCircularButton,
+                                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                                {
+                                                    backgroundColor: headerCircleSurfaceColor,
+                                                    borderColor: headerCircleBorderColor,
+                                                },
+                                            ]}
+                                        >
+                                            {shouldRenderPortalHeaderBlur && (
+                                                <BlurView
+                                                    style={StyleSheet.absoluteFill}
+                                                    blurType="light"
+                                                    blurAmount={headerBlurAmount}
+                                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                                />
+                                            )}
+                                            <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity
+                                        onPress={handleWorkspaceTogglePress}
+                                        activeOpacity={0.9}
+                                        style={[
+                                            styles.headerCircularButton,
+                                            isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                            {
+                                                backgroundColor: headerCircleSurfaceColor,
+                                                borderColor: headerCircleBorderColor,
+                                            },
+                                        ]}
+                                    >
+                                        {shouldRenderPortalHeaderBlur && (
+                                            <BlurView
+                                                style={StyleSheet.absoluteFill}
+                                                blurType="light"
+                                                blurAmount={headerBlurAmount}
+                                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                            />
+                                        )}
+                                        {workspacePage === 'widgets' ? (
+                                            <List size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
+                                        ) : (
+                                            <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
+                                        )}
+                                    </TouchableOpacity>
+                                    <PortalLkmCircleButton
+                                        onPress={() => navigation.navigate('Wallet')}
+                                        size={32}
+                                        borderWidth={1.5}
+                                        backgroundColor={headerCircleSurfaceColor}
+                                        borderColor={headerCircleBorderColor}
+                                        textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
+                                        showBlur={shouldRenderPortalHeaderBlur}
                                         blurAmount={headerBlurAmount}
-                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                     />
-                                )}
-                                <Animated.View style={{ transform: [{ scale: giftAnim }] }}>
-                                    <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
-                                </Animated.View>
-                            </TouchableOpacity>
-                            {isServiceVisible('video_circles') && (
-                            <TouchableOpacity
-                                onPress={() => handleServicePress('video_circles')}
-                                activeOpacity={0.9}
-                                style={[
-                                    styles.headerCircularButton,
-                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                    {
-                                        backgroundColor: headerCircleSurfaceColor,
-                                        borderColor: headerCircleBorderColor,
-                                    },
-                                ]}
-                            >
-                                {shouldRenderPortalHeaderBlur && (
-                                    <BlurView
-                                        style={StyleSheet.absoluteFill}
-                                        blurType="light"
-                                        blurAmount={headerBlurAmount}
-                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                </View>
+                            </View>
+
+                            <View style={styles.headerRight}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setIsMenuOpen(true);
+                                    }}
+                                    style={[
+                                        styles.headerCircularButton,
+                                        isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                        {
+                                            backgroundColor: headerCircleSurfaceColor,
+                                            borderColor: headerCircleBorderColor,
+                                        },
+                                    ]}
+                                >
+                                    {shouldRenderPortalHeaderBlur && (
+                                        <BlurView
+                                            style={StyleSheet.absoluteFill}
+                                            blurType="light"
+                                            blurAmount={headerBlurAmount}
+                                            reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                        />
+                                    )}
+                                    <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('AppSettings')}
+                                    style={[
+                                        styles.headerCircularButton,
+                                        isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                        {
+                                            backgroundColor: headerCircleSurfaceColor,
+                                            borderColor: headerCircleBorderColor,
+                                        },
+                                    ]}
+                                >
+                                    {shouldRenderPortalHeaderBlur && (
+                                        <BlurView
+                                            style={StyleSheet.absoluteFill}
+                                            blurType="light"
+                                            blurAmount={headerBlurAmount}
+                                            reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                        />
+                                    )}
+                                    <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                                </TouchableOpacity>
+                                <View
+                                    style={[
+                                        styles.headerCircularButton,
+                                        isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                        {
+                                            backgroundColor: headerCircleSurfaceColor,
+                                            borderColor: headerCircleBorderColor,
+                                        },
+                                    ]}
+                                >
+                                    {shouldRenderPortalHeaderBlur && (
+                                        <BlurView
+                                            style={StyleSheet.absoluteFill}
+                                            blurType="light"
+                                            blurAmount={headerBlurAmount}
+                                            reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                        />
+                                    )}
+                                    <BellButton
+                                        size={18}
+                                        color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
+                                        circularStyle
                                     />
+                                </View>
+                                {roleDescriptor && (
+                                    <TouchableOpacity
+                                        onPress={() => setShowRoleInfo(true)}
+                                        style={[
+                                            styles.headerCircularButton,
+                                            isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                            {
+                                                borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : (useLightHeaderIcons ? '#ffffff' : 'rgba(255, 153, 51, 0.42)'),
+                                                backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : (isAndroidReducedHeaderChrome ? (useLightHeaderIcons ? 'rgba(255,255,255,0.14)' : 'rgba(250,247,240,0.92)') : 'rgba(255, 255, 255, 0.2)'),
+                                            }
+                                        ]}
+                                    >
+                                        {shouldRenderPortalHeaderBlur && (
+                                            <BlurView
+                                                style={StyleSheet.absoluteFill}
+                                                blurType="light"
+                                                blurAmount={roleBlurAmount}
+                                            />
+                                        )}
+                                        {portalIconStyle !== 'vedamatch' && (
+                                            <View style={[styles.roleStatusDot, { backgroundColor: roleDescriptor.highlightColor }]} />
+                                        )}
+                                        {(() => {
+                                            const role = roleDescriptor.role;
+                                            const size = portalIconStyle === 'vedamatch' ? 18 : 14;
+                                            const color = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary);
+
+                                            if (role === 'in_goodness') return <Leaf size={size} color={color} />;
+                                            if (role === 'yogi') return <Infinity size={size} color={color} />;
+                                            if (role === 'devotee') return <Heart size={size} color={color} />;
+                                            return <Compass size={size} color={color} />;
+                                        })()}
+                                    </TouchableOpacity>
                                 )}
-                                <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
-                            </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                                onPress={() => openWidgetSelection('portal_header')}
-                                activeOpacity={0.9}
-                                style={[
-                                    styles.headerCircularButton,
-                                    isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                    {
-                                        backgroundColor: headerCircleSurfaceColor,
-                                        borderColor: headerCircleBorderColor,
-                                    },
-                                ]}
-                            >
-                                {shouldRenderPortalHeaderBlur && (
-                                    <BlurView
-                                        style={StyleSheet.absoluteFill}
-                                        blurType="light"
-                                        blurAmount={headerBlurAmount}
-                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                    />
-                                )}
-                                <LayoutGrid size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary} />
-                            </TouchableOpacity>
-                            <PortalLkmCircleButton
-                                onPress={() => navigation.navigate('Wallet')}
-                                size={32}
-                                borderWidth={1.5}
-                                backgroundColor={headerCircleSurfaceColor}
-                                borderColor={headerCircleBorderColor}
-                                textColor={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.primary}
-                                showBlur={shouldRenderPortalHeaderBlur}
-                                blurAmount={headerBlurAmount}
-                            />
+                            </View>
                         </View>
-                    </View>
 
-                    <View style={styles.headerRight}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setIsMenuOpen(true);
-                            }}
-                            style={[
-                                styles.headerCircularButton,
-                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                {
-                                    backgroundColor: headerCircleSurfaceColor,
-                                    borderColor: headerCircleBorderColor,
-                                },
-                            ]}
-                        >
-                            {shouldRenderPortalHeaderBlur && (
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={headerBlurAmount}
-                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                />
-                            )}
-                            <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('AppSettings')}
-                            style={[
-                                styles.headerCircularButton,
-                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                {
-                                    backgroundColor: headerCircleSurfaceColor,
-                                    borderColor: headerCircleBorderColor,
-                                },
-                            ]}
-                        >
-                            {shouldRenderPortalHeaderBlur && (
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={headerBlurAmount}
-                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                />
-                            )}
-                            <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
-                        <View
-                            style={[
-                                styles.headerCircularButton,
-                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                {
-                                    backgroundColor: headerCircleSurfaceColor,
-                                    borderColor: headerCircleBorderColor,
-                                },
-                            ]}
-                        >
-                            {shouldRenderPortalHeaderBlur && (
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={headerBlurAmount}
-                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                />
-                            )}
-                            <BellButton
-                                size={18}
-                                color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary}
-                                circularStyle
-                            />
-                        </View>
-                        {roleDescriptor && (
-                            <TouchableOpacity
-                                onPress={() => setShowRoleInfo(true)}
-                                style={[
-                                styles.headerCircularButton,
-                                isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                {
-                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : (useLightHeaderIcons ? '#ffffff' : 'rgba(255, 153, 51, 0.42)'),
-                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : (isAndroidReducedHeaderChrome ? (useLightHeaderIcons ? 'rgba(255,255,255,0.14)' : 'rgba(250,247,240,0.92)') : 'rgba(255, 255, 255, 0.2)'),
-                                }
-                            ]}
+                        <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
+                            <PagerView
+                                ref={pagerRef}
+                                style={styles.workspacePager}
+                                initialPage={workspacePage === 'widgets' ? 1 : 0}
+                                scrollEnabled={workspaceSwipeEnabled}
+                                overScrollMode="never"
+                                offscreenPageLimit={1}
+                                onPageSelected={handleWorkspacePageSelected}
+                                onPageScrollStateChanged={handleWorkspacePageScrollStateChanged}
                             >
-                                {shouldRenderPortalHeaderBlur && (
-                                    <BlurView
-                                        style={StyleSheet.absoluteFill}
-                                        blurType="light"
-                                        blurAmount={roleBlurAmount}
+                                <View key="portal" style={styles.workspacePage}>
+                                    {user?.godModeEnabled && !shouldUsePortalStartupPlainChrome && (
+                                        <GodModeFiltersPanel
+                                            filters={godModeFilters}
+                                            activeMathId={activeMathId || undefined}
+                                            onSelectMath={(mathId) => setActiveMath(mathId)}
+                                        />
+                                    )}
+                                    {seekerTravelLocked && !shouldUsePortalStartupPlainChrome && (
+                                        <View style={styles.lockedServiceHint}>
+                                            <Text style={styles.lockedServiceHintTitle}>
+                                                {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
+                                            </Text>
+                                            <Text style={styles.lockedServiceHintBody}>
+                                                {t('portal.seekerTravelLocked.subtitle', {
+                                                    defaultValue: 'Complete registration to see this service in the main portal grid.',
+                                                })}
+                                            </Text>
+                                            <TouchableOpacity
+                                                style={styles.lockedServiceHintAction}
+                                                onPress={() => navigation.navigate('EditProfile')}
+                                                activeOpacity={0.88}
+                                            >
+                                                <Text style={styles.lockedServiceHintActionText}>
+                                                    {t('portal.seekerTravelLocked.action', {
+                                                        defaultValue: 'Перейти в профиль',
+                                                    })}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    <PortalGrid
+                                        onServicePress={handleServicePress}
+                                        onOpenWidgets={() => openWidgetPage('edit_toolbar')}
+                                        roleHighlights={roleDescriptor?.heroServices || []}
+                                        godModeEnabled={!!user?.godModeEnabled}
+                                        activeMathLabel={activeMathLabel}
+                                        serviceBadges={{ support: supportUnreadCount }}
+                                        onInitialLayoutReady={handlePortalFirstLayoutReady}
+                                        hideQuickAccessDock
+                                        onDraggingStateChange={setIsPortalDragging}
+                                        onBlockingOverlayChange={setIsPortalOverlayOpen}
                                     />
-                                )}
-                                {portalIconStyle !== 'vedamatch' && (
-                                    <View style={[
-                                        styles.roleStatusDot,
-                                        { backgroundColor: roleDescriptor.highlightColor }
-                                    ]} />
-                                )}
-                                {(() => {
-                                    const role = roleDescriptor.role;
-                                    const size = portalIconStyle === 'vedamatch' ? 18 : 14;
-                                    const color = portalIconStyle === 'vedamatch' ? '#FFDF00' : (useLightHeaderIcons ? "#ffffff" : vTheme.colors.textSecondary);
+                                </View>
+                                <View key="widgets" style={styles.workspacePage}>
+                                    <WidgetPageContent
+                                        isPickerOpen={isWidgetPickerOpen}
+                                        onSetPickerOpen={setIsWidgetPickerOpen}
+                                        onDraggingChange={setIsWidgetDragging}
+                                        onPageReady={handleWidgetPageReady}
+                                    />
+                                </View>
+                            </PagerView>
+                        </View>
 
-                                    if (role === 'in_goodness') return <Leaf size={size} color={color} />;
-                                    if (role === 'yogi') return <Infinity size={size} color={color} />;
-                                    if (role === 'devotee') return <Heart size={size} color={color} />;
-                                    return <Compass size={size} color={color} />;
-                                })()}
-                            </TouchableOpacity>
+                        {!shouldUsePortalStartupPlainChrome && (
+                            <PortalQuickAccessDock
+                                onServicePress={handleServicePress}
+                                hidden={workspacePage === 'portal' && isEditMode}
+                                forceReadOnly={workspacePage === 'widgets'}
+                                roleHighlights={roleDescriptor?.heroServices || []}
+                                serviceBadges={{ support: supportUnreadCount }}
+                                orgMathBadge={workspaceOrgMathBadge}
+                            />
                         )}
-                    </View>
-                </View>
 
-                {/* Grid View */}
-                <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
-
-                    {user?.godModeEnabled && !shouldUsePortalStartupPlainChrome && (
-                        <GodModeFiltersPanel
-                            filters={godModeFilters}
-                            activeMathId={activeMathId || undefined}
-                            onSelectMath={(mathId) => setActiveMath(mathId)}
-                        />
-                    )}
-                    {seekerTravelLocked && !shouldUsePortalStartupPlainChrome && (
-                        <View style={styles.lockedServiceHint}>
-                            <Text style={styles.lockedServiceHintTitle}>
-                                {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
-                            </Text>
-                            <Text style={styles.lockedServiceHintBody}>
-                                {t('portal.seekerTravelLocked.subtitle', {
-                                    defaultValue: 'Complete registration to see this service in the main portal grid.',
-                                })}
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.lockedServiceHintAction}
-                                onPress={() => navigation.navigate('EditProfile')}
-                                activeOpacity={0.88}
-                            >
-                                <Text style={styles.lockedServiceHintActionText}>
-                                    {t('portal.seekerTravelLocked.action', {
-                                        defaultValue: 'Перейти в профиль',
-                                    })}
+                        {!shouldUsePortalStartupPlainChrome && (
+                            <View pointerEvents="none" style={styles.pageIndicatorContainer}>
+                                <View style={styles.pageIndicatorDots}>
+                                    <View
+                                        style={[
+                                            styles.pageIndicatorDot,
+                                            { backgroundColor: workspacePage === 'portal' ? vTheme.colors.primary : secondaryPageIndicatorColor },
+                                        ]}
+                                    />
+                                    <View
+                                        style={[
+                                            styles.pageIndicatorDot,
+                                            { backgroundColor: workspacePage === 'widgets' ? vTheme.colors.primary : secondaryPageIndicatorColor },
+                                        ]}
+                                    />
+                                </View>
+                                <Text
+                                    style={[
+                                        styles.pageIndicatorText,
+                                        {
+                                            color: effectiveBgType === 'image' && isDarkMode
+                                                ? '#FFFFFF'
+                                                : vTheme.colors.textSecondary,
+                                        },
+                                    ]}
+                                >
+                                    {workspaceHintText}
                                 </Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                            </View>
+                        )}
 
-                    {!shouldUsePortalStartupPlainChrome && (
-                    <View pointerEvents="none" style={styles.pageIndicatorContainer}>
-                        <View style={styles.pageIndicatorDots}>
-                            <View style={[styles.pageIndicatorDot, { backgroundColor: vTheme.colors.primary }]} />
-                            <View
-                                style={[
-                                    styles.pageIndicatorDot,
-                                    {
-                                        backgroundColor: effectiveBgType === 'image' && isDarkMode
-                                            ? 'rgba(255,255,255,0.45)'
-                                            : 'rgba(15,23,42,0.28)',
-                                    },
-                                ]}
-                            />
-                        </View>
-                        <Text
-                            style={[
-                                styles.pageIndicatorText,
-                                {
-                                    color: effectiveBgType === 'image' && isDarkMode
-                                        ? '#FFFFFF'
-                                        : vTheme.colors.textSecondary,
-                                },
-                            ]}
-                        >
-                            {t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' })}
-                        </Text>
+                        <RoleInfoModal
+                            visible={showRoleInfo}
+                            title={roleDescriptor?.title || t('portal.roleFallbackTitle', { defaultValue: 'Role' })}
+                            servicesHint={roleDescriptor?.servicesHint || []}
+                            role={roleDescriptor?.role}
+                            onClose={() => setShowRoleInfo(false)}
+                            onEditRole={() => {
+                                setShowRoleInfo(false);
+                                navigation.navigate('EditProfile');
+                            }}
+                        />
+                        {!shouldUsePortalStartupPlainChrome && <NotificationPanel />}
+                        {renderPortalBootOverlay()}
                     </View>
-                    )}
-
-                    <PortalGrid
-                        onServicePress={handleServicePress}
-                        roleHighlights={roleDescriptor?.heroServices || []}
-                        godModeEnabled={!!user?.godModeEnabled}
-                        activeMathLabel={godModeFilters.find((f) => f.mathId === activeMathId)?.mathName}
-                        serviceBadges={{ support: supportUnreadCount }}
-                        onInitialLayoutReady={handlePortalFirstLayoutReady}
-                    />
-                </View>
-
-                <RoleInfoModal
-                    visible={showRoleInfo}
-                    title={roleDescriptor?.title || t('portal.roleFallbackTitle', { defaultValue: 'Role' })}
-                    servicesHint={roleDescriptor?.servicesHint || []}
-                    role={roleDescriptor?.role}
-                    onClose={() => setShowRoleInfo(false)}
-                    onEditRole={() => {
-                        setShowRoleInfo(false);
-                        navigation.navigate('EditProfile');
-                    }}
-                />
-                {!shouldUsePortalStartupPlainChrome && <NotificationPanel />}
-                {renderPortalBootOverlay()}
-                </View>
-                </GestureDetector>
                 </ScreenScaffold>
             </PortalBackgroundLayer>
         );
@@ -1272,10 +1468,16 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 15 : 20,
         paddingBottom: 8,
         zIndex: 10,
+        elevation: 12,
     },
     headerLeft: {
         flex: 1,
         alignItems: 'flex-start',
+    },
+    headerButtonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
     headerCircularButton: {
         width: 32,
@@ -1322,8 +1524,18 @@ const styles = StyleSheet.create({
     },
     gridContent: {
         flex: 1,
+        zIndex: 0,
+        elevation: 0,
     },
     gridRoot: {
+        flex: 1,
+    },
+    workspacePager: {
+        flex: 1,
+        zIndex: 0,
+        elevation: 0,
+    },
+    workspacePage: {
         flex: 1,
     },
     portalStartupShell: {
@@ -1405,6 +1617,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
+        zIndex: 16,
+        elevation: 16,
     },
     pageIndicatorDots: {
         flexDirection: 'row',

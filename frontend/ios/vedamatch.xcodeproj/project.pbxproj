@@ -436,7 +436,8 @@
 			baseConfigurationReference = 5B7EB9410499542E8C5724F5 /* Pods-vedamatch-vedamatchTests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				DEVELOPMENT_TEAM = CVW85BZU5Z;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				DEVELOPMENT_TEAM = MS49D4HQV9;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
@@ -453,7 +454,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.VedaMatch.vedamatchTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/vedamatch.app/vedamatch";
 			};
@@ -466,7 +467,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = CVW85BZU5Z;
+				DEVELOPMENT_TEAM = MS49D4HQV9;
 				INFOPLIST_FILE = vedamatchTests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -479,7 +480,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.VedaMatch.vedamatchTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/vedamatch.app/vedamatch";
 			};
@@ -493,8 +494,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.debug.entitlements;
-				CURRENT_PROJECT_VERSION = 9;
-				DEVELOPMENT_TEAM = CVW85BZU5Z;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = MS49D4HQV9;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = vedamatch/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -502,13 +503,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.17;
+				MARKETING_VERSION = 1.1.18;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.VedaMatch.vedamatch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch;
 				PRODUCT_NAME = vedamatch;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -524,21 +525,21 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
-				CURRENT_PROJECT_VERSION = 9;
-				DEVELOPMENT_TEAM = CVW85BZU5Z;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = MS49D4HQV9;
 				INFOPLIST_FILE = vedamatch/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.17;
+				MARKETING_VERSION = 1.1.18;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.VedaMatch.vedamatch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch;
 				PRODUCT_NAME = vedamatch;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";

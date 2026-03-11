@@ -140,6 +140,7 @@ import {
 import { CafeCartProvider } from './contexts/CafeCartContext';
 
 import {
+  TravelHomeScreen,
   YatraDetailScreen,
   YatraPublishScreen,
   ShelterDetailScreen,
@@ -711,6 +712,7 @@ const AppContent = () => {
                   <Stack.Screen name="SeriesDetail" component={SeriesDetailScreen} />
 
                   {/* Travel Routes */}
+                  <Stack.Screen name="TravelHome" component={TravelHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="YatraDetail" component={YatraDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="YatraPublish" component={YatraPublishScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} options={{ headerShown: false }} />
