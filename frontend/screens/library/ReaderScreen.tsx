@@ -41,13 +41,16 @@ export const ReaderScreen = () => {
     const { user } = useUser();
     const { isDarkMode, portalBackgroundType } = useSettings();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
-    const { bookCode, title } = route.params;
+    const { bookCode, title, chapter: initialChapterParam, verse: initialVerseParam, canto: initialCantoParam } = route.params;
+    const initialChapter = typeof initialChapterParam === 'number' && initialChapterParam > 0 ? initialChapterParam : 1;
+    const initialVerse = typeof initialVerseParam === 'string' && initialVerseParam.trim() ? initialVerseParam.trim() : null;
+    const initialCanto = typeof initialCantoParam === 'number' && initialCantoParam >= 0 ? initialCantoParam : 0;
 
     const isPhotoBg = portalBackgroundType === 'image';
 
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
-    const [currentChapter, setCurrentChapter] = useState<number>(1);
-    const [currentCanto, setCurrentCanto] = useState<number>(0);
+    const [currentChapter, setCurrentChapter] = useState<number>(initialChapter);
+    const [currentCanto, setCurrentCanto] = useState<number>(initialCanto);
     const [verses, setVerses] = useState<ScriptureVerse[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -182,6 +185,20 @@ export const ReaderScreen = () => {
         loadBookmarks();
         loadLastRead();
     }, [loadBookmarks, loadLastRead]);
+
+    useEffect(() => {
+        if (initialVerse) {
+            pendingBookmarkVerseRef.current = initialVerse;
+        }
+    }, [initialVerse]);
+
+    useEffect(() => {
+        setCurrentChapter(initialChapter);
+        setCurrentCanto(initialCanto);
+        setVerses([]);
+        setActiveVerseIndex(0);
+        versePositions.current = {};
+    }, [initialChapter, initialCanto, bookCode]);
 
     const shareVerse = (v: ScriptureVerse) => {
         const textToShare = `${title}\n${t('reader.chapter')} ${v.chapter}, ${t('reader.text')} ${v.verse}\n\n${v.translation}\n\n${v.purport ? v.purport.substring(0, 300) + '...' : ''}`;

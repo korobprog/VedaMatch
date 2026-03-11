@@ -887,6 +887,7 @@ export default {
             "chat": "You can find communities and chats by interest. What are you interested in?",
             "dating": "Looking for a life partner or a spiritual partner? Describe who you are looking for...",
             "shops": "You can find goods and services in our shops. Enter a product name to search...",
+            "services": "You can find services and specialists here. Describe what you need and we will find matching options...",
             "ads": "Private ads are collected here. What are you looking for: services, housing, or things?",
             "news": "Stay up to date with the latest events. What news topic do you want to know about?",
             "knowledge_base": "Explore spiritual wisdom. Enter a topic and we will find information from sacred scriptures..."
@@ -896,6 +897,7 @@ export default {
             "chat": "चैट",
             "dating": "यूनियन",
             "shops": "दुकानें",
+            "services": "सेवाएँ",
             "ads": "विज्ञापन",
             "news": "समाचार",
             "knowledge_base": "ज्ञान आधार"
@@ -1306,9 +1308,31 @@ export default {
                 "title": "चैट बैकग्राउंड",
                 "subtitle": "केवल चैट स्क्रीन के लिए बैकग्राउंड सेटिंग्स",
                 "selectForChat": "चैट के लिए चुनें",
+                "builtInWallpapers": "बिल्ट-इन वॉलपेपर",
+                "builtInHint": "पोर्टल वॉलपेपर संग्रह से तैयार फोटो",
                 "slideshowTitle": "वॉलपेपर स्लाइडशो (चैट)",
                 "intervalLabel": "बदलाव अंतराल (चैट)",
                 "wallpapersInRotation": "चैट वॉलपेपर ({{count}})"
+            },
+            "chatAppearance": {
+                "title": "चैट रूप",
+                "subtitle": "केवल चैट स्क्रीन के लिए बबल स्टाइल और बैकग्राउंड बदलें"
+            },
+            "chatBubbleStyles": {
+                "title": "मैसेज बबल स्टाइल",
+                "subtitle": "कोनों की आकृति और संदेशों का समग्र एहसास चुनें",
+                "soft": {
+                    "title": "सॉफ्ट",
+                    "hint": "मुलायम और गोल"
+                },
+                "balanced": {
+                    "title": "बैलेंस्ड",
+                    "hint": "साफ और सार्वभौमिक"
+                },
+                "airy": {
+                    "title": "एयरी",
+                    "hint": "हल्का और अधिक खुला"
+                }
             },
             "alerts": {
                 "pickImageFailed": "इमेज चुनने में विफल",

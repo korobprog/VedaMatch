@@ -14,7 +14,7 @@ jest.mock('react-native-mmkv', () => ({
   })),
 }));
 
-import { applyRoleBlueprint } from '../../services/portalLayoutService';
+import { applyRoleBlueprint, filterLayoutByPortalVisibility, isPortalServiceVisibleForUser } from '../../services/portalLayoutService';
 import { createDefaultLayout } from '../../types/portal';
 import { migrateCalendarServiceIntoCalendarFolder, migrateLegacyFlatLayoutToDefaultFolders } from '../../context/PortalLayoutContext';
 
@@ -86,6 +86,36 @@ describe('portalLayoutService.applyRoleBlueprint', () => {
       'folder',
       'folder',
     ]);
+  });
+});
+
+describe('portalLayoutService portal visibility bypass', () => {
+  it('keeps blocked services visible for admin roles', () => {
+    expect(isPortalServiceVisibleForUser('chat', { chat: { mode: 'hidden', visible: false } as any }, 'admin')).toBe(true);
+    expect(isPortalServiceVisibleForUser('chat', { chat: { mode: 'beta', visible: false } as any }, 'superadmin')).toBe(true);
+  });
+
+  it('filters blocked services for regular users but not for admins', () => {
+    const layout = createDefaultLayout();
+    const visibilityMap = {
+      chat: { mode: 'hidden', visible: false, maintenanceMessage: 'hidden' },
+      services: { mode: 'beta', visible: false, maintenanceMessage: 'beta' },
+    };
+
+    const userLayout = filterLayoutByPortalVisibility(layout, visibilityMap as any, 'user');
+    const adminLayout = filterLayoutByPortalVisibility(layout, visibilityMap as any, 'admin');
+
+    const userQuickAccess = userLayout.quickAccess.map((item) => item.serviceId);
+    const adminQuickAccess = adminLayout.quickAccess.map((item) => item.serviceId);
+
+    expect(userQuickAccess).toEqual(['contacts', 'calls']);
+    expect(adminQuickAccess).toEqual(['contacts', 'calls', 'services']);
+
+    const communicationFolderForUser = userLayout.pages[0].items.find((item: any) => item.type === 'folder' && item.id === 'folder-communication') as any;
+    const communicationFolderForAdmin = adminLayout.pages[0].items.find((item: any) => item.type === 'folder' && item.id === 'folder-communication') as any;
+
+    expect(communicationFolderForUser.items.map((item: any) => item.serviceId)).not.toContain('chat');
+    expect(communicationFolderForAdmin.items.map((item: any) => item.serviceId)).toContain('chat');
   });
 });
 

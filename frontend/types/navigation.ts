@@ -103,7 +103,7 @@ export type RootStackParamList = {
     DatingFavorites: undefined;
     Chat: { userId?: number; name?: string } | undefined;
     BookList: { category: string; title: string };
-    Reader: { bookCode: string; title: string };
+    Reader: { bookCode: string; title: string; chapter?: number; verse?: string; canto?: number };
     NewsDetail: { newsId: number };
 
     // Market Routes

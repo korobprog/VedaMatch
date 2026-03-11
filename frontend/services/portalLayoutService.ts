@@ -14,8 +14,17 @@ let syncTimeout: NodeJS.Timeout | null = null;
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((service) => service.id));
 let hasLoggedOfflineDevPortalFallback = false;
 
-export const isPortalServiceVisibleForUser = (serviceId: string, visibilityMap: PortalServiceVisibilityMap = {}): boolean => (
-    visibilityMap[serviceId]?.visible ?? true
+export const isPortalVisibilityBypassedForRole = (role?: string | null): boolean => {
+    const normalizedRole = String(role || '').trim().toLowerCase();
+    return normalizedRole === 'admin' || normalizedRole === 'superadmin';
+};
+
+export const isPortalServiceVisibleForUser = (
+    serviceId: string,
+    visibilityMap: PortalServiceVisibilityMap = {},
+    role?: string | null,
+): boolean => (
+    isPortalVisibilityBypassedForRole(role) || (visibilityMap[serviceId]?.visible ?? true)
 );
 
 export const getPortalServiceMaintenanceMessage = (serviceId: string, visibilityMap: PortalServiceVisibilityMap = {}): string => (
@@ -161,6 +170,7 @@ const filterLayoutByRole = (layout: PortalLayout, role?: string, accessOptions?:
 export const filterLayoutByPortalVisibility = (
     layout: PortalLayout,
     visibilityMap: PortalServiceVisibilityMap = {},
+    role?: string | null,
 ): PortalLayout => ({
     ...layout,
     pages: layout.pages.map((page) => ({
@@ -172,19 +182,19 @@ export const filterLayoutByPortalVisibility = (
                 }
                 return {
                     ...item,
-                    items: item.items.filter((folderItem) => isPortalServiceVisibleForUser(folderItem.serviceId, visibilityMap)),
+                    items: item.items.filter((folderItem) => isPortalServiceVisibleForUser(folderItem.serviceId, visibilityMap, role)),
                 };
             })
             .filter((item) => {
                 if (item.type === 'service') {
-                    return isPortalServiceVisibleForUser(item.serviceId, visibilityMap);
+                    return isPortalServiceVisibleForUser(item.serviceId, visibilityMap, role);
                 }
                 return item.items.length > 0;
             })
             .map((item, index) => ({ ...item, position: index })),
     })),
     quickAccess: layout.quickAccess
-        .filter((item) => isPortalServiceVisibleForUser(item.serviceId, visibilityMap))
+        .filter((item) => isPortalServiceVisibleForUser(item.serviceId, visibilityMap, role))
         .map((item, index) => ({ ...item, position: index })),
 });
 
@@ -454,7 +464,7 @@ export const initializeLayout = async (
                 updatedServer = ensureServicesCatalogShortcut(updatedServer);
                 updatedServer = applyRoleBlueprint(updatedServer, blueprint);
                 updatedServer = filterLayoutByRole(updatedServer, role, accessOptions);
-                updatedServer = filterLayoutByPortalVisibility(updatedServer, visibilityMap);
+                updatedServer = filterLayoutByPortalVisibility(updatedServer, visibilityMap, role);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
             }
@@ -476,7 +486,7 @@ export const initializeLayout = async (
     }
     updatedLocal = applyRoleBlueprint(updatedLocal, blueprint);
     updatedLocal = filterLayoutByRole(updatedLocal, role, accessOptions);
-    updatedLocal = filterLayoutByPortalVisibility(updatedLocal, visibilityMap);
+    updatedLocal = filterLayoutByPortalVisibility(updatedLocal, visibilityMap, role);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);
     }

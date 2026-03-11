@@ -1,3 +1,129 @@
+## 2026-03-11 (Ads screen: default section switched back to Ads)
+
+### Измененные файлы
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `AdsScreen` открывался с дефолтным режимом `sectionMode='festivals'`;
+  - пользователь при входе в сервис сразу попадал во вкладку `Фестивали`.
+- Стало:
+  - дефолтный режим изменен на `sectionMode='ads'`;
+  - при открытии сервиса по умолчанию активен раздел `Объявления`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+const [sectionMode, setSectionMode] = useState<AdsSectionMode>('ads');
+```
+
+## 2026-03-11 (Ads screen: explicit back button to Portal)
+
+### Измененные файлы
+- `frontend/screens/portal/ads/AdsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран `Ads` / `Фестивали` не имел явной кнопки возврата в портал в верхнем левом углу;
+  - пользователь оставался без быстрого и очевидного способа вернуться в `Portal`.
+- Стало:
+  - в верхней части `AdsScreen` добавлена круглая кнопка с иконкой `ArrowLeft`;
+  - кнопка всегда ведет напрямую в `Portal` через `navigation.navigate('Portal')`;
+  - поиск и остальная логика экрана не менялись.
+
+### Сниппеты кода
+
+`frontend/screens/portal/ads/AdsScreen.tsx`:
+```tsx
+const handleBackToPortal = useCallback(() => {
+  navigation.navigate('Portal');
+}, [navigation]);
+```
+
+```tsx
+<TouchableOpacity
+  style={styles.portalBackButton}
+  onPress={handleBackToPortal}
+>
+  <ArrowLeft size={18} color={colors.text} />
+</TouchableOpacity>
+```
+
+## 2026-03-11 (Chat appearance settings: bubble style + chat-only background)
+
+### Измененные файлы
+- `frontend/context/SettingsContext.tsx`
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - пользователь мог настраивать только фон чата;
+  - геометрия bubble была одной фиксированной и не менялась из профиля.
+- Стало:
+  - в профиле появился единый блок `Вид чата`, где можно менять и фон, и стиль bubble;
+  - стиль bubble сохраняется локально в `AsyncStorage` через ключ `chat_bubble_style`;
+  - `MessageList` применяет один из трех пресетов формы (`soft`, `balanced`, `airy`) к входящим и исходящим сообщениям.
+
+### Сниппеты кода
+
+`frontend/context/SettingsContext.tsx`:
+```tsx
+export type ChatBubbleStyle = 'soft' | 'balanced' | 'airy';
+const [chatBubbleStyle, setChatBubbleStyleState] = useState<ChatBubbleStyle>('soft');
+await AsyncStorage.setItem('chat_bubble_style', style);
+```
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+{CHAT_BUBBLE_STYLE_OPTIONS.map((option) => (
+  <TouchableOpacity onPress={() => { void setChatBubbleStyle(option.key); }} />
+))}
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const bubblePreset = useMemo(() => {
+  if (chatBubbleStyle === 'airy') return { outerRadius: 34, cornerRadius: 24 };
+  if (chatBubbleStyle === 'balanced') return { outerRadius: 26, cornerRadius: 20 };
+  return { outerRadius: 30, cornerRadius: 18 };
+}, [chatBubbleStyle]);
+```
+
+## 2026-03-11 (Chat background: built-in portal wallpapers exposed in settings)
+
+### Измененные файлы
+- `frontend/screens/settings/AppSettingsScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - для чата были доступны цвета, градиенты, галерея и slideshow;
+  - встроенные фото-обои из portal коллекции не были выведены как прямой selectable блок.
+- Стало:
+  - в chat appearance добавлен отдельный блок `Built-in wallpapers` / `Встроенные обои`;
+  - блок использует те же `WALLPAPER_PRESETS`, что и portal wallpaper collection;
+  - выбор собственного фото из галереи оставлен отдельно рядом.
+
+### Сниппеты кода
+
+`frontend/screens/settings/AppSettingsScreen.tsx`:
+```tsx
+import { SLIDESHOW_INTERVALS, WALLPAPER_PRESETS } from '../../config/wallpaperPresets';
+```
+
+```tsx
+{WALLPAPER_PRESETS.map((preset) => (
+  <TouchableOpacity onPress={() => { void applyChatBackground(preset.uri, 'image'); }} />
+))}
+```
+
 ## 2026-03-10 (Services grid spacing: add side gutters and inter-card gap)
 
 ### Измененные файлы
@@ -14627,6 +14753,56 @@ export const invalidateContactsCaches = async (queryClient: QueryClient): Promis
 };
 ```
 
+## 2026-03-11 (Chat bubbles: softer geometry and cleaner edge treatment)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - bubble в чате имели общий `borderRadius: 22` и почти прямой срез на нижнем углу (`8`), из-за чего края выглядели жестко и немного коробочно;
+  - shadow-shell не повторял точную геометрию пузыря, поэтому контур и тень читались грубее, чем нужно.
+- Стало:
+  - bubble переведены на более мягкую асимметричную форму с крупным радиусом `28` и маленьким conversational corner `12`;
+  - shadow-shell теперь повторяет форму пузыря;
+  - добавлен тонкий inner stroke, мягкий верхний highlight и нижний edge-shade, чтобы контур выглядел чище и объемнее без изменения layout сообщений.
+
+### Короткие сниппеты кода
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+bubble: {
+  borderRadius: 28,
+  minWidth: 108,
+  paddingVertical: 13,
+  paddingHorizontal: 16,
+},
+userBubble: {
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  borderBottomLeftRadius: 28,
+  borderBottomRightRadius: 12,
+},
+botBubble: {
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  borderBottomLeftRadius: 12,
+  borderBottomRightRadius: 28,
+},
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+<View style={[bubbleShadowStyle, bubbleShellStyle]}>
+  <View style={bubbleStyle}>
+    <View style={[styles.bubbleInnerStroke, ...]} />
+    <View style={[styles.bubbleEdgeShade, ...]} />
+    <View style={isUser ? styles.userBubbleHighlight : styles.botBubbleHighlight} />
+    {innerContent}
+  </View>
+</View>
+```
+
 ## 2026-03-10 (Portal calendar service icon: explicit CalendarDays glyph mapping)
 
 ### Измененные файлы
@@ -14967,7 +15143,8 @@ if !isPolzaSystemSettingKey("polza_fast_model") {
 
 ### Суть правки (что было -> что стало)
 - Было: в AI-чате верхняя панель визуально сидела слишком низко из-за лишнего safe-area отступа, а в assistant mode не было явной кнопки возврата на портал.
-- Стало: header поднят выше, AI chat получил отдельную back-кнопку с возвратом именно в `Portal`, а не только menu affordance. Подсказка для кнопки локализована в `ru/en/hi`.
+- Стало: header поднят выше, AI chat получил отдельную back-кнопку с возвратом именно в `Portal`, а не только menu affordance. Подсказка для кнопки локализована в `ru/en/hi`. Позже title-chip `ИИ-помощник` из header был убран как лишний визуальный шум.
+- Также увеличен зазор между `back` и `menu` и расширены сами hit targets, чтобы уменьшить промахи по соседней кнопке на mobile.
 
 ### Короткие сниппеты кода
 `frontend/screens/ChatScreen.tsx`:
@@ -14984,4 +15161,216 @@ const headerTopInset = Platform.OS === 'ios' ? Math.max(topInset - 28, 0) : 0;
 <TouchableOpacity onPress={onBackPress} accessibilityHint={t('chat.backToPortal')}>
   <ChevronLeft color={iconColor} size={20} />
 </TouchableOpacity>
+```
+
+```tsx
+<View style={styles.titleContainer}>
+  {recipientUser ? <Text ... /> : null}
+</View>
+```
+
+```tsx
+backButton: { width: 32, height: 32, marginRight: 10 }
+menuButton: { width: 32, height: 32 }
+```
+
+## 2026-03-11 (AI chat bubbles and source actions refined)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (что было -> что стало)
+- Было: AI bubble выглядел утилитарно, в ответах показывались служебные RAG-чипы `Поиск: vector` и `Уверенность`, а переход по источнику из alert-модалки мог не срабатывать из-за прямого `Linking.openURL`.
+- Стало: bubble переведен в более теплый glass/paper стиль с мягкой тенью, увеличенным радиусом, более деликатным highlight и улучшенными source cards; служебные retriever/confidence метки убраны из пользовательского UI.
+- Стало: открытие внешнего источника теперь проходит через нормализацию URL, `Linking.canOpenURL` и `InteractionManager.runAfterInteractions`, чтобы переход после alert action был стабильнее на iOS/Android.
+
+### Короткие сниппеты кода
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+const normalizedUrl = normalizeExternalUrl(rawUrl);
+const supported = await Linking.canOpenURL(normalizedUrl);
+InteractionManager.runAfterInteractions(() => {
+  Linking.openURL(normalizedUrl)
+})
+```
+
+```tsx
+{!isUser ? <View style={styles.botBubbleHighlight} /> : null}
+```
+
+```tsx
+sourceCard: {
+  borderRadius: 14,
+  paddingVertical: 10,
+  backgroundColor: 'rgba(255,255,255,0.36)',
+}
+```
+
+## 2026-03-11 (AI citations now route library sources into Reader)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/screens/library/ReaderScreen.tsx`
+- `frontend/types/navigation.ts`
+- `server/internal/services/domain_assistant_service.go`
+
+### Суть правки (что было -> что стало)
+- Было: если AI source указывал внутренний library path вроде `/library/verses?...`, фронт пытался открыть его как внешний URL и показывал `Детали источника недоступны`.
+- Стало: `MessageList` распознает internal library citations и открывает их через app navigation в `Reader`, а не через `Linking`.
+- Было: `Reader` принимал только `bookCode` и `title`, поэтому citation нельзя было направить на конкретный стих.
+- Стало: `Reader` принимает optional `chapter`, `verse`, `canto` и после загрузки главы прокручивается к нужному стиху.
+- Дополнительно: backend для новых library verse documents сохраняет `canto` в metadata и формирует `SourceURL` с `verse` query param, чтобы citation оставался точным.
+
+### Короткие сниппеты кода
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+if (readerTarget) {
+  navigation.navigate('Reader', readerTarget);
+  return true;
+}
+```
+
+`frontend/types/navigation.ts`:
+```ts
+Reader: { bookCode: string; title: string; chapter?: number; verse?: string; canto?: number };
+```
+
+`frontend/screens/library/ReaderScreen.tsx`:
+```tsx
+const { bookCode, title, chapter: initialChapterParam, verse: initialVerseParam, canto: initialCantoParam } = route.params;
+```
+
+`server/internal/services/domain_assistant_service.go`:
+```go
+sourceURL := fmt.Sprintf("/library/verses?bookCode=%s&chapter=%d&verse=%s", v.BookCode, v.Chapter, url.QueryEscape(v.Verse))
+```
+
+## 2026-03-11 (AI search tabs now constrain RAG domain and open internal app routes)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+- `frontend/components/chat/ChatConstants.ts`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было: при выборе `Магазины` AI chat отправлял в RAG сразу все enabled domains, поэтому retrieval мог вернуть library citations вместо market results.
+- Стало: `ChatContext` вычисляет requested RAG domains из активного search tab и передает их в `queryHybrid` (`shops -> market`, `services -> services`, `knowledge_base -> library`, и т.д.), чтобы поиск не смешивал разделы.
+- Было: в меню `Найти в ...` не было отдельного `services` search tab.
+- Стало: `services` добавлен в menu options и локализован в `ru/en/hi`.
+- Было: internal citations вида `/products/:id`, `/services/:id`, `/news/:id`, `/ads/:id` и другие наши app-routes не открывались из AI chat.
+- Стало: `MessageList` распознает внутренние VedaMatch routes и ведет пользователя прямо на соответствующий экран приложения.
+
+### Короткие сниппеты кода
+`frontend/context/ChatContext.tsx`:
+```tsx
+const requestedDomains = getRequestedRagDomains(messages, ragDomains);
+domains: requestedDomains,
+```
+
+`frontend/components/chat/ChatConstants.ts`:
+```ts
+'chat.searchTabs.services',
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+match = path.match(/^\/products\/(\d+)$/);
+return { screen: 'ProductDetails', params: { productId: Number(match[1]) } };
+```
+
+## 2026-03-11 (AI reply bubble widened for readability)
+
+### Измененные файлы
+- `frontend/components/chat/MessageList.tsx`
+
+### Суть правки (что было -> что стало)
+- Было: AI bubble ограничивался `maxWidth: 85%`, поэтому длинные ответы слишком рано переносились на новую строку и выглядели зажато.
+- Стало: bubble и его shadow wrappers расширены до `maxWidth: 92%`, чтобы текст лучше вмещался и ответ читался спокойнее на мобильных экранах.
+
+### Короткие сниппеты кода
+`frontend/components/chat/MessageList.tsx`:
+```tsx
+bubble: { maxWidth: '92%' }
+userGlassShadow: { maxWidth: '92%' }
+botGlassShadow: { maxWidth: '92%' }
+```
+
+## 2026-03-11 (AI chat history list flattened to contacts-style rows)
+
+### Измененные файлы
+- `frontend/SettingsDrawer.tsx`
+
+### Суть правки (что было -> что стало)
+- Было: история AI-чата в drawer выглядела как набор округлых толстых карточек с blur/background card.
+- Стало: элементы истории облегчены относительно старых толстых карточек, но вместо жестких полос-разделителей используются мягкие светлые row-cards с небольшой тенью, чтобы список не выглядел рамочным.
+- Дополнительно: CTA `Новый чат` уменьшен и переведен из тяжелой full-width кнопки в более компактную capsule-кнопку, чтобы верх drawer не выглядел перегруженным.
+- Дополнительно: drawer получил более выраженный art direction для истории чатов: теплые светлые карточки, мягкие тени, amber-акцент для активной строки и более собранную typography.
+
+### Короткие сниппеты кода
+`frontend/SettingsDrawer.tsx`:
+```tsx
+historyItem: {
+  backgroundColor: 'rgba(255,255,255,0.72)',
+  borderRadius: 14,
+  marginBottom: 8,
+  shadowOpacity: 0.08,
+}
+```
+
+```tsx
+newChatButtonWrap: {
+  alignSelf: 'flex-start',
+  shadowOpacity: 0.1,
+}
+```
+
+```tsx
+historyItem: {
+  borderRadius: 18,
+  borderWidth: 1,
+  shadowOpacity: 0.12,
+}
+```
+
+## 2026-03-11 (Portal service visibility admin bypass + Android test-group version bump)
+
+### Измененные файлы
+- `server/internal/handlers/portal_service_visibility.go`
+- `server/internal/handlers/portal_service_visibility_test.go`
+- `frontend/services/portalLayoutService.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/__tests__/services/portalLayoutService.test.ts`
+- `frontend/android/app/build.gradle`
+
+### Суть правки (что было -> что стало)
+- Было: runtime visibility map `/api/system/portal-services-visibility` рассчитывалась только по `userID`, поэтому `admin/superadmin` так же теряли `hidden` и `beta` сервисы, как и обычные пользователи.
+- Стало: backend runtime visibility получил role-aware bypass; для `admin/superadmin` все portal services остаются `Visible=true` независимо от `hidden/beta` политики и allowlist.
+- Было: shared mobile filtering в `portalLayoutService` и `PortalLayoutContext` не принимал роль пользователя, поэтому layout/quick access и `isServiceVisible()` жестко следовали runtime `visible`.
+- Стало: shared mobile visibility filter принимает `role` и не вырезает сервисы у `admin/superadmin`, сохраняя единое поведение для grid, folders, quick access и service launch checks.
+- Было: Android release build был `versionName 1.1.26`, `versionCode 28`.
+- Стало: для test-group APK версия повышена до `1.1.27 / 29`, release APK пересобран.
+
+### Короткие сниппеты кода
+`server/internal/handlers/portal_service_visibility.go`:
+```go
+if isAdmin {
+	entry.Visible = true
+	result[serviceID] = entry
+	continue
+}
+```
+
+`frontend/services/portalLayoutService.ts`:
+```ts
+export const isPortalVisibilityBypassedForRole = (role?: string | null): boolean =>
+    ['admin', 'superadmin'].includes(String(role || '').trim().toLowerCase());
+```
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionName "1.1.27"
+versionCode 29
 ```

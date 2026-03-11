@@ -19,8 +19,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
 import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Users, ChevronRight, LifeBuoy, ShieldCheck } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
-import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
-import { PerformanceMode, useSettings } from '../../context/SettingsContext';
+import { SLIDESHOW_INTERVALS, WALLPAPER_PRESETS } from '../../config/wallpaperPresets';
+import { ChatBubbleStyle, PerformanceMode, useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
 import { useWallet } from '../../context/WalletContext';
@@ -55,6 +55,35 @@ const PRESET_GRADIENTS = [
     '#43e97b|#38f9d7',
     '#fa709a|#fee140',
     '#6a11cb|#2575fc',
+];
+const CHAT_BUBBLE_STYLE_OPTIONS: Array<{
+    key: ChatBubbleStyle;
+    titleKey: string;
+    hintKey: string;
+    previewLargeRadius: number;
+    previewCornerRadius: number;
+}> = [
+    {
+        key: 'soft',
+        titleKey: 'settings.appScreen.chatBubbleStyles.soft.title',
+        hintKey: 'settings.appScreen.chatBubbleStyles.soft.hint',
+        previewLargeRadius: 32,
+        previewCornerRadius: 10,
+    },
+    {
+        key: 'balanced',
+        titleKey: 'settings.appScreen.chatBubbleStyles.balanced.title',
+        hintKey: 'settings.appScreen.chatBubbleStyles.balanced.hint',
+        previewLargeRadius: 23,
+        previewCornerRadius: 23,
+    },
+    {
+        key: 'airy',
+        titleKey: 'settings.appScreen.chatBubbleStyles.airy.title',
+        hintKey: 'settings.appScreen.chatBubbleStyles.airy.hint',
+        previewLargeRadius: 38,
+        previewCornerRadius: 28,
+    },
 ];
 const PERFORMANCE_MODE_OPTIONS: Array<{ key: PerformanceMode; titleKey: string; subtitleKey: string }> = [
     {
@@ -139,6 +168,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         chatBackground,
         chatBackgroundType,
         setChatBackground,
+        chatBubbleStyle,
+        setChatBubbleStyle,
         assistantType,
         setAssistantType,
         isDarkMode,
@@ -1117,6 +1148,39 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             </View>
 
                             <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.chatBackground.builtInWallpapers', { defaultValue: 'Built-in wallpapers' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary, marginTop: 4, marginBottom: 10 }]}>
+                                {t('settings.appScreen.chatBackground.builtInHint', {
+                                    defaultValue: 'Ready-made photos from the portal wallpaper collection',
+                                })}
+                            </Text>
+                            <View style={styles.wallpapersGrid}>
+                                {WALLPAPER_PRESETS.map((preset) => (
+                                    <TouchableOpacity
+                                        key={`chat-built-in-${preset.id}`}
+                                        activeOpacity={0.88}
+                                        style={[
+                                            styles.wallpaperSlide,
+                                            chatBackground === preset.uri ? themedStyles.wallpaperBorderActive : themedStyles.wallpaperBorderInactive,
+                                        ]}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            void applyChatBackground(preset.uri, 'image');
+                                            setChatSlideshowEnabled(false);
+                                        }}
+                                    >
+                                        <RNImage source={preset.source} style={styles.wallpaperImage} />
+                                        {chatBackground === preset.uri && (
+                                            <View style={styles.wallpaperActiveOverlay}>
+                                                <Text style={themedStyles.wallpaperCheckText}>✓</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
                                 {t('settings.appScreen.background.colors', { defaultValue: 'Colors' })}
                             </Text>
                             <View style={styles.presetsGrid}>
@@ -1303,13 +1367,77 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider, marginTop: 20 }]} />
 
                             <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 12 }]}>
-                                {t('settings.appScreen.chatBackground.title', { defaultValue: 'Chat background' })}
+                                {t('settings.appScreen.chatAppearance.title', { defaultValue: 'Chat appearance' })}
                             </Text>
                             <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary, marginTop: 4, marginBottom: 10 }]}>
-                                {t('settings.appScreen.chatBackground.subtitle', {
-                                    defaultValue: 'Background settings only for chat screen',
+                                {t('settings.appScreen.chatAppearance.subtitle', {
+                                    defaultValue: 'Adjust bubble style and background only for chat screen',
                                 })}
                             </Text>
+
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
+                                {t('settings.appScreen.chatBubbleStyles.title', { defaultValue: 'Message bubble style' })}
+                            </Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary, marginTop: -2, marginBottom: 12 }]}>
+                                {t('settings.appScreen.chatBubbleStyles.subtitle', {
+                                    defaultValue: 'Choose the shape of message corners and overall feel',
+                                })}
+                            </Text>
+                            <View style={styles.chatBubblePresetGrid}>
+                                {CHAT_BUBBLE_STYLE_OPTIONS.map((option) => {
+                                    const active = chatBubbleStyle === option.key;
+                                    return (
+                                        <TouchableOpacity
+                                            key={option.key}
+                                            activeOpacity={0.9}
+                                            style={[
+                                                styles.chatBubblePresetCard,
+                                                {
+                                                    backgroundColor: active ? colors.accentSoft : vTheme.colors.backgroundSecondary,
+                                                    borderColor: active ? colors.accent : vTheme.colors.divider,
+                                                },
+                                            ]}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                void setChatBubbleStyle(option.key);
+                                            }}
+                                        >
+                                            <View style={styles.chatBubblePresetPreview}>
+                                                <View
+                                                    style={[
+                                                        styles.chatBubblePresetIncoming,
+                                                        {
+                                                            borderTopLeftRadius: option.previewLargeRadius,
+                                                            borderTopRightRadius: option.previewLargeRadius,
+                                                            borderBottomLeftRadius: option.previewCornerRadius,
+                                                            borderBottomRightRadius: option.previewLargeRadius,
+                                                        },
+                                                    ]}
+                                                />
+                                                <View
+                                                    style={[
+                                                        styles.chatBubblePresetOutgoing,
+                                                        {
+                                                            borderTopLeftRadius: option.previewLargeRadius,
+                                                            borderTopRightRadius: option.previewLargeRadius,
+                                                            borderBottomLeftRadius: option.previewLargeRadius,
+                                                            borderBottomRightRadius: option.previewCornerRadius,
+                                                        },
+                                                    ]}
+                                                />
+                                            </View>
+                                            <Text style={[styles.chatBubblePresetTitle, { color: vTheme.colors.text }]}>
+                                                {t(option.titleKey, { defaultValue: option.key })}
+                                            </Text>
+                                            <Text style={[styles.chatBubblePresetHint, { color: vTheme.colors.textSecondary }]}>
+                                                {t(option.hintKey, { defaultValue: '' })}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider, marginTop: 18 }]} />
 
                             <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>
                                 {t('settings.appScreen.background.customBackground', { defaultValue: 'Custom background' })}
@@ -1954,6 +2082,60 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 12,
         marginTop: 5,
+    },
+    chatBubblePresetGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 4,
+    },
+    chatBubblePresetCard: {
+        width: '31%',
+        minWidth: 98,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 12,
+    },
+    chatBubblePresetPreview: {
+        height: 64,
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    chatBubblePresetIncoming: {
+        width: 52,
+        height: 24,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: 'rgba(148,163,184,0.28)',
+        alignSelf: 'flex-start',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+    },
+    chatBubblePresetOutgoing: {
+        width: 58,
+        height: 28,
+        backgroundColor: '#8F959E',
+        borderWidth: 1,
+        borderColor: 'rgba(71,85,105,0.42)',
+        alignSelf: 'flex-end',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+    },
+    chatBubblePresetTitle: {
+        fontSize: 13,
+        fontWeight: '800',
+        marginBottom: 4,
+    },
+    chatBubblePresetHint: {
+        fontSize: 11,
+        lineHeight: 15,
     },
     presetItem: {
         width: 44,

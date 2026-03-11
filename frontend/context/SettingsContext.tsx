@@ -12,6 +12,7 @@ export type PortalIconStyle = 'vedamatch' | 'premium3d' | 'solid' | 'minimal';
 export type ScreenVisualStyle = 'classic' | 'saffron';
 export type PerformanceMode = 'adaptive' | 'high_quality' | 'battery_saver';
 export type PerformanceDegradeReason = 'render' | 'ws_storm' | 'battery';
+export type ChatBubbleStyle = 'soft' | 'balanced' | 'airy';
 
 interface Model {
     id: string;
@@ -62,6 +63,8 @@ interface SettingsContextType {
     chatBackground: string;
     chatBackgroundType: 'color' | 'gradient' | 'image';
     setChatBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
+    chatBubbleStyle: ChatBubbleStyle;
+    setChatBubbleStyle: (style: ChatBubbleStyle) => Promise<void>;
     isSettingsLoaded: boolean;
     // Wallpaper slideshow
     wallpaperSlides: string[];
@@ -115,6 +118,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [chatBackground, setChatBackgroundState] = useState<string>(defaultChatBackground);
     const [chatBackgroundType, setChatBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
+    const [chatBubbleStyle, setChatBubbleStyleState] = useState<ChatBubbleStyle>('soft');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
     const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('solid');
     const [performanceMode, setPerformanceModeState] = useState<PerformanceMode>(
@@ -151,7 +155,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const modelsFetchInFlightRef = useRef(false);
 
-    const fetchModels = useCallback(async (force: boolean = false) => {
+    const fetchModels = useCallback(async (_force: boolean = false) => {
         if (modelsFetchInFlightRef.current || loadingModels) {
             return;
         }
@@ -225,6 +229,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 const savedBgType = await AsyncStorage.getItem('portal_background_type');
                 const savedChatBg = await AsyncStorage.getItem('chat_background');
                 const savedChatBgType = await AsyncStorage.getItem('chat_background_type');
+                const savedChatBubbleStyle = await AsyncStorage.getItem('chat_bubble_style');
                 const savedVisualStyle = await AsyncStorage.getItem(SCREEN_VISUAL_STYLE_KEY);
 
                 if (savedVisualStyle === 'classic' || savedVisualStyle === 'saffron') {
@@ -257,6 +262,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 } else {
                     setChatBackgroundType('color');
                     await AsyncStorage.setItem('chat_background_type', 'color');
+                }
+
+                if (savedChatBubbleStyle === 'soft' || savedChatBubbleStyle === 'balanced' || savedChatBubbleStyle === 'airy') {
+                    setChatBubbleStyleState(savedChatBubbleStyle as ChatBubbleStyle);
+                } else {
+                    setChatBubbleStyleState('soft');
+                    await AsyncStorage.setItem('chat_bubble_style', 'soft');
                 }
 
                 const savedAssistant = await AsyncStorage.getItem('assistant_type');
@@ -352,7 +364,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             }
         };
         loadSettings();
-    }, []);
+    }, [defaultBgImage]);
 
     const fetchModelsRef = useRef(fetchModels);
     useEffect(() => {
@@ -402,6 +414,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             await AsyncStorage.setItem('chat_background_type', type);
         } catch (e) {
             console.error('Failed to save chat background', e);
+        }
+    }, []);
+
+    const setChatBubbleStyle = useCallback(async (style: ChatBubbleStyle) => {
+        setChatBubbleStyleState(style);
+        try {
+            await AsyncStorage.setItem('chat_bubble_style', style);
+        } catch (e) {
+            console.error('Failed to save chat bubble style', e);
         }
     }, []);
 
@@ -699,6 +720,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             chatBackground: activeChatWallpaper,
             chatBackgroundType: effectiveChatBackgroundType,
             setChatBackground,
+            chatBubbleStyle,
+            setChatBubbleStyle,
             assistantType,
             setAssistantType,
             isSettingsLoaded,
@@ -748,9 +771,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             portalBackground,
             effectivePortalBackgroundType,
             setPortalBackground,
-            activeChatWallpaper,
             effectiveChatBackgroundType,
             setChatBackground,
+            chatBubbleStyle,
+            setChatBubbleStyle,
             assistantType,
             setAssistantType,
             isSettingsLoaded,

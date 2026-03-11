@@ -39,6 +39,11 @@
 - В `frontend/context/SettingsContext.tsx` дефолтный `portalIconStyle` должен быть `solid` (`Заливка`) для новых пользователей и при отсутствии сохраненного значения.
 - На экране `frontend/screens/settings/AppSettingsScreen.tsx` опция `Заливка` должна показываться первой в списке стилей иконок.
 
+## Ads Portal Navigation
+- В `frontend/screens/portal/ads/AdsScreen.tsx` в верхней зоне экрана добавлена компактная круглая back-кнопка с иконкой `ArrowLeft`.
+- Кнопка использует `navigation.navigate('Portal')`, чтобы возвращать пользователя в портал из `Ads` и `Фестивали` без зависимости от текущего back stack.
+- Дефолтный раздел при открытии `AdsScreen` должен быть `sectionMode='ads'`, чтобы пользователь сначала попадал в обычные объявления, а не в фестивальный режим.
+
 ## Android Performance
 - Для Android-отзывчивости в `frontend/screens/portal/services/ServicesHomeScreen.tsx` выгодно держать более агрессивную виртуализацию списка:
 - В `Adaptive` и `Battery Saver` на Android верхний portal header не должен использовать те же glass/shadow пресеты, что и high-quality режим: для круглых header-иконок нужен более спокойный reduced chrome с почти отсутствующей тенью, мягче border и менее грязной полупрозрачной подложкой.
@@ -188,6 +193,22 @@
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
 - В `frontend/components/chat/ChatHeader.tsx` для AI assistant mode должен быть явный back affordance в `Portal`, а не только menu icon или кликабельный title chip: это accessibility/navigation требование для assistant entry point.
 - AI chat header в `ChatHeader` не должен дублировать safe-area верхний отступ поверх уже существующего top-safe-area контейнера из app shell; иначе панель визуально опускается слишком низко.
+- В AI assistant mode сам title-chip `ИИ-помощник` в `ChatHeader` оказался лишним визуальным шумом; лучше оставлять верхнюю панель чище: только back, menu и balance pill.
+- Для AI chat header в `ChatHeader` кнопки `back` и `menu` нельзя ставить слишком близко: нужен увеличенный визуальный зазор и более крупные hit targets, иначе пользователь легко промахивается.
+- История AI-чата в `frontend/SettingsDrawer.tsx` должна быть оформлена как плоский список по аналогии с `ContactsScreen`, а не как набор толстых rounded-card элементов с blur. Для этого безопаснее использовать `borderBottomWidth + compact paddings`, сохраняя только лёгкую икон-подложку и action справа.
+- После визуальной проверки плоский вариант с жесткими разделителями оказался слишком полосатым; для drawer истории лучше использовать мягкие светлые row-cards с небольшой тенью и без боковых рамок.
+- CTA `Новый чат` в `frontend/SettingsDrawer.tsx` не должен выглядеть как тяжелая full-width pill. Для drawer он лучше читается как компактная capsule-кнопка с умеренной тенью и меньшей высотой.
+- Для drawer истории в `frontend/SettingsDrawer.tsx` лучший визуальный язык: теплые светлые карточки, мягкие amber-акценты, слегка поднятая типографика заголовков, тонкие border-highlight и короткая верхняя glow-линия вместо холодных серых блоков.
+- В `frontend/components/chat/MessageList.tsx` служебные RAG-метки `Поиск: vector` и `Уверенность` не должны показываться пользователю в bubble: это внутренние retriever-данные, а не полезный UI.
+- Для AI ответов в `frontend/components/chat/MessageList.tsx` лучше использовать более теплый glass/paper visual language: мягкая светлая подложка, чуть более выраженные тени и тонкая верхняя highlight-линия, а не нейтральный белый пузырь.
+- Открытие источников из AI-чата нельзя делать прямым `Linking.openURL` сразу из alert action: безопаснее сначала нормализовать URL, проверить `Linking.canOpenURL`, а сам `openURL` выполнять через `InteractionManager.runAfterInteractions`, иначе переход после modal alert может не срабатывать на части устройств.
+- Для scripture-цитат из AI-чата в `frontend/components/chat/MessageList.tsx` нельзя трактовать `sourceUrl` вида `/library/...` как внешний URL. Это внутренние app-routes, и их надо открывать через навигацию в `Reader`, иначе пользователь получает `Детали источника недоступны`.
+- `Reader` должен уметь принимать optional route params `chapter`, `verse`, `canto`, чтобы AI citation мог открывать не просто книгу, а конкретный стих.
+- В `server/internal/services/domain_assistant_service.go` для library verse sources нужно сохранять в metadata не только `bookCode/chapter/verse`, но и `canto`, а `SourceURL` формировать с `verse` query param. Иначе citation теряет точность и ведет только на главу, а не на нужный стих.
+- В AI search `frontend/context/ChatContext.tsx` нельзя передавать в `ragService.queryHybrid` все enabled domains сразу. Нужно брать домен из выбранного search tab (`shops -> market`, `services -> services`, `knowledge_base -> library` и т.д.), иначе retrieval смешивает нерелевантные источники.
+- Меню `Найти в ...` должно содержать `services` как отдельный search tab, а локали `ru/en/hi` должны иметь для него и label, и prompt.
+- В `frontend/components/chat/MessageList.tsx` internal source routes VedaMatch должны открываться через app navigation не только для library, но и для `products`, `shops`, `services`, `news`, `ads`, `education`, `yatra`, `shelter`, `cafes`, `dating profile`. Иначе citation ведет в никуда даже при корректном `sourceUrl`.
+- Для AI chat bubble в `frontend/components/chat/MessageList.tsx` `maxWidth: 85%` оказался слишком узким для длинных ответов на мобильных экранах. Для читаемости лучше держать bubble ближе к краям, чтобы текст ломался реже.
 
 ## Referral / Sangha Localization
 - Экран `frontend/screens/portal/referral/InviteFriendsScreen.tsx` должен быть полностью на i18n-ключах, без hardcoded English строк в UI и share-тексте.
@@ -1273,6 +1294,14 @@
   - default для чата — нейтральный цвет `#F2EFE6` (`type=color`), без дефолтной фото-обои;
   - в `frontend/screens/settings/AppSettingsScreen.tsx` добавлен отдельный блок “Фон чата” (пресеты/галерея/слайдшоу);
   - `frontend/screens/ChatScreen.tsx` рендерит background только из chat-specific настроек.
+- Внешний вид bubble теперь user-configurable из кабинета:
+  - в `frontend/context/SettingsContext.tsx` хранится persisted ключ `chat_bubble_style` со значениями `soft | balanced | airy`;
+  - `frontend/screens/settings/AppSettingsScreen.tsx` объединяет настройки в блок `Вид чата`, где пользователь выбирает и фон, и форму bubble;
+  - `frontend/components/chat/MessageList.tsx` применяет пресеты геометрии bubble по настройке пользователя, а не через один жестко зашитый радиус.
+  - для светлого chat background нельзя сочетать темный `edgeShade` и shell-shadow с несовпадающими радиусами: это дает черные ломаные кромки на углах;
+  - shell должен повторять точный контур bubble, а нижний `edgeShade` на светлом фоне лучше отключать полностью.
+  - для чата нужен прямой выбор встроенных photo wallpapers: пользователь ожидает видеть готовые обои из portal-коллекции сразу в настройках, а не только через slideshow/grid ротации;
+  - в `AppSettingsScreen` chat background должен иметь оба сценария рядом: встроенные фото из `WALLPAPER_PRESETS` и выбор собственного фото из галереи.
 
 ## Chat CDN / VideoCircle / Transcription
 - Backend:
@@ -2022,6 +2051,7 @@
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` переход в чат переведен на guarded flow (`runWithNavigationLock` + единый `openChat`), чтобы избежать двойного `navigate` из вложенных touchable.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.
 - В `frontend/components/chat/MessageList.tsx` на iOS отключен `maintainVisibleContentPosition` и ограничен blur для bubble (только photo background), что снижает риск пустого/неотрисованного списка сообщений.
+- В `frontend/components/chat/MessageList.tsx` геометрия bubble теперь строится на мягких асимметричных радиусах (`28/12` вместо жестко срезанных углов), с внутренним stroke и shell-shadow того же контура; это делает края сообщений визуально мягче без изменения layout чата.
 - Для AI-отправки в `frontend/context/ChatContext.tsx` и `frontend/services/openaiService.ts` обработанные сетевые ошибки (`Connection error` и т.п.) логируются через `console.warn`, а не `console.error`, чтобы в iOS dev не поднимать RedBox при уже обработанном fallback.
 - Для `Stack.Screen name="Chat"` в `frontend/App.tsx` на Android зафиксированы `freezeOnBlur: false`, `animation: 'none'` и явный `contentStyle.backgroundColor` как mitigation против blank/white screen при выходе из AI Chat.
 - Для AI chat в `frontend/context/ChatContext.tsx` сырой backend/provider error text (`401/502/UNAUTHORIZED/trace_id/API key`) не должен показываться пользователю; такие сообщения маскируются в нейтральный technical-issue fallback.
@@ -2768,3 +2798,19 @@
 - В дефолтном portal layout ярлык `Календарь` вынесен в отдельную папку `Календарь`, а не лежит внутри `Практика`.
 - Существующие сохраненные portal layouts теперь тоже мягко мигрируют: если `ekadashi_calendar` лежит в дефолтной папке `Практика`, он переносится в отдельную папку `Календарь`; кастомные пользовательские папки не переставляются автоматически.
 - Если iOS/Android экран календаря открывается, но backend все еще отвечает старым текстом `available only for devotees`, сначала проверять не клиент, а production runtime: Dokploy app `Vedamatch -> Server` может отставать по deployment от текущего `main`, даже когда локальный код уже содержит новый guard.
+
+## Portal Service Visibility
+- Runtime карта `/api/system/portal-services-visibility` теперь должна всегда давать bypass для `admin` и `superadmin`:
+  - `hidden` и `beta` сервисы остаются видимыми;
+  - portal entry points не должны блокировать их открытие;
+  - admin settings UI и правила для обычных пользователей/тестеров не меняются.
+- Shared mobile visibility filtering должен принимать роль как единый источник истины:
+  - `frontend/services/portalLayoutService.ts` режет layout/quick access по runtime visibility только для non-admin;
+  - `frontend/context/PortalLayoutContext.tsx` обязан передавать `user.role` в visibility filter и `isServiceVisible`.
+
+## Android Releases
+- Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
+- Актуальный release APK после admin visibility bypass:
+  - `frontend/android/app/build.gradle`: `versionName=1.1.27`, `versionCode=29`;
+  - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
+  - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.27`, `versionCode=29`.

@@ -66,12 +66,16 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isPortalDarkMode);
     const historyColors = React.useMemo(() => ({
         background: '#F2EFE6',
-        card: 'transparent',
-        border: 'rgba(15,23,42,0.14)',
-        textPrimary: '#1F2937',
-        textSecondary: '#64748B',
-        iconSurface: 'rgba(15,23,42,0.06)',
+        card: 'rgba(255,252,246,0.92)',
+        border: 'rgba(139,115,85,0.16)',
+        textPrimary: '#1B2432',
+        textSecondary: '#6C7A90',
+        textMuted: '#8A94A6',
+        iconSurface: 'rgba(176, 149, 113, 0.10)',
         actionSurface: 'rgba(15,23,42,0.04)',
+        cardShadow: '#6C5A43',
+        cardGlow: 'rgba(255,255,255,0.7)',
+        newChatText: '#1A2230',
     }), []);
 
     const [isEditMode, setIsEditMode] = React.useState(false);
@@ -201,15 +205,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                         onNavigateToChat();
                                     }}
                                     activeOpacity={0.9}
+                                    style={styles.newChatButtonWrap}
                                 >
                                     <LinearGradient
-                                        colors={[roleTheme.accent, roleTheme.accentStrong]}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 1 }}
+                                        colors={['#F4D8A8', '#E9BC74', '#D99A4E']}
+                                        start={{ x: 0, y: 0.2 }}
+                                        end={{ x: 1, y: 0.8 }}
                                         style={styles.newChatButton}
                                     >
-                                        <Plus size={18} color={historyColors.textPrimary} style={styles.newChatButtonIcon} strokeWidth={3} />
-                                        <Text style={[styles.newChatButtonText, { color: historyColors.textPrimary }]}>{t('chat.newChatBtn')}</Text>
+                                        <View style={styles.newChatButtonIconWrap}>
+                                            <Plus size={16} color={historyColors.newChatText} style={styles.newChatButtonIcon} strokeWidth={3} />
+                                        </View>
+                                        <Text style={[styles.newChatButtonText, { color: historyColors.newChatText }]}>{t('chat.newChatBtn')}</Text>
                                     </LinearGradient>
                                 </TouchableOpacity>
 
@@ -283,10 +290,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                 styles.historyItem,
                                                 {
                                                     backgroundColor: historyColors.card,
-                                                    borderBottomColor: currentChatId === item.id ? roleColors.accent : historyColors.border,
+                                                    borderColor: currentChatId === item.id ? 'rgba(217,154,78,0.38)' : historyColors.border,
+                                                    shadowColor: currentChatId === item.id ? '#B88242' : historyColors.cardShadow,
                                                 },
                                             ]}
                                         >
+                                            <View style={[styles.historyItemGlow, { backgroundColor: historyColors.cardGlow }]} />
                                             {isEditMode && (
                                                 <TouchableOpacity
                                                     style={styles.checkboxContainer}
@@ -322,7 +331,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                 }}
                                             >
                                                 <View style={[styles.historyIcon, { backgroundColor: historyColors.iconSurface }]}>
-                                                    <MessageSquare size={18} color={roleColors.accent} />
+                                                    <MessageSquare size={18} color={currentChatId === item.id ? '#B56D23' : roleColors.accent} />
                                                 </View>
                                                 <View style={styles.historyTextWrap}>
                                                     <Text
@@ -336,7 +345,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                     >
                                                         {item.title}
                                                     </Text>
-                                                    <Text style={[styles.historyItemDate, { color: historyColors.textSecondary }]}>
+                                                    <Text style={[styles.historyItemDate, { color: currentChatId === item.id ? historyColors.textSecondary : historyColors.textMuted }]}>
                                                         {new Date(item.timestamp).toLocaleDateString()}
                                                     </Text>
                                                 </View>
@@ -349,7 +358,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
                                                             { text: t('common.delete'), style: 'destructive', onPress: () => deleteChat(item.id) },
                                                         ]);
                                                     }}
-                                                    style={styles.deleteBtn}
+                                                    style={[styles.deleteBtn, { backgroundColor: 'rgba(255,255,255,0.62)', borderColor: 'rgba(239,68,68,0.16)' }]}
                                                 >
                                                     <Trash2 size={16} color={roleColors.danger} />
                                                 </TouchableOpacity>
@@ -405,39 +414,86 @@ const styles = StyleSheet.create({
     tabAccentLine: { marginTop: 8, width: 82, height: 3, borderRadius: 999 },
     content: { flex: 1 },
     historyContainer: { flex: 1, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12 },
+    newChatButtonWrap: {
+        alignSelf: 'flex-start',
+        marginBottom: 14,
+        borderRadius: 18,
+        shadowColor: '#A66C27',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.16,
+        shadowRadius: 16,
+        elevation: 5,
+    },
     newChatButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 48,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        marginBottom: 14,
+        minHeight: 42,
+        paddingHorizontal: 14,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.35)',
     },
-    newChatButtonText: { fontSize: 17, fontWeight: '800' },
-    newChatButtonIcon: { marginRight: 8 },
+    newChatButtonText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+    newChatButtonIconWrap: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        marginRight: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.28)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.32)',
+    },
+    newChatButtonIcon: { marginRight: 0 },
     historyItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        paddingHorizontal: 2,
-        paddingVertical: 12,
-        minHeight: 60,
+        borderRadius: 18,
+        marginBottom: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 13,
+        minHeight: 66,
+        borderWidth: 1,
+        overflow: 'hidden',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+        elevation: 4,
+    },
+    historyItemGlow: {
+        position: 'absolute',
+        left: 14,
+        right: 14,
+        top: 0,
+        height: 1,
+        opacity: 0.9,
     },
     historyItemMain: { flexDirection: 'row', alignItems: 'center', flex: 1 },
     historyTextWrap: { flex: 1 },
-    historyIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    historyItemTitle: { fontSize: 16, marginBottom: 1 },
-    historyItemTitleActive: { fontWeight: '700' },
-    historyItemTitleInactive: { fontWeight: '600' },
-    historyItemDate: { fontSize: 13 },
+    historyIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(176, 149, 113, 0.10)',
+    },
+    historyItemTitle: { fontSize: 17, marginBottom: 2, letterSpacing: -0.2 },
+    historyItemTitleActive: { fontWeight: '800' },
+    historyItemTitleInactive: { fontWeight: '700' },
+    historyItemDate: { fontSize: 13, fontWeight: '500' },
     deleteBtn: {
         padding: 8,
-        width: 32,
-        height: 32,
-        borderRadius: 8,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
     },
     emptyContainer: { padding: 40, alignItems: 'center' },
     emptyText: { opacity: 0.8, marginTop: 10 },
@@ -497,6 +553,13 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(139,115,85,0.08)',
+        shadowColor: '#6C5A43',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 2,
     },
     checkboxContainer: {
         paddingRight: 10,

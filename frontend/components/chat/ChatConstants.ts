@@ -81,7 +81,7 @@ export type Message = {
     recipientId?: number;
     roomId?: number;
     createdAt?: string;
-    navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base';
+    navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'services' | 'ads' | 'news' | 'knowledge_base';
     // Map integration for AI geo-intents
     mapData?: {
         markers?: Array<{
@@ -129,6 +129,7 @@ export const MENU_OPTIONS = [
     'chat.searchTabs.chat',
     'chat.searchTabs.dating',
     'chat.searchTabs.shops',
+    'chat.searchTabs.services',
     'chat.searchTabs.ads',
     'chat.searchTabs.news',
     'chat.searchTabs.knowledge_base'

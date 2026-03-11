@@ -9,10 +9,9 @@ import {
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useChat } from '../../context/ChatContext';
-import { Phone, Menu, ChevronLeft, Sparkles } from 'lucide-react-native';
+import { Phone, Menu, ChevronLeft } from 'lucide-react-native';
 import { getMediaUrl } from '../../utils/url';
 import { BalancePill } from '../wallet/BalancePill';
-import { useNavigation } from '@react-navigation/native';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
@@ -35,7 +34,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     topInset = 0,
 }) => {
     const { t } = useTranslation();
-    const navigation = useNavigation<any>();
     const { recipientUser } = useChat();
     const { user } = useUser();
     const { isDarkMode, portalIconStyle, chatBackgroundType, chatBackground } = useSettings();
@@ -170,22 +168,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                     </Text>
                                 )}
                             </View>
-                        ) : (
-                            <TouchableOpacity
-                                onPress={onBackPress}
-                                activeOpacity={0.8}
-                                style={[
-                                    styles.aiTitleWrap,
-                                    {
-                                        backgroundColor: isVedaMatch ? 'transparent' : isImageBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
-                                        borderColor: isVedaMatch ? '#D4AF37' : isImageBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
-                                    },
-                                ]}
-                            >
-                                <Sparkles size={12} color={isVedaMatch ? '#FFDF00' : isImageBg ? '#FFB74D' : colors.accent} />
-                                <Text style={[styles.aiTitle, { color: titleColor }]}>{t('chat.aiAssistant')}</Text>
-                            </TouchableOpacity>
-                        )}
+                        ) : null}
                     </View>
 
                     <View style={styles.rightActions}>
@@ -226,7 +209,7 @@ const styles = StyleSheet.create({
     leftGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 6,
+        marginRight: 10,
     },
     titleContainer: {
         flex: 1,
@@ -242,38 +225,22 @@ const styles = StyleSheet.create({
         lineHeight: 13,
         marginTop: 2,
     },
-    aiTitleWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        backgroundColor: 'rgba(255, 183, 77, 0.15)',
-        borderWidth: 1.2,
-        borderColor: 'rgba(255, 183, 77, 0.35)',
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 3.5,
-        gap: 6,
-    },
-    aiTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-    },
     backButton: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 4,
+        marginRight: 10,
         borderWidth: 1,
     },
     menuButton: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 4,
+        marginRight: 2,
         borderWidth: 1,
     },
     avatarContainer: {

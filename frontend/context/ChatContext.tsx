@@ -22,6 +22,31 @@ export interface ChatHistory {
 
 type ChatNavTab = NonNullable<Message['navTab']>;
 
+const CHAT_TAB_TO_RAG_DOMAINS: Record<Exclude<ChatNavTab, 'contacts' | 'chat'>, string[]> = {
+    dating: ['dating'],
+    shops: ['market'],
+    services: ['services'],
+    ads: ['ads'],
+    news: ['news'],
+    knowledge_base: ['library'],
+};
+
+const getRequestedRagDomains = (messages: Message[], availableDomains: string[]): string[] | undefined => {
+    const activeTab = [...messages].reverse().find((message) => message.navTab)?.navTab;
+    if (!activeTab || activeTab === 'contacts' || activeTab === 'chat') {
+        return undefined;
+    }
+
+    const mappedDomains = CHAT_TAB_TO_RAG_DOMAINS[activeTab];
+    if (!mappedDomains?.length) {
+        return undefined;
+    }
+
+    const availableSet = new Set(availableDomains);
+    const selected = mappedDomains.filter((domain) => availableSet.has(domain));
+    return selected.length > 0 ? selected : mappedDomains;
+};
+
 interface ChatContextType {
     messages: Message[];
     inputText: string;
@@ -527,11 +552,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         try {
             let assistantContext: Message['assistantContext'] | undefined;
             try {
+                const requestedDomains = getRequestedRagDomains(messages, ragDomains);
                 const hybridResponse = await ragService.queryHybrid({
                     query: text,
                     topK: 5,
                     includePrivate: false,
-                    domains: ragDomains.length > 0 ? ragDomains : undefined,
+                    domains: requestedDomains,
                 });
 
                 const context = hybridResponse.assistant_context;
@@ -715,7 +741,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
         // Extract tab name from key 'chat.searchTabs.xxx'
         const tabCandidate = option.split('.').pop();
-        const allowedTabs: ChatNavTab[] = ['contacts', 'chat', 'dating', 'shops', 'ads', 'news', 'knowledge_base'];
+        const allowedTabs: ChatNavTab[] = ['contacts', 'chat', 'dating', 'shops', 'services', 'ads', 'news', 'knowledge_base'];
         if (!tabCandidate || !allowedTabs.includes(tabCandidate as ChatNavTab)) {
             return;
         }

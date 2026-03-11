@@ -888,6 +888,7 @@ export default {
             chat: 'You can find communities and chats by interest. What are you interested in?',
             dating: 'Looking for a life partner or a spiritual partner? Describe who you are looking for...',
             shops: 'You can find goods and services in our shops. Enter a product name to search...',
+            services: 'You can find services and specialists here. Describe what you need and we will find matching options...',
             ads: 'Private ads are collected here. What are you looking for: services, housing, or things?',
             news: 'Stay up to date with the latest events. What news topic do you want to know about?',
             knowledge_base: 'Explore spiritual wisdom. Enter a topic and we will find information from sacred scriptures...',
@@ -897,6 +898,7 @@ export default {
             chat: 'Chat',
             dating: 'Union',
             shops: 'Shops',
+            services: 'Services',
             ads: 'Ads',
             news: 'News',
             knowledge_base: 'Knowledge Base',
@@ -1307,9 +1309,31 @@ export default {
                 title: 'Chat background',
                 subtitle: 'Background settings only for chat screen',
                 selectForChat: 'Choose for chat',
+                builtInWallpapers: 'Built-in wallpapers',
+                builtInHint: 'Ready-made photos from the portal wallpaper collection',
                 slideshowTitle: 'Wallpaper slideshow (chat)',
                 intervalLabel: 'Change interval (chat)',
                 wallpapersInRotation: 'Chat wallpapers ({{count}})',
+            },
+            chatAppearance: {
+                title: 'Chat appearance',
+                subtitle: 'Adjust bubble style and background only for chat screen',
+            },
+            chatBubbleStyles: {
+                title: 'Message bubble style',
+                subtitle: 'Choose the shape of message corners and overall feel',
+                soft: {
+                    title: 'Soft',
+                    hint: 'Rounded and calm',
+                },
+                balanced: {
+                    title: 'Balanced',
+                    hint: 'Neat and universal',
+                },
+                airy: {
+                    title: 'Airy',
+                    hint: 'Lighter and more spacious',
+                },
             },
             alerts: {
                 pickImageFailed: 'Failed to select image',

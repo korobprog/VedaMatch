@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     FlatList,
@@ -12,12 +12,15 @@ import {
     Linking,
     Platform,
     Keyboard,
+    InteractionManager,
 } from 'react-native';
 import type { AxiosError } from 'axios';
 import { BlurView } from '@react-native-community/blur';
 import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin, ExternalLink, PlayCircle, UserRound } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChatImage } from '../ChatImage';
 import { Message, AssistantSource } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
@@ -31,6 +34,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { ragService } from '../../services/ragService';
 import { getMediaUrl } from '../../utils/url';
 import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
+import type { RootStackParamList } from '../../types/navigation';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -68,6 +72,20 @@ const MAP_BUTTON_TEXT_STYLE = {
     color: '#FFF',
     marginLeft: 6,
 };
+type RootNavigation = NativeStackNavigationProp<RootStackParamList>;
+type InternalNavigationTarget =
+    | { screen: 'Reader'; params: RootStackParamList['Reader'] }
+    | { screen: 'ProductDetails'; params: RootStackParamList['ProductDetails'] }
+    | { screen: 'ShopDetails'; params: RootStackParamList['ShopDetails'] }
+    | { screen: 'ServiceDetail'; params: RootStackParamList['ServiceDetail'] }
+    | { screen: 'NewsDetail'; params: RootStackParamList['NewsDetail'] }
+    | { screen: 'AdDetail'; params: RootStackParamList['AdDetail'] }
+    | { screen: 'CourseDetails'; params: RootStackParamList['CourseDetails'] }
+    | { screen: 'YatraDetail'; params: RootStackParamList['YatraDetail'] }
+    | { screen: 'ShelterDetail'; params: RootStackParamList['ShelterDetail'] }
+    | { screen: 'CafeDetail'; params: RootStackParamList['CafeDetail'] }
+    | { screen: 'DishDetail'; params: RootStackParamList['DishDetail'] }
+    | { screen: 'ContactProfile'; params: RootStackParamList['ContactProfile'] };
 
 export const MessageList: React.FC<MessageListProps> = ({
     onDownloadImage,
@@ -75,6 +93,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     onNavigateToTab,
     onNavigateToMap,
 }) => {
+    const navigation = useNavigation<RootNavigation>();
     const { t, i18n } = useTranslation();
     const {
         messages,
@@ -88,7 +107,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         loadOlderMessages,
     } = useChat();
     const { user } = useUser();
-    const { assistantType, isDarkMode, chatBackgroundType, chatBackground } = useSettings();
+    const { assistantType, isDarkMode, chatBackgroundType, chatBackground, chatBubbleStyle } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const isImageBg = chatBackgroundType === 'image';
     const isLightChatBackground =
@@ -176,6 +195,47 @@ export const MessageList: React.FC<MessageListProps> = ({
                 sending: 'Sending...',
                 file: 'File',
             };
+    const bubblePreset = useMemo(() => {
+        if (chatBubbleStyle === 'balanced') {
+            return {
+                outerRadius: 23,
+                cornerRadius: 23,
+                innerCornerRadius: 21,
+                padX: 15,
+                padY: 12,
+                minWidth: 104,
+                highlightLeft: 16,
+                highlightRight: 16,
+                edgeShadeOpacity: 0.34,
+            };
+        }
+
+        if (chatBubbleStyle === 'airy') {
+            return {
+                outerRadius: 38,
+                cornerRadius: 28,
+                innerCornerRadius: 27,
+                padX: 19,
+                padY: 15,
+                minWidth: 116,
+                highlightLeft: 22,
+                highlightRight: 22,
+                edgeShadeOpacity: 0.24,
+            };
+        }
+
+        return {
+            outerRadius: 32,
+            cornerRadius: 10,
+            innerCornerRadius: 11,
+            padX: 16,
+            padY: 13,
+            minWidth: 108,
+            highlightLeft: 20,
+            highlightRight: 16,
+            edgeShadeOpacity: 0.4,
+        };
+    }, [chatBubbleStyle]);
     const flatListRef = useRef<FlatList>(null);
     const autoScrollFrameRef = useRef<number | null>(null);
     const settleScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -361,6 +421,229 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
+    const getMetadataRecord = (metadata?: Record<string, unknown> | null): Record<string, unknown> => {
+        if (!metadata || typeof metadata !== 'object') {
+            return {};
+        }
+        return metadata;
+    };
+
+    const getMetadataString = (metadata: Record<string, unknown>, key: string): string => {
+        const value = metadata[key];
+        return typeof value === 'string' ? value.trim() : '';
+    };
+
+    const getMetadataNumber = (metadata: Record<string, unknown>, key: string): number | undefined => {
+        const value = metadata[key];
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        if (typeof value === 'string' && value.trim()) {
+            const parsed = Number(value);
+            if (Number.isFinite(parsed)) {
+                return parsed;
+            }
+        }
+        return undefined;
+    };
+
+    const parseLibraryReaderTarget = (
+        rawUrl?: string,
+        metadata?: Record<string, unknown> | null,
+        title?: string,
+    ): InternalNavigationTarget | null => {
+        const record = getMetadataRecord(metadata);
+        let bookCode = getMetadataString(record, 'bookCode');
+        let chapter = getMetadataNumber(record, 'chapter');
+        let verse = getMetadataString(record, 'verse') || undefined;
+        let canto = getMetadataNumber(record, 'canto');
+
+        const trimmedUrl = String(rawUrl || '').trim();
+        if (trimmedUrl.startsWith('/library/books/')) {
+            const pathCode = trimmedUrl.replace('/library/books/', '').split(/[?#/]/)[0]?.trim();
+            if (pathCode) {
+                bookCode = bookCode || pathCode;
+            }
+        }
+        if (trimmedUrl.startsWith('/library/verses')) {
+            try {
+                const parsedUrl = new URL(trimmedUrl, 'https://vedamatch.local');
+                bookCode = bookCode || parsedUrl.searchParams.get('bookCode')?.trim() || '';
+                const chapterParam = parsedUrl.searchParams.get('chapter');
+                const verseParam = parsedUrl.searchParams.get('verse');
+                const cantoParam = parsedUrl.searchParams.get('canto');
+                if (!chapter && chapterParam) {
+                    const parsedChapter = Number(chapterParam);
+                    if (Number.isFinite(parsedChapter) && parsedChapter > 0) {
+                        chapter = parsedChapter;
+                    }
+                }
+                if (!verse && verseParam?.trim()) {
+                    verse = verseParam.trim();
+                }
+                if ((canto === undefined || canto === null) && cantoParam) {
+                    const parsedCanto = Number(cantoParam);
+                    if (Number.isFinite(parsedCanto) && parsedCanto >= 0) {
+                        canto = parsedCanto;
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to parse internal library URL:', error);
+            }
+        }
+
+        if (!bookCode) {
+            return null;
+        }
+
+        return {
+            screen: 'Reader',
+            params: {
+                bookCode,
+                title: String(title || bookCode.toUpperCase()).trim(),
+                ...(typeof chapter === 'number' && chapter > 0 ? { chapter } : {}),
+                ...(verse ? { verse } : {}),
+                ...(typeof canto === 'number' && canto >= 0 ? { canto } : {}),
+            },
+        };
+    };
+
+    const parseInternalAppRoute = (
+        rawUrl?: string,
+        metadata?: Record<string, unknown> | null,
+        title?: string,
+    ): InternalNavigationTarget | null => {
+        const libraryTarget = parseLibraryReaderTarget(rawUrl, metadata, title);
+        if (libraryTarget) {
+            return libraryTarget;
+        }
+
+        const trimmedUrl = String(rawUrl || '').trim();
+        if (!trimmedUrl.startsWith('/')) {
+            return null;
+        }
+
+        try {
+            const parsedUrl = new URL(trimmedUrl, 'https://vedamatch.local');
+            const path = parsedUrl.pathname.replace(/\/+$/, '');
+            let match = path.match(/^\/products\/(\d+)$/);
+            if (match) {
+                return { screen: 'ProductDetails', params: { productId: Number(match[1]) } };
+            }
+            match = path.match(/^\/shops\/(\d+)$/);
+            if (match) {
+                return { screen: 'ShopDetails', params: { shopId: Number(match[1]) } };
+            }
+            match = path.match(/^\/services\/(\d+)(?:\/tariffs|\/schedule)?$/);
+            if (match) {
+                return { screen: 'ServiceDetail', params: { serviceId: Number(match[1]) } };
+            }
+            match = path.match(/^\/news\/(\d+)$/);
+            if (match) {
+                return { screen: 'NewsDetail', params: { newsId: Number(match[1]) } };
+            }
+            match = path.match(/^\/ads\/(\d+)$/);
+            if (match) {
+                return { screen: 'AdDetail', params: { adId: Number(match[1]) } };
+            }
+            match = path.match(/^\/education\/courses\/(\d+)$/);
+            if (match) {
+                return { screen: 'CourseDetails', params: { courseId: Number(match[1]) } };
+            }
+            match = path.match(/^\/yatra\/(\d+)$/);
+            if (match) {
+                return { screen: 'YatraDetail', params: { yatraId: Number(match[1]) } };
+            }
+            match = path.match(/^\/shelter\/(\d+)$/);
+            if (match) {
+                return { screen: 'ShelterDetail', params: { shelterId: Number(match[1]) } };
+            }
+            match = path.match(/^\/cafes\/(\d+)\/dishes\/(\d+)$/);
+            if (match) {
+                return { screen: 'DishDetail', params: { cafeId: Number(match[1]), dishId: Number(match[2]) } };
+            }
+            match = path.match(/^\/cafes\/(\d+)$/);
+            if (match) {
+                return { screen: 'CafeDetail', params: { cafeId: Number(match[1]) } };
+            }
+            match = path.match(/^\/dating\/profile\/(\d+)$/);
+            if (match) {
+                return { screen: 'ContactProfile', params: { userId: Number(match[1]) } };
+            }
+        } catch (error) {
+            console.warn('Failed to parse internal app URL:', error);
+        }
+
+        return null;
+    };
+
+    const openInternalSource = (
+        rawUrl?: string,
+        metadata?: Record<string, unknown> | null,
+        title?: string,
+    ): boolean => {
+        const navigationTarget = parseInternalAppRoute(rawUrl, metadata, title);
+        if (navigationTarget) {
+            (navigation as any).navigate(navigationTarget.screen, navigationTarget.params);
+            return true;
+        }
+        return false;
+    };
+
+    const normalizeExternalUrl = (rawUrl?: string): string | null => {
+        const trimmed = String(rawUrl || '').trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (trimmed.startsWith('/')) {
+            return null;
+        }
+        if (/^https?:\/\//i.test(trimmed)) {
+            return trimmed;
+        }
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+            return trimmed;
+        }
+        if (/^[\w.-]+\.[a-z]{2,}/i.test(trimmed)) {
+            return `https://${trimmed}`;
+        }
+        return null;
+    };
+
+    const openSourceUrl = async (
+        rawUrl?: string,
+        metadata?: Record<string, unknown> | null,
+        title?: string,
+    ) => {
+        if (openInternalSource(rawUrl, metadata, title)) {
+            return;
+        }
+
+        const normalizedUrl = normalizeExternalUrl(rawUrl);
+        if (!normalizedUrl) {
+            Alert.alert(t('error'), t('chat.sourceDetailsUnavailable'));
+            return;
+        }
+
+        try {
+            const supported = await Linking.canOpenURL(normalizedUrl);
+            if (!supported) {
+                Alert.alert(t('error'), t('chat.sourceDetailsUnavailable'));
+                return;
+            }
+
+            InteractionManager.runAfterInteractions(() => {
+                Linking.openURL(normalizedUrl).catch((error) => {
+                    console.warn('Failed to open source URL:', error);
+                    Alert.alert(t('error'), t('chat.sourceDetailsUnavailable'));
+                });
+            });
+        } catch (error) {
+            console.warn('Failed to validate source URL:', error);
+            Alert.alert(t('error'), t('chat.sourceDetailsUnavailable'));
+        }
+    };
+
     const handleSourcePress = async (source: AssistantSource) => {
         try {
             const details = await ragService.getSourceById(source.id);
@@ -381,9 +664,9 @@ export const MessageList: React.FC<MessageListProps> = ({
             if (details.sourceUrl) {
                 buttons.unshift({
                     text: t('chat.openSource'),
-                    onPress: () => Linking.openURL(details.sourceUrl || '').catch((error) => {
-                        console.warn('Failed to open source URL:', error);
-                    }),
+                    onPress: () => {
+                        void openSourceUrl(details.sourceUrl, details.metadata, details.title || source.title);
+                    },
                 });
             }
 
@@ -391,9 +674,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         } catch (error) {
             console.warn('Failed to load source details:', error);
             if (source.sourceUrl) {
-                Linking.openURL(source.sourceUrl).catch((openError) => {
-                    console.warn('Failed to open source URL:', openError);
-                });
+                void openSourceUrl(source.sourceUrl, source.metadata, source.title);
                 return;
             }
 
@@ -519,12 +800,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                 />
             </View>
         );
-    };
-
-    const formatConfidencePercent = (confidence?: number) => {
-        if (typeof confidence !== 'number' || Number.isNaN(confidence)) return null;
-        const normalized = Math.max(0, Math.min(1, confidence));
-        return `${Math.round(normalized * 100)}%`;
     };
 
     const handleDeleteMessage = (msg: Message) => {
@@ -656,21 +931,47 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         const bubbleStyle = [
             styles.bubble,
-            isUser ? styles.userBubble : styles.botBubble,
+            {
+                borderRadius: bubblePreset.outerRadius,
+                minWidth: bubblePreset.minWidth,
+                paddingVertical: bubblePreset.padY,
+                paddingHorizontal: bubblePreset.padX,
+                borderTopLeftRadius: bubblePreset.outerRadius,
+                borderTopRightRadius: bubblePreset.outerRadius,
+                borderBottomLeftRadius: isUser ? bubblePreset.outerRadius : bubblePreset.cornerRadius,
+                borderBottomRightRadius: isUser ? bubblePreset.cornerRadius : bubblePreset.outerRadius,
+            },
             {
                 backgroundColor: 'transparent',
                 borderColor: isUser
-                    ? (isImageBg ? 'rgba(255,255,255,0.34)' : colors.accent)
+                    ? (isImageBg ? 'rgba(255,255,255,0.28)' : 'rgba(146, 98, 52, 0.82)')
                     : theme.borderColor,
-                borderWidth: 1.2,
+                borderWidth: isUser ? 1.1 : 1,
                 overflow: 'hidden' as const,
             }
         ];
 
+        const bubbleShellStyle = [
+            styles.bubbleShell,
+            {
+                borderRadius: bubblePreset.outerRadius,
+                borderTopLeftRadius: bubblePreset.outerRadius,
+                borderTopRightRadius: bubblePreset.outerRadius,
+                borderBottomLeftRadius: isUser ? bubblePreset.outerRadius : bubblePreset.cornerRadius,
+                borderBottomRightRadius: isUser ? bubblePreset.cornerRadius : bubblePreset.outerRadius,
+            },
+        ];
         const bubbleShadowStyle = isUser ? styles.userGlassShadow : styles.botGlassShadow;
         const glassTint = isUser
             ? (isImageBg ? 'rgba(15,23,42,0.44)' : (isLightChatBackground ? 'rgba(31,41,55,0.56)' : colors.accentSoft))
-            : (isImageBg ? 'rgba(255,255,255,0.09)' : (isLightChatBackground ? 'rgba(255,255,255,0.92)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,255,255,0.45)')));
+            : (isImageBg ? 'rgba(255,255,255,0.09)' : (isLightChatBackground ? 'rgba(255,252,247,0.96)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,250,243,0.72)')));
+        const innerStrokeColor = isUser
+            ? (isImageBg ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.14)')
+            : (isImageBg ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.45)');
+        const edgeShadeColor = isUser
+            ? 'rgba(255,255,255,0.06)'
+            : 'rgba(255,255,255,0.04)';
+        const showEdgeShade = isImageBg || !isLightChatBackground;
 
         const innerContent = item.uploading ? (
             <View style={styles.uploadingContainer}>
@@ -815,25 +1116,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                         </TouchableOpacity>
                     )}
 
-                    {!isUser && item.assistantContext ? (
-                        <View style={styles.ragMetaRow}>
-                            {item.assistantContext.retrieverPath ? (
-                                <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
-                                    <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
-                                        {t('chat.retrieverLabel')}: {item.assistantContext.retrieverPath}
-                                    </Text>
-                                </View>
-                            ) : null}
-                            {formatConfidencePercent(item.assistantContext.confidence) ? (
-                                <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
-                                    <Text style={[styles.ragBadgeText, { color: bubbleSubTextColor }]}>
-                                        {t('chat.confidenceLabel')}: {formatConfidencePercent(item.assistantContext.confidence)}
-                                    </Text>
-                                </View>
-                            ) : null}
-                        </View>
-                    ) : null}
-
                     {!isUser && item.assistantContext?.sources?.length ? (
                         <View style={[styles.sourcesContainer, { borderTopColor: theme.borderColor }]}>
                             <Text style={[styles.sourcesTitle, { color: bubbleSubTextColor }]}>
@@ -891,8 +1173,44 @@ export const MessageList: React.FC<MessageListProps> = ({
                         )}
                     </View>
                 )}
-                <View style={bubbleShadowStyle}>
+                <View style={[bubbleShadowStyle, bubbleShellStyle]}>
                     <View style={bubbleStyle}>
+                        <View
+                            pointerEvents="none"
+                            style={[
+                                styles.bubbleInnerStroke,
+                                {
+                                    borderRadius: bubblePreset.outerRadius - 1,
+                                    borderTopLeftRadius: bubblePreset.outerRadius - 1,
+                                    borderTopRightRadius: bubblePreset.outerRadius - 1,
+                                    borderBottomLeftRadius: isUser ? bubblePreset.outerRadius - 1 : bubblePreset.innerCornerRadius,
+                                    borderBottomRightRadius: isUser ? bubblePreset.innerCornerRadius : bubblePreset.outerRadius - 1,
+                                },
+                                { borderColor: innerStrokeColor },
+                            ]}
+                        />
+                        {showEdgeShade ? (
+                            <View
+                                pointerEvents="none"
+                                style={[
+                                    styles.bubbleEdgeShade,
+                                    {
+                                        backgroundColor: edgeShadeColor,
+                                        opacity: bubblePreset.edgeShadeOpacity,
+                                        borderBottomLeftRadius: isUser ? bubblePreset.outerRadius - 2 : bubblePreset.cornerRadius,
+                                        borderBottomRightRadius: isUser ? bubblePreset.cornerRadius : bubblePreset.outerRadius - 2,
+                                    },
+                                ]}
+                            />
+                        ) : null}
+                        <View
+                            style={[
+                                styles.bubbleHighlight,
+                                isUser
+                                    ? { left: bubblePreset.highlightLeft, right: bubblePreset.highlightRight, backgroundColor: 'rgba(255,255,255,0.18)', opacity: 0.5 }
+                                    : { left: bubblePreset.highlightLeft, right: bubblePreset.highlightRight, backgroundColor: 'rgba(255,255,255,0.72)', opacity: 0.62 },
+                            ]}
+                        />
                         {shouldUseBubbleBlur && (
                             <BlurView
                                 style={StyleSheet.absoluteFill}
@@ -1055,29 +1373,44 @@ const styles = StyleSheet.create({
     userRow: { justifyContent: 'flex-end' },
     botRow: { justifyContent: 'flex-start' },
     bubble: {
-        borderRadius: 18,
-        maxWidth: '85%',
-        minWidth: 100, // Ensure enough space for short text + time
-        paddingVertical: 10,
-        paddingHorizontal: 13,
+        maxWidth: '92%',
+        overflow: 'hidden',
     },
-    userBubble: {
-        borderBottomRightRadius: 4,
-    },
+    bubbleShell: { maxWidth: '92%' },
     userGlassShadow: {
-        maxWidth: '85%',
+        maxWidth: '92%',
         ...Platform.select({
-            ios: { shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6 },
-            android: { elevation: 2 },
+            ios: { shadowColor: '#111827', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 14 },
+            android: { elevation: 4 },
         }),
     },
-    botBubble: { borderBottomLeftRadius: 4 },
     botGlassShadow: {
-        maxWidth: '85%',
+        maxWidth: '92%',
         ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.16, shadowRadius: 6 },
-            android: { elevation: 3 },
+            ios: { shadowColor: '#111827', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 14 },
+            android: { elevation: 4 },
         }),
+    },
+    bubbleInnerStroke: {
+        position: 'absolute',
+        top: 1,
+        left: 1,
+        right: 1,
+        bottom: 1,
+        borderWidth: 1,
+    },
+    bubbleEdgeShade: {
+        position: 'absolute',
+        bottom: 0,
+        height: 14,
+        left: 0,
+        right: 0,
+    },
+    bubbleHighlight: {
+        position: 'absolute',
+        top: 1,
+        height: 2,
+        borderRadius: 999,
     },
     timeText: { fontSize: 10, fontWeight: '500', color: 'rgba(248,250,252,0.6)' },
     timeOverlay: { position: 'absolute', bottom: 6, right: 12 },
@@ -1202,40 +1535,25 @@ const styles = StyleSheet.create({
     navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
     navButtonText: { fontSize: 13, fontWeight: 'bold' },
     mapButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-    ragMetaRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginTop: 8,
-        gap: 6,
-    },
-    ragBadge: {
-        borderWidth: 1,
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-    },
-    ragBadgeText: {
-        fontSize: 11,
-        fontWeight: '600',
-    },
     sourcesContainer: {
-        marginTop: 10,
+        marginTop: 12,
         borderTopWidth: 1,
-        paddingTop: 8,
+        paddingTop: 10,
     },
     sourcesTitle: {
         fontSize: 12,
-        fontWeight: '700',
-        marginBottom: 6,
+        fontWeight: '800',
+        marginBottom: 8,
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 0.9,
     },
     sourceCard: {
         borderWidth: 1,
-        borderRadius: 10,
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-        marginBottom: 6,
+        borderRadius: 14,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        marginBottom: 8,
+        backgroundColor: 'rgba(255,255,255,0.36)',
     },
     sourceHeader: {
         flexDirection: 'row',
@@ -1244,14 +1562,14 @@ const styles = StyleSheet.create({
     },
     sourceTitle: {
         flex: 1,
-        fontSize: 13,
-        fontWeight: '600',
-        marginRight: 8,
+        fontSize: 14,
+        fontWeight: '700',
+        marginRight: 10,
     },
     sourceSnippet: {
         fontSize: 12,
-        lineHeight: 17,
-        marginTop: 4,
+        lineHeight: 18,
+        marginTop: 6,
     },
     uploadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
     uploadingText: { marginLeft: 8, fontSize: 14 },

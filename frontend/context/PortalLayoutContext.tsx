@@ -687,7 +687,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                     ? { layout: sanitizedLayout, changed: false }
                     : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-                const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+                const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap, role);
                 if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                     await saveLocalLayout(filteredLayout);
                 }
@@ -703,11 +703,13 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
     }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.currentPlan, user?.role, user?.isProfileComplete]);
 
     // Save layout whenever it changes
+    const normalizedUserRole = typeof user?.role === 'string' ? user.role.trim() : undefined;
+
     const updateLayout = useCallback((newLayout: PortalLayout) => {
-        const filteredLayout = filterLayoutByPortalVisibility(newLayout, serviceVisibilityMap);
+        const filteredLayout = filterLayoutByPortalVisibility(newLayout, serviceVisibilityMap, normalizedUserRole);
         setLayout(filteredLayout);
         saveLocalLayout(filteredLayout);
-    }, [serviceVisibilityMap]);
+    }, [normalizedUserRole, serviceVisibilityMap]);
 
     // === Folder Operations ===
     const createNewFolder = useCallback((name: string, color?: string) => {
@@ -911,7 +913,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 ? { layout: sanitizedLayout, changed: false }
                 : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
-            const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap);
+            const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap, role);
             if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                 await saveLocalLayout(filteredLayout);
             }
@@ -922,8 +924,8 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
     }, [user?.currentPlan, user?.godModeEnabled, user?.isProfileComplete, user?.role]);
 
     const isServiceVisible = useCallback((serviceId: string) => (
-        isPortalServiceVisibleForUser(serviceId, serviceVisibilityMap)
-    ), [serviceVisibilityMap]);
+        isPortalServiceVisibleForUser(serviceId, serviceVisibilityMap, normalizedUserRole)
+    ), [normalizedUserRole, serviceVisibilityMap]);
 
     const getServiceMaintenanceMessageForUI = useCallback((serviceId: string) => (
         getPortalServiceMaintenanceMessage(serviceId, serviceVisibilityMap)

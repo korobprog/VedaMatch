@@ -231,9 +231,10 @@ func buildPortalServiceVisibilityAdminItems(rows []models.PortalServiceVisibilit
 	return items, nil
 }
 
-func buildPortalServiceVisibilityRuntimeMap(userID uint, rows []models.PortalServiceVisibility) (map[string]portalServiceVisibilityRuntimeItem, error) {
+func buildPortalServiceVisibilityRuntimeMap(userID uint, role string, rows []models.PortalServiceVisibility) (map[string]portalServiceVisibilityRuntimeItem, error) {
 	byID := buildPortalVisibilityByServiceID(rows)
 	result := make(map[string]portalServiceVisibilityRuntimeItem, len(portalServiceCatalog))
+	isAdmin := models.IsAdminRole(role)
 	for _, serviceID := range portalServiceCatalog {
 		entry := portalServiceVisibilityRuntimeItem{
 			Mode:    models.PortalServiceModeVisible,
@@ -251,6 +252,11 @@ func buildPortalServiceVisibilityRuntimeMap(userID uint, rows []models.PortalSer
 		entry.Mode = mode
 		if row.MaintenanceMessage != nil {
 			entry.MaintenanceMessage = strings.TrimSpace(*row.MaintenanceMessage)
+		}
+		if isAdmin {
+			entry.Visible = true
+			result[serviceID] = entry
+			continue
 		}
 		switch mode {
 		case models.PortalServiceModeHidden:
@@ -284,7 +290,7 @@ func IsPortalServiceVisible(serviceID string, userID uint) (bool, string, error)
 	if err != nil {
 		return false, "", err
 	}
-	runtimeMap, err := buildPortalServiceVisibilityRuntimeMap(userID, rows)
+	runtimeMap, err := buildPortalServiceVisibilityRuntimeMap(userID, "", rows)
 	if err != nil {
 		return false, "", err
 	}
@@ -404,12 +410,13 @@ func (h *SystemHandler) GetPortalServiceVisibility(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	role := middleware.GetUserRole(c)
 
 	rows, err := loadPortalServiceVisibilityRows()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch portal service visibility"})
 	}
-	items, err := buildPortalServiceVisibilityRuntimeMap(userID, rows)
+	items, err := buildPortalServiceVisibilityRuntimeMap(userID, role, rows)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not build portal service visibility"})
 	}

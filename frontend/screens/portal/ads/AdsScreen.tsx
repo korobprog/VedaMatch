@@ -45,7 +45,8 @@ import {
     X,
     SlidersHorizontal,
     Inbox,
-    Plus
+    Plus,
+    ArrowLeft,
 } from 'lucide-react-native';
 
 const DEFAULT_PERIOD: FestivalFeedPeriod = 'upcoming';
@@ -62,7 +63,7 @@ export const AdsScreen: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<AdCategory | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [sectionMode, setSectionMode] = useState<AdsSectionMode>('festivals');
+    const [sectionMode, setSectionMode] = useState<AdsSectionMode>('ads');
     const [festivalViewMode, setFestivalViewMode] = useState<FestivalViewMode>('feed');
 
     const [ads, setAds] = useState<Ad[]>([]);
@@ -374,6 +375,10 @@ export const AdsScreen: React.FC = () => {
         setFestivalPeriodFilter(DEFAULT_PERIOD);
     };
 
+    const handleBackToPortal = useCallback(() => {
+        navigation.navigate('Portal');
+    }, [navigation]);
+
     const hasActiveFeedFilters = useMemo(() => {
         return (
             searchQuery.trim().length > 0
@@ -421,6 +426,15 @@ export const AdsScreen: React.FC = () => {
         <ProtectedScreen>
             <View style={[styles.container, { backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }]}>
                 <View style={[styles.header, { backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }]}>
+                    <View style={styles.headerTopRow}>
+                        <TouchableOpacity
+                            style={[styles.portalBackButton, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: 'rgba(0,0,0,0.08)' }]}
+                            onPress={handleBackToPortal}
+                            activeOpacity={0.85}
+                        >
+                            <ArrowLeft size={18} color={colors.text} />
+                        </TouchableOpacity>
+                    </View>
                     <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: 'rgba(0,0,0,0.1)' }]}>
                         <Search size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                         <TextInput
@@ -663,6 +677,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 8,
         paddingBottom: 8,
+    },
+    headerTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    portalBackButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 2,
     },
     searchContainer: {
         flexDirection: 'row',

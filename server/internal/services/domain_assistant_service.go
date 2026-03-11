@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math"
+	"net/url"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -1092,9 +1093,14 @@ func (s *DomainAssistantService) syncLibrary(ctx context.Context, since time.Tim
 			title, normalizeWhitespace(v.Translation), normalizeWhitespace(v.Purport))
 		meta := map[string]interface{}{
 			"bookCode":  v.BookCode,
+			"canto":     v.Canto,
 			"chapter":   v.Chapter,
 			"verse":     v.Verse,
 			"reference": v.VerseReference,
+		}
+		sourceURL := fmt.Sprintf("/library/verses?bookCode=%s&chapter=%d&verse=%s", v.BookCode, v.Chapter, url.QueryEscape(v.Verse))
+		if v.Canto > 0 {
+			sourceURL += fmt.Sprintf("&canto=%d", v.Canto)
 		}
 		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "library",
@@ -1102,7 +1108,7 @@ func (s *DomainAssistantService) syncLibrary(ctx context.Context, since time.Tim
 			SourceID:        sourceID,
 			Title:           title,
 			Content:         content,
-			SourceURL:       fmt.Sprintf("/library/verses?bookCode=%s&chapter=%d", v.BookCode, v.Chapter),
+			SourceURL:       sourceURL,
 			Language:        languageOrDefault(v.Language, "ru"),
 			VisibilityScope: models.VisibilityScopePublic,
 			UserID:          0,
