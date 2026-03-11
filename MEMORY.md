@@ -556,6 +556,12 @@
     - Production fix от `2026-03-10`: server commit `ad7c6b6e4b473f9d2561032012e079c54c8e1f54` отправлен в `main`, Dokploy `Vedamatch -> Server` пересобрал backend и swarm поднял новый task `vedamatch-server-dnkxc8.1` (`Running about a minute ago` на момент проверки).
     - Локальный backend-фикс проверяется тестом `go test ./internal/handlers -run 'TestAuthTelegramMiniAppLogin_CreatesUserWhenNotLinked|TestAuthTelegramMiniAppLink'` из директории `server/`; этот блок уже проходит локально.
     - Production web fix от `2026-03-10`: `lkm` commit `23a77306e3d1a302a09c216f6f31530c0d066c12` читает `tgWebAppData` и `tgWebAppStartParam` из `window.location.hash/search`, а не только из `window.Telegram.WebApp`, и сохраняет launch params в `sessionStorage` сразу при первом bootstrap. Это нужно, потому что по официальным Telegram Mini Apps docs launch params могут приходить именно через URL hash и теряться при внутренних reload/redirect.
+    - `2026-03-11`: sign-in flow `vm_auth_<state>` в `lkm` больше не должен рендерить общий cabinet/login экран. Root `lkm` сначала сохраняет Telegram launch params, загружает `GET /auth/telegram/mobile/state/:state`, и для обычного sign-in purpose переводит пользователя на отдельный route `/auth/telegram`.
+    - Новый `lkm` route `/auth/telegram` предназначен только для Telegram mobile sign-in из приложения:
+      - вызывает `POST /auth/telegram/miniapp/login` с `initData + deviceId + mobileAuthState`;
+      - при success сразу запускает return-to-app flow;
+      - на `TELEGRAM_LINK_REQUIRED`, config errors и прочих сбоях показывает только Telegram-specific status + кнопку открытия основной страницы Mini App, без `email/password`, `Google` или `VK`.
+    - Link flow (`purpose=link`) не переводится на `/auth/telegram`: он остается на основном `lkm`-экране и продолжает использовать существующий `miniapp/mobile-link` + email-link fallback только там.
     - `lkm` production container `vedamatch-lkm-oye85b.1` был обновлен после этого фикса; swarm поднял новый task `wakou61sb1uejf1l1qh2fufed` (`Running 43 seconds ago` на момент проверки).
     - Для `lkm` build script принудительно переведен на `next build --webpack`: локальный Turbopack на `Next.js 16.1.1-canary.5` падал panic `creating new process`, тогда как webpack build проходит чисто.
     - Production auth outage root cause от `2026-03-10`: Telegram auto-login ломался из-за corrupted `system_settings`, а не из-за APK.
@@ -2814,3 +2820,4 @@
   - `frontend/android/app/build.gradle`: `versionName=1.1.27`, `versionCode=29`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
   - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.27`, `versionCode=29`.
+- Публичная ссылка на текущий test-group APK: `https://api.vedamatch.ru/uploads/apk/vedamatch-1.1.27-29.apk`.

@@ -15374,3 +15374,51 @@ export const isPortalVisibilityBypassedForRole = (role?: string | null): boolean
 versionName "1.1.27"
 versionCode 29
 ```
+
+## 2026-03-11 (Telegram Mini App auth-only page for mobile sign-in)
+
+### Измененные файлы
+- `lkm/src/app/auth/telegram/page.tsx`
+- `lkm/src/components/telegram-auth-mini-app-client.tsx`
+- `lkm/src/components/lkm-cabinet-client.tsx`
+- `lkm/src/lib/telegram-mini-app.ts`
+- `lkm/src/lib/cabinet-i18n.ts`
+- `lkm/src/app/globals.css`
+
+### Суть правки (что было -> что стало)
+- Было: flow `vm_auth_<state>` открывал обычный root `lkm` cabinet/login экран, и при некоторых Telegram auth ошибках или fallback-сценариях пользователь видел `email/password`, `Google`, `VK` или forced link UI, хотя пришел из native app уже через Telegram Mini App.
+- Стало: root `lkm` сохраняет Telegram launch params, запрашивает `GET /auth/telegram/mobile/state/:state` и для обычного sign-in purpose делает внутренний redirect на отдельный route `/auth/telegram`.
+- Было: Telegram bootstrap helpers были зашиты внутрь `lkm-cabinet-client.tsx`, из-за чего auth-only screen пришлось бы дублировать вручную.
+- Стало: launch params, `sessionStorage` persistence, `vm_auth_` parsing, return deep link и Mini App host-resolution вынесены в shared `lkm/src/lib/telegram-mini-app.ts`.
+- Было: sign-in и link flow смешивались на одном экране.
+- Стало: `/auth/telegram` обслуживает только mobile sign-in из приложения и вызывает `POST /auth/telegram/miniapp/login`; `purpose=link` остается на основном `lkm` route и не уходит на auth-only screen.
+- Было: на отдельном Telegram flow не было чистого fallback surface.
+- Стало: auth-only page показывает только Telegram-specific status, кнопку `Вернуться в приложение` после success и кнопку `Открыть основную страницу` при ошибке, без `email/password`, `Google` и `VK`.
+
+### Короткие сниппеты кода
+`lkm/src/components/lkm-cabinet-client.tsx`:
+```tsx
+if (!isTelegramMobileAuthFlow || !isTelegramMobileFlowContextResolved || isTelegramMobileLinkFlow) {
+  return;
+}
+router.replace(`/auth/telegram?${nextParams.toString()}`);
+```
+
+`lkm/src/components/telegram-auth-mini-app-client.tsx`:
+```tsx
+await requestPublicJSON(normalizedApiBaseUrl, '/auth/telegram/miniapp/login', {
+  method: 'POST',
+  body: {
+    initData: telegramInitData,
+    deviceId: getOrCreateLkmDeviceID(),
+    mobileAuthState: telegramMobileAuthState,
+  },
+});
+```
+
+`lkm/src/lib/telegram-mini-app.ts`:
+```ts
+export function resolveTelegramBootstrapContext(location: Location): TelegramBootstrapContext {
+  // WebApp initData + URL hash/search + sessionStorage fallback
+}
+```

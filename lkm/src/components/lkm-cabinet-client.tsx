@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { LKMRegion } from '@/lib/host-config';
 import { formatCabinetCopy, LKM_CABINET_I18N, type CabinetDictionary } from '@/lib/cabinet-i18n';
 import {
@@ -14,6 +15,18 @@ import {
   resolveTariffsLanguage,
   saveTariffsLanguage,
 } from '@/lib/tariffs-language';
+import {
+  buildTelegramMobileReturnLink,
+  getOrCreateLkmDeviceID,
+  getTelegramWebApp,
+  isLkmVedamatchHost,
+  openMobileReturnLink,
+  persistTelegramLaunchParams,
+  persistTelegramMiniAppHint,
+  resolveMiniAppTargetHost,
+  resolveTelegramBootstrapContext,
+  type TelegramMiniAppUser,
+} from '@/lib/telegram-mini-app';
 
 type WalletBalance = {
   balance: number;
@@ -173,39 +186,6 @@ type GoogleIdentityAPI = {
   };
 };
 
-type TelegramMiniAppUser = {
-  id?: number;
-  language_code?: string;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  photo_url?: string;
-};
-
-type TelegramLaunchParams = {
-  initData: string;
-  startParam: string;
-  user: TelegramMiniAppUser | null;
-};
-
-type TelegramWebApp = {
-  initData?: string;
-  initDataUnsafe?: {
-    user?: TelegramMiniAppUser;
-    start_param?: string;
-  };
-  ready?: () => void;
-  expand?: () => void;
-  close?: () => void;
-  openLink?: (
-    url: string,
-    options?: {
-      try_browser?: 'external' | 'chrome' | 'safari';
-      try_instant_view?: boolean;
-    },
-  ) => void;
-};
-
 type Props = {
   initialHost: string;
   initialRegion: LKMRegion;
@@ -225,12 +205,8 @@ const REFRESH_TOKEN_KEY = 'lkm_refresh_token';
 const SESSION_ID_KEY = 'lkm_session_id';
 const ACCESS_EXPIRES_AT_KEY = 'lkm_access_expires_at';
 const REFRESH_EXPIRES_AT_KEY = 'lkm_refresh_expires_at';
-const DEVICE_ID_KEY = 'lkm_device_id';
-const TELEGRAM_LAUNCH_PARAMS_KEY = 'lkm_telegram_launch_params';
-const TELEGRAM_MINI_APP_HINT_KEY = 'lkm_telegram_mini_app_hint';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
-const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
 const SOCIAL_AUTH_POPUP_SOURCE = 'vedamatch:lkm-social-auth';
 const VK_WEB_REDIRECT_URI_HINT = 'https://api.vedamatch.ru/auth/vk/web/callback';
 const HISTORY_STATUS_OPTIONS: ReadonlyArray<TopupStatusFilter> = [
@@ -327,208 +303,12 @@ function buildSocialPopupErrorMessage(
   return normalized;
 }
 
-function getTelegramWebApp(): TelegramWebApp | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const maybeTelegram = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram;
-  return maybeTelegram?.WebApp || null;
-}
-
-function parseTelegramMiniAppUser(raw: string | null | undefined): TelegramMiniAppUser | null {
-  const normalized = (raw || '').trim();
-  if (!normalized) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(normalized) as TelegramMiniAppUser;
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function readTelegramParams(raw: string): URLSearchParams {
-  const normalized = raw.startsWith('?') || raw.startsWith('#') ? raw.slice(1) : raw;
-  return new URLSearchParams(normalized);
-}
-
-function extractTelegramLaunchParamsFromLocation(location: Location): TelegramLaunchParams {
-  const hashParams = readTelegramParams(location.hash);
-  const searchParams = readTelegramParams(location.search);
-  const initData = (
-    hashParams.get('tgWebAppData')?.trim()
-    || searchParams.get('tgWebAppData')?.trim()
-    || ''
-  );
-  const startParam = (
-    hashParams.get('tgWebAppStartParam')?.trim()
-    || searchParams.get('tgWebAppStartParam')?.trim()
-    || searchParams.get('startapp')?.trim()
-    || searchParams.get('startattach')?.trim()
-    || ''
-  );
-  return {
-    initData,
-    startParam,
-    user: parseTelegramMiniAppUser(readTelegramParams(initData).get('user')),
-  };
-}
-
-function readSavedTelegramLaunchParams(): TelegramLaunchParams {
-  if (typeof window === 'undefined') {
-    return { initData: '', startParam: '', user: null };
-  }
-  try {
-    const raw = window.sessionStorage.getItem(TELEGRAM_LAUNCH_PARAMS_KEY) || '';
-    if (!raw) {
-      return { initData: '', startParam: '', user: null };
-    }
-    const parsed = JSON.parse(raw) as Partial<TelegramLaunchParams>;
-    return {
-      initData: typeof parsed?.initData === 'string' ? parsed.initData.trim() : '',
-      startParam: typeof parsed?.startParam === 'string' ? parsed.startParam.trim() : '',
-      user: parsed?.user && typeof parsed.user === 'object' ? parsed.user as TelegramMiniAppUser : null,
-    };
-  } catch {
-    return { initData: '', startParam: '', user: null };
-  }
-}
-
-function persistTelegramLaunchParams(params: TelegramLaunchParams): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(TELEGRAM_LAUNCH_PARAMS_KEY, JSON.stringify({
-      initData: params.initData,
-      startParam: params.startParam,
-      user: params.user,
-    }));
-  } catch {
-    // Ignore storage quota/unavailability and continue with in-memory flow.
-  }
-}
-
-function readTelegramMiniAppHint(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-  try {
-    return window.sessionStorage.getItem(TELEGRAM_MINI_APP_HINT_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function persistTelegramMiniAppHint(): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(TELEGRAM_MINI_APP_HINT_KEY, '1');
-  } catch {
-    // Ignore storage quota/unavailability and continue with in-memory flow.
-  }
-}
-
-function openMobileReturnLink(url: string): void {
-  const target = url.trim();
-  if (!target || typeof window === 'undefined') {
-    return;
-  }
-
-  const telegramWebApp = getTelegramWebApp();
-  if (telegramWebApp?.openLink) {
-    try {
-      telegramWebApp.openLink(target, {
-        try_browser: 'external',
-        try_instant_view: false,
-      });
-      return;
-    } catch {
-      try {
-        telegramWebApp.openLink(target, {
-          try_instant_view: false,
-        });
-        return;
-      } catch {
-        // Fall through to browser-level navigation if Telegram WebApp API rejects the call.
-      }
-    }
-  }
-
-  try {
-    const popup = window.open(target, '_blank', 'noopener,noreferrer');
-    if (popup) {
-      return;
-    }
-  } catch {
-    // Ignore popup-blocker or unsupported window.open and fall back to same-tab navigation.
-  }
-
-  window.location.replace(target);
-}
-
-function buildTelegramMobileReturnLink(state: string): string {
-  const normalizedState = state.trim();
-  if (!normalizedState) {
-    return '';
-  }
-
-  const params = new URLSearchParams();
-  params.set('state', normalizedState);
-  return `https://api.vedamatch.ru/auth/telegram/callback?${params.toString()}`;
-}
-
-function normalizeLanguageCode(raw: string | undefined): string {
-  const value = (raw || '').trim().toLowerCase();
-  if (!value) {
-    return '';
-  }
-  const separatorIndex = value.search(/[-_]/);
-  if (separatorIndex > 0) {
-    return value.slice(0, separatorIndex);
-  }
-  return value;
-}
-
-function resolveMiniAppTargetHost(languageCode: string): string {
-  if (CIS_LANGUAGE_CODES.has(normalizeLanguageCode(languageCode))) {
-    return 'lkm.vedamatch.ru';
-  }
-  return 'lkm.vedamatch.com';
-}
-
-function isLkmVedamatchHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().trim();
-  return host === 'lkm.vedamatch.ru' || host === 'lkm.vedamatch.com';
-}
-
-function extractTelegramMobileAuthStateFromStartParam(raw: string | null | undefined): string {
-  const value = (raw || '').trim();
-  if (!value.startsWith('vm_auth_')) {
-    return '';
-  }
-  return value.slice('vm_auth_'.length).trim();
-}
-
 function normalizeSessionID(value: string | null): number | null {
   const parsed = Number(value || '');
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return null;
   }
   return Math.trunc(parsed);
-}
-
-function getOrCreateLkmDeviceID(): string {
-  const existing = localStorage.getItem(DEVICE_ID_KEY)?.trim() || '';
-  if (existing) {
-    return existing;
-  }
-  const next = `lkm-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
-  localStorage.setItem(DEVICE_ID_KEY, next);
-  return next;
 }
 
 function sanitizeApiBaseUrl(rawBaseUrl: string): string {
@@ -566,6 +346,7 @@ export default function LkmCabinetClient({
   initialGatewayCode,
   apiBaseUrl,
 }: Props) {
+  const router = useRouter();
   const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
   const [language, setLanguage] = useState<Language>('en');
   const copy = useMemo(() => LKM_CABINET_I18N[language], [language]);
@@ -590,6 +371,7 @@ export default function LkmCabinetClient({
   const [telegramUser, setTelegramUser] = useState<TelegramMiniAppUser | null>(null);
   const [telegramMobileAuthState, setTelegramMobileAuthState] = useState('');
   const [telegramMobileFlowPurpose, setTelegramMobileFlowPurpose] = useState('');
+  const [isTelegramMobileFlowContextResolved, setIsTelegramMobileFlowContextResolved] = useState(false);
   const [isTelegramAuthLoading, setIsTelegramAuthLoading] = useState(false);
   const [isTelegramMobileBridgeLoading, setIsTelegramMobileBridgeLoading] = useState(false);
   const [telegramMobileDeepLink, setTelegramMobileDeepLink] = useState('');
@@ -637,6 +419,8 @@ export default function LkmCabinetClient({
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
   const isTelegramMobileAuthFlow = telegramMobileAuthState !== '';
   const isTelegramMobileLinkFlow = telegramMobileFlowPurpose === 'link';
+  const isTelegramAuthOnlyRedirectFlow =
+    isTelegramMobileAuthFlow && (!isTelegramMobileFlowContextResolved || !isTelegramMobileLinkFlow);
   const telegramMobileReturnLink = useMemo(() => {
     const explicitLink = telegramMobileDeepLink.trim();
     if (explicitLink) {
@@ -680,10 +464,12 @@ export default function LkmCabinetClient({
   useEffect(() => {
     if (!telegramMobileAuthState) {
       setTelegramMobileFlowPurpose('');
+      setIsTelegramMobileFlowContextResolved(true);
       return;
     }
 
     let cancelled = false;
+    setIsTelegramMobileFlowContextResolved(false);
     const loadTelegramMobileContext = async () => {
       try {
         const response = await apiRequest<{ purpose?: string }>(
@@ -695,10 +481,12 @@ export default function LkmCabinetClient({
         );
         if (!cancelled) {
           setTelegramMobileFlowPurpose((response.purpose || '').trim());
+          setIsTelegramMobileFlowContextResolved(true);
         }
       } catch {
         if (!cancelled) {
           setTelegramMobileFlowPurpose('');
+          setIsTelegramMobileFlowContextResolved(true);
         }
       }
     };
@@ -708,6 +496,22 @@ export default function LkmCabinetClient({
       cancelled = true;
     };
   }, [telegramMobileAuthState]);
+
+  useEffect(() => {
+    if (!isTelegramMobileAuthFlow || !isTelegramMobileFlowContextResolved || isTelegramMobileLinkFlow) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams();
+    nextParams.set('lang', language);
+    router.replace(`/auth/telegram?${nextParams.toString()}`);
+  }, [
+    isTelegramMobileAuthFlow,
+    isTelegramMobileFlowContextResolved,
+    isTelegramMobileLinkFlow,
+    language,
+    router,
+  ]);
 
   useEffect(() => {
     refreshTokenRef.current = refreshToken;
@@ -1273,28 +1077,14 @@ export default function LkmCabinetClient({
     setHistoryLimit(initialLimit);
 
     const bootstrapTelegramContext = () => {
+      const telegramContext = resolveTelegramBootstrapContext(window.location);
       const telegramWebApp = getTelegramWebApp();
-      const locationLaunchParams = extractTelegramLaunchParamsFromLocation(window.location);
-      const savedLaunchParams = readSavedTelegramLaunchParams();
-      const hasSavedTelegramHint = readTelegramMiniAppHint();
-      const telegramInitDataValue = (
-        telegramWebApp?.initData?.trim()
-        || locationLaunchParams.initData
-        || savedLaunchParams.initData
-      );
-      const telegramMiniAppUser = (
-        telegramWebApp?.initDataUnsafe?.user
-        || locationLaunchParams.user
-        || savedLaunchParams.user
-      );
-      const telegramStartParam = (
-        telegramWebApp?.initDataUnsafe?.start_param?.trim()
-        || locationLaunchParams.startParam
-        || savedLaunchParams.startParam
-      );
-      const telegramMobileState = extractTelegramMobileAuthStateFromStartParam(telegramStartParam);
-      const telegramLanguageCode = normalizeLanguageCode(telegramMiniAppUser?.language_code);
-      const hasTelegramSurface = !!(telegramWebApp || telegramInitDataValue || hasSavedTelegramHint);
+      const hasTelegramSurface = telegramContext.hasTelegramSurface;
+      const telegramInitDataValue = telegramContext.initData;
+      const telegramMiniAppUser = telegramContext.user;
+      const telegramStartParam = telegramContext.startParam;
+      const telegramMobileState = telegramContext.mobileAuthState;
+      const telegramLanguageCode = telegramContext.languageCode;
 
       if (hasTelegramSurface) {
         setIsTelegramMiniApp(true);
@@ -1323,9 +1113,12 @@ export default function LkmCabinetClient({
 
       if (telegramMobileState) {
         setTelegramMobileAuthState(telegramMobileState);
+        setIsTelegramMobileFlowContextResolved(false);
         clearAuthSession();
       } else {
         setTelegramMobileAuthState('');
+        setTelegramMobileFlowPurpose('');
+        setIsTelegramMobileFlowContextResolved(true);
       }
 
       const currentHost = window.location.hostname.toLowerCase();
@@ -1370,6 +1163,8 @@ export default function LkmCabinetClient({
     if (
       !isTelegramMiniApp ||
       !telegramInitData ||
+      (isTelegramMobileAuthFlow && !isTelegramMobileFlowContextResolved) ||
+      (isTelegramMobileAuthFlow && !isTelegramMobileLinkFlow) ||
       telegramAuthAttempted ||
       (token && !isTelegramMobileAuthFlow) ||
       (!!refreshToken && !sessionRestoreAttempted && !isTelegramMobileAuthFlow)
@@ -1479,9 +1274,9 @@ export default function LkmCabinetClient({
     applyAuthSession,
     completeTelegramMobileBridge,
     isTelegramMobileAuthFlow,
+    isTelegramMobileFlowContextResolved,
     isTelegramMobileLinkFlow,
     telegramMobileAuthState,
-    telegramMobileFlowPurpose,
   ]);
 
   useEffect(() => {
@@ -1942,7 +1737,12 @@ export default function LkmCabinetClient({
           </div>
           {!token && error ? <p className="warn">{error}</p> : null}
           {!token ? (
-            isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
+            isTelegramAuthOnlyRedirectFlow ? (
+              <div className="stack">
+                <p className="note">{copy.authCheckingTelegramReturn}</p>
+                <p className="note">{copy.authUsuallyTakes}</p>
+              </div>
+            ) : isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
               <div className="stack">
                 <p className="note">
                   {isTelegramMobileAuthFlow

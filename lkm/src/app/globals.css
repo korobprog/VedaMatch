@@ -55,6 +55,28 @@ code {
   gap: 24px;
 }
 
+.auth-only-shell {
+  max-width: 560px;
+  min-height: 100vh;
+  justify-content: center;
+}
+
+.auth-only-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.auth-only-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.auth-only-actions {
+  margin-top: 4px;
+}
+
 /* Premium Bank Hero Card */
 .hero-card {
   background: linear-gradient(135deg, #111827 0%, #1F2937 100%);

@@ -37,6 +37,11 @@ export type CabinetDictionary = {
   authSessionAutoRefresh: string;
   authReturnToApp: string;
   authLogout: string;
+  telegramAuthOnlyChecking: string;
+  telegramAuthOnlyReturning: string;
+  telegramAuthOnlyUnavailable: string;
+  telegramAuthOnlyOpenMainPage: string;
+  telegramAuthOnlyBackToApp: string;
   walletTitle: string;
   walletBalance: string;
   walletNominalRate: string;
@@ -165,6 +170,11 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     authSessionAutoRefresh: 'Сессия продлевается автоматически, пока действует refresh-сессия.',
     authReturnToApp: 'Вернуться в приложение',
     authLogout: 'Выйти',
+    telegramAuthOnlyChecking: 'Проверяем Telegram-сессию и подготавливаем вход в приложение...',
+    telegramAuthOnlyReturning: 'Авторизация через Telegram завершена. Возвращаемся в приложение VedaMatch...',
+    telegramAuthOnlyUnavailable: 'Авторизация через Telegram на этом экране сейчас недоступна. Откройте основную страницу Mini App.',
+    telegramAuthOnlyOpenMainPage: 'Открыть основную страницу',
+    telegramAuthOnlyBackToApp: 'Вернуться в приложение',
     walletTitle: 'Кошелек',
     walletBalance: 'Текущий активный баланс',
     walletNominalRate: 'Номинальный курс',
@@ -298,6 +308,11 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     authSessionAutoRefresh: 'The session is refreshed automatically while the refresh session is active.',
     authReturnToApp: 'Return to app',
     authLogout: 'Log out',
+    telegramAuthOnlyChecking: 'Checking the Telegram session and preparing sign-in to the app...',
+    telegramAuthOnlyReturning: 'Telegram sign-in is complete. Returning to the VedaMatch app...',
+    telegramAuthOnlyUnavailable: 'Telegram sign-in is unavailable on this screen right now. Open the main Mini App page.',
+    telegramAuthOnlyOpenMainPage: 'Open main page',
+    telegramAuthOnlyBackToApp: 'Back to app',
     walletTitle: 'Wallet',
     walletBalance: 'Current active balance',
     walletNominalRate: 'Nominal rate',
@@ -431,6 +446,11 @@ export const LKM_CABINET_I18N: Record<Language, CabinetDictionary> = {
     authSessionAutoRefresh: 'Refresh session सक्रिय रहने तक session अपने आप बढ़ती रहती है।',
     authReturnToApp: 'App में वापस जाएँ',
     authLogout: 'लॉग आउट',
+    telegramAuthOnlyChecking: 'Telegram session की जांच हो रही है और app sign-in तैयार किया जा रहा है...',
+    telegramAuthOnlyReturning: 'Telegram sign-in पूरा हो गया। VedaMatch app में वापस जा रहे हैं...',
+    telegramAuthOnlyUnavailable: 'इस स्क्रीन पर Telegram sign-in अभी उपलब्ध नहीं है। Mini App का मुख्य पेज खोलें।',
+    telegramAuthOnlyOpenMainPage: 'मुख्य पेज खोलें',
+    telegramAuthOnlyBackToApp: 'App में वापस जाएँ',
     walletTitle: 'वॉलेट',
     walletBalance: 'वर्तमान सक्रिय बैलेंस',
     walletNominalRate: 'नाममात्र दर',
