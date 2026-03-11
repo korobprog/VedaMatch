@@ -1201,3 +1201,4 @@
 2026-03-11 09:29:09 +1000 — "на андройде при заходе в чат ИИ и выходе из него белый экран"
 2026-03-11 09:35:50 +1000 — "задаю вопрос асистенту и ошибка 502 AI Service Error API error status 401 Некорректный API ключ"
 2026-03-11 09:43:18 +1000 — "не должны светить ключи при ошибках пользователю, нужно показывать техническую ошибку и что работы по устранению ведутся"
+- 2026-03-11 09:58:22 +1000 | Запрос: "в авжминке в меню дхама падает https://vedamatch.ru/dhama Application error: a client-side exception has occurred while loading vedamatch.ru (see the browser console for more information)."

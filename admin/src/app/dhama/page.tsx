@@ -74,6 +74,14 @@ interface DhamaFilters {
   cities: string[];
 }
 
+interface DhamaFiltersPayload {
+  placeTypes?: string[];
+  types?: string[];
+  traditions?: string[];
+  states?: string[];
+  cities?: string[];
+}
+
 interface HolyPlaceImportItem {
   id: number;
   slug: string;
@@ -143,6 +151,19 @@ const emptyFilters: DhamaFilters = {
   states: [],
   cities: [],
 };
+
+const normalizeStringArray = (value: unknown): string[] => (
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+);
+
+const normalizeDhamaFilters = (payload: DhamaFiltersPayload | null | undefined): DhamaFilters => ({
+  placeTypes: normalizeStringArray(payload?.placeTypes).length > 0
+    ? normalizeStringArray(payload?.placeTypes)
+    : normalizeStringArray(payload?.types),
+  traditions: normalizeStringArray(payload?.traditions),
+  states: normalizeStringArray(payload?.states),
+  cities: normalizeStringArray(payload?.cities),
+});
 
 const normalizeText = (value?: string) => (value || '').trim();
 
@@ -225,7 +246,7 @@ export default function DhamaPage() {
   const { data: yatrasData } = useSWR('/yatra?limit=100', fetcher);
 
   const places: HolyPlace[] = placesData?.places || [];
-  const filters: DhamaFilters = filtersData || emptyFilters;
+  const filters: DhamaFilters = normalizeDhamaFilters(filtersData || emptyFilters);
   const tracks: MediaTrack[] = tracksData?.tracks || [];
   const yatras: YatraItem[] = yatrasData?.yatras || [];
 

@@ -254,6 +254,9 @@
   - editor локализованного контента;
   - gallery URLs;
   - linking existing media/yatra records.
+- Admin `Dhama` route `/dhama` не должен доверять точному shape ответа `/dhama/filters`:
+  - production backend может отдать `types`, а не `placeTypes`;
+  - UI должен нормализовать оба формата, иначе страница падает на client-side `.map(...)`.
 - Admin workflow `Dhama` дополнительно усилен:
   - список использует server-side filters по `status`, `type`, `state`, `featured`, `search`;
   - editor показывает inline validation до save, включая требования для `published` places;
