@@ -2840,11 +2840,20 @@
 
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
-- Актуальный release APK после admin visibility bypass:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.27`, `versionCode=29`;
+- Актуальный release APK после Android portal swipe tuning:
+  - `frontend/android/app/build.gradle`: `versionName=1.1.28`, `versionCode=30`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.27`, `versionCode=29`.
-- Публичная ссылка на текущий test-group APK: `https://api.vedamatch.ru/uploads/apk/vedamatch-1.1.27-29.apk`.
+  - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.28`, `versionCode=30`.
+
+## Portal Workspace Swipe
+- `react-native-pager-view` не дает публичных props для Android swipe sensitivity (`touch slop`, drag threshold, fling threshold). `scrollEnabled`, `offscreenPageLimit` и `overScrollMode` не решают чувствительность.
+- Для `Portal ↔ Widgets` на Android используется отдельный shell-level `RNGH Pan` в `frontend/screens/portal/PortalMainScreen.tsx`:
+  - `activeOffsetX([-8, 8])`
+  - `failOffsetY([-12, 12])`
+  - `minDistance(6)`
+  - при завершении жеста page switch происходит программно через `PagerView.setPage(...)`
+- iOS остается на штатном `PagerView` interactive swipe.
+- Android pager-swipe должен быть отключен, пока активен custom shell gesture, иначе поведение становится менее предсказуемым и чувствительность не контролируется.
 
 ## iOS Native Modules
 - После добавления `react-native-pager-view` в mobile workspace iOS runtime может падать с `No component found for view with name "RNCViewPager"`, если в `frontend/ios` не выполнен `pod install`.

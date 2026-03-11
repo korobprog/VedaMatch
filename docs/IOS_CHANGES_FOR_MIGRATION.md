@@ -15485,6 +15485,49 @@ const effectiveIsEditMode = forceReadOnly ? false : isEditMode;
 ## 2026-03-11
 
 ### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/components/portal/PortalQuickAccessDock.tsx`
+- `frontend/android/app/build.gradle`
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки
+- Было: `Portal ↔ Widgets` после перехода на shared `PagerView` вел себя по-разному на iOS и Android:
+  - на iOS header и нижний dock оставались визуально неподвижными, двигался только центральный workspace;
+  - на Android native `PagerView` компоновался агрессивнее, а свайп ощущался менее чувствительным.
+- Стало:
+  - Android overlays (`header`, page indicator, quick-access dock) подняты отдельным слоем над pager через явные `zIndex/elevation`;
+  - на Android чувствительность переключения workspace вынесена в shell-level `RNGH Pan`, потому что `react-native-pager-view` не имеет публичных настроек `touch slop`/drag threshold;
+  - iOS сохранен на штатном interactive pager-swipe;
+  - подняты версии сборок:
+    - Android: `1.1.27 (29)` -> `1.1.28 (30)`
+    - iOS: `1.1.17 (9)` -> `1.1.18 (10)`
+
+### Короткие сниппеты кода
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const pagerScrollEnabled = isAndroidWorkspaceGestureSwipe ? false : workspaceSwipeEnabled;
+
+const workspaceSwipeGesture = Gesture.Pan()
+  .enabled(isAndroidWorkspaceGestureSwipe && workspaceSwipeEnabled)
+  .activeOffsetX([-8, 8])
+  .failOffsetY([-12, 12])
+  .minDistance(6)
+  .runOnJS(true)
+  .onEnd((event) => {
+    handleAndroidWorkspaceSwipeEnd(event.translationX, event.velocityX);
+  });
+```
+
+`frontend/components/portal/PortalQuickAccessDock.tsx`:
+```tsx
+quickAccessDock: {
+  position: 'absolute',
+  zIndex: 18,
+  elevation: 18,
+}
+```
+
+### Измененные файлы
 - `frontend/ios/Podfile.lock`
 
 ### Суть правки

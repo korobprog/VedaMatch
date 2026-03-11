@@ -31,6 +31,7 @@ import {
     Film,
 } from 'lucide-react-native';
 import PagerView, { PageScrollStateChangedNativeEvent, PagerViewOnPageSelectedEvent } from 'react-native-pager-view';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import ServicesHomeScreen from './services/ServicesHomeScreen';
 import { useUser } from '../../context/UserContext';
@@ -916,6 +917,45 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         && !isWidgetDragging
         && !isWidgetPickerOpen
         && !isPortalOverlayOpen;
+    const isAndroidWorkspaceGestureSwipe = Platform.OS === 'android';
+    const pagerScrollEnabled = isAndroidWorkspaceGestureSwipe ? false : workspaceSwipeEnabled;
+    const handleAndroidWorkspaceSwipeEnd = useCallback((translationX: number, velocityX: number) => {
+        if (!workspaceSwipeEnabled) {
+            return;
+        }
+
+        const currentPage = workspacePageRef.current;
+        const horizontalDistance = Math.abs(translationX);
+        const horizontalVelocity = Math.abs(velocityX);
+        const passedDistance = horizontalDistance >= 24;
+        const passedVelocity = horizontalVelocity >= 240;
+
+        if (!passedDistance && !passedVelocity) {
+            return;
+        }
+
+        if (currentPage === 'portal' && translationX < 0) {
+            switchWorkspacePage('widgets', 'portal_swipe');
+            return;
+        }
+
+        if (currentPage === 'widgets' && translationX > 0) {
+            switchWorkspacePage('portal', 'widget_swipe');
+        }
+    }, [switchWorkspacePage, workspaceSwipeEnabled]);
+    const workspaceSwipeGesture = useMemo(() => Gesture.Pan()
+        .enabled(isAndroidWorkspaceGestureSwipe && workspaceSwipeEnabled)
+        .activeOffsetX([-8, 8])
+        .failOffsetY([-12, 12])
+        .minDistance(6)
+        .runOnJS(true)
+        .onEnd((event) => {
+            handleAndroidWorkspaceSwipeEnd(event.translationX, event.velocityX);
+        }), [
+        handleAndroidWorkspaceSwipeEnd,
+        isAndroidWorkspaceGestureSwipe,
+        workspaceSwipeEnabled,
+    ]);
     const workspaceHintText = workspacePage === 'widgets'
         ? t('portal.widgets.returnHint', { defaultValue: 'Widgets · swipe right to return to portal' })
         : t('portal.headerHint', { defaultValue: 'Portal · swipe left for widgets' });
@@ -1195,71 +1235,73 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             </View>
                         </View>
 
-                        <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
-                            <PagerView
-                                ref={pagerRef}
-                                style={styles.workspacePager}
-                                initialPage={workspacePage === 'widgets' ? 1 : 0}
-                                scrollEnabled={workspaceSwipeEnabled}
-                                overScrollMode="never"
-                                offscreenPageLimit={1}
-                                onPageSelected={handleWorkspacePageSelected}
-                                onPageScrollStateChanged={handleWorkspacePageScrollStateChanged}
-                            >
-                                <View key="portal" style={styles.workspacePage}>
-                                    {user?.godModeEnabled && !shouldUsePortalStartupPlainChrome && (
-                                        <GodModeFiltersPanel
-                                            filters={godModeFilters}
-                                            activeMathId={activeMathId || undefined}
-                                            onSelectMath={(mathId) => setActiveMath(mathId)}
-                                        />
-                                    )}
-                                    {seekerTravelLocked && !shouldUsePortalStartupPlainChrome && (
-                                        <View style={styles.lockedServiceHint}>
-                                            <Text style={styles.lockedServiceHintTitle}>
-                                                {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
-                                            </Text>
-                                            <Text style={styles.lockedServiceHintBody}>
-                                                {t('portal.seekerTravelLocked.subtitle', {
-                                                    defaultValue: 'Complete registration to see this service in the main portal grid.',
-                                                })}
-                                            </Text>
-                                            <TouchableOpacity
-                                                style={styles.lockedServiceHintAction}
-                                                onPress={() => navigation.navigate('EditProfile')}
-                                                activeOpacity={0.88}
-                                            >
-                                                <Text style={styles.lockedServiceHintActionText}>
-                                                    {t('portal.seekerTravelLocked.action', {
-                                                        defaultValue: 'Перейти в профиль',
+                        <GestureDetector gesture={workspaceSwipeGesture}>
+                            <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
+                                <PagerView
+                                    ref={pagerRef}
+                                    style={styles.workspacePager}
+                                    initialPage={workspacePage === 'widgets' ? 1 : 0}
+                                    scrollEnabled={pagerScrollEnabled}
+                                    overScrollMode="never"
+                                    offscreenPageLimit={1}
+                                    onPageSelected={handleWorkspacePageSelected}
+                                    onPageScrollStateChanged={handleWorkspacePageScrollStateChanged}
+                                >
+                                    <View key="portal" style={styles.workspacePage}>
+                                        {user?.godModeEnabled && !shouldUsePortalStartupPlainChrome && (
+                                            <GodModeFiltersPanel
+                                                filters={godModeFilters}
+                                                activeMathId={activeMathId || undefined}
+                                                onSelectMath={(mathId) => setActiveMath(mathId)}
+                                            />
+                                        )}
+                                        {seekerTravelLocked && !shouldUsePortalStartupPlainChrome && (
+                                            <View style={styles.lockedServiceHint}>
+                                                <Text style={styles.lockedServiceHintTitle}>
+                                                    {t('portal.seekerTravelLocked.title', { defaultValue: 'Yatra will unlock after profile completion' })}
+                                                </Text>
+                                                <Text style={styles.lockedServiceHintBody}>
+                                                    {t('portal.seekerTravelLocked.subtitle', {
+                                                        defaultValue: 'Complete registration to see this service in the main portal grid.',
                                                     })}
                                                 </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                    <PortalGrid
-                                        onServicePress={handleServicePress}
-                                        onOpenWidgets={() => openWidgetPage('edit_toolbar')}
-                                        roleHighlights={roleDescriptor?.heroServices || []}
-                                        godModeEnabled={!!user?.godModeEnabled}
-                                        activeMathLabel={activeMathLabel}
-                                        serviceBadges={{ support: supportUnreadCount }}
-                                        onInitialLayoutReady={handlePortalFirstLayoutReady}
-                                        hideQuickAccessDock
-                                        onDraggingStateChange={setIsPortalDragging}
-                                        onBlockingOverlayChange={setIsPortalOverlayOpen}
-                                    />
-                                </View>
-                                <View key="widgets" style={styles.workspacePage}>
-                                    <WidgetPageContent
-                                        isPickerOpen={isWidgetPickerOpen}
-                                        onSetPickerOpen={setIsWidgetPickerOpen}
-                                        onDraggingChange={setIsWidgetDragging}
-                                        onPageReady={handleWidgetPageReady}
-                                    />
-                                </View>
-                            </PagerView>
-                        </View>
+                                                <TouchableOpacity
+                                                    style={styles.lockedServiceHintAction}
+                                                    onPress={() => navigation.navigate('EditProfile')}
+                                                    activeOpacity={0.88}
+                                                >
+                                                    <Text style={styles.lockedServiceHintActionText}>
+                                                        {t('portal.seekerTravelLocked.action', {
+                                                            defaultValue: 'Перейти в профиль',
+                                                        })}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
+                                        <PortalGrid
+                                            onServicePress={handleServicePress}
+                                            onOpenWidgets={() => openWidgetPage('edit_toolbar')}
+                                            roleHighlights={roleDescriptor?.heroServices || []}
+                                            godModeEnabled={!!user?.godModeEnabled}
+                                            activeMathLabel={activeMathLabel}
+                                            serviceBadges={{ support: supportUnreadCount }}
+                                            onInitialLayoutReady={handlePortalFirstLayoutReady}
+                                            hideQuickAccessDock
+                                            onDraggingStateChange={setIsPortalDragging}
+                                            onBlockingOverlayChange={setIsPortalOverlayOpen}
+                                        />
+                                    </View>
+                                    <View key="widgets" style={styles.workspacePage}>
+                                        <WidgetPageContent
+                                            isPickerOpen={isWidgetPickerOpen}
+                                            onSetPickerOpen={setIsWidgetPickerOpen}
+                                            onDraggingChange={setIsWidgetDragging}
+                                            onPageReady={handleWidgetPageReady}
+                                        />
+                                    </View>
+                                </PagerView>
+                            </View>
+                        </GestureDetector>
 
                         {!shouldUsePortalStartupPlainChrome && (
                             <PortalQuickAccessDock
