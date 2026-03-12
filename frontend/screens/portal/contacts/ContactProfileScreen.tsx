@@ -15,6 +15,7 @@ import { AtSign, ChevronLeft, Mail, MapPin, Shield, MessageCircle, UserPlus, Use
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
+import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
 import OrganizerBadge from '../../../components/travel/OrganizerBadge';
 import {
     CONTACTS_CACHE_GC_TIME_MS,
@@ -154,6 +155,12 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const subTextColor = vTheme.colors.textSecondary;
     const cardBg = isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.6)';
     const cardBorder = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)';
+    const fallbackLabel = t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
+    const displayName = resolveUserDisplayName(contact, { fallbackLabel });
+    const displayInitial = resolveUserDisplayInitial(contact, { fallbackLabel });
+    const nicknameLabel = resolveUserNicknameLabel(contact);
+    const karmicNameSecondary = (contact.karmicName || '').trim();
+    const spiritualNamePrimary = (contact.spiritualName || '').trim();
     return (
         <BackgroundWrapper>
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
@@ -198,7 +205,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                                 ) : (
                                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#404040' }]}>
                                         <Text style={[styles.avatarInitial, { color: '#FFF' }]}>
-                                            {(contact.spiritualName || contact.karmicName)[0]}
+                                            {displayInitial}
                                         </Text>
                                     </View>
                                 )}
@@ -206,12 +213,12 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         </View>
 
                         <Text style={[styles.name, { color: textColor }]}>
-                            {contact.spiritualName || contact.karmicName}
+                            {displayName}
                         </Text>
 
-                        {contact.spiritualName && (
+                        {spiritualNamePrimary && karmicNameSecondary && spiritualNamePrimary !== karmicNameSecondary && (
                             <Text style={[styles.karmicName, { color: subTextColor }]}>
-                                ({contact.karmicName})
+                                ({karmicNameSecondary})
                             </Text>
                         )}
 
@@ -249,7 +256,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                     <InfoItem
                         icon={<AtSign size={20} color={vTheme.colors.primary} />}
                         label="Nickname"
-                        value={contact.nickname ? `@${contact.nickname}` : '—'}
+                        value={nicknameLabel || '—'}
                         textColor={textColor}
                         subTextColor={subTextColor}
                         bg={cardBg}

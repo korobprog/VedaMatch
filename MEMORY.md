@@ -35,6 +35,15 @@
   - `frontend/services/datingService.ts`: placeholder domain comment;
   - часть экранов полагается на `console.error/warn + Alert`, что говорит о runtime-fallback модели, а не о полностью добитом UX.
 
+## Auth / Registration
+- В mobile auth/registration flow нужно явно предупреждать пользователя, что VPN может ломать регистрацию.
+- Актуальный UX-паттерн: показывать предупреждение и на `frontend/screens/LoginScreen.tsx`, и на `frontend/screens/RegistrationScreen.tsx`, с рекомендацией отключить VPN или добавить `Veda Match` в исключения.
+- Этот warning относится к первому входу и должен быть локализован как минимум в `ru`, `en`, `hi`.
+- Для profile flows зафиксировано правило: `nickname` не является обязательным полем профиля и должен автогенерироваться backend-ом по registration path, если пользователь его не задавал вручную.
+- `frontend/screens/settings/EditProfileScreen.tsx` больше не должен делать отдельный nickname-save после общего profile save; nickname передается в `PUT /update-profile` как optional поле и не должен ломать успешное сохранение профиля.
+- Минимальный invariant профиля: `karmicName` обязателен и валидируется и на клиенте, и в `server/internal/handlers/auth_handler.go::UpdateProfile`; пустой профиль без имени сохраняться не должен.
+- Для контактов и смежных экранов нужен единый fallback display name helper: `spiritualName -> karmicName -> nicknameDisplay/nickname -> email -> User #ID`, с безопасным вычислением initial даже при пустом имени.
+
 ## Portal Visual Settings
 - В `frontend/context/SettingsContext.tsx` дефолтный `portalIconStyle` должен быть `solid` (`Заливка`) для новых пользователей и при отсутствии сохраненного значения.
 - На экране `frontend/screens/settings/AppSettingsScreen.tsx` опция `Заливка` должна показываться первой в списке стилей иконок.
@@ -110,6 +119,13 @@
   - `news`: feed с категориями, personalized state, subscriptions/favorites и infinite pagination;
   - `library`: blur/gradient cards и offline-book state, но риск ниже чем у multimedia/market/dating;
 - После выноса `rooms` в отдельный stack screen invite-flow тоже должен возвращать не в `Portal(initialTab='rooms')`, а в `RoomsHome`, иначе back из `RoomChat` снова упирается в тяжелый portal rerender.
+
+## Android Dev Flow
+- Для локального запуска через `pnpm run android` типовая причина падения была не компиляция, а `INSTALL_FAILED_UPDATE_INCOMPATIBLE` для `com.ragagent`, когда на эмуляторе уже стоит сборка с другой подписью.
+- Актуальный `frontend/run-android.js` должен автоматически распознавать этот конфликт, удалять старую установленную сборку `com.ragagent` и повторять `app:installDebug`.
+- Тот же `frontend/run-android.js` должен делать preflight по `adb devices`: если нет ни одного доступного Android target, он обязан сам вызвать root `start-emulator.js`, дождаться готовности эмулятора и только потом идти в `installDebug`.
+- Если одновременно подключены USB-телефон и `emulator-*`, Android launch-скрипты обязаны выбирать явный `serial` через `adb -s ...` и задавать `ANDROID_SERIAL`, иначе проверка boot/launch ломается на `adb: more than one device/emulator`.
+- Для текущей машины подтвержден рабочий AVD `Medium_Phone_API_36.1`; после фикса `start-emulator.js` корректно работает с `emulator-5554` и настраивает `adb reverse` именно на него.
 
 ## Portal Widgets
 - Для роли `devotee` календарный portal widget должен стартовать сразу в режиме `ekadashi`, иначе пользователь видит обычный `Месяц` и создается ложное впечатление, что данные Экадаши не подключены.
@@ -225,8 +241,8 @@
 - Для `frontend/screens/settings/EditProfileScreen` iOS back-swipe должен быть отключен жестко и в двух местах:
   - на уровне `EditProfile` stack screen (`gestureEnabled: false`, `fullScreenGestureEnabled: false`, `animationMatchesGesture: false`);
   - и через `navigation.setOptions(...)` внутри самого `EditProfileScreen`, чтобы горизонтальная карусель ролей (`RoleSelectionSection`) не конфликтовала с native swipe-back и не выбрасывала пользователя назад в `Portal`.
-- Для Android в `EditProfileScreen` горизонтальный свайп карточек ролей должен временно блокировать вертикальный scroll родительского `ScrollView`, иначе parent перехватывает gesture и листание ролей вправо/влево не срабатывает.
-- Для Android в `RegistrationScreen` действует тот же паттерн: во время горизонтального свайпа карусели ролей (`RoleSelectionSection`) вертикальный scroll формы должен временно отключаться, чтобы жест не крался родителем.
+- `RoleSelectionSection` в registration/profile должен быть в виде статичной сетки карточек (`2 в ряд`) вместо горизонтальной карусели.
+- Кнопка `?` на каждой role-card должна открывать `RoleInfoModal` с подробностями выбранной роли; это основной discoverability path для пояснений по ролям.
 - Если пользователь после social login попадает в `Portal` с незавершенным профилем и sees locked banner для `Yatra`, в этом баннере должен быть явный CTA-переход в `EditProfile`, чтобы он мог выбрать категорию/роль (`ищущий`, `в благости` и т.п.) без самостоятельного поиска профиля.
 - В `frontend/components/chat/ChatHeader.tsx` для AI assistant mode должен быть явный back affordance в `Portal`, а не только menu icon или кликабельный title chip: это accessibility/navigation требование для assistant entry point.
 - AI chat header в `ChatHeader` не должен дублировать safe-area верхний отступ поверх уже существующего top-safe-area контейнера из app shell; иначе панель визуально опускается слишком низко.
@@ -596,6 +612,7 @@
   - `Google` — реальный вход через `frontend/services/socialAuthService.ts` -> `POST /auth/google/login`.
     - Android `DEVELOPER_ERROR / code 10` на этом потоке не является UI-багом: по официальной документации `@react-native-google-signin/google-signin` это всегда серверный OAuth mismatch между приложением, package/signing и Google Console.
     - Локальный Android build уже вшивает актуальный `default_web_client_id`, поэтому если ошибка повторяется на устройстве, дальше нужно сверять реальные OAuth clients / SHA в Google Console или тестировать release-подпись, а не искать проблему только в JS.
+    - Для iOS `GoogleService-Info.plist` должен строго совпадать по `BUNDLE_ID` с Xcode target (`com.korobkov.vedamatch`); plist от `org.reactjs.native.example.vedamatch` использовать нельзя.
     - Локальный `./gradlew signingReport` подтверждает, что проект реально подписывается теми SHA-1, которые уже зашиты в `google-services.json`:
       - debug: `8D:F1:2B:BF:FA:1D:84:2E:40:77:29:08:91:6D:DE:98:DD:AF:77:3C`
       - release: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`
@@ -1932,6 +1949,14 @@
   - Для сторов зафиксирована позиция "LKM — внутренняя неплатежная единица, не legal tender/не payment instrument" (`docs/store-submission-packet-p0.md`).
   - Формулировки МКТУ 36 про "выпуск/обмен/торговлю цифровой валютой" потенциально конфликтны с этой позицией и требуют узкой юридической корректировки.
 - Если 36 класс реализуется вне приложения (сайт/Telegram-бот), для стора сохранять политику "в приложении нет обмена/торговли цифровой валютой", а 36 класс формулировать отдельно под внешний сервис.
+- Для mobile/store-контура `PRO` должен оставаться только server-side entitlement status:
+  - в приложении не должно быть `PRO` purchase flow, paywall CTA и внешних checkout links;
+  - mobile client должен читать только `/pro/status`;
+  - legal/store wording должно говорить, что приложение само не продает `LKM` и не активирует `PRO`.
+- Для mobile/store-контура `PRO` должен оставаться только server-side entitlement status:
+  - в приложении не должно быть `PRO` purchase flow, paywall CTA и внешних checkout links;
+  - mobile client должен читать только `/pro/status`;
+  - legal/store wording должно говорить, что приложение само не продает `LKM` и не активирует `PRO`.
 - Актуальная рабочая позиция по классам:
   - Ядро заявки: `09, 35, 38, 41, 42, 45`.
   - Рекомендуется добавить как фактически используемый в продукте: `39` (travel/transport arrangement).

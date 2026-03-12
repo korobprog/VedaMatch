@@ -15,11 +15,11 @@ Use this as-is:
 ```text
 VedaMatch uses LKM as internal activity points only.
 
-- LKM are earned through in-app participation.
-- LKM are used only for in-app features.
+- LKM may exist across the broader VedaMatch ecosystem, but the mobile app does not sell LKM or activate PRO.
+- The mobile app only reads server-side entitlement status for PRO access.
 - LKM are non-monetary, non-transferable, and non-withdrawable.
 - LKM are not legal tender, not electronic money, and not a payment instrument.
-- LKM cannot be purchased, sold, exchanged for fiat/crypto, or redeemed outside the app.
+- LKM cannot be redeemed for fiat/crypto, withdrawn, or treated as money inside the app.
 
 Account deletion is supported in-app:
 - Path: Settings -> Delete account
@@ -68,7 +68,8 @@ Privacy links:
 - Privacy Policy: https://vedamatch.ru/privacy?lang=en|hi|ru
 
 LKM policy:
-- LKM are internal in-app engagement points.
+- The mobile app does not provide LKM purchase or PRO upgrade flows.
+- The mobile app only displays server-side entitlement status for PRO access.
 - LKM are not legal tender, not a payment instrument, and not redeemable for money.
 ```
 

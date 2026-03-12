@@ -8,6 +8,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { callHistoryService, CallHistoryEntry, formatCallHistoryTime } from '../../services/callHistoryService';
 import { contactService, UserContact } from '../../services/contactService';
 import { getMediaUrl } from '../../utils/url';
+import { resolveUserDisplayInitial, resolveUserDisplayName } from '../../utils/userDisplay';
 
 type ContactsById = Record<number, UserContact | null>;
 
@@ -197,10 +198,14 @@ export const CallHistoryScreen = () => {
     const renderItem = ({ item }: { item: CallHistoryEntry }) => {
         const contact = typeof item.userId === 'number' ? contactsById[item.userId] ?? null : null;
         const online = isOnline(contact?.lastSeen);
+        const fallbackLabel = t('contacts.userFallback', { id: item.userId, defaultValue: `User #${item.userId}` }).replace(/\s*#\d+$/, '').trim() || 'User';
+        const displayName = contact
+            ? resolveUserDisplayName(contact, { fallbackLabel })
+            : String(item.name || '').trim() || (typeof item.userId === 'number' ? `User #${item.userId}` : fallbackLabel);
         const enrichedItem: EnrichedCallHistoryItem = {
             ...item,
             contact,
-            displayName: (contact?.spiritualName || contact?.karmicName || item.name || '').trim() || 'User',
+            displayName,
             avatarUrl: getMediaUrl(contact?.avatarUrl),
             isOnline: online,
             subtitle: buildSubtitle(contact, online),
@@ -210,7 +215,9 @@ export const CallHistoryScreen = () => {
         const subColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
         const canCallBack = typeof item.userId === 'number' && Number.isFinite(item.userId);
         const canOpenProfile = typeof item.userId === 'number' && Number.isFinite(item.userId);
-        const titleInitial = (enrichedItem.displayName[0] || '?').toUpperCase();
+        const titleInitial = contact
+            ? resolveUserDisplayInitial(contact, { fallbackLabel })
+            : (Array.from(enrichedItem.displayName)[0] || '?').toUpperCase();
         const avatarBgColor = stringToColor(enrichedItem.displayName || item.userId?.toString() || item.id);
 
         return (

@@ -144,7 +144,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-    const [isRoleCarouselInteracting, setIsRoleCarouselInteracting] = useState(false);
     const isMountedRef = useRef(true);
     const latestSubmitRequestRef = useRef(0);
     const latestDetectRequestRef = useRef(0);
@@ -217,6 +216,56 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     useEffect(() => {
         setLegalLanguage(normalizeLanguageCode(i18n.language));
     }, [i18n.language]);
+
+    useEffect(() => {
+        if (phase !== 'profile') {
+            return;
+        }
+
+        let cancelled = false;
+        const hydrateProfileDefaults = async () => {
+            try {
+                const userStr = await AsyncStorage.getItem('user');
+                if (!userStr || userStr === 'undefined' || userStr === 'null' || cancelled) {
+                    return;
+                }
+
+                const storedUser = JSON.parse(userStr) as {
+                    karmicName?: string;
+                    spiritualName?: string;
+                    nickname?: string;
+                    telegramFirstName?: string;
+                    telegramLastName?: string;
+                };
+
+                const telegramName = [storedUser.telegramFirstName, storedUser.telegramLastName]
+                    .map(value => String(value || '').trim())
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim();
+                const nextKarmicName = String(storedUser.karmicName || '').trim() || telegramName;
+                const nextSpiritualName = String(storedUser.spiritualName || '').trim();
+
+                if (nextKarmicName && !cancelled) {
+                    setKarmicName(prev => prev.trim() ? prev : nextKarmicName);
+                }
+                if (nextSpiritualName && !cancelled) {
+                    setSpiritualName(prev => prev.trim() ? prev : nextSpiritualName);
+                }
+                if (storedUser.nickname && !cancelled) {
+                    setRegisteredNickname(prev => prev || `@${String(storedUser.nickname).trim().replace(/^@+/, '')}`);
+                }
+            } catch (error) {
+                console.warn('[Registration] Failed to hydrate profile defaults:', error);
+            }
+        };
+
+        void hydrateProfileDefaults();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [phase]);
 
     const openLegalDocument = useCallback((documentType: 'terms' | 'privacy') => {
         if (documentType === 'terms') {
@@ -331,7 +380,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 return;
             }
         } else {
-            if (!karmicName) {
+            if (!karmicName.trim()) {
                 Alert.alert(
                     t('registration.required'),
                     isSeekerRole ? t('registration.nameRequired') : t('registration.karmicNameRequired')
@@ -393,18 +442,18 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
 
                 const profileData = {
-                    country,
-                    city,
-                    karmicName,
-                    spiritualName: isLiteProfileRole ? '' : spiritualName,
+                    country: country.trim(),
+                    city: city.trim(),
+                    karmicName: karmicName.trim(),
+                    spiritualName: isLiteProfileRole ? '' : spiritualName.trim(),
                     dob: dob.toISOString(),
-                    madh: isLiteProfileRole ? '' : madh,
-                    mentor: isLiteProfileRole ? '' : mentor,
-                    gender,
-                    identity: isLiteProfileRole ? '' : identity,
-                    yogaStyle: isLiteProfileRole ? '' : yogaStyle,
-                    guna: isLiteProfileRole ? '' : guna,
-                    diet: isSeekerRole ? '' : diet,
+                    madh: isLiteProfileRole ? '' : madh.trim(),
+                    mentor: isLiteProfileRole ? '' : mentor.trim(),
+                    gender: gender.trim(),
+                    identity: isLiteProfileRole ? '' : identity.trim(),
+                    yogaStyle: isLiteProfileRole ? '' : yogaStyle.trim(),
+                    guna: isLiteProfileRole ? '' : guna.trim(),
+                    diet: isSeekerRole ? '' : diet.trim(),
                     role,
                     godModeEnabled,
                 };
@@ -454,14 +503,20 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
                 return;
             }
+            const responseData =
+                typeof error === 'object' && error !== null
+                    ? (error as { response?: { data?: { error?: string; code?: string } } }).response?.data
+                    : undefined;
+            const errorCode = String(responseData?.code || '').trim().toLowerCase();
             const errorMessage =
                 typeof error === 'object' && error !== null
-                    ? ((error as { response?: { data?: { error?: string } } }).response?.data?.error ||
-                        (error as { message?: string }).message)
+                    ? (responseData?.error || (error as { message?: string }).message)
                     : '';
             Alert.alert(
                 t('common.error'),
-                errorMessage || t('registration.operationFailed'),
+                errorCode === 'profile_name_required'
+                    ? (isSeekerRole ? t('registration.nameRequired') : t('registration.karmicNameRequired'))
+                    : (errorMessage || t('registration.operationFailed')),
                 [
                     { text: t('common.close'), style: 'cancel' },
                     {
@@ -582,7 +637,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             )}
                         </View>
                         <ScrollView
-                            scrollEnabled={!isRoleCarouselInteracting}
                             contentContainerStyle={styles.content}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
@@ -597,6 +651,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     </Text>
                                 </View>
                             ) : null}
+
+                            <View style={styles.vpnNotice}>
+                                <Text style={styles.vpnNoticeTitle}>{t('registration.vpnNotice.title')}</Text>
+                                <Text style={styles.vpnNoticeText}>{t('registration.vpnNotice.body')}</Text>
+                            </View>
 
                             {phase === 'initial' ? (
                                 <>
@@ -639,7 +698,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     <RoleSelectionSection
                                         selectedRole={role}
                                         onSelectRole={setRole}
-                                        onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
                                     />
 
                                     <View style={styles.switchRow}>
@@ -1131,6 +1189,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
         marginTop: 10,
+    },
+    vpnNotice: {
+        marginBottom: 20,
+        padding: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 183, 77, 0.35)',
+        backgroundColor: 'rgba(255, 183, 77, 0.12)',
+    },
+    vpnNoticeTitle: {
+        color: '#FFE0B2',
+        fontSize: 14,
+        fontWeight: '800',
+        marginBottom: 6,
+    },
+    vpnNoticeText: {
+        color: 'rgba(248,250,252,0.88)',
+        fontSize: 13,
+        lineHeight: 18,
     },
     nicknameChip: {
         fontSize: 14,

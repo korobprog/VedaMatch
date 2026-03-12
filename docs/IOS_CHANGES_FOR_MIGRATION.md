@@ -1,3 +1,60 @@
+## 2026-03-12 (iOS Firebase config: replaced GoogleService-Info.plist with correct Bundle ID)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/GoogleService-Info.plist`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в корне проекта лежал `GoogleService-Info (2).plist` с `BUNDLE_ID = org.reactjs.native.example.vedamatch`;
+  - этот Bundle ID не совпадал с iOS target (`com.korobkov.vedamatch`), из-за чего Google Sign-In не мог работать корректно.
+- Стало:
+  - взят новый `GoogleService-Info (3).plist` из Firebase с `BUNDLE_ID = com.korobkov.vedamatch`;
+  - файл установлен в target-путь `frontend/ios/vedamatch/GoogleService-Info.plist`.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/GoogleService-Info.plist`:
+```plist
+<key>BUNDLE_ID</key>
+<string>com.korobkov.vedamatch</string>
+```
+
+## 2026-03-12 (Auth/Registration: VPN warning added on entry screens)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/screens/RegistrationScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - при включенном VPN регистрация у части пользователей ломалась без явной подсказки на экране;
+  - auth/signup flow не объяснял, что VPN может мешать запросам регистрации.
+- Стало:
+  - на экране входа и на экране регистрации добавлен заметный warning-блок про VPN;
+  - пользователь заранее видит рекомендацию отключить VPN или добавить `Veda Match` в исключения VPN;
+  - предупреждение локализовано для `ru/en/hi`.
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+<View style={styles.vpnNotice}>
+  <Text style={styles.vpnNoticeTitle}>{t('auth.loginScreen.vpnNotice.title')}</Text>
+  <Text style={styles.vpnNoticeText}>{t('auth.loginScreen.vpnNotice.body')}</Text>
+</View>
+```
+
+`frontend/screens/RegistrationScreen.tsx`:
+```tsx
+<View style={styles.vpnNotice}>
+  <Text style={styles.vpnNoticeTitle}>{t('registration.vpnNotice.title')}</Text>
+  <Text style={styles.vpnNoticeText}>{t('registration.vpnNotice.body')}</Text>
+</View>
+```
+
 ## 2026-03-11 (Ads screen: default section switched back to Ads)
 
 ### Измененные файлы
@@ -15820,4 +15877,199 @@ if (target === 'portal') {
     return;
   }
 }
+```
+
+## 2026-03-12 (Role selection switched from carousel to 2-column card grid)
+
+### Измененные файлы
+- `frontend/components/roles/RoleSelectionSection.tsx`
+- `frontend/screens/RegistrationScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+
+### Суть правки
+- Было:
+  - выбор роли был горизонтальной каруселью (`FlatList horizontal`) и требовал перелистывания;
+  - в registration/edit-profile существовал служебный swipe-coordination state для карусели.
+- Стало:
+  - `RoleSelectionSection` переведен на статичную сетку карточек `2 в ряд` (`flexWrap`), без горизонтального скролла;
+  - карточка роли выбирается тапом, а `?` на карточке по-прежнему открывает `RoleInfoModal` с подробностями;
+  - в registration/edit-profile удалены legacy props/state, связанные с горизонтальной каруселью (`onHorizontalSwipeActiveChange`, `isRoleCarouselInteracting`).
+
+### Короткий сниппет
+`frontend/components/roles/RoleSelectionSection.tsx`:
+```tsx
+<View style={styles.grid}>
+  {ROLE_OPTIONS.map((option) => (
+    <View key={option.id} style={styles.cardCell}>
+      {renderRoleCard(option)}
+    </View>
+  ))}
+</View>
+```
+
+## 2026-03-12 (PRO activation removed from mobile purchase flow)
+
+### Измененные файлы
+- `frontend/screens/settings/ProPlansScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/screens/multimedia/RadioScreen.tsx`
+- `frontend/screens/multimedia/VideoScreen.tsx`
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+- `frontend/screens/multimedia/AudioScreen.tsx`
+- `frontend/screens/multimedia/TVScreen.tsx`
+- `frontend/services/proService.ts`
+- `frontend/content/legalDocuments.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - мобильное приложение показывало экран планов `PRO`, цены в `LKM`, кнопку покупки и CTA на апгрейд из профиля и мультимедиа;
+  - mobile client использовал `GET /pro/plans` и `POST /pro/purchase`;
+  - правовые тексты внутри app не отделяли mobile-контур от внешнего web/bot activation flow.
+- Стало:
+  - `ProPlansScreen` стал read-only экраном статуса доступа;
+  - из профиля и locked-state мультимедиа удалены переходы на покупку/апгрейд `PRO`;
+  - mobile client использует только `GET /pro/status`;
+  - legal copy в app описывает только server-side entitlement и отсутствие покупки `PRO` внутри мобильного приложения.
+
+### Сниппеты кода
+
+`frontend/screens/settings/ProPlansScreen.tsx`:
+```tsx
+const statusData = await proService.getStatus();
+setStatus(statusData);
+```
+
+```tsx
+<Text style={styles.statusValue}>{status?.isProEffective ? 'Active' : 'Inactive'}</Text>
+```
+
+`frontend/screens/multimedia/TVScreen.tsx`:
+```tsx
+<Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+  Shared TV content is currently available. Add an organization to your profile. Full catalog access requires an active PRO status on your account.
+</Text>
+```
+
+`frontend/services/proService.ts`:
+```tsx
+export const proService = {
+  async getStatus(): Promise<ProStatus> {
+    const response = await apiClient.get('/pro/status');
+    return response.data;
+  },
+};
+```
+
+## 2026-03-12 (Profile save + contact display fallback unified)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/screens/RegistrationScreen.tsx`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/utils/userDisplay.ts`
+- `server/internal/handlers/auth_handler.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `EditProfileScreen` требовал `nickname`, отдельно дергал `PATCH /profile/nickname` и мог показывать success alert вместе с ошибкой `Invalid nickname`;
+  - профиль можно было сохранить без обязательного имени;
+  - contact/chat/call surfaces местами строили имя напрямую через `spiritualName || karmicName`, из-за чего пользователь без имени мог попадать в UI с пустым заголовком или небезопасным initial.
+- Стало:
+  - `nickname` переведен в optional поле профиля и сохраняется через основной `PUT /update-profile`;
+  - `karmicName` стал обязательным инвариантом и валидируется и на мобильном клиенте, и на backend;
+  - shared helper `frontend/utils/userDisplay.ts` централизует display-name fallback и безопасный avatar initial для contacts/chat/calls.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const profileData = {
+  ...,
+  karmicName: karmicName.trim(),
+  nickname: normalizedNickname || undefined,
+};
+```
+
+```tsx
+if (requestCode === 'nickname_invalid') {
+  setNicknameError(editProfileCopy.nicknameInvalid);
+  return;
+}
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if normalizedKarmicName == "" {
+  return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+    "error": "Karmic name is required",
+    "code":  "profile_name_required",
+    "field": "karmicName",
+  })
+}
+```
+
+`frontend/utils/userDisplay.ts`:
+```tsx
+return clean(user.spiritualName)
+  || clean(user.karmicName)
+  || clean(user.nicknameDisplay)
+  || clean(user.nickname)
+  || clean(user.email)
+  || (user.ID ? `${fallbackLabel} #${user.ID}` : fallbackLabel);
+```
+
+## 2026-03-12 (PRO activation removed from mobile purchase flow)
+
+### Измененные файлы
+- `frontend/screens/settings/ProPlansScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/screens/multimedia/RadioScreen.tsx`
+- `frontend/screens/multimedia/VideoScreen.tsx`
+- `frontend/screens/multimedia/MultimediaHubScreen.tsx`
+- `frontend/screens/multimedia/AudioScreen.tsx`
+- `frontend/screens/multimedia/TVScreen.tsx`
+- `frontend/services/proService.ts`
+- `frontend/content/legalDocuments.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - мобильное приложение показывало экран планов `PRO`, цены в `LKM`, кнопку покупки и CTA на апгрейд из профиля и мультимедиа;
+  - mobile client использовал `GET /pro/plans` и `POST /pro/purchase`;
+  - правовые тексты внутри app не отделяли mobile-контур от внешнего web/bot activation flow.
+- Стало:
+  - `ProPlansScreen` стал read-only экраном статуса доступа;
+  - из профиля и locked-state мультимедиа удалены переходы на покупку/апгрейд `PRO`;
+  - mobile client использует только `GET /pro/status`;
+  - legal copy в app описывает только server-side entitlement и отсутствие покупки `PRO` внутри мобильного приложения.
+
+### Сниппеты кода
+
+`frontend/screens/settings/ProPlansScreen.tsx`:
+```tsx
+const statusData = await proService.getStatus();
+setStatus(statusData);
+```
+
+```tsx
+<Text style={styles.statusValue}>{status?.isProEffective ? 'Active' : 'Inactive'}</Text>
+```
+
+`frontend/screens/multimedia/TVScreen.tsx`:
+```tsx
+<Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
+  Shared TV content is currently available. Add an organization to your profile. Full catalog access requires an active PRO status on your account.
+</Text>
+```
+
+`frontend/services/proService.ts`:
+```tsx
+export const proService = {
+  async getStatus(): Promise<ProStatus> {
+    const response = await apiClient.get('/pro/status');
+    return response.data;
+  },
+};
 ```

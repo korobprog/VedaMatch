@@ -35,7 +35,6 @@ import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 import apiClient from '../../lib/apiClient';
-import { accountService } from '../../services/accountService';
 import { proService, ProStatus } from '../../services/proService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
@@ -69,7 +68,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [karmicName, setKarmicName] = useState('');
     const [spiritualName, setSpiritualName] = useState('');
     const [nickname, setNickname] = useState('');
-    const [initialNickname, setInitialNickname] = useState('');
     const [dob, setDob] = useState(new Date());
     const [madh, setMadh] = useState('');
     const [mentor, setMentor] = useState('');
@@ -96,6 +94,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [godModeEnabled, setGodModeEnabled] = useState(false);
     const [proStatus, setProStatus] = useState<ProStatus | null>(null);
     const [proStatusLoading, setProStatusLoading] = useState(false);
+    const [nicknameError, setNicknameError] = useState('');
+    const [karmicNameError, setKarmicNameError] = useState('');
 
     // City autocomplete
     const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
@@ -105,7 +105,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-    const [isRoleCarouselInteracting, setIsRoleCarouselInteracting] = useState(false);
     // const [openTimePicker, setOpenTimePicker] = useState(false);
     const isMountedRef = useRef(true);
     const latestLoadRequestRef = useRef(0);
@@ -123,36 +122,51 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         if (language.startsWith('hi')) {
             return {
                 chooseCity: 'एक शहर चुनें।',
-                specifyNickname: 'एक Nickname (unique ID) दर्ज करें।',
+                karmicNameRequired: 'कर्मिक नाम भरें।',
                 fillAboutMe: '"About me" फ़ील्ड भरें।',
                 fillInterests: '"Interests" फ़ील्ड भरें।',
                 spiritualFieldRequired: 'चयनित भूमिका के लिए कम से कम एक आध्यात्मिक फ़ील्ड भरें: Yatra, Timezone, Tradition, Yoga style या Guna।',
-                failedToUpdateNickname: 'Nickname अपडेट नहीं किया जा सका',
                 profileUpdated: 'प्रोफ़ाइल सफलतापूर्वक अपडेट हुई!',
                 failedToUpdateProfile: 'प्रोफ़ाइल अपडेट नहीं की जा सकी',
+                nicknameLabel: 'Nickname (optional unique ID)',
+                nicknameHelper: 'यदि खाली छोड़ दें, मौजूदा या ऑटो-जनरेटेड nickname ही रहेगा।',
+                nicknamePlaceholder: '@your_nickname',
+                nicknameInvalid: 'В nickname допустимы только латинские буквы, цифры, точка и подчёркивание.',
+                nicknameTaken: 'Этот nickname уже занят.',
+                nicknameCooldown: 'Nickname пока нельзя изменить из-за cooldown.',
             };
         }
         if (language.startsWith('en')) {
             return {
                 chooseCity: 'Choose a city.',
-                specifyNickname: 'Specify a Nickname (unique ID).',
+                karmicNameRequired: 'Fill in the Karmic Name field.',
                 fillAboutMe: 'Fill in the "About me" field.',
                 fillInterests: 'Fill in the "Interests" field.',
                 spiritualFieldRequired: 'For the selected role, specify at least one spiritual field: Yatra, Timezone, Tradition, Yoga style, or Guna.',
-                failedToUpdateNickname: 'Failed to update nickname',
                 profileUpdated: 'Profile updated successfully!',
                 failedToUpdateProfile: 'Failed to update profile',
+                nicknameLabel: 'Nickname (optional unique ID)',
+                nicknameHelper: 'Leave it empty to keep the current or auto-generated nickname.',
+                nicknamePlaceholder: '@your_nickname',
+                nicknameInvalid: 'Nickname can contain only latin letters, numbers, dots, and underscores.',
+                nicknameTaken: 'This nickname is already taken.',
+                nicknameCooldown: 'Nickname cannot be changed yet because of cooldown.',
             };
         }
         return {
             chooseCity: 'Выберите город.',
-            specifyNickname: 'Укажите Nickname (уникальный ID).',
+            karmicNameRequired: 'Заполните кармическое имя.',
             fillAboutMe: 'Заполните поле "О себе".',
             fillInterests: 'Заполните поле "Интересы".',
             spiritualFieldRequired: 'Для выбранной роли укажите хотя бы одно духовное поле: Yatra, Timezone, Tradition, Yoga style или Guna.',
-            failedToUpdateNickname: 'Не удалось обновить nickname',
             profileUpdated: 'Профиль успешно обновлён!',
             failedToUpdateProfile: 'Не удалось обновить профиль',
+            nicknameLabel: 'Nickname (необязательный уникальный ID)',
+            nicknameHelper: 'Если оставить пустым, сохранится текущий или автосгенерированный nickname.',
+            nicknamePlaceholder: '@your_nickname',
+            nicknameInvalid: 'В nickname допустимы только латинские буквы, цифры, точка и подчёркивание.',
+            nicknameTaken: 'Этот nickname уже занят.',
+            nicknameCooldown: 'Nickname пока нельзя изменить из-за cooldown.',
         };
     }, [i18n.language]);
 
@@ -202,6 +216,12 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         return typeof status === 'number' ? String(status) : 'n/a';
     }, []);
 
+    const getRequestCode = React.useCallback((error: any): string => {
+        const payload = error?.response?.data;
+        const code = payload?.code || payload?.errorCode;
+        return typeof code === 'string' ? code.trim().toLowerCase() : '';
+    }, []);
+
     const loadProfile = React.useCallback(async () => {
         if (!user?.ID) return;
         const requestId = ++latestLoadRequestRef.current;
@@ -225,7 +245,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setKarmicName(userData.karmicName || '');
                 setSpiritualName(userData.spiritualName || '');
                 setNickname(userData.nickname ? `@${userData.nickname}` : '');
-                setInitialNickname(userData.nickname ? `@${userData.nickname}` : '');
                 setMadh(userData.madh || '');
                 setMentor(userData.mentor || '');
                 setGender(userData.gender || GENDER_OPTIONS[0]);
@@ -297,15 +316,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }, [user?.ID]);
 
     const getProfileValidationError = (): string | null => {
-        const normalizedNickname = nickname.trim().replace(/^@+/, '');
         const hasSpiritualContext = [yatra, timezone, madh, yogaStyle, guna].some(value => value.trim().length > 0);
 
         if (!city.trim()) {
             return editProfileCopy.chooseCity;
         }
 
-        if (!normalizedNickname) {
-            return editProfileCopy.specifyNickname;
+        if (!karmicName.trim()) {
+            return editProfileCopy.karmicNameRequired;
         }
 
         if (datingEnabled && !isSeekerRole) {
@@ -325,8 +343,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleSave = async () => {
         if (!user?.ID || saving) return;
+        setNicknameError('');
+        setKarmicNameError('');
         const validationError = getProfileValidationError();
         if (validationError) {
+            if (validationError === editProfileCopy.karmicNameRequired) {
+                setKarmicNameError(validationError);
+            }
             Alert.alert(t('common.error'), validationError);
             return;
         }
@@ -338,6 +361,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         try {
             console.log(`[EditProfile] Saving profile user=${user.ID} endpoint=/update-profile`);
             const normalizedDob = Number.isNaN(dob.getTime()) ? '' : dob.toISOString().split('T')[0];
+            const normalizedNickname = nickname.trim().replace(/^@+/, '').toLowerCase();
             const profileData = {
                 country: country.trim(),
                 city: city.trim(),
@@ -363,6 +387,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 yatra: yatra.trim(),
                 timezone: timezone.trim(),
                 datingEnabled,
+                nickname: normalizedNickname || undefined,
                 ...(canManageProMode ? { role, godModeEnabled: true } : {}),
                 latitude,
                 longitude
@@ -373,31 +398,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 return;
             }
             const updatedUser = response.data.user || {};
-            let nicknameWarning: string | null = null;
-
-            const normalizedNickname = nickname.trim().replace(/^@+/, '').toLowerCase();
-            const normalizedInitialNickname = initialNickname.trim().replace(/^@+/, '').toLowerCase();
-            if (normalizedNickname && normalizedNickname !== normalizedInitialNickname) {
-                try {
-                    const nickResponse = await accountService.updateNickname(normalizedNickname);
-                    if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
-                        return;
-                    }
-                    if (nickResponse?.user) {
-                        Object.assign(updatedUser, nickResponse.user);
-                    } else {
-                        updatedUser.nickname = normalizedNickname;
-                        updatedUser.nicknameDisplay = `@${normalizedNickname}`;
-                    }
-                    setInitialNickname(`@${updatedUser.nickname || normalizedNickname}`);
-                } catch (nicknameError: any) {
-                    const nicknameMessage = getRequestErrorMessage(nicknameError, editProfileCopy.failedToUpdateNickname);
-                    const statusTag = getRequestStatusTag(nicknameError);
-                    const urlTag = typeof nicknameError?.config?.url === 'string' ? nicknameError.config.url : '/profile/nickname';
-                    nicknameWarning = nicknameMessage;
-                    console.warn(`[EditProfile] Nickname update failed status=${statusTag} url=${urlTag} user=${user.ID}: ${nicknameMessage}`);
-                }
-            }
 
             await updateUserProfile(updatedUser);
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
@@ -406,17 +406,33 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
             Alert.alert(
                 t('common.success'),
-                nicknameWarning
-                    ? `${t('profile.updateSuccess') || editProfileCopy.profileUpdated}\n${nicknameWarning}`
-                    : (t('profile.updateSuccess') || editProfileCopy.profileUpdated),
+                t('profile.updateSuccess') || editProfileCopy.profileUpdated,
                 [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
             );
         } catch (error: any) {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                const requestCode = getRequestCode(error);
                 const message = getRequestErrorMessage(error, editProfileCopy.failedToUpdateProfile);
                 const statusTag = getRequestStatusTag(error);
                 const urlTag = typeof error?.config?.url === 'string' ? error.config.url : '/update-profile';
                 console.warn(`[EditProfile] Error saving profile status=${statusTag} url=${urlTag} user=${user?.ID}: ${message}`);
+                if (requestCode === 'profile_name_required') {
+                    setKarmicNameError(editProfileCopy.karmicNameRequired);
+                    Alert.alert(t('common.error'), editProfileCopy.karmicNameRequired);
+                    return;
+                }
+                if (requestCode === 'nickname_invalid') {
+                    setNicknameError(editProfileCopy.nicknameInvalid);
+                    return;
+                }
+                if (requestCode === 'nickname_taken') {
+                    setNicknameError(editProfileCopy.nicknameTaken);
+                    return;
+                }
+                if (requestCode === 'nickname_cooldown_active') {
+                    setNicknameError(editProfileCopy.nicknameCooldown);
+                    return;
+                }
                 Alert.alert(
                     t('common.error'),
                     message
@@ -536,7 +552,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 styles.content,
                                 { paddingBottom: Math.max(insets.bottom + 140, 180) },
                             ]}
-                            scrollEnabled={!isRoleCarouselInteracting}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="always"
                             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -547,7 +562,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 selectedRole={role}
                                 onSelectRole={setRole}
                                 autoOpenHint={!user?.isProfileComplete}
-                                onHorizontalSwipeActiveChange={setIsRoleCarouselInteracting}
                             />
 
                             <View style={styles.proCard}>
@@ -560,17 +574,9 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                                 ? 'Access is enabled by role (free)'
                                                 : (effectiveProEnabled
                                                     ? `Active${proStatus?.currentSubscription?.endsAt ? ` until ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString('en-US')}` : ''}`
-                                                    : 'Unlock all content and organization filters'))}
+                                                    : 'No active PRO access on this account'))}
                                     </Text>
                                 </View>
-                                {!canManageProMode && (
-                                    <TouchableOpacity
-                                        style={styles.proManageBtn}
-                                        onPress={() => navigation.navigate('ProPlans')}
-                                    >
-                                        <Text style={styles.proManageBtnText}>Manage PRO</Text>
-                                    </TouchableOpacity>
-                                )}
                             </View>
 
                             {/* Enable Toggle */}
@@ -609,6 +615,36 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
                             {/* Main Profile Fields */}
                             <View style={styles.section}>
+                                <Text style={styles.label}>
+                                    {isSeekerRole ? (t('registration.name') || 'Name') : (t('registration.karmicName') || 'Karmic Name')}
+                                </Text>
+                                <TextInput
+                                    style={[styles.input, karmicNameError ? styles.inputError : null]}
+                                    value={karmicName}
+                                    onChangeText={(value) => {
+                                        setKarmicNameError('');
+                                        setKarmicName(value);
+                                    }}
+                                    placeholder={t('registration.namePlaceholder') || 'Enter your name'}
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                />
+                                <Text style={[styles.helperText, styles.fieldHelper, karmicNameError ? styles.fieldErrorText : null]}>
+                                    {karmicNameError || editProfileCopy.karmicNameRequired}
+                                </Text>
+
+                                {showSpiritualFields && (
+                                    <>
+                                        <Text style={styles.label}>{t('registration.spiritualName') || 'Spiritual Name'}</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={spiritualName}
+                                            onChangeText={setSpiritualName}
+                                            placeholder={t('registration.spiritualNamePlaceholder') || 'Enter your spiritual name'}
+                                            placeholderTextColor="rgba(248,250,252,0.4)"
+                                        />
+                                    </>
+                                )}
+
                                 <Text style={styles.label}>{t('registration.city') || 'Current City'}</Text>
                                 <View style={{ position: 'relative', zIndex: 100 }}>
                                     <TextInput
@@ -635,11 +671,12 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     )}
                                 </View>
 
-                                <Text style={styles.label}>Nickname (unique ID)</Text>
+                                <Text style={styles.label}>{editProfileCopy.nicknameLabel}</Text>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, nicknameError ? styles.inputError : null]}
                                     value={nickname}
                                     onChangeText={(value) => {
+                                        setNicknameError('');
                                         const trimmed = value.trim();
                                         if (!trimmed) {
                                             setNickname('');
@@ -647,11 +684,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                         }
                                         setNickname(trimmed.startsWith('@') ? trimmed : `@${trimmed}`);
                                     }}
-                                    placeholder="@your_nickname"
+                                    placeholder={editProfileCopy.nicknamePlaceholder}
                                     placeholderTextColor="rgba(248,250,252,0.4)"
                                     autoCapitalize="none"
                                     autoCorrect={false}
                                 />
+                                <Text style={[styles.helperText, styles.fieldHelper, nicknameError ? styles.fieldErrorText : null]}>
+                                    {nicknameError || editProfileCopy.nicknameHelper}
+                                </Text>
 
                                 {showSpiritualFields && (
                                     <>
@@ -909,6 +949,9 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.12)',
         color: '#F8FAFC',
     },
+    inputError: {
+        borderColor: '#FF7A7A',
+    },
     textArea: {
         borderWidth: 1.5,
         borderRadius: 12,
@@ -939,24 +982,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
     },
-    proManageBtn: {
-        marginTop: 12,
-        alignSelf: 'flex-start',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255,183,77,0.45)',
-        backgroundColor: 'rgba(255,183,77,0.15)',
-    },
-    proManageBtnText: {
-        color: '#FFCC80',
-        fontSize: 13,
-        fontWeight: '700',
-    },
     helperText: {
         fontSize: 12,
         color: 'rgba(248,250,252,0.6)',
+    },
+    fieldHelper: {
+        marginTop: 6,
+    },
+    fieldErrorText: {
+        color: '#FF7A7A',
     },
     tipBox: {
         backgroundColor: 'rgba(255,183,77,0.1)',

@@ -1118,6 +1118,10 @@ export default {
         supportCta: 'Support',
         idLabel: 'Your ID',
         operationFailed: 'Operation failed. Please try again.',
+        vpnNotice: {
+            title: 'VPN may block registration',
+            body: 'For registration to work correctly, disable your VPN or add the Veda Match app to the VPN exceptions list.',
+        },
     },
     settings: {
         title: 'Portal',
@@ -1373,6 +1377,10 @@ export default {
         loginScreen: {
             title: 'Login',
             subtitle: 'Connect hearts • Build a conscious union',
+            vpnNotice: {
+                title: 'VPN may block registration',
+                body: 'For registration to work correctly, disable your VPN or add the Veda Match app to the VPN exceptions list.',
+            },
             rotatingSlogans: {
                 0: 'Community, knowledge, and services in one place',
                 1: 'Connection, growth, and meaningful tools every day',

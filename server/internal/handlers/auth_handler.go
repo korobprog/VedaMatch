@@ -3138,8 +3138,9 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	var updateData struct {
 		models.User
 		// Additional fields for coordinates from frontend
-		Latitude  *float64 `json:"latitude"`
-		Longitude *float64 `json:"longitude"`
+		Latitude      *float64 `json:"latitude"`
+		Longitude     *float64 `json:"longitude"`
+		NicknameInput *string  `json:"nickname"`
 	}
 	if err := c.BodyParser(&updateData); err != nil {
 		log.Printf("[UpdateProfile] parse_error rid=%s user=%d err=%v", requestID, userId, err)
@@ -3163,12 +3164,22 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
+	normalizedKarmicName := strings.TrimSpace(updateData.KarmicName)
+	normalizedSpiritualName := strings.TrimSpace(updateData.SpiritualName)
+	if normalizedKarmicName == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"error": "Karmic name is required",
+			"code":  "profile_name_required",
+			"field": "karmicName",
+		})
+	}
+
 	// Check if city changed
 	cityChanged := updateData.City != "" && updateData.City != user.City
 
 	updates := map[string]interface{}{
-		"karmic_name":          strings.TrimSpace(updateData.KarmicName),
-		"spiritual_name":       strings.TrimSpace(updateData.SpiritualName),
+		"karmic_name":          normalizedKarmicName,
+		"spiritual_name":       normalizedSpiritualName,
 		"gender":               strings.TrimSpace(updateData.Gender),
 		"country":              strings.TrimSpace(updateData.Country),
 		"city":                 strings.TrimSpace(updateData.City),
@@ -3193,8 +3204,64 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		"birth_time":           strings.TrimSpace(updateData.BirthTime),
 		"is_profile_complete":  true,
 	}
-	user.KarmicName = strings.TrimSpace(updateData.KarmicName)
-	user.SpiritualName = strings.TrimSpace(updateData.SpiritualName)
+
+	if updateData.NicknameInput != nil {
+		nicknameService := services.NewNicknameService(database.DB)
+		normalizedNickname := services.NormalizeNickname(*updateData.NicknameInput)
+		if normalizedNickname != "" && normalizedNickname != user.Nickname {
+			if err := services.ValidateNickname(normalizedNickname); err != nil {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"error": "Invalid nickname",
+					"code":  "nickname_invalid",
+					"field": "nickname",
+				})
+			}
+			now := time.Now().UTC()
+			if user.NicknameCooldownUntil != nil && now.Before(*user.NicknameCooldownUntil) {
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error":        "Nickname change cooldown active",
+					"code":         "nickname_cooldown_active",
+					"field":        "nickname",
+					"retryAfterAt": user.NicknameCooldownUntil,
+				})
+			}
+			uniqueNickname, err := nicknameService.EnsureUnique(normalizedNickname)
+			if err != nil {
+				if errors.Is(err, services.ErrNicknameTaken) {
+					return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+						"error": "Nickname already taken",
+						"code":  "nickname_taken",
+						"field": "nickname",
+					})
+				}
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not update nickname",
+					"code":  "nickname_update_failed",
+					"field": "nickname",
+				})
+			}
+			if uniqueNickname != normalizedNickname {
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					"error": "Nickname already taken",
+					"code":  "nickname_taken",
+					"field": "nickname",
+				})
+			}
+
+			cooldown := now.Add(30 * 24 * time.Hour)
+			updates["nickname"] = normalizedNickname
+			updates["nickname_set_manually"] = true
+			updates["nickname_changed_at"] = now
+			updates["nickname_change_cooldown_until"] = cooldown
+
+			user.Nickname = normalizedNickname
+			user.NicknameSetManually = true
+			user.NicknameChangedAt = &now
+			user.NicknameCooldownUntil = &cooldown
+		}
+	}
+	user.KarmicName = normalizedKarmicName
+	user.SpiritualName = normalizedSpiritualName
 	user.Gender = strings.TrimSpace(updateData.Gender)
 	user.Country = strings.TrimSpace(updateData.Country)
 	user.City = strings.TrimSpace(updateData.City)

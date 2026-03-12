@@ -5,20 +5,21 @@ This is a product-compliance template and should be validated by local counsel b
 
 ## Core legal position (must be consistent everywhere)
 
-- LKM are internal in-app points for feature access/engagement only.
+- LKM are internal non-monetary points used within the VedaMatch ecosystem.
 - LKM are not legal tender, not electronic money, and not a payment instrument.
-- LKM cannot be purchased, sold, exchanged for fiat/crypto, withdrawn, or redeemed outside the app.
+- The mobile app does not provide LKM purchase or PRO activation flows.
+- LKM cannot be exchanged for fiat/crypto, withdrawn, or redeemed for money.
 
 ## Variant A (most conservative, recommended for first submission)
 
 ### English
-`LKM are internal, non-monetary points used only inside VedaMatch. LKM are not legal tender, electronic money, or a payment instrument. LKM cannot be bought, sold, exchanged, transferred, withdrawn, or redeemed for money.`
+`LKM are internal, non-monetary points used within the VedaMatch ecosystem. LKM are not legal tender, electronic money, or a payment instrument. The mobile app does not provide LKM purchase or PRO activation flows. LKM cannot be exchanged for fiat or crypto, withdrawn, or redeemed for money.`
 
 ### Russian
-`LKM — это внутренняя неплатежная единица активности, используемая только внутри VedaMatch. LKM не являются деньгами, электронными деньгами или платежным средством. LKM нельзя купить, продать, обменять, передать, вывести или погасить в деньги.`
+`LKM — это внутренняя неплатежная единица активности, используемая внутри экосистемы VedaMatch. LKM не являются деньгами, электронными деньгами или платежным средством. Мобильное приложение не содержит сценариев покупки LKM или активации PRO. LKM нельзя обменять на фиат/крипто, вывести или погасить в деньги.`
 
 ### Hindi
-`LKM, VedaMatch के अंदर उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं। LKM कानूनी मुद्रा, इलेक्ट्रॉनिक मनी या भुगतान साधन नहीं हैं। LKM को खरीदा, बेचा, बदला, ट्रांसफर, निकाला या पैसे में रिडीम नहीं किया जा सकता।`
+`LKM, VedaMatch इकोसिस्टम के भीतर उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं। LKM कानूनी मुद्रा, इलेक्ट्रॉनिक मनी या भुगतान साधन नहीं हैं। मोबाइल ऐप में LKM खरीदने या PRO सक्रिय करने का कोई फ्लो नहीं है। LKM को फिएट/क्रिप्टो में बदला, निकाला या पैसे में रिडीम नहीं किया जा सकता।`
 
 ## Variant B (short for UI labels/hints)
 
@@ -34,13 +35,13 @@ This is a product-compliance template and should be validated by local counsel b
 ## Variant C (review-note ready)
 
 ### English
-`VedaMatch uses LKM only as internal engagement points. No external purchase flow exists for LKM. LKM are non-transferable, non-withdrawable, and have no monetary redemption.`
+`VedaMatch uses LKM as internal non-monetary points. The mobile app does not provide LKM purchase or PRO activation flows and only reads server-side entitlement status. LKM are non-transferable, non-withdrawable, and have no monetary redemption.`
 
 ### Russian
-`VedaMatch использует LKM только как внутренние баллы активности. Внешних покупок LKM нет. LKM нельзя переводить, выводить или обменивать на денежные средства.`
+`VedaMatch использует LKM как внутренние неплатежные баллы. Мобильное приложение не содержит сценариев покупки LKM или активации PRO и только читает серверный статус доступа. LKM нельзя переводить, выводить или обменивать на денежные средства.`
 
 ### Hindi
-`VedaMatch, LKM का उपयोग केवल आंतरिक एंगेजमेंट पॉइंट के रूप में करता है। LKM के लिए कोई बाहरी खरीदка प्रवाह नहीं है। LKM को ट्रांसफर, निकाला या पैसे में बदलना संभव नहीं है।`
+`VedaMatch, LKM का उपयोग आंतरिक गैर-भुगतान पॉइंट के रूप में करता है। मोबाइल ऐप में LKM खरीद या PRO एक्टिवेशन फ्लो नहीं है और यह केवल सर्वर-साइड एक्सेस स्टेटस पढ़ता है। LKM को ट्रांसफर, निकाला या पैसे में बदलना संभव नहीं है।`
 
 ## Registration consent text (recommended)
 
@@ -53,4 +54,3 @@ Add to sign-up flow:
 Suggested URLs:
 - Terms: `https://vedamatch.ru/terms?lang=en|hi|ru`
 - Privacy: `https://vedamatch.ru/privacy?lang=en|hi|ru`
-

@@ -1116,7 +1116,11 @@ export default {
         "supportPrompt": "पंजीकरण में सहायता चाहिए?",
         "supportCta": "सहायता",
         "idLabel": "आपका ID",
-        "operationFailed": "ऑपरेशन असफल रहा। कृपया फिर से प्रयास करें।"
+        "operationFailed": "ऑपरेशन असफल रहा। कृपया फिर से प्रयास करें।",
+        "vpnNotice": {
+            "title": "VPN पंजीकरण में बाधा डाल सकता है",
+            "body": "पंजीकरण सही से काम करने के लिए VPN बंद करें या Veda Match ऐप को VPN exceptions में जोड़ें।"
+        }
     },
     "settings": {
         "title": "पोर्टल",
@@ -1372,6 +1376,10 @@ export default {
         "loginScreen": {
             "title": "लॉगिन",
             "subtitle": "दिलों को जोड़ो • सजग संबंध बनाओ",
+            "vpnNotice": {
+                "title": "VPN पंजीकरण में बाधा डाल सकता है",
+                "body": "पंजीकरण सही से काम करने के लिए VPN बंद करें या Veda Match ऐप को VPN exceptions में जोड़ें।"
+            },
             "rotatingSlogans": {
                 "0": "समुदाय, ज्ञान और सेवाएं एक ही स्थान पर",
                 "1": "रोज़ाना जुड़ाव, विकास और उपयोगी सुविधाएं",

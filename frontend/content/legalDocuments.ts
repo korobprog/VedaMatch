@@ -128,9 +128,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '4. LKM policy',
           paragraphs: [
-            'LKM are internal non-monetary points for in-app engagement.',
+            'LKM are internal non-monetary points used within the VedaMatch ecosystem.',
             'LKM are not legal tender, not electronic money, and not a payment instrument.',
-            'LKM cannot be exchanged, withdrawn, or redeemed for cash or crypto outside the app.',
+            'The mobile app does not provide LKM purchase or PRO activation flows.',
+            'LKM cannot be exchanged, withdrawn, or redeemed for cash or crypto.',
           ],
         },
         {
@@ -176,9 +177,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '4. Политика LKM',
           paragraphs: [
-            'LKM — внутренние неплатежные баллы активности внутри приложения.',
+            'LKM — внутренние неплатежные баллы, используемые внутри экосистемы VedaMatch.',
             'LKM не являются законным платежным средством, электронными деньгами или платежным инструментом.',
-            'LKM нельзя обменять, вывести или погасить в деньги/крипто вне приложения.',
+            'Мобильное приложение не содержит сценариев покупки LKM или активации PRO.',
+            'LKM нельзя обменять, вывести или погасить в деньги/крипто.',
           ],
         },
         {
@@ -224,9 +226,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '4. LKM नीति',
           paragraphs: [
-            'LKM ऐप के भीतर उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं।',
+            'LKM, VedaMatch इकोसिस्टम के भीतर उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं।',
             'LKM कानूनी मुद्रा, इलेक्ट्रॉनिक मनी या भुगतान साधन नहीं हैं।',
-            'LKM को ऐप के बाहर नकद/क्रिप्टो में बदला या निकाला नहीं जा सकता।',
+            'मोबाइल ऐप में LKM खरीदने या PRO सक्रिय करने का कोई फ्लो नहीं है।',
+            'LKM को नकद/क्रिप्टो में बदला या निकाला नहीं जा सकता।',
           ],
         },
         {
@@ -281,9 +284,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '5. LKM policy',
           paragraphs: [
-            'LKM are internal non-monetary points for app features only.',
+            'LKM are internal non-monetary points used within the VedaMatch ecosystem.',
             'LKM are not legal tender and not a payment instrument.',
-            'LKM cannot be sold, withdrawn, or redeemed for money.',
+            'The mobile app only displays access status and does not process LKM purchases or PRO upgrades.',
+            'LKM cannot be withdrawn, redeemed for money, or exchanged for fiat or crypto.',
           ],
         },
       ],
@@ -321,9 +325,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '5. Политика LKM',
           paragraphs: [
-            'LKM — внутренние неплатежные баллы, используемые только для функций приложения.',
+            'LKM — внутренние неплатежные баллы, используемые внутри экосистемы VedaMatch.',
             'LKM не являются законным платежным средством и не являются платежным инструментом.',
-            'LKM нельзя продавать, выводить или обменивать на деньги.',
+            'Мобильное приложение только отображает статус доступа и не оформляет покупку LKM или апгрейд PRO.',
+            'LKM нельзя выводить, погашать в деньги или обменивать на фиат/крипто.',
           ],
         },
       ],
@@ -361,9 +366,10 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '5. LKM नीति',
           paragraphs: [
-            'LKM केवल ऐप फीचर्स के लिए उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं।',
+            'LKM, VedaMatch इकोसिस्टम के भीतर उपयोग होने वाले आंतरिक गैर-भुगतान पॉइंट हैं।',
             'LKM कानूनी मुद्रा नहीं हैं और भुगतान साधन नहीं हैं।',
-            'LKM को बेचा, निकाला या पैसे में बदला नहीं जा सकता।',
+            'मोबाइल ऐप केवल एक्सेस स्टेटस दिखाता है और LKM खरीद या PRO अपग्रेड प्रोसेस नहीं करता।',
+            'LKM को निकाला, पैसे में रिडीम या फिएट/क्रिप्टो में बदला नहीं जा सकता।',
           ],
         },
       ],

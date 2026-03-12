@@ -1,5 +1,107 @@
 # Prompt Log
 
+- 2026-03-12 18:05:05 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:
+## План: исправить validation и UX профиля/регистрации, убрать пустые имена в контактах
+
+### Summary
+Нужно привести flow регистрации и редактирования профиля к одной логике: `nickname` по умолчанию автогенерируется и не блокирует сохранение профиля, а у пользователя всегда должен быть минимум один валидный name field для отображения в контактах. Основная проблема сейчас не в initial signup, а в `EditProfileScreen`: экран требует `nickname`, потом отдельно вызывает `PATCH /profile/nickname`, и из-за этого показывает ложный успех с хвостом `Invalid nickname`. Параллельно `ContactProfileScreen` и сервер допускают профиль без безопасного display-name fallback.
+
+### Key Changes
+#### 1. Упростить продуктовую модель профиля
+- Зафиксировать правило: `nickname` является вторичным идентификатором, а не обязательным полем профиля.
+- Оставить автоматическую генерацию `nickname` на backend как дефолтный путь для регистрации и пользователей без nickname.
+- В `EditProfileScreen` убрать обязательность `nickname` из базовой валидации профиля.
+- Поле `nickname` в профиле оставить как необязательное “advanced” поле:
+  - если пользователь не меняет его, save профиля не должен зависеть от nickname вообще;
+  - если меняет, ошибка nickname должна показываться как отдельная field-level/server validation ошибка, а не как часть “профиль успешно обновлен”.
+
+#### 2. Разделить сохранение профиля и смену nickname
+- Перестроить `EditProfileScreen` так, чтобы `PUT /update-profile` был основным и атомарным save-путём профиля.
+- После успешного profile save не показывать success alert, если параллельная nickname-операция неуспешна.
+- Рекомендуемый вариант реализации:
+  - либо включить nickname в тот же backend flow `UpdateProfile`,
+  - либо оставить отдельный `PATCH /profile/nickname`, но вызывать его только как отдельное действие/сабмит для поля nickname, а не в общем `handleSave`.
+- Итоговое UX-правило:
+  - общий `Save profile` отвечает только за профиль;
+  - `nickname` ошибка отображается рядом с полем;
+  - глобальный success alert не должен содержать backend-текст ошибки вроде `Invalid nickname`.
+
+#### 3. Сделать имя обязательным и согласованным на клиенте и сервере
+- В profile validation добавить правило: пользователь должен иметь минимум одно непустое имя.
+- Принять единое правило обязательности:
+  - `karmicName` обязателен для сохранения профиля;
+  - `spiritualName` остаётся optional.
+- На backend в `UpdateProfile` добавить такую же валидацию, чтобы нельзя было сохранить полностью пустой name state через прямой API-вызов.
+- Если есть роли с особыми правилами имени, они должны быть явно сведены к одному minimum invariant: хотя бы одно непустое имя, а для текущего UX-потока безопаснее требовать `karmicName`.
+
+#### 4. Исправить источник и отображение данных профиля/контакта
+- Убрать зависимость `EditProfileScreen` от списка `/contacts` как источника “моего профиля”, если есть более подходящий self-profile источник; если отдельного endpoint нет, это нужно зафиксировать как follow-up.
+- Для `ContactProfileScreen` ввести единый display name resolver:
+  - `spiritualName`
+  - затем `karmicName`
+  - затем `nicknameDisplay || nickname`
+  - затем `email`
+  - затем `User #ID`
+- Использовать этот resolver:
+  - в header/profile card имени,
+  - в avatar initial,
+  - в связанных местах контактов, где сейчас есть прямой `spiritualName || karmicName` без fallback.
+- Любое место, где берётся первый символ имени, должно быть защищено от пустой строки.
+
+#### 5. Проверить registration flow на удобство и убрать лишние барьеры
+- Подтвердить, что initial signup не требует ручного nickname и продолжает полагаться на backend `AssignForRegistration`.
+- Во второй фазе регистрации (`/update-profile`) применить ту же минимальную name validation, что и в edit profile, чтобы пользователь не мог завершить профиль пустым именем.
+- Если social auth уже приносит `firstName/lastName`, использовать их как лучший дефолт для `karmicName/spiritualName` при первичном заполнении, но не вводить новый обязательный шаг выбора логина вручную.
+- Проверить тексты ошибок и placeholders на трёх локалях `ru/en/hi`, чтобы:
+  - nickname был обозначен как optional;
+  - имя было обозначено как required;
+  - сообщение об ошибке было понятным и без backend-англицизмов в success alert.
+
+### Public APIs / Interface Changes
+- `PUT /update-profile`:
+  - должен валидировать наличие обязательного имени;
+  - не должен молча сохранять полностью пустой profile name state.
+- Если выбран вариант с объединением nickname в profile save:
+  - `PUT /update-profile` принимает optional `nickname`;
+  - при invalid/taken nickname возвращает нормализованную validation error shape, пригодную для field-level UI.
+- Клиентские интерфейсы display-name:
+  - нужен единый helper/selector для вычисления публичного имени контакта и fallback initial.
+
+### Test Plan
+- Profile save без изменения nickname:
+  - профиль сохраняется успешно;
+  - success alert не содержит технических ошибок.
+- Profile save с пустым `karmicName`:
+  - клиент блокирует submit;
+  - backend тоже отклоняет запрос, если validation обойти.
+- Profile save с невалидным nickname:
+  - общий профиль не показывает ложный success с `Invalid nickname`;
+  - ошибка привязана к полю nickname или отдельному nickname action.
+- Contact profile для пользователя без `spiritualName` и `karmicName`:
+  - экран не падает;
+  - имя и avatar initial берутся из fallback chain.
+- Registration phase 2:
+  - нельзя завершить профиль полностью без имени;
+  - автогенерированный nickname продолжает работать без ручного ввода.
+- Social-auth user:
+  - если провайдер принёс имя/фамилию, они попадают в дефолтные profile fields предсказуемо.
+- Localization:
+  - `ru/en/hi` покрывают updated labels, helper text и validation messages для name/nickname.
+
+### Assumptions
+- Выбрана политика `nickname`: авто по умолчанию, ручное поле необязательное.
+- Выбрана политика имени: профиль обязан содержать минимум одно имя, и practically safe default — требовать `karmicName`.
+- Исправление должно охватить как минимум `EditProfileScreen`, `RegistrationScreen`, `ContactProfileScreen`, `UpdateProfile`, `UpdateNickname` и локали `ru/en/hi`.
+- Если в проекте нет отдельного self-profile endpoint, это не блокирует первый этап исправления UX/validation, но должно быть отмечено как follow-up для уменьшения зависимости от `/contacts`."
+
+- 2026-03-12 18:05:05 +1000 | Запрос: "запусти сам помотри почему не запускаться эмулятор"
+
+- 2026-03-12 17:52:10 +1000 | Запрос: "может не тот скрипт для запуска эмулятора эмулятор не запускаться\n\nou can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.\n\nFor more on this, please refer to https://docs.gradle.org/8.10/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.\n\nBUILD SUCCESSFUL in 18s\n839 actionable tasks: 46 executed, 793 up-to-date\n🚀 Launching com.ragagent/.MainActivity... "
+
+- 2026-03-12 17:45:07 +1000 | Запрос: "не удаться запусть андройд эмулятор через скрипт   \"android\": \"cd frontend && pnpm run android\",\n\nBUILD FAILED in 1m 23s\n839 actionable tasks: 54 executed, 1 from cache, 784 up-to-date\n❌ Build failed. Please check the logs.\n ELIFECYCLE  Command failed with exit code 1.\n ELIFECYCLE  Command failed with exit code 1.\n\n *  The terminal process \"/bin/zsh '-l', '-c', 'pnpm run android'\" terminated with exit code: 1. \n *  Terminal will be reused by tasks, press any key to close it. "
+
+- 2026-03-12 17:40:03 +1000 | Запрос: "такая проблема если человек заходит и у него включен VPN регистрация не работает надо сделать предупреждение что для корректнотной рабыты приложения нужно отключить VPN или в VPN добавить в исключение приложение veda math"
+
 - 2026-03-10 19:50:23 +1000 | Запрос: "напиши промт для ревью нашего кода не пиши в доки ифу просто напиши промт под наше приложение фронтенд и бекенд и оплаты"
 
 - 2026-03-10 19:25:29 +1000 | Запрос: "на странице виджетов есть две точеки портал свайп с название а на портале нету убери две точечки и сделай размеры где три кнопки одинаковые как на портале секцию"
@@ -1285,3 +1387,12 @@
 2026-03-12 12:16:03 +1000 | Запрос: когда\ с\ контактов\ ухожу\ стало\ нормально\ а\ когда\ с\ асистента\ чтата\ назад\ на\ протал\ тогда\ белый\ фон\ вижу\ и\ не\ вижу\ портала\ -\ посмотри\ еще\ риски\ на\ разных\ сервисах
 2026-03-12 12:17:04 +1000 | Запрос: "давай обозначение друг сделаем в мконке аватарки с лева в низу сделай красиво и адаптивно"
 2026-03-12 12:24:45 +1000 | Запрос: "при сохронении в профиле была такая ошибка посмотри логику и потенциальные ошибки исправь"
+2026-03-12 17:38:03 +1000 | Запрос: "давай сделаем где выбор карусель профиля - не карусель а карточки но чтобы было удобно две в один ряд а если нажать на карточке воросик то чтобы окно всплывало с подробностями роли"
+2026-03-12 17:49:23 +1000 | Запрос: "думаю нам нужно убрать в профиле режим PRO и перенести его включение на сайте lkm.vedamatch.ru чтобы пройти модерацию?"
+2026-03-12 17:53:09 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN: перенос активации PRO из приложения во внешний web/bot-контур"
+2026-03-12 18:53:00 +1000 | Запрос: "аторизация гугл ошибка на устрйстве samsung. - вход временно не работает не доступн в этой сбоке посмотри логи надо понять почему перестал работать"
+2026-03-12 18:58:25 +1000 | Запрос: "гуггле консоль"
+2026-03-12 19:00:41 +1000 | Запрос: "{ \"project_info\": ..., \"client\": [ ... \"oauth_client\": [ { \"client_type\": 3 } ] ... ] }"
+2026-03-12 19:03:40 +1000 | Запрос: "вот на IOS GoogleService-Info (2).plist в коень положил"
+2026-03-12 19:09:09 +1000 | Запрос: "взял тут нужно сделать другой?"
+2026-03-12 19:22:11 +1000 | Запрос: "GoogleService-Info (3).plist"

@@ -825,6 +825,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                         </Animated.View>
 
                         <View style={styles.formCard}>
+                            <View style={styles.vpnNotice}>
+                                <Text style={styles.vpnNoticeTitle}>{t('auth.loginScreen.vpnNotice.title')}</Text>
+                                <Text style={styles.vpnNoticeText}>{t('auth.loginScreen.vpnNotice.body')}</Text>
+                            </View>
+
                             <Animated.View style={[styles.inputContainer, emailInputStyle]}>
                                 <TextInput
                                     style={styles.input}
@@ -1125,6 +1130,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.12,
         shadowRadius: 18,
         elevation: 2,
+    },
+    vpnNotice: {
+        marginBottom: 18,
+        padding: 14,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(214, 125, 62, 0.2)',
+        backgroundColor: 'rgba(255, 244, 220, 0.96)',
+    },
+    vpnNoticeTitle: {
+        color: ModernVedicTheme.colors.text,
+        fontSize: 14,
+        fontWeight: '800',
+        marginBottom: 6,
+    },
+    vpnNoticeText: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 13,
+        lineHeight: 18,
     },
     inputContainer: {
         flexDirection: 'row',

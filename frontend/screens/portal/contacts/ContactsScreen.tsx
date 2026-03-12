@@ -35,6 +35,7 @@ import {
 } from '../../../lib/contactCache';
 import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
+import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
 
 const CONTACTS_PAGE_LIMIT = 50;
 const CONTACT_ITEM_HEIGHT = 92;
@@ -141,25 +142,27 @@ export const ContactsScreen: React.FC = () => {
 
     const openChat = useCallback((contact: UserContact) => {
         runWithNavigationLock(() => {
+            const fallbackLabel = t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
             setChatRecipient(contact);
             requestAnimationFrame(() => {
                 navigation.navigate('Chat', {
                     userId: contact.ID,
-                    name: (contact.spiritualName || contact.karmicName || '').trim() || undefined,
+                    name: resolveUserDisplayName(contact, { fallbackLabel }) || undefined,
                 });
             });
         });
-    }, [navigation, runWithNavigationLock, setChatRecipient]);
+    }, [navigation, runWithNavigationLock, setChatRecipient, t]);
 
     const openCall = useCallback((contact: UserContact) => {
         runWithNavigationLock(() => {
+            const fallbackLabel = t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
             navigation.navigate('CallScreen', {
                 targetId: contact.ID,
                 isIncoming: false,
-                callerName: contact.spiritualName || contact.karmicName || 'User',
+                callerName: resolveUserDisplayName(contact, { fallbackLabel }) || fallbackLabel,
             });
         });
-    }, [navigation, runWithNavigationLock]);
+    }, [navigation, runWithNavigationLock, t]);
 
     const allContactsQuery = useInfiniteQuery({
         queryKey: ['contacts', 'all', debouncedSearch, filterCities.join(',')],
@@ -555,6 +558,7 @@ export const ContactsScreen: React.FC = () => {
         const isFriend = friendIdsSet.has(item.ID);
         const nameColor = usePhotoBg ? '#ffffff' : vTheme.colors.text;
         const descColor = usePhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
+        const fallbackLabel = t('contacts.userFallback', { id: item.ID, defaultValue: `User #${item.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
 
         const stringToColor = (str: string) => {
             let hash = 0;
@@ -564,8 +568,9 @@ export const ContactsScreen: React.FC = () => {
             const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
             return '#' + '00000'.substring(0, 6 - c.length) + c;
         };
-        const displayName = item.spiritualName || item.karmicName || item.nickname || '';
-        const avatarLetter = displayName ? displayName.replace('@', '').charAt(0).toUpperCase() : '?';
+        const displayName = resolveUserDisplayName(item, { fallbackLabel });
+        const avatarLetter = resolveUserDisplayInitial(item, { fallbackLabel });
+        const nicknameLabel = resolveUserNicknameLabel(item);
         const avatarBgColor = stringToColor(displayName || item.ID.toString());
 
         return (
@@ -640,11 +645,11 @@ export const ContactsScreen: React.FC = () => {
                 <View style={styles.contactInfo}>
                     <View style={styles.nameRow}>
                         <Text style={[styles.contactName, { color: nameColor }]} numberOfLines={1} ellipsizeMode="tail">
-                            {item.spiritualName || item.karmicName}
+                            {displayName}
                         </Text>
                     </View>
                     <Text style={[styles.contactDesc, { color: descColor }]} numberOfLines={1}>
-                        {item.nickname ? `@${item.nickname} · ` : ''}
+                        {nicknameLabel ? `${nicknameLabel} · ` : ''}
                         {online
                             ? `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
                             : (lastSeenText || `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`)}

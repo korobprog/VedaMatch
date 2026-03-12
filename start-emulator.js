@@ -33,7 +33,7 @@ function getConnectedDevices() {
         const output = execSync(`"${ADB_PATH}" devices`, { encoding: 'utf-8' });
         const lines = output.trim().split('\n').slice(1); // Пропускаем заголовок
         return lines
-            .filter(line => line.includes('device') || line.includes('emulator'))
+            .filter(line => /\sdevice$/.test(line.trim()))
             .map(line => line.split('\t')[0])
             .filter(device => device);
     } catch (error) {
@@ -42,9 +42,12 @@ function getConnectedDevices() {
     }
 }
 
+function getRunningEmulators() {
+    return getConnectedDevices().filter(device => device.startsWith('emulator-'));
+}
+
 function isEmulatorRunning() {
-    const devices = getConnectedDevices();
-    return devices.some(device => device.startsWith('emulator-'));
+    return getRunningEmulators().length > 0;
 }
 
 function startEmulator(emulatorName) {
@@ -60,29 +63,35 @@ function startEmulator(emulatorName) {
     console.log(`📱 Эмулятор ${emulatorName} запущен в фоновом режиме`);
 }
 
-function waitForEmulator(timeout = 120000) {
+function waitForEmulator(existingEmulators = [], timeout = 120000) {
     return new Promise((resolve, reject) => {
         const startTime = Date.now();
         console.log('⏳ Ожидаю готовности эмулятора...');
 
         const checkInterval = setInterval(() => {
-            if (isEmulatorRunning()) {
+            const runningEmulators = getRunningEmulators();
+            const nextEmulator = runningEmulators.find(device => !existingEmulators.includes(device)) || runningEmulators[0];
+
+            if (nextEmulator) {
                 clearInterval(checkInterval);
 
                 // Дополнительно ждём пока устройство полностью загрузится
-                console.log('📱 Эмулятор обнаружен, проверяю готовность...');
+                console.log(`📱 Эмулятор обнаружен (${nextEmulator}), проверяю готовность...`);
 
                 setTimeout(() => {
                     try {
                         // Проверяем что устройство загружено
-                        execSync(`"${ADB_PATH}" shell getprop sys.boot_completed`, { encoding: 'utf-8', timeout: 10000 });
+                        const bootStatus = execSync(`"${ADB_PATH}" -s ${nextEmulator} shell getprop sys.boot_completed`, { encoding: 'utf-8', timeout: 10000 }).trim();
+                        if (bootStatus !== '1') {
+                            throw new Error(`sys.boot_completed=${bootStatus || 'empty'}`);
+                        }
                         console.log('✅ Эмулятор готов к работе!');
-                        resolve();
+                        resolve(nextEmulator);
                     } catch {
                         // Если не удалось проверить, просто подождём ещё немного
                         setTimeout(() => {
-                            console.log('✅ Эмулятор должен быть готов');
-                            resolve();
+                            console.log(`✅ Эмулятор ${nextEmulator} должен быть готов`);
+                            resolve(nextEmulator);
                         }, 5000);
                     }
                 }, 3000);
@@ -99,13 +108,14 @@ async function main() {
 
     // Проверяем, запущен ли уже эмулятор
     if (isEmulatorRunning()) {
-        const devices = getConnectedDevices();
-        console.log(`✅ Эмулятор уже запущен: ${devices.filter(d => d.startsWith('emulator-')).join(', ')}`);
+        const emulators = getRunningEmulators();
+        const activeEmulator = emulators[0];
+        console.log(`✅ Эмулятор уже запущен: ${emulators.join(', ')}`);
 
         // Ensure reverse proxy is active for already running emulator
         try {
-            console.log('🔄 Настраиваю ADB reverse proxy (localhost:8000 -> device:8000)...');
-            execSync(`"${ADB_PATH}" reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
+            console.log(`🔄 Настраиваю ADB reverse proxy для ${activeEmulator} (localhost:8000 -> device:8000)...`);
+            execSync(`"${ADB_PATH}" -s ${activeEmulator} reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
             console.log('✅ ADB Reverse настроен успешно');
         } catch (e) {
             console.warn('⚠️ Ошибка настройки ADB reverse:', e.message);
@@ -134,20 +144,21 @@ async function main() {
     console.log(`📱 Выбран эмулятор: ${selectedEmulator}\n`);
 
     // Запускаем эмулятор
+    const emulatorsBeforeStart = getRunningEmulators();
     startEmulator(selectedEmulator);
 
     // Ожидаем готовности
     try {
-        await waitForEmulator();
+        const emulatorSerial = await waitForEmulator(emulatorsBeforeStart);
 
         try {
-            console.log('🔄 Настраиваю ADB reverse proxy (localhost:8000 -> device:8000)...');
-            execSync(`"${ADB_PATH}" reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
+            console.log(`🔄 Настраиваю ADB reverse proxy для ${emulatorSerial} (localhost:8000 -> device:8000)...`);
+            execSync(`"${ADB_PATH}" -s ${emulatorSerial} reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
         } catch (e) {
             console.warn('⚠️ Ошибка настройки ADB reverse:', e.message);
         }
 
-        console.log('\n🎉 Эмулятор готов! Продолжаю запуск...\n');
+        console.log(`\n🎉 Эмулятор ${emulatorSerial} готов! Продолжаю запуск...\n`);
         process.exit(0);
     } catch (error) {
         console.error('\n❌ Ошибка:', error.message);

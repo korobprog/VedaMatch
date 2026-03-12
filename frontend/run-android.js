@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 
@@ -13,6 +13,10 @@ const ANDROID_SDK = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || 
 
 // Determine ADB path
 const ADB_PATH = path.join(ANDROID_SDK, 'platform-tools', isWindows ? 'adb.exe' : 'adb');
+const startEmulatorScript = path.join(__dirname, '..', 'start-emulator.js');
+
+const packageName = 'com.ragagent';
+const activity = '.MainActivity';
 
 console.log('🔧 Initializing Android run sequence...');
 
@@ -27,6 +31,60 @@ try {
   console.error('⚠️ Warning: fix-metro-port.js failed', e.message);
 }
 
+function getConnectedDevices() {
+  try {
+    const output = execSync(`"${ADB_PATH}" devices`, { encoding: 'utf-8', env });
+    return output
+      .split('\n')
+      .slice(1)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => /\sdevice$/.test(line))
+      .map((line) => line.split(/\s+/)[0]);
+  } catch (error) {
+    console.error('⚠️ Failed to read adb devices:', error.message);
+    return [];
+  }
+}
+
+function pickAndroidTarget(devices) {
+  return devices.find((device) => device.startsWith('emulator-')) || devices[0] || null;
+}
+
+function ensureAndroidTarget() {
+  const devices = getConnectedDevices();
+  const selectedExistingTarget = pickAndroidTarget(devices);
+  if (devices.length > 0) {
+    console.log(`📱 Found Android targets: ${devices.join(', ')}`);
+    console.log(`🎯 Selected Android target: ${selectedExistingTarget}`);
+    return selectedExistingTarget;
+  }
+
+  console.log('📭 No Android devices detected. Starting emulator...');
+  const result = spawnSync('node', [startEmulatorScript], {
+    cwd: __dirname,
+    env,
+    encoding: 'utf-8',
+    stdio: 'inherit',
+  });
+
+  if (result.status !== 0) {
+    console.error('❌ Failed to start Android emulator.');
+    process.exit(result.status || 1);
+  }
+
+  const startedDevices = getConnectedDevices();
+  if (startedDevices.length === 0) {
+    console.error('❌ Emulator script finished, but no Android target is available.');
+    process.exit(1);
+  }
+
+  const selectedStartedTarget = pickAndroidTarget(startedDevices);
+  console.log(`✅ Android targets ready: ${startedDevices.join(', ')}`);
+  console.log(`🎯 Selected Android target: ${selectedStartedTarget}`);
+  return selectedStartedTarget;
+}
+
 // 2. Build & Install
 const androidDir = path.join(__dirname, 'android');
 const gradlew = isWindows ? 'gradlew.bat' : './gradlew';
@@ -39,11 +97,11 @@ if (!isWindows) {
   }
 }
 
-const installCmd = `${gradlew} app:installDebug -PreactNativeDevServerPort=8081`;
+const installArgs = ['app:installDebug', '-PreactNativeDevServerPort=8081'];
 
 console.log(`🏗️ Building and installing app on Android...`);
 console.log(`📂 cwd: ${androidDir}`);
-console.log(`👉 cmd: ${installCmd}`);
+console.log(`👉 cmd: ${gradlew} ${installArgs.join(' ')}`);
 
 // Set JAVA_HOME if on macOS and it exists
 let env = { ...process.env };
@@ -57,20 +115,68 @@ if (os.platform() === 'darwin') {
   } catch (e) { }
 }
 
-try {
-  execSync(installCmd, { cwd: androidDir, stdio: 'inherit', env });
-} catch (error) {
-  console.error('❌ Build failed. Please check the logs.');
-  process.exit(1);
+const targetDevice = ensureAndroidTarget();
+if (targetDevice) {
+  env.ANDROID_SERIAL = targetDevice;
+}
+
+function runGradleInstall() {
+  const result = spawnSync(gradlew, installArgs, {
+    cwd: androidDir,
+    env,
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+
+  return result;
+}
+
+function tryUninstallConflictingDebugBuild() {
+  try {
+    console.log(`🧹 Removing conflicting app build from ${targetDevice}: ${packageName}`);
+    execSync(`"${ADB_PATH}" -s ${targetDevice} uninstall ${packageName}`, { stdio: 'inherit', env });
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to remove conflicting app build.');
+    return false;
+  }
+}
+
+const firstInstall = runGradleInstall();
+const firstOutput = `${firstInstall.stdout || ''}\n${firstInstall.stderr || ''}`;
+const hasSignatureConflict = firstOutput.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE');
+
+if (firstInstall.status !== 0) {
+  if (hasSignatureConflict) {
+    console.warn('⚠️ Existing app signature does not match debug build. Retrying after uninstall...');
+    const removed = tryUninstallConflictingDebugBuild();
+
+    if (removed) {
+      const retryInstall = runGradleInstall();
+      if (retryInstall.status !== 0) {
+        console.error('❌ Build failed after removing conflicting app build.');
+        process.exit(retryInstall.status || 1);
+      }
+    } else {
+      process.exit(firstInstall.status || 1);
+    }
+  } else {
+    console.error('❌ Build failed. Please check the logs.');
+    process.exit(firstInstall.status || 1);
+  }
 }
 
 // 3. Launch App
-const packageName = 'com.ragagent';
-const activity = '.MainActivity';
-
 console.log(`🚀 Launching ${packageName}/${activity}...`);
 try {
-  execSync(`"${ADB_PATH}" shell am start -n ${packageName}/${activity}`, { stdio: 'inherit' });
+  execSync(`"${ADB_PATH}" -s ${targetDevice} shell am start -n ${packageName}/${activity}`, { stdio: 'inherit', env });
   console.log('✅ App launched successfully!');
 } catch (error) {
   console.error('❌ Failed to launch app.');

@@ -20,6 +20,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { isColorLight, isGradientLight } from '../utils/chatBackgroundContrast';
 import { invalidateContactsCaches } from '../lib/contactCache';
 import { queryClient } from '../lib/queryClient';
+import { resolveUserDisplayName } from '../utils/userDisplay';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -42,6 +43,13 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const [shareLoading, setShareLoading] = useState(false);
     const [shareContacts, setShareContacts] = useState<Array<{ id: number; title: string; subtitle: string }>>([]);
     const [chatPreference, setChatPreference] = useState<{ muted?: boolean; pinned?: boolean }>({});
+    const recipientDisplayName = useMemo(() => {
+        if (!recipientUser) {
+            return 'VedaMatch';
+        }
+        const fallbackLabel = t('contacts.userFallback', { id: recipientUser.ID, defaultValue: `User #${recipientUser.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
+        return resolveUserDisplayName(recipientUser, { fallbackLabel });
+    }, [recipientUser, t]);
     const chatScreenCopy = useMemo(() => {
         const language = String(i18n.language || '').toLowerCase();
         if (language.startsWith('hi')) {
@@ -272,7 +280,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             entryPoint: 'abuse_report',
             reportType: 'user',
             reportedUserId: recipientUser.ID,
-            reportedUserName: recipientUser.spiritualName || recipientUser.karmicName || `User ${recipientUser.ID}`,
+            reportedUserName: recipientDisplayName,
         });
     };
 
@@ -282,7 +290,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             navigation.navigate('CallScreen', {
                 targetId: recipientUser.ID,
                 isIncoming: false,
-                callerName: recipientUser.spiritualName || recipientUser.karmicName || 'User'
+                callerName: recipientDisplayName
             });
         }
     };
@@ -356,7 +364,9 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 .filter((contact) => contact.ID !== recipientUser.ID)
                 .map((contact) => ({
                     id: contact.ID,
-                    title: contact.spiritualName || contact.karmicName || contact.nickname || `User ${contact.ID}`,
+                    title: resolveUserDisplayName(contact, {
+                        fallbackLabel: t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User',
+                    }),
                     subtitle: [contact.city, contact.country].filter(Boolean).join(', '),
                 }))
                 .slice(0, 50);
@@ -417,7 +427,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 </Animated.View>
             )}
             <ChatHeader
-                title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "VedaMatch"}
+                title={recipientDisplayName}
                 onSettingsPress={() => setIsMenuOpen(true)}
                 onCallPress={handleCallPress}
                 topInset={insets.top}

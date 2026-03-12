@@ -262,14 +262,11 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: textColorSecondary }]}>
-                                Only shared content is available now. Add an organization in your profile or activate PRO.
+                                Only shared content is available now. Add an organization in your profile. Full catalog access requires an active PRO status on your account.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
                                     <Text style={{ color: textColorPrimary }}>Profile</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
-                                    <Text style={{ color: roleColors.accent, fontWeight: '700' }}>PRO</Text>
                                 </TouchableOpacity>
                             </View>
                         </>

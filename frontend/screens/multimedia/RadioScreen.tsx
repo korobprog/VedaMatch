@@ -147,14 +147,11 @@ export const RadioScreen: React.FC = () => {
                     ) : (
                         <>
                             <Text style={[styles.scopeText, { color: roleColors.textSecondary }]}>
-                                Only the shared stream is available right now. Add an organization to your profile or enable PRO.
+                                Only the shared stream is available right now. Add an organization to your profile. Full access requires an active PRO status on your account.
                             </Text>
                             <View style={styles.scopeActions}>
                                 <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.border }]} onPress={() => navigation.navigate('EditProfile')}>
                                     <Text style={{ color: roleColors.textPrimary }}>Profile</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.scopeBtn, { borderColor: roleColors.accent }]} onPress={() => navigation.navigate('ProPlans')}>
-                                    <Text style={{ color: roleColors.accent, fontWeight: '600' }}>PRO</Text>
                                 </TouchableOpacity>
                             </View>
                         </>
