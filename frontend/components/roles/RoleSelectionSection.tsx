@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GestureResponderEvent, Image, InteractionManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, InteractionManager, ListRenderItemInfo, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Compass, HelpCircle, Heart, Infinity, Leaf } from 'lucide-react-native';
 import { ROLE_OPTIONS } from '../../constants/roleOptions';
 import { PortalBlueprint, PortalRole } from '../../types/portalBlueprint';
@@ -15,6 +15,9 @@ interface RoleSelectionSectionProps {
   onHorizontalSwipeActiveChange?: (active: boolean) => void;
 }
 
+const CARD_WIDTH = 224;
+const CARD_GAP = 12;
+
 const roleIcon = (role: string, color: string) => {
   if (role === 'in_goodness') return <Leaf size={14} color={color} />;
   if (role === 'yogi') return <Infinity size={14} color={color} />;
@@ -29,8 +32,10 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   autoOpenHint = false,
   onHorizontalSwipeActiveChange,
 }) => {
+  const { width: windowWidth } = useWindowDimensions();
   const { i18n } = useTranslation();
   const { colors } = useRoleTheme(selectedRole, true);
+  const listRef = useRef<FlatList<(typeof ROLE_OPTIONS)[number]> | null>(null);
   const roleCopy = {
     ru: {
       sectionTitle: 'Роль в портале',
@@ -73,8 +78,9 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   ), [localized]);
   const [infoRole, setInfoRole] = useState<PortalRole | null>(null);
   const autoOpenedRef = useRef(false);
-  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const horizontalSwipeActiveRef = useRef(false);
+  const sideInset = useMemo(() => Math.max(16, Math.round((windowWidth - CARD_WIDTH) / 2)), [windowWidth]);
+  const snapInterval = CARD_WIDTH + CARD_GAP;
 
   const setHorizontalSwipeActive = useCallback((active: boolean) => {
     if (horizontalSwipeActiveRef.current === active) return;
@@ -111,27 +117,88 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
     return [...(resolveLocalizedRole(infoRole).servicesHint || [])];
   }, [blueprints, infoRole, resolveLocalizedRole]);
 
-  const handleHorizontalTouchStart = (event: GestureResponderEvent) => {
-    const { pageX, pageY } = event.nativeEvent;
-    swipeStartRef.current = { x: pageX, y: pageY };
-    setHorizontalSwipeActive(false);
-  };
+  const getItemLayout = useCallback((_: ArrayLike<(typeof ROLE_OPTIONS)[number]> | null | undefined, index: number) => ({
+    index,
+    length: snapInterval,
+    offset: index * snapInterval,
+  }), [snapInterval]);
 
-  const handleHorizontalTouchMove = (event: GestureResponderEvent) => {
-    const start = swipeStartRef.current;
-    if (!start) return;
-    const { pageX, pageY } = event.nativeEvent;
-    const dx = Math.abs(pageX - start.x);
-    const dy = Math.abs(pageY - start.y);
-    if (dx > 6 && dx > dy) {
-      setHorizontalSwipeActive(true);
+  useEffect(() => {
+    const selectedIndex = ROLE_OPTIONS.findIndex((option) => option.id === selectedRole);
+    if (selectedIndex < 0) {
+      return;
     }
-  };
+    const task = InteractionManager.runAfterInteractions(() => {
+      listRef.current?.scrollToOffset({
+        offset: selectedIndex * snapInterval,
+        animated: true,
+      });
+    });
+    return () => task.cancel();
+  }, [selectedRole, snapInterval]);
 
-  const handleHorizontalTouchEnd = () => {
-    swipeStartRef.current = null;
+  const handleHorizontalScrollEnd = useCallback(() => {
     setHorizontalSwipeActive(false);
-  };
+  }, [setHorizontalSwipeActive]);
+
+  const renderRoleCard = useCallback(({ item: option }: ListRenderItemInfo<(typeof ROLE_OPTIONS)[number]>) => {
+    const selected = selectedRole === option.id;
+    const optionCopy = resolveLocalizedRole(option.id);
+    return (
+      <Pressable
+        onPress={() => onSelectRole(option.id)}
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+            marginRight: CARD_GAP,
+          },
+          selected && {
+            borderColor: option.highlightColor,
+            shadowColor: option.highlightColor,
+            shadowOpacity: 0.22,
+            shadowRadius: 10,
+            elevation: 5,
+          },
+        ]}
+        testID={`role-card-${option.id}`}
+      >
+        <View style={[styles.topAccent, { backgroundColor: option.highlightColor }]} />
+
+        <View style={styles.imageWrap}>
+          <Image source={option.image} style={styles.image} resizeMode="cover" />
+          <Pressable
+            onPress={() => setInfoRole(option.id)}
+            hitSlop={10}
+            style={[styles.helpButton, { backgroundColor: colors.overlay, borderColor: colors.border }]}
+            testID={`role-help-${option.id}`}
+          >
+            <HelpCircle size={16} color="#FFFFFF" />
+          </Pressable>
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }, selected && { color: option.highlightColor }]}>
+              {optionCopy.title}
+            </Text>
+            <View style={[styles.iconBadge, { backgroundColor: `${option.highlightColor}20` }]}>
+              {roleIcon(option.id, option.highlightColor)}
+            </View>
+          </View>
+          <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{optionCopy.subtitle}</Text>
+          <Text style={[styles.cardDescription, { color: colors.textPrimary }]}>{optionCopy.description}</Text>
+
+          {selected && (
+            <View style={[styles.selectedChip, { backgroundColor: option.highlightColor }]}>
+              <Text style={styles.selectedText}>{localized.activeRole}</Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  }, [colors.border, colors.overlay, colors.surface, colors.textPrimary, colors.textSecondary, localized.activeRole, onSelectRole, resolveLocalizedRole, selectedRole]);
 
   return (
     <View style={styles.section}>
@@ -142,80 +209,29 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
         </Text>
       </View>
 
-      <ScrollView
+      <FlatList
+        ref={listRef}
+        data={ROLE_OPTIONS}
         horizontal
-        nestedScrollEnabled
+        keyExtractor={(item) => item.id}
+        renderItem={renderRoleCard}
+        getItemLayout={getItemLayout}
+        initialNumToRender={ROLE_OPTIONS.length}
+        maxToRenderPerBatch={ROLE_OPTIONS.length}
+        windowSize={3}
         directionalLockEnabled
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.row}
-        onTouchStart={handleHorizontalTouchStart}
-        onTouchMove={handleHorizontalTouchMove}
-        onTouchEnd={handleHorizontalTouchEnd}
-        onTouchCancel={handleHorizontalTouchEnd}
+        nestedScrollEnabled
+        decelerationRate="fast"
+        disableIntervalMomentum
+        snapToInterval={snapInterval}
+        snapToAlignment="start"
+        contentContainerStyle={[styles.row, { paddingHorizontal: sideInset, paddingRight: sideInset - CARD_GAP }]}
         onScrollBeginDrag={() => setHorizontalSwipeActive(true)}
-        onScrollEndDrag={handleHorizontalTouchEnd}
-        onMomentumScrollEnd={handleHorizontalTouchEnd}
-      >
-        {ROLE_OPTIONS.map((option) => {
-          const selected = selectedRole === option.id;
-          const optionCopy = resolveLocalizedRole(option.id);
-          return (
-            <Pressable
-              key={option.id}
-              onPress={() => onSelectRole(option.id)}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-              selected && {
-                borderColor: option.highlightColor,
-                shadowColor: option.highlightColor,
-                shadowOpacity: 0.22,
-                shadowRadius: 10,
-                  elevation: 5,
-                },
-              ]}
-              testID={`role-card-${option.id}`}
-            >
-              <View style={[styles.topAccent, { backgroundColor: option.highlightColor }]} />
-
-              <View style={styles.imageWrap}>
-                <Image source={option.image} style={styles.image} resizeMode="cover" />
-                <Pressable
-                  onPress={() => setInfoRole(option.id)}
-                  hitSlop={10}
-                  style={[styles.helpButton, { backgroundColor: colors.overlay, borderColor: colors.border }]}
-                  testID={`role-help-${option.id}`}
-                >
-                  <HelpCircle size={16} color="#FFFFFF" />
-                </Pressable>
-              </View>
-
-              <View style={styles.content}>
-                <View style={styles.titleRow}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }, selected && { color: option.highlightColor }]}>
-                  {optionCopy.title}
-                </Text>
-                  <View style={[styles.iconBadge, { backgroundColor: `${option.highlightColor}20` }]}>
-                    {roleIcon(option.id, option.highlightColor)}
-                  </View>
-                </View>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{optionCopy.subtitle}</Text>
-                <Text style={[styles.cardDescription, { color: colors.textPrimary }]}>{optionCopy.description}</Text>
-
-                {selected && (
-                  <View style={[styles.selectedChip, { backgroundColor: option.highlightColor }]}>
-                    <Text style={styles.selectedText}>{localized.activeRole}</Text>
-                  </View>
-                )}
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+        onScrollEndDrag={handleHorizontalScrollEnd}
+        onMomentumScrollEnd={handleHorizontalScrollEnd}
+      />
 
       <RoleInfoModal
         visible={!!infoRole}
@@ -254,12 +270,10 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   row: {
-    paddingHorizontal: 16,
-    paddingRight: 26,
-    gap: 12,
+    paddingVertical: 2,
   },
   card: {
-    width: 224,
+    width: CARD_WIDTH,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.24)',

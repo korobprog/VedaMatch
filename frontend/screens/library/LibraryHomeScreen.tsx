@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, InteractionManager, Platform } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, BackHandler, InteractionManager, Platform } from 'react-native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import { libraryService } from '../../services/libraryService';
@@ -8,13 +8,14 @@ import { offlineBookService, formatBytes } from '../../services/offlineBookServi
 import { ScriptureBook } from '../../types/library';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { BookOpenText, Sparkles, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, BookOpenText, Sparkles, ChevronRight } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { ScreenScaffold } from '../../components/theme/ScreenScaffold';
+import { handleAiBackNavigation, withAiNavigationMeta } from '../../utils/aiNavigation';
 
 type BookCardProps = {
     item: ScriptureBook;
@@ -159,6 +160,7 @@ const BookCard = React.memo<BookCardProps>(({
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const route = useRoute<any>();
     const { user } = useUser();
     const { i18n } = useTranslation();
     const { isDarkMode, portalBackgroundType } = useSettings();
@@ -182,6 +184,7 @@ export const LibraryHomeScreen = () => {
     const isMountedRef = useRef(true);
     const savedBooksSet = useMemo(() => new Set(savedBooks), [savedBooks]);
     const reducedVisuals = Platform.OS === 'android';
+    const aiMeta = route.params;
     const listTuning = useMemo(() => (
         Platform.OS === 'android'
             ? {
@@ -197,6 +200,19 @@ export const LibraryHomeScreen = () => {
                 updateCellsBatchingPeriod: 50,
             }
     ), []);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (aiMeta?.origin !== 'ai_chat') {
+                return undefined;
+            }
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                handleAiBackNavigation(navigation as any, aiMeta);
+                return true;
+            });
+            return () => subscription.remove();
+        }, [aiMeta, navigation]),
+    );
 
     const loadSavedBooksInfo = useCallback(async () => {
         try {
@@ -279,8 +295,11 @@ export const LibraryHomeScreen = () => {
     }, [loadBooks]);
 
     const handleBookPress = useCallback((book: ScriptureBook) => {
-        navigation.navigate('Reader', { bookCode: book.code, title: getBookTitle(book) });
-    }, [getBookTitle, navigation]);
+        navigation.navigate('Reader', withAiNavigationMeta({
+            bookCode: book.code,
+            title: getBookTitle(book),
+        }, aiMeta?.returnTo || 'chat'));
+    }, [aiMeta?.returnTo, getBookTitle, navigation]);
 
     const handleSaveBook = useCallback(async (book: ScriptureBook) => {
         if (savingBook) return; // Already saving
@@ -421,6 +440,18 @@ export const LibraryHomeScreen = () => {
         <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
             <GodModeStatusBanner />
             <View style={styles.headerWrap}>
+                {aiMeta?.origin === 'ai_chat' ? (
+                    <TouchableOpacity
+                        onPress={() => handleAiBackNavigation(navigation as any, aiMeta)}
+                        style={[styles.backChip, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.surfaceElevated, borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border }]}
+                        activeOpacity={0.85}
+                    >
+                        <ArrowLeft size={14} color={isPhotoBg ? '#FFFFFF' : roleColors.textPrimary} />
+                        <Text style={[styles.backChipText, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                            {t('common.back', 'Back')}
+                        </Text>
+                    </TouchableOpacity>
+                ) : null}
                 <View style={[styles.headerChip, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border }]}>
                     <Sparkles size={14} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
                     <Text style={[styles.headerChipText, { color: isPhotoBg ? '#FFFFFF' : roleColors.textSecondary }]}>
@@ -481,6 +512,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 16,
         marginBottom: 8,
+        gap: 10,
+    },
+    backChip: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    backChipText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
     headerChip: {
         alignSelf: 'flex-start',

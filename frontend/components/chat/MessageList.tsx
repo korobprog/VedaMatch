@@ -35,6 +35,7 @@ import { ragService } from '../../services/ragService';
 import { getMediaUrl } from '../../utils/url';
 import { isColorLight, isGradientLight } from '../../utils/chatBackgroundContrast';
 import type { RootStackParamList } from '../../types/navigation';
+import { withAiNavigationMeta } from '../../utils/aiNavigation';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -74,6 +75,8 @@ const MAP_BUTTON_TEXT_STYLE = {
 };
 type RootNavigation = NativeStackNavigationProp<RootStackParamList>;
 type InternalNavigationTarget =
+    | { screen: 'LibraryHome'; params: RootStackParamList['LibraryHome'] }
+    | { screen: 'BookList'; params: RootStackParamList['BookList'] }
     | { screen: 'Reader'; params: RootStackParamList['Reader'] }
     | { screen: 'ProductDetails'; params: RootStackParamList['ProductDetails'] }
     | { screen: 'ShopDetails'; params: RootStackParamList['ShopDetails'] }
@@ -465,6 +468,12 @@ export const MessageList: React.FC<MessageListProps> = ({
                 bookCode = bookCode || pathCode;
             }
         }
+        if (trimmedUrl === '/library' || trimmedUrl === '/library/books') {
+            return {
+                screen: 'LibraryHome',
+                params: undefined,
+            };
+        }
         if (trimmedUrl.startsWith('/library/verses')) {
             try {
                 const parsedUrl = new URL(trimmedUrl, 'https://vedamatch.local');
@@ -526,7 +535,18 @@ export const MessageList: React.FC<MessageListProps> = ({
         try {
             const parsedUrl = new URL(trimmedUrl, 'https://vedamatch.local');
             const path = parsedUrl.pathname.replace(/\/+$/, '');
-            let match = path.match(/^\/products\/(\d+)$/);
+            let match = path.match(/^\/library\/categories\/([^/]+)$/);
+            if (match) {
+                const category = decodeURIComponent(match[1]);
+                return {
+                    screen: 'BookList',
+                    params: {
+                        category,
+                        title: String(title || category).trim(),
+                    },
+                };
+            }
+            match = path.match(/^\/products\/(\d+)$/);
             if (match) {
                 return { screen: 'ProductDetails', params: { productId: Number(match[1]) } };
             }
@@ -584,7 +604,13 @@ export const MessageList: React.FC<MessageListProps> = ({
     ): boolean => {
         const navigationTarget = parseInternalAppRoute(rawUrl, metadata, title);
         if (navigationTarget) {
-            (navigation as any).navigate(navigationTarget.screen, navigationTarget.params);
+            (navigation as any).navigate(
+                navigationTarget.screen,
+                withAiNavigationMeta(
+                    (navigationTarget.params || undefined) as Record<string, unknown> | undefined,
+                    'chat',
+                ),
+            );
             return true;
         }
         return false;

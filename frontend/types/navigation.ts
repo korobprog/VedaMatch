@@ -40,6 +40,11 @@ export type VideoCirclePlayerPayload = {
     chatCount: number;
 };
 
+export type AiNavigationMeta = {
+    origin?: 'ai_chat';
+    returnTo?: 'chat' | 'portal';
+};
+
 export type RootStackParamList = {
     Preview: undefined;
     LegalDocument: { type: 'terms' | 'privacy' | 'account-deletion'; language?: 'en' | 'ru' | 'hi' };
@@ -66,11 +71,11 @@ export type RootStackParamList = {
     DatingHome: undefined;
     CafeHome: undefined;
     NewsHome: undefined;
-    LibraryHome: undefined;
+    LibraryHome: AiNavigationMeta | undefined;
     ContactsHome: undefined;
     CallsHome: undefined;
     RoomsHome: undefined;
-    ContactProfile: { userId: number };
+    ContactProfile: { userId: number } & AiNavigationMeta;
     AppSettings: undefined;
     LinkedAccounts: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;
@@ -103,21 +108,21 @@ export type RootStackParamList = {
     EditDatingProfile: { userId: number };
     DatingFavorites: undefined;
     Chat: { userId?: number; name?: string } | undefined;
-    BookList: { category: string; title: string };
-    Reader: { bookCode: string; title: string; chapter?: number; verse?: string; canto?: number };
-    NewsDetail: { newsId: number };
+    BookList: { category: string; title: string } & AiNavigationMeta;
+    Reader: { bookCode: string; title: string; chapter?: number; verse?: string; canto?: number } & AiNavigationMeta;
+    NewsDetail: { newsId: number } & AiNavigationMeta;
 
     // Market Routes
     MarketHome: undefined;
     Shops: undefined;
-    ShopDetails: { shopId: number };
+    ShopDetails: { shopId: number } & AiNavigationMeta;
     CreateShop: undefined;
     EditShop: { shopId: number };
     SellerDashboard: undefined;
     CreateProduct: undefined;
     EditProduct: { productId: number };
     MyProducts: undefined;
-    ProductDetails: { productId: number };
+    ProductDetails: { productId: number } & AiNavigationMeta;
     Checkout: {
         items?: CartItem[];
         shopId?: number;
@@ -137,8 +142,8 @@ export type RootStackParamList = {
     CreateCafe: { cafeId?: number } | undefined;
     EditCafe: { cafeId: number };
     CafesMap: undefined;
-    CafeDetail: { cafeId: number; tableId?: number; tableNumber?: string };
-    DishDetail: { cafeId: number; dishId: number; cafeName?: string };
+    CafeDetail: { cafeId: number; tableId?: number; tableNumber?: string } & AiNavigationMeta;
+    DishDetail: { cafeId: number; dishId: number; cafeName?: string } & AiNavigationMeta;
     CafeCart: undefined;
     CafeOrderSuccess: { orderId: number; orderNumber: string }; // Renamed from CafeOrderSuccess
     OrderTracking: { orderId: number };
@@ -154,7 +159,7 @@ export type RootStackParamList = {
 
     // Education Routes
     EducationHome: undefined;
-    CourseDetails: { courseId: number };
+    CourseDetails: { courseId: number } & AiNavigationMeta;
     ExamTrainer: { moduleId: number; title: string };
     AITutor: undefined;
     CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string; autoAccept?: boolean };
@@ -182,15 +187,15 @@ export type RootStackParamList = {
 
     // Travel Routes
     TravelHome: undefined;
-    YatraDetail: { yatraId: number };
+    YatraDetail: { yatraId: number } & AiNavigationMeta;
     YatraPublish: { yatraId: number };
-    ShelterDetail: { shelterId: number };
+    ShelterDetail: { shelterId: number } & AiNavigationMeta;
     CreateYatra: { yatraId?: number } | undefined;
     CreateShelter: { shelterId?: number } | undefined;
 
     // Services Routes
     ServicesHome: undefined;
-    ServiceDetail: { serviceId: number };
+    ServiceDetail: { serviceId: number } & AiNavigationMeta;
     ServiceBooking: {
         serviceId: number;
         source?: string;

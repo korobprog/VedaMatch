@@ -1,23 +1,25 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Animated } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Animated, BackHandler } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { libraryService } from '../../services/libraryService';
 import { ScriptureBook } from '../../types/library';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BookOpenText, ChevronRight } from 'lucide-react-native';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import type { RootStackParamList } from '../../types/navigation';
+import { handleAiBackNavigation, withAiNavigationMeta } from '../../utils/aiNavigation';
 
 export const BookListScreen = () => {
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const route = useRoute<any>();
-    const { category } = route.params;
     const { isDarkMode, portalBackgroundType } = useSettings();
     const { user } = useUser();
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [books, setBooks] = useState<ScriptureBook[]>([]);
     const isPhotoBg = portalBackgroundType === 'image';
@@ -27,10 +29,41 @@ export const BookListScreen = () => {
     const getBookDescription = React.useCallback((item: ScriptureBook) => (
         i18n.language?.startsWith('ru') ? (item.description_ru || item.description_en) : (item.description_en || item.description_ru)
     ), [i18n.language]);
+    const aiMeta = route.params;
+
+    const handleBack = useCallback(() => {
+        handleAiBackNavigation(navigation as any, aiMeta);
+    }, [aiMeta, navigation]);
 
     useEffect(() => {
         loadBooks();
     }, []);
+
+    useEffect(() => {
+        if (aiMeta?.origin !== 'ai_chat') {
+            return;
+        }
+        navigation.setOptions({
+            headerLeft: () => (
+                <TouchableOpacity onPress={handleBack} style={styles.headerBackButton} activeOpacity={0.8}>
+                    <ChevronRight size={18} color={roleColors.textPrimary} style={styles.headerBackIcon} />
+                </TouchableOpacity>
+            ),
+        });
+    }, [aiMeta?.origin, handleBack, navigation, roleColors.textPrimary]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (aiMeta?.origin !== 'ai_chat') {
+                return undefined;
+            }
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                handleBack();
+                return true;
+            });
+            return () => subscription.remove();
+        }, [aiMeta?.origin, handleBack]),
+    );
 
     const loadBooks = async () => {
         try {
@@ -77,7 +110,10 @@ export const BookListScreen = () => {
             <Animated.View style={{ transform: [{ translateY }], opacity }}>
                 <TouchableOpacity
                     style={[styles.item, { backgroundColor: cardBackground, borderColor: cardBorder }]}
-                    onPress={() => navigation.navigate('Reader', { bookCode: item.code, title: getBookTitle(item) })}
+                    onPress={() => navigation.navigate('Reader', withAiNavigationMeta({
+                        bookCode: item.code,
+                        title: getBookTitle(item),
+                    }, aiMeta?.returnTo || 'chat'))}
                     activeOpacity={0.8}
                 >
                     {(isPhotoBg || isDarkMode) && (
@@ -176,5 +212,15 @@ const styles = StyleSheet.create({
         borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    headerBackButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerBackIcon: {
+        transform: [{ rotate: '180deg' }],
     },
 });

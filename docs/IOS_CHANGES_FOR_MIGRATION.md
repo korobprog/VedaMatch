@@ -15624,3 +15624,62 @@ didUpdatePushCredentials:(PKPushCredentials *)credentials
     [[self class] didUpdatePushCredentials:credentials forType:(NSString *)type];
 }
 ```
+
+## 2026-03-12
+
+### Измененные файлы
+- `frontend/components/roles/RoleSelectionSection.tsx`
+- `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/utils/aiNavigation.ts`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/screens/library/LibraryHomeScreen.tsx`
+- `frontend/screens/library/BookListScreen.tsx`
+- `frontend/screens/library/ReaderScreen.tsx`
+
+### Суть правки
+- Было:
+  - в `EditProfile` выбор роли использовал `horizontal ScrollView` и ручные `onTouchStart/onTouchMove`, из-за чего карусель роли листалась тяжело и конфликтовала с вертикальным scroll формы;
+  - `EkadashiCalendarScreen` отдавал слишком много высоты вторичным настройкам и слишком мало самой календарной сетке, а светлая тема давала слабый контраст;
+  - переходы из AI-чата во внутренние library/details routes не несли общего origin/back-контракта, из-за чего back-flow мог возвращать в несогласованный stack и визуально давать белый экран.
+- Стало:
+  - `RoleSelectionSection` переведен на `FlatList` со `snapToInterval`, `disableIntervalMomentum`, `getItemLayout` и автоцентрированием выбранной карточки;
+  - `EkadashiCalendarScreen` перестроен вокруг крупной календарной сетки, details выбранного дня подняты выше, а `location/notifications` вынесены в accordion-блоки ниже;
+  - введен shared AI-origin navigation contract (`origin='ai_chat'`, `returnTo`) и helper для безопасного back-flow в library chain и других internal links.
+
+### Короткие сниппеты кода
+`frontend/components/roles/RoleSelectionSection.tsx`:
+```tsx
+<FlatList
+  horizontal
+  snapToInterval={snapInterval}
+  disableIntervalMomentum
+  getItemLayout={getItemLayout}
+/>
+```
+
+`frontend/screens/portal/services/EkadashiCalendarScreen.tsx`:
+```tsx
+const calendarCellSize = useMemo(() => {
+  const availableWidth = Math.max(280, screenWidth - 68);
+  return Math.max(42, Math.min(56, Math.floor(availableWidth / 7) - 4));
+}, [screenWidth]);
+```
+
+`frontend/utils/aiNavigation.ts`:
+```ts
+export const withAiNavigationMeta = (params, returnTo = 'chat') => ({
+  ...(params || {}),
+  origin: 'ai_chat',
+  returnTo,
+});
+```
+
+```ts
+export const handleAiBackNavigation = (navigation, meta, portalParams) => {
+  const target = resolveAiBackTarget(navigation, meta);
+  if (target === 'chat') {
+    navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Chat' }] }));
+  }
+};
+```

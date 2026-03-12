@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
+    Pressable,
     ScrollView,
     StyleSheet,
     Switch,
     Text,
     TextInput,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -61,6 +63,7 @@ const EkadashiCalendarScreen: React.FC = () => {
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const { width: screenWidth } = useWindowDimensions();
 
     const canUseEkadashi = canAccessVedicCalendarRole(user?.role, {
         godModeEnabled: user?.godModeEnabled,
@@ -87,6 +90,23 @@ const EkadashiCalendarScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [locating, setLocating] = useState(false);
+    const [locationExpanded, setLocationExpanded] = useState(false);
+    const [notificationsExpanded, setNotificationsExpanded] = useState(false);
+
+    const surfaceColor = isDarkMode ? colors.surface : '#FFF9EE';
+    const elevatedSurfaceColor = isDarkMode ? colors.background : '#F7E8C3';
+    const screenBackgroundColor = isDarkMode ? colors.background : '#F8F2E6';
+    const borderColor = isDarkMode ? colors.border : 'rgba(133, 91, 19, 0.22)';
+    const primaryTextColor = isDarkMode ? colors.textPrimary : '#2F2412';
+    const secondaryTextColor = isDarkMode ? colors.textSecondary : '#6F5630';
+    const accentSoftColor = isDarkMode ? colors.accentSoft : '#F7DF9B';
+    const calendarCellSize = useMemo(() => {
+        const horizontalPadding = 32 + 36;
+        const availableWidth = Math.max(280, screenWidth - horizontalPadding);
+        return Math.max(42, Math.min(56, Math.floor(availableWidth / 7) - 4));
+    }, [screenWidth]);
+    const dayCircleSize = calendarCellSize;
+    const dayButtonWidth = calendarCellSize + 6;
 
     const monthTitle = useMemo(
         () => currentMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
@@ -314,53 +334,59 @@ const EkadashiCalendarScreen: React.FC = () => {
     }
 
     return (
-        <View style={[styles.screen, { backgroundColor: colors.background }]}> 
-            <View style={[styles.topBar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}> 
-                <TouchableOpacity style={[styles.headerButton, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={18} color={colors.textPrimary} />
+        <View style={[styles.screen, { backgroundColor: screenBackgroundColor }]}> 
+            <View style={[styles.topBar, { borderBottomColor: borderColor, backgroundColor: surfaceColor }]}> 
+                <TouchableOpacity style={[styles.headerButton, { borderColor }]} onPress={() => navigation.goBack()}>
+                    <ArrowLeft size={18} color={primaryTextColor} />
                 </TouchableOpacity>
                 <View style={styles.topBarText}>
-                    <Text style={[styles.title, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.title')}</Text>
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.subtitle')}</Text>
+                    <Text style={[styles.title, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.title')}</Text>
+                    <Text style={[styles.subtitle, { color: secondaryTextColor }]}>{t('portal.ekadashiCalendar.subtitle')}</Text>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+                <View style={[styles.card, styles.calendarCard, { backgroundColor: surfaceColor, borderColor }]}> 
                     <View style={styles.monthRow}>
-                        <TouchableOpacity style={[styles.monthButton, { borderColor: colors.border }]} onPress={() => navigateMonth(-1)}>
-                            <ChevronLeft size={18} color={colors.textPrimary} />
+                        <TouchableOpacity style={[styles.monthButton, { borderColor, backgroundColor: elevatedSurfaceColor }]} onPress={() => navigateMonth(-1)}>
+                            <ChevronLeft size={18} color={primaryTextColor} />
                         </TouchableOpacity>
-                        <Text style={[styles.monthTitle, { color: colors.textPrimary }]}>{monthTitle}</Text>
-                        <TouchableOpacity style={[styles.monthButton, { borderColor: colors.border }]} onPress={() => navigateMonth(1)}>
-                            <ChevronRight size={18} color={colors.textPrimary} />
+                        <Text style={[styles.monthTitle, { color: primaryTextColor }]}>{monthTitle}</Text>
+                        <TouchableOpacity style={[styles.monthButton, { borderColor, backgroundColor: elevatedSurfaceColor }]} onPress={() => navigateMonth(1)}>
+                            <ChevronRight size={18} color={primaryTextColor} />
                         </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity
-                        style={[styles.organizationButton, { borderColor: colors.accent, backgroundColor: colors.accentSoft }]}
+                        style={[styles.organizationButton, { borderColor: colors.accent, backgroundColor: accentSoftColor }]}
                         onPress={() => {
                             handleOrganizationChange().catch(() => undefined);
                         }}
                     >
-                        <Text style={[styles.organizationLabel, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.organizationLabel')}</Text>
-                        <Text style={[styles.organizationValue, { color: colors.textPrimary }]}>
+                        <Text style={[styles.organizationLabel, { color: secondaryTextColor }]}>{t('portal.ekadashiCalendar.organizationLabel')}</Text>
+                        <Text style={[styles.organizationValue, { color: primaryTextColor }]}>
                             {(organizations.find((item) => item.id === organizationId) || resolveOrganizationOption(organizationId)).name}
                         </Text>
                     </TouchableOpacity>
 
+                    {providerNoticeKey ? (
+                        <View style={[styles.noticeBox, { backgroundColor: accentSoftColor, borderColor: colors.accent }]}>
+                            <Text style={[styles.noticeText, { color: primaryTextColor }]}>{t(providerNoticeKey)}</Text>
+                        </View>
+                    ) : null}
+
                     <View style={styles.legendRow}>
                         {CALENDAR_LEGEND_TYPES.map((eventType) => (
-                            <View key={eventType} style={[styles.legendChip, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                            <View key={eventType} style={[styles.legendChip, { borderColor, backgroundColor: elevatedSurfaceColor }]}>
                                 <View style={[styles.legendDot, { backgroundColor: getCalendarEventMarkerColor({ eventType, isMahadvadashi: eventType === 'mahadvadashi', markerStyleKey: eventType }) }]} />
-                                <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t(getCalendarEventLabelKey(eventType))}</Text>
+                                <Text style={[styles.legendText, { color: secondaryTextColor }]}>{t(getCalendarEventLabelKey(eventType))}</Text>
                             </View>
                         ))}
                     </View>
 
-                    <View style={styles.weekRow}>
+                    <View style={[styles.weekRow, { marginBottom: 8 }]}>
                         {weekDays.map((day) => (
-                            <Text key={day} style={[styles.weekDay, { color: colors.textSecondary }]}>
+                            <Text key={day} style={[styles.weekDay, { color: secondaryTextColor, width: dayButtonWidth }]}>
                                 {day}
                             </Text>
                         ))}
@@ -394,15 +420,15 @@ const EkadashiCalendarScreen: React.FC = () => {
                             return (
                                 <TouchableOpacity
                                     key={`${day}-${index}`}
-                                    style={styles.dayButton}
+                                    style={[styles.dayButton, { width: dayButtonWidth }]}
                                     disabled={!day}
                                     onPress={() => {
                                         if (!day) return;
                                         setSelectedDate(buildIsoDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)));
                                     }}
                                 >
-                                    <View style={[styles.dayCircle, dayCircleStyle]}>
-                                        <Text style={[styles.dayText, dayTextStyle]}>{day ?? ''}</Text>
+                                    <View style={[styles.dayCircle, { width: dayCircleSize, height: dayCircleSize, borderRadius: dayCircleSize / 2, backgroundColor: elevatedSurfaceColor }, dayCircleStyle]}>
+                                        <Text style={[styles.dayText, dayTextStyle, !day && styles.emptyDayText]}>{day ?? ''}</Text>
                                         {primaryEvent ? (
                                             <View style={[styles.markerDot, { backgroundColor: getCalendarEventMarkerColor(primaryEvent) }]} />
                                         ) : null}
@@ -417,138 +443,49 @@ const EkadashiCalendarScreen: React.FC = () => {
                         })}
                     </View>
 
-                    {loading ? <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t('common.loading')}</Text> : null}
-                    {providerNoticeKey ? (
-                        <View style={[styles.noticeBox, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
-                            <Text style={[styles.noticeText, { color: colors.textPrimary }]}>{t(providerNoticeKey)}</Text>
-                        </View>
-                    ) : null}
-                </View>
-
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.locationTitle')}</Text>
-                    {!city && organizationId === 'iskcon' ? (
-                        <TouchableOpacity
-                            style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }, locating && styles.primaryButtonDisabled]}
-                            onPress={() => {
-                                handleUseCurrentLocation().catch(() => undefined);
-                            }}
-                            disabled={locating}
-                        >
-                            <Text style={[styles.secondaryButtonText, { color: colors.textPrimary }]}>
-                                {locating ? t('common.loading') : t('portal.ekadashiCalendar.useCurrentLocation')}
-                            </Text>
-                        </TouchableOpacity>
-                    ) : null}
-                    <TextInput
-                        value={city}
-                        onChangeText={setCity}
-                        placeholder={t('portal.ekadashiCalendar.cityPlaceholder')}
-                        placeholderTextColor={colors.textSecondary}
-                        style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
-                    />
-                    <TextInput
-                        value={country}
-                        onChangeText={setCountry}
-                        placeholder={t('portal.ekadashiCalendar.countryPlaceholder')}
-                        placeholderTextColor={colors.textSecondary}
-                        style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
-                    />
-                    <TextInput
-                        value={timezone}
-                        onChangeText={setTimezone}
-                        placeholder={t('portal.ekadashiCalendar.timezonePlaceholder')}
-                        placeholderTextColor={colors.textSecondary}
-                        autoCapitalize="none"
-                        style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
-                    />
-                    <TouchableOpacity
-                        style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                        onPress={() => {
-                            loadCalendar(organizationId, timezone, city, country).catch(() => undefined);
-                        }}
-                    >
-                        <Text style={styles.primaryButtonText}>{t('portal.ekadashiCalendar.refreshCalendar')}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.notificationTitle')}</Text>
-                    <View style={styles.switchRow}>
-                        <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.subscribe')}</Text>
-                        <Switch
-                            value={preferences.enabled}
-                            onValueChange={(value) => setPreferences((prev) => ({ ...prev, enabled: value }))}
-                            trackColor={{ true: colors.accent }}
-                        />
-                    </View>
-                    <View style={styles.switchRow}>
-                        <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.fastStarts')}</Text>
-                        <Switch
-                            value={preferences.fastStartReminder}
-                            onValueChange={(value) => setPreferences((prev) => ({ ...prev, fastStartReminder: value }))}
-                            trackColor={{ true: colors.accent }}
-                        />
-                    </View>
-                    <View style={styles.switchRow}>
-                        <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>{t('portal.ekadashiCalendar.parana')}</Text>
-                        <Switch
-                            value={preferences.paranaReminder}
-                            onValueChange={(value) => setPreferences((prev) => ({ ...prev, paranaReminder: value }))}
-                            trackColor={{ true: colors.accent }}
-                        />
-                    </View>
-                    <TouchableOpacity
-                        style={[styles.primaryButton, { backgroundColor: colors.accent }, saving && styles.primaryButtonDisabled]}
-                        onPress={() => {
-                            handleSavePreferences().catch(() => undefined);
-                        }}
-                        disabled={saving}
-                    >
-                        <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
-                    </TouchableOpacity>
+                    {loading ? <Text style={[styles.helperText, { color: secondaryTextColor }]}>{t('common.loading')}</Text> : null}
                 </View>
 
                 {selectedDate ? (
-                    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                    <View style={[styles.card, styles.detailsCard, { backgroundColor: surfaceColor, borderColor }]}> 
+                        <Text style={[styles.sectionTitle, { color: primaryTextColor }]}>
                             {t('portal.ekadashiCalendar.dayEventsTitle', {
                                 date: new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString(locale, { month: 'long', day: 'numeric' }),
                             })}
                         </Text>
                         {selectedEvents.length === 0 ? (
-                            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.emptyDay')}</Text>
+                            <Text style={[styles.helperText, { color: secondaryTextColor }]}>{t('portal.ekadashiCalendar.emptyDay')}</Text>
                         ) : selectedEvents.map((event) => (
-                            <View key={event.eventId} style={[styles.eventCard, { borderColor: colors.border, backgroundColor: colors.background }]}> 
+                            <View key={event.eventId} style={[styles.eventCard, { borderColor, backgroundColor: elevatedSurfaceColor }]}> 
                                 <View style={styles.eventHeader}>
                                     <View style={[styles.eventMarker, { backgroundColor: getCalendarEventMarkerColor(event) }]} />
                                     <View style={styles.eventHeaderText}>
-                                        <Text style={[styles.eventType, { color: colors.textSecondary }]}>{t(getCalendarEventLabelKey(event.eventType))}</Text>
-                                        <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>{event.title || event.displayTitle}</Text>
+                                        <Text style={[styles.eventType, { color: secondaryTextColor }]}>{t(getCalendarEventLabelKey(event.eventType))}</Text>
+                                        <Text style={[styles.eventTitle, { color: primaryTextColor }]}>{event.title || event.displayTitle}</Text>
                                         {!!(event.subtitle || event.displaySubtitle) && (
-                                            <Text style={[styles.detailLine, { color: colors.textSecondary }]}>{event.subtitle || event.displaySubtitle}</Text>
+                                            <Text style={[styles.detailLine, { color: secondaryTextColor }]}>{event.subtitle || event.displaySubtitle}</Text>
                                         )}
                                     </View>
                                 </View>
                                 {(event.isEkadashi || event.isMahadvadashi) ? (
                                     <>
-                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                        <Text style={[styles.detailLine, { color: primaryTextColor }]}>
                                             {t('portal.ekadashiCalendar.fastStarts')}: {formatEkadashiDateTime(event.fastStartAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
                                         </Text>
-                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                        <Text style={[styles.detailLine, { color: primaryTextColor }]}>
                                             {t('portal.ekadashiCalendar.parana')}: {formatEkadashiDateTime(event.paranaStartAt, locale) || t('portal.ekadashiCalendar.noParanaTime')}
                                         </Text>
-                                        <Text style={[styles.detailLine, { color: colors.textPrimary }]}>
+                                        <Text style={[styles.detailLine, { color: primaryTextColor }]}>
                                             {t('portal.ekadashiCalendar.paranaWindowEnd')}: {formatEkadashiDateTime(event.paranaEndAt, locale) || t('portal.ekadashiCalendar.notAvailable')}
                                         </Text>
                                     </>
                                 ) : null}
-                                <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.observanceNotes')}</Text>
-                                <Text style={[styles.notesText, { color: colors.textPrimary }]}>{event.notes || event.observanceNotes || t('portal.ekadashiCalendar.notAvailable')}</Text>
+                                <Text style={[styles.notesTitle, { color: secondaryTextColor }]}>{t('portal.ekadashiCalendar.observanceNotes')}</Text>
+                                <Text style={[styles.notesText, { color: primaryTextColor }]}>{event.notes || event.observanceNotes || t('portal.ekadashiCalendar.notAvailable')}</Text>
                                 {getEkadashiProviderDetailKey(event.providerDecision) ? (
                                     <>
-                                        <Text style={[styles.notesTitle, { color: colors.textSecondary }]}>{t('portal.ekadashiCalendar.dataSourceTitle')}</Text>
-                                        <Text style={[styles.notesText, { color: colors.textPrimary }]}>
+                                        <Text style={[styles.notesTitle, { color: secondaryTextColor }]}>{t('portal.ekadashiCalendar.dataSourceTitle')}</Text>
+                                        <Text style={[styles.notesText, { color: primaryTextColor }]}>
                                             {t(getEkadashiProviderDetailKey(event.providerDecision) || 'portal.ekadashiCalendar.providerNotices.dbImported')}
                                         </Text>
                                     </>
@@ -557,6 +494,104 @@ const EkadashiCalendarScreen: React.FC = () => {
                         ))}
                     </View>
                 ) : null}
+
+                <View style={[styles.card, styles.accordionCard, { backgroundColor: surfaceColor, borderColor }]}>
+                    <Pressable style={styles.accordionHeader} onPress={() => setLocationExpanded((prev) => !prev)}>
+                        <Text style={[styles.sectionTitle, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.locationTitle')}</Text>
+                        <ChevronDown size={18} color={primaryTextColor} style={!locationExpanded ? styles.collapsedIcon : undefined} />
+                    </Pressable>
+                    {locationExpanded ? (
+                        <View style={styles.accordionContent}>
+                            {!city && organizationId === 'iskcon' ? (
+                                <TouchableOpacity
+                                    style={[styles.secondaryButton, { borderColor, backgroundColor: elevatedSurfaceColor }, locating && styles.primaryButtonDisabled]}
+                                    onPress={() => {
+                                        handleUseCurrentLocation().catch(() => undefined);
+                                    }}
+                                    disabled={locating}
+                                >
+                                    <Text style={[styles.secondaryButtonText, { color: primaryTextColor }]}>
+                                        {locating ? t('common.loading') : t('portal.ekadashiCalendar.useCurrentLocation')}
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : null}
+                            <TextInput
+                                value={city}
+                                onChangeText={setCity}
+                                placeholder={t('portal.ekadashiCalendar.cityPlaceholder')}
+                                placeholderTextColor={secondaryTextColor}
+                                style={[styles.input, { borderColor, color: primaryTextColor, backgroundColor: elevatedSurfaceColor }]}
+                            />
+                            <TextInput
+                                value={country}
+                                onChangeText={setCountry}
+                                placeholder={t('portal.ekadashiCalendar.countryPlaceholder')}
+                                placeholderTextColor={secondaryTextColor}
+                                style={[styles.input, { borderColor, color: primaryTextColor, backgroundColor: elevatedSurfaceColor }]}
+                            />
+                            <TextInput
+                                value={timezone}
+                                onChangeText={setTimezone}
+                                placeholder={t('portal.ekadashiCalendar.timezonePlaceholder')}
+                                placeholderTextColor={secondaryTextColor}
+                                autoCapitalize="none"
+                                style={[styles.input, { borderColor, color: primaryTextColor, backgroundColor: elevatedSurfaceColor }]}
+                            />
+                            <TouchableOpacity
+                                style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                                onPress={() => {
+                                    loadCalendar(organizationId, timezone, city, country).catch(() => undefined);
+                                }}
+                            >
+                                <Text style={styles.primaryButtonText}>{t('portal.ekadashiCalendar.refreshCalendar')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                </View>
+
+                <View style={[styles.card, styles.accordionCard, { backgroundColor: surfaceColor, borderColor }]}>
+                    <Pressable style={styles.accordionHeader} onPress={() => setNotificationsExpanded((prev) => !prev)}>
+                        <Text style={[styles.sectionTitle, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.notificationTitle')}</Text>
+                        <ChevronDown size={18} color={primaryTextColor} style={!notificationsExpanded ? styles.collapsedIcon : undefined} />
+                    </Pressable>
+                    {notificationsExpanded ? (
+                        <View style={styles.accordionContent}>
+                            <View style={styles.switchRow}>
+                                <Text style={[styles.switchLabel, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.subscribe')}</Text>
+                                <Switch
+                                    value={preferences.enabled}
+                                    onValueChange={(value) => setPreferences((prev) => ({ ...prev, enabled: value }))}
+                                    trackColor={{ true: colors.accent }}
+                                />
+                            </View>
+                            <View style={styles.switchRow}>
+                                <Text style={[styles.switchLabel, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.fastStarts')}</Text>
+                                <Switch
+                                    value={preferences.fastStartReminder}
+                                    onValueChange={(value) => setPreferences((prev) => ({ ...prev, fastStartReminder: value }))}
+                                    trackColor={{ true: colors.accent }}
+                                />
+                            </View>
+                            <View style={styles.switchRow}>
+                                <Text style={[styles.switchLabel, { color: primaryTextColor }]}>{t('portal.ekadashiCalendar.parana')}</Text>
+                                <Switch
+                                    value={preferences.paranaReminder}
+                                    onValueChange={(value) => setPreferences((prev) => ({ ...prev, paranaReminder: value }))}
+                                    trackColor={{ true: colors.accent }}
+                                />
+                            </View>
+                            <TouchableOpacity
+                                style={[styles.primaryButton, { backgroundColor: colors.accent }, saving && styles.primaryButtonDisabled]}
+                                onPress={() => {
+                                    handleSavePreferences().catch(() => undefined);
+                                }}
+                                disabled={saving}
+                            >
+                                <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                </View>
             </ScrollView>
         </View>
     );
@@ -603,6 +638,7 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 16,
+        paddingBottom: 28,
         gap: 16,
     },
     card: {
@@ -628,6 +664,8 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         textTransform: 'capitalize',
+        flex: 1,
+        textAlign: 'center',
     },
     organizationButton: {
         borderWidth: 1,
@@ -671,53 +709,53 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     weekDay: {
-        width: `${100 / 7}%`,
         textAlign: 'center',
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        rowGap: 10,
     },
     dayButton: {
-        width: `${100 / 7}%`,
         alignItems: 'center',
-        marginBottom: 8,
     },
     dayCircle: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
     },
     dayText: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '700',
+    },
+    emptyDayText: {
+        color: 'transparent',
     },
     markerDot: {
         position: 'absolute',
-        bottom: 3,
-        width: 5,
-        height: 5,
+        bottom: 5,
+        width: 6,
+        height: 6,
         borderRadius: 3,
     },
     countBadge: {
         position: 'absolute',
-        top: -4,
+        top: -5,
         right: -4,
-        minWidth: 14,
-        height: 14,
-        borderRadius: 7,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 3,
+        paddingHorizontal: 4,
     },
     countBadgeText: {
         color: '#FFFFFF',
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: '800',
     },
     helperText: {
@@ -743,6 +781,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 15,
+    },
+    calendarCard: {
+        gap: 14,
+    },
+    detailsCard: {
+        gap: 10,
+    },
+    accordionCard: {
+        gap: 0,
+    },
+    accordionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    accordionContent: {
+        marginTop: 14,
+        gap: 12,
+    },
+    collapsedIcon: {
+        transform: [{ rotate: '-90deg' }],
     },
     primaryButton: {
         borderRadius: 14,

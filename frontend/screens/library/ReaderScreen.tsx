@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent, Animated, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BlurView } from '@react-native-community/blur';
-import LinearGradient from 'react-native-linear-gradient';
-import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { libraryService } from '../../services/libraryService';
 import { offlineBookService } from '../../services/offlineBookService';
 import { ScriptureVerse, ChapterInfo } from '../../types/library';
@@ -29,6 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import type { RootStackParamList } from '../../types/navigation';
+import { handleAiBackNavigation } from '../../utils/aiNavigation';
 declare var require: any;
 
 type ReaderTheme = 'paper' | 'sepia' | 'dark' | 'ancient';
@@ -36,7 +36,7 @@ type ReaderRoute = RouteProp<RootStackParamList, 'Reader'>;
 
 export const ReaderScreen = () => {
     const route = useRoute<ReaderRoute>();
-    const navigation = useNavigation();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { t, i18n } = useTranslation();
     const { user } = useUser();
     const { isDarkMode, portalBackgroundType } = useSettings();
@@ -221,6 +221,7 @@ export const ReaderScreen = () => {
     };
 
     const [language, setLanguage] = useState<'ru' | 'en'>(getDefaultLanguage());
+    const aiMeta = route.params;
 
     const readerVisual = useMemo(() => {
         if (readerTheme === 'sepia') {
@@ -399,6 +400,16 @@ export const ReaderScreen = () => {
     useEffect(() => {
         navigation.setOptions({
             headerTitle: title,
+            headerLeft: aiMeta?.origin === 'ai_chat'
+                ? () => (
+                    <TouchableOpacity
+                        onPress={() => handleAiBackNavigation(navigation as any, aiMeta)}
+                        style={[styles.headerIconBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                    >
+                        <ArrowLeft size={18} color={readerVisual.textPrimary} />
+                    </TouchableOpacity>
+                )
+                : undefined,
             headerRight: () => (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TouchableOpacity
@@ -437,7 +448,20 @@ export const ReaderScreen = () => {
                 fontWeight: '800',
             },
         });
-    }, [language, navigation, title, toggleLanguage, glassSurface, glassBorder, accentColor, readerVisual]);
+    }, [aiMeta, language, navigation, title, toggleLanguage, glassSurface, glassBorder, accentColor, readerVisual]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (aiMeta?.origin !== 'ai_chat') {
+                return undefined;
+            }
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                handleAiBackNavigation(navigation as any, aiMeta);
+                return true;
+            });
+            return () => subscription.remove();
+        }, [aiMeta, navigation]),
+    );
 
     useEffect(() => {
         if (chapters.length === 0) {

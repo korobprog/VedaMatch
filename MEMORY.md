@@ -209,6 +209,16 @@
 - Меню `Найти в ...` должно содержать `services` как отдельный search tab, а локали `ru/en/hi` должны иметь для него и label, и prompt.
 - В `frontend/components/chat/MessageList.tsx` internal source routes VedaMatch должны открываться через app navigation не только для library, но и для `products`, `shops`, `services`, `news`, `ads`, `education`, `yatra`, `shelter`, `cafes`, `dating profile`. Иначе citation ведет в никуда даже при корректном `sourceUrl`.
 - Для AI chat bubble в `frontend/components/chat/MessageList.tsx` `maxWidth: 85%` оказался слишком узким для длинных ответов на мобильных экранах. Для читаемости лучше держать bubble ближе к краям, чтобы текст ломался реже.
+- Для internal-переходов из AI-чата нужен единый route contract `origin='ai_chat'` + `returnTo`, а не прямые `navigate(...)` без метаданных:
+  - это особенно важно для library chain (`LibraryHome -> BookList -> Reader`);
+  - back из таких экранов должен либо идти по внутреннему library stack, либо безопасно `reset`-иться обратно в `Chat` / `Portal`, а не полагаться на случайный предыдущий route.
+- В `LibraryHomeScreen` при AI-origin полезен явный back-chip внутри контента, потому что screen идет без native header и иначе пользователь уходит только системным back/gesture.
+- Для `RoleSelectionSection` в профиле и регистрации горизонтальный выбор ролей лучше держать на `FlatList` со `snapToInterval`, `disableIntervalMomentum` и `getItemLayout`; ручные `onTouchStart/onTouchMove` конфликтуют с вертикальным scroll и дают плохую инерцию на Android.
+
+## Vedic Calendar
+- `EkadashiCalendarScreen` должен показывать главным объектом именно месячную сетку календаря, а не длинную колонку из location/preferences блоков.
+- Для маленьких экранов location и notification настройки лучше держать ниже календаря в сворачиваемых accordion-card блоках, чтобы не съедать первый экран.
+- В светлой теме Экадаши нельзя оставлять бледные `surface/accentSoft` сочетания: notice-box, inputs, event cards и day cells должны иметь более теплый, но контрастный paper-путь.
 
 ## iOS Build / Signing
 - После подключения `react-native-pager-view` для iOS нужно открывать именно `frontend/ios/vedamatch.xcworkspace`, а не `.xcodeproj`; иначе Xcode легко показывает ложные module-ошибки по Pods (`SDWebImage`, `SDWebImageWebPCoder`) даже при валидном pod graph.
@@ -1399,6 +1409,40 @@
   - удалены `frontend/ios/build`, `frontend/ios/build_release_prod`, `frontend/android/app/build`, `frontend/android/.gradle`, `frontend/android/app/.cxx`, `admin/.next`, `frontend/android/app/build/outputs/apk/release/app-release.apk`;
   - размер проекта уменьшился примерно с `12G` до `5.1G`;
   - сознательно не трогать без отдельной необходимости: `frontend/node_modules`, `admin/node_modules`, `frontend/ios/Pods`, `.git`.
+- Фактическая системная очистка и offload от `2026-03-12` выполнены:
+  - удалены безопасные кэши: `~/Library/Caches/go-build`, `~/Library/Caches/CocoaPods`, `~/Library/Caches/Homebrew`, `~/Library/Caches/pnpm`, `~/Library/Caches/Google`, `~/Library/Caches/Yandex`, `~/Library/Caches/Chromium`, `~/Library/Caches/com.openai.atlas`, `~/Library/Caches/ms-playwright-go`;
+  - удалены transient-данные: `~/Library/Developer/Xcode/DerivedData`, `~/Library/Developer/Xcode/DocumentationCache`, `~/.android/cache`, `~/.android/metrics`;
+  - удалены проектные build-артефакты: `frontend/ios/build`, `frontend/android/app/build`, `admin/.next`, все `.apk/.ipa` внутри repo;
+  - на внешний диск `/Volumes/DATA/MacArchive` перенесены холодные данные Codex: `~/.codex/archived_sessions` и session-файлы старше `30` дней из `~/.codex/sessions`;
+  - оставлены на внутреннем диске как runtime/dev state: `~/Library/Android/sdk`, `~/.android/avd`, `~/Library/Developer/CoreSimulator/Devices`, `~/Library/Developer/Xcode/iOS DeviceSupport`, `~/Library/Application Support`, `~/Library/Containers`, `~/Library/Group Containers`, `node_modules`, `Pods`, `.git`;
+  - свободное место на `/System/Volumes/Data` выросло с `~4.4GiB` до `~39GiB`.
+- Фактическое дополнительное сокращение от `2026-03-12` выполнено:
+  - в `~/Library/Developer/Xcode/iOS DeviceSupport` удалены старые версии `iPhone13,2 26.1 (23B85)` и `iPhone13,2 26.3 (23D127)`, оставлена только `26.3.1 (23D8133)`;
+  - в `~/.android/avd/Medium_Phone.avd` удален `snapshots/default_boot`, что освобождает место без удаления самого AVD; следующий запуск будет cold boot;
+  - на внешний диск `/Volumes/DATA/MacArchive/codex/worktrees` перенесены холодные `Codex worktrees` до `2026-03-01`: `2fc7`, `5903`, `70ca`, `8765`, `a2e8`, `a676`, `cdb1`;
+  - после этого свободное место на `/System/Volumes/Data` выросло с `~39GiB` до `~54GiB`.
+- Фактическое дополнительное сокращение `CoreSimulator` и `Codex worktrees` от `2026-03-12` выполнено:
+  - через `xcrun simctl delete` удалены все неактивные simulator devices iOS 26.2, оставлен только текущий `iPhone 17 Pro (D7804896-63D0-46A5-A65E-D6F26F6003CD)`;
+  - `~/Library/Developer/CoreSimulator/Devices` уменьшен до `4.7G`;
+  - на внешний диск `/Volumes/DATA/MacArchive/codex/worktrees` дополнительно перенесены `Codex worktrees` старше `2026-03-10`; локально оставлены только `2d92`, `54bf`, `5c76`, `7b2a`, `92c4`, `c0b2`;
+  - после этого свободное место на `/System/Volumes/Data` выросло с `~54GiB` до `~66GiB`.
+- Фактический перенос Android dev-среды на внешний диск от `2026-03-12` выполнен:
+  - `~/Library/Android/sdk` перемещен в `/Volumes/DATA/MacArchive/android/sdk` и заменен симлинком;
+  - `~/.android/avd` перемещен в `/Volumes/DATA/MacArchive/android/avd` и заменен симлинком;
+  - Android Studio после переноса запускается штатно;
+  - важное ограничение: для Android-сборок и эмулятора теперь должен быть подключен внешний диск `/Volumes/DATA`;
+  - после переноса свободное место на `/System/Volumes/Data` выросло с `~66GiB` до `~85GiB`.
+- Фактический возврат Android dev-среды на внутренний диск от `2026-03-12` выполнен:
+  - `~/Library/Android/sdk` перенесен обратно с `/Volumes/DATA/MacArchive/android/sdk` в локальный путь; симлинк удален;
+  - `~/.android/avd` перенесен обратно с `/Volumes/DATA/MacArchive/android/avd` в локальный путь; симлинк удален;
+  - `adb` снова доступен локально из `~/Library/Android/sdk/platform-tools/adb`;
+  - Android Studio после возврата запускается штатно;
+  - Android больше не зависит от внешнего диска `/Volumes/DATA`.
+- Фактическое удаление последнего iOS simulator device от `2026-03-12` выполнено:
+  - через `xcrun simctl delete D7804896-63D0-46A5-A65E-D6F26F6003CD` удален последний локальный iOS simulator device `iPhone 17 Pro`;
+  - `~/Library/Developer/CoreSimulator/Devices` уменьшен с `~4.7G` до `4.0K`;
+  - после этого свободное место на `/System/Volumes/Data` выросло с `~85GiB` до `~87GiB`;
+  - для iOS simulator в будущем Xcode создаст device заново при первом запуске.
 
 ## Feed V2 Service
 - Публичные маршруты ленты (protected): `GET /api/v2/feed`, `GET /api/v2/feed/item/:type/:id`, `POST /api/v2/feed/item/:type/:id/impression`, `POST /api/v2/feed/item/:type/:id/reactions`, `GET/POST /api/v2/feed/item/:type/:id/comments` (`server/cmd/api/main.go`, `server/internal/handlers/feed_v2_handler.go`).
