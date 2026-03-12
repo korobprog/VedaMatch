@@ -196,6 +196,26 @@
   - self-delete через admin users list запрещен (`Cannot delete yourself`).
 - Админское удаление не должно использовать голый `DELETE users`; оно переиспользует тот же cleanup-path, что и пользовательский `DeleteAccount`, чтобы чистить связанные auth/device/media/social данные и local uploads.
 
+## Production User Cleanup
+- На production server (`45.150.9.229`) 2026-03-12 выполнен безопасный cleanup non-admin аккаунтов по решению пользователя:
+  - сохранены только `admin`, `superadmin` и пользователь `id=17` (`nandakumar@yandex.ru`, `Nanda Kumar / Nanda`);
+  - остальные non-admin записи в `users` не удалялись физически, а были заблокированы и анонимизированы.
+- Для анонимизированных production users:
+  - `is_blocked=true`;
+  - email заменен на `blocked_<id>_20260312@blocked.local`;
+  - `karmic_name` заменен на `Archived user #<id>`;
+  - очищены profile/social/device fields, `push_token`, `device_id`, avatar refs, bio fields;
+  - `google_sub` заменен на уникальный placeholder `archg<id>`;
+  - `invite_code` заменен на короткий уникальный `a<id>`.
+- Сессии и push-device tokens этих пользователей на проде отозваны:
+  - `auth_sessions.revoked_at` проставлен;
+  - `user_device_tokens.invalidated_at` проставлен.
+- Причина выбора анонимизации вместо hard-delete:
+  - production DB имеет глубокие FK-цепочки (`wallets -> users`, `ad_photos -> ads -> users` и далее);
+  - прямое физическое удаление non-admin users без доменного cleanup-скрипта небезопасно.
+- Backup целевых production users перед анонимизацией сохранен на сервере:
+  - `/root/non_admin_users_except_nandakumar_full_backup_2026-03-12.csv`
+
 ## AI / Support Runtime
 - `SupportAIService` использует тот же singleton `PolzaService`, что и основной AI chat; поломка `POLZA_API_KEY` одновременно ломает `/api/v1/chat/completions` и AI-ответы в support flow.
 - На проде по состоянию на `2026-03-11` ключ из Docker service `API_OPEN_AI` и синхронизированный `POLZA_API_KEY` проходят `GET https://api.polza.ai/api/v1/models` (`HTTP 200`), но прямой `POST https://api.polza.ai/api/v1/chat/completions` с ними возвращает `401 UNAUTHORIZED`.
@@ -2876,6 +2896,15 @@
 
 - Added `contacts.title` localization key in `ru/en/hi` locales to prevent Contacts header fallback to English.
 - Added `common.got_it` in `ru/en/hi` locales so role modal CTA no longer falls back to English (`Got it`) when Russian/Hindi is active.
+- Для списка контактов friend-status лучше обозначать на аватаре, а не рядом с именем:
+  - текстовый tag возле имени перегружает строку и конкурирует с nickname/last seen;
+  - компактный badge в левом нижнем углу аватара масштабируется лучше и не ломает layout на узких экранах.
+- Для общего `EditProfileScreen` save-flow нельзя строить через повторный `login(updatedUser)`:
+  - после обычного `/update-profile` достаточно локального `updateUserProfile(...)`, иначе появляются лишние side effects auth/login flow;
+  - payload профиля лучше нормализовать до trim-строк и `dob` в формате `YYYY-MM-DD`.
+- Backend `/update-profile` не должен использовать `Save(&user)` на полном `models.User`:
+  - безопаснее обновлять только явные поля через `Updates(map)` и возвращать machine-readable code (`profile_conflict`, `profile_update_failed`);
+  - это уменьшает риск случайных DB-конфликтов и скрытых 500 на сохранении профиля.
 
 ## Vedic Calendar
 - Сервис `ekadashi_calendar` в user-facing UI переименован в `Календарь` / `Calendar`, но internal `serviceId` и route пока сохранены для совместимости.
@@ -2927,3 +2956,5 @@
 - Признак правильной фиксации: `frontend/ios/Podfile.lock` содержит `react-native-pager-view (6.9.1)` и iOS `xcodebuild` успешно линкует `react_native_pager_view.framework`.
 - Это не JS-регрессия. После такого изменения нужно пересобрать и переустановить iOS app; уже установленная старая сборка продолжит падать до нового build/install.
 - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` `Debug` и `Release` конфигурации app target должны использовать один и тот же `DEVELOPMENT_TEAM = CVW85BZU5Z`; если у `Release` пустая строка, Xcode показывает `Signing for "vedamatch" requires a development team`.
+- Для Android white-screen риска при возврате из `Chat` в `Portal` нельзя делать жесткий `navigation.reset({ routes: [{ name: 'Portal' }] })`, если `Portal` уже лежит предыдущим route в stack. Безопаснее сначала `goBack()` на существующий `Portal`; `reset` оставлять только как fallback для AI/library-contract, когда целевого экрана реально нет в стеке.
+- Похожие risky-paths с возвратом в `Portal` уже были найдены в `ChatScreen`, `ContactProfileScreen` и shared `aiNavigation` helper; если на Samsung снова появится белый экран при back из другого сервиса, сначала проверять именно наличие `reset -> Portal`, а не background/theme слой.

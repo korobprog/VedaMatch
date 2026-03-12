@@ -3166,42 +3166,72 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	// Check if city changed
 	cityChanged := updateData.City != "" && updateData.City != user.City
 
-	// Update fields
-	user.KarmicName = updateData.KarmicName
-	user.SpiritualName = updateData.SpiritualName
-	user.Gender = updateData.Gender
-	user.Country = updateData.Country
-	user.City = updateData.City
-	user.Identity = updateData.Identity
-	user.Diet = updateData.Diet
-	user.Madh = updateData.Madh
-	user.YogaStyle = updateData.YogaStyle
-	user.Guna = updateData.Guna
-	user.Mentor = updateData.Mentor
-	user.Dob = updateData.Dob
-	user.Bio = updateData.Bio
-	user.Interests = updateData.Interests
-	user.LookingFor = updateData.LookingFor
-	user.Intentions = updateData.Intentions
-	user.Skills = updateData.Skills
-	user.Industry = updateData.Industry
-	user.LookingForBusiness = updateData.LookingForBusiness
+	updates := map[string]interface{}{
+		"karmic_name":          strings.TrimSpace(updateData.KarmicName),
+		"spiritual_name":       strings.TrimSpace(updateData.SpiritualName),
+		"gender":               strings.TrimSpace(updateData.Gender),
+		"country":              strings.TrimSpace(updateData.Country),
+		"city":                 strings.TrimSpace(updateData.City),
+		"identity":             strings.TrimSpace(updateData.Identity),
+		"diet":                 strings.TrimSpace(updateData.Diet),
+		"madh":                 strings.TrimSpace(updateData.Madh),
+		"yoga_style":           strings.TrimSpace(updateData.YogaStyle),
+		"guna":                 strings.TrimSpace(updateData.Guna),
+		"mentor":               strings.TrimSpace(updateData.Mentor),
+		"dob":                  strings.TrimSpace(updateData.Dob),
+		"bio":                  strings.TrimSpace(updateData.Bio),
+		"interests":            strings.TrimSpace(updateData.Interests),
+		"looking_for":          strings.TrimSpace(updateData.LookingFor),
+		"intentions":           strings.TrimSpace(updateData.Intentions),
+		"skills":               strings.TrimSpace(updateData.Skills),
+		"industry":             strings.TrimSpace(updateData.Industry),
+		"looking_for_business": strings.TrimSpace(updateData.LookingForBusiness),
+		"dating_enabled":       updateData.DatingEnabled,
+		"yatra":                strings.TrimSpace(updateData.Yatra),
+		"timezone":             strings.TrimSpace(updateData.Timezone),
+		"marital_status":       strings.TrimSpace(updateData.MaritalStatus),
+		"birth_time":           strings.TrimSpace(updateData.BirthTime),
+		"is_profile_complete":  true,
+	}
+	user.KarmicName = strings.TrimSpace(updateData.KarmicName)
+	user.SpiritualName = strings.TrimSpace(updateData.SpiritualName)
+	user.Gender = strings.TrimSpace(updateData.Gender)
+	user.Country = strings.TrimSpace(updateData.Country)
+	user.City = strings.TrimSpace(updateData.City)
+	user.Identity = strings.TrimSpace(updateData.Identity)
+	user.Diet = strings.TrimSpace(updateData.Diet)
+	user.Madh = strings.TrimSpace(updateData.Madh)
+	user.YogaStyle = strings.TrimSpace(updateData.YogaStyle)
+	user.Guna = strings.TrimSpace(updateData.Guna)
+	user.Mentor = strings.TrimSpace(updateData.Mentor)
+	user.Dob = strings.TrimSpace(updateData.Dob)
+	user.Bio = strings.TrimSpace(updateData.Bio)
+	user.Interests = strings.TrimSpace(updateData.Interests)
+	user.LookingFor = strings.TrimSpace(updateData.LookingFor)
+	user.Intentions = strings.TrimSpace(updateData.Intentions)
+	user.Skills = strings.TrimSpace(updateData.Skills)
+	user.Industry = strings.TrimSpace(updateData.Industry)
+	user.LookingForBusiness = strings.TrimSpace(updateData.LookingForBusiness)
 	user.DatingEnabled = updateData.DatingEnabled
-	user.Yatra = updateData.Yatra
-	user.Timezone = updateData.Timezone
-	user.MaritalStatus = updateData.MaritalStatus
-	user.BirthTime = updateData.BirthTime
+	user.Yatra = strings.TrimSpace(updateData.Yatra)
+	user.Timezone = strings.TrimSpace(updateData.Timezone)
+	user.MaritalStatus = strings.TrimSpace(updateData.MaritalStatus)
+	user.BirthTime = strings.TrimSpace(updateData.BirthTime)
 	user.IsProfileComplete = true
 	// Preserve privileged flags and avoid accidental role downgrades when role is omitted/invalid.
 	user.Role = resolveProfileRoleForUpdate(user.Role, updateData.Role)
+	updates["role"] = user.Role
 	// Non-admin users are never allowed to escalate GodMode through profile payload.
 	user.GodModeEnabled = resolveGodModeForUpdate(user.GodModeEnabled, updateData.GodModeEnabled, user.Role)
+	updates["god_mode_enabled"] = user.GodModeEnabled
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {
 		// Use coordinates from frontend (from autocomplete)
 		user.Latitude = updateData.Latitude
 		user.Longitude = updateData.Longitude
+		updates["latitude"] = updateData.Latitude
+		updates["longitude"] = updateData.Longitude
 		log.Printf("[Profile] Using coordinates from frontend: %f, %f", *updateData.Latitude, *updateData.Longitude)
 	} else if cityChanged && h.mapService != nil {
 		// City changed but no coordinates provided - geocode it
@@ -3212,19 +3242,30 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		} else {
 			// Use normalized city name and coordinates
 			user.City = geocoded.City
+			updates["city"] = geocoded.City
 			if updateData.Country == "" {
 				user.Country = geocoded.Country
+				updates["country"] = geocoded.Country
 			}
 			user.Latitude = &geocoded.Latitude
 			user.Longitude = &geocoded.Longitude
+			updates["latitude"] = &geocoded.Latitude
+			updates["longitude"] = &geocoded.Longitude
 			log.Printf("[Profile] Geocoded city '%s' -> '%s' (%f, %f)", updateData.City, geocoded.City, geocoded.Latitude, geocoded.Longitude)
 		}
 	}
 
-	if err := database.DB.Save(&user).Error; err != nil {
+	if err := database.DB.Model(&user).Updates(updates).Error; err != nil {
 		log.Printf("[UpdateProfile] save_failed rid=%s user=%d requested_role=%q err=%v", requestID, userId, updateData.Role, err)
+		if strings.Contains(strings.ToLower(err.Error()), "duplicate key") || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Profile data conflicts with existing account",
+				"code":  "profile_conflict",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update profile",
+			"code":  "profile_update_failed",
 		})
 	}
 	if h.proService != nil {

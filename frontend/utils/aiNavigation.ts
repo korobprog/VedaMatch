@@ -43,11 +43,18 @@ export const handleAiBackNavigation = (
     portalParams?: RootStackParamList['Portal'],
 ) => {
     const target = resolveAiBackTarget(navigation, meta);
+    const routes = navigation.getState()?.routes || [];
+    const previousRouteName = routes.length > 1 ? routes[routes.length - 2]?.name : undefined;
+
     if (target === 'stack') {
         navigation.goBack();
         return;
     }
     if (target === 'portal') {
+        if (navigation.canGoBack() && previousRouteName === 'Portal') {
+            navigation.goBack();
+            return;
+        }
         navigation.dispatch(CommonActions.reset({
             index: 0,
             routes: [{ name: 'Portal', params: portalParams }],
@@ -55,6 +62,10 @@ export const handleAiBackNavigation = (
         return;
     }
     if (target === 'chat') {
+        if (navigation.canGoBack() && previousRouteName === 'Chat') {
+            navigation.goBack();
+            return;
+        }
         navigation.dispatch(CommonActions.reset({
             index: 0,
             routes: [{ name: 'Chat' }],

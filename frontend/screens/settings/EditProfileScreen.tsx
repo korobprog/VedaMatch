@@ -30,7 +30,6 @@ import {
     GUNAS,
     IDENTITY_OPTIONS
 } from '../../constants/DatingConstants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RoleSelectionSection } from '../../components/roles/RoleSelectionSection';
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
@@ -53,7 +52,7 @@ const INTENTION_OPTIONS = [
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { user, login } = useUser();
+    const { user, updateUserProfile } = useUser();
     const { fetchCountries, fetchCities } = useLocation();
 
     const theme = COLORS.dark;
@@ -338,33 +337,33 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         }
         try {
             console.log(`[EditProfile] Saving profile user=${user.ID} endpoint=/update-profile`);
+            const normalizedDob = Number.isNaN(dob.getTime()) ? '' : dob.toISOString().split('T')[0];
             const profileData = {
-                country,
-                city,
-                karmicName,
-                spiritualName,
-                dob: dob.toISOString(),
-                madh,
-                mentor,
-                gender,
-                identity,
-                yogaStyle,
-                guna,
-                diet,
-                bio,
-                interests,
-                lookingFor,
+                country: country.trim(),
+                city: city.trim(),
+                karmicName: karmicName.trim(),
+                spiritualName: spiritualName.trim(),
+                dob: normalizedDob,
+                madh: madh.trim(),
+                mentor: mentor.trim(),
+                gender: gender.trim(),
+                identity: identity.trim(),
+                yogaStyle: yogaStyle.trim(),
+                guna: guna.trim(),
+                diet: diet.trim(),
+                bio: bio.trim(),
+                interests: interests.trim(),
+                lookingFor: lookingFor.trim(),
                 intentions: intentions.join(','),
-                skills,
-                industry,
-                lookingForBusiness,
-                maritalStatus,
-                birthTime,
-                yatra,
-                timezone,
+                skills: skills.trim(),
+                industry: industry.trim(),
+                lookingForBusiness: lookingForBusiness.trim(),
+                maritalStatus: maritalStatus.trim(),
+                birthTime: birthTime.trim(),
+                yatra: yatra.trim(),
+                timezone: timezone.trim(),
                 datingEnabled,
-                role,
-                godModeEnabled: canManageProMode ? true : !!user?.godModeEnabled,
+                ...(canManageProMode ? { role, godModeEnabled: true } : {}),
                 latitude,
                 longitude
             };
@@ -400,8 +399,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 }
             }
 
-            await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-            await login(updatedUser);
+            await updateUserProfile(updatedUser);
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }

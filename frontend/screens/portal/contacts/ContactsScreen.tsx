@@ -623,19 +623,25 @@ export const ContactsScreen: React.FC = () => {
                         </View>
                     )}
                     {online && !isBlocked && <View style={styles.onlineStatus} />}
+                    {isFriend && !isBlocked && (
+                        <View
+                            style={[
+                                styles.friendAvatarBadge,
+                                {
+                                    backgroundColor: theme.accent,
+                                    borderColor: usePhotoBg ? 'rgba(255,255,255,0.95)' : vTheme.colors.background,
+                                },
+                            ]}
+                        >
+                            <Check size={10} color="#fff" strokeWidth={3} />
+                        </View>
+                    )}
                 </View>
                 <View style={styles.contactInfo}>
                     <View style={styles.nameRow}>
                         <Text style={[styles.contactName, { color: nameColor }]} numberOfLines={1} ellipsizeMode="tail">
                             {item.spiritualName || item.karmicName}
                         </Text>
-                        {isFriend && !isBlocked && (
-                            <View style={[styles.friendTag, { backgroundColor: theme.accent + '20' }]}>
-                                <Text style={[styles.friendTagText, { color: theme.accent }]}>
-                                    {t('contacts.friend')}
-                                </Text>
-                            </View>
-                        )}
                     </View>
                     <Text style={[styles.contactDesc, { color: descColor }]} numberOfLines={1}>
                         {item.nickname ? `@${item.nickname} · ` : ''}
@@ -1264,6 +1270,7 @@ const styles = StyleSheet.create({
     avatarContainer: {
         width: 50,
         height: 50,
+        position: 'relative',
     },
     avatar: {
         width: 50,
@@ -1288,6 +1295,22 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#FFF',
     },
+    friendAvatarBadge: {
+        position: 'absolute',
+        left: -2,
+        bottom: -2,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 2,
+    },
     contactInfo: {
         flex: 1,
         marginLeft: 16,
@@ -1299,17 +1322,6 @@ const styles = StyleSheet.create({
     nameRow: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    friendTag: {
-        marginLeft: 8,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    friendTagText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
     },
     contactDesc: {
         fontSize: 13,

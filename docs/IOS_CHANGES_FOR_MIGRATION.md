@@ -155,6 +155,62 @@ gridRow: {
 }
 ```
 
+## 2026-03-12 (Contacts: friend marker moved onto avatar badge)
+
+### Измененные файлы
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - статус `друг` рисовался текстовым тегом рядом с именем контакта;
+  - строка имени становилась перегруженной и хуже переносилась на узких экранах.
+- Стало:
+  - метка друга перенесена в компактный badge на аватаре, слева-снизу;
+  - текстовый tag возле имени убран;
+  - список контактов стал чище и стабильнее по ширине.
+
+### Сниппеты кода
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```tsx
+{isFriend && !isBlocked && (
+  <View style={styles.friendAvatarBadge}>
+    <Check size={10} color="#fff" strokeWidth={3} />
+  </View>
+)}
+```
+
+## 2026-03-12 (Edit profile save flow hardened)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `server/internal/handlers/auth_handler.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `EditProfileScreen` отправлял частично сырой payload, включая `dob` как полный ISO timestamp;
+  - после успешного save экран делал `login(updatedUser)`, хотя это не auth-flow;
+  - backend `/update-profile` сохранял полный `models.User` через `Save(&user)`, что делало flow чувствительным к лишним полям и DB-конфликтам.
+- Стало:
+  - frontend нормализует payload (`trim`, `dob` как `YYYY-MM-DD`) и обновляет локальный user через `updateUserProfile`;
+  - backend сохраняет только явные profile-поля через `Updates(map)`;
+  - при DB-конфликте backend возвращает `409 profile_conflict`, а при общем сбое — `profile_update_failed`.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+const normalizedDob = Number.isNaN(dob.getTime()) ? '' : dob.toISOString().split('T')[0];
+await updateUserProfile(updatedUser);
+```
+
+`server/internal/handlers/auth_handler.go`:
+```go
+if err := database.DB.Model(&user).Updates(updates).Error; err != nil {
+  return c.Status(fiber.StatusConflict).JSON(fiber.Map{"code": "profile_conflict"})
+}
+```
+
 `frontend/screens/portal/services/components/ServiceCard.tsx`:
 ```tsx
 const GRID_HORIZONTAL_PADDING = 16;
@@ -15726,4 +15782,42 @@ export const handleAiBackNavigation = (navigation, meta, portalParams) => {
     navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Chat' }] }));
   }
 };
+```
+
+## 2026-03-12
+
+### Измененные файлы
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/utils/aiNavigation.ts`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+
+### Суть правки
+- Было:
+  - `ChatScreen` при back из assistant chat делал `navigation.reset({ routes: [{ name: 'Portal' }] })`, что на Android могло заново пересоздавать portal shell и визуально давать белый экран/пелену;
+  - `ContactProfileScreen` в fallback-ветке тоже делал жесткий `reset` в `Portal`;
+  - shared `handleAiBackNavigation()` сразу делал `reset` в `Chat`/`Portal`, даже если нужный экран уже лежал предыдущим route в stack.
+- Стало:
+  - `ChatScreen` теперь сначала возвращается через `goBack()` в уже существующий `Portal`, если он лежит под `Chat`, и использует `navigate('Portal')` только как fallback;
+  - `ContactProfileScreen` заменен на `navigate('Portal', { initialTab: 'contacts' })` без полного reset;
+  - `handleAiBackNavigation()` сначала проверяет предыдущий route и делает `goBack()` для `Chat`/`Portal`, если целевой экран уже в стеке.
+
+### Короткие сниппеты кода
+`frontend/screens/ChatScreen.tsx`:
+```tsx
+if (navigation.canGoBack() && prevRoute?.name === 'Portal') {
+  navigation.goBack();
+  return;
+}
+
+navigation.navigate('Portal');
+```
+
+`frontend/utils/aiNavigation.ts`:
+```ts
+if (target === 'portal') {
+  if (navigation.canGoBack() && previousRouteName === 'Portal') {
+    navigation.goBack();
+    return;
+  }
+}
 ```

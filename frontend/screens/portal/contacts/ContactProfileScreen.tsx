@@ -49,10 +49,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
             return;
         }
 
-        navigation.reset({
-            index: 0,
-            routes: [{ name: 'Portal', params: { initialTab: 'contacts' } as any }],
-        });
+        navigation.navigate('Portal', { initialTab: 'contacts' } as any);
     }, [navigation]);
 
     const fetchContactData = useCallback(async () => {

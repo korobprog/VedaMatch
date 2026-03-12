@@ -165,18 +165,21 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         if (navigation.canGoBack() && prevRoute?.name) {
             navigation.goBack();
         } else {
-            navigation.reset({
-                index: 0,
-                routes: [{ name: 'Portal', params: { initialTab: 'contacts' } }],
-            });
+            navigation.navigate('Portal', { initialTab: 'contacts' });
         }
     }, [navigation]);
 
     const handleBackToPortal = React.useCallback(() => {
-        navigation.reset({
-            index: 0,
-            routes: [{ name: 'Portal' }],
-        });
+        const state = navigation.getState();
+        const routes = state?.routes || [];
+        const prevRoute = routes.length > 1 ? routes[routes.length - 2] : null;
+
+        if (navigation.canGoBack() && prevRoute?.name === 'Portal') {
+            navigation.goBack();
+            return;
+        }
+
+        navigation.navigate('Portal');
     }, [navigation]);
 
     useFocusEffect(
