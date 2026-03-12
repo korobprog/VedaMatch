@@ -178,6 +178,23 @@
   - при отсутствии локального admin token страница должна сразу редиректить на `/login` без API-запросов;
   - если `api` interceptor уже получил `401` и чистит сессию, page-level `catch` не должен дополнительно заспамливать консоль как будто это отдельная функциональная поломка.
 - В `server/internal/handlers/admin_handler.go` обновление `POLZA_API_KEY`, `POLZA_FAST_MODEL`, `POLZA_REASONING_MODEL`, `POLZA_BASE_URL` через общую админку должно немедленно вызывать `services.GetPolzaService().ReloadFromDB()`, иначе AI chat и support bot продолжают работать на старом runtime-ключе до рестарта.
+- На `vedamatch.ru` есть отдельный public noindex route `/android-testers` для Android-тестировщиков:
+  - route доступен без логина и не добавляется в основную навигацию;
+  - страница рендерит APK ссылку, install instructions, release notes и feedback form.
+- Контент `android-testers` страницы управляется через system settings:
+  - `SUPPORT_DOWNLOAD_ANDROID_URL` используется как APK URL;
+  - дополнительные keys: `ANDROID_TESTERS_PAGE_TITLE`, `ANDROID_TESTERS_PAGE_SUBTITLE`, `ANDROID_TESTERS_APP_VERSION`, `ANDROID_TESTERS_RELEASE_NOTES`, `ANDROID_TESTERS_INSTALL_INSTRUCTIONS`, `ANDROID_TESTERS_SUPPORT_TEXT`.
+- Для public чтения этих значений используется отдельный whitelist endpoint `GET /api/android-testers/config`; public route не должен читать `/api/admin/settings`.
+- Android testers feedback использует существующий support pipeline:
+  - upload одного изображения идет через `POST /api/support/uploads`;
+  - отправка формы идет через `POST /api/support/tickets`;
+  - `entryPoint` зафиксирован как `android_tester_feedback`.
+- Support backend по текущему контракту хранит только один attachment на ticket/message, поэтому testers page поддерживает только один скриншот.
+- В списке пользователей админки доступно удаление пользователя:
+  - backend route: `DELETE /api/admin/users/:id`;
+  - удалить можно любого пользователя и администратора, кроме `superadmin`;
+  - self-delete через admin users list запрещен (`Cannot delete yourself`).
+- Админское удаление не должно использовать голый `DELETE users`; оно переиспользует тот же cleanup-path, что и пользовательский `DeleteAccount`, чтобы чистить связанные auth/device/media/social данные и local uploads.
 
 ## AI / Support Runtime
 - `SupportAIService` использует тот же singleton `PolzaService`, что и основной AI chat; поломка `POLZA_API_KEY` одновременно ломает `/api/v1/chat/completions` и AI-ответы в support flow.
@@ -2898,6 +2915,12 @@
   - при завершении жеста page switch происходит программно через `PagerView.setPage(...)`
 - iOS остается на штатном `PagerView` interactive swipe.
 - Android pager-swipe должен быть отключен, пока активен custom shell gesture, иначе поведение становится менее предсказуемым и чувствительность не контролируется.
+- Для `screenVisualStyle='saffron'` light/high-quality портал не должен использовать ту же выбеленную aura-подложку, что и settings/media screens. В `frontend/components/theme/ScreenAuraBackground.tsx` для `variant='portal'` ослаблена интенсивность aura и rays и сделан более теплый, менее белый base gradient, чтобы при возврате из настроек портал не выглядел как покрытый молочной пеленой.
+- Для Android white-veil риска на возврате в portal grid важно учитывать не только aura-layer, но и сам portal shell background:
+  - `frontend/screens/portal/PortalMainScreen.tsx` в light `saffron` больше не должен брать почти белый `vTheme.colors.background` как base layer;
+  - безопаснее использовать теплый градиент portal-level (`#F5E7CA|#E7CF9D`), иначе белесость проявляется не только после `Settings`, но и после embedded service back (`Contacts -> back -> Portal`).
+- Для Android settings-routes нельзя оставлять глобальный stack `fade`, если экран использует полупрозрачный saffron shell:
+  - `AppSettings` и `LinkedAccounts` должны идти через обычный opaque push/slide, иначе `Settings` кроссфейдится поверх `Portal` и дает белую пелену на Samsung/high-quality.
 
 ## iOS Native Modules
 - После добавления `react-native-pager-view` в mobile workspace iOS runtime может падать с `No component found for view with name "RNCViewPager"`, если в `frontend/ios` не выполнен `pod install`.

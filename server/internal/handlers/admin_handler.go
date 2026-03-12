@@ -43,8 +43,10 @@ func requireAdminUserID(c *fiber.Ctx) (uint, error) {
 
 func getSystemSettingOrEnv(key string) string {
 	var setting models.SystemSetting
-	if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil && setting.Value != "" {
-		return setting.Value
+	if database.DB != nil {
+		if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil && setting.Value != "" {
+			return setting.Value
+		}
 	}
 	return os.Getenv(key)
 }
@@ -393,6 +395,40 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Role updated successfully"})
 }
 
+func (h *AdminHandler) DeleteUser(c *fiber.Ctx) error {
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
+		return err
+	}
+
+	userIDParam := c.Params("id")
+	var target models.User
+	if err := database.DB.Select("id", "role", "avatar_url").First(&target, userIDParam).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user"})
+	}
+	if target.ID == adminID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot delete yourself"})
+	}
+	if strings.EqualFold(strings.TrimSpace(target.Role), models.RoleSuperadmin) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Superadmin cannot be deleted"})
+	}
+
+	deletedUser, deletedMedia, deleteErr := deleteUserAccountData(target.ID)
+	if deleteErr != nil {
+		log.Printf("[ADMIN] delete user failed target=%d actor=%d: %v", target.ID, adminID, deleteErr)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete user"})
+	}
+
+	cleanupDeletedUserUploads(deletedUser, deletedMedia)
+	return c.JSON(fiber.Map{
+		"message": "User deleted successfully",
+		"userId":  target.ID,
+	})
+}
+
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -486,6 +522,27 @@ func (h *AdminHandler) GetPublicLegalConfig(c *fiber.Ctx) error {
 			"media":    parseSettingPositiveInt("LEGAL_RETENTION_MEDIA_DAYS", 30, 1, 3650),
 			"logs":     parseSettingPositiveInt("LEGAL_RETENTION_LOG_DAYS", 365, 1, 3650),
 			"legalTax": parseSettingPositiveInt("LEGAL_RETENTION_LEGAL_TAX_DAYS", 1825, 1, 3650),
+		},
+	})
+}
+
+func (h *AdminHandler) GetPublicAndroidTestersConfig(c *fiber.Ctx) error {
+	title := strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_PAGE_TITLE", "Android test builds"))
+	subtitle := strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_PAGE_SUBTITLE", "Скачайте актуальный APK, установите его на Android и отправьте отзыв со скриншотом, если что-то пошло не так."))
+
+	return c.JSON(fiber.Map{
+		"title":               title,
+		"subtitle":            subtitle,
+		"apkUrl":              strings.TrimSpace(getSettingWithFallback("SUPPORT_DOWNLOAD_ANDROID_URL", "")),
+		"appVersion":          strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_APP_VERSION", "")),
+		"releaseNotes":        strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_RELEASE_NOTES", "")),
+		"installInstructions": strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "")),
+		"supportText":         strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_SUPPORT_TEXT", "")),
+		"feedbackEntryPoint":  "android_tester_feedback",
+		"attachment": fiber.Map{
+			"maxBytes":     supportUploadMaxBytes,
+			"maxMegabytes": supportUploadMaxBytes / (1024 * 1024),
+			"types":        []string{"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"},
 		},
 	})
 }
@@ -595,6 +652,7 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 			strings.HasPrefix(k, "SUPPORT_AI_") ||
 			strings.HasPrefix(k, "SUPPORT_APP_") ||
 			strings.HasPrefix(k, "SUPPORT_SLA_") ||
+			strings.HasPrefix(k, "ANDROID_TESTERS_") ||
 			strings.HasPrefix(k, "TELEGRAM_AUTH_") ||
 			k == "SUPPORT_LANG_MODE" ||
 			k == "SUPPORT_DOWNLOAD_IOS_URL" ||

@@ -9,6 +9,7 @@ import {
     MoreVertical,
     UserX,
     UserCheck,
+    Trash2,
     Shield,
     Mail,
     MapPin,
@@ -30,6 +31,22 @@ export default function UsersPage() {
     const [role, setRole] = useState('');
     const [status, setStatus] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const currentAdminId = useMemo(() => {
+        if (typeof window === 'undefined') {
+            return 0;
+        }
+        try {
+            const raw = localStorage.getItem('admin_data');
+            if (!raw) {
+                return 0;
+            }
+            const parsed = JSON.parse(raw) as { ID?: number; id?: number };
+            return Number(parsed.ID || parsed.id || 0);
+        } catch (error) {
+            console.error('Failed to parse admin_data', error);
+            return 0;
+        }
+    }, []);
 
     const { data: users, error, mutate } = useSWR(
         `/admin/users?search=${search}&role=${role}&status=${status}`,
@@ -53,6 +70,34 @@ export default function UsersPage() {
             mutate(); // Refresh data
         } catch (err) {
             console.error('Failed to toggle block status', err);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDeleteUser = async (userId: number, displayName: string, roleValue: string) => {
+        if (roleValue === 'superadmin') {
+            return;
+        }
+        const confirmed = window.confirm(`Delete user "${displayName}" permanently? This action cannot be undone.`);
+        if (!confirmed) {
+            return;
+        }
+
+        setActionLoading(`delete-${userId}`);
+        try {
+            await api.delete(`/admin/users/${userId}`);
+            mutate();
+        } catch (err) {
+            console.error('Failed to delete user', err);
+            const message =
+                typeof err === 'object' &&
+                err !== null &&
+                'response' in err &&
+                typeof (err as { response?: { data?: { error?: string } } }).response?.data?.error === 'string'
+                    ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+                    : 'Failed to delete user';
+            window.alert(message);
         } finally {
             setActionLoading(null);
         }
@@ -247,6 +292,18 @@ export default function UsersPage() {
                                                             <UserX className="w-5 h-5" />
                                                         )}
                                                     </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUser(user.ID, user.spiritualName || user.karmicName || user.email || `User #${user.ID}`, user.role)}
+                                                        disabled={actionLoading === `delete-${user.ID}` || user.role === 'superadmin' || user.ID === currentAdminId}
+                                                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        title={user.role === 'superadmin' ? 'Superadmin cannot be deleted' : user.ID === currentAdminId ? 'You cannot delete yourself' : 'Delete user'}
+                                                    >
+                                                        {actionLoading === `delete-${user.ID}` ? (
+                                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="w-5 h-5" />
+                                                        )}
+                                                    </button>
                                                 </div>
                                             </td>
                                         </motion.tr>
@@ -284,6 +341,14 @@ export default function UsersPage() {
                                         } disabled:opacity-30`}
                                 >
                                     {user.isBlocked ? <UserCheck className="w-5 h-5" /> : <UserX className="w-5 h-5" />}
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteUser(user.ID, user.spiritualName || user.karmicName || user.email || `User #${user.ID}`, user.role)}
+                                    disabled={actionLoading === `delete-${user.ID}` || user.role === 'superadmin' || user.ID === currentAdminId}
+                                    className="p-3 rounded-xl bg-rose-50 text-rose-600 disabled:opacity-30"
+                                    title={user.role === 'superadmin' ? 'Superadmin cannot be deleted' : user.ID === currentAdminId ? 'You cannot delete yourself' : 'Delete user'}
+                                >
+                                    {actionLoading === `delete-${user.ID}` ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                                 </button>
                             </div>
                         ))}

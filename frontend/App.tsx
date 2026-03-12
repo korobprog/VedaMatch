@@ -595,8 +595,25 @@ const AppContent = () => {
                     }}
                   />
                   <Stack.Screen name="Plans" component={PlansScreen} />
-                  <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
-                  <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="AppSettings"
+                    component={AppSettingsScreen}
+                    options={{
+                      animation: Platform.OS === 'android' ? 'slide_from_right' : 'slide_from_right',
+                      freezeOnBlur: false,
+                      contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="LinkedAccounts"
+                    component={LinkedAccountsScreen}
+                    options={{
+                      headerShown: false,
+                      animation: Platform.OS === 'android' ? 'slide_from_right' : 'slide_from_right',
+                      freezeOnBlur: false,
+                      contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+                    }}
+                  />
                   <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />

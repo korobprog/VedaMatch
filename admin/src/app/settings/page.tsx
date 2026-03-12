@@ -60,6 +60,12 @@ interface SettingsState {
     SUPPORT_DOWNLOAD_IOS_URL: string;
     SUPPORT_DOWNLOAD_ANDROID_URL: string;
     SUPPORT_CHANNEL_URL: string;
+    ANDROID_TESTERS_PAGE_TITLE: string;
+    ANDROID_TESTERS_PAGE_SUBTITLE: string;
+    ANDROID_TESTERS_APP_VERSION: string;
+    ANDROID_TESTERS_RELEASE_NOTES: string;
+    ANDROID_TESTERS_INSTALL_INSTRUCTIONS: string;
+    ANDROID_TESTERS_SUPPORT_TEXT: string;
     SUPPORT_APP_ENTRY_ENABLED: string;
     SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: string;
     SUPPORT_SLA_TEXT_RU: string;
@@ -166,6 +172,12 @@ const DEFAULT_SETTINGS: SettingsState = {
     SUPPORT_DOWNLOAD_IOS_URL: '',
     SUPPORT_DOWNLOAD_ANDROID_URL: '',
     SUPPORT_CHANNEL_URL: '',
+    ANDROID_TESTERS_PAGE_TITLE: 'Android test builds',
+    ANDROID_TESTERS_PAGE_SUBTITLE: 'Скачайте актуальный APK, установите его на Android и отправьте отзыв со скриншотом, если что-то пошло не так.',
+    ANDROID_TESTERS_APP_VERSION: '',
+    ANDROID_TESTERS_RELEASE_NOTES: '',
+    ANDROID_TESTERS_INSTALL_INSTRUCTIONS: '1. Скачайте APK на Android.\n2. Разрешите установку из этого источника.\n3. Откройте файл и подтвердите установку.\n4. Если приложение не обновилось, удалите старую сборку и установите заново.',
+    ANDROID_TESTERS_SUPPORT_TEXT: 'Если поймали баг, отправьте короткое описание и один скриншот.',
     SUPPORT_APP_ENTRY_ENABLED: 'false',
     SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: '10',
     SUPPORT_SLA_TEXT_RU: 'AI отвечает сразу, оператор в рабочее время — до 4 часов.',
@@ -1103,6 +1115,73 @@ export default function SettingsPage() {
                                                 className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl border border-emerald-500/20 space-y-3">
+                                        <p className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Android Testers Page</p>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Page Title</label>
+                                            <input
+                                                type="text"
+                                                value={settings.ANDROID_TESTERS_PAGE_TITLE || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_PAGE_TITLE: e.target.value })}
+                                                placeholder="Android test builds"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Page Subtitle</label>
+                                            <textarea
+                                                value={settings.ANDROID_TESTERS_PAGE_SUBTITLE || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_PAGE_SUBTITLE: e.target.value })}
+                                                placeholder="Short instruction for testers"
+                                                rows={3}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">App Version</label>
+                                            <input
+                                                type="text"
+                                                value={settings.ANDROID_TESTERS_APP_VERSION || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_APP_VERSION: e.target.value })}
+                                                placeholder="1.1.27 (29)"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Release Notes</label>
+                                            <textarea
+                                                value={settings.ANDROID_TESTERS_RELEASE_NOTES || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_RELEASE_NOTES: e.target.value })}
+                                                placeholder="One item per line or short paragraph"
+                                                rows={5}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Install Instructions</label>
+                                            <textarea
+                                                value={settings.ANDROID_TESTERS_INSTALL_INSTRUCTIONS || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_INSTALL_INSTRUCTIONS: e.target.value })}
+                                                placeholder="Step-by-step install instructions"
+                                                rows={6}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Support Text</label>
+                                            <textarea
+                                                value={settings.ANDROID_TESTERS_SUPPORT_TEXT || ''}
+                                                onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_SUPPORT_TEXT: e.target.value })}
+                                                placeholder="Short note above feedback form"
+                                                rows={3}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-[var(--muted-foreground)]">
+                                            Публичная страница будет использовать `SUPPORT_DOWNLOAD_ANDROID_URL` как ссылку на APK и эти поля как контент по route `/android-testers`.
+                                        </p>
                                     </div>
 
                                     <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/20 space-y-3">

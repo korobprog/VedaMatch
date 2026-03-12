@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"os"
 	"rag-agent-server/internal/services"
 	"testing"
 
@@ -210,5 +211,70 @@ func TestGetPushHealthStatusEkadashiSummaryShape(t *testing.T) {
 	status := getPushHealthStatus(alerts)
 	if status == "" {
 		t.Fatalf("expected non-empty health status")
+	}
+}
+
+func TestGetPublicAndroidTestersConfig(t *testing.T) {
+	t.Setenv("SUPPORT_DOWNLOAD_ANDROID_URL", "https://api.vedamatch.ru/uploads/apk/app.apk")
+	t.Setenv("ANDROID_TESTERS_PAGE_TITLE", "Android QA")
+	t.Setenv("ANDROID_TESTERS_PAGE_SUBTITLE", "Install and report issues")
+	t.Setenv("ANDROID_TESTERS_APP_VERSION", "1.1.27 (29)")
+	t.Setenv("ANDROID_TESTERS_RELEASE_NOTES", "Fix Telegram auth")
+	t.Setenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "1. Download\n2. Install")
+	t.Setenv("ANDROID_TESTERS_SUPPORT_TEXT", "Attach a screenshot if possible")
+	defer os.Unsetenv("SUPPORT_DOWNLOAD_ANDROID_URL")
+	defer os.Unsetenv("ANDROID_TESTERS_PAGE_TITLE")
+	defer os.Unsetenv("ANDROID_TESTERS_PAGE_SUBTITLE")
+	defer os.Unsetenv("ANDROID_TESTERS_APP_VERSION")
+	defer os.Unsetenv("ANDROID_TESTERS_RELEASE_NOTES")
+	defer os.Unsetenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS")
+	defer os.Unsetenv("ANDROID_TESTERS_SUPPORT_TEXT")
+
+	app := fiber.New()
+	handler := &AdminHandler{}
+	app.Get("/android-testers/config", handler.GetPublicAndroidTestersConfig)
+
+	req := httptest.NewRequest("GET", "/android-testers/config", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Title               string `json:"title"`
+		Subtitle            string `json:"subtitle"`
+		ApkURL              string `json:"apkUrl"`
+		AppVersion          string `json:"appVersion"`
+		ReleaseNotes        string `json:"releaseNotes"`
+		InstallInstructions string `json:"installInstructions"`
+		SupportText         string `json:"supportText"`
+		FeedbackEntryPoint  string `json:"feedbackEntryPoint"`
+		Attachment          struct {
+			MaxBytes int64    `json:"maxBytes"`
+			Types    []string `json:"types"`
+		} `json:"attachment"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+
+	if payload.Title != "Android QA" {
+		t.Fatalf("unexpected title: %q", payload.Title)
+	}
+	if payload.ApkURL != "https://api.vedamatch.ru/uploads/apk/app.apk" {
+		t.Fatalf("unexpected apk url: %q", payload.ApkURL)
+	}
+	if payload.FeedbackEntryPoint != "android_tester_feedback" {
+		t.Fatalf("unexpected entry point: %q", payload.FeedbackEntryPoint)
+	}
+	if payload.Attachment.MaxBytes != supportUploadMaxBytes {
+		t.Fatalf("unexpected max bytes: %d", payload.Attachment.MaxBytes)
+	}
+	if len(payload.Attachment.Types) == 0 {
+		t.Fatalf("expected allowed attachment types")
 	}
 }

@@ -489,6 +489,7 @@ func main() {
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
 	api.Get("/support/config", middleware.OptionalAuth(), supportHandler.GetPublicConfig)
 	api.Get("/legal/config", middleware.OptionalAuth(), adminHandler.GetPublicLegalConfig)
+	api.Get("/android-testers/config", middleware.OptionalAuth(), adminHandler.GetPublicAndroidTestersConfig)
 	api.Post("/support/uploads", middleware.OptionalAuth(), supportHandler.UploadAttachment)
 	api.Post("/support/tickets", middleware.OptionalAuth(), supportHandler.CreateTicket)
 
@@ -580,6 +581,7 @@ func main() {
 	admin.Get("/users", adminHandler.GetUsers)
 	admin.Post("/users/:id/toggle-block", adminHandler.ToggleBlockUser)
 	admin.Put("/users/:id/role", adminHandler.UpdateUserRole)
+	admin.Delete("/users/:id", adminHandler.DeleteUser)
 	admin.Post("/admins", adminHandler.AddAdmin)
 	admin.Get("/stats", adminHandler.GetStats)
 	admin.Get("/channels/metrics", channelHandler.GetMetrics)

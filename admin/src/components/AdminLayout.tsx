@@ -82,12 +82,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const pathname = usePathname();
     const publicLegalRoutes = ['/terms', '/privacy', '/delete-account'];
+    const publicGuestRoutes = new Set(['/feed-posts', '/android-testers']);
     const isPublicLegalRoute = (path: string): boolean =>
         publicLegalRoutes.some((route) => path === route || path.startsWith(`${route}/`));
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
-        const isGuestAllowedRoute = pathname === '/feed-posts' || isPublicLegalRoute(pathname);
+        const isGuestAllowedRoute = publicGuestRoutes.has(pathname) || isPublicLegalRoute(pathname);
         if (!data) {
             if (!isGuestAllowedRoute && pathname !== '/login' && pathname !== '/' && pathname !== '/register') {
                 router.push('/login');
@@ -135,7 +136,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         pathname === '/' ||
         pathname === '/register' ||
         pathname === '/admin-login' ||
-        pathname === '/feed-posts' ||
+        publicGuestRoutes.has(pathname) ||
         isPublicLegalRoute(pathname);
     const isUserDashboard = pathname === '/user/dashboard';
 

@@ -15628,6 +15628,50 @@ didUpdatePushCredentials:(PKPushCredentials *)credentials
 ## 2026-03-12
 
 ### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/components/theme/ScreenAuraBackground.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки
+- Было: `ScreenAuraBackground` практически не различал `variant='portal'` и остальные saffron-экраны. На light + `screenVisualStyle='saffron'` + `high_quality` портал мог выглядеть выбеленным после возврата из настроек, особенно на Android.
+- Также было: Android `AppSettings`/`LinkedAccounts` наследовали глобальный stack `fade`, а сам portal light-saffron shell использовал почти белый `vTheme.colors.background`. В результате белая пелена могла проявляться не только после `Settings`, но и после возврата из embedded services вроде `Contacts`.
+- Стало:
+  - для `variant='portal'` light-аура стала теплее и темнее, а интенсивность glow/rays снижена;
+  - `AppSettings` и `LinkedAccounts` на Android переведены с fade на обычный push/slide path;
+  - `PortalMainScreen` в light `saffron` теперь использует теплый portal-level gradient вместо почти белой плоскости.
+
+### Короткие сниппеты кода
+`frontend/components/theme/ScreenAuraBackground.tsx`:
+```tsx
+const variantMultiplier = variant === 'portal' ? 0.74 : 1;
+```
+
+```tsx
+if (variant === 'portal') {
+  return ['#F6E9D3', '#F3E1BE', '#EEDAB5'];
+}
+```
+
+```tsx
+return variant === 'portal' ? 0.24 : 0.45;
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="AppSettings"
+  options={{ animation: Platform.OS === 'android' ? 'slide_from_right' : 'slide_from_right' }}
+/>
+```
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+const nonClassicPortalBackground = isDarkMode
+  ? vTheme.colors.background
+  : '#F5E7CA|#E7CF9D';
+```
+
+### Измененные файлы
 - `frontend/components/roles/RoleSelectionSection.tsx`
 - `frontend/screens/portal/services/EkadashiCalendarScreen.tsx`
 - `frontend/types/navigation.ts`

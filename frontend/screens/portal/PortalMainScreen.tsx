@@ -263,8 +263,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         [portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled],
     );
     const useClassicWallpaper = screenVisualStyle === 'classic';
-    const layerBackgroundType = useClassicWallpaper ? portalBackgroundType : 'color';
-    const layerBackground = useClassicWallpaper ? portalBackground : vTheme.colors.background;
+    const nonClassicPortalBackgroundType = isDarkMode ? 'color' : 'gradient';
+    const nonClassicPortalBackground = isDarkMode
+        ? vTheme.colors.background
+        : '#F5E7CA|#E7CF9D';
+    const layerBackgroundType = useClassicWallpaper ? portalBackgroundType : nonClassicPortalBackgroundType;
+    const layerBackground = useClassicWallpaper ? portalBackground : nonClassicPortalBackground;
     const layerActiveWallpaper = useClassicWallpaper ? activeWallpaper : '';
     const layerSlideshowEnabled = useClassicWallpaper ? isSlideshowEnabled : false;
     const layerOverlayColor = useClassicWallpaper ? 'rgba(0,0,0,0.25)' : 'transparent';

@@ -12,26 +12,68 @@ type ScreenAuraBackgroundProps = {
   variant?: 'portal' | 'chat' | 'settings' | 'market' | 'media' | 'default';
 };
 
-const getAuraOpacity = (intensity: AuraIntensity) => {
-  if (intensity === 'high') return 1;
-  if (intensity === 'medium') return 0.72;
-  if (intensity === 'low') return 0.48;
+const getAuraOpacity = (intensity: AuraIntensity, variant: ScreenAuraBackgroundProps['variant']) => {
+  const variantMultiplier = variant === 'portal' ? 0.74 : 1;
+
+  if (intensity === 'high') return 1 * variantMultiplier;
+  if (intensity === 'medium') return 0.72 * variantMultiplier;
+  if (intensity === 'low') return 0.48 * variantMultiplier;
   return 0;
+};
+
+const getBaseGradientColors = (mode: ScreenThemeMode, variant: ScreenAuraBackgroundProps['variant']) => {
+  const isDark = mode === 'dark';
+
+  if (isDark) {
+    return ['#18120A', '#20170D', '#171109'];
+  }
+
+  if (variant === 'portal') {
+    return ['#F6E9D3', '#F3E1BE', '#EEDAB5'];
+  }
+
+  return ['#FFFCF4', '#FAF7F0', '#F8F2E4'];
+};
+
+const getRayColors = (mode: ScreenThemeMode, variant: ScreenAuraBackgroundProps['variant']) => {
+  const isDark = mode === 'dark';
+
+  if (isDark) {
+    return ['rgba(255,215,145,0.12)', 'rgba(255,215,145,0.04)', 'rgba(255,215,145,0)'];
+  }
+
+  if (variant === 'portal') {
+    return ['rgba(244,197,66,0.16)', 'rgba(255,209,120,0.06)', 'rgba(255,209,120,0)'];
+  }
+
+  return ['rgba(255,209,120,0.26)', 'rgba(255,209,120,0.1)', 'rgba(255,209,120,0)'];
+};
+
+const getRayOpacity = (mode: ScreenThemeMode, variant: ScreenAuraBackgroundProps['variant']) => {
+  if (mode === 'dark') {
+    return 0.45;
+  }
+
+  return variant === 'portal' ? 0.24 : 0.45;
 };
 
 export const ScreenAuraBackground: React.FC<ScreenAuraBackgroundProps> = ({
   mode,
   intensity = 'medium',
   disableHeavyEffects = false,
+  variant = 'default',
 }) => {
-  const auraOpacity = getAuraOpacity(intensity);
+  const auraOpacity = getAuraOpacity(intensity, variant);
   const isDark = mode === 'dark';
   const showRays = !disableHeavyEffects && intensity !== 'off' && (Platform.OS === 'ios' || intensity === 'high');
+  const baseGradientColors = getBaseGradientColors(mode, variant);
+  const rayColors = getRayColors(mode, variant);
+  const rayOpacity = getRayOpacity(mode, variant);
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
       <LinearGradient
-        colors={isDark ? ['#18120A', '#20170D', '#171109'] : ['#FFFCF4', '#FAF7F0', '#F8F2E4']}
+        colors={baseGradientColors}
         start={{ x: 0.05, y: 0.03 }}
         end={{ x: 0.95, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -64,14 +106,10 @@ export const ScreenAuraBackground: React.FC<ScreenAuraBackgroundProps> = ({
 
       {showRays ? (
         <LinearGradient
-          colors={
-            isDark
-              ? ['rgba(255,215,145,0.12)', 'rgba(255,215,145,0.04)', 'rgba(255,215,145,0)']
-              : ['rgba(255,209,120,0.26)', 'rgba(255,209,120,0.1)', 'rgba(255,209,120,0)']
-          }
+          colors={rayColors}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={styles.rays}
+          style={[styles.rays, { opacity: rayOpacity }]}
         />
       ) : null}
     </View>
@@ -100,7 +138,5 @@ const styles = StyleSheet.create({
   },
   rays: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.45,
   },
 });
-
