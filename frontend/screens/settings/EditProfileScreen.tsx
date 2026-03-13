@@ -51,7 +51,7 @@ const INTENTION_OPTIONS = [
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { user, updateUserProfile } = useUser();
+    const { user, updateUserProfile, loadUserProfile } = useUser();
     const { fetchCountries, fetchCities } = useLocation();
 
     const theme = COLORS.dark;
@@ -271,6 +271,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 if (userData.country) {
                     await fetchCities(userData.country);
                 }
+
+                await loadUserProfile();
             }
         } catch (error) {
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
@@ -282,7 +284,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setLoading(false);
             }
         }
-    }, [user?.ID, fetchCities]);
+    }, [user?.ID, fetchCities, loadUserProfile, setCountry, setCity, setKarmicName, setSpiritualName, setNickname, setMadh, setMentor, setGender, setIdentity, setYogaStyle, setGuna, setDiet, setBio, setInterests, setLookingFor, setSkills, setIndustry, setLookingForBusiness, setMaritalStatus, setBirthTime, setYatra, setTimezone, setDatingEnabled, setRole, setGodModeEnabled, setDob]);
 
     const loadProStatus = React.useCallback(async () => {
         if (!user?.ID) return;
@@ -384,6 +386,11 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             const updatedUser = response.data.user || {};
 
             await updateUserProfile(updatedUser);
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+
+            await loadUserProfile();
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }

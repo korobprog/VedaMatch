@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { LocationData } from '@/services/profileService';
 
 export default function ProfilePage() {
     const [user, setUser] = useState<any>(null);
@@ -20,13 +21,37 @@ export default function ProfilePage() {
     const router = useRouter();
 
     useEffect(() => {
-        const data = localStorage.getItem('admin_data');
-        if (!data) {
-            router.push('/login');
-            return;
-        }
-        setUser(JSON.parse(data));
-        setLoading(false);
+        const loadData = async () => {
+            const data = localStorage.getItem('admin_data');
+            if (!data) {
+                router.push('/login');
+                return;
+            }
+
+            const userData = JSON.parse(data);
+
+            try {
+                const response = await api.get('/profile');
+                const profileData = response.data;
+
+                setUser({
+                    ...userData,
+                    ...profileData,
+                    location: profileData.location || userData.location || { country: '', city: '' }
+                });
+            } catch (err: any) {
+                if (err?.response?.status === 401) {
+                    router.push('/login');
+                    return;
+                }
+                console.error('Failed to load profile:', err);
+                setUser(userData);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
     }, [router]);
 
     const handleUpdate = async (e: React.FormEvent) => {
@@ -36,14 +61,22 @@ export default function ProfilePage() {
         setSuccess('');
 
         try {
-            const response = await api.put('/update-profile', user);
+            const locationData = {
+                country: user.country || '',
+                city: user.city || ''
+            };
+
+            const response = await api.put('/update-location', locationData);
             const updatedUser = response.data.user;
 
             // Keep token
             const oldData = JSON.parse(localStorage.getItem('admin_data') || '{}');
             localStorage.setItem('admin_data', JSON.stringify({ ...oldData, ...updatedUser }));
 
-            setUser(updatedUser);
+            setUser({
+                ...updatedUser,
+                location: { country: locationData.country, city: locationData.city }
+            });
             setSuccess('Profile updated successfully!');
         } catch (err: any) {
             setError(err.response?.data?.error || 'Update failed');

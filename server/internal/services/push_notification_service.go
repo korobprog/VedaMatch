@@ -648,6 +648,17 @@ func (s *PushNotificationService) SendNewsNotification(newsItem models.NewsItem)
 
 // SendCallNotification sends a VoIP push notification for incoming calls
 func (s *PushNotificationService) SendCallNotification(targetUserID uint, callerName string, roomID string, isVideo bool) error {
+	// DIAG: log target user device tokens
+	if tokens, err := s.getTargetsForUser(targetUserID); err == nil && len(tokens) > 0 {
+		platforms := make([]string, len(tokens))
+		for i, t := range tokens {
+			platforms[i] = t.Platform
+		}
+		log.Printf("[CallPush DIAG] target=%d has %d tokens platforms=%v", targetUserID, len(tokens), platforms)
+	} else {
+		log.Printf("[CallPush DIAG] target=%d has no valid tokens: %v", targetUserID, err)
+	}
+
 	message := PushMessage{
 		Title:    "Incoming Call",
 		Body:     fmt.Sprintf("%s is calling...", callerName),
@@ -1268,6 +1279,13 @@ func (s *PushNotificationService) sendFCMV1Attempt(cfg fcmV1ResolvedConfig, targ
 		normalizedCode := normalizeFCMV1ErrorCode(statusCode, statusText, fcmErrorCode)
 		class := classifyFCMV1Error(statusCode, statusText, fcmErrorCode, providerMessage)
 		lastErr = fmt.Errorf("fcm v1 returned status=%d code=%s", statusCode, normalizedCode)
+
+		// DIAG: detailed logging for auth errors
+		if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden || fcmErrorCode == "THIRD_PARTY_AUTH_ERROR" {
+			cfgStatus := s.GetFCMRuntimeStatus()
+			log.Printf("[PUSH DIAG] FCM auth failure: status=%d code=%s class=%s project_id=%s credential_source=%s v1_configured=%v",
+				statusCode, normalizedCode, class, cfgStatus.V1ProjectID, cfgStatus.V1CredentialSource, cfgStatus.V1Configured)
+		}
 
 		switch class {
 		case errorTypePermanent:

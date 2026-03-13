@@ -69,14 +69,17 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if existing, ok := h.clients[client.UserID]; ok && existing != client {
 				// Replace stale connection for the same user and release writer loop.
+				log.Printf("[Hub] User %d reconnecting, closing old connection", client.UserID)
 				close(existing.Send)
 			}
 			h.clients[client.UserID] = client
+			log.Printf("[Hub] User %d connected, total clients: %d", client.UserID, len(h.clients))
 			h.mu.Unlock()
 		case client := <-h.Unregister:
 			h.mu.Lock()
 			if current, ok := h.clients[client.UserID]; ok && current == client {
 				delete(h.clients, client.UserID)
+				log.Printf("[Hub] User %d disconnected, total clients: %d", client.UserID, len(h.clients))
 				close(client.Send)
 			}
 			h.mu.Unlock()

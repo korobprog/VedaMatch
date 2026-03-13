@@ -9,6 +9,7 @@ import { accountService } from '../services/accountService';
 import { mmkvDeleteMultiple, mmkvGetString, mmkvSetString } from '../lib/mmkvStorage';
 import { clearContactsCaches } from '../lib/contactCache';
 import { queryClient } from '../lib/queryClient';
+import apiClient from '../lib/apiClient';
 
 interface UserProfile {
     karmicName: string;
@@ -59,6 +60,7 @@ interface UserContextType {
     deleteAccount: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
     updateUserProfile: (patch: Partial<UserProfile>) => Promise<void>;
+    loadUserProfile: () => Promise<void>;
     setRoleDescriptor: (descriptor: PortalBlueprint | null) => void;
     setGodModeFilters: (filters: MathFilter[]) => void;
     setActiveMath: (mathId: string | null) => void;
@@ -152,6 +154,42 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         loadUser().catch(() => undefined);
     }, [loadUser]);
+
+    const loadUserProfile = useCallback(async () => {
+        if (!user?.ID) {
+            console.log('[UserContext] No user ID, skipping profile load');
+            return;
+        }
+        try {
+            console.log('[UserContext] Loading profile for user:', user.ID);
+            const response = await apiClient.get<any[] | { items?: any[] }>('/contacts');
+            const contacts = Array.isArray(response.data)
+                ? response.data
+                : (Array.isArray(response.data?.items) ? response.data.items : []);
+            const userData = contacts.find((u: any) => u.ID === user.ID);
+
+            if (userData) {
+                const updatedUser: UserProfile = {
+                    ...user,
+                    ...userData,
+                    latitude: userData.latitude || user.latitude,
+                    longitude: userData.longitude || user.longitude
+                };
+                setUser(updatedUser);
+                mmkvSetString('user', JSON.stringify(updatedUser));
+                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+                console.log('[UserContext] Profile loaded successfully');
+            }
+        } catch (error) {
+            console.warn('[UserContext] Failed to load user profile:', error);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (user?.ID) {
+            loadUserProfile().catch(() => undefined);
+        }
+    }, [user?.ID, loadUserProfile]);
 
     useEffect(() => {
         let heartbeatInterval: NodeJS.Timeout;
@@ -281,6 +319,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             deleteAccount,
             setTourCompleted,
             updateUserProfile,
+            loadUserProfile,
             setRoleDescriptor,
             setGodModeFilters,
             setActiveMath: setActiveMathId,
@@ -298,6 +337,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             deleteAccount,
             setTourCompleted,
             updateUserProfile,
+            loadUserProfile,
         ],
     );
 
