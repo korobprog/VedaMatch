@@ -2,7 +2,6 @@ import React, { createContext, useState, useContext, useRef, ReactNode, useEffec
 import { Alert, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import i18n from '../i18n';
 import { Message } from '../components/chat/ChatConstants';
 import { sendMessage, ChatMessage } from '../services/openaiService';
 import { useSettings } from './SettingsContext';
@@ -171,6 +170,23 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const historyPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isFirstRun = useRef(true);
+    const directChatMediaCopy = React.useMemo(() => {
+        const lang = i18n.language?.startsWith('ru') ? 'ru' : i18n.language?.startsWith('hi') ? 'hi' : 'en';
+        return {
+            ru: {
+                title: 'Медиа недоступно',
+                body: 'Аудио и другие медиа можно отправлять только в личный чат с пользователем.',
+            },
+            hi: {
+                title: 'मीडिया उपलब्ध नहीं है',
+                body: 'ऑडियो और दूसरे मीडिया केवल किसी उपयोगकर्ता के निजी चैट में भेजे जा सकते हैं।',
+            },
+            en: {
+                title: 'Media unavailable',
+                body: 'Audio and other media can only be sent inside a direct chat with another user.',
+            },
+        }[lang];
+    }, [i18n.language]);
 
     const persistChatHistory = useCallback((nextHistory: ChatHistory[]) => {
         if (historyPersistTimeoutRef.current) {
@@ -858,6 +874,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const handleSendMedia = async (media: MediaFile) => {
         if (!currentUser?.ID) return;
         const currentUserId = currentUser.ID;
+        const targetRecipientId = recipientId || recipientUser?.ID || null;
+
+        if (!targetRecipientId) {
+            Alert.alert(directChatMediaCopy.title, directChatMediaCopy.body);
+            return;
+        }
 
         try {
             console.log('📤 Starting media upload:', media);
@@ -892,13 +914,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             const savedMessage = media.type === 'video_circle'
                 ? await mediaService.uploadVideoCircle(
                     media,
-                    recipientId || undefined,
+                    targetRecipientId,
                     undefined
                 )
                 : await mediaService.uploadMedia(
                     media,
                     currentUserId,
-                    recipientId || undefined,
+                    targetRecipientId,
                     undefined
                 );
 
@@ -953,9 +975,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
             // Hard sync with backend state to avoid rare UI races where media message
             // is persisted but not rendered in current list due local/WS ordering.
-            if (recipientId) {
+            if (targetRecipientId) {
                 try {
-                    const refreshedPage = await messageService.getMessagesHistory(recipientId, 30);
+                    const refreshedPage = await messageService.getMessagesHistory(targetRecipientId, 30);
                     const refreshedMessages = refreshedPage.items.map((m) => normalizeP2PMessage(m, currentUserId));
                     setMessages(prev => dedupeMessagesById([
                         ...refreshedMessages,

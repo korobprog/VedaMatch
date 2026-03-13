@@ -16418,3 +16418,23 @@ return applyAudioHostFallback(resolved);
   <Text>{messageListCopy.transcribeShort}</Text>
 </View>
 ```
+# 2026-03-13
+- Измененные файлы: `frontend/context/ChatContext.tsx`, `frontend/components/chat/ChatInput.tsx`
+- Суть правки: при отправке voice/media в эмуляторе и iOS client можно было уйти в upload без адресата и получить red screen `recipientId or roomId is required` -> теперь direct chat берёт fallback `recipientUser.ID`, а в non-direct chat микрофон показывает нормальный alert и не стартует ошибочный upload.
+- Сниппет:
+```ts
+const targetRecipientId = recipientId || recipientUser?.ID || null;
+if (!targetRecipientId) {
+  Alert.alert(directChatMediaCopy.title, directChatMediaCopy.body);
+  return;
+}
+```
+# 2026-03-13
+- Измененные файлы: `frontend/components/chat/MessageList.tsx`
+- Суть правки: в dev iOS emulator транскриб-аудио показывал LogBox из-за `console.error` на `404` -> теперь для `404/405` показывается user-facing alert `transcribeUnavailable`, а в лог пишется только `warn` для неожиданных ошибок.
+- Сниппет:
+```ts
+if (status === 404 || status === 405) {
+  Alert.alert(t('error'), messageListCopy.transcribeUnavailable);
+}
+```

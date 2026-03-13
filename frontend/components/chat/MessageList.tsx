@@ -874,11 +874,13 @@ export const MessageList: React.FC<MessageListProps> = ({
                 );
             }
         } catch (error) {
-            console.error('Failed to transcribe message', error);
             const status = (error as AxiosError)?.response?.status;
             if (status === 402) {
                 Alert.alert(t('error'), messageListCopy.insufficientLkm);
+            } else if (status === 404 || status === 405) {
+                Alert.alert(t('error'), messageListCopy.transcribeUnavailable);
             } else {
+                console.warn('Failed to transcribe message', error);
                 Alert.alert(t('error'), messageListCopy.transcribeFailed);
             }
         } finally {

@@ -80,6 +80,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 recordVideoFailed: 'Failed to record a video circle',
                 pickVideoFailed: 'Failed to choose a video circle',
                 pickDocumentFailed: 'Failed to choose a document',
+                mediaUnavailableTitle: 'Media unavailable',
+                mediaUnavailableBody: 'Voice messages can only be sent in a direct chat with another user.',
             },
             ru: {
                 error: 'Ошибка',
@@ -93,6 +95,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 recordVideoFailed: 'Не удалось записать видеокружок',
                 pickVideoFailed: 'Не удалось выбрать видеокружок',
                 pickDocumentFailed: 'Не удалось выбрать документ',
+                mediaUnavailableTitle: 'Медиа недоступно',
+                mediaUnavailableBody: 'Голосовые сообщения можно отправлять только в личном чате с пользователем.',
             },
             hi: {
                 error: 'त्रुटि',
@@ -106,6 +110,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 recordVideoFailed: 'वीडियो सर्कल रिकॉर्ड नहीं हो सका',
                 pickVideoFailed: 'वीडियो सर्कल चुना नहीं जा सका',
                 pickDocumentFailed: 'दस्तावेज़ चुना नहीं जा सका',
+                mediaUnavailableTitle: 'मीडिया उपलब्ध नहीं है',
+                mediaUnavailableBody: 'वॉइस मैसेज केवल किसी दूसरे उपयोगकर्ता के निजी चैट में भेजे जा सकते हैं।',
             },
         }[lang];
     }, [i18n.language]);
@@ -211,6 +217,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     const onMicPress = async () => {
         setShowMenu(false);
+        if (!recipientUser?.ID) {
+            Alert.alert(chatInputCopy.mediaUnavailableTitle, chatInputCopy.mediaUnavailableBody);
+            return;
+        }
         Vibration.vibrate(30);
         if (isRecording) {
             await stopRecording();

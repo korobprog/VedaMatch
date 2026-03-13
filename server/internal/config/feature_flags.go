@@ -54,7 +54,7 @@ func ChatVideoCirclePresignEnabled() bool {
 }
 
 func ChatTranscriptionEnabled() bool {
-	return FlagEnabled("CHAT_TRANSCRIPTION_ENABLED", false)
+	return FlagEnabled("CHAT_TRANSCRIPTION_ENABLED", chatTranscriptionProviderConfigured())
 }
 
 func RoomSFUEnabled() bool {
@@ -75,4 +75,13 @@ func HTTPConditionalCacheEnabled() bool {
 
 func ContactsLegacyModeEnabled() bool {
 	return FlagEnabled("FF_CONTACTS_LEGACY_MODE", false)
+}
+
+func chatTranscriptionProviderConfigured() bool {
+	for _, key := range []string{"OPENAI_API_KEY", "POLZA_API_KEY", "API_OPEN_AI"} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
 }
