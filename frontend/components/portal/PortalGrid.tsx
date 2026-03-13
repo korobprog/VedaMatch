@@ -432,7 +432,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     <PortalFolderComponent
                         folder={item}
                         isEditMode={isEditMode}
-                        onPress={() => { }}
+                        onPress={pressHandler}
                         onLongPress={() => { }}
                         size={layout.iconSize}
                         onRemove={() => deleteFolder(item.id)}
@@ -451,7 +451,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     <PortalIcon
                         service={service}
                         isEditMode={isEditMode}
-                        onPress={() => { }}
+                        onPress={pressHandler}
                         onLongPress={() => { }}
                         size={layout.iconSize}
                         badge={serviceBadges[service.id] || 0}
@@ -471,7 +471,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                     onLayout={(e) => gridDnd.onLayout(item.id, e)}
-                    onPress={pressHandler}
+                    onPress={undefined}
                     onSecondaryLongPress={item.type === 'folder'
                         ? () => handleFolderPress(item as PortalFolderType, true)
                         : () => setEditMode(true)

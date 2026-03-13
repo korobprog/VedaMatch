@@ -8,6 +8,11 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## Chat / Messaging
+- Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.
+- Chat transcription backend должен уметь работать не только с абсолютными `http(s)` audio URL, но и с локальными путями `/uploads/...`, нормализуя их в публичный API URL перед `ffprobe`/download и перед отправкой в transcription provider.
+- Chat transcription нельзя завязывать только на `OPENAI_API_KEY`: на production используется Polza/OpenAI-compatible конфиг, поэтому backend должен поддерживать fallback через `POLZA_API_KEY` / `POLZA_BASE_URL`.
+
 ## MVP Readiness
 - На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.
 - Backend auth/session ядро уже заведено в коде:
@@ -184,6 +189,7 @@
   - пользовательские переименования папок должны оставаться как есть и не заменяться локализованным дефолтом.
 - Для сервиса `ekadashi_calendar` в portal icon registry должен быть явный `CalendarDays` маппинг в `frontend/components/portal/portalIconShared.tsx`; иначе в iOS/Android включается fallback-глиф вместо календаря.
 - В `PortalLayoutContext` нельзя принудительно подставлять роль `user`, если `user.role` еще не загружен: это удаляет `ekadashi_calendar` на этапе инициализации и визуально дает эффект «папка Календарь появилась и пропала».
+- Для обычного режима портала drag-gesture не должен конкурировать с обычным tap по папкам и сервисам: pan drag лучше держать активным только в `edit mode`, а обычный tap маршрутизировать напрямую в `PortalFolderComponent` / `PortalIcon`, чтобы уменьшить задержку открытия.
 
 ## Portal Service Visibility
 - Для runtime-управления сервисами портала реализована отдельная backend-сущность `portal_service_visibility`, а не `system_settings`.

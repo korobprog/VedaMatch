@@ -1,3 +1,40 @@
+## 2026-03-13 (Portal folder tap responsiveness)
+
+### Измененные файлы
+- `frontend/components/portal/DraggablePortalItem.tsx`
+- `frontend/components/portal/PortalGrid.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в обычном режиме портала tap по папкам и сервисам проходил через общий gesture-wrapper;
+  - pan drag был активен всегда и конкурировал с обычным tap-path, из-за чего открытие папок ощущалось более медленным.
+- Стало:
+  - pan drag включается только в `edit mode`;
+  - обычный tap маршрутизируется напрямую в `PortalFolderComponent` и `PortalIcon`;
+  - в результате открытие папок и сервисов в обычном режиме происходит быстрее и с меньшей задержкой распознавания жеста.
+
+### Сниппеты кода
+
+`frontend/components/portal/DraggablePortalItem.tsx`:
+```tsx
+const panGesture = Gesture.Pan()
+  .enabled(isEditMode)
+  .activateAfterLongPress(260);
+
+const composedGesture = isEditMode
+  ? Gesture.Race(tapGesture, Gesture.Simultaneous(secondaryLongPressGesture, panGesture))
+  : Gesture.Race(tapGesture, secondaryLongPressGesture);
+```
+
+`frontend/components/portal/PortalGrid.tsx`:
+```tsx
+<PortalFolderComponent
+  folder={item}
+  isEditMode={isEditMode}
+  onPress={pressHandler}
+/>
+```
+
 ## 2026-03-13 (iOS Debug Firebase plist switched to korobkov .dev)
 
 ### Измененные файлы
@@ -16360,4 +16397,24 @@ export const proService = {
     return response.data;
   },
 };
+```
+# 2026-03-13
+- Измененные файлы: `frontend/components/chat/MessageList.tsx`
+- Суть правки: audio player получал сырой relative media path (`/uploads/...`) -> теперь chat message list нормализует audio URL через `getMediaUrl(...)` перед передачей в `AudioPlayer`, поэтому shared mobile playback работает и для local upload fallback.
+- Сниппет:
+```ts
+const resolved = getMediaUrl(content) || mediaService.getDownloadUrl(content);
+return applyAudioHostFallback(resolved);
+```
+# 2026-03-13
+- Измененные файлы: `frontend/components/chat/MessageList.tsx`
+- Суть правки: кнопка расшифровки аудио была обычным текстовым CTA под плеером -> стала компактной pill-кнопкой с иконкой `FileText`, заметнее визуально и удобнее рядом с voice message.
+- Сниппет:
+```tsx
+<View style={styles.transcriptButtonContent}>
+  <View style={styles.transcriptButtonIconWrap}>
+    <FileText size={14} color={theme.primary} />
+  </View>
+  <Text>{messageListCopy.transcribeShort}</Text>
+</View>
 ```

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -22,6 +23,12 @@ type ChatTranscriptionResult struct {
 	Text     string `json:"text"`
 	Model    string `json:"model"`
 	Language string `json:"language,omitempty"`
+}
+
+type chatTranscriptionProvider struct {
+	Name    string
+	APIKey  string
+	BaseURL string
 }
 
 // ResolveChatAudioDurationSec resolves duration with priority:
@@ -54,41 +61,45 @@ func ResolveChatAudioDurationSec(ctx context.Context, msg *models.Message) int {
 }
 
 func TranscribeChatAudio(ctx context.Context, mediaURL string, language string) (*ChatTranscriptionResult, error) {
-	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if apiKey == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY is not configured")
-	}
-
 	tmpPath, cleanup, err := downloadAudioToTempFile(ctx, mediaURL)
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup()
 
-	client := openai.NewClient(apiKey)
-	modelsToTry := []string{"gpt-4o-mini-transcribe", "gpt-4o-transcribe"}
+	providers := resolveChatTranscriptionProviders()
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("chat transcription provider is not configured")
+	}
+
+	modelsToTry := resolveChatTranscriptionModels()
 	var lastErr error
 
-	for _, model := range modelsToTry {
-		resp, transcribeErr := client.CreateTranscription(ctx, openai.AudioRequest{
-			Model:    model,
-			FilePath: tmpPath,
-			Language: strings.TrimSpace(language),
-		})
-		if transcribeErr != nil {
-			lastErr = transcribeErr
-			continue
+	for _, provider := range providers {
+		client := newChatTranscriptionClient(provider)
+		for _, model := range modelsToTry {
+			resp, transcribeErr := client.CreateTranscription(ctx, openai.AudioRequest{
+				Model:    model,
+				FilePath: tmpPath,
+				Language: strings.TrimSpace(language),
+			})
+			if transcribeErr != nil {
+				lastErr = fmt.Errorf("%s/%s: %w", provider.Name, model, transcribeErr)
+				log.Printf("[ChatTranscription] provider=%s model=%s failed: %v", provider.Name, model, transcribeErr)
+				continue
+			}
+			text := strings.TrimSpace(resp.Text)
+			if text == "" {
+				lastErr = fmt.Errorf("%s/%s: empty transcription response", provider.Name, model)
+				continue
+			}
+			log.Printf("[ChatTranscription] provider=%s model=%s succeeded language=%s", provider.Name, model, strings.TrimSpace(resp.Language))
+			return &ChatTranscriptionResult{
+				Text:     text,
+				Model:    model,
+				Language: strings.TrimSpace(resp.Language),
+			}, nil
 		}
-		text := strings.TrimSpace(resp.Text)
-		if text == "" {
-			lastErr = fmt.Errorf("empty transcription response for model %s", model)
-			continue
-		}
-		return &ChatTranscriptionResult{
-			Text:     text,
-			Model:    model,
-			Language: strings.TrimSpace(resp.Language),
-		}, nil
 	}
 
 	if lastErr == nil {
@@ -98,12 +109,12 @@ func TranscribeChatAudio(ctx context.Context, mediaURL string, language string) 
 }
 
 func downloadAudioToTempFile(ctx context.Context, mediaURL string) (string, func(), error) {
-	raw := strings.TrimSpace(mediaURL)
-	if raw == "" {
-		return "", func() {}, fmt.Errorf("empty media URL")
+	normalizedURL, err := NormalizeChatTranscriptionMediaURL(mediaURL)
+	if err != nil {
+		return "", func() {}, err
 	}
 
-	parsedURL, err := url.Parse(raw)
+	parsedURL, err := url.Parse(normalizedURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return "", func() {}, fmt.Errorf("invalid media URL")
 	}
@@ -143,6 +154,111 @@ func downloadAudioToTempFile(ctx context.Context, mediaURL string) (string, func
 		_ = os.Remove(tempFile.Name())
 	}
 	return tempFile.Name(), cleanup, nil
+}
+
+func NormalizeChatTranscriptionMediaURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", fmt.Errorf("empty media URL")
+	}
+	if strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://") {
+		return value, nil
+	}
+	if strings.HasPrefix(value, "/uploads/") {
+		return resolveChatTranscriptionPublicBaseURL() + value, nil
+	}
+	if strings.HasPrefix(value, "./uploads/") {
+		return resolveChatTranscriptionPublicBaseURL() + "/" + strings.TrimPrefix(value, "./"), nil
+	}
+	if strings.HasPrefix(value, "uploads/") {
+		return resolveChatTranscriptionPublicBaseURL() + "/" + value, nil
+	}
+	return "", fmt.Errorf("invalid media URL")
+}
+
+func resolveChatTranscriptionPublicBaseURL() string {
+	baseURL := strings.TrimSpace(os.Getenv("NEXT_PUBLIC_API_URL"))
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	baseURL = strings.TrimSuffix(baseURL, "/api")
+	if baseURL != "" {
+		return baseURL
+	}
+	return "https://api.vedamatch.ru"
+}
+
+func resolveChatTranscriptionModels() []string {
+	raw := strings.TrimSpace(os.Getenv("CHAT_TRANSCRIPTION_MODELS"))
+	if raw == "" {
+		return []string{"gpt-4o-mini-transcribe", "gpt-4o-transcribe"}
+	}
+
+	parts := strings.Split(raw, ",")
+	models := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		model := strings.TrimSpace(part)
+		if model == "" {
+			continue
+		}
+		if _, exists := seen[model]; exists {
+			continue
+		}
+		seen[model] = struct{}{}
+		models = append(models, model)
+	}
+	if len(models) == 0 {
+		return []string{"gpt-4o-mini-transcribe", "gpt-4o-transcribe"}
+	}
+	return models
+}
+
+func resolveChatTranscriptionProviders() []chatTranscriptionProvider {
+	providers := make([]chatTranscriptionProvider, 0, 2)
+
+	openAIKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if openAIKey != "" {
+		providers = append(providers, chatTranscriptionProvider{
+			Name:   "openai",
+			APIKey: openAIKey,
+		})
+	}
+
+	polzaKey := strings.TrimSpace(resolvePolzaAPIKey())
+	if polzaKey != "" {
+		baseURL := strings.TrimSpace(os.Getenv("POLZA_BASE_URL"))
+		if baseURL == "" {
+			baseURL = GetPolzaService().GetBaseURL()
+		}
+		providers = append(providers, chatTranscriptionProvider{
+			Name:    "polza",
+			APIKey:  polzaKey,
+			BaseURL: normalizeOpenAICompatibleBaseURL(baseURL),
+		})
+	}
+
+	return providers
+}
+
+func newChatTranscriptionClient(provider chatTranscriptionProvider) *openai.Client {
+	if provider.BaseURL == "" {
+		return openai.NewClient(provider.APIKey)
+	}
+
+	cfg := openai.DefaultConfig(provider.APIKey)
+	cfg.BaseURL = provider.BaseURL
+	return openai.NewClientWithConfig(cfg)
+}
+
+func normalizeOpenAICompatibleBaseURL(raw string) string {
+	baseURL := strings.TrimSpace(raw)
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	if baseURL == "" {
+		return ""
+	}
+	if strings.HasSuffix(baseURL, "/v1") {
+		return baseURL
+	}
+	return baseURL + "/v1"
 }
 
 func probeAudioDurationSeconds(ctx context.Context, mediaPath string) (int, error) {

@@ -147,6 +147,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             contact: 'Контакт',
             transcript: 'Расшифровка',
             transcribe: 'Расшифровать',
+            transcribeShort: 'В текст',
             loading: 'Загрузка...',
             sending: 'Отправка...',
             file: 'Файл',
@@ -171,6 +172,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 contact: 'संपर्क',
                 transcript: 'ट्रांसक्रिप्शन',
                 transcribe: 'ट्रांसक्राइब करें',
+                transcribeShort: 'टेक्स्ट',
                 loading: 'लोड हो रहा है...',
                 sending: 'भेजा जा रहा है...',
                 file: 'फ़ाइल',
@@ -194,6 +196,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 contact: 'Contact',
                 transcript: 'Transcription',
                 transcribe: 'Transcribe',
+                transcribeShort: 'To text',
                 loading: 'Loading...',
                 sending: 'Sending...',
                 file: 'File',
@@ -774,7 +777,8 @@ export const MessageList: React.FC<MessageListProps> = ({
         }
 
         if (content) {
-            return applyAudioHostFallback(content);
+            const resolved = getMediaUrl(content) || mediaService.getDownloadUrl(content);
+            return applyAudioHostFallback(resolved);
         }
 
         if (
@@ -783,7 +787,8 @@ export const MessageList: React.FC<MessageListProps> = ({
             textValue.startsWith('file://') ||
             textValue.startsWith('/uploads/')
         ) {
-            return applyAudioHostFallback(textValue);
+            const resolved = getMediaUrl(textValue) || mediaService.getDownloadUrl(textValue);
+            return applyAudioHostFallback(resolved);
         }
 
         return undefined;
@@ -1058,14 +1063,27 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 </View>
                             ) : (
                                 <TouchableOpacity
-                                    style={[styles.transcriptButton, { borderColor: theme.borderColor }]}
+                                    style={[
+                                        styles.transcriptButton,
+                                        {
+                                            borderColor: theme.borderColor,
+                                            backgroundColor: isUser
+                                                ? 'rgba(255,255,255,0.12)'
+                                                : (isImageBg ? 'rgba(255,255,255,0.12)' : colors.surfaceElevated),
+                                        }
+                                    ]}
                                     onPress={() => handleTranscribeAudio(item)}
                                     disabled={isTranscribing}
                                 >
                                     {isTranscribing ? (
                                         <ActivityIndicator size="small" color={theme.primary} />
                                     ) : (
-                                        <Text style={[styles.transcriptButtonText, { color: bubbleTextColor }]}>{messageListCopy.transcribe}</Text>
+                                        <View style={styles.transcriptButtonContent}>
+                                            <View style={[styles.transcriptButtonIconWrap, { backgroundColor: isUser ? 'rgba(255,255,255,0.14)' : colors.accentSoft }]}>
+                                                <FileText size={14} color={isUser ? '#F8FAFC' : theme.primary} />
+                                            </View>
+                                            <Text style={[styles.transcriptButtonText, { color: bubbleTextColor }]}>{messageListCopy.transcribeShort}</Text>
+                                        </View>
                                     )}
                                 </TouchableOpacity>
                             )}
@@ -1550,9 +1568,21 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 999,
         paddingVertical: 6,
-        paddingHorizontal: 12,
-        minHeight: 32,
+        paddingHorizontal: 10,
+        minHeight: 36,
         justifyContent: 'center',
+    },
+    transcriptButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    transcriptButtonIconWrap: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
     },
     transcriptButtonText: {
         fontSize: 12,

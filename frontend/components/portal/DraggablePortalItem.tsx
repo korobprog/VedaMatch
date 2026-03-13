@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, LayoutChangeEvent } from 'react-native';
+import { StyleSheet, LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
     useSharedValue,
@@ -77,6 +77,7 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
 
     // Pan gesture - follows finger when dragging
     const panGesture = Gesture.Pan()
+        .enabled(isEditMode)
         .activateAfterLongPress(260)
         .onStart(() => {
             isLongPressActive.current = true;
@@ -122,14 +123,19 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
             zIndex.value = 1;
         });
 
-    // Drag starts after long press via Pan.activateAfterLongPress.
-    const composedGesture = Gesture.Race(
-        tapGesture,
-        Gesture.Simultaneous(
-            secondaryLongPressGesture,
-            panGesture
+    // In normal mode keep gestures lightweight: tap should not compete with drag activation.
+    const composedGesture = isEditMode
+        ? Gesture.Race(
+            tapGesture,
+            Gesture.Simultaneous(
+                secondaryLongPressGesture,
+                panGesture
+            )
         )
-    );
+        : Gesture.Race(
+            tapGesture,
+            secondaryLongPressGesture
+        );
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [
@@ -150,7 +156,7 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
             cancelAnimation(opacity);
             cancelAnimation(zIndex);
         };
-    }, []);
+    }, [opacity, scale, translateX, translateY, zIndex]);
 
     // Render without gestures until view is mounted
     // This prevents "attachGestureHandler must not be null" error

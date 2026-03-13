@@ -635,7 +635,7 @@ func (h *MessageHandler) loadTranscribableMessage(c *fiber.Ctx, userID uint, mes
 	}
 
 	audioURL := strings.TrimSpace(msg.Content)
-	if !strings.HasPrefix(audioURL, "https://") && !strings.HasPrefix(audioURL, "http://") {
+	if _, err := services.NormalizeChatTranscriptionMediaURL(audioURL); err != nil {
 		return nil, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Audio URL is not available"})
 	}
 
