@@ -215,10 +215,14 @@ services:
       - USERS=${TURN_USER}:${TURN_PASSWORD}
       - REALM=${TURN_REALM:-vedamatch.ru}
       - LISTENING_PORT=3478
+      - TLS_LISTENING_PORT=5349
       - MIN_PORT=49152
       - MAX_PORT=49162
       - EXTERNAL_IP=${TURN_EXTERNAL_IP:-45.150.9.229}
       - STATIC_AUTH_SECRET=${TURN_SECRET}
+      # Enable both UDP and TCP
+      - FQDN=turn.vedamatch.ru
+      # No certificate files = TURN works without TLS (TCP still works)
 
   livekit:
     image: livekit/livekit-server:latest

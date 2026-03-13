@@ -21,6 +21,9 @@ let configuration: any = {
         { urls: 'stun:stun.mipt.ru:3478' },
         { urls: 'stun:global.stun.twilio.com:3478' },
     ],
+    iceCandidatePoolSize: 10, // Pre-fetch ICE candidates
+    iceTransportPolicy: 'all', // Use both UDP and TCP
+    bundlePolicy: 'max-bundle', // Reduce number of ports needed
 };
 
 const getWebRtcCopy = () => {
@@ -377,7 +380,28 @@ class WebRTCService {
 
             if (response.data?.iceServers && Array.isArray(response.data.iceServers)) {
                 console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);
-                configuration = { iceServers: response.data.iceServers };
+                
+                // Add TCP fallback for TURN servers
+                const enhancedIceServers = response.data.iceServers.map(server => {
+                    if (server.urls && String(server.urls).startsWith('turn:')) {
+                        // Add both UDP and TCP for TURN servers
+                        const turnUrl = String(server.urls);
+                        const turnTcpUrl = turnUrl.replace('turn:', 'turn:');
+                        return {
+                            ...server,
+                            urls: [turnUrl, turnTcpUrl.replace(':3478', ':3478?transport=tcp')],
+                        };
+                    }
+                    return server;
+                });
+                
+                configuration = { 
+                    iceServers: enhancedIceServers,
+                    iceCandidatePoolSize: 10,
+                    iceTransportPolicy: 'all',
+                    bundlePolicy: 'max-bundle',
+                };
+                console.log('[WebRTC] Updated ICE config with TURN UDP+TCP:', JSON.stringify(enhancedIceServers));
             }
         } catch (error: any) {
             console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);
@@ -389,7 +413,10 @@ class WebRTCService {
                     { urls: 'stun:stun.comtube.ru:3478' },
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:global.stun.twilio.com:3478' },
-                ]
+                ],
+                iceCandidatePoolSize: 10,
+                iceTransportPolicy: 'all',
+                bundlePolicy: 'max-bundle',
             };
         }
     }
