@@ -1410,7 +1410,7 @@ export default {
                 "fillRequired": "कृपया ईमेल और पासवर्ड भरें",
                 "loginFailed": "लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
                 "googleFailed": "Google लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
-                "googleConfiguration": "इस Android build में Google लॉगिन फिलहाल उपलब्ध नहीं है। ऐप की OAuth configuration ठीक करनी होगी।",
+                "googleConfiguration": "इस build में Google लॉगिन फिलहाल उपलब्ध नहीं है। ऐप की OAuth configuration ठीक करनी होगी।",
                 "vkFailed": "VK लॉगिन असफल रहा। कृपया फिर से प्रयास करें।",
                 "telegramFailed": "Telegram लॉगिन असफल रहा। बॉट Mini App फिर से खोलें और दोबारा प्रयास करें।"
             },

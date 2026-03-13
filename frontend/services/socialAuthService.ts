@@ -16,6 +16,12 @@ type GoogleSigninModule = {
       | { idToken?: string | null; user?: any }
       | { type?: string; data?: { idToken?: string | null; user?: any } | null }
     >;
+    signInSilently?: () => Promise<
+      | { idToken?: string | null; user?: any }
+      | { type?: string; data?: { idToken?: string | null; user?: any } | null }
+    >;
+    getCurrentUser?: () => { idToken?: string | null; user?: any } | null;
+    getTokens?: () => Promise<{ idToken?: string | null; accessToken?: string | null }>;
     signOut?: () => Promise<void>;
   };
 };
@@ -59,7 +65,7 @@ const buildGoogleConfig = (): Record<string, any> => {
 };
 
 const extractGoogleSignInPayload = (
-  result: Awaited<ReturnType<GoogleSigninModule['GoogleSignin']['signIn']>>,
+  result: unknown,
 ): { idToken?: string | null; user?: any } => {
   if (!result || typeof result !== 'object') {
     return {};
@@ -89,6 +95,73 @@ const extractGoogleSignInPayload = (
   };
 };
 
+const resolveGoogleSignInPayload = async (
+  module: GoogleSigninModule,
+  initialPayload?: { idToken?: string | null; user?: any },
+): Promise<{ idToken?: string | null; user?: any }> => {
+  let resolvedPayload = initialPayload ? { ...initialPayload } : {};
+  let idToken = readConfigString(resolvedPayload.idToken);
+
+  if (idToken) {
+    return {
+      ...resolvedPayload,
+      idToken,
+    };
+  }
+
+  const currentUser = module.GoogleSignin.getCurrentUser?.();
+  if (currentUser) {
+    const currentPayload = extractGoogleSignInPayload(currentUser);
+    resolvedPayload = {
+      ...currentPayload,
+      user: resolvedPayload.user ?? currentPayload.user,
+    };
+    idToken = readConfigString(currentPayload.idToken);
+    if (idToken) {
+      return {
+        ...resolvedPayload,
+        idToken,
+      };
+    }
+  }
+
+  if (module.GoogleSignin.getTokens) {
+    try {
+      const tokens = await module.GoogleSignin.getTokens();
+      idToken = readConfigString(tokens?.idToken);
+      if (idToken) {
+        return {
+          ...resolvedPayload,
+          idToken,
+        };
+      }
+    } catch (error) {
+      console.warn('[GoogleAuth] getTokens failed', error);
+    }
+  }
+
+  if (module.GoogleSignin.signInSilently) {
+    try {
+      const silentPayload = extractGoogleSignInPayload(await module.GoogleSignin.signInSilently());
+      resolvedPayload = {
+        ...silentPayload,
+        user: resolvedPayload.user ?? silentPayload.user,
+      };
+      idToken = readConfigString(silentPayload.idToken);
+      if (idToken) {
+        return {
+          ...resolvedPayload,
+          idToken,
+        };
+      }
+    } catch (error) {
+      console.warn('[GoogleAuth] signInSilently failed', error);
+    }
+  }
+
+  return resolvedPayload;
+};
+
 const ensureGoogleConfigured = async (): Promise<GoogleSigninModule> => {
   const module = await loadGoogleModule();
   if (!module || !module.GoogleSignin) {
@@ -105,6 +178,32 @@ const ensureGoogleConfigured = async (): Promise<GoogleSigninModule> => {
 type SocialLoginResult = {
   user: Record<string, any>;
   authPayload: Record<string, any>;
+};
+
+const performGoogleBackendLogin = async (idToken: string): Promise<SocialLoginResult> => {
+  console.log('[GoogleAuth] backendLogin:start');
+  const deviceId = await DeviceInfo.getUniqueId();
+  const response = await apiClient.post(
+    '/auth/google/login',
+    {
+      idToken,
+      deviceId,
+    },
+    {
+      ...({ __skipAuthSession: true } as any),
+    },
+  );
+  console.log('[GoogleAuth] backendLogin:done');
+
+  const user = response?.data?.user as Record<string, any> | undefined;
+  if (!user) {
+    throw new Error('GOOGLE_LOGIN_RESPONSE_INVALID');
+  }
+
+  return {
+    user,
+    authPayload: response.data,
+  };
 };
 
 export type LinkedAuthProvider = 'google' | 'vk' | 'telegram';
@@ -508,36 +607,14 @@ export const signInWithGoogle = async (): Promise<SocialLoginResult> => {
   console.log('[GoogleAuth] sdkSignIn:start');
   const result = await module.GoogleSignin.signIn();
   console.log('[GoogleAuth] sdkSignIn:done');
-  const payload = extractGoogleSignInPayload(result);
+  const payload = await resolveGoogleSignInPayload(module, extractGoogleSignInPayload(result));
   const idToken = readConfigString(payload?.idToken);
 
   if (!idToken) {
     throw new Error('GOOGLE_ID_TOKEN_MISSING');
   }
 
-  console.log('[GoogleAuth] backendLogin:start');
-  const deviceId = await DeviceInfo.getUniqueId();
-  const response = await apiClient.post(
-    '/auth/google/login',
-    {
-      idToken,
-      deviceId,
-    },
-    {
-      ...({ __skipAuthSession: true } as any),
-    },
-  );
-  console.log('[GoogleAuth] backendLogin:done');
-
-  const user = response?.data?.user as Record<string, any> | undefined;
-  if (!user) {
-    throw new Error('GOOGLE_LOGIN_RESPONSE_INVALID');
-  }
-
-  return {
-    user,
-    authPayload: response.data,
-  };
+  return performGoogleBackendLogin(idToken);
 };
 
 export const linkGoogleAccount = async (): Promise<{ user: Record<string, any>; providers: LinkedAuthProvidersResponse }> => {
@@ -548,7 +625,7 @@ export const linkGoogleAccount = async (): Promise<{ user: Record<string, any>; 
   }
 
   const result = await module.GoogleSignin.signIn();
-  const payload = extractGoogleSignInPayload(result);
+  const payload = await resolveGoogleSignInPayload(module, extractGoogleSignInPayload(result));
   const idToken = readConfigString(payload?.idToken);
   if (!idToken) {
     throw new Error('GOOGLE_ID_TOKEN_MISSING');
@@ -562,6 +639,18 @@ export const linkGoogleAccount = async (): Promise<{ user: Record<string, any>; 
   }
 
   return { user, providers };
+};
+
+export const resumeGoogleSignIn = async (): Promise<SocialLoginResult | null> => {
+  const module = await ensureGoogleConfigured();
+  const payload = await resolveGoogleSignInPayload(module);
+  const idToken = readConfigString(payload?.idToken);
+
+  if (!idToken) {
+    return null;
+  }
+
+  return performGoogleBackendLogin(idToken);
 };
 
 export const createVKAuthSession = (): VKAuthSession => {

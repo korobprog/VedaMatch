@@ -1411,7 +1411,7 @@ export default {
                 fillRequired: 'Please fill in email and password',
                 loginFailed: 'Login failed. Please try again.',
                 googleFailed: 'Google sign-in failed. Please try again.',
-                googleConfiguration: 'Google sign-in is temporarily unavailable in this Android build. The app OAuth configuration needs to be corrected.',
+                googleConfiguration: 'Google sign-in is temporarily unavailable in this build. The app OAuth configuration needs to be corrected.',
                 vkFailed: 'VK sign-in failed. Please try again.',
                 telegramFailed: 'Telegram sign-in failed. Open the bot Mini App again and try once more.',
             },

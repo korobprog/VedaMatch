@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 
 #import <Firebase.h>
+#import <GoogleSignIn/GoogleSignIn.h>
 #import <RNVoipPushNotification/RNVoipPushNotificationManager.h>
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
@@ -112,6 +113,9 @@
 - (BOOL)application:(UIApplication *)application
             openURL:(NSURL *)url
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+  if ([[GIDSignIn sharedInstance] handleURL:url]) {
+    return YES;
+  }
   return [RCTLinkingManager application:application openURL:url options:options];
 }
 

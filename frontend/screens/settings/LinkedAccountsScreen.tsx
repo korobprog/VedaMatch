@@ -21,6 +21,11 @@ import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../hooks/usePressFeedback';
 import type { RootStackParamList } from '../../types/navigation';
 import {
+    clearPendingSocialAuthState,
+    getPendingSocialAuthState,
+    rememberPendingSocialAuthState,
+} from '../../services/pendingSocialAuthService';
+import {
     createTelegramLinkSession,
     createVKAuthSession,
     doesTelegramAuthCallbackStateMatch,
@@ -72,6 +77,22 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
         });
     }, [loadProviders]);
 
+    useEffect(() => {
+        getPendingSocialAuthState('vk', 'link')
+            .then((state) => {
+                if (!state) return;
+                setVKAuthState((current) => current || state);
+            })
+            .catch(() => undefined);
+
+        getPendingSocialAuthState('telegram', 'link')
+            .then((state) => {
+                if (!state) return;
+                setTelegramAuthState((current) => current || state);
+            })
+            .catch(() => undefined);
+    }, []);
+
     const refreshProviders = useCallback(async () => {
         setIsRefreshing(true);
         try {
@@ -112,10 +133,12 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
         setLoadingProvider('vk');
         try {
             const session = createVKAuthSession();
+            await rememberPendingSocialAuthState('vk', 'link', session.state);
             setVKAuthState(session.state);
             await Linking.openURL(session.authorizeUrl);
         } catch (error: any) {
             setVKAuthState('');
+            await clearPendingSocialAuthState('vk', 'link').catch(() => undefined);
             const message = error?.message || t('settings.linkedAccounts.alerts.vkLinkFailed');
             Alert.alert(t('common.error', { defaultValue: 'Error' }), message);
             setLoadingProvider(null);
@@ -127,10 +150,12 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
         setLoadingProvider('telegram');
         try {
             const session = await createTelegramLinkSession();
+            await rememberPendingSocialAuthState('telegram', 'link', session.state);
             setTelegramAuthState(session.state);
             await Linking.openURL(session.launchUrl);
         } catch (error: any) {
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'link').catch(() => undefined);
             const message = error?.response?.data?.error || t('settings.linkedAccounts.alerts.telegramLinkFailed');
             Alert.alert(t('common.error', { defaultValue: 'Error' }), message);
             setLoadingProvider(null);
@@ -194,9 +219,11 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const result = await finalizeVKLink(callbackUrl, vkAuthState);
             setVKAuthState('');
+            await clearPendingSocialAuthState('vk', 'link').catch(() => undefined);
             await completeLink(result, 'settings.linkedAccounts.alerts.vkLinked');
         } catch (error: any) {
             setVKAuthState('');
+            await clearPendingSocialAuthState('vk', 'link').catch(() => undefined);
             const message = error?.response?.data?.error || t('settings.linkedAccounts.alerts.vkLinkFailed');
             Alert.alert(t('common.error', { defaultValue: 'Error' }), message);
         } finally {
@@ -208,9 +235,11 @@ const LinkedAccountsScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const result = await finalizeTelegramLink(callbackUrl, telegramAuthState);
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'link').catch(() => undefined);
             await completeLink(result, 'settings.linkedAccounts.alerts.telegramLinked');
         } catch (error: any) {
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'link').catch(() => undefined);
             const message = error?.response?.data?.error || t('settings.linkedAccounts.alerts.telegramLinkFailed');
             Alert.alert(t('common.error', { defaultValue: 'Error' }), message);
         } finally {

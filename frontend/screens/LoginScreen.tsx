@@ -13,6 +13,7 @@ import {
     ScrollView,
     Alert,
     Linking,
+    AppState,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -37,6 +38,11 @@ import apiClient from '../lib/apiClient';
 import { VKAuthModal } from '../components/auth/VKAuthModal';
 import { ScreenScaffold } from '../components/theme/ScreenScaffold';
 import {
+    clearPendingSocialAuthState,
+    getPendingSocialAuthState,
+    rememberPendingSocialAuthState,
+} from '../services/pendingSocialAuthService';
+import {
     createTelegramAuthSession,
     createVKAuthSession,
     doesTelegramAuthCallbackStateMatch,
@@ -45,6 +51,7 @@ import {
     finalizeVKSignIn,
     isTelegramAuthCallbackUrl,
     isVKAuthCallbackUrl,
+    resumeGoogleSignIn,
     signInWithGoogle,
 } from '../services/socialAuthService';
 
@@ -109,6 +116,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const [sloganIndex, setSloganIndex] = useState(0);
     const lastHandledVKCallbackRef = React.useRef('');
     const lastHandledTelegramCallbackRef = React.useRef('');
+    const googleAuthSettledRef = React.useRef(false);
+    const googleResumeInFlightRef = React.useRef(false);
+    const appStateRef = React.useRef(AppState.currentState);
 
     // Animation values
     const glowValue = useSharedValue(0);
@@ -197,6 +207,22 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     useEffect(() => {
         passwordFocusValue.value = withTiming(passwordFocused ? 1 : 0, { duration: 200 });
     }, [passwordFocused, passwordFocusValue]);
+
+    useEffect(() => {
+        getPendingSocialAuthState('vk', 'login')
+            .then((state) => {
+                if (!state) return;
+                setVKAuthState((current) => current || state);
+            })
+            .catch(() => undefined);
+
+        getPendingSocialAuthState('telegram', 'login')
+            .then((state) => {
+                if (!state) return;
+                setTelegramAuthState((current) => current || state);
+            })
+            .catch(() => undefined);
+    }, []);
 
     useEffect(() => {
         setSloganIndex(0);
@@ -328,37 +354,125 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         });
     }, []);
 
-    const handleGoogleSignIn = useCallback(async () => {
-        trackSocialClick('google');
-        setSocialLoadingProvider('google');
+    const clearGoogleSocialLoading = useCallback(() => {
+        setSocialLoadingProvider((current) => (current === 'google' ? null : current));
+    }, []);
+
+    const completeGoogleAuth = useCallback(async (response: Awaited<ReturnType<typeof signInWithGoogle>>) => {
+        if (googleAuthSettledRef.current) {
+            return;
+        }
+
+        googleAuthSettledRef.current = true;
         try {
-            console.log('[GoogleAuth] handleGoogleSignIn:start');
-            const response = await signInWithGoogle();
-            console.log('[GoogleAuth] handleGoogleSignIn:signInWithGoogle:done');
             await login(response.user as Parameters<typeof login>[0], response.authPayload);
-            console.log('[GoogleAuth] handleGoogleSignIn:login:done');
-        } catch (_error: any) {
-            const rawMessage = String(_error?.message || '');
-            console.warn('[GoogleAuth] handleGoogleSignIn:error', rawMessage || _error);
-            if (isGoogleCancelledError(rawMessage)) {
-                return;
-            }
+            console.log('[GoogleAuth] finalize:login:done');
+        } catch (error: any) {
+            const backendMessage = error?.response?.data?.error;
+            Alert.alert(t('common.error'), backendMessage || t('auth.loginScreen.errors.googleFailed'));
+        } finally {
+            clearGoogleSocialLoading();
+        }
+    }, [clearGoogleSocialLoading, login, t]);
+
+    const failGoogleAuth = useCallback((_error: any) => {
+        if (googleAuthSettledRef.current) {
+            return;
+        }
+
+        googleAuthSettledRef.current = true;
+        const rawMessage = String(_error?.message || '');
+        console.warn('[GoogleAuth] handleGoogleSignIn:error', rawMessage || _error);
+        if (!isGoogleCancelledError(rawMessage)) {
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = isGoogleDeveloperConfigError(rawMessage)
                 ? t('auth.loginScreen.errors.googleConfiguration')
                 : t('auth.loginScreen.errors.googleFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
+        }
+        clearGoogleSocialLoading();
+    }, [clearGoogleSocialLoading, t]);
+
+    const handleGoogleSignIn = useCallback(async () => {
+        trackSocialClick('google');
+        googleAuthSettledRef.current = false;
+        googleResumeInFlightRef.current = false;
+        setSocialLoadingProvider('google');
+        try {
+            console.log('[GoogleAuth] handleGoogleSignIn:start');
+            const response = await signInWithGoogle();
+            console.log('[GoogleAuth] handleGoogleSignIn:signInWithGoogle:done');
+            await completeGoogleAuth(response);
+        } catch (_error: any) {
+            failGoogleAuth(_error);
         } finally {
             console.log('[GoogleAuth] handleGoogleSignIn:finally');
-            setSocialLoadingProvider(null);
         }
-    }, [login, t, trackSocialClick]);
+    }, [completeGoogleAuth, failGoogleAuth, trackSocialClick]);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const previousState = appStateRef.current;
+            appStateRef.current = nextState;
+
+            if (
+                Platform.OS !== 'ios'
+                || socialLoadingProvider !== 'google'
+                || googleAuthSettledRef.current
+                || googleResumeInFlightRef.current
+                || nextState !== 'active'
+                || previousState === 'active'
+            ) {
+                return;
+            }
+
+            googleResumeInFlightRef.current = true;
+            console.log('[GoogleAuth] appState:active -> resume start');
+
+            (async () => {
+                for (const delayMs of [0, 300, 700, 1400]) {
+                    if (delayMs > 0) {
+                        await new Promise((resolve) => {
+                            setTimeout(resolve, delayMs);
+                        });
+                    }
+
+                    if (googleAuthSettledRef.current) {
+                        return;
+                    }
+
+                    const response = await resumeGoogleSignIn();
+                    if (!response) {
+                        continue;
+                    }
+
+                    console.log('[GoogleAuth] appState:active -> resume success');
+                    await completeGoogleAuth(response);
+                    return;
+                }
+
+                console.warn('[GoogleAuth] appState:active -> no resumable session found');
+                clearGoogleSocialLoading();
+            })()
+                .catch((error) => {
+                    failGoogleAuth(error);
+                })
+                .finally(() => {
+                    googleResumeInFlightRef.current = false;
+                });
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [clearGoogleSocialLoading, completeGoogleAuth, failGoogleAuth, socialLoadingProvider]);
 
     const handleVKSignIn = useCallback(async () => {
         trackSocialClick('vk');
         setSocialLoadingProvider('vk');
         try {
             const session = createVKAuthSession();
+            await rememberPendingSocialAuthState('vk', 'login', session.state);
             setVKAuthState(session.state);
             if (session.presentation === 'external') {
                 setVKAuthUrl('');
@@ -388,6 +502,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         } catch (_error: any) {
             const rawMessage = String(_error?.message || '');
             const backendMessage = _error?.response?.data?.error;
+            await clearPendingSocialAuthState('vk', 'login').catch(() => undefined);
             if (rawMessage || backendMessage) {
                 console.warn('VK auth start failure:', rawMessage || '<empty>', backendMessage || '');
             }
@@ -404,12 +519,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         setSocialLoadingProvider('telegram');
         try {
             const session = await createTelegramAuthSession();
+            await rememberPendingSocialAuthState('telegram', 'login', session.state);
             setTelegramAuthState(session.state);
             await Linking.openURL(session.launchUrl);
         } catch (_error: any) {
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.telegramFailed');
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'login').catch(() => undefined);
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);
         } finally {
             setSocialLoadingProvider(null);
@@ -419,6 +536,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const resetVKAuthSession = useCallback((clearLoading: boolean) => {
         setVKAuthState('');
         setVKAuthUrl('');
+        clearPendingSocialAuthState('vk', 'login').catch(() => undefined);
         if (clearLoading) {
             setSocialLoadingProvider(null);
         }
@@ -463,9 +581,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             setSocialLoadingProvider('telegram');
             const response = await finalizeTelegramSignIn(callbackUrl, telegramAuthState);
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'login').catch(() => undefined);
             await login(response.user as Parameters<typeof login>[0], response.authPayload);
         } catch (_error: any) {
             setTelegramAuthState('');
+            await clearPendingSocialAuthState('telegram', 'login').catch(() => undefined);
             const backendMessage = _error?.response?.data?.error;
             const fallbackMessage = t('auth.loginScreen.errors.telegramFailed');
             Alert.alert(t('common.error'), backendMessage || fallbackMessage);

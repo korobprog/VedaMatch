@@ -39,8 +39,37 @@
 - В mobile auth/registration flow нужно явно предупреждать пользователя, что VPN может ломать регистрацию.
 - Актуальный UX-паттерн: показывать предупреждение и на `frontend/screens/LoginScreen.tsx`, и на `frontend/screens/RegistrationScreen.tsx`, с рекомендацией отключить VPN или добавить `Veda Match` в исключения.
 - Этот warning относится к первому входу и должен быть локализован как минимум в `ru`, `en`, `hi`.
+- Для iOS Google Sign-In в `frontend/ios/vedamatch/Info.plist` должен быть зарегистрирован URL scheme, обратный к `GOOGLE_IOS_CLIENT_ID`, а `frontend/ios/vedamatch/AppDelegate.mm` должен сначала отдавать `openURL` в `GIDSignIn`, и только потом в `RCTLinkingManager`.
+- Канонический iOS bundle id для social auth: `com.korobkov.vedamatch`.
+- Если в Google Auth Platform iOS OAuth client указан другой bundle id, например `com.VedaMatch.vedamatch`, Google на iOS может открыть авторизацию и вернуть пользователя в приложение без завершения входа. Для рабочего входа bundle id в Google client должен точно совпадать с Xcode target и `GoogleService-Info.plist`.
+- На 2026-03-12 пользователь сообщил, что iOS Google OAuth client в Google Console уже исправлен под канонический bundle id; после такой правки для корректной проверки нужен fresh install приложения и небольшое время на propagation настроек Google.
+- Уточнение от 2026-03-12: значение `com.korobkov.vedamatch` относится только к iOS Google client / Firebase plist. Для Android Google OAuth package должен оставаться `com.ragagent`; перенос Android client на `com.korobkov.vedamatch` сломает release sign-in.
+
+## iOS Local Signing
+- Для локального запуска на `Personal Team` без платного Apple Developer account нельзя использовать занятый production bundle id `com.korobkov.vedamatch` в `Debug`, иначе Xcode падает на `Failed Registering Bundle Identifier`.
+- Рабочий install-only debug path для `Personal Team`:
+  - `Debug` app bundle id: `com.korobkov.vedamatch.dev`
+  - `Debug` tests bundle id: `com.korobkov.vedamatch.dev.tests`
+  - локальный `frontend/ios/vedamatch/GoogleService-Info.plist` для такого debug-path тоже должен быть от Firebase именно с `BUNDLE_ID = com.korobkov.vedamatch.dev`;
+  - в `Debug` нельзя оставлять `APS_ENVIRONMENT` и push/associated-domains entitlements, иначе personal team не выпускает provisioning profile;
+  - схема `Run` в `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme` должна использовать `buildConfiguration = Debug`; если там стоит `Release`, Xcode будет собирать боевой `com.korobkov.vedamatch` даже при корректном `Debug` signing UI;
+  - если `xcodebuild` пишет `Automatic signing is disabled and unable to generate a profile`, нужно запускать сборку с `-allowProvisioningUpdates` или нажимать `Try Again` в Xcode после логина в Apple ID.
+- Рабочий локальный вариант: оставить production id только для `Release`, а `Debug` переключать на уникальный dev id `com.makstreid.vedamatch.dev`; для unit test target использовать `com.makstreid.vedamatch.dev.tests`.
+- Для локального запуска без push debug entitlement file должен оставаться пустым (`frontend/ios/vedamatch/vedamatch.debug.entitlements`), без `aps-environment` и `associated-domains`.
+- Для mobile `VK` / `Telegram` auth нельзя держать pending `state` только в screen-local React state:
+  - на iOS при round-trip через Safari / Telegram app приложение может вернуться через cold start;
+  - pending state нужно сохранять в `AsyncStorage` и восстанавливать на `LoginScreen` и `LinkedAccountsScreen`.
+- Для iOS VK universal link backend AASA должен отдавать `appID = <TEAM_ID>.com.korobkov.vedamatch`; значение с `com.VedaMatch.vedamatch` ломает возврат из `https://api.vedamatch.ru/auth/vk/callback` в приложение.
+- По состоянию на 2026-03-12 Android Google release client в Google Auth Platform выглядит согласованным с приложением: package `com.ragagent`, release SHA-1 `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`.
+- Live device repro от 2026-03-12 на Samsung `R58N10182QN`: в release APK Google chooser открывается, пользовательский аккаунт выбирается, и только после выбора native `@react-native-google-signin/google-signin` возвращает `DEVELOPER_ERROR`. Это исключает поломанную кнопку/Play Services startup и сужает причину до OAuth mapping/propagation на стороне Google Console.
+- Итог от 2026-03-12: после выравнивания OAuth-конфигурации вход снова работает. Эталон для предотвращения повторной ошибки:
+  - iOS Google client bundle id: `com.korobkov.vedamatch`;
+  - Android Google clients package: `com.ragagent` (не менять на iOS bundle id);
+  - Android release SHA-1: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
+  - Android debug SHA-1: `8D:F1:2B:BF:FA:1D:84:2E:40:77:29:08:91:6D:DE:98:DD:AF:77:3C`.
 - Для profile flows зафиксировано правило: `nickname` не является обязательным полем профиля и должен автогенерироваться backend-ом по registration path, если пользователь его не задавал вручную.
 - `frontend/screens/settings/EditProfileScreen.tsx` больше не должен делать отдельный nickname-save после общего profile save; nickname передается в `PUT /update-profile` как optional поле и не должен ломать успешное сохранение профиля.
+- В основном profile UX `nickname` не должен показываться как editable input: безопаснее отображать его как read-only `ID`, чтобы не создавать ложное ожидание обязательного или часто редактируемого поля.
 - Минимальный invariant профиля: `karmicName` обязателен и валидируется и на клиенте, и в `server/internal/handlers/auth_handler.go::UpdateProfile`; пустой профиль без имени сохраняться не должен.
 - Для контактов и смежных экранов нужен единый fallback display name helper: `spiritualName -> karmicName -> nicknameDisplay/nickname -> email -> User #ID`, с безопасным вычислением initial даже при пустом имени.
 
@@ -258,6 +287,12 @@
 - Для scripture-цитат из AI-чата в `frontend/components/chat/MessageList.tsx` нельзя трактовать `sourceUrl` вида `/library/...` как внешний URL. Это внутренние app-routes, и их надо открывать через навигацию в `Reader`, иначе пользователь получает `Детали источника недоступны`.
 - `Reader` должен уметь принимать optional route params `chapter`, `verse`, `canto`, чтобы AI citation мог открывать не просто книгу, а конкретный стих.
 - В `server/internal/services/domain_assistant_service.go` для library verse sources нужно сохранять в metadata не только `bookCode/chapter/verse`, но и `canto`, а `SourceURL` формировать с `verse` query param. Иначе citation теряет точность и ведет только на главу, а не на нужный стих.
+
+## iOS Build / Signing
+- Для текущей mobile social-auth конфигурации проект должен оставаться на каноническом bundle id `com.korobkov.vedamatch`; временные локальные bundle id вроде `com.makstreid.vedamatch.dev` считать устаревшим workaround, потому что они расходятся с Google/VK provider config.
+- На Xcode 16.2 device-build падал на Pods `VerifyModule` (target `React-debug`) с ошибками quoted includes / missing `glog/logging.h`; стабильный фикс — отключить module verifier в `frontend/ios/Podfile` через post_install (`CLANG_ENABLE_MODULE_VERIFIER = NO`, `GCC_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO`) и выполнить `pod install`.
+- После этого сборка `xcodebuild ... -destination 'id=<device>'` проходит успешно и приложение устанавливается/запускается на устройстве через `ios-deploy` + `xcrun devicectl`.
+- Если Xcode снова показывает `No profiles for 'com.korobkov.vedamatch' were found`, это нужно трактовать как локальную проблему provisioning/signing под текущей Apple team, а не как повод менять bundle id для проверки боевого social auth.
 - В AI search `frontend/context/ChatContext.tsx` нельзя передавать в `ragService.queryHybrid` все enabled domains сразу. Нужно брать домен из выбранного search tab (`shops -> market`, `services -> services`, `knowledge_base -> library` и т.д.), иначе retrieval смешивает нерелевантные источники.
 - Меню `Найти в ...` должно содержать `services` как отдельный search tab, а локали `ru/en/hi` должны иметь для него и label, и prompt.
 - В `frontend/components/chat/MessageList.tsx` internal source routes VedaMatch должны открываться через app navigation не только для library, но и для `products`, `shops`, `services`, `news`, `ads`, `education`, `yatra`, `shelter`, `cafes`, `dating profile`. Иначе citation ведет в никуда даже при корректном `sourceUrl`.
@@ -276,7 +311,7 @@
 ## iOS Build / Signing
 - После подключения `react-native-pager-view` для iOS нужно открывать именно `frontend/ios/vedamatch.xcworkspace`, а не `.xcodeproj`; иначе Xcode легко показывает ложные module-ошибки по Pods (`SDWebImage`, `SDWebImageWebPCoder`) даже при валидном pod graph.
 - Для локальной сборки на personal team проект сейчас должен быть выровнен на один dev-config:
-  - `DEVELOPMENT_TEAM = MS49D4HQV9`
+  - `DEVELOPMENT_TEAM = CVW85BZU5Z`
   - app bundle id: `com.korobkov.vedamatch`
   - tests bundle id: `com.korobkov.vedamatchTests`
 - Смешанный state, где `Debug` и `Release` используют разные team id или битый bundle id вроде `com.korobkov.vedamatch-`, ломает provisioning и затем дает вторичные IDE-ошибки по pod modules.
@@ -670,7 +705,7 @@
   - iOS AASA на `api.vedamatch.ru` должен включать путь `/auth/telegram/callback`;
   - Android `assetlinks.json` должен содержать реальные release/debug SHA-256 fingerprints для `com.ragagent`, а manifest — `https` intent-filter на `/auth/telegram/callback`, иначе Telegram возврат через universal/app link не откроет приложение автоматически.
   - Production verify от `2026-03-08`: после выката server commit `4a63b30f` live `https://api.vedamatch.ru/.well-known/apple-app-site-association` уже содержит `/auth/telegram/callback`, `assetlinks.json` отдает реальные fingerprints, а `GET /auth/telegram/callback?state=test-state` возвращает HTML fallback-page с автооткрытием `vedamatch://auth/telegram/callback?...`;
-  - device verify от `2026-03-08`: Android release-приложение на устройстве `R58N10182QN` перехватывает live callback URL и получает `Activity: com.ragagent/.MainActivity`; iOS simulator `D7804896-63D0-46A5-A65E-D6F26F6003CD` также открывает `com.VedaMatch.vedamatch` через universal link.
+  - device verify от `2026-03-08`: Android release-приложение на устройстве `R58N10182QN` перехватывает live callback URL и получает `Activity: com.ragagent/.MainActivity`; для iOS актуальным target bundle id считать `com.korobkov.vedamatch`.
   - Если пользователь застревает именно на `lkm`-экране с текстом `Авторизация завершена. Возвращаемся в приложение VedaMatch...`, это уже не backend callback issue: значит `Telegram Mini App` не выполнил обычный `window.location.replace(...)`. Для этого в `lkm` включен отдельный helper, который открывает callback URL через `Telegram.WebApp.openLink(..., { try_browser: 'external' })`, а затем уже через browser/system handoff уводит пользователя в приложение.
   - CTA `Вернуться в приложение` должен находиться в основном success-блоке рядом с `Выйти`, а не отдельным flash-блоком ниже по странице: иначе в реальном Telegram потоке пользователь видит только `Выйти` и не замечает запасной возврат.
   - Если `lkm` был повторно открыт или перерендерен после успешного Telegram login, временный `telegramMobileDeepLink` может потеряться, хотя `telegramMobileAuthState` все еще есть. Поэтому fallback CTA должен уметь заново строить `https://api.vedamatch.ru/auth/telegram/callback?state=...` прямо из `state`, а не зависеть только от одноразового backend-ответа.
@@ -747,9 +782,9 @@
   - authorize endpoint для native Android login на нем отвечал `invalid_request / Security Error`;
   - mobile больше не использует этот app id для Android/iOS логина.
 - Для iOS VK настроен рабочий universal-link flow:
-  - iOS bundle id проекта: `com.VedaMatch.vedamatch`, Apple Team ID: `CVW85BZU5Z`;
+  - iOS bundle id проекта: `com.korobkov.vedamatch`, Apple Team ID: `CVW85BZU5Z`;
   - `frontend/ios/vedamatch/vedamatch.entitlements` включает `applinks:api.vedamatch.ru`;
-  - backend AASA endpoint `server/cmd/api/main.go` отдает `CVW85BZU5Z.com.VedaMatch.vedamatch` и путь `/auth/vk/callback`;
+  - backend AASA endpoint `server/cmd/api/main.go` должен отдавать `CVW85BZU5Z.com.korobkov.vedamatch` и путь `/auth/vk/callback`;
   - mobile client на iOS открывает VK auth во внешнем browser с `response_type=code`, принимает universal link `https://api.vedamatch.ru/auth/vk/callback?...` и завершает login через `POST /api/auth/vk/login` с `code`;
   - backend `VKLogin` теперь умеет принимать не только `accessToken`, но и `code`, а `frontend/ios/Podfile.lock` синхронизирован с `NitroMmkv 4.1.2` / `MMKVCore 2.2.4`, чтобы iOS build снова проходил.
 - Текущая рабочая схема mobile VK после разведения platform app IDs:
@@ -1180,10 +1215,13 @@
 - Актуальная настройка: `API_BASE_URL=https://api.vedamatch.ru` в `frontend/.env.ios`, чтобы экран карты (`MapGeoapifyScreen`) и `mapService` могли достучаться до backend API без локального backend на Mac.
 - Для production-поведения на iOS при локальной установке в `frontend/.env.ios` должен быть `APP_ENV=production` (не `development`), иначе включается dev-режим клиента.
 - Дополнительная runtime-страховка в `frontend/config/api.config.ts`: на iOS любые `localhost/127.0.0.1` автоматически санитизируются в `https://api.vedamatch.ru`, чтобы убрать `Network Error` в login/map при устаревшем env.
-- `run-ios.js` должен запускать только `com.VedaMatch.vedamatch`; legacy launch id `org.reactjs.native.example.vedamatch` приводит к дублированию приложения и запуску старой сборки.
+- `run-ios.js` должен запускать только `com.korobkov.vedamatch`; старые launch id вроде `com.VedaMatch.vedamatch` или `org.reactjs.native.example.vedamatch` приводят к запуску неактуальной сборки и путанице при iOS-проверках.
 - Для пушей iOS default Firebase app инициализируется нативно в `frontend/ios/vedamatch/AppDelegate.mm` (`[FIRApp configure]` с guard), чтобы исключить warning `No Firebase App '[DEFAULT]'`.
 - В `frontend/index.js` background-handler пушей регистрируется только если `getApps().length > 0`; при отсутствии default app handler пропускается без шумной ошибки в DEV-консоли.
-- `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и актуальный `BUNDLE_ID=com.VedaMatch.vedamatch`; иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]`.
+- `frontend/ios/vedamatch/GoogleService-Info.plist` должен содержать валидный `API_KEY` формата Firebase (`AIza...`, длина 39) и `BUNDLE_ID`, совпадающий с текущим iOS target:
+  - production/release: `com.korobkov.vedamatch`
+  - local personal-team debug: `com.korobkov.vedamatch.dev`
+  Иначе при запуске на устройстве возможен crash `FirebaseInstallations I-FIS008000` в `[FIRApp configure]` или Google Sign-In не завершит вход.
 - В `frontend/ios/vedamatch/AppDelegate.mm` добавлен runtime-guard для Firebase: при невалидном/пустом `API_KEY` конфигурация Firebase пропускается (`NSLog`) вместо падения приложения.
 - При включенном Happ VPN (`su.ffg.happ.plus`) в iOS Simulator возможен `NSURLErrorDomain -1003` на `https://api.vedamatch.ru/api/*` внутри приложения, даже если `curl` из host/simctl работает.
 - В Happ не обнаружен явный per-app split tunneling по bundle id для Simulator; рабочий путь — исключать домены/маршруты через routing rules.
@@ -1199,7 +1237,7 @@
   + очистка кэша `~/Library/Developer/Xcode/DerivedData/*`, `~/Library/Developer/Xcode/ModuleCache.noindex/*`, затем повторный запуск `xcodebuild -workspace ... -list`.
 - `xcodebuild ... install` в текущем процессе сборки формирует и подписывает `.app`, но не всегда дает ожидаемую "Run-поведение" как в Xcode UI; для гарантированной установки release-бандла на физический iPhone использовать:
   - `xcrun devicectl device install app --device <UDID> <path-to-vedamatch.app>`
-  - затем верификацию: `xcrun devicectl device info apps --device <UDID> --bundle-id com.VedaMatch.vedamatch --columns '*'`.
+  - затем верификацию: `xcrun devicectl device info apps --device <UDID> --bundle-id com.korobkov.vedamatch --columns '*'`.
 - Если при `xcodebuild` появляется `database is locked`, значит параллельно запущены конкурирующие сборки в одном `DerivedData`; перед повтором оставить только один активный процесс сборки.
 - Для iOS video PiP текущий рабочий путь — `react-native-webrtc` (`RTCPIPView` + `startIOSPIP/stopIOSPIP`) в `frontend/screens/calls/CallScreen.tsx`; custom iOS bridge `CallPiPModule` удален из `frontend/ios/vedamatch/AppDelegate.mm`.
 - В `frontend/services/callPiPService.ts` iOS путь intentionally no-op для native `CallPiPModule`; Android PiP через `CallPiPModule` остается активным.
@@ -2069,8 +2107,8 @@
   - Android: `./gradlew assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
   - Android metadata (`output-metadata.json`): `applicationId=com.ragagent`, `versionCode=17`, `versionName=1.1.15`.
   - iOS: `xcodebuild ... -configuration Release ... install` успешно (`** INSTALL SUCCEEDED **`), собранный `.app`: `.../DerivedData/vedamatch-prod/.../Applications/vedamatch.app`.
-  - iOS metadata собранного `.app`: `CFBundleIdentifier=com.VedaMatch.vedamatch`, `CFBundleShortVersionString=1.1.16`, `CFBundleVersion=8`.
-  - iOS устройство (`00008101-000C78913E87001E`): через `devicectl` подтверждена установка `com.VedaMatch.vedamatch 1.1.16 (8)`.
+  - iOS metadata собранного `.app`: bundle id для актуальных проверок должен совпадать с `com.korobkov.vedamatch`.
+  - iOS устройство (`00008101-000C78913E87001E`): при `devicectl` и Xcode проверять именно установку `com.korobkov.vedamatch`.
   - На устройстве параллельно остается старый пакет `com.vedicai.vedamatch 1.1.15 (7)`; это другой bundle id.
 - Критичная настройка для iOS сборок с RN bundle script:
   - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` для `Debug/Release` должно быть `ENABLE_USER_SCRIPT_SANDBOXING = NO`.
@@ -2983,3 +3021,9 @@
 - В `frontend/ios/vedamatch.xcodeproj/project.pbxproj` `Debug` и `Release` конфигурации app target должны использовать один и тот же `DEVELOPMENT_TEAM = CVW85BZU5Z`; если у `Release` пустая строка, Xcode показывает `Signing for "vedamatch" requires a development team`.
 - Для Android white-screen риска при возврате из `Chat` в `Portal` нельзя делать жесткий `navigation.reset({ routes: [{ name: 'Portal' }] })`, если `Portal` уже лежит предыдущим route в stack. Безопаснее сначала `goBack()` на существующий `Portal`; `reset` оставлять только как fallback для AI/library-contract, когда целевого экрана реально нет в стеке.
 - Похожие risky-paths с возвратом в `Portal` уже были найдены в `ChatScreen`, `ContactProfileScreen` и shared `aiNavigation` helper; если на Samsung снова появится белый экран при back из другого сервиса, сначала проверять именно наличие `reset -> Portal`, а не background/theme слой.
+
+## iOS Social Auth
+- Для iOS `Google Sign-In` bundle id приложения и Google/Firebase iOS client должны совпадать на одном значении: `com.korobkov.vedamatch`. Любой альтернативный bundle id в debug-проверке требует отдельного iOS OAuth client и отдельного plist, иначе Google auth может вернуться в приложение без завершения сессии.
+- Для локального `Personal Team` debug-flow это правило уже реализовано через отдельный iOS OAuth/Firebase client и plist на `com.korobkov.vedamatch.dev`; без подмены plist один только апдейт Google Console не чинит Google Sign-In.
+- На `LoginScreen` для iOS Google flow нужен foreground-resume fallback: после возврата приложения в `active` безопасно пробовать добрать native Google session через `getCurrentUser` / `getTokens` / `signInSilently`, потому что `signIn()` может не завершиться в JS сразу после `ASWebAuthenticationSession` round-trip.
+- VK/Telegram mobile login state на iOS нужно хранить в `AsyncStorage` до финализации callback, иначе cold-start или повторный `Linking.getInitialURL()` ломают завершение social login/link flow.

@@ -1,3 +1,140 @@
+## 2026-03-13 (iOS Debug Firebase plist switched to korobkov .dev)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/GoogleService-Info.plist`
+
+### Суть правки (от старого к новому)
+- Было:
+  - локальная personal-team debug-сборка уже использовала bundle id `com.korobkov.vedamatch.dev`;
+  - но `frontend/ios/vedamatch/GoogleService-Info.plist` все еще оставался от production Firebase app с `BUNDLE_ID = com.korobkov.vedamatch`;
+  - из-за этого iOS приложение устанавливалось, но Google Sign-In не завершал вход.
+- Стало:
+  - в проект подставлен новый Firebase plist для debug app с `BUNDLE_ID = com.korobkov.vedamatch.dev`;
+  - теперь debug bundle id, Google Auth Platform iOS client и Firebase plist согласованы между собой.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/GoogleService-Info.plist`:
+```plist
+<key>BUNDLE_ID</key>
+<string>com.korobkov.vedamatch.dev</string>
+```
+
+## 2026-03-13 (iOS Personal Team debug signing retry: switch to korobkov .dev and remove debug push entitlement)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+- `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Debug` оставался в смешанном состоянии с локальным bundle id `com.makstreid.vedamatch.dev`;
+  - debug-конфигурация все еще несла push capability через `APS_ENVIRONMENT`, из-за чего free `Personal Team` не мог выпустить provisioning profile;
+  - `Release` тоже был уведен на `.dev`, что путало Xcode signing.
+- Стало:
+  - `Debug` app target выровнен на `com.korobkov.vedamatch.dev`;
+  - `Debug` test target выровнен на `com.korobkov.vedamatch.dev.tests`;
+  - из `Debug` удален `APS_ENVIRONMENT`, чтобы personal team могла выпустить install-only debug profile;
+  - `Release` возвращен на канонический production bundle id `com.korobkov.vedamatch`.
+  - схема запуска `Run` переведена с `Release` на `Debug`, чтобы Xcode на устройстве действительно запускал personal-team debug-сборку, а не production target.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch.dev;
+PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch.dev.tests;
+PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch;
+```
+
+`frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme`:
+```xml
+<LaunchAction buildConfiguration = "Debug">
+```
+
+## 2026-03-13 (iOS Personal Team debug signing without paid account)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Было:
+  - и `Debug`, и `Release` app target использовали `PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch`;
+  - Personal Team не мог зарегистрировать занятый production id, из-за чего Xcode падал на provisioning profile / bundle registration.
+- Стало:
+  - `Release` оставлен на production id;
+  - `Debug` переведен на уникальный локальный id `com.makstreid.vedamatch.dev`;
+  - debug test target переведен на `com.makstreid.vedamatch.dev.tests`.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+PRODUCT_BUNDLE_IDENTIFIER = com.makstreid.vedamatch.dev;
+PRODUCT_BUNDLE_IDENTIFIER = com.makstreid.vedamatch.dev.tests;
+```
+
+## 2026-03-12 (iOS social auth: Google callback wired, VK/Telegram state persisted across round-trip)
+
+### Измененные файлы
+- `frontend/ios/vedamatch/Info.plist`
+- `frontend/ios/vedamatch/AppDelegate.mm`
+- `frontend/services/pendingSocialAuthService.ts`
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/screens/settings/LinkedAccountsScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS target не регистрировал Google callback scheme и не передавал callback URL в `GIDSignIn`;
+  - `VK` / `Telegram` mobile auth держали pending `state` только в screen-local состоянии;
+  - после ухода во внешнее приложение и возврата через cold start iOS мог потерять текущую auth-сессию и не завершить вход.
+- Стало:
+  - в `Info.plist` добавлен Google URL scheme, обратный к `GOOGLE_IOS_CLIENT_ID`;
+  - `AppDelegate.mm` теперь сначала обрабатывает `openURL` через `GIDSignIn`, потом через `RCTLinkingManager`;
+  - pending `VK` / `Telegram` auth state сохраняется в `AsyncStorage` и восстанавливается на `LoginScreen` и `LinkedAccountsScreen`;
+  - fallback-сообщение о Google config больше не привязано текстом только к Android.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch/AppDelegate.mm`:
+```objc
+- (BOOL)application:(UIApplication *)application
+            openURL:(NSURL *)url
+            options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+  if ([[GIDSignIn sharedInstance] handleURL:url]) {
+    return YES;
+  }
+  return [RCTLinkingManager application:application openURL:url options:options];
+}
+```
+
+`frontend/services/pendingSocialAuthService.ts`:
+```tsx
+export const rememberPendingSocialAuthState = async (
+  provider: PendingSocialAuthProvider,
+  flow: PendingSocialAuthFlow,
+  state: string,
+): Promise<void> => {
+  store[buildEntryKey(provider, flow)] = {
+    provider,
+    flow,
+    state: normalizedState,
+    updatedAt: Date.now(),
+  };
+};
+```
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+getPendingSocialAuthState('vk', 'login').then((state) => {
+  if (!state) return;
+  setVKAuthState((current) => current || state);
+});
+```
+
 ## 2026-03-12 (iOS Firebase config: replaced GoogleService-Info.plist with correct Bundle ID)
 
 ### Измененные файлы
@@ -15960,6 +16097,135 @@ export const proService = {
 };
 ```
 
+## 2026-03-12 (iOS Google sign-in resume after app return)
+
+### Измененные файлы
+- `frontend/screens/LoginScreen.tsx`
+- `frontend/services/socialAuthService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - на iOS `Google` login мог открыть авторизацию, вернуть пользователя в приложение и оставить его на экране входа без завершения сессии;
+  - client ожидал только прямой happy-path `await GoogleSignin.signIn()`, а при пустом `idToken` сразу падал ошибкой.
+- Стало:
+  - `LoginScreen` отслеживает возврат приложения в `active` и один раз пробует восстановить Google session до завершения auth flow;
+  - `socialAuthService` умеет добирать `idToken` не только из результата `signIn()`, но и из `getCurrentUser()`, `getTokens()` и `signInSilently()`;
+  - если после возврата из системной Google авторизации native session уже поднята, mobile client завершает backend login без повторного показа auth UI.
+
+### Сниппеты кода
+
+`frontend/screens/LoginScreen.tsx`:
+```tsx
+const subscription = AppState.addEventListener('change', (nextState) => {
+  if (Platform.OS !== 'ios' || socialLoadingProvider !== 'google' || nextState !== 'active') {
+    return;
+  }
+
+  resumeGoogleSignIn().then((response) => {
+    if (response) {
+      completeGoogleAuth(response);
+    }
+  });
+});
+```
+
+`frontend/services/socialAuthService.ts`:
+```tsx
+const payload = await resolveGoogleSignInPayload(module, extractGoogleSignInPayload(result));
+const idToken = readConfigString(payload?.idToken);
+```
+
+```tsx
+export const resumeGoogleSignIn = async (): Promise<SocialLoginResult | null> => {
+  const module = await ensureGoogleConfigured();
+  const payload = await resolveGoogleSignInPayload(module);
+  const idToken = readConfigString(payload?.idToken);
+  return idToken ? performGoogleBackendLogin(idToken) : null;
+};
+```
+
+## 2026-03-12 (iOS device signing + Xcode 16 pods module verification fix)
+
+### Измененные файлы
+- `frontend/ios/Podfile`
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Было:
+  - debug запуск на физическом iPhone под personal team падал из-за недоступного bundle id `com.korobkov.vedamatch`;
+  - на Xcode 16.2 сборка Pods падала на `VerifyModule` (`React-debug`) с ошибками framework header include/glog.
+- Стало:
+  - debug bundle id приложения и тестов переведен на уникальный id для локальной команды (`com.makstreid.vedamatch.dev`, `com.makstreid.vedamatch.dev.tests`);
+  - в `Podfile` отключен strict module verifier для Pods, что устраняет падение `VerifyModule` на device build.
+
+### Сниппеты кода
+
+`frontend/ios/Podfile`:
+```ruby
+installer.pods_project.targets.each do |target|
+  target.build_configurations.each do |build_config|
+    build_config.build_settings['CLANG_ENABLE_MODULE_VERIFIER'] = 'NO'
+    build_config.build_settings['GCC_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+  end
+end
+```
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+PRODUCT_BUNDLE_IDENTIFIER = com.makstreid.vedamatch.dev;
+```
+
+## 2026-03-12 (iOS debug signing drift corrected for personal team)
+
+### Измененные файлы
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Debug` конфигурации app/test target снова дрейфовали на `com.korobkov.vedamatch` и `com.korobkov...`, из-за чего Xcode под personal team `makstreid@yandex.ru` показывал `No profiles for 'com.korobkov.vedamatch' were found`.
+- Стало:
+  - `Debug` app target снова использует `com.makstreid.vedamatch.dev`;
+  - `Debug` test target снова использует `com.makstreid.vedamatch.dev.tests`;
+  - локальный device-debug больше не упирается в чужой bundle id уже на уровне signing settings.
+
+### Сниппеты кода
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+PRODUCT_BUNDLE_IDENTIFIER = com.makstreid.vedamatch.dev.tests;
+PRODUCT_BUNDLE_IDENTIFIER = com.makstreid.vedamatch.dev;
+```
+
+## 2026-03-12 (iOS social auth canonical bundle restored; VK AASA appID corrected)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+- `run-ios.js`
+- `MEMORY.md`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в диагностике локального iPhone-debug временно фигурировал bundle id `com.makstreid.vedamatch.dev`, что конфликтовало с боевой social-auth конфигурацией;
+  - backend AASA (`/.well-known/apple-app-site-association`) все еще отдавал iOS appID `CVW85BZU5Z.com.VedaMatch.vedamatch`;
+  - пользователь подтвердил, что канонический iOS bundle id приложения должен быть `com.korobkov.vedamatch`.
+- Стало:
+  - канонический bundle id для iOS Google/VK flow зафиксирован как `com.korobkov.vedamatch`;
+  - AASA appID на backend приведен к `CVW85BZU5Z.com.korobkov.vedamatch`, чтобы universal link `https://api.vedamatch.ru/auth/vk/callback` мог открывать именно установленное приложение;
+  - локальный iOS launch helper `run-ios.js` теперь запускает `com.korobkov.vedamatch`, а не старый `com.VedaMatch.vedamatch`;
+  - в проектной памяти помечено, что Google Auth Platform iOS client с bundle id `com.VedaMatch.vedamatch` является конфигурационной ошибкой и должен быть выровнен на `com.korobkov.vedamatch`.
+
+### Сниппеты кода
+
+`server/cmd/api/main.go`:
+```go
+"appID": "CVW85BZU5Z.com.korobkov.vedamatch",
+```
+
+`run-ios.js`:
+```js
+execSync(`xcrun simctl launch "${targetDevice.udid}" com.korobkov.vedamatch`, { stdio: 'inherit' });
+```
+
 ## 2026-03-12 (Profile save + contact display fallback unified)
 
 ### Измененные файлы
@@ -16019,6 +16285,28 @@ return clean(user.spiritualName)
   || clean(user.nickname)
   || clean(user.email)
   || (user.ID ? `${fallbackLabel} #${user.ID}` : fallbackLabel);
+```
+
+## 2026-03-12 (Edit profile nickname input replaced with read-only ID)
+
+### Измененные файлы
+- `frontend/screens/settings/EditProfileScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в форме редактирования профиля оставался editable input `Nickname`;
+  - поле визуально выглядело обязательным, хотя nickname уже генерируется автоматически на registration path.
+- Стало:
+  - editable input убран из основного profile form;
+  - текущий nickname показывается как read-only `ID`, без ручного ввода и без client-side nickname validation в этом экране.
+
+### Сниппеты кода
+
+`frontend/screens/settings/EditProfileScreen.tsx`:
+```tsx
+<View style={styles.readonlyField}>
+  <Text style={styles.readonlyValue}>{nickname || '—'}</Text>
+</View>
 ```
 
 ## 2026-03-12 (PRO activation removed from mobile purchase flow)

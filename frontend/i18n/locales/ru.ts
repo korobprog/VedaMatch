@@ -1414,7 +1414,7 @@ export default {
                 fillRequired: 'Заполните email и пароль',
                 loginFailed: 'Не удалось войти. Попробуйте еще раз.',
                 googleFailed: 'Не удалось выполнить вход через Google.',
-                googleConfiguration: 'Вход через Google временно недоступен в этой Android-сборке. Требуется корректная OAuth-настройка приложения.',
+                googleConfiguration: 'Вход через Google временно недоступен в этой сборке. Требуется корректная OAuth-настройка приложения.',
                 vkFailed: 'Не удалось выполнить вход через VK.',
                 telegramFailed: 'Не удалось выполнить вход через Telegram. Откройте Mini App бота еще раз и повторите попытку.',
             },

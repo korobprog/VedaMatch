@@ -94,7 +94,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [godModeEnabled, setGodModeEnabled] = useState(false);
     const [proStatus, setProStatus] = useState<ProStatus | null>(null);
     const [proStatusLoading, setProStatusLoading] = useState(false);
-    const [nicknameError, setNicknameError] = useState('');
     const [karmicNameError, setKarmicNameError] = useState('');
 
     // City autocomplete
@@ -128,12 +127,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 spiritualFieldRequired: 'चयनित भूमिका के लिए कम से कम एक आध्यात्मिक फ़ील्ड भरें: Yatra, Timezone, Tradition, Yoga style या Guna।',
                 profileUpdated: 'प्रोफ़ाइल सफलतापूर्वक अपडेट हुई!',
                 failedToUpdateProfile: 'प्रोफ़ाइल अपडेट नहीं की जा सकी',
-                nicknameLabel: 'Nickname (optional unique ID)',
-                nicknameHelper: 'यदि खाली छोड़ दें, मौजूदा या ऑटो-जनरेटेड nickname ही रहेगा।',
-                nicknamePlaceholder: '@your_nickname',
-                nicknameInvalid: 'В nickname допустимы только латинские буквы, цифры, точка и подчёркивание.',
-                nicknameTaken: 'Этот nickname уже занят.',
-                nicknameCooldown: 'Nickname пока нельзя изменить из-за cooldown.',
+                nicknameLabel: 'Your ID',
+                nicknameHelper: 'यह ID अपने आप बनता है और प्रोफ़ाइल में अलग से भरना नहीं पड़ता।',
             };
         }
         if (language.startsWith('en')) {
@@ -145,12 +140,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 spiritualFieldRequired: 'For the selected role, specify at least one spiritual field: Yatra, Timezone, Tradition, Yoga style, or Guna.',
                 profileUpdated: 'Profile updated successfully!',
                 failedToUpdateProfile: 'Failed to update profile',
-                nicknameLabel: 'Nickname (optional unique ID)',
-                nicknameHelper: 'Leave it empty to keep the current or auto-generated nickname.',
-                nicknamePlaceholder: '@your_nickname',
-                nicknameInvalid: 'Nickname can contain only latin letters, numbers, dots, and underscores.',
-                nicknameTaken: 'This nickname is already taken.',
-                nicknameCooldown: 'Nickname cannot be changed yet because of cooldown.',
+                nicknameLabel: 'Your ID',
+                nicknameHelper: 'This ID is generated automatically and does not need to be filled in manually.',
             };
         }
         return {
@@ -161,12 +152,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             spiritualFieldRequired: 'Для выбранной роли укажите хотя бы одно духовное поле: Yatra, Timezone, Tradition, Yoga style или Guna.',
             profileUpdated: 'Профиль успешно обновлён!',
             failedToUpdateProfile: 'Не удалось обновить профиль',
-            nicknameLabel: 'Nickname (необязательный уникальный ID)',
-            nicknameHelper: 'Если оставить пустым, сохранится текущий или автосгенерированный nickname.',
-            nicknamePlaceholder: '@your_nickname',
-            nicknameInvalid: 'В nickname допустимы только латинские буквы, цифры, точка и подчёркивание.',
-            nicknameTaken: 'Этот nickname уже занят.',
-            nicknameCooldown: 'Nickname пока нельзя изменить из-за cooldown.',
+            nicknameLabel: 'Ваш ID',
+            nicknameHelper: 'Этот ID генерируется автоматически и не требует ручного ввода.',
         };
     }, [i18n.language]);
 
@@ -343,7 +330,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleSave = async () => {
         if (!user?.ID || saving) return;
-        setNicknameError('');
         setKarmicNameError('');
         const validationError = getProfileValidationError();
         if (validationError) {
@@ -361,7 +347,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         try {
             console.log(`[EditProfile] Saving profile user=${user.ID} endpoint=/update-profile`);
             const normalizedDob = Number.isNaN(dob.getTime()) ? '' : dob.toISOString().split('T')[0];
-            const normalizedNickname = nickname.trim().replace(/^@+/, '').toLowerCase();
             const profileData = {
                 country: country.trim(),
                 city: city.trim(),
@@ -387,7 +372,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 yatra: yatra.trim(),
                 timezone: timezone.trim(),
                 datingEnabled,
-                nickname: normalizedNickname || undefined,
                 ...(canManageProMode ? { role, godModeEnabled: true } : {}),
                 latitude,
                 longitude
@@ -419,18 +403,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 if (requestCode === 'profile_name_required') {
                     setKarmicNameError(editProfileCopy.karmicNameRequired);
                     Alert.alert(t('common.error'), editProfileCopy.karmicNameRequired);
-                    return;
-                }
-                if (requestCode === 'nickname_invalid') {
-                    setNicknameError(editProfileCopy.nicknameInvalid);
-                    return;
-                }
-                if (requestCode === 'nickname_taken') {
-                    setNicknameError(editProfileCopy.nicknameTaken);
-                    return;
-                }
-                if (requestCode === 'nickname_cooldown_active') {
-                    setNicknameError(editProfileCopy.nicknameCooldown);
                     return;
                 }
                 Alert.alert(
@@ -672,25 +644,11 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 </View>
 
                                 <Text style={styles.label}>{editProfileCopy.nicknameLabel}</Text>
-                                <TextInput
-                                    style={[styles.input, nicknameError ? styles.inputError : null]}
-                                    value={nickname}
-                                    onChangeText={(value) => {
-                                        setNicknameError('');
-                                        const trimmed = value.trim();
-                                        if (!trimmed) {
-                                            setNickname('');
-                                            return;
-                                        }
-                                        setNickname(trimmed.startsWith('@') ? trimmed : `@${trimmed}`);
-                                    }}
-                                    placeholder={editProfileCopy.nicknamePlaceholder}
-                                    placeholderTextColor="rgba(248,250,252,0.4)"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                />
-                                <Text style={[styles.helperText, styles.fieldHelper, nicknameError ? styles.fieldErrorText : null]}>
-                                    {nicknameError || editProfileCopy.nicknameHelper}
+                                <View style={styles.readonlyField}>
+                                    <Text style={styles.readonlyValue}>{nickname || '—'}</Text>
+                                </View>
+                                <Text style={[styles.helperText, styles.fieldHelper]}>
+                                    {editProfileCopy.nicknameHelper}
                                 </Text>
 
                                 {showSpiritualFields && (
@@ -991,6 +949,20 @@ const styles = StyleSheet.create({
     },
     fieldErrorText: {
         color: '#FF7A7A',
+    },
+    readonlyField: {
+        borderWidth: 1.5,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 54,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    readonlyValue: {
+        color: '#F8FAFC',
+        fontSize: 16,
+        fontWeight: '600',
     },
     tipBox: {
         backgroundColor: 'rgba(255,183,77,0.1)',

@@ -190,7 +190,7 @@ func main() {
 				"apps": [],
 				"details": [
 					{
-						"appID": "CVW85BZU5Z.com.VedaMatch.vedamatch",
+						"appID": "CVW85BZU5Z.com.korobkov.vedamatch",
 						"paths": ["/auth/vk/callback", "/auth/telegram/callback", "/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
 					}
 				]

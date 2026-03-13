@@ -93,7 +93,7 @@ try {
 
     // Запускаем
     console.log('🚀 Запуск приложения...');
-    execSync(`xcrun simctl launch "${targetDevice.udid}" com.VedaMatch.vedamatch`, { stdio: 'inherit' });
+    execSync(`xcrun simctl launch "${targetDevice.udid}" com.korobkov.vedamatch`, { stdio: 'inherit' });
 
     console.log('\n✅ Приложение успешно запущено!');
     console.log('💡 Нажмите Cmd+R в симуляторе для перезагрузки JS или Cmd+D для меню разработчика.\n');
