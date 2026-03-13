@@ -18,6 +18,7 @@ import RNFS from 'react-native-fs';
 import { AxiosError } from 'axios';
 import apiClient from '../lib/apiClient';
 import i18n from '../i18n';
+import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
 
 export interface MediaFile {
 	uri: string;
@@ -150,6 +151,43 @@ function getUploadError(error: unknown, fallback: string): string {
 		}
 	}
 	return axiosError?.message || fallback;
+}
+
+async function uploadMediaWithFetch(formData: FormData): Promise<Message> {
+	const token = await getAccessToken();
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+	};
+
+	if (token && !isOfflineDevAccessToken(token)) {
+		headers.Authorization = `Bearer ${token}`;
+	}
+
+	const response = await fetch(`${API_PATH}/messages/media`, {
+		method: 'POST',
+		headers,
+		body: formData,
+	});
+
+	const rawText = await response.text();
+	let payload: any = null;
+	if (rawText) {
+		try {
+			payload = JSON.parse(rawText);
+		} catch {
+			payload = rawText;
+		}
+	}
+
+	if (!response.ok) {
+		const message =
+			(typeof payload === 'object' && (payload?.error || payload?.message)) ||
+			(typeof payload === 'string' && payload.trim()) ||
+			`HTTP ${response.status}`;
+		throw new Error(message);
+	}
+
+	return (payload || {}) as Message;
 }
 
 function normalizeMediaMimeType(media: MediaFile): string {
@@ -581,6 +619,11 @@ export const mediaService = {
 				formData.append('roomId', roomId);
 			}
 
+				if (Platform.OS === 'android' && media.type === 'audio') {
+					console.log('📤 Using fetch-based audio upload on Android to avoid axios multipart Network Error');
+					return await uploadMediaWithFetch(formData);
+				}
+
 				const response = await apiClient.post<Message>('/messages/media', formData, {
 					headers: {
 						Accept: 'application/json',
@@ -589,6 +632,18 @@ export const mediaService = {
 
 				return response.data;
 			} catch (error) {
+				if (Platform.OS === 'android' && media.type === 'audio') {
+					const errorMessage = getUploadError(error, '');
+					if (/network error/i.test(errorMessage)) {
+						console.warn('⚠️ Axios audio upload failed on Android, retrying with fetch fallback');
+						try {
+							return await uploadMediaWithFetch(formData);
+						} catch (fetchError) {
+							console.error('❌ Android fetch audio upload fallback failed:', fetchError);
+							throw new Error(getUploadError(fetchError, getMediaCopy().uploadFailed));
+						}
+					}
+				}
 				console.error('Failed to upload media:', error);
 				throw new Error(getUploadError(error, getMediaCopy().uploadFailed));
 			}

@@ -1,3 +1,32 @@
+## 2026-03-13 (Shared mobile chat: Android recorded audio upload fallback)
+
+### Измененные файлы
+- `frontend/services/mediaService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - отправка записанного voice message шла через `axios` multipart на обеих платформах;
+  - на iPhone это проходило, но на Android локально записанный аудио-файл мог падать в нативный `Network Error` еще до backend response.
+- Стало:
+  - для Android `audio` upload добавлен `fetch`-based multipart path;
+  - если `axios` все же используется и падает именно в `Network Error`, код автоматически повторяет отправку через `fetch`;
+  - остальной media upload flow не менялся.
+
+### Сниппеты кода
+
+`frontend/services/mediaService.ts`:
+```ts
+if (Platform.OS === 'android' && media.type === 'audio') {
+  return await uploadMediaWithFetch(formData);
+}
+```
+
+```ts
+if (/network error/i.test(errorMessage)) {
+  return await uploadMediaWithFetch(formData);
+}
+```
+
 ## 2026-03-13 (Shared mobile calls: wait for WebSocket signaling after auth refresh)
 
 ### Измененные файлы
