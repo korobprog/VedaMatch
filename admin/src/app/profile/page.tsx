@@ -10,7 +10,11 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
-import { LocationData } from '@/services/profileService';
+
+interface LocationData {
+    country: string;
+    city: string;
+}
 
 export default function ProfilePage() {
     const [user, setUser] = useState<any>(null);
