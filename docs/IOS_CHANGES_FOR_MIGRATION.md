@@ -16491,3 +16491,24 @@ partHeader.Set("Content-Type", detectChatTranscriptionMimeType(filePath))
 ```go
 endpoint := strings.TrimSuffix(strings.TrimSpace(provider.BaseURL), "/") + "/audio/transcriptions"
 ```
+## 2026-03-13
+
+- Измененные файлы:
+  - `server/internal/handlers/turn_handler.go`
+  - `server/internal/handlers/turn_handler_test.go`
+- Суть правки:
+  - Было: `/api/turn-credentials` отдавал одновременно static TURN creds (`TURN_USER/TURN_PASSWORD`) и HMAC creds (`TURN_SECRET`), даже когда production coturn был поднят только в `auth-secret` режиме.
+  - Стало: при наличии `TURN_SECRET` backend отдает только HMAC TURN credentials; static creds используются только как fallback, если secret-mode не настроен.
+- Короткие сниппеты:
+
+```go
+if h.secret != "" {
+    ...
+    return response.IceServers
+}
+```
+
+```go
+// Static credentials are only returned when auth-secret mode is not configured.
+if h.staticUser != "" && h.staticPass != "" {
+```

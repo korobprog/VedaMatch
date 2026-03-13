@@ -13,11 +13,11 @@ import (
 )
 
 type TurnHandler struct {
-	secret       string
-	staticUser   string
-	staticPass   string
-	staticRealm  string
-	ttl          time.Duration
+	secret      string
+	staticUser  string
+	staticPass  string
+	staticRealm string
+	ttl         time.Duration
 }
 
 func NewTurnHandler() *TurnHandler {
@@ -45,6 +45,12 @@ type TurnConfigResponse struct {
 }
 
 func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
+	return c.JSON(TurnConfigResponse{
+		IceServers: h.buildIceServers(),
+	})
+}
+
+func (h *TurnHandler) buildIceServers() []IceServer {
 	response := TurnConfigResponse{
 		IceServers: []IceServer{
 			{
@@ -58,21 +64,11 @@ func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
 		turnHost = strings.TrimSpace(os.Getenv("TURN_HOST"))
 	}
 	if turnHost == "" {
-		return c.JSON(response)
+		return response.IceServers
 	}
 
 	turnURL := fmt.Sprintf("turn:%s:%s", turnHost, "3478")
 
-	// Static credentials support for TURN deployments configured with TURN_USER/TURN_PASSWORD.
-	if h.staticUser != "" && h.staticPass != "" {
-		response.IceServers = append(response.IceServers, IceServer{
-			Urls:       turnURL,
-			Username:   h.staticUser,
-			Credential: h.staticPass,
-		})
-	}
-
-	// Authenticated user ID can be injected later; keep stable label for now.
 	if h.secret != "" {
 		userID := "user"
 		timestamp := time.Now().Add(h.ttl).Unix()
@@ -87,7 +83,18 @@ func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
 			Username:   username,
 			Credential: password,
 		})
+
+		return response.IceServers
 	}
 
-	return c.JSON(response)
+	// Static credentials are only returned when auth-secret mode is not configured.
+	if h.staticUser != "" && h.staticPass != "" {
+		response.IceServers = append(response.IceServers, IceServer{
+			Urls:       turnURL,
+			Username:   h.staticUser,
+			Credential: h.staticPass,
+		})
+	}
+
+	return response.IceServers
 }

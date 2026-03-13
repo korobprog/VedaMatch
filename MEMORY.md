@@ -2213,6 +2213,7 @@
 ## Calls Risks / Tech Debt
 - Hardcoded TURN fallback credentials удалены из `frontend/services/webRTCService.ts`; при недоступности `/turn-credentials` используется STUN-only fallback.
 - В `server/internal/handlers/turn_handler.go` TURN-креды выдаются только при наличии `TURN_SECRET` и `TURN_EXTERNAL_IP/TURN_HOST`; иначе API возвращает STUN-only.
+- Production `rag-agent-turn` сейчас поднят в `auth-secret` режиме (`--use-auth-secret --static-auth-secret=...`) без static user/password; если backend одновременно выдает static `admin/password` и HMAC creds, личные звонки ломаются на TURN auth mismatch.
 - В `GetContacts` есть legacy-режим возврата полного списка при отсутствии query-параметров (`ContactsLegacyModeEnabled`), что может быть тяжелым по перформансу на росте базы.
 
 ## Contacts API
