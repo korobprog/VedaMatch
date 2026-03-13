@@ -220,6 +220,23 @@ export class WebSocketService {
         }
 
         try {
+            // Шаг 1: Автоматический refresh токена
+            console.log(`[ws_auth_refresh] source=${source} user_id=${this.userId}`);
+            const refreshed = await refreshAuthTokens();
+            
+            if (refreshed?.accessToken) {
+                this.lastAuthRecoverAt = Date.now();
+                console.log(`[ws_auth_refresh_success] source=${source} user_id=${this.userId}`);
+                console.log('[WebSocket] Token refreshed automatically, reconnecting...');
+                this.reconnectAttempts = 0;
+                this.authRecoveryTriggered = false;
+                await this.connect();
+                return;
+            }
+
+            console.warn('[WebSocket] Token refresh failed, no refresh token available');
+
+            // Шаг 2: Если refresh не сработал, пробуем onAuthError callback
             if (!this.onAuthError) {
                 return;
             }
@@ -228,7 +245,7 @@ export class WebSocketService {
             if (recovered && !this.isDisposed) {
                 this.lastAuthRecoverAt = Date.now();
                 console.log(`[ws_auth_recover] source=${source} user_id=${this.userId}`);
-                console.log(`[WebSocket] Auth recovered (${source}), reconnecting...`);
+                console.log(`[WebSocket] Auth recovered via callback (${source}), reconnecting...`);
                 this.reconnectAttempts = 0;
                 this.authRecoveryTriggered = false;
                 await this.connect();
