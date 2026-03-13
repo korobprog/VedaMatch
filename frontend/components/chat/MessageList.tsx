@@ -879,6 +879,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                 Alert.alert(t('error'), messageListCopy.insufficientLkm);
             } else if (status === 404 || status === 405) {
                 Alert.alert(t('error'), messageListCopy.transcribeUnavailable);
+            } else if (status === 502) {
+                Alert.alert(t('error'), messageListCopy.transcribeFailed);
             } else {
                 console.warn('Failed to transcribe message', error);
                 Alert.alert(t('error'), messageListCopy.transcribeFailed);

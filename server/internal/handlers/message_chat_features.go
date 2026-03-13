@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
@@ -527,6 +528,7 @@ func (h *MessageHandler) TranscribeMessage(c *fiber.Ctx) error {
 
 	result, transcribeErr := services.TranscribeChatAudio(c.UserContext(), strings.TrimSpace(msg.Content), req.Language)
 	if transcribeErr != nil {
+		log.Printf("[MessageTranscribe] user=%d message=%d failed: %v", userID, msg.ID, transcribeErr)
 		_ = services.GetMetricsService().Increment(services.MetricChatTranscribeFailTotal, 1)
 		_ = services.GetMetricsService().Increment(services.MetricChatTranscribeBillingFailedTotal, 1)
 		if compensationErr := h.failTranscribeJobAndCompensate(userID, msg.ID, transcribeJob, billingApply, transcribeErr.Error()); compensationErr == nil {

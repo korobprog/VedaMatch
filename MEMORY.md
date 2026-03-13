@@ -12,8 +12,12 @@
 - Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.
 - Chat transcription backend должен уметь работать не только с абсолютными `http(s)` audio URL, но и с локальными путями `/uploads/...`, нормализуя их в публичный API URL перед `ffprobe`/download и перед отправкой в transcription provider.
 - Chat transcription нельзя завязывать только на `OPENAI_API_KEY`: на production используется Polza/OpenAI-compatible конфиг, поэтому backend должен поддерживать fallback через `POLZA_API_KEY` / `POLZA_BASE_URL`.
+- Для Polza OpenAI-compatible транскриба нужно пробовать модели с префиксом `openai/` (`openai/gpt-4o-mini-transcribe`, `openai/gpt-4o-transcribe`, `openai/whisper-1`) и без него как fallback.
+- Для production audio transcription нельзя полагаться на `cdn.vedamatch.ru/messages/audio/...`: direct download с сервера сейчас отдает `403 AccessDenied`, тогда как прямой path-style URL через `S3_ENDPOINT/S3_BUCKET_NAME` отдает `200`.
+- Для Polza transcription multipart file-part должен уходить с явным audio `Content-Type` (`audio/mp4` для `.m4a`), иначе Polza отвечает `400 Invalid file format` даже на валидный M4A-файл.
 - Media upload в P2P chat не должен полагаться только на `recipientId` из контекста: безопасный fallback — `recipientUser.ID`; если чат не direct и адресата нет, клиент должен показать user-facing alert вместо падения с `recipientId or roomId is required`.
 - Feature flag `CHAT_TRANSCRIPTION_ENABLED` не должен по умолчанию выключать транскриб, если transcription provider уже настроен через env (`POLZA_API_KEY`, `OPENAI_API_KEY` или `API_OPEN_AI`), иначе mobile UI показывает кнопку, а backend отвечает `404`.
+- Текущий iOS debug/эмулятор по `frontend/.env` ходит в `https://api.vedamatch.ru`, а не в локальный backend; при дебаге аудио/транскриба на iOS нужно помнить, что проверяется production API.
 
 ## MVP Readiness
 - На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.

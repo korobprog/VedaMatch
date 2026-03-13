@@ -1,5 +1,9 @@
 # Prompt Log
 
+- 2026-03-13 13:50:43 +1000 | Запрос: "нет не переводит вот логи может поменять модель и посмотри документацию" + production logs `POST /api/messages/156/transcribe -> 502`
+
+- 2026-03-13 16:49:00 +1000 | Запрос: "пишет нельзя расшифровать это адио сообщение если нужно смотри сервер по SSH и MCP docker ploy"
+
 - 2026-03-13 16:42:00 +1000 | Запрос: скрины ошибки транскриба аудио в эмуляторе: alert "Не удалось расшифровать аудио" и Console Error `Failed to transcribe message AxiosError: Request failed with status code 404`
 
 - 2026-03-13 16:34:00 +1000 | Запрос: "ошибка в эмуляторе" + скрин Console Error: "Failed to send media: Error: recipientId or roomId is required"
@@ -1450,3 +1454,4 @@
 2026-03-13 11:31:11 +1000 | Запрос: "установился но вот авторизация через гугл не сработала вот скрин гугл авторизации" + скрин Google Auth Platform iOS client для `com.korobkov.vedamatch.dev`
 2026-03-13 11:40:24 +1000 | Запрос: "вот и от firebase тоже для. ios" + файлы `GoogleService-Info (4).plist` и `client_425899875420-k6h5hi1siqhk8qcsoa4gpfp9mqu3u7f2.apps.googleusercontent.com (1).plist`
 2026-03-13 12:40:15 +1000 | Запрос: папки\ на\ протале\ долго\ открываться\ можешь\ посмотреть\ почему\ и\ напиши\ идеи\ по\ оптимизации
+2026-03-13 13:31:51 +1000 | Запрос: "Running \"vedamatch\" with {\"rootTag\":61,...} ... MessageList.tsx:883 Failed to transcribe message AxiosError: Request failed with status code 502"

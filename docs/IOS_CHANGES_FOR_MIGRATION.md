@@ -16438,3 +16438,56 @@ if (status === 404 || status === 405) {
   Alert.alert(t('error'), messageListCopy.transcribeUnavailable);
 }
 ```
+## 2026-03-13
+
+- Измененные файлы:
+  - `server/internal/services/chat_transcription_service.go`
+  - `server/internal/services/chat_transcription_service_test.go`
+  - `server/internal/handlers/message_chat_features.go`
+  - `frontend/components/chat/MessageList.tsx`
+- Суть правки:
+  - Было: chat transcription для Polza использовал только unprefixed модели (`gpt-4o-mini-transcribe`, `gpt-4o-transcribe`) и при upstream fail возвращал mobile-клиенту общий `502`.
+  - Стало: backend для Polza пробует `openai/...` варианты моделей и `whisper-1` как fallback, а mobile-клиент тихо показывает alert на ожидаемый `502` без лишнего dev warning.
+- Короткие сниппеты:
+
+```go
+modelsToTry := resolveChatTranscriptionModelsForProvider(provider)
+```
+
+```go
+appendModel("openai/" + trimmed)
+appendModel(trimmed)
+```
+
+```tsx
+} else if (status === 502) {
+    Alert.alert(t('error'), messageListCopy.transcribeFailed);
+}
+```
+## 2026-03-13
+
+- Измененные файлы:
+  - `server/internal/services/chat_transcription_service.go`
+  - `server/internal/services/chat_transcription_service_test.go`
+- Суть правки:
+  - Было:
+    - backend скачивал chat audio для транскриба по исходному CDN URL, а `cdn.vedamatch.ru/messages/audio/...` на production возвращал `403 AccessDenied`;
+    - Polza transcription через OpenAI SDK падал на multipart upload без явного audio `Content-Type`, и provider отвечал `400 Invalid file format`.
+  - Стало:
+    - для chat audio transcription backend сначала пробует direct S3 path-style URL на основе `S3_ENDPOINT + S3_BUCKET_NAME`, а потом уже исходный URL;
+    - для Polza backend отправляет отдельный multipart request с корректным `Content-Type` (`audio/mp4` для `.m4a`) и приоритетом `whisper`-моделей.
+- Короткие сниппеты:
+
+```go
+if key, ok := extractChatTranscriptionAudioObjectKey(normalizedURL); ok {
+    appendCandidate(resolveChatTranscriptionDirectS3URL(key))
+}
+```
+
+```go
+partHeader.Set("Content-Type", detectChatTranscriptionMimeType(filePath))
+```
+
+```go
+endpoint := strings.TrimSuffix(strings.TrimSpace(provider.BaseURL), "/") + "/audio/transcriptions"
+```
