@@ -31,6 +31,25 @@ export const resolveUserDisplayName = (
         || (user.ID ? `${fallbackLabel} #${user.ID}` : fallbackLabel);
 };
 
+export const resolveUserCallDisplayName = (
+    user?: UserDisplaySource | null,
+    options: UserDisplayOptions = {},
+): string => {
+    if (!user) {
+        return '';
+    }
+
+    const fallbackName = resolveUserDisplayName(user, options);
+    const spiritualName = clean(user.spiritualName);
+    const karmicName = clean(user.karmicName);
+
+    if (spiritualName && karmicName && spiritualName.toLowerCase() !== karmicName.toLowerCase()) {
+        return `${spiritualName} (${karmicName})`;
+    }
+
+    return spiritualName || karmicName || fallbackName;
+};
+
 export const resolveUserDisplayInitial = (
     user?: UserDisplaySource | null,
     options: UserDisplayOptions = {},
@@ -55,4 +74,26 @@ export const resolveUserNicknameLabel = (user?: UserDisplaySource | null): strin
     }
 
     return nickname.startsWith('@') ? nickname : `@${nickname}`;
+};
+
+export const resolveUserCallHandle = (
+    user?: UserDisplaySource | null,
+    options: UserDisplayOptions = {},
+): string => {
+    if (!user) {
+        return clean(options.fallbackLabel) || 'User';
+    }
+
+    const karmicName = clean(user.karmicName);
+    if (karmicName) {
+        return karmicName;
+    }
+
+    const nicknameLabel = resolveUserNicknameLabel(user);
+    if (nicknameLabel) {
+        return nicknameLabel;
+    }
+
+    return clean(user.email)
+        || resolveUserDisplayName(user, options);
 };

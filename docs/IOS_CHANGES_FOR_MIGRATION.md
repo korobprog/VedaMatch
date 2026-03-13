@@ -1,3 +1,86 @@
+## 2026-03-13 (Shared mobile calls: wait for WebSocket signaling after auth refresh)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - старт 1:1 звонка сразу создавал `offer` и слал его через `wsService.send(...)`;
+  - если access token протухал прямо в момент звонка, `turn-credentials`/WS проходили через `401 -> refresh`, а signaling socket ещё не был в `OPEN`;
+  - в этом окне `offer` и часть `candidate` терялись на клиенте, а сервер не видел `offer/answer/candidate` вообще.
+- Стало:
+  - `WebSocketService` умеет сообщать `isOpen()` и ждать восстановления через `waitUntilOpen()`;
+  - `WebRTCService` перед `offer/answer` ждёт готовность signaling socket;
+  - `candidate` и `hangup` теперь отправляются через тот же guarded path, чтобы не теряться на короткой auth-reconnect гонке.
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+async waitUntilOpen(timeoutMs: number = 4000) {
+  const deadline = Date.now() + Math.max(timeoutMs, 250);
+  while (!this.isDisposed && Date.now() < deadline) {
+    if (this.isOpen()) return true;
+    await this.connect();
+    if (this.isOpen()) return true;
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+  return this.isOpen();
+}
+```
+
+`frontend/services/webRTCService.ts`:
+```ts
+private async ensureSignalingReady(timeoutMs: number = 4500) {
+  const isReady = await this.wsService?.waitUntilOpen(timeoutMs);
+  if (!isReady) {
+    throw new Error('WebSocket signaling socket is not connected');
+  }
+}
+```
+
+## 2026-03-13 (Incoming caller name + post-call feedback timing)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/services/notificationService.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - экран звонка мог показывать generic `User` / `User N`, даже когда профиль контакта уже существует;
+  - feedback / donation modal открывался сразу по локальному `hangup`, а не по фактическому завершению созвона;
+  - call status, incoming call UI и post-call modal оставались частично на hardcoded English.
+- Стало:
+  - `CallScreen` догружает профиль собеседника по `targetId` и показывает `spiritualName (karmicName)` там, где раньше был generic fallback;
+  - feedback / donation modal открывается из callback окончания звонка `webRTCService.setOnCallEnded(...)`, а не по самому нажатию кнопки;
+  - добавлены `calls.status.*`, `calls.actions.*`, `calls.feedback.*` для `ru/en/hi`, плюс push-fallback name теперь берется из `i18n`.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```tsx
+const resolvedCallerName = React.useMemo(() => {
+  if (participantProfile) {
+    return resolveUserCallDisplayName(participantProfile, { fallbackLabel: fallbackUserLabel });
+  }
+  return String(callerName || '').trim() || t('calls.unknownCaller');
+}, [callerName, fallbackUserLabel, participantProfile, t]);
+```
+
+```tsx
+webRTCService.setOnCallEnded(handleCallEnded);
+```
+
+`frontend/services/notificationService.ts`:
+```ts
+const callerName = String(payload?.callerName || '').trim()
+  || i18n.t('calls.incomingCall', { defaultValue: 'Incoming call' });
+```
+
 ## 2026-03-13 (Portal folder tap responsiveness)
 
 ### Измененные файлы

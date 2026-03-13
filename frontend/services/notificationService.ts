@@ -286,7 +286,8 @@ export const notificationService = {
             if (!navigationRef.isReady()) {
                 return;
             }
-            const callerName = String(payload?.callerName || '').trim() || 'Incoming Call';
+            const callerName = String(payload?.callerName || '').trim()
+                || i18n.t('calls.incomingCall', { defaultValue: 'Incoming call' });
             const callerId = parseNumericId(payload?.senderId, payload?.targetId, payload?.userId, params?.senderId, params?.targetId, params?.userId);
             // @ts-ignore
             navigationRef.navigate('CallScreen', { isIncoming: true, callerName, targetId: callerId });

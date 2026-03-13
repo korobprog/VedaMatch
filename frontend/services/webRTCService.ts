@@ -59,12 +59,44 @@ class WebRTCService {
     isInitiator: boolean = false;
     private remoteCandidates: RTCIceCandidate[] = [];
     private pendingOffer: any = null; // Store offer until user accepts
+    private onCallEnded: ((reason: 'local' | 'remote' | 'system') => void) | null = null;
 
     public debugLocalCandidates: number = 0;
     public debugRemoteCandidates: number = 0;
 
+    private async ensureSignalingReady(timeoutMs: number = 4500) {
+        if (!this.wsService) {
+            throw new Error('WebSocket signaling service is not configured');
+        }
+
+        const isReady = await this.wsService.waitUntilOpen(timeoutMs);
+        if (!isReady) {
+            throw new Error('WebSocket signaling socket is not connected');
+        }
+    }
+
+    private async sendSignalingMessage(message: Record<string, unknown>, timeoutMs: number = 2500) {
+        if (!this.wsService) {
+            console.warn('[WebRTC] Cannot send signaling message, ws service is not configured');
+            return false;
+        }
+
+        const isReady = await this.wsService.waitUntilOpen(timeoutMs);
+        if (!isReady) {
+            console.warn(`[WebRTC] Dropped signaling message ${String(message.type)}: socket not ready`);
+            return false;
+        }
+
+        this.wsService.send(message);
+        return true;
+    }
+
     setWebSocketService(ws: WebSocketService) {
         this.wsService = ws;
+    }
+
+    setOnCallEnded(callback: ((reason: 'local' | 'remote' | 'system') => void) | null) {
+        this.onCallEnded = callback;
     }
 
     remoteStream: MediaStream | null = null;
@@ -386,17 +418,21 @@ class WebRTCService {
 
                 if (this.wsService && this.targetId) {
                     if (this.signalingMode === 'room') {
-                        this.wsService.send({
+                        this.sendSignalingMessage({
                             type: 'room_candidate',
                             roomId: this.signalingRoomId || 0,
                             targetId: this.targetId,
                             payload: event.candidate,
+                        }).catch(error => {
+                            console.warn('[WebRTC] Failed to send room ICE candidate', error);
                         });
                     } else {
-                        this.wsService.send({
+                        this.sendSignalingMessage({
                             type: 'candidate',
                             targetId: this.targetId,
                             payload: event.candidate,
+                        }).catch(error => {
+                            console.warn('[WebRTC] Failed to send ICE candidate', error);
                         });
                     }
                 }
@@ -458,6 +494,7 @@ class WebRTCService {
 
     async startCall(targetId: number) {
         await this.fetchTurnCredentials(); // Get TURN config first
+        await this.ensureSignalingReady();
         this.signalingMode = 'p2p';
         this.signalingRoomId = null;
         this.targetId = targetId;
@@ -481,17 +518,16 @@ class WebRTCService {
         });
         await this.peerConnection!.setLocalDescription(offer);
 
-        if (this.wsService) {
-            this.wsService.send({
-                type: 'offer',
-                targetId: this.targetId,
-                payload: offer,
-            });
-        }
+        await this.sendSignalingMessage({
+            type: 'offer',
+            targetId: this.targetId,
+            payload: offer,
+        });
     }
 
     async startRoomCall(targetId: number, roomId: number) {
         await this.fetchTurnCredentials();
+        await this.ensureSignalingReady();
         this.signalingMode = 'room';
         this.signalingRoomId = roomId;
         this.targetId = targetId;
@@ -508,14 +544,12 @@ class WebRTCService {
         });
         await this.peerConnection!.setLocalDescription(offer);
 
-        if (this.wsService) {
-            this.wsService.send({
-                type: 'room_offer',
-                roomId,
-                targetId: this.targetId,
-                payload: offer,
-            });
-        }
+        await this.sendSignalingMessage({
+            type: 'room_offer',
+            roomId,
+            targetId: this.targetId,
+            payload: offer,
+        });
     }
 
     async processOffer(message: any) {
@@ -541,6 +575,7 @@ class WebRTCService {
 
         console.log('Accepting call...');
         await this.fetchTurnCredentials();
+        await this.ensureSignalingReady();
 
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
@@ -559,16 +594,16 @@ class WebRTCService {
             });
             await this.peerConnection!.setLocalDescription(answer);
 
-            if (this.wsService && this.targetId) {
+            if (this.targetId) {
                 if (this.signalingMode === 'room') {
-                    this.wsService.send({
+                    await this.sendSignalingMessage({
                         type: 'room_answer',
                         roomId: this.signalingRoomId || 0,
                         targetId: this.targetId,
                         payload: answer,
                     });
                 } else {
-                    this.wsService.send({
+                    await this.sendSignalingMessage({
                         type: 'answer',
                         targetId: this.targetId,
                         payload: answer,
@@ -634,12 +669,20 @@ class WebRTCService {
                 break;
             case 'hangup':
             case 'room_hangup':
-                this.endCall();
+                this.endCall('remote');
                 break;
         }
     }
 
-    endCall() {
+    endCall(reason: 'local' | 'remote' | 'system' = 'system') {
+        const hadActiveCall = Boolean(
+            this.peerConnection
+            || this.localStream
+            || this.remoteStream
+            || this.targetId
+            || this.pendingOffer
+        );
+
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
@@ -652,31 +695,42 @@ class WebRTCService {
         this.isFrontCamera = true;
         InCallManager.stop();
         this.remoteStream = null;
+        this.remoteCandidates = [];
+        this.pendingOffer = null;
         this.targetId = null;
         this.signalingRoomId = null;
         this.signalingMode = 'p2p';
+        this.onRemoteStream = null;
         this.onIceStateChange = null;
-        // Notify server/other user if needed via hangup message
+        const onCallEnded = this.onCallEnded;
+        this.onCallEnded = null;
+        if (hadActiveCall && onCallEnded) {
+            onCallEnded(reason);
+        }
     }
 
     sendHangup() {
         if (this.wsService && this.targetId) {
             if (this.signalingMode === 'room') {
-                this.wsService.send({
+                this.sendSignalingMessage({
                     type: 'room_hangup',
                     roomId: this.signalingRoomId || 0,
                     targetId: this.targetId,
                     payload: {},
+                }).catch(error => {
+                    console.warn('[WebRTC] Failed to send room hangup', error);
                 });
             } else {
-                this.wsService.send({
+                this.sendSignalingMessage({
                     type: 'hangup',
                     targetId: this.targetId,
                     payload: {},
+                }).catch(error => {
+                    console.warn('[WebRTC] Failed to send hangup', error);
                 });
             }
         }
-        this.endCall();
+        this.endCall('local');
     }
 }
 

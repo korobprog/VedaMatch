@@ -11,21 +11,47 @@ import { BlurView } from '@react-native-community/blur';
 import { callHistoryService, CallHistoryType } from '../../services/callHistoryService';
 import { callPiPService } from '../../services/callPiPService';
 import { callFeedbackService, CallFeedbackReason } from '../../services/callFeedbackService';
+import { useTranslation } from 'react-i18next';
+import { contactService, type UserContact } from '../../services/contactService';
+import { resolveUserCallDisplayName } from '../../utils/userDisplay';
 
 const { width, height } = Dimensions.get('window');
 const FEEDBACK_MIN_DURATION_SEC = 10;
 const QUICK_DONATION_AMOUNTS = [20, 50, 100];
-const FEEDBACK_REASONS: { id: CallFeedbackReason; label: string }[] = [
-    { id: 'audio_quality', label: 'Audio issues' },
-    { id: 'video_quality', label: 'Video issues' },
-    { id: 'connection_stability', label: 'Connection drops' },
-    { id: 'latency', label: 'Latency' },
-    { id: 'echo', label: 'Echo/noise' },
+const FEEDBACK_REASON_IDS: CallFeedbackReason[] = [
+    'audio_quality',
+    'video_quality',
+    'connection_stability',
+    'latency',
+    'echo',
 ];
+
+type CallStatusKey =
+    | 'incoming'
+    | 'calling'
+    | 'connecting'
+    | 'connectingVideo'
+    | 'cameraUnavailable'
+    | 'noMediaAccess'
+    | 'cameraEnableFailed'
+    | 'cameraSwitchFailed'
+    | 'pipAvailableAfterVideo'
+    | 'pipUnavailable'
+    | 'connectedTrack'
+    | 'connectedAv'
+    | 'failed'
+    | 'ending'
+    | 'ended';
+
+type CallStatusState = {
+    key: CallStatusKey;
+    values?: Record<string, string | number>;
+};
 
 export const CallScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
+    const { t } = useTranslation();
     const { vTheme } = useSettings();
     // @ts-ignore
     const { targetId, isIncoming, callerName, autoAccept, callUUID } = route.params || {};
@@ -37,6 +63,7 @@ export const CallScreen = () => {
     const callConnectedAtRef = useRef<number | null>(null);
     const endingRef = useRef(false);
     const feedbackShownRef = useRef(false);
+    const navigationHandledRef = useRef(false);
     const callSessionIdRef = useRef<string>(
         typeof callUUID === 'string' && callUUID.trim()
             ? callUUID.trim()
@@ -50,8 +77,11 @@ export const CallScreen = () => {
     const [streamVersion, setStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [status, setStatus] = useState<string>(isIncoming ? 'Incoming call...' : 'Calling...');
-    const [iceState, setIceState] = useState<string>('new');
+    const [participantProfile, setParticipantProfile] = useState<UserContact | null>(null);
+    const [statusState, setStatusState] = useState<CallStatusState>({
+        key: isIncoming ? 'incoming' : 'calling',
+    });
+    const [, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [localVideoAvailable, setLocalVideoAvailable] = useState(false);
@@ -69,6 +99,37 @@ export const CallScreen = () => {
     const [feedbackError, setFeedbackError] = useState('');
 
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
+    const setStatusKey = React.useCallback((key: CallStatusKey, values?: Record<string, string | number>) => {
+        setStatusState({ key, values });
+    }, []);
+    const status = React.useMemo(
+        () => t(`calls.status.${statusState.key}`, statusState.values),
+        [statusState, t],
+    );
+    const fallbackUserLabel = React.useMemo(() => (
+        t('contacts.userFallback', {
+            id: targetId,
+            defaultValue: typeof targetId === 'number' ? `User #${targetId}` : 'User',
+        }).replace(/\s*#\d+$/, '').trim() || 'User'
+    ), [t, targetId]);
+    const resolvedCallerName = React.useMemo(() => {
+        if (participantProfile) {
+            const profileName = resolveUserCallDisplayName(participantProfile, { fallbackLabel: fallbackUserLabel });
+            if (profileName) {
+                return profileName;
+            }
+        }
+
+        const routeCallerName = String(callerName || '').trim();
+        return routeCallerName || t('calls.unknownCaller');
+    }, [callerName, fallbackUserLabel, participantProfile, t]);
+    const feedbackReasonOptions = React.useMemo(
+        () => FEEDBACK_REASON_IDS.map((id) => ({
+            id,
+            label: t(`calls.feedback.reasons.${id}`),
+        })),
+        [t],
+    );
     const startIncomingRingtone = () => {
         if (incomingRingtoneActiveRef.current) {
             return;
@@ -131,6 +192,26 @@ export const CallScreen = () => {
     }, [getConnectedDurationSec]);
 
     useEffect(() => {
+        const numericTargetId = typeof targetId === 'number' && Number.isFinite(targetId) ? targetId : null;
+        if (!numericTargetId) {
+            setParticipantProfile(null);
+            return;
+        }
+
+        let cancelled = false;
+        void (async () => {
+            const contact = await contactService.getUserById(numericTargetId);
+            if (!cancelled) {
+                setParticipantProfile(contact);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [targetId]);
+
+    useEffect(() => {
         if (!isIncoming || hasAccepted) {
             stopIncomingRingtone();
             return;
@@ -175,9 +256,9 @@ export const CallScreen = () => {
                     setIsVideoEnabled(streamHasVideo);
                     setLocalVideoAvailable(streamHasVideo);
                     if (!streamHasVideo) {
-                        setStatus('Camera unavailable');
+                        setStatusKey('cameraUnavailable');
                     }
-                    const tracks = stream.getTracks().map(t => t.kind[0].toUpperCase()).join('/');
+                    const tracks = stream.getTracks().map((track) => track.kind[0].toUpperCase()).join('/');
                     console.log(`Local stream ready: ${tracks}`);
                 }
             } catch (e) {
@@ -185,13 +266,13 @@ export const CallScreen = () => {
                 if (mounted) {
                     setIsVideoEnabled(false);
                     setLocalVideoAvailable(false);
-                    setStatus('No access to camera/microphone');
+                    setStatusKey('noMediaAccess');
                 }
             }
         };
         startPreview();
         return () => { mounted = false; };
-    }, [isIncoming]);
+    }, [isIncoming, setStatusKey]);
 
     // Connection logic - only runs when call is accepted/outgoing
     useEffect(() => {
@@ -230,8 +311,8 @@ export const CallScreen = () => {
                         setRemoteStream(rStream);
                         setRemoteVideoAvailable(streamHasVideo);
                         setStreamVersion(v => v + 1);
-                        const trackInfo = tracks.map(t => t.kind[0].toUpperCase()).join('/');
-                        setStatus(streamHasVideo ? `Connected (${trackInfo})` : 'Connecting video...');
+                        const trackInfo = tracks.map((track) => track.kind[0].toUpperCase()).join('/');
+                        setStatusKey(streamHasVideo ? 'connectedTrack' : 'connectingVideo', streamHasVideo ? { trackInfo } : undefined);
                     }
                 });
 
@@ -244,7 +325,7 @@ export const CallScreen = () => {
 
                 if (!isIncoming && targetId) {
                     // OUTGOING: Start call
-                    setStatus('Calling...');
+                    setStatusKey('calling');
                     await webRTCService.startCall(targetId);
                     startOutgoingRingback();
                 }
@@ -253,7 +334,9 @@ export const CallScreen = () => {
             } catch (err) {
                 console.error("Failed to start/setup call", err);
                 stopOutgoingRingback();
-                if (mounted) setStatus('Failed');
+                if (mounted) {
+                    setStatusKey('failed');
+                }
             }
         };
 
@@ -262,7 +345,7 @@ export const CallScreen = () => {
         return () => {
             mounted = false;
         };
-    }, [hasAccepted, targetId, isIncoming]);
+    }, [hasAccepted, isIncoming, setStatusKey, targetId]);
 
     useEffect(() => {
         hasAcceptedRef.current = hasAccepted;
@@ -332,7 +415,7 @@ export const CallScreen = () => {
             if (streamHasVideo) {
                 setRemoteVideoAvailable(true);
                 setStreamVersion(v => v + 1);
-                setStatus(prev => (prev.startsWith('Connected') ? prev : 'Connected (A/V)'));
+                setStatusKey('connectedAv');
                 clearInterval(intervalId);
                 return;
             }
@@ -345,7 +428,7 @@ export const CallScreen = () => {
         return () => {
             clearInterval(intervalId);
         };
-    }, [remoteStream, remoteVideoAvailable]);
+    }, [remoteStream, remoteVideoAvailable, setStatusKey]);
 
 
     // Cleanup on unmount (end call)
@@ -359,7 +442,7 @@ export const CallScreen = () => {
             ? (hasAcceptedRef.current ? 'incoming' : 'missed')
             : 'outgoing';
 
-        const resolvedName = String(callerName || '').trim() || (targetId ? `User ${targetId}` : 'Unknown');
+        const resolvedName = resolvedCallerName || (targetId ? `${fallbackUserLabel} #${targetId}` : t('calls.unknownCaller'));
         const durationStart = callConnectedAtRef.current || callStartedAtRef.current;
         const durationSec = durationStart
             ? Math.max(0, Math.round((Date.now() - durationStart) / 1000))
@@ -371,7 +454,7 @@ export const CallScreen = () => {
             type: resolvedType,
             durationSec,
         });
-    }, [callerName, isIncoming, targetId]);
+    }, [fallbackUserLabel, isIncoming, resolvedCallerName, t, targetId]);
 
     const resetFeedbackState = React.useCallback(() => {
         setFeedbackStep('rating');
@@ -383,15 +466,7 @@ export const CallScreen = () => {
         setFeedbackError('');
     }, []);
 
-    const finalizeClose = React.useCallback((navigateBack: boolean) => {
-        if (endingRef.current) {
-            if (navigateBack) {
-                navigation.goBack();
-            }
-            return;
-        }
-        endingRef.current = true;
-
+    const stopCallUi = React.useCallback(() => {
         stopIncomingRingtone();
         stopOutgoingRingback();
         callPiPService.setCallActive(false);
@@ -403,26 +478,54 @@ export const CallScreen = () => {
                 // no-op
             }
         }
+    }, []);
+
+    const persistCallHistorySafely = React.useCallback(() => {
         void persistCallHistory().catch((error) => {
             console.warn('[CallScreen] Failed to persist call history', error);
         });
-        webRTCService.sendHangup();
-        webRTCService.endCall();
+    }, [persistCallHistory]);
 
-        if (navigateBack) {
+    const closeScreen = React.useCallback(() => {
+        if (navigationHandledRef.current) {
+            return;
+        }
+        navigationHandledRef.current = true;
+        webRTCService.setOnCallEnded(null);
+        if (navigation.canGoBack()) {
             navigation.goBack();
         }
-    }, [navigation, persistCallHistory]);
+    }, [navigation]);
 
     const openFeedbackFlow = React.useCallback(() => {
         if (feedbackShownRef.current) {
-            finalizeClose(true);
+            closeScreen();
             return;
         }
         feedbackShownRef.current = true;
         resetFeedbackState();
         setFeedbackVisible(true);
-    }, [finalizeClose, resetFeedbackState]);
+    }, [closeScreen, resetFeedbackState]);
+
+    const handleCallEnded = React.useCallback((reason: 'local' | 'remote' | 'system') => {
+        endingRef.current = true;
+        stopCallUi();
+        setLocalStream(null);
+        setRemoteStream(null);
+        setLocalVideoAvailable(false);
+        setRemoteVideoAvailable(false);
+        setIsVideoEnabled(false);
+        setIsMuted(false);
+        setStatusKey('ended');
+        persistCallHistorySafely();
+
+        if (reason !== 'system' && shouldPromptFeedback()) {
+            openFeedbackFlow();
+            return;
+        }
+
+        closeScreen();
+    }, [closeScreen, openFeedbackFlow, persistCallHistorySafely, setStatusKey, shouldPromptFeedback, stopCallUi]);
 
     const submitFeedback = React.useCallback(async () => {
         if (feedbackRating < 1 || feedbackRating > 5 || feedbackBusy) {
@@ -449,18 +552,18 @@ export const CallScreen = () => {
             });
         } catch (error) {
             console.warn('[CallScreen] submitFeedback failed', error);
-            setFeedbackError('Failed to submit the rating. You can continue.');
+            setFeedbackError(t('calls.feedback.submitError'));
         } finally {
             setFeedbackBusy(false);
             setFeedbackStep('donation');
         }
-    }, [feedbackBusy, feedbackComment, feedbackRating, feedbackReasons, getConnectedDurationSec, isIncoming, targetId]);
+    }, [feedbackBusy, feedbackComment, feedbackRating, feedbackReasons, getConnectedDurationSec, isIncoming, t, targetId]);
 
     const completeFeedbackFlow = React.useCallback(() => {
         setFeedbackVisible(false);
         resetFeedbackState();
-        finalizeClose(true);
-    }, [finalizeClose, resetFeedbackState]);
+        closeScreen();
+    }, [closeScreen, resetFeedbackState]);
 
     const submitDonation = React.useCallback(async () => {
         if (donationBusy) {
@@ -469,7 +572,7 @@ export const CallScreen = () => {
         const customParsed = Number.parseInt(customDonationAmount.trim(), 10);
         const amount = selectedDonationAmount ?? (Number.isFinite(customParsed) ? customParsed : 0);
         if (!Number.isFinite(amount) || amount <= 0) {
-            setFeedbackError('Enter a valid amount.');
+            setFeedbackError(t('calls.feedback.invalidAmount'));
             return;
         }
 
@@ -483,39 +586,30 @@ export const CallScreen = () => {
             completeFeedbackFlow();
         } catch (error) {
             console.warn('[CallScreen] submitDonation failed', error);
-            setFeedbackError('Transfer was not completed. You can skip it.');
+            setFeedbackError(t('calls.feedback.transferError'));
         } finally {
             setDonationBusy(false);
         }
-    }, [completeFeedbackFlow, customDonationAmount, donationBusy, selectedDonationAmount]);
+    }, [completeFeedbackFlow, customDonationAmount, donationBusy, selectedDonationAmount, t]);
 
     const skipDonation = React.useCallback(() => {
         completeFeedbackFlow();
     }, [completeFeedbackFlow]);
 
     useEffect(() => {
+        webRTCService.setOnCallEnded(handleCallEnded);
         return () => {
-            if (endingRef.current) {
+            webRTCService.setOnCallEnded(null);
+            if (navigationHandledRef.current) {
                 return;
             }
-            stopIncomingRingtone();
-            stopOutgoingRingback();
-            void callPiPService.stopPiP();
-            if (Platform.OS === 'ios') {
-                try {
-                    stopIOSPIP(pipViewRef);
-                } catch {
-                    // no-op
-                }
-            }
-            void persistCallHistory().catch((error) => {
-                console.warn('[CallScreen] Failed to persist call history', error);
-            });
+            stopCallUi();
+            persistCallHistorySafely();
             // Only end call logic if we leave screen
             // But we might want to keep call in background? For now, kill it.
-            webRTCService.endCall();
+            webRTCService.endCall('system');
         };
-    }, [persistCallHistory]);
+    }, [handleCallEnded, persistCallHistorySafely, stopCallUi]);
 
 
     const handleAnswer = async () => {
@@ -531,13 +625,13 @@ export const CallScreen = () => {
             setLocalVideoAvailable(hasVideoTrack(stream));
 
             setHasAccepted(true);
-            setStatus('Connecting...');
+            setStatusKey('connecting');
             await webRTCService.acceptCall();
         } catch (error) {
             console.error('Failed to accept incoming call', error);
             setIsVideoEnabled(false);
             setLocalVideoAvailable(false);
-            setStatus('Failed to enable the camera');
+            setStatusKey('cameraEnableFailed');
         }
     };
 
@@ -557,43 +651,44 @@ export const CallScreen = () => {
                 setLocalVideoAvailable(hasVideoTrack(stream));
 
                 setHasAccepted(true);
-                setStatus('Connecting...');
+                setStatusKey('connecting');
                 await webRTCService.acceptCall();
             } catch (error) {
                 console.error('Failed to auto-accept incoming call', error);
                 setIsVideoEnabled(false);
                 setLocalVideoAvailable(false);
-                setStatus('Failed to enable the camera');
+                setStatusKey('cameraEnableFailed');
             }
         })();
-    }, [autoAccept, hasAccepted, isIncoming]);
+    }, [autoAccept, hasAccepted, isIncoming, setStatusKey]);
 
     const handleHangup = () => {
-        const promptFeedback = shouldPromptFeedback();
-        finalizeClose(!promptFeedback);
-        if (promptFeedback) {
-            openFeedbackFlow();
+        if (endingRef.current) {
+            return;
         }
+        endingRef.current = true;
+        setStatusKey('ending');
+        webRTCService.sendHangup();
     };
 
     const handleEnterPiP = async () => {
         if (Platform.OS === 'ios') {
             if (!pipViewRef.current) {
-                setStatus('PiP will be available after video connects');
+                setStatusKey('pipAvailableAfterVideo');
                 return;
             }
             try {
                 startIOSPIP(pipViewRef);
             } catch (error) {
                 console.warn('[CallScreen] Failed to start iOS PiP', error);
-                setStatus('PiP unavailable');
+                setStatusKey('pipUnavailable');
             }
             return;
         }
 
         const entered = await callPiPService.enterPiP(9, 16);
         if (!entered) {
-            setStatus('PiP unavailable');
+            setStatusKey('pipUnavailable');
         }
     };
 
@@ -614,7 +709,7 @@ export const CallScreen = () => {
             if (!videoTracks.length) {
                 setIsVideoEnabled(false);
                 setLocalVideoAvailable(false);
-                setStatus('Camera unavailable');
+                setStatusKey('cameraUnavailable');
                 return;
             }
             videoTracks.forEach(track => {
@@ -630,9 +725,9 @@ export const CallScreen = () => {
         const result = await webRTCService.switchCamera();
         if (!result.success) {
             if (result.reason === 'no_video_track' || result.reason === 'no_local_stream') {
-                setStatus('Camera unavailable');
+                setStatusKey('cameraUnavailable');
             } else {
-                setStatus('Failed to switch the camera');
+                setStatusKey('cameraSwitchFailed');
             }
             return;
         }
@@ -656,7 +751,7 @@ export const CallScreen = () => {
         ));
     };
 
-    const Background = () => {
+    const renderBackground = () => {
         if (hasAccepted && remoteStream) {
             // If remote stream is active, the video is the background.
             // We can return null or a dark overlay if needed.
@@ -678,25 +773,25 @@ export const CallScreen = () => {
         return (
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-                <Background />
+                {renderBackground()}
 
                 <View style={styles.callerContainer}>
                     <View style={styles.avatarLarge}>
                         <User size={60} color="#fff" />
                     </View>
-                    <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
+                    <Text style={styles.callerName}>{resolvedCallerName}</Text>
                     <Text style={styles.statusText}>{status}</Text>
                 </View>
 
-                <View style={[styles.incomingControls, { bottom: 80 }]}>
+                <View style={[styles.incomingControls, styles.incomingControlsElevated]}>
                     <TouchableOpacity onPress={handleHangup} style={[styles.actionBtn, styles.declineBtn]}>
                         <PhoneOff color="white" size={32} />
-                        <Text style={styles.btnLabel}>Decline</Text>
+                        <Text style={styles.btnLabel}>{t('calls.actions.decline')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={handleAnswer} style={[styles.actionBtn, styles.acceptBtn]}>
                         <Phone color="white" size={32} />
-                        <Text style={styles.btnLabel}>Accept</Text>
+                        <Text style={styles.btnLabel}>{t('calls.actions.accept')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -707,7 +802,7 @@ export const CallScreen = () => {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-            <Background />
+            {renderBackground()}
 
             {remoteStream ? (
                 Platform.OS === 'ios' ? (
@@ -729,9 +824,9 @@ export const CallScreen = () => {
                                     <View style={styles.avatarLarge}>
                                         <User size={60} color="#fff" />
                                     </View>
-                                    <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
+                                    <Text style={styles.callerName}>{resolvedCallerName}</Text>
                                     <Text style={styles.statusText}>{status}</Text>
-                                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
+                                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={styles.activitySpacing} />
                                 </View>
                             ) as any,
                         }}
@@ -750,9 +845,9 @@ export const CallScreen = () => {
                         <View style={styles.avatarLarge}>
                             <User size={60} color="#fff" />
                         </View>
-                        <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
+                        <Text style={styles.callerName}>{resolvedCallerName}</Text>
                         <Text style={styles.statusText}>{status}</Text>
-                        <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
+                        <ActivityIndicator size="large" color={vTheme.colors.primary} style={styles.activitySpacing} />
                     </View>
                 )
             ) : (
@@ -760,9 +855,9 @@ export const CallScreen = () => {
                     <View style={styles.avatarLarge}>
                         <User size={60} color="#fff" />
                     </View>
-                    <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
+                    <Text style={styles.callerName}>{resolvedCallerName}</Text>
                     <Text style={styles.statusText}>{status}</Text>
-                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
+                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={styles.activitySpacing} />
                 </View>
             )}
 
@@ -822,12 +917,12 @@ export const CallScreen = () => {
                 <View style={styles.feedbackBackdrop}>
                     <View style={styles.feedbackCard}>
                         <Text style={styles.feedbackTitle}>
-                            {feedbackStep === 'rating' ? 'Rate call quality' : 'Support call quality'}
+                            {feedbackStep === 'rating' ? t('calls.feedback.ratingTitle') : t('calls.feedback.donationTitle')}
                         </Text>
                         <Text style={styles.feedbackSubtitle}>
                             {feedbackStep === 'rating'
-                                ? 'Help improve calls after the conversation ends.'
-                                : 'Quick transfer only from regular LKM to the VedaMatch account.'}
+                                ? t('calls.feedback.ratingSubtitle')
+                                : t('calls.feedback.donationSubtitle')}
                         </Text>
 
                         {feedbackStep === 'rating' ? (
@@ -848,7 +943,7 @@ export const CallScreen = () => {
                                 </View>
 
                                 <View style={styles.reasonWrap}>
-                                    {FEEDBACK_REASONS.map((reason) => {
+                                    {feedbackReasonOptions.map((reason) => {
                                         const active = feedbackReasons.includes(reason.id);
                                         return (
                                             <TouchableOpacity
@@ -866,7 +961,7 @@ export const CallScreen = () => {
 
                                 <TextInput
                                     style={styles.feedbackInput}
-                                    placeholder="Comment (optional)"
+                                    placeholder={t('calls.feedback.commentPlaceholder')}
                                     placeholderTextColor="rgba(255,255,255,0.45)"
                                     value={feedbackComment}
                                     onChangeText={setFeedbackComment}
@@ -876,14 +971,16 @@ export const CallScreen = () => {
 
                                 <View style={styles.feedbackActions}>
                                     <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={completeFeedbackFlow} disabled={feedbackBusy}>
-                                        <Text style={styles.feedbackSecondaryBtnText}>Skip</Text>
+                                        <Text style={styles.feedbackSecondaryBtnText}>{t('calls.actions.skip')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.feedbackPrimaryBtn, (feedbackRating < 1 || feedbackBusy) && styles.feedbackBtnDisabled]}
                                         onPress={() => { void submitFeedback(); }}
                                         disabled={feedbackRating < 1 || feedbackBusy}
                                     >
-                                        <Text style={styles.feedbackPrimaryBtnText}>{feedbackBusy ? 'Submitting...' : 'Next'}</Text>
+                                        <Text style={styles.feedbackPrimaryBtnText}>
+                                            {feedbackBusy ? t('calls.actions.submitting') : t('calls.actions.next')}
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
                             </>
@@ -909,7 +1006,7 @@ export const CallScreen = () => {
 
                                 <TextInput
                                     style={styles.feedbackInput}
-                                    placeholder="Custom LKM amount"
+                                    placeholder={t('calls.feedback.customAmountPlaceholder')}
                                     placeholderTextColor="rgba(255,255,255,0.45)"
                                     value={customDonationAmount}
                                     onChangeText={(value) => {
@@ -921,14 +1018,16 @@ export const CallScreen = () => {
 
                                 <View style={styles.feedbackActions}>
                                     <TouchableOpacity style={styles.feedbackSecondaryBtn} onPress={skipDonation} disabled={donationBusy}>
-                                        <Text style={styles.feedbackSecondaryBtnText}>Skip</Text>
+                                        <Text style={styles.feedbackSecondaryBtnText}>{t('calls.actions.skip')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.feedbackPrimaryBtn, donationBusy && styles.feedbackBtnDisabled]}
                                         onPress={() => { void submitDonation(); }}
                                         disabled={donationBusy}
                                     >
-                                        <Text style={styles.feedbackPrimaryBtnText}>{donationBusy ? 'Transferring...' : 'Support'}</Text>
+                                        <Text style={styles.feedbackPrimaryBtnText}>
+                                            {donationBusy ? t('calls.actions.transferring') : t('calls.actions.support')}
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
                             </>
@@ -960,6 +1059,9 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    activitySpacing: {
+        marginTop: 20,
     },
     callerContainer: {
         flex: 1,
@@ -1087,6 +1189,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-evenly',
         alignItems: 'flex-end',
         paddingHorizontal: 30,
+    },
+    incomingControlsElevated: {
+        bottom: 80,
     },
     actionBtn: {
         alignItems: 'center',

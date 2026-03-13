@@ -58,6 +58,30 @@ export class WebSocketService {
         }
     }
 
+    isOpen() {
+        return this.socket?.readyState === WebSocket.OPEN;
+    }
+
+    async waitUntilOpen(timeoutMs: number = 4000) {
+        const deadline = Date.now() + Math.max(timeoutMs, 250);
+
+        while (!this.isDisposed && Date.now() < deadline) {
+            if (this.isOpen()) {
+                return true;
+            }
+
+            await this.connect();
+
+            if (this.isOpen()) {
+                return true;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+
+        return this.isOpen();
+    }
+
     private async connectInternal() {
         if (this.isDisposed || this.isAuthRecoveryInProgress) {
             return;
@@ -108,7 +132,7 @@ export class WebSocketService {
                 if (this.onMessageCallback) {
                     this.onMessageCallback(message);
                 }
-            } catch (error) {
+            } catch {
                 // Silently handle parse errors to avoid RedBox
                 console.warn('[WebSocket] Ignored non-json message');
             }
@@ -240,7 +264,7 @@ export class WebSocketService {
     }
 
     send(message: any) {
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        if (this.isOpen() && this.socket) {
             this.socket.send(JSON.stringify(message));
         } else {
             console.warn('[WebSocket] Cannot send, socket not open');

@@ -19,6 +19,11 @@
 - Feature flag `CHAT_TRANSCRIPTION_ENABLED` не должен по умолчанию выключать транскриб, если transcription provider уже настроен через env (`POLZA_API_KEY`, `OPENAI_API_KEY` или `API_OPEN_AI`), иначе mobile UI показывает кнопку, а backend отвечает `404`.
 - Текущий iOS debug/эмулятор по `frontend/.env` ходит в `https://api.vedamatch.ru`, а не в локальный backend; при дебаге аудио/транскриба на iOS нужно помнить, что проверяется production API.
 
+## Calls / WebRTC
+- Для shared mobile call UI имя собеседника на incoming/active call screen и в iOS CallKeep должно резолвиться через профиль контакта `getUserById()` с форматом `spiritualName (karmicName)`; fallback `User N` допустим только как крайний запасной путь.
+- Post-call feedback / donation flow нельзя открывать прямо по локальному tap на hangup: его нужно подвязывать к фактическому завершению звонка через callback окончания call session, чтобы модалка появлялась после завершения созвона у обеих сторон.
+- Для call-specific UI копирайт нельзя держать хардкодом в `CallScreen`; статусы звонка, incoming labels и feedback/donation modal должны идти через `calls.*` i18n keys как минимум для `ru/en/hi`.
+
 ## MVP Readiness
 - На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.
 - Backend auth/session ядро уже заведено в коде:
@@ -2402,8 +2407,11 @@
 ## P2P Calls: Known Failure Points
 - В `server/internal/websocket/hub.go` сигналинг форвардится только подключенному WS-клиенту; если получатель не в `h.clients`, логируется `Target User X not connected` и звонок не доставляется.
 - Если `/turn-credentials` недоступен, клиент (`frontend/services/webRTCService.ts`) уходит в STUN-only fallback, что часто ломает соединение для symmetric NAT/CGNAT.
+- Если access token протухает в момент старта звонка, `GET /api/turn-credentials` может дать `401 -> refresh -> 200`, а глобальный WebSocket ещё не успевает вернуться в `OPEN`; без дополнительного ожидания `offer/answer` теряются на клиенте и до server signaling логов вообще не доходят.
+- На production зафиксирован отдельный runtime failure-path: `offer` от звонящего может успешно доходить до `Hub`, но целевой пользователь вообще не иметь live `WS`-соединения (`Target User 4 not connected`), а push fallback при этом ломается на `fcm v1 returned status=401 code=THIRD_PARTY_AUTH_ERROR`; в таком состоянии входящий вызов не дойдёт ни через realtime, ни через push.
 
 ## P2P Calls: Applied Fixes
+- `frontend/services/websocketService.ts` получил `isOpen()` и `waitUntilOpen()`, а `frontend/services/webRTCService.ts` теперь ждёт готовность signaling socket перед `offer/answer` и мягко ретраит отправку `candidate/hangup`, чтобы звонок не терялся на гонке с `auth/refresh`.
 - В `frontend/App.tsx` добавлен `incomingCallRef`; `answerCall` теперь передает `targetId/callerName` и `autoAccept=true`, `endCall` отправляет `webRTCService.sendHangup()`.
 - Входящий call-flow расширен на push:
   - `frontend/services/notificationService.ts` добавлен `setIncomingCallPushHandler(...)` и маршрут `voip_call` в этот handler;
@@ -2446,7 +2454,8 @@
     - авто-enter PiP по `AppState=background` остается только на Android, на iOS работает ручной сценарий через кнопку сворачивания.
   - Xcode схема:
     - `frontend/ios/vedamatch.xcodeproj/xcshareddata/xcschemes/vedamatch.xcscheme` переведена на `LaunchAction buildConfiguration=Release`, чтобы запуск через кнопку `Run` ставил production, а не debug.
-- В `server/internal/handlers/turn_handler.go` выдача ICE сделана совместимой с двумя схемами TURN auth: static credentials (`TURN_USER/TURN_PASSWORD`) и HMAC credentials (`TURN_SECRET`).
+- Для 1:1 звонков production coturn сейчас работает в `auth-secret` режиме; backend `server/internal/handlers/turn_handler.go` должен при наличии `TURN_SECRET` отдавать только HMAC TURN creds и не смешивать их со static `TURN_USER/TURN_PASSWORD`, иначе coturn логирует `Cannot find credentials of user <admin>` и звонки не соединяются.
+- Обычный Dokploy redeploy может вернуть `TURN_USER/TURN_PASSWORD` в `vedamatch-server-dnkxc8` даже после runtime hotfix; если личные звонки снова ломаются, первым делом проверить service env и убрать static TURN creds до постоянного обновления конфигурации в Dokploy.
 
 ## Call Quality Feedback & Support Transfer
 - Добавлена модель `CallQualityFeedback` (`server/internal/models/call_feedback.go`) и миграция в `AutoMigrate` (`server/internal/database/database.go`).

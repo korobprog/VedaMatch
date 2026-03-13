@@ -10,6 +10,7 @@ import { ChatProvider } from './context/ChatContext';
 import { UserProvider, useUser } from './context/UserContext';
 import { WebSocketProvider, useWebSocket } from './context/WebSocketContext';
 import { webRTCService } from './services/webRTCService';
+import { contactService, type UserContact } from './services/contactService';
 import { ChatScreen } from './screens/ChatScreen';
 import { SplashScreen } from './components/ui/SplashScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
@@ -56,6 +57,8 @@ import { SeriesDetailScreen } from './screens/multimedia/SeriesDetailScreen';
 import { PlaylistsScreen } from './screens/multimedia/PlaylistsScreen';
 import { PlaylistDetailScreen } from './screens/multimedia/PlaylistDetailScreen';
 import { OfflineMediaScreen } from './screens/multimedia/OfflineMediaScreen';
+import i18n from './i18n';
+import { resolveUserCallDisplayName, resolveUserCallHandle } from './utils/userDisplay';
 
 
 let VoipPushNotification: any;
@@ -223,6 +226,7 @@ const AppContent = () => {
   const pendingRoomInviteTokenRef = React.useRef('');
   const voipSetupRef = React.useRef(false);
   const incomingCallRef = React.useRef<{ callUUID: string; targetId?: number; callerName: string } | null>(null);
+  const callerProfileCacheRef = React.useRef<Map<number, UserContact | null>>(new Map());
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -331,15 +335,50 @@ const AppContent = () => {
       return undefined;
     };
 
+    const fallbackCallerLabel = (targetId?: number) => {
+      const fallbackLabel = i18n.t('contacts.userFallback', {
+        id: targetId ?? 0,
+        defaultValue: targetId ? `User #${targetId}` : 'User',
+      });
+      return String(fallbackLabel || 'User').replace(/\s*#\d+$/, '').trim() || 'User';
+    };
+
+    const resolveIncomingCallerIdentity = async (payload: any) => {
+      const targetId = parseIncomingTargetId(payload);
+      const genericCallerName = String(payload?.callerName || payload?.name || payload?.title || '').trim();
+      const fallbackLabel = fallbackCallerLabel(targetId);
+      const defaultIncomingCallTitle = i18n.t('calls.incomingCall', { defaultValue: 'Incoming call' });
+
+      let callerName = genericCallerName || (targetId ? `${fallbackLabel} #${targetId}` : defaultIncomingCallTitle);
+      let callerHandle = targetId ? String(targetId) : callerName;
+
+      if (targetId) {
+        let contact = callerProfileCacheRef.current.get(targetId) ?? null;
+        if (!callerProfileCacheRef.current.has(targetId)) {
+          contact = await contactService.getUserById(targetId);
+          callerProfileCacheRef.current.set(targetId, contact);
+        }
+
+        if (contact) {
+          callerName = resolveUserCallDisplayName(contact, { fallbackLabel });
+          callerHandle = resolveUserCallHandle(contact, { fallbackLabel });
+        }
+      }
+
+      return {
+        targetId,
+        callerName,
+        callerHandle,
+      };
+    };
+
     const isUuidLike = (value: string): boolean => (
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
     );
 
     const showIncomingCall = async (rawPayload: any) => {
       const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
-      const targetId = parseIncomingTargetId(payload);
-      const fallbackName = targetId ? `User ${targetId}` : 'Incoming Call';
-      const callerName = String(payload?.callerName || payload?.name || payload?.title || '').trim() || fallbackName;
+      const { targetId, callerName, callerHandle } = await resolveIncomingCallerIdentity(payload);
       const incomingUUID = String(payload?.callUUID || payload?.uuid || '').trim();
       const callUUID = isUuidLike(incomingUUID) ? incomingUUID : getUUID();
 
@@ -348,7 +387,7 @@ const AppContent = () => {
       if (useCallKeepNativeUi) {
         await setupVoIP();
         if (voipSetupRef.current) {
-          RNCallKeep.displayIncomingCall(callUUID, String(targetId ?? callerName), callerName, 'generic', true);
+          RNCallKeep.displayIncomingCall(callUUID, callerHandle, callerName, 'generic', true);
           return;
         }
       }
@@ -442,11 +481,10 @@ const AppContent = () => {
     const removeLisener = addListener((msg: any) => {
       if (msg.type === 'offer') {
         const callerId = Number.parseInt(String(msg.senderId || ''), 10);
-        const callerName = String(msg.callerName || '').trim() || (Number.isFinite(callerId) ? `User ${callerId}` : 'Incoming Call');
         console.log('Incoming WebRTC Call from:', callerId);
         void showIncomingCall({
           senderId: Number.isFinite(callerId) ? callerId : undefined,
-          callerName,
+          callerName: String(msg.callerName || '').trim(),
           uuid: msg?.payload?.roomId || msg?.roomId,
         });
       }
