@@ -65,13 +65,36 @@ export default function ProfilePage() {
         setSuccess('');
 
         try {
-            const locationData = {
+            // Send full profile data to /update-profile endpoint
+            const profileData = {
+                karmicName: user.karmicName || '',
+                spiritualName: user.spiritualName || '',
                 country: user.country || '',
-                city: user.city || ''
+                city: user.city || '',
+                diet: user.diet || '',
+                gender: user.gender || '',
+                identity: user.identity || '',
+                madh: user.madh || '',
+                yogaStyle: user.yogaStyle || '',
+                guna: user.guna || '',
+                mentor: user.mentor || '',
+                dob: user.dob || '',
+                bio: user.bio || '',
+                interests: user.interests || '',
+                lookingFor: user.lookingFor || '',
+                intentions: user.intentions || '',
+                skills: user.skills || '',
+                industry: user.industry || '',
+                lookingForBusiness: user.lookingForBusiness || '',
+                datingEnabled: user.datingEnabled,
+                yatra: user.yatra || '',
+                timezone: user.timezone || '',
+                maritalStatus: user.maritalStatus || '',
+                birthTime: user.birthTime || '',
             };
 
-            const response = await api.put('/update-location', locationData);
-            const updatedUser = response.data.user;
+            const response = await api.put('/update-profile', profileData);
+            const updatedUser = response.data;
 
             // Keep token
             const oldData = JSON.parse(localStorage.getItem('admin_data') || '{}');
@@ -79,11 +102,12 @@ export default function ProfilePage() {
 
             setUser({
                 ...updatedUser,
-                location: { country: locationData.country, city: locationData.city }
+                location: { country: updatedUser.country || '', city: updatedUser.city || '' }
             });
             setSuccess('Profile updated successfully!');
         } catch (err: any) {
-            setError(err.response?.data?.error || 'Update failed');
+            console.error('Profile update error:', err);
+            setError(err.response?.data?.error || err.message || 'Update failed');
         } finally {
             setSaving(false);
         }
