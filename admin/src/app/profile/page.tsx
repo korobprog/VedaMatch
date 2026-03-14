@@ -34,25 +34,12 @@ export default function ProfilePage() {
 
             const userData = JSON.parse(data);
 
-            try {
-                const response = await api.get('/profile');
-                const profileData = response.data;
-
-                setUser({
-                    ...userData,
-                    ...profileData,
-                    location: profileData.location || userData.location || { country: '', city: '' }
-                });
-            } catch (err: any) {
-                if (err?.response?.status === 401) {
-                    router.push('/login');
-                    return;
-                }
-                console.error('Failed to load profile:', err);
-                setUser(userData);
-            } finally {
-                setLoading(false);
-            }
+            // Use localStorage data directly - it's updated after save
+            setUser({
+                ...userData,
+                location: userData.location || { country: userData.country || '', city: userData.city || '' }
+            });
+            setLoading(false);
         };
 
         loadData();
