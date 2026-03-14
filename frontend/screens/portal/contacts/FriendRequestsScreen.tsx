@@ -13,10 +13,10 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import FastImage from 'react-native-fast-image';
 import { Check, X, ArrowLeft } from 'lucide-react-native';
-import { COLORS } from '../../components/chat/ChatConstants';
-import { friendRequestService, FriendRequest } from '../../services/friendRequestService';
-import { getMediaUrl } from '../../utils/url';
-import { useUser } from '../../context/UserContext';
+import { COLORS } from '../../../components/chat/ChatConstants';
+import { friendRequestService, FriendRequest } from '../../../services/friendRequestService';
+import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
 
 export const FriendRequestsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
