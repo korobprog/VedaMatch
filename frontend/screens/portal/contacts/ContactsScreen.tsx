@@ -619,6 +619,7 @@ export const ContactsScreen: React.FC = () => {
                                 cache: FastImage.cacheControl.immutable,
                             }}
                             style={styles.avatar}
+                            onError={() => console.log('[Contacts] Avatar load failed for:', item.ID, avatarUrl)}
                         />
                     ) : (
                         <View style={[styles.avatarPlaceholder, { backgroundColor: avatarBgColor }]}>
@@ -627,13 +628,13 @@ export const ContactsScreen: React.FC = () => {
                             </Text>
                         </View>
                     )}
-                    {online && !isBlocked && <View style={styles.onlineStatus} />}
+                    {/* Зелёная галочка друга — зелёная если онлайн, иначе жёлтая */}
                     {isFriend && !isBlocked && (
                         <View
                             style={[
                                 styles.friendAvatarBadge,
                                 {
-                                    backgroundColor: theme.accent,
+                                    backgroundColor: online ? '#4CAF50' : theme.accent, // Зелёный если онлайн, иначе жёлтый
                                     borderColor: usePhotoBg ? 'rgba(255,255,255,0.95)' : vTheme.colors.background,
                                 },
                             ]}
@@ -641,6 +642,7 @@ export const ContactsScreen: React.FC = () => {
                             <Check size={10} color="#fff" strokeWidth={3} />
                         </View>
                     )}
+                    {/* Зелёную точку онлайн убрали чтобы не дублировать с галочкой друга */}
                 </View>
                 <View style={styles.contactInfo}>
                     <View style={styles.nameRow}>
