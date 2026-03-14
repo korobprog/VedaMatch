@@ -15,6 +15,7 @@ import { AtSign, ChevronLeft, Mail, MapPin, Shield, MessageCircle, UserPlus, Use
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
+import { friendRequestService } from '../../../services/friendRequestService';
 import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
 import OrganizerBadge from '../../../components/travel/OrganizerBadge';
 import {
