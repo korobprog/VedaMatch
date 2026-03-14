@@ -692,6 +692,42 @@ export const ContactsScreen: React.FC = () => {
                     >
                         <Text style={[styles.unblockText, { color: theme.accent }]}>{t('contacts.unblock')}</Text>
                     </TouchableOpacity>
+                ) : filter === 'requests' && (item as any).request ? (
+                    // Кнопки для запросов в друзья
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#4CAF50' }]}
+                            onPress={async () => {
+                                try {
+                                    await friendRequestService.acceptRequest((item as any).request.id);
+                                    // Обновить список
+                                    const reqs = await friendRequestService.getIncomingRequests();
+                                    setRequests(reqs);
+                                    setFriendRequestCount(reqs.length);
+                                } catch (error) {
+                                    console.error('Error accepting request:', error);
+                                }
+                            }}
+                        >
+                            <Check size={20} color="#fff" strokeWidth={3} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#F44336' }]}
+                            onPress={async () => {
+                                try {
+                                    await friendRequestService.rejectRequest((item as any).request.id);
+                                    // Обновить список
+                                    const reqs = await friendRequestService.getIncomingRequests();
+                                    setRequests(reqs);
+                                    setFriendRequestCount(reqs.length);
+                                } catch (error) {
+                                    console.error('Error rejecting request:', error);
+                                }
+                            }}
+                        >
+                            <X size={20} color="#fff" strokeWidth={3} />
+                        </TouchableOpacity>
+                    </View>
                 ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         {isFriend && (
@@ -1472,5 +1508,12 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 20,
         marginRight: 4,
+    },
+    actionBtn: {
+        padding: 8,
+        borderRadius: 20,
+        minWidth: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
