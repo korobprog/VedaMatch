@@ -3260,6 +3260,30 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			user.NicknameCooldownUntil = &cooldown
 		}
 	}
+
+	// Check if role changed and apply cooldown
+	if updateData.Role != "" && updateData.Role != user.Role {
+		if user.RoleCooldownUntil != nil && now.Before(*user.RoleCooldownUntil) {
+			daysLeft := int((*user.RoleCooldownUntil).Sub(now) / (24 * time.Hour))
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":        "Role change cooldown active",
+				"code":         "role_cooldown_active",
+				"field":        "role",
+				"retryAfterAt": user.RoleCooldownUntil,
+				"daysLeft":     daysLeft,
+			})
+		}
+
+		// Apply 30 days cooldown for role change
+		roleCooldown := now.Add(30 * 24 * time.Hour)
+		updates["role_changed_at"] = now
+		updates["role_change_cooldown_until"] = roleCooldown
+
+		user.Role = resolveProfileRoleForUpdate(updateData.Role, updateData.Role)
+		user.RoleChangedAt = &now
+		user.RoleCooldownUntil = &roleCooldown
+	}
+
 	user.KarmicName = normalizedKarmicName
 	user.SpiritualName = normalizedSpiritualName
 	user.Gender = strings.TrimSpace(updateData.Gender)

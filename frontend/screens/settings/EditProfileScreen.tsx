@@ -95,6 +95,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [proStatus, setProStatus] = useState<ProStatus | null>(null);
     const [proStatusLoading, setProStatusLoading] = useState(false);
     const [karmicNameError, setKarmicNameError] = useState('');
+    const [roleCooldownDays, setRoleCooldownDays] = useState<number | null>(null);
+    const [showProModalForRole, setShowProModalForRole] = useState(false);
 
     // City autocomplete
     const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
@@ -257,6 +259,18 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setRole((userData.role || 'user') as PortalRole);
                 setGodModeEnabled(!!userData.godModeEnabled);
 
+                // Check role cooldown
+                if (userData.roleChangeCooldownUntil) {
+                    const cooldownDate = new Date(userData.roleChangeCooldownUntil);
+                    const now = new Date();
+                    if (cooldownDate > now) {
+                        const daysLeft = Math.ceil((cooldownDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        setRoleCooldownDays(daysLeft);
+                    } else {
+                        setRoleCooldownDays(null);
+                    }
+                }
+
                 if (userData.dob) {
                     const date = new Date(userData.dob);
                     if (!isNaN(date.getTime())) {
@@ -401,6 +415,29 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 const statusTag = getRequestStatusTag(error);
                 const urlTag = typeof error?.config?.url === 'string' ? error.config.url : '/update-profile';
                 console.warn(`[EditProfile] Error saving profile status=${statusTag} url=${urlTag} user=${user?.ID}: ${message}`);
+                
+                // Handle role cooldown error
+                if (requestCode === 'role_cooldown_active') {
+                    const daysLeft = error?.response?.data?.daysLeft || 30;
+                    setRoleCooldownDays(daysLeft);
+                    Alert.alert(
+                        t('common.error'),
+                        language === 'ru' 
+                            ? `Смена роли доступна раз в 30 дней. Осталось дней: ${daysLeft}\n\nАктивируйте PRO режим для мгновенной смены роли.`
+                            : language === 'hi'
+                            ? `भूमिका परिवर्तन 30 दिनों में एक बार उपलब्ध है। शेष दिन: ${daysLeft}\n\nतत्काल भूमिका परिवर्तन के लिए PRO मोड सक्रिय करें।`
+                            : `Role change is available once every 30 days. Days remaining: ${daysLeft}\n\nActivate PRO mode for instant role change.`,
+                        [
+                            { text: t('common.cancel') || 'Cancel', style: 'cancel' },
+                            { 
+                                text: language === 'ru' ? 'Активировать PRO' : language === 'hi' ? 'PRO सक्रिय करें' : 'Activate PRO',
+                                onPress: () => setShowProModalForRole(true)
+                            }
+                        ]
+                    );
+                    return;
+                }
+                
                 if (requestCode === 'profile_name_required') {
                     setKarmicNameError(editProfileCopy.karmicNameRequired);
                     Alert.alert(t('common.error'), editProfileCopy.karmicNameRequired);
@@ -533,7 +570,28 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         >
                             <RoleSelectionSection
                                 selectedRole={role}
-                                onSelectRole={setRole}
+                                onSelectRole={(newRole) => {
+                                    // Check if role is different and cooldown is active
+                                    if (newRole !== role && roleCooldownDays && roleCooldownDays > 0 && !effectiveProEnabled) {
+                                        Alert.alert(
+                                            t('common.error'),
+                                            language === 'ru'
+                                                ? `Смена роли доступна раз в 30 дней. Осталось дней: ${roleCooldownDays}\n\nАктивируйте PRO режим для мгновенной смены роли.`
+                                                : language === 'hi'
+                                                ? `भूमिका परिवर्तन 30 दिनों में एक बार उपलब्ध है। शेष दिन: ${roleCooldownDays}\n\nतत्काल भूमिका परिवर्तन के लिए PRO मोड सक्रिय करें।`
+                                                : `Role change is available once every 30 days. Days remaining: ${roleCooldownDays}\n\nActivate PRO mode for instant role change.`,
+                                            [
+                                                { text: t('common.cancel') || 'Cancel', style: 'cancel' },
+                                                {
+                                                    text: language === 'ru' ? 'Активировать PRO' : language === 'hi' ? 'PRO सक्रिय करें' : 'Activate PRO',
+                                                    onPress: () => setShowProModalForRole(true)
+                                                }
+                                            ]
+                                        );
+                                        return;
+                                    }
+                                    setRole(newRole);
+                                }}
                                 autoOpenHint={!user?.isProfileComplete}
                             />
 

@@ -23,6 +23,8 @@ type User struct {
 	NicknameSetManually   bool       `json:"nicknameSetManually" gorm:"default:false"`
 	NicknameChangedAt     *time.Time `json:"nicknameChangedAt,omitempty"`
 	NicknameCooldownUntil *time.Time `json:"nicknameChangeCooldownUntil,omitempty"`
+	RoleChangedAt         *time.Time `json:"roleChangedAt,omitempty"`
+	RoleCooldownUntil     *time.Time `json:"roleChangeCooldownUntil,omitempty"`
 	NicknameDisplay       string     `json:"nicknameDisplay,omitempty" gorm:"-"`
 	Email                 string     `json:"email" gorm:"unique"`
 	Password              string     `json:"password"`
