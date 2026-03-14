@@ -1512,6 +1512,10 @@ export default {
         "email": "ईमेल",
         "addFriend": "मित्र जोड़ें",
         "removeFriend": "मित्र हटाएँ",
+        "requestSent": "अनुरोध भेजा गया",
+        "requests": "अनुरोध",
+        "requestsInFriends": "मित्रता अनुरोध",
+        "unblock": "अनब्लॉक करें",
         "recommendations": "सिफ़ारिशें",
         "organizer_tiers": {
             "master": "Yatra Master",
