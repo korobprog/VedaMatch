@@ -343,7 +343,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     return (
         <UserContext.Provider value={contextValue}>
-            {children}
+            {isLoading ? null : children}
         </UserContext.Provider>
     );
 };
