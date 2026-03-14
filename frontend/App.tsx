@@ -669,11 +669,6 @@ const AppContent = () => {
                   />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
                   <Stack.Screen
-                    name="ContactProfile"
-                    component={ContactProfileScreen}
-                    options={{ freezeOnBlur: false }}
-                  />
-                  <Stack.Screen
                     name="RoomChat"
                     component={RoomChatScreen}
                     options={{ headerShown: true }}
