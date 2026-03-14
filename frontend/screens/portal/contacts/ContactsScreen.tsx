@@ -884,7 +884,12 @@ export const ContactsScreen: React.FC = () => {
                         )}
                     </TouchableOpacity>
                 </View>
-                <View style={styles.filterBar}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.filterBarScroll}
+                    contentContainerStyle={styles.filterBar}
+                >
                     <TouchableOpacity
                         onPress={() => setFilter('all')}
                         style={[styles.filterBtn, filter === 'all' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
@@ -924,7 +929,7 @@ export const ContactsScreen: React.FC = () => {
                             Блок ({blockedCount})
                         </Text>
                     </TouchableOpacity>
-                </View>
+                </ScrollView>
 
                 {/* Location Filters */}
                 {filter === 'all' && (
@@ -1336,17 +1341,19 @@ const styles = StyleSheet.create({
     },
     filterBar: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
+        paddingHorizontal: 8,
         paddingTop: 8,
     },
     filterBtn: {
         paddingVertical: 10,
-        marginRight: 24,
+        paddingHorizontal: 12,
+        marginRight: 16,
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',
+        position: 'relative',
     },
     filterText: {
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: '600',
     },
     filtersContainer: {
