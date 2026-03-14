@@ -3263,6 +3263,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 	// Check if role changed and apply cooldown
 	if updateData.Role != "" && updateData.Role != user.Role {
+		now := time.Now().UTC()
 		if user.RoleCooldownUntil != nil && now.Before(*user.RoleCooldownUntil) {
 			daysLeft := int((*user.RoleCooldownUntil).Sub(now) / (24 * time.Hour))
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
@@ -3857,7 +3858,7 @@ func (h *AuthHandler) SendFriendRequest(c *fiber.Ctx) error {
 			if sender.SpiritualName != "" {
 				senderName = sender.SpiritualName
 			}
-			pushService := services.GetPushNotificationService()
+			pushService := services.GetPushService()
 			if pushService != nil {
 				_ = pushService.SendFriendRequestNotification(body.ReceiverID, senderName)
 			}
