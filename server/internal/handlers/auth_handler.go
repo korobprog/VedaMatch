@@ -3788,6 +3788,302 @@ func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(users)
 }
 
+// SendFriendRequest creates a new friend request
+func (h *AuthHandler) SendFriendRequest(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var body struct {
+		ReceiverID uint `json:"receiverId"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	if body.ReceiverID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "receiverId is required"})
+	}
+	if body.ReceiverID == userId {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot send friend request to yourself"})
+	}
+
+	// Validate receiver exists
+	var receiver models.User
+	if err := database.DB.Select("id").First(&receiver, body.ReceiverID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Receiver user not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not validate receiver user"})
+	}
+
+	// Check if already friends
+	var friendCount int64
+	if err := database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", userId, body.ReceiverID).Or("user_id = ? AND friend_id = ?", body.ReceiverID, userId).Count(&friendCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check friendship status"})
+	}
+	if friendCount > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
+	}
+
+	// Check if request already exists
+	var requestCount int64
+	if err := database.DB.Model(&models.FriendRequest{}).Where("sender_id = ? AND receiver_id = ? AND status = ?", userId, body.ReceiverID, models.FriendRequestStatusPending).Count(&requestCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check existing requests"})
+	}
+	if requestCount > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Friend request already sent"})
+	}
+
+	// Create friend request
+	request := models.FriendRequest{
+		SenderID:   userId,
+		ReceiverID: body.ReceiverID,
+		Status:     models.FriendRequestStatusPending,
+	}
+
+	if err := database.DB.Create(&request).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Friend request already exists"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not send friend request"})
+	}
+
+	// Send push notification to receiver
+	go func() {
+		var sender models.User
+		if err := database.DB.Select("karmic_name", "spiritual_name").First(&sender, userId).Error; err == nil {
+			senderName := sender.KarmicName
+			if sender.SpiritualName != "" {
+				senderName = sender.SpiritualName
+			}
+			pushService := services.GetPushNotificationService()
+			if pushService != nil {
+				_ = pushService.SendFriendRequestNotification(body.ReceiverID, senderName)
+			}
+		}
+	}()
+
+	return c.Status(fiber.StatusCreated).JSON(request)
+}
+
+// GetFriendRequests returns incoming friend requests for the current user
+func (h *AuthHandler) GetFriendRequests(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var requests []models.FriendRequest
+	if err := database.DB.Where("receiver_id = ? AND status = ?", userId, models.FriendRequestStatusPending).Preload("Sender").Find(&requests).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch friend requests"})
+	}
+
+	// Get sender details
+	var senderIDs []uint
+	for _, req := range requests {
+		senderIDs = append(senderIDs, req.SenderID)
+	}
+
+	var senders []models.User
+	if len(senderIDs) > 0 {
+		if err := database.DB.Where("id IN ?", senderIDs).Find(&senders).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch sender details"})
+		}
+	}
+
+	// Build response with sender info
+	type FriendRequestWithSender struct {
+		ID         uint   `json:"id"`
+		SenderID   uint   `json:"senderId"`
+		SenderName string `json:"senderName"`
+		AvatarURL  string `json:"avatarUrl"`
+		City       string `json:"city"`
+		Country    string `json:"country"`
+		CreatedAt  string `json:"createdAt"`
+	}
+
+	response := make([]FriendRequestWithSender, 0, len(requests))
+	for _, req := range requests {
+		senderName := ""
+		avatarURL := ""
+		city := ""
+		country := ""
+		for _, sender := range senders {
+			if sender.ID == req.SenderID {
+				senderName = sender.KarmicName
+				if sender.SpiritualName != "" {
+					senderName = sender.SpiritualName
+				}
+				avatarURL = sender.AvatarURL
+				city = sender.City
+				country = sender.Country
+				break
+			}
+		}
+		response = append(response, FriendRequestWithSender{
+			ID:         req.ID,
+			SenderID:   req.SenderID,
+			SenderName: senderName,
+			AvatarURL:  avatarURL,
+			City:       city,
+			Country:    country,
+			CreatedAt:  req.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// AcceptFriendRequest accepts a friend request
+func (h *AuthHandler) AcceptFriendRequest(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var body struct {
+		RequestID uint `json:"requestId"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	if body.RequestID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "requestId is required"})
+	}
+
+	// Find and validate request
+	var request models.FriendRequest
+	if err := database.DB.First(&request, body.RequestID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Friend request not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not find friend request"})
+	}
+
+	// Check if user is the receiver
+	if request.ReceiverID != userId {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized to accept this request"})
+	}
+
+	// Check if already friends
+	var friendCount int64
+	if err := database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", request.SenderID, userId).Or("user_id = ? AND friend_id = ?", userId, request.SenderID).Count(&friendCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check friendship status"})
+	}
+	if friendCount > 0 {
+		// Already friends, just delete the request
+		database.DB.Delete(&request)
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Already friends"})
+	}
+
+	// Update request status
+	request.Status = models.FriendRequestStatusAccepted
+	if err := database.DB.Save(&request).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update request status"})
+	}
+
+	// Create bidirectional friendship
+	friendship1 := models.Friend{
+		UserID:   request.SenderID,
+		FriendID: userId,
+	}
+	friendship2 := models.Friend{
+		UserID:   userId,
+		FriendID: request.SenderID,
+	}
+
+	if err := database.DB.Create(&friendship1).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create friendship"})
+	}
+	if err := database.DB.Create(&friendship2).Error; err != nil {
+		// Rollback first friendship
+		database.DB.Delete(&friendship1)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create friendship"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request accepted"})
+}
+
+// RejectFriendRequest rejects a friend request
+func (h *AuthHandler) RejectFriendRequest(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var body struct {
+		RequestID uint `json:"requestId"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	if body.RequestID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "requestId is required"})
+	}
+
+	// Find and validate request
+	var request models.FriendRequest
+	if err := database.DB.First(&request, body.RequestID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Friend request not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not find friend request"})
+	}
+
+	// Check if user is the receiver
+	if request.ReceiverID != userId {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized to reject this request"})
+	}
+
+	// Update request status
+	request.Status = models.FriendRequestStatusRejected
+	if err := database.DB.Save(&request).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update request status"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request rejected"})
+}
+
+// CancelFriendRequest cancels a sent friend request
+func (h *AuthHandler) CancelFriendRequest(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var body struct {
+		RequestID uint `json:"requestId"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	if body.RequestID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "requestId is required"})
+	}
+
+	// Find and validate request
+	var request models.FriendRequest
+	if err := database.DB.First(&request, body.RequestID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Friend request not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not find friend request"})
+	}
+
+	// Check if user is the sender
+	if request.SenderID != userId {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized to cancel this request"})
+	}
+
+	// Delete the request
+	if err := database.DB.Delete(&request).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not cancel friend request"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request cancelled"})
+}
+
 func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
 	userId := middleware.GetUserID(c)
 	if userId == 0 {

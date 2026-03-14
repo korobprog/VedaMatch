@@ -19,9 +19,26 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Переходим в директорию проекта
 cd "$PROJECT_DIR"
 
-# Запрашиваем генерацию отчёта за последние 24 часа
-# Qwen Codex автоматически активирует агента veda-match-status-reporter
-cat << 'PROMPT' | qwen-chat --stdin 2>&1 | tee -a "$LOG_FILE"
+# Определяем команду для запуска Qwen Codex
+QWEN_CMD=""
+if command -v /opt/homebrew/bin/qwen &> /dev/null; then
+    QWEN_CMD="/opt/homebrew/bin/qwen"
+elif command -v qwen-code &> /dev/null; then
+    QWEN_CMD="qwen-code"
+elif command -v qwen &> /dev/null; then
+    QWEN_CMD="qwen"
+elif command -v codex &> /dev/null; then
+    QWEN_CMD="codex"
+else
+    # Пробуем найти через npm
+    QWEN_CMD="$(npm bin)/qwen-code"
+fi
+
+echo "🤖 Используемая команда: $QWEN_CMD" | tee -a "$LOG_FILE"
+
+# Создаём временный файл с промптом
+PROMPT_FILE=$(mktemp)
+cat > "$PROMPT_FILE" << 'PROMPT'
 Создай ежедневный статусный отчёт Veda Match для Telegram за последние 24 часа.
 
 Требования:
@@ -35,6 +52,13 @@ cat << 'PROMPT' | qwen-chat --stdin 2>&1 | tee -a "$LOG_FILE"
 
 Используй агент veda-match-status-reporter для генерации отчёта.
 PROMPT
+
+# Запрашиваем генерацию отчёта за последние 24 часа
+# Qwen Code автоматически активирует агента veda-match-status-reporter
+$QWEN_CMD -p "$(cat "$PROMPT_FILE")" 2>&1 | tee -a "$LOG_FILE"
+
+# Очищаем временный файл
+rm -f "$PROMPT_FILE"
 
 # Проверяем успешность выполнения
 if [ $? -eq 0 ]; then

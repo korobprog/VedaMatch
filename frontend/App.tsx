@@ -35,6 +35,7 @@ import {
 // KrishnaAssistant - only used in Portal header
 import { ContactsScreen } from './screens/portal/contacts/ContactsScreen';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
+import { FriendRequestsScreen } from './screens/portal/contacts/FriendRequestsScreen';
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
 import { PortalLayoutProvider } from './context/PortalLayoutContext';
@@ -722,6 +723,8 @@ const AppContent = () => {
                   <Stack.Screen name="DatingHome" component={DatingScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="CafeHome" component={CafeListScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ContactsHome" component={ContactsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="CallsHome" component={CallHistoryScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="RoomsHome" component={RoomsHomeScreen} options={{ headerShown: false }} />
 

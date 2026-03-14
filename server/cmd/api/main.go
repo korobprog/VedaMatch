@@ -909,6 +909,14 @@ func main() {
 	protected.Post("/friends/add", authHandler.AddFriend)
 	protected.Post("/friends/remove", authHandler.RemoveFriend)
 	protected.Get("/friends", authHandler.GetFriends)
+	
+	// Friend Requests
+	protected.Post("/friends/request", authHandler.SendFriendRequest)
+	protected.Get("/friends/requests", authHandler.GetFriendRequests)
+	protected.Post("/friends/request/accept", authHandler.AcceptFriendRequest)
+	protected.Post("/friends/request/reject", authHandler.RejectFriendRequest)
+	protected.Post("/friends/request/cancel", authHandler.CancelFriendRequest)
+	
 	protected.Post("/blocks/add", authHandler.BlockUser)
 	protected.Post("/blocks/remove", authHandler.UnblockUser)
 	protected.Get("/blocks", authHandler.GetBlockedUsers)

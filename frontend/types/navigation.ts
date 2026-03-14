@@ -76,6 +76,7 @@ export type RootStackParamList = {
     CallsHome: undefined;
     RoomsHome: undefined;
     ContactProfile: { userId: number } & AiNavigationMeta;
+    FriendRequests: undefined;
     AppSettings: undefined;
     LinkedAccounts: undefined;
     SupportHome: { entryPoint?: string; conversationId?: number } | undefined;

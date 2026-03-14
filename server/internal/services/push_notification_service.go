@@ -616,6 +616,30 @@ func (s *PushNotificationService) SendToAll(message PushMessage) error {
 	return s.sendToTargets(targets, message)
 }
 
+// SendFriendRequestNotification sends a push notification about a new friend request
+func (s *PushNotificationService) SendFriendRequestNotification(receiverID uint, senderName string) error {
+	// Get receiver's device tokens
+	targets, err := s.getTargetsForUser(receiverID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch receiver tokens: %w", err)
+	}
+	if len(targets) == 0 {
+		return nil // No tokens to send to
+	}
+
+	message := PushMessage{
+		Title: "Новый запрос в друзья",
+		Body:  fmt.Sprintf("%s хочет добавить вас в друзья", senderName),
+		Data: map[string]string{
+			"type":       "friend_request",
+			"senderName": senderName,
+		},
+	}
+
+	log.Printf("[PUSH] Sending friend request notification to user %d from %s", receiverID, senderName)
+	return s.sendToTargets(targets, message)
+}
+
 // SendNewsNotification sends a push notification for a news item to subscribers
 func (s *PushNotificationService) SendNewsNotification(newsItem models.NewsItem) error {
 	if !newsItem.IsImportant {

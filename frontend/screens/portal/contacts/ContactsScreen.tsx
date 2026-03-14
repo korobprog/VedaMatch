@@ -36,6 +36,7 @@ import {
 import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
+import { friendRequestService } from '../../../services/friendRequestService';
 
 const CONTACTS_PAGE_LIMIT = 50;
 const CONTACT_ITEM_HEIGHT = 92;
@@ -76,6 +77,8 @@ export const ContactsScreen: React.FC = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
     const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
+    const [friendRequestCount, setFriendRequestCount] = useState(0);
+    const [showFriendRequests, setShowFriendRequests] = useState(false);
 
     // City Filter State - support multiple cities
     const [filterCities, setFilterCities] = useState<string[]>([]);
@@ -107,11 +110,16 @@ export const ContactsScreen: React.FC = () => {
     }, [allSnapshot, blockedSnapshot, friendsSnapshot, queryClient]);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(search.trim());
-        }, 250);
-        return () => clearTimeout(timer);
-    }, [search]);
+        const loadData = async () => {
+            try {
+                const requests = await friendRequestService.getIncomingRequests();
+                setFriendRequestCount(requests.length);
+            } catch (error) {
+                console.error('[ContactsScreen] Error loading friend requests:', error);
+            }
+        };
+        loadData();
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -804,7 +812,21 @@ export const ContactsScreen: React.FC = () => {
                     <Text style={[styles.screenHeaderTitle, { color: usePhotoBg ? '#FFFFFF' : vTheme.colors.text }]}>
                         {t('contacts.title', { defaultValue: 'Contacts' })}
                     </Text>
-                    <View style={styles.screenHeaderSpacer} />
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('FriendRequests')}
+                        style={styles.friendRequestsButton}
+                    >
+                        <Text style={[styles.friendRequestsText, { color: usePhotoBg ? '#ffffff' : theme.text }]}>
+                            ✉️
+                        </Text>
+                        {friendRequestCount > 0 && (
+                            <View style={[styles.badge, { backgroundColor: theme.accent }]}>
+                                <Text style={styles.badgeText}>
+                                    {friendRequestCount > 99 ? '99+' : friendRequestCount}
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
                 </View>
                 <View style={styles.filterBar}>
                     <TouchableOpacity
@@ -1084,6 +1106,30 @@ const styles = StyleSheet.create({
     screenHeaderSpacer: {
         width: 40,
         height: 40,
+    },
+    friendRequestsButton: {
+        position: 'relative',
+        padding: 8,
+    },
+    friendRequestsText: {
+        fontSize: 20,
+    },
+    badge: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: '#F44336',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+    },
+    badgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
     },
     modalOverlay: {
         flex: 1,
