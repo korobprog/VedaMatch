@@ -94,6 +94,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                 // Remove friend
                 await contactService.removeFriend(currentUser.ID, contact.ID);
                 setIsFriend(false);
+                setRequestSent(false);
             } else {
                 // Send friend request instead of directly adding
                 await friendRequestService.sendRequest(contact.ID);
