@@ -36,6 +36,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const [contact, setContact] = useState<UserContact | null>(null);
     const [loading, setLoading] = useState(true);
     const [isFriend, setIsFriend] = useState(false);
+    const [requestSent, setRequestSent] = useState(false);
     const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
     const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
     const allowBlurEffects = !isAndroidReducedEffects;
@@ -89,15 +90,18 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         if (!currentUser?.ID || !contact) return;
         try {
             if (isFriend) {
+                // Remove friend
                 await contactService.removeFriend(currentUser.ID, contact.ID);
                 setIsFriend(false);
             } else {
-                await contactService.addFriend(currentUser.ID, contact.ID);
-                setIsFriend(true);
+                // Send friend request instead of directly adding
+                await friendRequestService.sendRequest(contact.ID);
+                setRequestSent(true);
             }
             await invalidateContactsCaches(queryClient);
         } catch (error) {
-            console.error('Error toggling friend:', error);
+            console.error('Error:', error);
+            alert(error.message || 'Operation failed');
         }
     }, [contact, currentUser?.ID, isFriend, queryClient]);
 
@@ -280,12 +284,13 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                 {/* Actions */}
                 <View style={styles.actions}>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: isFriend ? 'rgba(239, 68, 68, 0.2)' : vTheme.colors.primary, borderWidth: isFriend ? 1 : 0, borderColor: '#EF4444' }]}
+                        style={[styles.actionButton, { backgroundColor: isFriend ? 'rgba(239, 68, 68, 0.2)' : vTheme.colors.primary, borderWidth: isFriend ? 1 : 0, borderColor: '#EF4444', opacity: requestSent ? 0.5 : 1 }]}
                         onPress={toggleFriend}
+                        disabled={requestSent}
                     >
                         {isFriend ? <UserMinus size={20} color="#EF4444" style={{ marginRight: 8 }} /> : <UserPlus size={20} color="#FFF" style={{ marginRight: 8 }} />}
                         <Text style={[styles.actionButtonText, { color: isFriend ? '#EF4444' : '#FFF' }]}>
-                            {isFriend ? t('contacts.removeFriend') || 'Remove Friend' : t('contacts.addFriend') || 'Add Friend'}
+                            {requestSent ? (t('contacts.requestSent') || 'Запрос отправлен') : (isFriend ? t('contacts.removeFriend') || 'Remove Friend' : t('contacts.addFriend') || 'Add Friend')}
                         </Text>
                     </TouchableOpacity>
 

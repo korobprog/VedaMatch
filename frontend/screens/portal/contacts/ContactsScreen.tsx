@@ -890,7 +890,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'all' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
-                            {t('contacts.all')} ({allCount})
+                            Все ({allCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -898,7 +898,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'requests' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'requests' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'requests' ? theme.text : theme.subText) }]}>
-                            {t('contacts.requests')}
+                            Запросы
                         </Text>
                         {friendRequestCount > 0 && (
                             <View style={[styles.countBadge, { backgroundColor: theme.accent }]}>
@@ -913,7 +913,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' ? theme.text : theme.subText) }]}>
-                            {t('contacts.friends')} ({friendsCount})
+                            Друзья ({friendsCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -921,7 +921,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
-                            {t('contacts.blocked')} ({blockedCount})
+                            Блок ({blockedCount})
                         </Text>
                     </TouchableOpacity>
                 </View>
