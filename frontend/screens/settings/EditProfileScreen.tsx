@@ -217,14 +217,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (isMountedRef.current) {
                 setLoading(true);
             }
-            const response = await apiClient.get<any[] | { items?: any[] }>('/contacts');
-            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
-                return;
-            }
-            const contacts = Array.isArray(response.data)
-                ? response.data
-                : (Array.isArray(response.data?.items) ? response.data.items : []);
-            const userData = contacts.find((u: any) => u.ID === user.ID);
+            
+            // Use user data from UserContext (loaded from localStorage)
+            // This is faster and more reliable than fetching from /contacts
+            const userData = user;
 
             if (userData) {
                 setCountry(userData.country || '');
@@ -271,8 +267,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 if (userData.country) {
                     await fetchCities(userData.country);
                 }
-
-                await loadUserProfile();
             }
         } catch (error) {
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
@@ -284,7 +278,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setLoading(false);
             }
         }
-    }, [user?.ID, fetchCities, loadUserProfile, setCountry, setCity, setKarmicName, setSpiritualName, setNickname, setMadh, setMentor, setGender, setIdentity, setYogaStyle, setGuna, setDiet, setBio, setInterests, setLookingFor, setSkills, setIndustry, setLookingForBusiness, setMaritalStatus, setBirthTime, setYatra, setTimezone, setDatingEnabled, setRole, setGodModeEnabled, setDob]);
+    }, [user?.ID, user, fetchCities, setCountry, setCity, setKarmicName, setSpiritualName, setNickname, setMadh, setMentor, setGender, setIdentity, setYogaStyle, setGuna, setDiet, setBio, setInterests, setLookingFor, setSkills, setIndustry, setLookingForBusiness, setMaritalStatus, setBirthTime, setYatra, setTimezone, setDatingEnabled, setRole, setGodModeEnabled, setDob]);
 
     const loadProStatus = React.useCallback(async () => {
         if (!user?.ID) return;
