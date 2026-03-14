@@ -76,9 +76,10 @@ export const ContactsScreen: React.FC = () => {
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
+    const [filter, setFilter] = useState<'all' | 'requests' | 'friends' | 'blocked'>('all');
     const [friendRequestCount, setFriendRequestCount] = useState(0);
     const [showFriendRequests, setShowFriendRequests] = useState(false);
+    const [requests, setRequests] = useState<any[]>([]);
 
     // City Filter State - support multiple cities
     const [filterCities, setFilterCities] = useState<string[]>([]);
@@ -112,8 +113,9 @@ export const ContactsScreen: React.FC = () => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const requests = await friendRequestService.getIncomingRequests();
-                setFriendRequestCount(requests.length);
+                const reqs = await friendRequestService.getIncomingRequests();
+                setRequests(reqs);
+                setFriendRequestCount(reqs.length);
             } catch (error) {
                 console.error('[ContactsScreen] Error loading friend requests:', error);
             }
@@ -487,6 +489,24 @@ export const ContactsScreen: React.FC = () => {
     );
 
     const displayedContacts = useMemo(() => {
+        // Если выбран фильтр "requests", показываем входящие запросы
+        if (filter === 'requests') {
+            return requests.map(req => ({
+                ID: req.senderId,
+                karmicName: req.senderName,
+                spiritualName: '',
+                nickname: '',
+                email: '',
+                avatarUrl: req.avatarUrl,
+                lastSeen: '',
+                identity: '',
+                city: req.city,
+                country: req.country,
+                yatra: '',
+                request: req, // сохраняем оригинальный запрос
+            } as UserContact & { request: any }));
+        }
+        
         const sourceContacts = (
             filter === 'all' ? allContacts :
                 filter === 'friends' ? friendsContacts : blockedContacts
@@ -528,7 +548,7 @@ export const ContactsScreen: React.FC = () => {
             }
             return 0;
         });
-    }, [filter, allContacts, friendsContacts, blockedContacts, currentUser?.ID, blockedIdsSet, filterCities, debouncedSearch, friendIdsSet]);
+    }, [filter, requests, allContacts, friendsContacts, blockedContacts, currentUser?.ID, blockedIdsSet, filterCities, debouncedSearch, friendIdsSet]);
 
     const loadMoreContacts = useCallback(() => {
         if (filter === 'all') {
@@ -838,6 +858,21 @@ export const ContactsScreen: React.FC = () => {
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                        onPress={() => setFilter('requests')}
+                        style={[styles.filterBtn, filter === 'requests' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
+                    >
+                        <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'requests' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'requests' ? theme.text : theme.subText) }]}>
+                            {t('contacts.requests')}
+                        </Text>
+                        {friendRequestCount > 0 && (
+                            <View style={[styles.countBadge, { backgroundColor: theme.accent }]}>
+                                <Text style={styles.countBadgeText}>
+                                    {friendRequestCount > 99 ? '99+' : friendRequestCount}
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
                         onPress={() => setFilter('friends')}
                         style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
@@ -1127,6 +1162,23 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
     },
     badgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    countBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -8,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: '#F44336',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+    },
+    countBadgeText: {
         color: '#fff',
         fontSize: 10,
         fontWeight: 'bold',
