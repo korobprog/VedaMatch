@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "node",
+      "args": ["/Users/mamu/.codex/mcp/context7/dist/index.js"],
+      "description": "Context7 MCP server for documentation and code context"
+    },
+    "dokploy": {
+      "command": "npx",
+      "args": ["-y", "@ahdev/dokploy-mcp"],
+      "env": {
+        "DOKPLOY_API_KEY": "vedamath_appsKnQiYmEXtuKzuZsIWJgAuguaIJTVUXSccEtowjXqqrEgRWRPXoGzJwvGNYrQYPt",
+        "DOKPLOY_URL": "http://45.150.9.229:3000"
+      },
+      "description": "Dokploy MCP server for deployment management"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "description": "Playwright MCP server for browser automation and testing"
+    },
+    "vps_ops": {
+      "command": "ssh",
+      "args": ["-o", "BatchMode=yes", "mcpops@45.150.9.229", "python3", "/opt/mcp/vps_ops_mcp.py"],
+      "description": "VPS Operations MCP server for server management"
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "description": "Figma MCP server for design integration (requires OAuth)"
+    },
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.app/mcp",
+      "description": "Linear MCP server for project management (requires OAuth)"
+    },
+    "zapier": {
+      "type": "http",
+      "url": "https://mcp.zapier.com/api/v1/connect",
+      "description": "Zapier MCP server for workflow automation (requires OAuth)"
+    }
+  }
+}
