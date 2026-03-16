@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
     Settings as SettingsIcon,
@@ -20,10 +20,18 @@ import {
     Zap,
     Brain,
     MessageCircle,
-    Newspaper
+    Newspaper,
+    Upload,
+    File,
+    Copy,
+    Download,
+    Trash2,
+    Smartphone
 } from 'lucide-react';
 import api from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
+import apkService, { type ApkFileInfo } from '@/lib/apkService';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface AdminData {
     spiritualName?: string;
@@ -241,6 +249,15 @@ export default function SettingsPage() {
     const [tutorMetrics, setTutorMetrics] = useState<TutorMetricsState | null>(null);
     const [portalServiceVisibility, setPortalServiceVisibility] = useState<PortalServiceVisibilityDraft[]>([]);
     const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+    
+    // APK Uploader state
+    const { showToast } = useToast();
+    const [apkFiles, setApkFiles] = useState<ApkFileInfo[]>([]);
+    const [loadingApkFiles, setLoadingApkFiles] = useState(false);
+    const [uploadingApk, setUploadingApk] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [dragActive, setDragActive] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isUnauthorizedError = (error: unknown): boolean => (
         typeof error === 'object'
@@ -323,6 +340,114 @@ export default function SettingsPage() {
             setPortalServiceVisibility([]);
         }
     };
+
+    // APK Uploader Functions
+    const loadApkFiles = async () => {
+        try {
+            setLoadingApkFiles(true);
+            const response = await apkService.listApk();
+            setApkFiles(response.files.sort((a, b) => 
+                new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+            ));
+        } catch (error) {
+            console.error('Failed to load APK files:', error);
+            showToast('Ошибка загрузки списка файлов', 'error');
+        } finally {
+            setLoadingApkFiles(false);
+        }
+    };
+
+    const handleDrag = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === 'dragenter' || e.type === 'dragover') {
+            setDragActive(true);
+        } else if (e.type === 'dragleave') {
+            setDragActive(false);
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.endsWith('.apk')) {
+                uploadApkFile(file);
+            } else {
+                showToast('Пожалуйста, загрузите файл .apk', 'error');
+            }
+        }
+    }, []);
+
+    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            uploadApkFile(e.target.files[0]);
+        }
+    };
+
+    const uploadApkFile = async (file: File) => {
+        if (file.size > 200 * 1024 * 1024) {
+            showToast('Размер файла не должен превышать 200MB', 'error');
+            return;
+        }
+
+        setUploadingApk(true);
+        setUploadProgress(0);
+
+        try {
+            const response = await apkService.uploadApk(file, setUploadProgress);
+            showToast(`APK успешно загружен: ${response.filename}`, 'success');
+            await loadApkFiles();
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        } catch (error: any) {
+            console.error('Upload failed:', error);
+            const message = error?.response?.data?.error || 'Ошибка загрузки файла';
+            showToast(message, 'error');
+        } finally {
+            setUploadingApk(false);
+            setUploadProgress(0);
+        }
+    };
+
+    const handleCopyApkLink = async (url: string) => {
+        const success = await apkService.copyToClipboard(url);
+        if (success) {
+            showToast('Ссылка скопирована в буфер', 'success');
+        } else {
+            showToast('Не удалось скопировать ссылку', 'error');
+        }
+    };
+
+    const handleDownloadApk = (url: string, filename: string) => {
+        apkService.downloadApk(url, filename);
+        showToast('Загрузка началась...', 'success');
+    };
+
+    const handleDeleteApk = async (filename: string) => {
+        if (!confirm(`Вы уверены, что хотите удалить ${filename}?`)) {
+            return;
+        }
+
+        try {
+            await apkService.deleteApk(filename);
+            showToast('Файл успешно удален', 'success');
+            await loadApkFiles();
+        } catch (error: any) {
+            console.error('Delete failed:', error);
+            const message = error?.response?.data?.error || 'Ошибка удаления файла';
+            showToast(message, 'error');
+        }
+    };
+
+    // Load APK files when Android Testers section is visible
+    useEffect(() => {
+        loadApkFiles();
+    }, []);
 
     // RAG Management State
     const [selectedKey, setSelectedKey] = useState('GEMINI_API_KEY');
@@ -1196,6 +1321,125 @@ export default function SettingsPage() {
                                         <p className="text-xs text-[var(--muted-foreground)]">
                                             Публичная страница будет использовать `SUPPORT_DOWNLOAD_ANDROID_URL` как ссылку на APK и эти поля как контент по route `/android-testers`.
                                         </p>
+                                    </div>
+
+                                    {/* APK Uploader Section */}
+                                    <div className="mt-6 p-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl border border-blue-500/20 space-y-4">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Smartphone className="w-5 h-5 text-blue-600" />
+                                            <p className="text-sm font-bold uppercase text-[var(--muted-foreground)]">APK Uploader</p>
+                                        </div>
+
+                                        {/* Drag & Drop Zone */}
+                                        <div
+                                            className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                                                dragActive
+                                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                                            }`}
+                                            onDragEnter={handleDrag}
+                                            onDragLeave={handleDrag}
+                                            onDragOver={handleDrag}
+                                            onDrop={handleDrop}
+                                        >
+                                            <Upload className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+                                            <p className="text-sm mb-2 text-gray-700 dark:text-gray-300">
+                                                Перетащите APK файл сюда или нажмите для выбора
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                                Максимальный размер: 200MB
+                                            </p>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept=".apk"
+                                                onChange={handleFileInput}
+                                                className="hidden"
+                                                id="apk-upload-settings"
+                                            />
+                                            <label
+                                                htmlFor="apk-upload-settings"
+                                                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors text-sm"
+                                            >
+                                                Выбрать файл
+                                            </label>
+                                        </div>
+
+                                        {/* Upload Progress */}
+                                        {uploadingApk && (
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600 dark:text-gray-400">Загрузка...</span>
+                                                    <span className="text-gray-600 dark:text-gray-400">{uploadProgress}%</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                    <div
+                                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                        style={{ width: `${uploadProgress}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* APK Files List */}
+                                        <div className="space-y-2">
+                                            <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase">Загруженные файлы</p>
+                                            
+                                            {loadingApkFiles ? (
+                                                <div className="text-center py-4">
+                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mx-auto"></div>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Загрузка...</p>
+                                                </div>
+                                            ) : apkFiles.length === 0 ? (
+                                                <div className="text-center py-4 text-xs text-gray-500 dark:text-gray-400">
+                                                    Нет загруженных APK файлов
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                    {apkFiles.map((file) => (
+                                                        <div
+                                                            key={file.filename}
+                                                            className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                                                        >
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <File className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
+                                                                        {file.filename}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                        v{file.version} • {apkService.formatFileSize(file.size)}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-1 ml-2">
+                                                                <button
+                                                                    onClick={() => handleCopyApkLink(file.url)}
+                                                                    className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                                    title="Копировать ссылку"
+                                                                >
+                                                                    <Copy className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDownloadApk(file.url, file.filename)}
+                                                                    className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                                                    title="Скачать"
+                                                                >
+                                                                    <Download className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteApk(file.filename)}
+                                                                    className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                                                    title="Удалить"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/20 space-y-3">
