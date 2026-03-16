@@ -206,3 +206,5 @@ enable-docker-commands.txt
 
 # Misc
 .docks/GIBRID_SEARCH.txt
+*.env
+scripts/*.env
