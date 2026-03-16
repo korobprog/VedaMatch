@@ -323,6 +323,7 @@ func main() {
 	monetizationHandler := handlers.NewMonetizationHandler()
 	proHandler := handlers.NewProHandler(walletService)
 	adminFeedHandler := handlers.NewAdminFeedHandler()
+	apkHandler := handlers.NewApkHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -635,6 +636,11 @@ func main() {
 	admin.Put("/monetization/cafe-fee", monetizationHandler.UpdateCafeFee)
 	admin.Put("/monetization/shop-plans", monetizationHandler.UpdateShopPlans)
 	admin.Put("/monetization/shop-promotions", monetizationHandler.UpdateShopPromotions)
+
+	// APK Management Routes
+	admin.Get("/apk/list", apkHandler.ListApk)
+	admin.Post("/apk/upload", apkHandler.UploadApk)
+	admin.Delete("/apk/:filename", apkHandler.DeleteApk)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)
