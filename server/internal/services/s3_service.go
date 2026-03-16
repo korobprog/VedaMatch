@@ -39,6 +39,9 @@ func GetS3Service() *S3Service {
 		bucketName := strings.TrimSpace(os.Getenv("S3_BUCKET_NAME"))
 		publicURL := strings.TrimSpace(os.Getenv("S3_PUBLIC_URL"))
 
+		log.Printf("[S3] Loading env: ENDPOINT=[%s] REGION=[%s] BUCKET=[%s] PUBLIC_URL=[%s]", 
+			endpoint, region, bucketName, publicURL)
+
 		accessKey = strings.TrimSpace(accessKey)
 		secretKey = strings.TrimSpace(secretKey)
 		endpoint = strings.TrimSpace(endpoint)
@@ -207,7 +210,12 @@ func (s *S3Service) GetPublicURL(s3Path string) string {
 	}
 	if s.publicURL == "" || s.publicURL == "none" {
 		// Fallback: construct URL from endpoint and bucket
-		return fmt.Sprintf("https://s3.firstvds.ru/%s/%s", s.bucketName, s3Path)
+		// Extract endpoint from S3_ENDPOINT env or use default
+		endpoint := strings.TrimSpace(os.Getenv("S3_ENDPOINT"))
+		if endpoint == "" {
+			endpoint = "https://s3.firstvds.ru"
+		}
+		return fmt.Sprintf("%s/%s/%s", endpoint, s.bucketName, s3Path)
 	}
 	return fmt.Sprintf("%s/%s", s.publicURL, s3Path)
 }
