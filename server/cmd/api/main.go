@@ -23,9 +23,11 @@ import (
 )
 
 func main() {
-	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+	// Load .env file - try multiple locations
+	if err := godotenv.Load("server/.env"); err != nil {
+		if err := godotenv.Load(".env"); err != nil {
+			log.Println("No .env file found")
+		}
 	}
 
 	log.Println("Server Version: 1.6 (Manual CORS Fix)")

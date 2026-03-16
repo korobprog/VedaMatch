@@ -68,7 +68,7 @@ func GetS3Service() *S3Service {
 		if len(accessKey) > 4 {
 			keyPreview = accessKey[:4] + "***"
 		}
-		log.Printf("[S3] Configured: endpoint=%s, region=%s, bucket=%s, accessKey=%s", endpoint, region, bucketName, keyPreview)
+		log.Printf("[S3] Configured: endpoint=%s, region=%s, bucket=%s, accessKey=%s, publicURL=%s", endpoint, region, bucketName, keyPreview, publicURL)
 	})
 
 	return s3Instance
