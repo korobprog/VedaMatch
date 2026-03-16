@@ -65,14 +65,23 @@ cd /Users/mamu/Documents/vedicai/scripts
 
 ### 1. Конфигурация
 
-Переменные окружения (уже добавлены в `server/.env`):
+**Важно:** Никогда не коммитьте токены в Git!
+
+Переменные окружения должны быть в файле `.env` (не коммитится в git):
 
 ```bash
+# server/.env (не коммитить!)
 TELEGRAM_BOT_TOKEN=8333505498:AAGqOM-8WOcYl7BBmmiEz5eOeQpmuE2cJn4
 TELEGRAM_CHAT_ID=-5194955140
 GRAFANA_TELEGRAM_BOT_TOKEN=8333505498:AAGqOM-8WOcYl7BBmmiEz5eOeQpmuE2cJn4
 GRAFANA_TELEGRAM_CHAT_ID=-5194955140
 SERVER_NAME="VedaMatch Production"
+```
+
+**Для cron jobs:**
+```bash
+# В crontab использовать переменные окружения
+0 9 * * * TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID /path/to/script.sh daily
 ```
 
 ### 2. Автоматизация через Cron
