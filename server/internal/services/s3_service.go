@@ -205,6 +205,10 @@ func (s *S3Service) GetPublicURL(s3Path string) string {
 	if s == nil {
 		return ""
 	}
+	if s.publicURL == "" || s.publicURL == "none" {
+		// Fallback: construct URL from endpoint and bucket
+		return fmt.Sprintf("https://s3.firstvds.ru/%s/%s", s.bucketName, s3Path)
+	}
 	return fmt.Sprintf("%s/%s", s.publicURL, s3Path)
 }
 

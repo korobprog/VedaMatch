@@ -30,6 +30,14 @@ func main() {
 		}
 	}
 
+	// Force initialize S3 service to ensure .env is loaded
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		log.Println("[S3] Service initialized successfully")
+	} else {
+		log.Println("[S3] Warning: Service not initialized (check .env configuration)")
+	}
+
 	log.Println("Server Version: 1.6 (Manual CORS Fix)")
 
 	defaultAllowedOrigins := []string{
