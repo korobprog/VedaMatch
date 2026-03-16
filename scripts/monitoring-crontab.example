@@ -1,0 +1,17 @@
+# VedaMatch Monitoring - Cron Jobs
+# Add these to crontab with: crontab -e
+
+# Environment variables (update paths as needed)
+TELEGRAM_BOT_TOKEN=8333505498:AAGqOM-8WOcYl7BBmmiEz5eOeQpmuE2cJn4
+TELEGRAM_CHAT_ID=-5194955140
+SERVER_NAME="VedaMatch Production"
+SCRIPT_PATH="/path/to/vedicai/scripts/send_telegram_notification.sh"
+
+# Daily status report at 9:00 AM every day
+0 9 * * * ${SCRIPT_PATH} daily >> /var/log/vedamatch-telegram.log 2>&1
+
+# Hourly status check (every hour at minute 30)
+30 * * * * ${SCRIPT_PATH} status >> /var/log/vedamatch-telegram.log 2>&1
+
+# Weekly summary on Monday at 10:00 AM
+0 10 * * 1 ${SCRIPT_PATH} status >> /var/log/vedamatch-telegram.log 2>&1
