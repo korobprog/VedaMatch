@@ -118,8 +118,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const effectiveProEnabled = proStatus?.isProEffective ?? godModeEnabled;
     const isSeekerRole = role === 'user';
     const showSpiritualFields = !isSeekerRole;
+    const language = String(i18n.language || '').toLowerCase();
     const editProfileCopy = React.useMemo(() => {
-        const language = String(i18n.language || '').toLowerCase();
         if (language.startsWith('hi')) {
             return {
                 chooseCity: 'एक शहर चुनें।',
@@ -163,7 +163,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         navigation.setOptions({
             gestureEnabled: false,
             fullScreenGestureEnabled: false,
-            animationMatchesGesture: false,
         });
     }, [navigation]);
 

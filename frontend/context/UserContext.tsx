@@ -44,6 +44,24 @@ interface UserProfile {
     telegramFirstName?: string;
     telegramLastName?: string;
     telegramLinkedAt?: string;
+    // Additional profile fields
+    country?: string;
+    mentor?: string;
+    gender?: string;
+    diet?: string;
+    bio?: string;
+    interests?: string;
+    lookingFor?: string;
+    skills?: string;
+    industry?: string;
+    lookingForBusiness?: string;
+    intentions?: string;
+    maritalStatus?: string;
+    birthTime?: string;
+    yatra?: string;
+    timezone?: string;
+    dob?: string;
+    roleChangeCooldownUntil?: string;
 }
 
 interface UserContextType {

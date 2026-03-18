@@ -118,7 +118,11 @@ export const ContactsScreen: React.FC = () => {
                 setRequests(reqs);
                 setFriendRequestCount(reqs.length);
             } catch (error) {
-                console.error('[ContactsScreen] Error loading friend requests:', error);
+                // Silently handle error - friend requests are not critical for the contacts screen
+                console.warn('[ContactsScreen] Could not load friend requests:', error instanceof Error ? error.message : error);
+                // Set empty array to prevent undefined
+                setRequests([]);
+                setFriendRequestCount(0);
             }
         };
         loadData();

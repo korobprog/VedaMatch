@@ -360,9 +360,24 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (recipientId && currentUser?.ID) {
             let isActive = true;
+            let isLoadingTimeout: ReturnType<typeof setTimeout> | null = null;
+            
+            // Safety timeout: force reset isLoading after 12 seconds
+            const scheduleLoadingTimeout = () => {
+                if (isLoadingTimeout) clearTimeout(isLoadingTimeout);
+                isLoadingTimeout = setTimeout(() => {
+                    if (isActive) {
+                        console.warn('[ChatContext] Force resetting isLoading after timeout');
+                        setIsLoading(false);
+                    }
+                }, 12000);
+            };
+            
             const loadP2PMessages = async () => {
                 try {
                     setIsLoading(true);
+                    scheduleLoadingTimeout();
+                    
                     const currentRecipientId = recipientId;
                     const currentUserId = currentUser?.ID;
                     if (!currentRecipientId || !currentUserId) return;
@@ -380,21 +395,29 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                         Alert.alert(t('common.error', 'Error'), getErrorMessage(e));
                     }
                 } finally {
-                    if (isActive) {
-                        setIsLoading(false);
-                    }
+                    // Always reset loading state
+                    if (isLoadingTimeout) clearTimeout(isLoadingTimeout);
+                    setIsLoading(false);
                 }
             };
             void loadP2PMessages();
 
             return () => {
                 isActive = false;
+                if (isLoadingTimeout) clearTimeout(isLoadingTimeout);
             };
         }
 
+        // Reset state when recipient changes
         setP2PNextBeforeId(null);
         setHasOlderMessages(false);
         setIsLoadingOlderMessages(false);
+        setIsLoading(false);
+        setIsTyping(false);
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+        }
 
         return;
     }, [recipientId, currentUser?.ID, addListener, t]);
@@ -563,6 +586,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const handleSendToAI = async (text: string) => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
+        
+        // Safety timeout: force reset isLoading after 30 seconds for AI
+        const aiTimeout = setTimeout(() => {
+            console.warn('[ChatContext] AI request timeout, aborting');
+            controller.abort();
+        }, 30000);
+        
         setIsLoading(true);
 
         try {
@@ -669,6 +699,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             // Handled network/provider failures should not trigger RN redbox in dev.
             console.warn('Ошибка при отправке сообщения:', message || 'unknown error');
         } finally {
+            clearTimeout(aiTimeout);
             setIsLoading(false);
             abortControllerRef.current = null;
         }
@@ -677,8 +708,20 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const handleSendP2PMessage = async (text: string): Promise<boolean> => {
         if (!recipientId || !currentUser?.ID) return false;
 
+        let sendTimeout: ReturnType<typeof setTimeout> | null = null;
+        
+        // Safety timeout: force reset isLoading after 10 seconds
+        const scheduleSendTimeout = () => {
+            sendTimeout = setTimeout(() => {
+                console.warn('[ChatContext] Force resetting isLoading after send timeout');
+                setIsLoading(false);
+            }, 10000);
+        };
+
         try {
             setIsLoading(true);
+            scheduleSendTimeout();
+            
             const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
 
             const localMessage: Message = {
@@ -707,6 +750,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to send P2P message', error);
             return false;
         } finally {
+            if (sendTimeout) clearTimeout(sendTimeout);
             setIsLoading(false);
         }
     };

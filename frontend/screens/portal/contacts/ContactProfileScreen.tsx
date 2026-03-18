@@ -88,22 +88,34 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     }, [fetchContactData]);
 
     const toggleFriend = useCallback(async () => {
-        if (!currentUser?.ID || !contact) return;
+        if (!currentUser?.ID || !contact) {
+            console.log('[ContactProfile] Missing user or contact:', { currentUser: currentUser?.ID, contact: contact?.ID });
+            return;
+        }
+        console.log('[ContactProfile] toggleFriend: isFriend=', isFriend, 'contact.ID=', contact.ID);
         try {
             if (isFriend) {
                 // Remove friend
+                console.log('[ContactProfile] Removing friend...');
                 await contactService.removeFriend(currentUser.ID, contact.ID);
                 setIsFriend(false);
                 setRequestSent(false);
             } else {
                 // Send friend request instead of directly adding
-                await friendRequestService.sendRequest(contact.ID);
+                console.log('[ContactProfile] Sending friend request to', contact.ID);
+                console.log('[ContactProfile] friendRequestService=', typeof friendRequestService);
+                console.log('[ContactProfile] sendRequest=', typeof friendRequestService.sendRequest);
+                const result = await friendRequestService.sendRequest(contact.ID);
+                console.log('[ContactProfile] Request sent successfully:', result);
+                console.log('[ContactProfile] Setting requestSent=true');
                 setRequestSent(true);
             }
             await invalidateContactsCaches(queryClient);
         } catch (error) {
-            console.error('Error:', error);
-            alert(error.message || 'Operation failed');
+            console.error('[ContactProfile] Error:', error);
+            console.error('[ContactProfile] Error details:', JSON.stringify(error, null, 2));
+            const errorMessage = error instanceof Error ? error.message : 'Operation failed';
+            alert(errorMessage);
         }
     }, [contact, currentUser?.ID, isFriend, queryClient]);
 
@@ -303,7 +315,8 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                                 backgroundColor: isFriend ? 'rgba(16, 185, 129, 0.2)' : 'rgba(150, 150, 150, 0.2)',
                                 marginTop: 12,
                                 borderWidth: 1,
-                                borderColor: isFriend ? '#10B981' : 'rgba(150, 150, 150, 0.3)'
+                                borderColor: isFriend ? '#10B981' : 'rgba(150, 150, 150, 0.3)',
+                                opacity: isFriend ? 1 : 0.5
                             }
                         ]}
                         onPress={handleSendMessage}

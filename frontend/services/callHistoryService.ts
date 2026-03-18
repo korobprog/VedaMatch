@@ -86,8 +86,21 @@ const generateEntryId = () => `${Date.now()}-${Math.random().toString(36).slice(
 
 export const callHistoryService = {
     async getHistory(): Promise<CallHistoryEntry[]> {
-        const raw = await AsyncStorage.getItem(CALL_HISTORY_STORAGE_KEY);
-        return safeParseHistory(raw);
+        try {
+            // Add timeout for AsyncStorage operation
+            const storagePromise = AsyncStorage.getItem(CALL_HISTORY_STORAGE_KEY);
+            const timeoutPromise = new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000)
+            );
+            
+            const raw = await Promise.race([storagePromise, timeoutPromise]);
+            return safeParseHistory(raw);
+        } catch (error: any) {
+            if (error.message === 'AsyncStorage timeout') {
+                console.warn('[callHistoryService] getHistory timeout');
+            }
+            return [];
+        }
     },
 
     async addEntry(entry: NewCallHistoryEntry): Promise<CallHistoryEntry[]> {
@@ -109,7 +122,21 @@ export const callHistoryService = {
         };
 
         const updated = [nextEntry, ...history].slice(0, CALL_HISTORY_MAX_ITEMS);
-        await AsyncStorage.setItem(CALL_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+        
+        try {
+            const storagePromise = AsyncStorage.setItem(CALL_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+            const timeoutPromise = new Promise<void>((_, reject) =>
+                setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000)
+            );
+            
+            await Promise.race([storagePromise, timeoutPromise]);
+        } catch (error: any) {
+            if (error.message === 'AsyncStorage timeout') {
+                console.warn('[callHistoryService] addEntry timeout');
+            }
+            throw error;
+        }
+        
         return updated;
     },
 };

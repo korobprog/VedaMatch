@@ -585,9 +585,8 @@ export const mediaService = {
 		recipientId?: number,
 		roomId?: string
 	): Promise<Message> {
+		const formData = new FormData();
 		try {
-			const formData = new FormData();
-
 			// Ensure URI has file:// prefix for Android if it's a local file path
 			let fileUri = media.uri;
 			if (Platform.OS === 'android' && !fileUri.startsWith('file://') && !fileUri.startsWith('content://') && !fileUri.startsWith('http')) {
@@ -619,34 +618,34 @@ export const mediaService = {
 				formData.append('roomId', roomId);
 			}
 
-				if (Platform.OS === 'android' && media.type === 'audio') {
-					console.log('📤 Using fetch-based audio upload on Android to avoid axios multipart Network Error');
-					return await uploadMediaWithFetch(formData);
-				}
+			if (Platform.OS === 'android' && media.type === 'audio') {
+				console.log('📤 Using fetch-based audio upload on Android to avoid axios multipart Network Error');
+				return await uploadMediaWithFetch(formData);
+			}
 
-				const response = await apiClient.post<Message>('/messages/media', formData, {
-					headers: {
-						Accept: 'application/json',
-					},
-				});
+			const response = await apiClient.post<Message>('/messages/media', formData, {
+				headers: {
+					Accept: 'application/json',
+				},
+			});
 
-				return response.data;
-			} catch (error) {
-				if (Platform.OS === 'android' && media.type === 'audio') {
-					const errorMessage = getUploadError(error, '');
-					if (/network error/i.test(errorMessage)) {
-						console.warn('⚠️ Axios audio upload failed on Android, retrying with fetch fallback');
-						try {
-							return await uploadMediaWithFetch(formData);
-						} catch (fetchError) {
-							console.error('❌ Android fetch audio upload fallback failed:', fetchError);
-							throw new Error(getUploadError(fetchError, getMediaCopy().uploadFailed));
-						}
+			return response.data;
+		} catch (error) {
+			if (Platform.OS === 'android' && media.type === 'audio') {
+				const errorMessage = getUploadError(error, '');
+				if (/network error/i.test(errorMessage)) {
+					console.warn('⚠️ Axios audio upload failed on Android, retrying with fetch fallback');
+					try {
+						return await uploadMediaWithFetch(formData);
+					} catch (fetchError) {
+						console.error('❌ Android fetch audio upload fallback failed:', fetchError);
+						throw new Error(getUploadError(fetchError, getMediaCopy().uploadFailed));
 					}
 				}
-				console.error('Failed to upload media:', error);
-				throw new Error(getUploadError(error, getMediaCopy().uploadFailed));
 			}
+			console.error('Failed to upload media:', error);
+			throw new Error(getUploadError(error, getMediaCopy().uploadFailed));
+		}
 		},
 
 	async uploadVideoCircle(

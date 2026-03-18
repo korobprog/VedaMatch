@@ -1514,9 +1514,7 @@ export default {
         addFriend: 'Add Friend',
         removeFriend: 'Remove Friend',
         requestSent: 'Request Sent',
-        requests: 'Requests',
         requestsInFriends: 'Friend Requests',
-        unblock: 'Unblock',
         recommendations: 'recommendations',
         organizer_tiers: {
             master: 'Yatra Master',

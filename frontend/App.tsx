@@ -98,7 +98,6 @@ import { BookListScreen } from './screens/library/BookListScreen';
 import { ReaderScreen } from './screens/library/ReaderScreen';
 import { NewsScreen } from './screens/portal/news/NewsScreen';
 import { NewsDetailScreen } from './screens/portal/news/NewsDetailScreen';
-import PreviewScreen from './screens/PreviewScreen';
 
 // Market Routes
 import { MarketHomeScreen } from './screens/portal/shops/MarketHomeScreen';
@@ -664,7 +663,6 @@ const AppContent = () => {
                     options={{
                       gestureEnabled: false,
                       fullScreenGestureEnabled: false,
-                      animationMatchesGesture: false,
                     }}
                   />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />

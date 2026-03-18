@@ -2209,6 +2209,8 @@
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
 - 1:1 звонок: `frontend/screens/calls/CallScreen.tsx` + `frontend/services/webRTCService.ts` (P2P WebRTC, WS-типы `offer/answer/candidate/hangup`, TURN creds из `/turn-credentials`).
 - Комнаты (совместные звонки): `RoomChatScreen` включает `RoomVideoBar`, который берет SFU config/token через `frontend/services/roomCallService.ts` (`/rooms/:id/sfu/config`, `/rooms/:id/sfu/token`) и подключается через `RoomSfuClient` к LiveKit.
+- Production LiveKit service `vedamatch-livekit-b7uedq` должен идти на `livekit/livekit-server` c runtime args `--node-ip 45.150.9.229 --udp-port 7882`; `LIVEKIT_KEYS` обязателен в формате `key: secret` (с пробелом после `:`), иначе процесс завершается сразу на парсинге ключей.
+- Для production room calls у LiveKit должны быть опубликованы media ports `7881/tcp` и `7882/udp` в `host` mode; одного `wss://livekit.vedamatch.ru` недостаточно для устойчивой media connectivity.
 - В `frontend/services/roomSfuClient.ts` исправлена инициализация LiveKit SDK:
   - `registerGlobals()` берется из `@livekit/react-native` и вызывается единоразово;
   - `Room`/`RoomEvent` берутся из `livekit-client` (а не из `@livekit/react-native`), иначе на iOS/эмуляторе возможен runtime `LiveKit Room SDK is unavailable`.
@@ -2220,6 +2222,7 @@
 - Hardcoded TURN fallback credentials удалены из `frontend/services/webRTCService.ts`; при недоступности `/turn-credentials` используется STUN-only fallback.
 - В `server/internal/handlers/turn_handler.go` TURN-креды выдаются только при наличии `TURN_SECRET` и `TURN_EXTERNAL_IP/TURN_HOST`; иначе API возвращает STUN-only.
 - Production `rag-agent-turn` сейчас поднят в `auth-secret` режиме (`--use-auth-secret --static-auth-secret=...`) без static user/password; если backend одновременно выдает static `admin/password` и HMAC creds, личные звонки ломаются на TURN auth mismatch.
+- Dokploy redeploy LiveKit нужно контролировать отдельно: если service spec снова вернется к образу `vedamatch-livekit-b7uedq:latest`, уберет runtime args или media ports, room calls опять сломаются даже при живом `wss`.
 - В `GetContacts` есть legacy-режим возврата полного списка при отсутствии query-параметров (`ContactsLegacyModeEnabled`), что может быть тяжелым по перформансу на росте базы.
 
 ## Contacts API

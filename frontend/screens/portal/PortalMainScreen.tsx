@@ -1136,7 +1136,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             <View style={styles.headerRight}>
                                 <TouchableOpacity
                                     onPress={() => {
-                                        setIsMenuOpen(true);
+                                        handleNewChat();
+                                        navigation.navigate('Chat');
                                     }}
                                     style={[
                                         styles.headerCircularButton,
@@ -1156,27 +1157,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         />
                                     )}
                                     <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => navigation.navigate('AppSettings')}
-                                    style={[
-                                        styles.headerCircularButton,
-                                        isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
-                                        {
-                                            backgroundColor: headerCircleSurfaceColor,
-                                            borderColor: headerCircleBorderColor,
-                                        },
-                                    ]}
-                                >
-                                    {shouldRenderPortalHeaderBlur && (
-                                        <BlurView
-                                            style={StyleSheet.absoluteFill}
-                                            blurType="light"
-                                            blurAmount={headerBlurAmount}
-                                            reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                        />
-                                    )}
-                                    <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
                                 </TouchableOpacity>
                                 <View
                                     style={[
@@ -1236,6 +1216,27 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         })()}
                                     </TouchableOpacity>
                                 )}
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('AppSettings')}
+                                    style={[
+                                        styles.headerCircularButton,
+                                        isAndroidReducedHeaderChrome && styles.headerCircularButtonReduced,
+                                        {
+                                            backgroundColor: headerCircleSurfaceColor,
+                                            borderColor: headerCircleBorderColor,
+                                        },
+                                    ]}
+                                >
+                                    {shouldRenderPortalHeaderBlur && (
+                                        <BlurView
+                                            style={StyleSheet.absoluteFill}
+                                            blurType="light"
+                                            blurAmount={headerBlurAmount}
+                                            reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                        />
+                                    )}
+                                    <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : useLightHeaderIcons ? '#ffffff' : vTheme.colors.textSecondary} />
+                                </TouchableOpacity>
                             </View>
                         </View>
 

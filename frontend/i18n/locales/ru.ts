@@ -1517,9 +1517,7 @@ export default {
         addFriend: 'Добавить в друзья',
         removeFriend: 'Удалить из друзей',
         requestSent: 'Запрос отправлен',
-        requests: 'Запросы',
         requestsInFriends: 'Запросы в друзья',
-        unblock: 'Разблокировать',
         recommendations: 'рекомендаций',
         organizer_tiers: {
             master: 'Мастер Ятры',

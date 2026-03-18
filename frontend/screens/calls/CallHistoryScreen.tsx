@@ -98,17 +98,26 @@ export const CallHistoryScreen = () => {
         const updates: ContactsById = {};
         for (let i = 0; i < missingIds.length; i += CONTACT_FETCH_CONCURRENCY) {
             const chunk = missingIds.slice(i, i + CONTACT_FETCH_CONCURRENCY);
-            const chunkResults = await Promise.all(
-                chunk.map(async (userId) => {
-                    try {
-                        const contact = await contactService.getUserById(userId);
-                        return [userId, contact] as const;
-                    } catch (error) {
-                        console.warn('[CallHistoryScreen] Failed to enrich contact', { userId, error });
-                        return [userId, null] as const;
-                    }
-                }),
-            );
+            // Add timeout to prevent hanging on slow network
+            const chunkResults = await Promise.race([
+                Promise.all(
+                    chunk.map(async (userId) => {
+                        try {
+                            const contact = await contactService.getUserById(userId);
+                            return [userId, contact] as const;
+                        } catch (error) {
+                            console.warn('[CallHistoryScreen] Failed to enrich contact', { userId, error });
+                            return [userId, null] as const;
+                        }
+                    }),
+                ),
+                new Promise<([number, UserContact | null])[]>((_, reject) =>
+                    setTimeout(() => reject(new Error('Contact fetch timeout')), 8000)
+                ),
+            ]).catch((error) => {
+                console.warn('[CallHistoryScreen] Contact enrichment timeout or error', error);
+                return chunk.map((userId) => [userId, null] as const);
+            });
 
             chunkResults.forEach(([userId, contact]) => {
                 updates[userId] = contact;
@@ -119,22 +128,43 @@ export const CallHistoryScreen = () => {
     }, []);
 
     const loadCalls = React.useCallback(async (refresh = false) => {
+        // Prevent concurrent load operations
+        if (isLoading && !refresh) {
+            return;
+        }
+        
+        // Safety timeout: force reset isLoading after 5 seconds
+        let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+        const scheduleLoadTimeout = () => {
+            loadTimeout = setTimeout(() => {
+                console.warn('[CallHistoryScreen] Force resetting isLoading after timeout');
+                setIsLoading(false);
+                setIsRefreshing(false);
+            }, 5000);
+        };
+
         try {
             if (refresh) {
                 setIsRefreshing(true);
             } else {
                 setIsLoading(true);
             }
+            scheduleLoadTimeout();
+            
             const history = await callHistoryService.getHistory();
             setCalls(history);
-            void enrichContacts(history);
+            // Only enrich if there are calls with userIds
+            if (history.length > 0 && history.some(h => typeof h.userId === 'number')) {
+                void enrichContacts(history);
+            }
         } catch (error) {
             console.warn('[CallHistoryScreen] Failed to load call history', error);
         } finally {
+            if (loadTimeout) clearTimeout(loadTimeout);
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [enrichContacts]);
+    }, [enrichContacts, isLoading]);
 
     useFocusEffect(
         React.useCallback(() => {

@@ -16624,3 +16624,33 @@ if h.secret != "" {
 // Static credentials are only returned when auth-secret mode is not configured.
 if h.staticUser != "" && h.staticPass != "" {
 ```
+## 2026-03-18
+
+- Измененные файлы:
+  - `livekit/README.md`
+  - `MEMORY.md`
+  - runtime service `vedamatch-livekit-b7uedq` (Dokploy/Swarm)
+- Суть правки:
+  - Было:
+    - production `vedamatch-livekit-b7uedq` пытался стартовать с несуществующего образа `vedamatch-livekit-b7uedq:latest`;
+    - `LIVEKIT_KEYS` был сломан сначала пустым secret, затем неверным форматом `key:secret` без пробела;
+    - service не передавал `--node-ip`, а media ports для LiveKit не были опубликованы наружу.
+  - Стало:
+    - service переведен на рабочий образ `livekit/livekit-server:latest`;
+    - ключи заданы в формате `key: secret`;
+    - runtime args выставлены как `--node-ip 45.150.9.229 --udp-port 7882`;
+    - опубликованы media ports `7881/tcp` и `7882/udp`, из-за чего shared mobile room-calls снова получают реальный media path, а не только `wss`.
+- Короткие сниппеты:
+
+```text
+LIVEKIT_KEYS=<api-key>: <api-secret>
+```
+
+```text
+--node-ip 45.150.9.229 --udp-port 7882
+```
+
+```text
+7881/tcp
+7882/udp
+```

@@ -129,30 +129,57 @@ export const messageService = {
         content: string,
         type: 'text' | 'image' | 'audio' | 'video' | 'file' | 'document' | 'video_circle' | 'contact_card' = 'text',
     ): Promise<P2PMessage> {
-        const response = await apiClient.post<P2PMessage>('/messages', {
-            senderId,
-            recipientId,
-            content,
-            type,
-        });
-        return response.data;
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+            
+            const response = await apiClient.post<P2PMessage>('/messages', {
+                senderId,
+                recipientId,
+                content,
+                type,
+            }, {
+                signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
+            return response.data;
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.error('sendMessage timeout', { senderId, recipientId });
+            }
+            throw error;
+        }
     },
 
     async getMessagesHistory(peerUserId: number, limit = 30, beforeId?: number): Promise<PaginatedMessagesResponse> {
-        const response = await apiClient.get<PaginatedMessagesResponse>('/messages/history', {
-            params: {
-                peerUserId,
-                limit,
-                ...(beforeId && beforeId > 0 ? { beforeId } : {}),
-            },
-        });
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            const response = await apiClient.get<PaginatedMessagesResponse>('/messages/history', {
+                params: {
+                    peerUserId,
+                    limit,
+                    ...(beforeId && beforeId > 0 ? { beforeId } : {}),
+                },
+                signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
 
-        const data = response.data || { items: [], hasMore: false };
-        return {
-            items: Array.isArray(data.items) ? data.items : [],
-            hasMore: Boolean(data.hasMore),
-            nextBeforeId: data.nextBeforeId ?? null,
-        };
+            const data = response.data || { items: [], hasMore: false };
+            return {
+                items: Array.isArray(data.items) ? data.items : [],
+                hasMore: Boolean(data.hasMore),
+                nextBeforeId: data.nextBeforeId ?? null,
+            };
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.error('getMessagesHistory timeout', { peerUserId, beforeId });
+            }
+            throw error;
+        }
     },
 
     async getMessages(userId: number, recipientId: number): Promise<P2PMessage[]> {

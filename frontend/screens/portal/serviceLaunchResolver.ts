@@ -80,7 +80,7 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
     }
 
     if (serviceId === 'history') {
-        return { kind: 'open_menu' };
+        return { kind: 'navigate', screen: 'CallsHome' };
     }
 
     if (serviceId === 'settings') {

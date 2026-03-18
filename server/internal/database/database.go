@@ -59,7 +59,7 @@ func Connect() {
 	// Auto Migrate - Stage 2: All other tables
 	err = DB.AutoMigrate(
 		// Core models
-		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
+		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.FriendRequest{}, &models.Message{}, &models.Block{},
 		&models.AdminPermissionGrant{},
 		&models.Room{}, &models.RoomMember{}, &models.RoomInviteToken{}, &models.AiModel{}, &models.Media{},
 		&models.ChatPreference{},
