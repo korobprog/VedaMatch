@@ -22,7 +22,8 @@ let configuration: any = {
         { urls: 'stun:global.stun.twilio.com:3478' },
     ],
     iceCandidatePoolSize: 10, // Pre-fetch ICE candidates
-    iceTransportPolicy: 'all', // Use both UDP and TCP
+    // Allow host/srflx/relay candidate selection during live mobile diagnostics.
+    iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle', // Reduce number of ports needed
 };
 
@@ -55,7 +56,6 @@ class WebRTCService {
     private localStreamPromise: Promise<MediaStream> | null = null;
     private isFrontCamera: boolean = true;
     wsService: WebSocketService | null = null;
-    onRemoteStream: ((stream: MediaStream) => void) | null = null;
     targetId: number | null = null;
     signalingRoomId: number | null = null;
     signalingMode: 'p2p' | 'room' = 'p2p';
@@ -63,6 +63,8 @@ class WebRTCService {
     private remoteCandidates: RTCIceCandidate[] = [];
     private pendingOffer: any = null; // Store offer until user accepts
     private onCallEnded: ((reason: 'local' | 'remote' | 'system') => void) | null = null;
+    private remoteStreamListeners = new Set<(stream: MediaStream) => void>();
+    private iceStateListeners = new Set<(state: string) => void>();
 
     public debugLocalCandidates: number = 0;
     public debugRemoteCandidates: number = 0;
@@ -104,17 +106,67 @@ class WebRTCService {
 
     remoteStream: MediaStream | null = null;
 
-    setOnRemoteStream(callback: (stream: MediaStream) => void) {
-        this.onRemoteStream = callback;
-        // If stream already exists, trigger callback immediately
-        if (this.remoteStream) {
-            callback(this.remoteStream);
-        }
+    private emitRemoteStream(stream: MediaStream) {
+        this.remoteStreamListeners.forEach((listener) => {
+            listener(stream);
+        });
     }
 
-    onIceStateChange: ((state: string) => void) | null = null;
+    private emitIceStateChange(state: string) {
+        this.iceStateListeners.forEach((listener) => {
+            listener(state);
+        });
+    }
+
+    setOnRemoteStream(callback: (stream: MediaStream) => void) {
+        this.remoteStreamListeners.add(callback);
+        // If remote tracks already arrived before UI subscribed, replay the current stream immediately.
+        if (this.remoteStream && this.remoteStream.getTracks().length > 0) {
+            callback(this.remoteStream);
+        }
+        return () => {
+            this.remoteStreamListeners.delete(callback);
+        };
+    }
+
     setOnIceStateChange(callback: (state: string) => void) {
-        this.onIceStateChange = callback;
+        this.iceStateListeners.add(callback);
+        const state = this.peerConnection?.iceConnectionState;
+        if (state) {
+            callback(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+        }
+        return () => {
+            this.iceStateListeners.delete(callback);
+        };
+    }
+
+    private rebuildRemoteStreamFromTrackEvent(event: any) {
+        const nextStream = this.remoteStream ?? new MediaStream();
+        const knownTrackIds = new Set(nextStream.getTracks().map((track: MediaStreamTrack) => track.id));
+
+        const appendTrack = (track: MediaStreamTrack | null | undefined) => {
+            if (!track || knownTrackIds.has(track.id)) {
+                return;
+            }
+            nextStream.addTrack(track);
+            knownTrackIds.add(track.id);
+        };
+
+        if (Array.isArray(event?.streams)) {
+            event.streams.forEach((stream: MediaStream) => {
+                stream.getTracks().forEach((track: MediaStreamTrack) => {
+                    appendTrack(track);
+                });
+            });
+        }
+
+        appendTrack(event?.track);
+
+        this.remoteStream = nextStream;
+        console.warn(
+            `[WebRTC] Remote stream rebuilt: audio=${nextStream.getAudioTracks().length} video=${nextStream.getVideoTracks().length}`,
+        );
+        return nextStream;
     }
 
     private async ensureAndroidMediaPermissions() {
@@ -380,28 +432,14 @@ class WebRTCService {
 
             if (response.data?.iceServers && Array.isArray(response.data.iceServers)) {
                 console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);
-                
-                // Add TCP fallback for TURN servers
-                const enhancedIceServers = response.data.iceServers.map(server => {
-                    if (server.urls && String(server.urls).startsWith('turn:')) {
-                        // Add both UDP and TCP for TURN servers
-                        const turnUrl = String(server.urls);
-                        const turnTcpUrl = turnUrl.replace('turn:', 'turn:');
-                        return {
-                            ...server,
-                            urls: [turnUrl, turnTcpUrl.replace(':3478', ':3478?transport=tcp')],
-                        };
-                    }
-                    return server;
-                });
-                
+
                 configuration = { 
-                    iceServers: enhancedIceServers,
+                    iceServers: response.data.iceServers,
                     iceCandidatePoolSize: 10,
                     iceTransportPolicy: 'all',
                     bundlePolicy: 'max-bundle',
                 };
-                console.log('[WebRTC] Updated ICE config with TURN UDP+TCP:', JSON.stringify(enhancedIceServers));
+                console.log('[WebRTC] Updated ICE config from API:', JSON.stringify(response.data.iceServers));
             }
         } catch (error: any) {
             console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);
@@ -439,9 +477,7 @@ class WebRTCService {
             if (event.candidate) {
                 this.debugLocalCandidates++;
                 const state = this.peerConnection?.iceConnectionState || 'gathering';
-                if (this.onIceStateChange) {
-                    this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
-                }
+                this.emitIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
 
                 if (this.wsService && this.targetId) {
                     if (this.signalingMode === 'room') {
@@ -469,9 +505,7 @@ class WebRTCService {
         (this.peerConnection as any).oniceconnectionstatechange = () => {
             const state = this.peerConnection?.iceConnectionState || 'unknown';
             console.log('ICE Connection State:', state);
-            if (this.onIceStateChange) {
-                this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
-            }
+            this.emitIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
         };
 
         (this.peerConnection as any).ontrack = (event: any) => {
@@ -479,32 +513,16 @@ class WebRTCService {
             const streamId = event.streams?.[0]?.id;
             console.warn(`[WebRTC] Received remote track: ${kind} from stream: ${streamId}`);
 
-            if (!this.remoteStream) {
-                if (event.streams && event.streams[0]) {
-                    this.remoteStream = event.streams[0];
-                } else {
-                    this.remoteStream = new MediaStream();
-                    this.remoteStream.addTrack(event.track);
-                }
-            } else {
-                // Already have a stream, just ensure track is in it
-                const existingTracks = this.remoteStream.getTracks();
-                if (!existingTracks.find(t => t.id === event.track.id)) {
-                    this.remoteStream.addTrack(event.track);
-                }
-            }
-
-            if (this.onRemoteStream && this.remoteStream) {
-                this.onRemoteStream(this.remoteStream);
-            }
+            const rebuiltStream = this.rebuildRemoteStreamFromTrackEvent(event);
+            this.emitRemoteStream(rebuiltStream);
         };
 
         // Add legacy onaddstream just in case
         (this.peerConnection as any).onaddstream = (event: any) => {
             console.log('Received remote stream (legacy onaddstream)', event.stream.id);
             this.remoteStream = event.stream;
-            if (this.onRemoteStream && this.remoteStream) {
-                this.onRemoteStream(this.remoteStream);
+            if (this.remoteStream) {
+                this.emitRemoteStream(this.remoteStream);
             }
         };
 
@@ -530,6 +548,7 @@ class WebRTCService {
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
 
+        await this.startLocalStream(true);
         this.createPeerConnection();
 
         // Extra check: ensure tracks are added
@@ -563,6 +582,7 @@ class WebRTCService {
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
 
+        await this.startLocalStream(true);
         this.createPeerConnection();
 
         const offer = await (this.peerConnection as any).createOffer({
@@ -607,7 +627,8 @@ class WebRTCService {
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
 
-        this.createPeerConnection(); // Will use existing localStream which UI should have started
+        await this.startLocalStream(true);
+        this.createPeerConnection();
 
         try {
             await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(this.pendingOffer.payload));
@@ -651,10 +672,8 @@ class WebRTCService {
 
     async processCandidate(message: any) {
         this.debugRemoteCandidates++;
-        if (this.onIceStateChange) {
-            const state = this.peerConnection?.iceConnectionState || 'active';
-            this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
-        }
+        const state = this.peerConnection?.iceConnectionState || 'active';
+        this.emitIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
         console.warn(`[WebRTC] Processing remote candidate #${this.debugRemoteCandidates}: ${message.payload?.candidate?.substring(0, 30)}...`);
         const candidate = new RTCIceCandidate(message.payload);
 
@@ -727,8 +746,8 @@ class WebRTCService {
         this.targetId = null;
         this.signalingRoomId = null;
         this.signalingMode = 'p2p';
-        this.onRemoteStream = null;
-        this.onIceStateChange = null;
+        this.remoteStreamListeners.clear();
+        this.iceStateListeners.clear();
         const onCallEnded = this.onCallEnded;
         this.onCallEnded = null;
         if (hadActiveCall && onCallEnded) {

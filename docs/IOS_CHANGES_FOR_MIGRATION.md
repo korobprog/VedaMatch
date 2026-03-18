@@ -1,3 +1,353 @@
+## 2026-03-18 (Shared mobile caller UI: fallback-sync remote stream from singleton WebRTC service)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - даже после stable remote stream container и `Set`-подписок caller `Vivo -> Samsung` мог застревать на `Звоним...`;
+  - при этом service-level логи уже показывали `audio=1 video=1` и `ICE connected/completed`, а обратное направление `Samsung -> Vivo` работало;
+  - значит остаточный дефект был не в TURN или рендере Vivo вообще, а в том, что caller screen не всегда догонял актуальное состояние singleton `webRTCService`.
+- Стало:
+  - `frontend/screens/calls/CallScreen.tsx` периодически синхронизирует `webRTCService.remoteStream` и `peerConnection.iceConnectionState` напрямую из singleton service, пока активный звонок еще не увидел remote media;
+  - если service уже держит remote tracks, UI сам переводит экран из `calling` в `connectingVideo/connectedTrack`, обновляет `streamVersion` и гасит ringback;
+  - это shared mobile логика, поэтому одинаково влияет на Android и iOS caller flow, если callback событие было потеряно или пришло не в активный экран.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+const liveRemoteStream = webRTCService.remoteStream;
+const normalizedIceState = String(webRTCService.peerConnection?.iceConnectionState || '').trim().toLowerCase();
+```
+
+```ts
+setRemoteStream((prev) => (prev === liveRemoteStream ? prev : liveRemoteStream));
+setRemoteVideoAvailable(streamHasVideo);
+setStreamVersion(v => v + 1);
+```
+
+## 2026-03-18 (Shared mobile calls: replace single WebRTC callbacks with subscriptions and cleanup)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared `webRTCService` держал только один `onRemoteStream` и один `onIceStateChange` callback;
+  - на Vivo caller это оставляло шанс, что видимый `CallScreen` останется на `Звоним...`, пока другой listener уже получает `remote stream` и `ICE connected`;
+  - cleanup экрана не освобождал отдельную подписку, потому что подписок как таковых не было.
+- Стало:
+  - `frontend/services/webRTCService.ts` хранит `Set`-подписки для remote stream и ICE state и рассылает события всем активным listeners;
+  - `frontend/screens/calls/CallScreen.tsx` теперь получает `unsubscribe` функции и снимает их в cleanup эффекта;
+  - shared mobile caller/callee screens больше не зависят от того, какой экран последним перезаписал единственный callback в singleton service.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+private remoteStreamListeners = new Set<(stream: MediaStream) => void>();
+private iceStateListeners = new Set<(state: string) => void>();
+```
+
+```ts
+this.remoteStreamListeners.forEach((listener) => {
+  listener(stream);
+});
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+unsubscribeRemoteStream = webRTCService.setOnRemoteStream((rStream) => {
+  // ...
+});
+
+return () => {
+  unsubscribeRemoteStream();
+  unsubscribeIceState();
+};
+```
+
+## 2026-03-18 (Shared mobile caller video: keep a stable remote stream container and replay current state to late UI subscribers)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - предыдущий shared fix пересобирал новый `MediaStream` на каждом `ontrack`;
+  - на Samsung этого хватало, но на Vivo caller service уже видел `audio=1 video=1` и `ICE connected`, а UI мог остаться в `calling` и не показать remote video;
+  - late subscriber в `CallScreen` не получал гарантированный catch-up по текущему non-empty remote stream и текущему ICE state.
+- Стало:
+  - `frontend/services/webRTCService.ts` держит стабильный `remoteStream` container и дозаписывает в него новые remote tracks вместо создания нового stream object на каждый `ontrack`;
+  - `setOnRemoteStream()` теперь мгновенно отдает уже существующий remote stream только если в нем есть реальные tracks;
+  - `setOnIceStateChange()` сразу реплеит текущий `peerConnection.iceConnectionState`, чтобы caller UI мог выйти из `calling`, даже если подписка произошла после фактического connect.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+const nextStream = this.remoteStream ?? new MediaStream();
+const knownTrackIds = new Set(nextStream.getTracks().map((track) => track.id));
+
+if (!knownTrackIds.has(event.track.id)) {
+  nextStream.addTrack(event.track);
+}
+```
+
+```ts
+if (this.remoteStream && this.remoteStream.getTracks().length > 0) {
+  callback(this.remoteStream);
+}
+```
+
+## 2026-03-18 (Shared mobile signaling: reconnect immediately after auth refresh when no connect attempt is still in flight)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared mobile websocket после стартового `401 Unauthorized` успешно делал `refreshAuthTokens()`;
+  - но реальный reconnect зависел только от `reconnectAfterCurrentAttempt`, поэтому если к моменту recovery `connectInFlightPromise` уже успел очиститься, новый `GET /api/ws/:id` вообще не стартовал;
+  - в результате один из клиентов мог остаться офлайн для signaling, а сервер писал `Target User X not connected`, хотя push/incoming UI уже открылся.
+- Стало:
+  - `frontend/services/websocketService.ts` различает два случая после auth-recovery;
+  - если connect-попытка еще реально in-flight, reconnect остается отложенным;
+  - если in-flight попытки уже нет, клиент сразу планирует новый `connect()` на следующий tick и возвращается в `OPEN` без внешнего триггера.
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+if (this.connectInFlightPromise) {
+  this.reconnectAfterCurrentAttempt = true;
+  return;
+}
+
+setTimeout(() => {
+  void this.connect();
+}, 0);
+```
+
+## 2026-03-18 (Shared mobile calls: rebuild remote stream on each ontrack and stop caller ringback after ICE connect)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared call flow опирался на `event.streams[0]` как на remote media container;
+  - на Vivo caller после успешного `ICE connected/completed` получал audio, но не получал видео-кадры в `RTCView`, хотя video track уже приходил в callbacks;
+  - caller UI мог оставаться в `calling`, если медиа уже поднялось, но remote video еще не начало рисоваться.
+- Стало:
+  - `frontend/services/webRTCService.ts` на каждом `ontrack` пересобирает собственный `MediaStream` из всех известных remote tracks и заново пробрасывает его в UI;
+  - `frontend/screens/calls/CallScreen.tsx` логирует раздельно число audio/video tracks в remote stream;
+  - caller после `ICE connected/completed` гарантированно гасит ringback и выходит хотя бы в `connectingVideo`, даже если remote video еще не отрисовалось.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+const nextStream = new MediaStream();
+Array.from(mergedTracks.values()).forEach((track) => {
+  nextStream.addTrack(track);
+});
+this.remoteStream = nextStream;
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+if (normalizedState === 'connected' || normalizedState === 'completed') {
+  stopOutgoingRingback();
+  if (!remoteVideoAvailableRef.current) {
+    setStatusKey('connectingVideo');
+  }
+}
+```
+
+## 2026-03-18 (Shared mobile calls: remove relay-only TCP diagnostic override and return to full ICE)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - для предыдущего мобильного прогона shared WebRTC был зажат в `iceTransportPolicy: 'relay'`;
+  - TURN URLs из `/turn-credentials` принудительно переписывались в `?transport=tcp`;
+  - на реальном звонке это не дало устойчивого media path: signaling и `answer` доходили, но caller все равно падал в `ICE failed`, а оба клиента продолжали видеть `udp relay` кандидаты.
+- Стало:
+  - shared mobile WebRTC снова разрешает полный ICE candidate selection (`host/srflx/relay`);
+  - ICE servers из API используются без принудительной TCP-переписи, чтобы следующий прогон показал, проходит ли звонок по нормальному direct/STUN/TURN path;
+  - это изменение влияет одинаково на Android и iOS, потому что находится в общем `frontend/services/webRTCService.ts`.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+iceTransportPolicy: 'all',
+```
+
+```ts
+configuration = {
+  iceServers: response.data.iceServers,
+  iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all',
+  bundlePolicy: 'max-bundle',
+};
+```
+
+## 2026-03-18 (Shared mobile signaling: reconnect after auth refresh must happen outside in-flight connect)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - если `GET /api/ws/:id` на старте получал `401`, клиент успешно делал token refresh и писал `Token refreshed automatically, reconnecting...`;
+  - но реальный reconnect не происходил, потому что `handleAuthFailure()` вызывал `await this.connect()` изнутри уже активного `connectInFlightPromise`;
+  - в результате пользователь оставался офлайн для signaling: сервер видел `Target User X not connected`, а incoming экран потом падал в `No pending offer to accept`.
+- Стало:
+  - после успешного auth recovery клиент ставит флаг отложенного reconnect;
+  - новый `connect()` запускается только после завершения текущей in-flight попытки и очистки `connectInFlightPromise`;
+  - shared mobile signaling после стартового `401 -> refresh` должен действительно вернуться в `OPEN`, а не зависнуть в ложном состоянии "reconnecting".
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+if (this.reconnectAfterCurrentAttempt && !this.isOpen()) {
+  this.reconnectAfterCurrentAttempt = false;
+  setTimeout(() => {
+    void this.connect();
+  }, 0);
+}
+```
+
+```ts
+console.log('[WebSocket] Token refreshed automatically, reconnect will start after current attempt settles');
+this.reconnectAfterCurrentAttempt = true;
+```
+
+## 2026-03-18 (Shared mobile calls: single active WebSocket owner per user)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+- `frontend/context/WebSocketContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - даже после stale-socket guards caller-side signaling у `User 435` мог снова уйти в цикл `Connection established -> Closed: No reason -> Reconnecting`;
+  - один и тот же `userId` мог иметь конкурирующие `WebSocketService` instances, а cleanup в `WebSocketContext` был завязан на текущий `ref`, а не на локально созданный instance эффекта.
+- Стало:
+  - `frontend/services/websocketService.ts` вводит ownership guard: только последний instance для конкретного `userId` имеет право на `reconnect/send/waitUntilOpen`, старые экземпляры самозавершаются и не могут снова выбить новый signaling socket;
+  - клиентский close/error лог теперь пишет `code`, `wasClean`, `opened` и `instance`, чтобы следующий live call прогон можно было разобрать точно;
+  - `frontend/context/WebSocketContext.tsx` disconnect-ит именно тот instance, который был создан этим эффектом, не задевая более новый `wsServiceRef.current`.
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+const activeWebSocketOwners = new Map<number, number>();
+
+private retireIfOwnershipLost(source: string) {
+  if (activeWebSocketOwners.get(this.userId) === this.instanceId) return false;
+  this.isDisposed = true;
+  this.socket?.close();
+  return true;
+}
+```
+
+```ts
+console.log(
+  `[WebSocket] Closed: code=${event.code} reason=${event.reason || 'No reason'} clean=${String(event.wasClean)} opened=${String(opened)} instance=${this.instanceId}`,
+);
+```
+
+`frontend/context/WebSocketContext.tsx`:
+```ts
+let effectService: WebSocketService | null = null;
+effectService = wsService;
+
+return () => {
+  effectService?.disconnect();
+  if (wsServiceRef.current === effectService) {
+    wsServiceRef.current = null;
+  }
+};
+```
+
+## 2026-03-18 (Shared mobile calls: ignore stale WebSocket events during reconnect)
+
+### Измененные файлы
+- `frontend/services/websocketService.ts`
+- `server/internal/websocket/client.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - во время звонка старый signaling socket мог закрыться уже после создания нового;
+  - его `onclose/onerror` продолжали выполнять логику reconnect и сбрасывали `this.socket`, из-за чего клиент зацикливался на повторных `/api/ws/...` соединениях;
+  - на backend при этом отдельно существовал дефект с пустым websocket close frame без keepalive, который проявлялся как `1005`.
+- Стало:
+  - `frontend/services/websocketService.ts` привязывает handlers к локальной переменной `socket` и игнорирует события неактуального сокета через `if (this.socket !== socket) return`;
+  - `server/internal/websocket/client.go` держит `Ping/Pong`, deadlines и закрывает соединение через `CloseNormalClosure`, чтобы не ронять signaling пустым close frame;
+  - в итоге shared mobile signaling становится устойчивее к auth-refresh и reconnect гонкам на обеих платформах.
+
+### Сниппеты кода
+
+`frontend/services/websocketService.ts`:
+```ts
+const socket = new WebSocket(url);
+this.socket = socket;
+
+socket.onclose = (event) => {
+  if (this.socket !== socket) return;
+  this.socket = null;
+  this.reconnect();
+};
+```
+
+`server/internal/websocket/client.go`:
+```go
+c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+c.Conn.SetPongHandler(func(string) error {
+  c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+  return nil
+})
+```
+
+## 2026-03-18 (Shared mobile calls: guarantee local stream before offer/answer and force TURN TCP relay)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `startCall/startRoomCall/acceptCall` могли создавать `RTCPeerConnection` до готовности локального media stream;
+  - из-за этого caller иногда отправлял `recvonly`/неполноценный offer, а диагностика relay ломалась еще до настоящего media path;
+  - даже после починки signaling оба клиента продолжали собирать только `udp relay` кандидаты, что плохо переживает тестовые mobile NAT/CGNAT комбинации.
+- Стало:
+  - перед `createPeerConnection()` вызовы звонка теперь явно ждут `await startLocalStream(true)`;
+  - TURN URLs из `/turn-credentials` переводятся в `?transport=tcp`, чтобы следующий мобильный прогон шел через `TURN over TCP` вместо нестабильного `udp relay`;
+  - в результате shared mobile call flow на iOS/Android получает более детерминированный старт media и более стабильный relay transport для диагностики.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+await this.startLocalStream(true);
+this.createPeerConnection();
+```
+
+```ts
+const enhancedIceServers = response.data.iceServers.map(server => ({
+  ...server,
+  urls: Array.from(new Set(turnUrls.map(toTcpTurnUrl))),
+}));
+```
+
 ## 2026-03-13 (Shared mobile chat: Android recorded audio upload fallback)
 
 ### Измененные файлы
@@ -16653,4 +17003,88 @@ LIVEKIT_KEYS=<api-key>: <api-secret>
 ```text
 7881/tcp
 7882/udp
+```
+## 2026-03-18
+
+- Измененные файлы:
+  - `livekit/entrypoint.sh`
+  - `livekit/Dockerfile`
+  - `docker-compose.yml`
+  - `docker-compose.prod.yml`
+  - `livekit/README.md`
+  - `MEMORY.md`
+- Суть правки:
+  - Было:
+    - предыдущий hotfix для LiveKit жил в runtime service spec, но не был надежно закреплен в репозитории;
+    - `docker-compose*` все еще ссылались на голый `livekit/livekit-server:latest`, ожидали range UDP ports и не нормализовали `LIVEKIT_KEYS`.
+  - Стало:
+    - добавлен `livekit/entrypoint.sh`, который собирает валидный `LIVEKIT_KEYS` из `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` или исправляет формат `key:secret -> key: secret`;
+    - image pinned по digest и всегда стартует через wrapper;
+    - `docker-compose.yml` и `docker-compose.prod.yml` синхронизированы с production runtime (`7881/tcp`, `7882/udp`, `--node-ip`, `--udp-port 7882`).
+- Короткие сниппеты:
+
+```sh
+export LIVEKIT_KEYS="${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+```
+
+```sh
+exec /livekit-server --udp-port 7882 --node-ip "${LIVEKIT_NODE_IP}"
+```
+
+```yaml
+ports:
+  - "7881:7881"
+  - "7882:7882/udp"
+```
+## 2026-03-18
+
+- Измененные файлы:
+  - `frontend/services/webRTCService.ts`
+- Суть правки:
+  - Было:
+    - `RTCPeerConnection` создавался с `iceTransportPolicy: 'all'`;
+    - после получения TURN credentials клиент продолжал разрешать host/srflx/direct candidate pairs, из-за чего мобильный WebRTC debug на сложных NAT/CGNAT сетях смешивал прямые и relay-маршруты.
+  - Стало:
+    - для диагностического прогона мобильных звонков политика переведена в `iceTransportPolicy: 'relay'` и в стартовой конфигурации, и после обновления ICE servers;
+    - shared mobile behavior теперь принудительно гонит media только через TURN, чтобы отделить проблемы peer-to-peer candidate selection от проблем самого TURN path.
+- Короткие сниппеты:
+
+```ts
+iceTransportPolicy: 'relay',
+```
+
+```ts
+return {
+  iceServers,
+  iceTransportPolicy: 'relay',
+};
+```
+## 2026-03-18
+
+- Измененные файлы:
+  - `server/internal/websocket/client.go`
+- Суть правки:
+  - Было:
+    - backend websocket runtime закрывал соединение пустым `CloseMessage` без нормального status code;
+    - для долгоживущего signaling-сокета не было ping/pong keepalive и read/write deadlines.
+  - Стало:
+    - `WritePump()` отправляет корректный `CloseNormalClosure`;
+    - добавлены `SetReadDeadline`, `SetPongHandler`, `SetWriteDeadline` и периодический `PingMessage`;
+    - shared mobile call signaling после backend deploy должен перестать маскировать разрывы как RN error `1005 no status received`.
+- Короткие сниппеты:
+
+```go
+websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+```
+
+```go
+c.Conn.SetPongHandler(func(string) error {
+	return c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+})
+```
+
+```go
+if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+	return
+}
 ```

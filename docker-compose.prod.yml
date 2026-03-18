@@ -225,21 +225,28 @@ services:
       # No certificate files = TURN works without TLS (TCP still works)
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server@sha256:2c13cbf2edcbf13ea7b20d05c10b394d04d8fb3fe358269cff845a90b4de9576
     container_name: rag-agent-livekit
     restart: unless-stopped
     profiles: ["sfu"]
+    command:
+      - --node-ip
+      - ${LIVEKIT_NODE_IP}
+      - --udp-port
+      - ${LIVEKIT_UDP_PORT:-7882}
     ports:
       - "7880:7880"
       - "7881:7881"
-      - "50000-50100:50000-50100/udp"
+      - "7882:7882/udp"
     environment:
-      - LIVEKIT_KEYS=${LIVEKIT_KEYS}
-      - LIVEKIT_PORT=7880
-      - LIVEKIT_LOG_LEVEL=info
-      - LIVEKIT_REGION=ru
-      - LIVEKIT_NODE_IP=${LIVEKIT_NODE_IP}
-      - LIVEKIT_USE_EXTERNAL_IP=true
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_PORT: "7880"
+      LIVEKIT_LOG_LEVEL: info
+      LIVEKIT_REGION: ru
+      LIVEKIT_NODE_IP: ${LIVEKIT_NODE_IP}
+      LIVEKIT_USE_EXTERNAL_IP: "true"
     deploy:
       resources:
         reservations:

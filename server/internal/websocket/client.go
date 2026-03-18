@@ -2,8 +2,16 @@ package websocket
 
 import (
 	"log"
+	"time"
 
 	"github.com/gofiber/websocket/v2"
+)
+
+const (
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
+	maxMessageSize = 1024 * 1024
 )
 
 type Client struct {
@@ -16,8 +24,15 @@ type Client struct {
 func (c *Client) ReadPump() {
 	defer func() {
 		c.Hub.Unregister <- c
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
+
+	c.Conn.SetReadLimit(maxMessageSize)
+	_ = c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.Conn.SetPongHandler(func(string) error {
+		return c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	})
+
 	for {
 		var msg struct {
 			Type     string      `json:"type"`
@@ -57,13 +72,35 @@ func (c *Client) ReadPump() {
 }
 
 func (c *Client) WritePump() {
+	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		c.Conn.Close()
+		ticker.Stop()
+		_ = c.Conn.Close()
 	}()
-	for message := range c.Send {
-		if err := c.Conn.WriteJSON(message); err != nil {
-			return
+
+	for {
+		select {
+		case message, ok := <-c.Send:
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				_ = c.Conn.WriteControl(
+					websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+					time.Now().Add(writeWait),
+				)
+				return
+			}
+
+			if err := c.Conn.WriteJSON(message); err != nil {
+				log.Printf("[WS] WriteJSON failed for User %d: %v", c.UserID, err)
+				return
+			}
+		case <-ticker.C:
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Printf("[WS] Ping failed for User %d: %v", c.UserID, err)
+				return
+			}
 		}
 	}
-	c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 }

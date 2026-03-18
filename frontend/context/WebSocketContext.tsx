@@ -23,6 +23,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }, [logout]);
 
     useEffect(() => {
+        let effectService: WebSocketService | null = null;
+
         if (user?.ID) {
             if (isInitializingRef.current) {
                 return;
@@ -34,7 +36,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 wsServiceRef.current = null;
             }
 
-            wsServiceRef.current = new WebSocketService(
+            const wsService = new WebSocketService(
                 user.ID,
                 (msg) => {
                     if (['offer', 'answer', 'candidate', 'hangup', 'room_offer', 'room_answer', 'room_candidate', 'room_hangup'].includes(msg.type)) {
@@ -54,8 +56,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     return false;
                 }
             );
-            void wsServiceRef.current.connect();
-            webRTCService.setWebSocketService(wsServiceRef.current);
+            effectService = wsService;
+            wsServiceRef.current = wsService;
+            void wsService.connect();
+            webRTCService.setWebSocketService(wsService);
             isInitializingRef.current = false;
         } else if (wsServiceRef.current) {
             wsServiceRef.current.disconnect();
@@ -64,9 +68,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         return () => {
             isInitializingRef.current = false;
-            if (wsServiceRef.current) {
-                wsServiceRef.current.disconnect();
-                wsServiceRef.current = null;
+            if (effectService) {
+                effectService.disconnect();
+                if (wsServiceRef.current === effectService) {
+                    wsServiceRef.current = null;
+                }
             }
         };
     }, [user?.ID]);

@@ -97,6 +97,8 @@ export const CallScreen = () => {
     const [selectedDonationAmount, setSelectedDonationAmount] = useState<number | null>(null);
     const [customDonationAmount, setCustomDonationAmount] = useState('');
     const [feedbackError, setFeedbackError] = useState('');
+    const remoteVideoAvailableRef = useRef(false);
+    const serviceSyncSignatureRef = useRef('');
 
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
     const setStatusKey = React.useCallback((key: CallStatusKey, values?: Record<string, string | number>) => {
@@ -279,6 +281,8 @@ export const CallScreen = () => {
         if (!hasAccepted) return;
 
         let mounted = true;
+        let unsubscribeRemoteStream = () => {};
+        let unsubscribeIceState = () => {};
         if (!callStartedAtRef.current) {
             callStartedAtRef.current = Date.now();
         }
@@ -299,10 +303,12 @@ export const CallScreen = () => {
                 }
 
                 // Setup Callbacks
-                webRTCService.setOnRemoteStream((rStream) => {
+                unsubscribeRemoteStream = webRTCService.setOnRemoteStream((rStream) => {
                     const tracks = rStream.getTracks();
-                    const streamHasVideo = hasVideoTrack(rStream);
-                    console.warn(`[UI] Received remote stream: ${rStream.id}, url: ${rStream.toURL().substring(0, 30)}... Tracks: ${tracks.length}`);
+                    const audioTracks = rStream.getAudioTracks().length;
+                    const videoTracks = rStream.getVideoTracks().length;
+                    const streamHasVideo = videoTracks > 0;
+                    console.warn(`[UI] Received remote stream: ${rStream.id}, audio=${audioTracks}, video=${videoTracks}, total=${tracks.length}`);
                     if (!callConnectedAtRef.current) {
                         callConnectedAtRef.current = Date.now();
                     }
@@ -316,8 +322,21 @@ export const CallScreen = () => {
                     }
                 });
 
-                webRTCService.setOnIceStateChange((state) => {
-                    if (mounted) setIceState(state);
+                unsubscribeIceState = webRTCService.setOnIceStateChange((state) => {
+                    if (mounted) {
+                        setIceState(state);
+                    }
+
+                    const normalizedState = String(state).trim().toLowerCase().split(' ')[0];
+                    if (normalizedState === 'connected' || normalizedState === 'completed') {
+                        if (!callConnectedAtRef.current) {
+                            callConnectedAtRef.current = Date.now();
+                        }
+                        stopOutgoingRingback();
+                        if (mounted && !remoteVideoAvailableRef.current) {
+                            setStatusKey('connectingVideo');
+                        }
+                    }
                 });
 
                 // Keep screen on
@@ -344,12 +363,80 @@ export const CallScreen = () => {
 
         return () => {
             mounted = false;
+            unsubscribeRemoteStream();
+            unsubscribeIceState();
         };
     }, [hasAccepted, isIncoming, setStatusKey, targetId]);
 
     useEffect(() => {
         hasAcceptedRef.current = hasAccepted;
     }, [hasAccepted]);
+
+    useEffect(() => {
+        remoteVideoAvailableRef.current = remoteVideoAvailable;
+    }, [remoteVideoAvailable]);
+
+    useEffect(() => {
+        if (!hasAccepted) {
+            serviceSyncSignatureRef.current = '';
+            return;
+        }
+
+        let cancelled = false;
+
+        const syncFromService = () => {
+            if (cancelled) {
+                return;
+            }
+
+            const liveRemoteStream = webRTCService.remoteStream;
+            const liveTracks = liveRemoteStream?.getTracks() ?? [];
+            const audioTracks = liveRemoteStream?.getAudioTracks().length ?? 0;
+            const videoTracks = liveRemoteStream?.getVideoTracks().length ?? 0;
+            const normalizedIceState = String(webRTCService.peerConnection?.iceConnectionState || '').trim().toLowerCase();
+            const signature = `${liveRemoteStream?.id || 'none'}|${audioTracks}|${videoTracks}|${normalizedIceState}`;
+
+            if (signature === serviceSyncSignatureRef.current) {
+                return;
+            }
+            serviceSyncSignatureRef.current = signature;
+
+            if (liveRemoteStream && liveTracks.length > 0) {
+                const streamHasVideo = videoTracks > 0;
+                const trackInfo = liveTracks.map((track) => track.kind[0].toUpperCase()).join('/');
+                console.warn(
+                    `[UI] Synced remote stream from service: ${liveRemoteStream.id}, audio=${audioTracks}, video=${videoTracks}, ice=${normalizedIceState || 'unknown'}`,
+                );
+
+                if (!callConnectedAtRef.current) {
+                    callConnectedAtRef.current = Date.now();
+                }
+                stopOutgoingRingback();
+                setRemoteStream((prev) => (prev === liveRemoteStream ? prev : liveRemoteStream));
+                setRemoteVideoAvailable(streamHasVideo);
+                setStreamVersion(v => v + 1);
+                setStatusKey(streamHasVideo ? 'connectedTrack' : 'connectingVideo', streamHasVideo ? { trackInfo } : undefined);
+                return;
+            }
+
+            if ((normalizedIceState === 'connected' || normalizedIceState === 'completed') && !remoteVideoAvailableRef.current) {
+                if (!callConnectedAtRef.current) {
+                    callConnectedAtRef.current = Date.now();
+                }
+                stopOutgoingRingback();
+                setStatusKey('connectingVideo');
+            }
+        };
+
+        syncFromService();
+        const intervalId = setInterval(syncFromService, 400);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+            serviceSyncSignatureRef.current = '';
+        };
+    }, [hasAccepted, setStatusKey]);
 
     useEffect(() => {
         let mounted = true;

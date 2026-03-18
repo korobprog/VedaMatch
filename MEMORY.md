@@ -24,6 +24,60 @@
 - Для shared mobile call UI имя собеседника на incoming/active call screen и в iOS CallKeep должно резолвиться через профиль контакта `getUserById()` с форматом `spiritualName (karmicName)`; fallback `User N` допустим только как крайний запасной путь.
 - Post-call feedback / donation flow нельзя открывать прямо по локальному tap на hangup: его нужно подвязывать к фактическому завершению звонка через callback окончания call session, чтобы модалка появлялась после завершения созвона у обеих сторон.
 - Для call-specific UI копирайт нельзя держать хардкодом в `CallScreen`; статусы звонка, incoming labels и feedback/donation modal должны идти через `calls.*` i18n keys как минимум для `ru/en/hi`.
+- На production 2026-03-18 подтвердилось, что signaling и TURN credentials для 1:1 звонков доходят, но `ICE Connection State: failed` оставался даже после открытия `49152:65535/udp`; это означает, что первичный firewall блокер был реальным, но не единственным.
+- `rag-agent-turn` на сервере `45.150.9.229` пришлось перевести на явный запуск с публичным IP и фиксированным relay-диапазоном (`3478`, `49152:65535`, `--use-auth-secret`, `--realm=vedamatch.ru`), иначе coturn работал в полу-неявном режиме и мешал диагностике.
+- Серверный websocket runtime для звонков не должен закрывать соединение пустым `CloseMessage`: production баг с кодом `1005` ушел после keepalive-фикса (`Ping/Pong`, deadlines, normal close) в `server/internal/websocket/client.go`.
+- После серверного websocket hotfix повторные reconnect у звонящего не исчезли полностью: вместо `1005` появился цикл `Closed: No reason`, а в server logs остались частые `User 435 reconnecting, closing old connection`; устойчивый следующий подозреваемый — гонка stale socket events в `frontend/services/websocketService.ts`.
+- Для shared mobile websocket-клиента старые события `onopen/onmessage/onclose/onerror` не должны управлять состоянием уже замененного сокета; нужны guards `if (this.socket !== socket) return`, иначе старый socket может обнулить новый connection и ломать signaling во время звонка на iOS и Android.
+- Одних stale-socket guards оказалось недостаточно: на caller-side `User 435` reconnect storm вернулся даже после них, поэтому текущий shared fix должен дополнительно принудительно оставлять только один активный `WebSocketService` instance на `userId` и отправлять cleanup в `WebSocketContext` по локально созданному instance, а не по мутируемому `ref`.
+- На прогоне 2026-03-18 после ownership-fix выяснился отдельный shared signaling startup bug: после стартового `401` успешный `refreshAuthTokens()` сам по себе не гарантировал новый `GET /api/ws/:id`, если в момент recovery уже не было активного `connectInFlightPromise`; из-за этого один клиент мог остаться офлайн для signaling, а сервер писал `Target User X not connected`.
+- Правильный shared path после auth-recovery: если текущая connect-попытка еще реально в полете, держать отложенный reconnect; если in-flight попытки уже нет, запускать новый `connect()` сразу после успешного refresh/callback recovery.
+- На следующем прогоне 2026-03-18 caller-side fix с `await startLocalStream(true)` перед `createPeerConnection()` сработал: incoming offer на Samsung стал `sendrecv` по audio/video вместо прежнего `recvonly`, а локальный поток теперь гарантированно готов до `createOffer/createAnswer`.
+- После этих двух фиксов остаточный дефект сузился до media relay path: signaling и SDP проходят, TURN выдает live relay allocations (`45.150.9.229:60478`, `:60838`), UFW counters на `49152:65535/udp` растут, но звонок все еще не устанавливается; текущая рабочая гипотеза — провал именно `udp relay` между мобильными сетями, поэтому следующий диагностический шаг — `TURN over TCP only`.
+- Во время проверки `TURN over TCP only` 2026-03-18 нашелся отдельный диагностический сбой процесса: исходники уже содержали лог `Updated ICE config with TURN TCP only`, но оба Android-устройства в рантайме продолжали писать старый `TURN UDP+TCP`.
+- Причина оказалась не в WebRTC runtime, а в устаревшем APK на телефонах:
+  - `frontend/android/app/build/outputs/apk/release/app-release.apk`, который ставился раньше, имел timestamp `2026-03-18 12:47 +1000`;
+  - оба устройства были обновлены только до `1.1.29 (31)`, и их `lastUpdateTime` был `2026-03-18 12:54 +1000`;
+  - значит предыдущий TCP-only call test был невалиден и отражал старый JS bundle, а не текущий `frontend/services/webRTCService.ts`.
+- На чистом прогоне после реальной установки `1.1.30 (32)` `TURN TCP only` подтвердился на обоих Android:
+  - Vivo `435`: `Updated ICE config with TURN TCP only` и единственный TURN URL `turn:45.150.9.229:3478?transport=tcp`;
+  - Samsung `4`: тот же `TURN TCP only` лог и тот же TCP TURN URL.
+- Несмотря на это, оба клиента в signaling все еще получают relay-candidate строки вида `candidate:... 45.150.9.229 ... typ relay` с `udp`, а caller `435` продолжает падать в `ICE Connection State: failed`.
+- На живом прогоне `2026-03-18 18:59-19:00 +1000` после auth-refresh фикса оба клиента уже стабильно входят в signaling, Samsung принимает `offer` и отправляет `answer`, а caller Vivo получает `remote track`, но media так и не течет:
+  - на Vivo `EglRenderer` пишет `Frames received: 0`, затем через ~15 секунд приходит `ICE Connection State: failed`;
+  - на Samsung один renderer получает кадры, второй остается с `Frames received: 0`;
+  - coturn при этом реально держит relay UDP allocations (`45.150.9.229:57748`, `:58704`), значит проблема сузилась до candidate selection / relay path, а не до signaling или отсутствия TURN allocation.
+- После возврата full ICE на `1.1.33 (35)` созвон впервые реально сошелся:
+  - caller Vivo получил `host`, `srflx` и `relay` кандидаты от Samsung;
+  - Vivo дошел до `ICE Connection State: connected` и `completed`;
+  - Samsung тоже дошел до `ICE Connection State: connected` и у него есть `First frame rendered` и стабильный `EglRenderer: Frames received: 121`.
+- Остаточный дефект после этого прогона уже не сетевой:
+  - на Vivo есть звук, но remote video не рисуется;
+  - в логах caller `Vivo` `EglRenderer` по remote view постоянно пишет `Frames received: 0`;
+  - caller UI может зависнуть в статусе `Звоним...`, хотя ICE уже `connected/completed`.
+- Следующий shared fix после этого наблюдения:
+  - не полагаться на `event.streams[0]` как на стабильный remote video container на Android;
+  - на каждом `ontrack` пересобирать собственный `MediaStream` из всех известных remote tracks и отдавать его в UI заново;
+  - дополнительно переводить caller UI из `calling` хотя бы в `connectingVideo`, если ICE уже connected, а кадры видео еще не пошли.
+- На следующем прогоне 2026-03-18 выяснилось, что одного rebuild нового `MediaStream` недостаточно для Vivo caller:
+  - `webRTCService` уже знает про `audio=1 video=1`, а server logs подтверждают полноценный `offer/answer/candidate`;
+  - но caller UI все еще может остаться в `Звоним...`, если `CallScreen` подписался позже или не получил своевременный catch-up по текущему remote stream / ICE state;
+  - устойчивый shared fix: держать стабильный `remoteStream` container в `frontend/services/webRTCService.ts` и при подписке немедленно отдавать late subscriber текущий non-empty remote stream и текущее ICE state.
+- Следующим отдельным дефектом 2026-03-18 оказался сам контракт callbacks между singleton `webRTCService` и `CallScreen`:
+  - единственный `onRemoteStream/onIceStateChange` listener недостаточно надежен для caller-flow на Vivo, где видимый экран мог остаться на `Звоним...`, пока другой listener уже получал события;
+  - shared fix должен использовать подписки `Set<listener>` с явным unsubscribe в `CallScreen` cleanup, чтобы скрытый/старый экран не мог "украсть" единственный callback у активного call UI.
+- Дополнительный живой факт 2026-03-18: если звонить `Samsung -> Vivo`, созвон и видео работают с обеих сторон; остаточный дефект остается только в направлении `Vivo -> Samsung`, то есть это уже caller-side UI/state проблема на Vivo, а не общий TURN/render дефект устройства Vivo.
+- Для caller-side Vivo нужен прагматичный fallback поверх subscriptions: активный `CallScreen` должен периодически синхронизировать `webRTCService.remoteStream` и `peerConnection.iceConnectionState` напрямую из singleton service, чтобы выйти из зависшего `Звоним...`, даже если callback remote-stream события был потерян.
+- На прогоне `2026-03-18 18:25-18:30 +1000` главным остаточным дефектом стал не Samsung, а caller-side websocket storm у `User 435`:
+  - Vivo логирует цикл `Connection established -> Closed: No reason -> Reconnecting in ~2s`;
+  - server logs синхронно показывают бесконечное `User 435 reconnecting, closing old connection`;
+  - storm начинается до полного завершения звонка и ломает signaling stability уже после `answer/candidate`.
+- Samsung на этом же прогоне доходит дальше caller-а:
+  - принимает `offer`;
+  - получает local stream;
+  - делает `setRemoteDescription`, `createAnswer`, `setLocalDescription`;
+  - получает `ontrack` audio/video;
+  - но фактический remote video render у него остается нулевым, потому что caller-side path разваливается раньше на `ICE failed` + websocket storm.
 
 ## MVP Readiness
 - На 2026-03-08 приложение выглядит пригодным для закрытого теста ядра (`login`, `portal`, `chat`, `p2p messaging`, базовые push), но не для широкого теста всех модулей как единого стабильного продукта.
@@ -2209,7 +2263,7 @@
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
 - 1:1 звонок: `frontend/screens/calls/CallScreen.tsx` + `frontend/services/webRTCService.ts` (P2P WebRTC, WS-типы `offer/answer/candidate/hangup`, TURN creds из `/turn-credentials`).
 - Комнаты (совместные звонки): `RoomChatScreen` включает `RoomVideoBar`, который берет SFU config/token через `frontend/services/roomCallService.ts` (`/rooms/:id/sfu/config`, `/rooms/:id/sfu/token`) и подключается через `RoomSfuClient` к LiveKit.
-- Production LiveKit service `vedamatch-livekit-b7uedq` должен идти на `livekit/livekit-server` c runtime args `--node-ip 45.150.9.229 --udp-port 7882`; `LIVEKIT_KEYS` обязателен в формате `key: secret` (с пробелом после `:`), иначе процесс завершается сразу на парсинге ключей.
+- Repo-level hardening для LiveKit теперь находится в `livekit/entrypoint.sh` + `livekit/Dockerfile`: контейнер сам нормализует `LIVEKIT_KEYS`, собирает их из `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` и добавляет `--node-ip ${LIVEKIT_NODE_IP}` + `--udp-port ${LIVEKIT_UDP_PORT:-7882}`.
 - Для production room calls у LiveKit должны быть опубликованы media ports `7881/tcp` и `7882/udp` в `host` mode; одного `wss://livekit.vedamatch.ru` недостаточно для устойчивой media connectivity.
 - В `frontend/services/roomSfuClient.ts` исправлена инициализация LiveKit SDK:
   - `registerGlobals()` берется из `@livekit/react-native` и вызывается единоразово;
@@ -2222,7 +2276,7 @@
 - Hardcoded TURN fallback credentials удалены из `frontend/services/webRTCService.ts`; при недоступности `/turn-credentials` используется STUN-only fallback.
 - В `server/internal/handlers/turn_handler.go` TURN-креды выдаются только при наличии `TURN_SECRET` и `TURN_EXTERNAL_IP/TURN_HOST`; иначе API возвращает STUN-only.
 - Production `rag-agent-turn` сейчас поднят в `auth-secret` режиме (`--use-auth-secret --static-auth-secret=...`) без static user/password; если backend одновременно выдает static `admin/password` и HMAC creds, личные звонки ломаются на TURN auth mismatch.
-- Dokploy redeploy LiveKit нужно контролировать отдельно: если service spec снова вернется к образу `vedamatch-livekit-b7uedq:latest`, уберет runtime args или media ports, room calls опять сломаются даже при живом `wss`.
+- После repo hardening главный remaining risk для Dokploy redeploy — не image args, а swarm port publishing: если в Dokploy service пропадут `7881/tcp` или `7882/udp`, room calls снова сломаются даже при живом `wss`.
 - В `GetContacts` есть legacy-режим возврата полного списка при отсутствии query-параметров (`ContactsLegacyModeEnabled`), что может быть тяжелым по перформансу на росте базы.
 
 ## Contacts API
@@ -3019,10 +3073,64 @@
 
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
-- Актуальный release APK после Android portal swipe tuning:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.28`, `versionCode=30`;
+- Актуальный release APK для теста звонков на двух Android-устройствах:
+  - `frontend/android/app/build.gradle`: `versionName=1.1.38`, `versionCode=40`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - metadata: `frontend/android/app/build/outputs/apk/release/output-metadata.json` => `applicationId=com.ragagent`, `versionName=1.1.28`, `versionCode=30`.
+  - package metadata на подключенных устройствах после следующей установки должны подтвердить: `applicationId=com.ragagent`, `versionName=1.1.38`, `versionCode=40`.
+- Google Sign-In Android release config для sideload APK согласован:
+  - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
+  - тот же SHA-1 уже присутствует в `frontend/android/app/google-services.json` для `com.ragagent` и совпадает с OAuth client в Google Cloud Console;
+  - debug SHA-1 тоже заведен отдельно: `8D:F1:2B:BF:FA:1D:84:2E:40:77:29:08:91:6D:DE:98:DD:AF:77:3C`.
+- При Google Sign-In на Samsung `R58N10182QN` 2026-03-18 около `12:00 +1000` логкат показал не `DEVELOPER_ERROR`, а сетевой сбой внутри Google Play Services:
+  - `W/DeviceStateUtils: Active network is null`;
+  - `E/AuthPII: [RequestTokenManager] getToken() -> NETWORK_ERROR` для `oauth2:email openid profile` и server client `425899875420-vq5outurmmfmh7i5u65ameefqh1241j6.apps.googleusercontent.com`;
+  - `W/Auth: Caused by: cugb: Connectivity error`.
+- Для Android peer-to-peer звонков 2026-03-18 найден и исправлен серверный relay/firewall дефект:
+  - signaling по `vedamatch-server-dnkxc8` проходил корректно: `offer`, `answer` и `candidate` пересылались между `User 87` и `User 4`;
+  - оба клиента получали TURN credentials и relay-кандидаты с `45.150.9.229`;
+  - на звонящем Android лог фиксировал `ICE Connection State: failed`;
+  - причина: UFW разрешал только `49152:49162/udp`, хотя TURN во время звонка выдавал relay-порты вроде `53800`, `54755`, `56665`, `64612`;
+  - hotfix на сервере: UFW relay range расширен до `49152:65535/udp` для IPv4 и IPv6.
+- Production `rag-agent-turn` на `45.150.9.229` был поднят докплоем с неявным runtime (`docker-entrypoint.sh` + env), из-за чего `MIN_PORT/MAX_PORT` не применялись предсказуемо.
+- 2026-03-18 `rag-agent-turn` вручную переведен на явный запуск:
+  - `--listening-ip=45.150.9.229`
+  - `--relay-ip=45.150.9.229`
+  - `--listening-port=3478`
+  - `--min-port=49152`
+  - `--max-port=65535`
+  - `--use-auth-secret`
+  - `--static-auth-secret=...`
+  - `--realm=vedamatch.ru`
+- После этого coturn больше не автодобавляет relay/listener на `172.17/18/19.x`, а использует только публичный `45.150.9.229`.
+- Для следующего диагностического прогона Android/iOS WebRTC 2026-03-18 в `frontend/services/webRTCService.ts` временно включен `iceTransportPolicy: 'relay'` и в базовой конфигурации, и после загрузки TURN credentials:
+  - цель не исправить UX сама по себе, а исключить direct/srflx candidate pairing и проверить, проходит ли звонок только через TURN;
+  - release APK `1.1.29 (31)` с этим изменением установлен на оба тестовых Android-устройства.
+- Во время relay-only прогона 2026-03-18 caller Android начал получать `answer`, relay-кандидаты и даже `ontrack`/remote audio+video tracks, но затем signaling-сокет ушел в reconnect storm:
+  - клиентский лог: `[WebSocket] Connection error: Code 1005 is reserved and may not be used.`;
+  - это не только клиентская маска ошибки: в `server/internal/websocket/client.go` был явный дефект websocket runtime;
+  - `WritePump()` закрывал соединение пустым `CloseMessage` без close code/status и не держал ping/pong keepalive;
+  - локальный фикс в репозитории: нормальный `CloseNormalClosure` frame + `SetReadDeadline`/`SetPongHandler` + периодический `PingMessage`;
+  - до production deploy этого server hotfix пользователи все еще будут видеть старое поведение `1005`.
+- 2026-03-18 backend websocket hotfix выкачен в production:
+  - локальный `server/internal/websocket/client.go` скопирован в `/etc/dokploy/applications/vedamatch-server-dnkxc8/code/server/internal/websocket/client.go` на `45.150.9.229`;
+  - на сервере пересобран image `vedamatch-server-dnkxc8:latest` и выполнен `docker service update --force vedamatch-server-dnkxc8`;
+  - новый swarm task `vedamatch-server-dnkxc8.1.ncis6bpebocbkrlce3l7mmazz` поднялся `Running` около `02:32 UTC`.
+- После production deploy серверная проверка от `2026-03-18` показывает:
+  - `https://api.vedamatch.ru/api/news` -> `HTTP/2 200`;
+  - `https://livekit.vedamatch.ru` -> `HTTP/2 200`;
+  - `https://cdn.vedamatch.ru` -> `HTTP/2 200`;
+  - `GET /api/auth/google/login` без auth header -> ожидаемый `401`, endpoint жив;
+  - `GET /api/turn-credentials` без auth header -> ожидаемый `401`, endpoint жив.
+- Google auth server env в live service `vedamatch-server-dnkxc8` согласован:
+  - `AUTH_GOOGLE_ENABLED=on`;
+  - `AUTH_GOOGLE_ALLOWED_CLIENT_IDS` содержит web + iOS + Android debug + Android release client IDs;
+  - `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID_DEBUG`, `GOOGLE_ANDROID_CLIENT_ID_RELEASE` присутствуют в live env.
+- После backend redeploy reconnect storm все еще виден уже в server logs:
+  - один и тот же `User 435` регулярно переподключает `/api/ws/435`, и hub пишет `User 435 reconnecting, closing old connection`;
+  - значит дефект с пустым close frame был реальным, но не единственным: остался второй источник повторных WS reconnect со стороны клиента/сети/дублирующего соединения.
+- В live backend startup logs есть шумный, но не блокирующий звонки warning:
+  - `seed_map.go` пытается создать тестовых пользователей и ловит `duplicate key value violates unique constraint "users_google_sub_key"`;
+  - это не runtime Google Sign-In ошибка пользователя, а побочный сидер на старте контейнера.
 
 ## Portal Workspace Swipe
 - `react-native-pager-view` не дает публичных props для Android swipe sensitivity (`touch slop`, drag threshold, fling threshold). `scrollEnabled`, `offscreenPageLimit` и `overScrollMode` не решают чувствительность.

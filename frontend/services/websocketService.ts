@@ -3,8 +3,12 @@ import { getAccessToken, isOfflineDevAccessToken, refreshAuthTokens } from './au
 
 type AuthRecoverHandler = () => Promise<boolean> | boolean;
 
+let webSocketServiceInstanceSeq = 0;
+const activeWebSocketOwners = new Map<number, number>();
+
 export class WebSocketService {
     private socket: WebSocket | null = null;
+    private readonly instanceId = ++webSocketServiceInstanceSeq;
     private userId: number;
     private onMessageCallback: (message: any) => void;
     private reconnectAttempts = 0;
@@ -14,6 +18,7 @@ export class WebSocketService {
     private isAuthRecoveryInProgress = false;
     private authRecoveryTriggered = false;
     private connectInFlightPromise: Promise<void> | null = null;
+    private reconnectAfterCurrentAttempt = false;
     private lastAuthRecoverAt = 0;
     private reconnectEvents: number[] = [];
 
@@ -23,6 +28,7 @@ export class WebSocketService {
         this.userId = userId;
         this.onMessageCallback = onMessage;
         this.onAuthError = onAuthError;
+        this.claimOwnership('constructor');
     }
 
     private clearReconnectTimer() {
@@ -30,6 +36,48 @@ export class WebSocketService {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
+    }
+
+    private claimOwnership(source: string) {
+        const previousOwner = activeWebSocketOwners.get(this.userId);
+        activeWebSocketOwners.set(this.userId, this.instanceId);
+        console.log(
+            `[ws_owner_claimed] user_id=${this.userId} instance=${this.instanceId} previous_instance=${previousOwner ?? 'none'} source=${source}`,
+        );
+    }
+
+    private hasOwnership() {
+        return activeWebSocketOwners.get(this.userId) === this.instanceId;
+    }
+
+    private retireIfOwnershipLost(source: string) {
+        if (this.hasOwnership()) {
+            return false;
+        }
+
+        const activeInstance = activeWebSocketOwners.get(this.userId);
+        console.log(
+            `[ws_owner_skip] user_id=${this.userId} instance=${this.instanceId} active_instance=${activeInstance ?? 'none'} source=${source}`,
+        );
+        this.isDisposed = true;
+        this.clearReconnectTimer();
+
+        if (this.socket) {
+            this.socket.onclose = null;
+            this.socket.close();
+            this.socket = null;
+        }
+
+        return true;
+    }
+
+    private releaseOwnership(source: string) {
+        if (!this.hasOwnership()) {
+            return;
+        }
+
+        activeWebSocketOwners.delete(this.userId);
+        console.log(`[ws_owner_released] user_id=${this.userId} instance=${this.instanceId} source=${source}`);
     }
 
     private async resolveSocketToken(): Promise<string | null> {
@@ -45,7 +93,44 @@ export class WebSocketService {
         return refreshed.accessToken;
     }
 
+    private scheduleReconnectAfterAuthRecovery(source: string, reason: 'refresh' | 'callback') {
+        if (this.retireIfOwnershipLost(`scheduleReconnectAfterAuthRecovery:${source}`)) {
+            return;
+        }
+
+        this.lastAuthRecoverAt = Date.now();
+        this.reconnectAttempts = 0;
+        this.authRecoveryTriggered = false;
+
+        if (this.connectInFlightPromise) {
+            this.reconnectAfterCurrentAttempt = true;
+            console.log(
+                `[ws_auth_reconnect_deferred] source=${source} reason=${reason} user_id=${this.userId} instance=${this.instanceId}`,
+            );
+            console.log('[WebSocket] Auth recovered, reconnect will start after current attempt settles');
+            return;
+        }
+
+        this.reconnectAfterCurrentAttempt = false;
+        console.log(`[ws_auth_reconnect_now] source=${source} reason=${reason} user_id=${this.userId} instance=${this.instanceId}`);
+        console.log('[WebSocket] Auth recovered, reconnecting now');
+
+        setTimeout(() => {
+            if (this.retireIfOwnershipLost(`authRecoveryReconnect:${source}`)) {
+                return;
+            }
+            if (this.isDisposed || this.isAuthRecoveryInProgress || this.isOpen()) {
+                return;
+            }
+            void this.connect();
+        }, 0);
+    }
+
     async connect() {
+        if (this.retireIfOwnershipLost('connect')) {
+            return;
+        }
+
         if (this.connectInFlightPromise) {
             return this.connectInFlightPromise;
         }
@@ -55,6 +140,18 @@ export class WebSocketService {
             await this.connectInFlightPromise;
         } finally {
             this.connectInFlightPromise = null;
+            if (
+                this.reconnectAfterCurrentAttempt
+                && !this.isDisposed
+                && !this.isAuthRecoveryInProgress
+                && !this.isOpen()
+            ) {
+                this.reconnectAfterCurrentAttempt = false;
+                console.log(`[ws_auth_reconnect_now] user_id=${this.userId} instance=${this.instanceId}`);
+                setTimeout(() => {
+                    void this.connect();
+                }, 0);
+            }
         }
     }
 
@@ -66,6 +163,10 @@ export class WebSocketService {
         const deadline = Date.now() + Math.max(timeoutMs, 250);
 
         while (!this.isDisposed && Date.now() < deadline) {
+            if (this.retireIfOwnershipLost('waitUntilOpen')) {
+                return false;
+            }
+
             if (this.isOpen()) {
                 return true;
             }
@@ -83,6 +184,10 @@ export class WebSocketService {
     }
 
     private async connectInternal() {
+        if (this.retireIfOwnershipLost('connectInternal')) {
+            return;
+        }
+
         if (this.isDisposed || this.isAuthRecoveryInProgress) {
             return;
         }
@@ -108,20 +213,33 @@ export class WebSocketService {
 
         const encodedToken = encodeURIComponent(token);
         const url = `${WS_PATH}/ws/${this.userId}?token=${encodedToken}`;
-        console.log(`[ws_connect_attempt] user_id=${this.userId} attempt=${this.reconnectAttempts + 1}`);
+        console.log(`[ws_connect_attempt] user_id=${this.userId} instance=${this.instanceId} attempt=${this.reconnectAttempts + 1}`);
         console.log('[WebSocket] Connecting to bridge...');
 
-        this.socket = new WebSocket(url);
+        const socket = new WebSocket(url);
+        this.socket = socket;
         let opened = false;
 
-        this.socket.onopen = () => {
-            console.log('[WebSocket] Connection established');
+        socket.onopen = () => {
+            if (this.socket !== socket) {
+                return;
+            }
+            if (this.retireIfOwnershipLost('socket.onopen')) {
+                return;
+            }
+            console.log(`[WebSocket] Connection established (instance=${this.instanceId})`);
             opened = true;
             this.reconnectAttempts = 0;
             this.authRecoveryTriggered = false;
         };
 
-        this.socket.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (this.socket !== socket) {
+                return;
+            }
+            if (this.retireIfOwnershipLost('socket.onmessage')) {
+                return;
+            }
             try {
                 if (!event.data) return;
 
@@ -138,14 +256,23 @@ export class WebSocketService {
             }
         };
 
-        this.socket.onclose = (event) => {
+        socket.onclose = (event) => {
+            if (this.socket !== socket) {
+                return;
+            }
+
             this.socket = null;
 
             if (this.isDisposed) {
                 return;
             }
 
-            console.log(`[WebSocket] Closed: ${event.reason || 'No reason'}`);
+            console.log(
+                `[WebSocket] Closed: code=${event.code} reason=${event.reason || 'No reason'} clean=${String(event.wasClean)} opened=${String(opened)} instance=${this.instanceId}`,
+            );
+            if (this.retireIfOwnershipLost('socket.onclose')) {
+                return;
+            }
             if (this.isAuthRecoveryInProgress || this.authRecoveryTriggered) {
                 return;
             }
@@ -160,9 +287,15 @@ export class WebSocketService {
             this.reconnect();
         };
 
-        this.socket.onerror = (error: any) => {
+        socket.onerror = (error: any) => {
+            if (this.socket !== socket) {
+                return;
+            }
+            if (this.retireIfOwnershipLost('socket.onerror')) {
+                return;
+            }
             const errorMsg = String(error?.message || '');
-            console.warn('[WebSocket] Connection error:', errorMsg);
+            console.warn(`[WebSocket] Connection error (instance=${this.instanceId}):`, errorMsg);
 
             const normalized = errorMsg.toLowerCase();
             if (normalized.includes('401') || normalized.includes('unauthorized')) {
@@ -173,6 +306,9 @@ export class WebSocketService {
     }
 
     private reconnect() {
+        if (this.retireIfOwnershipLost('reconnect')) {
+            return;
+        }
         if (this.isDisposed || this.isAuthRecoveryInProgress) {
             return;
         }
@@ -192,9 +328,11 @@ export class WebSocketService {
             const windowStart = Date.now() - 30000;
             this.reconnectEvents = this.reconnectEvents.filter((ts) => ts >= windowStart);
             if (this.reconnectEvents.length >= 6) {
-                console.warn(`[ws_reconnect_storm_detected] user_id=${this.userId} count=${this.reconnectEvents.length}`);
+                console.warn(
+                    `[ws_reconnect_storm_detected] user_id=${this.userId} instance=${this.instanceId} count=${this.reconnectEvents.length}`,
+                );
             }
-            console.log(`[WebSocket] Reconnecting in ${timeout}ms...`);
+            console.log(`[WebSocket] Reconnecting in ${timeout}ms... (instance=${this.instanceId})`);
             this.reconnectTimer = setTimeout(() => {
                 this.reconnectTimer = null;
                 void this.connect();
@@ -205,12 +343,16 @@ export class WebSocketService {
     }
 
     private async handleAuthFailure(source: string) {
+        if (this.retireIfOwnershipLost(`handleAuthFailure:${source}`)) {
+            return;
+        }
         if (this.isDisposed || this.isAuthRecoveryInProgress) {
             return;
         }
 
         this.authRecoveryTriggered = true;
         this.isAuthRecoveryInProgress = true;
+        this.reconnectAfterCurrentAttempt = false;
         this.clearReconnectTimer();
 
         if (this.socket) {
@@ -225,12 +367,8 @@ export class WebSocketService {
             const refreshed = await refreshAuthTokens();
             
             if (refreshed?.accessToken) {
-                this.lastAuthRecoverAt = Date.now();
                 console.log(`[ws_auth_refresh_success] source=${source} user_id=${this.userId}`);
-                console.log('[WebSocket] Token refreshed automatically, reconnecting...');
-                this.reconnectAttempts = 0;
-                this.authRecoveryTriggered = false;
-                await this.connect();
+                this.scheduleReconnectAfterAuthRecovery(source, 'refresh');
                 return;
             }
 
@@ -243,12 +381,8 @@ export class WebSocketService {
 
             const recovered = await this.onAuthError();
             if (recovered && !this.isDisposed) {
-                this.lastAuthRecoverAt = Date.now();
                 console.log(`[ws_auth_recover] source=${source} user_id=${this.userId}`);
-                console.log(`[WebSocket] Auth recovered via callback (${source}), reconnecting...`);
-                this.reconnectAttempts = 0;
-                this.authRecoveryTriggered = false;
-                await this.connect();
+                this.scheduleReconnectAfterAuthRecovery(source, 'callback');
             }
         } catch (error) {
             console.warn('[WebSocket] Auth recovery failed:', error);
@@ -259,6 +393,7 @@ export class WebSocketService {
 
     disconnect() {
         this.isDisposed = true;
+        this.reconnectAfterCurrentAttempt = false;
         this.clearReconnectTimer();
 
         if (this.socket) {
@@ -266,6 +401,8 @@ export class WebSocketService {
             this.socket.close();
             this.socket = null;
         }
+
+        this.releaseOwnership('disconnect');
     }
 
     sendTypingIndicator(recipientId: number, isTyping: boolean) {
@@ -281,6 +418,9 @@ export class WebSocketService {
     }
 
     send(message: any) {
+        if (this.retireIfOwnershipLost('send')) {
+            return;
+        }
         if (this.isOpen() && this.socket) {
             this.socket.send(JSON.stringify(message));
         } else {
