@@ -3196,3 +3196,10 @@
   - `tag.js` лучше подключать напрямую через `next/script` с `src="https://mc.yandex.ru/metrika/tag.js"`;
   - `ym(..., 'init', ...)` можно вызывать отдельным inline script после загрузки страницы;
   - для client-side переходов нужен явный `ym(counterId, 'hit', url, { title, referer })`, иначе SPA-навигация в App Router не будет стабильно попадать в аналитику.
+
+## Server Deploy
+- Для `server` в Dokploy production build не стоит запускать `go mod tidy` внутри Docker build:
+  - это делает сборку недетерминированной и тянет лишние test/indirect зависимости во время деплоя;
+  - безопаснее копировать `go.mod` + `go.sum`, делать `go mod download`, потом копировать остальной код и собирать бинарники.
+- Если Dokploy/Docker host не имеет рабочего IPv6, Go module download может падать на `proxy-golang.org` / `storage.googleapis.com` с `dial tcp [ipv6]:443: connect: network is unreachable`;
+  - это инфраструктурный сбой сети/IPv6 на build-host, а не симптом ошибки в Go-коде приложения.

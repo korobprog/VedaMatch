@@ -2,11 +2,12 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Copy all files first
-COPY . .
+# Download dependencies first for a stable cached layer.
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Download dependencies and generate go.sum
-RUN go mod tidy && go mod download
+# Copy sources after dependencies are cached.
+COPY . .
 
 # Build applications
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/api/main.go
