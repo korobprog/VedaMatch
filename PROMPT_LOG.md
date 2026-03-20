@@ -1,5 +1,7 @@
 # Prompt Log
 
+- 2026-03-20 13:37:25 +1000 | Запрос: "https://vedamatch.ru/?_ym_status-check=107021597&_ym_lang=ru провека не проходит что метрика работает"
+
 - 2026-03-20 13:37:25 +1000 | Запрос: "счерврер не задиплоился" + лог Dokploy/Docker build с `go mod download` -> `storage.googleapis.com` IPv6 `network is unreachable`
 
 - 2026-03-20 13:33:02 +1000 | Запрос: "что то счетчик на сайте не работает vedamatch.ru"

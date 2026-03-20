@@ -3193,8 +3193,9 @@
 
 ## Web Analytics
 - Для `lkm` на Next.js App Router Yandex.Metrika должна жить в отдельном client component, а не как inline-инициализация внутри server layout:
+  - для совместимости с `_ym_status-check` базовый snippet лучше рендерить отдельно и как можно раньше через `next/script` c `strategy="beforeInteractive"`;
   - `tag.js` лучше подключать напрямую через `next/script` с `src="https://mc.yandex.ru/metrika/tag.js"`;
-  - `ym(..., 'init', ...)` можно вызывать отдельным inline script после загрузки страницы;
+  - `ym(..., 'init', ...)` лучше держать в отдельном раннем script, а SPA-трекинг вынести в client component;
   - для client-side переходов нужен явный `ym(counterId, 'hit', url, { title, referer })`, иначе SPA-навигация в App Router не будет стабильно попадать в аналитику.
 
 ## Server Deploy

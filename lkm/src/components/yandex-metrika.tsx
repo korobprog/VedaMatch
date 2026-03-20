@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import Script from 'next/script';
 
 const YANDEX_METRIKA_ID = 107021597;
 
@@ -41,32 +40,5 @@ export default function YandexMetrika() {
     });
   }, [pathname, searchParams]);
 
-  return (
-    <>
-      <Script src="https://mc.yandex.ru/metrika/tag.js" strategy="afterInteractive" />
-      <Script id="yandex-metrika-init" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          window.ym = window.ym || function() { (window.ym.a = window.ym.a || []).push(arguments); };
-          window.ym.l = Date.now();
-          ym(${YANDEX_METRIKA_ID}, 'init', {
-            clickmap: true,
-            trackLinks: true,
-            accurateTrackBounce: true,
-            webvisor: true,
-            ecommerce: 'dataLayer'
-          });
-        `}
-      </Script>
-      <noscript>
-        <div>
-          <img
-            src={`https://mc.yandex.ru/watch/${YANDEX_METRIKA_ID}`}
-            style={{ position: 'absolute', left: '-9999px' }}
-            alt=""
-          />
-        </div>
-      </noscript>
-    </>
-  );
+  return null;
 }

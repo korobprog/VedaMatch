@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 import Script from 'next/script';
 import YandexMetrika from '@/components/yandex-metrika';
+import YandexMetrikaScripts from '@/components/yandex-metrika-scripts';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`}>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+        <YandexMetrikaScripts />
         <Suspense fallback={null}>
           <YandexMetrika />
         </Suspense>
