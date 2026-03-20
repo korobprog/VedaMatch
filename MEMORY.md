@@ -3197,6 +3197,10 @@
   - `tag.js` лучше подключать напрямую через `next/script` с `src="https://mc.yandex.ru/metrika/tag.js"`;
   - `ym(..., 'init', ...)` лучше держать в отдельном раннем script, а SPA-трекинг вынести в client component;
   - для client-side переходов нужен явный `ym(counterId, 'hit', url, { title, referer })`, иначе SPA-навигация в App Router не будет стабильно попадать в аналитику.
+- Для прод-домена `vedamatch.ru` этот вывод нужно применять не только к `lkm`, но и к `admin`:
+  - живой `https://vedamatch.ru` сейчас маршрутизируется на Dokploy app `vedamatch-admin-gompiy`;
+  - `lkm` обслуживает только `lkm.vedamatch.ru` и `lkm.vedamatch.com`;
+  - если счетчик ставится только в `lkm`, проверка на `https://vedamatch.ru/?_ym_status-check=...` не пройдет, потому что на корневом домене будет другой Next.js app без Metrika snippet.
 
 ## Server Deploy
 - Для `server` в Dokploy production build не стоит запускать `go mod tidy` внутри Docker build:
@@ -3204,3 +3208,8 @@
   - безопаснее копировать `go.mod` + `go.sum`, делать `go mod download`, потом копировать остальной код и собирать бинарники.
 - Если Dokploy/Docker host не имеет рабочего IPv6, Go module download может падать на `proxy-golang.org` / `storage.googleapis.com` с `dial tcp [ipv6]:443: connect: network is unreachable`;
   - это инфраструктурный сбой сети/IPv6 на build-host, а не симптом ошибки в Go-коде приложения.
+- На `2026-03-20` Traefik/Dokploy routing по доменам выглядит так:
+  - `vedamatch.ru` -> `vedamatch-admin-gompiy`;
+  - `lkm.vedamatch.ru` -> `vedamatch-lkm-oye85b`;
+  - `lkm.vedamatch.com` -> `vedamatch-lkm-oye85b`;
+  - корневой `vedamatch.com` в Traefik-конфигах отсутствует, поэтому для него нет нормального router/service и валидного Let's Encrypt cert на основной сайт.

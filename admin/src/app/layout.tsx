@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import AdminLayout from '@/components/AdminLayout';
 import OfflineIndicator from '@/components/OfflineIndicator';
+import YandexMetrika from '@/components/yandex-metrika';
+import YandexMetrikaScripts from '@/components/yandex-metrika-scripts';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 import { ToastProvider } from '@/components/ui/ToastProvider';
@@ -36,6 +39,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
+        <YandexMetrikaScripts />
+        <Suspense fallback={null}>
+          <YandexMetrika />
+        </Suspense>
         <OfflineIndicator />
         <ToastProvider>
           <AdminLayout>{children}</AdminLayout>
