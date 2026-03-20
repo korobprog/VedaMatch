@@ -6,6 +6,7 @@ import {
     mediaDevices,
 } from 'react-native-webrtc';
 import { PermissionsAndroid, Platform, type Permission } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { WebSocketService } from './websocketService';
 import InCallManager from 'react-native-incall-manager';
 import { getAccessToken } from './authSessionService';
@@ -25,6 +26,18 @@ let configuration: any = {
     // Allow host/srflx/relay candidate selection during live mobile diagnostics.
     iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle', // Reduce number of ports needed
+};
+
+type IceServerConfig = {
+    urls: string | string[];
+    username?: string;
+    credential?: string;
+};
+
+type IceConfigSelection = {
+    iceServers: IceServerConfig[];
+    iceTransportPolicy: 'all' | 'relay';
+    networkType: string;
 };
 
 const getWebRtcCopy = () => {
@@ -77,6 +90,87 @@ class WebRTCService {
         const isReady = await this.wsService.waitUntilOpen(timeoutMs);
         if (!isReady) {
             throw new Error('WebSocket signaling socket is not connected');
+        }
+    }
+
+    private normalizeIceServers(iceServers?: any[]): IceServerConfig[] {
+        if (!Array.isArray(iceServers)) {
+            return [];
+        }
+
+        return iceServers
+            .map((server) => {
+                if (!server?.urls) {
+                    return null;
+                }
+                return {
+                    urls: server.urls,
+                    username: server.username,
+                    credential: server.credential,
+                } as IceServerConfig;
+            })
+            .filter((server): server is IceServerConfig => Boolean(server));
+    }
+
+    private expandTurnUrlsForCellular(server: IceServerConfig): IceServerConfig {
+        const rawUrls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        const expandedUrls = rawUrls.flatMap((url) => {
+            if (!url.startsWith('turn:')) {
+                return [url];
+            }
+            if (url.includes('transport=')) {
+                return [url];
+            }
+            return [`${url}?transport=udp`, `${url}?transport=tcp`];
+        });
+
+        return {
+            ...server,
+            urls: Array.isArray(server.urls) ? expandedUrls : expandedUrls[0] ?? server.urls,
+        };
+    }
+
+    private pickRelayOnlyServers(iceServers: IceServerConfig[]): IceServerConfig[] {
+        const relayServers = iceServers
+            .map((server) => this.expandTurnUrlsForCellular(server))
+            .filter((server) => {
+                const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+                return urls.some((url) => url.startsWith('turn:'));
+            });
+
+        return relayServers.length > 0 ? relayServers : iceServers;
+    }
+
+    private async selectIceConfig(iceServers?: any[]): Promise<IceConfigSelection> {
+        const normalizedServers = this.normalizeIceServers(iceServers);
+        const fallbackServers = this.normalizeIceServers(configuration.iceServers);
+        const candidateServers = normalizedServers.length > 0 ? normalizedServers : fallbackServers;
+
+        try {
+            const netInfo = await NetInfo.fetch();
+            const networkType = String(netInfo.type || 'unknown');
+            const isCellular = networkType === 'cellular';
+
+            if (isCellular) {
+                return {
+                    iceServers: this.pickRelayOnlyServers(candidateServers),
+                    iceTransportPolicy: 'relay',
+                    networkType,
+                };
+            }
+
+            return {
+                iceServers: candidateServers,
+                iceTransportPolicy: 'all',
+                networkType,
+            };
+        } catch (error) {
+            console.warn('[WebRTC] NetInfo.fetch failed, falling back to default ICE policy', error);
+            return {
+                iceServers: candidateServers,
+                iceTransportPolicy: 'all',
+                networkType: 'unknown',
+            };
         }
     }
 
@@ -429,17 +523,20 @@ class WebRTCService {
 
             console.log('Fetching TURN credentials from: /turn-credentials');
             const response = await apiClient.get<{ iceServers?: any[] }>('/turn-credentials');
+            const selectedConfig = await this.selectIceConfig(response.data?.iceServers);
 
             if (response.data?.iceServers && Array.isArray(response.data.iceServers)) {
                 console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);
 
                 configuration = { 
-                    iceServers: response.data.iceServers,
+                    iceServers: selectedConfig.iceServers,
                     iceCandidatePoolSize: 10,
-                    iceTransportPolicy: 'all',
+                    iceTransportPolicy: selectedConfig.iceTransportPolicy,
                     bundlePolicy: 'max-bundle',
                 };
-                console.log('[WebRTC] Updated ICE config from API:', JSON.stringify(response.data.iceServers));
+                console.log(
+                    `[WebRTC] Updated ICE config from API: network=${selectedConfig.networkType} policy=${selectedConfig.iceTransportPolicy} servers=${JSON.stringify(selectedConfig.iceServers)}`,
+                );
             }
         } catch (error: any) {
             console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);

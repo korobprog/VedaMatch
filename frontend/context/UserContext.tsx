@@ -1,6 +1,7 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import DeviceInfo from 'react-native-device-info';
 import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
@@ -85,6 +86,7 @@ interface UserContextType {
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
+const PRESENCE_RESYNC_MIN_INTERVAL_MS = 30 * 1000;
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
@@ -93,6 +95,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [roleDescriptor, setRoleDescriptor] = useState<PortalBlueprint | null>(null);
     const [godModeFilters, setGodModeFilters] = useState<MathFilter[]>([]);
     const [activeMathId, setActiveMathId] = useState<string | null>(null);
+    const lastPresenceSyncAtRef = useRef(0);
+    const appStateRef = useRef(AppState.currentState);
+    const networkSignatureRef = useRef<string | null>(null);
 
 
     const clearLocalSession = useCallback(async () => {
@@ -209,28 +214,55 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user?.ID, loadUserProfile]);
 
-    useEffect(() => {
-        let heartbeatInterval: NodeJS.Timeout;
-        if (user?.ID) {
-            const runHeartbeat = async () => {
-                try {
-                    await contactService.sendHeartbeat(user.ID!);
-                } catch (error: any) {
-                    if (error.message === 'UNAUTHORIZED' || error.status === 401) {
-                        const refreshed = await refreshAuthTokens();
-                        if (refreshed?.accessToken) {
-                            console.log('[UserContext] Heartbeat recovered via refresh');
-                            return;
-                        }
+    const refreshPresenceQueries = useCallback(async () => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['contacts'], refetchType: 'active' }),
+            queryClient.invalidateQueries({ queryKey: ['contacts-meta'], refetchType: 'active' }),
+        ]);
+    }, []);
 
-                        console.warn('[UserContext] Heartbeat auth refresh failed, logging out');
-                        await logout();
-                    }
+    const syncPresence = useCallback(async (reason: string, force: boolean = false) => {
+        if (!user?.ID) {
+            return;
+        }
+
+        const now = Date.now();
+        if (!force && now - lastPresenceSyncAtRef.current < PRESENCE_RESYNC_MIN_INTERVAL_MS) {
+            return;
+        }
+        lastPresenceSyncAtRef.current = now;
+
+        const sendHeartbeat = async () => {
+            await contactService.sendHeartbeat(user.ID);
+            await refreshPresenceQueries();
+            console.log(`[UserContext] Presence synced (${reason})`);
+        };
+
+        try {
+            await sendHeartbeat();
+        } catch (error: any) {
+            if (error.message === 'UNAUTHORIZED' || error.status === 401) {
+                const refreshed = await refreshAuthTokens();
+                if (refreshed?.accessToken) {
+                    console.log(`[UserContext] Heartbeat recovered via refresh (${reason})`);
+                    await sendHeartbeat();
+                    return;
                 }
-            };
 
+                console.warn('[UserContext] Heartbeat auth refresh failed, logging out');
+                await logout();
+                return;
+            }
+
+            console.warn(`[UserContext] Presence sync failed (${reason})`, error);
+        }
+    }, [logout, refreshPresenceQueries, user?.ID]);
+
+    useEffect(() => {
+        let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+        if (user?.ID) {
             // Initial heartbeat
-            runHeartbeat().catch(() => undefined);
+            syncPresence('session-start', true).catch(() => undefined);
 
             // Register push token
             AsyncStorage.getItem('pushToken').then(async token => {
@@ -253,13 +285,70 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
             // Set up interval (every 10 minutes — server throttles writes to 5min)
             heartbeatInterval = setInterval(() => {
-                runHeartbeat().catch(() => undefined);
+                syncPresence('interval', true).catch(() => undefined);
             }, 10 * 60 * 1000);
         }
         return () => {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
         };
-    }, [user?.ID, logout]);
+    }, [syncPresence, user?.ID]);
+
+    useEffect(() => {
+        appStateRef.current = AppState.currentState;
+        if (!user?.ID) {
+            return;
+        }
+
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const previousState = appStateRef.current;
+            appStateRef.current = nextState;
+            const resumed = (previousState === 'background' || previousState === 'inactive') && nextState === 'active';
+            if (resumed) {
+                syncPresence('app-foreground').catch(() => undefined);
+            }
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [syncPresence, user?.ID]);
+
+    useEffect(() => {
+        if (!user?.ID) {
+            networkSignatureRef.current = null;
+            return;
+        }
+
+        const buildSignature = (state: { type?: string; isConnected?: boolean | null; isInternetReachable?: boolean | null }) => {
+            const reachable = state.isInternetReachable;
+            const isOnline = Boolean(state.isConnected) && reachable !== false;
+            return `${isOnline ? 'online' : 'offline'}:${state.type || 'unknown'}`;
+        };
+
+        const handleNetInfoChange = (state: { type?: string; isConnected?: boolean | null; isInternetReachable?: boolean | null }) => {
+            const nextSignature = buildSignature(state);
+            const previousSignature = networkSignatureRef.current;
+            networkSignatureRef.current = nextSignature;
+
+            if (!previousSignature || previousSignature === nextSignature || !nextSignature.startsWith('online:')) {
+                return;
+            }
+
+            syncPresence(`network:${previousSignature}->${nextSignature}`).catch(() => undefined);
+        };
+
+        const unsubscribe = NetInfo.addEventListener(handleNetInfoChange);
+        NetInfo.fetch()
+            .then((state) => {
+                networkSignatureRef.current = buildSignature(state);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            networkSignatureRef.current = null;
+            unsubscribe();
+        };
+    }, [syncPresence, user?.ID]);
 
     useEffect(() => {
         if (activeMathId) {

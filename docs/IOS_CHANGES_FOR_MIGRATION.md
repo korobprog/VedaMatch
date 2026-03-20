@@ -1,3 +1,137 @@
+## 2026-03-18 (Shared mobile call rendering: rollback aggressive Android RTCView watchdog, keep split renderer keys)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в Android call UI был добавлен `onDimensionsChange` watchdog, который автоматически remount'ил local/remote `RTCView`, если view быстро не сообщала размеры кадра;
+  - на живом прогоне `1.1.41 (43)` это оказалось слишком агрессивным: Samsung логировал `Remote RTCView watchdog remount attempt`, а на Vivo почернели уже оба направления звонка.
+- Стало:
+  - watchdog-remount полностью убран из production path;
+  - сохранено только безопасное разделение ключей `localStreamVersion` / `remoteStreamVersion`, чтобы local и remote `RTCView` не перемонтировались одновременно из-за одного и того же состояния.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+const [localStreamVersion, setLocalStreamVersion] = useState(0);
+const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+```
+
+```tsx
+<RTCView key={`remote-${remoteStream.id}-${remoteStreamVersion}`} ... />
+<RTCView key={`${localStream.toURL()}-${localStreamVersion}`} ... />
+```
+
+## 2026-03-18 (Shared mobile call rendering: split local/remote RTCView remount keys and add Android watchdog)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `frontend/screens/calls/CallScreen.tsx` использовал один общий `streamVersion` и для local preview, и для remote video;
+  - когда remote stream на лету переходил из `audio-only` в `audio+video`, экран одновременно перемонтировал обе `RTCView`;
+  - на Android caller-path это оставляло шанс получить живой signaling и tracks, но так и не увидеть кадры на зависшем renderer.
+- Стало:
+  - для local и remote `RTCView` заведены отдельные версии: `localStreamVersion` и `remoteStreamVersion`;
+  - Android-ветка использует `onDimensionsChange`, чтобы понимать, получил ли renderer реальные размеры кадра;
+  - если remote или local `RTCView` не сообщил размеры за короткое окно, watchdog делает точечный remount только этого renderer, а не всего video-layer.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+const [localStreamVersion, setLocalStreamVersion] = useState(0);
+const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+```
+
+```ts
+if (remoteRendererRecoveryAttemptsRef.current < 2) {
+  remoteRendererRecoveryAttemptsRef.current += 1;
+  bumpRemoteRenderer();
+}
+```
+
+```tsx
+<RTCView
+  key={`remote-${remoteStream.id}-${remoteStreamVersion}`}
+  onDimensionsChange={({ nativeEvent }) => {
+    remoteVideoDimensionsRef.current = nativeEvent;
+  }}
+/>
+```
+
+## 2026-03-18 (Shared mobile WebRTC: prefer TURN relay-only on cellular and expand TURN transports)
+
+### Измененные файлы
+- `frontend/services/webRTCService.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared mobile WebRTC всегда работал с `iceTransportPolicy: 'all'`;
+  - на `Vivo -> Samsung` через `4G` production signaling и remote tracks доходили, но caller на Vivo мог получить `audio/video` tracks, так и не начать получать кадры и в итоге уйти в `ICE failed`;
+  - это указывало на проблемный direct/srflx media path именно на cellular, а не на поломанный WebSocket или отсутствие TURN credentials.
+- Стало:
+  - `frontend/services/webRTCService.ts` теперь смотрит на текущий network transport через `NetInfo`;
+  - если устройство сидит на `cellular`, shared mobile client переключает ICE в `relay-only`;
+  - TURN URLs без явного транспорта автоматически расширяются в `udp + tcp`, чтобы cellular-call имел больше шансов подняться через coturn, а не через нестабильный direct path.
+
+### Сниппеты кода
+
+`frontend/services/webRTCService.ts`:
+```ts
+if (isCellular) {
+  return {
+    iceServers: this.pickRelayOnlyServers(candidateServers),
+    iceTransportPolicy: 'relay',
+    networkType,
+  };
+}
+```
+
+```ts
+return [`${url}?transport=udp`, `${url}?transport=tcp`];
+```
+
+## 2026-03-18 (Shared mobile presence: resync heartbeat on token refresh, foreground and network transport changes)
+
+### Измененные файлы
+- `frontend/context/UserContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared mobile presence держался на стартовом heartbeat и таймере раз в `10 минут`;
+  - если heartbeat попадал в `401`, клиент делал `refreshAuthTokens()`, но сам heartbeat уже не повторялся до следующего интервала;
+  - при `wifi -> cellular` или возврате приложения в `active` контакты могли еще долго показывать устаревший `lastSeen`, из-за чего friend badge визуально уходил из online в offline.
+- Стало:
+  - `frontend/context/UserContext.tsx` повторяет heartbeat сразу после успешного token refresh;
+  - при foreground-resume и при смене network transport выполняется внеочередной presence sync;
+  - после успешного heartbeat активные `contacts` и `contacts-meta` queries инвалидируются и перечитываются, чтобы shared mobile online-state обновлялся без ручного pull-to-refresh.
+
+### Сниппеты кода
+
+`frontend/context/UserContext.tsx`:
+```ts
+if (refreshed?.accessToken) {
+  await sendHeartbeat();
+  return;
+}
+```
+
+```ts
+if (resumed) {
+  syncPresence('app-foreground').catch(() => undefined);
+}
+```
+
+```ts
+if (previousSignature !== nextSignature && nextSignature.startsWith('online:')) {
+  syncPresence(`network:${previousSignature}->${nextSignature}`).catch(() => undefined);
+}
+```
+
 ## 2026-03-18 (Shared mobile caller UI: fallback-sync remote stream from singleton WebRTC service)
 
 ### Измененные файлы

@@ -8,6 +8,11 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## Product Overview
+- `Veda Match` — это продуктовая платформа, а не один экран или один сервис: основной мобильный клиент на React Native (`frontend`), единый Go backend на Fiber (`server`), web-admin на Next.js (`admin`) и отдельный web-кабинет/тарифы LKM на Next.js (`lkm`).
+- Backend агрегирует ключевые домены в одном API и общей БД: AI chat / RAG, messaging и звонки, dating/matchmaking, wallet/LKM и биллинг, marketplace/shop/cafe/orders, новости/feed, education/library, multimedia, map/dhama/yatra, charity/support, notifications и social auth.
+- Мобильное приложение — основной пользовательский канал; web surfaces обслуживают администрирование, контент- и тарифное управление, а не заменяют mobile UX.
+
 ## Chat / Messaging
 - Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.
 - Chat transcription backend должен уметь работать не только с абсолютными `http(s)` audio URL, но и с локальными путями `/uploads/...`, нормализуя их в публичный API URL перед `ffprobe`/download и перед отправкой в transcription provider.
@@ -68,6 +73,10 @@
   - shared fix должен использовать подписки `Set<listener>` с явным unsubscribe в `CallScreen` cleanup, чтобы скрытый/старый экран не мог "украсть" единственный callback у активного call UI.
 - Дополнительный живой факт 2026-03-18: если звонить `Samsung -> Vivo`, созвон и видео работают с обеих сторон; остаточный дефект остается только в направлении `Vivo -> Samsung`, то есть это уже caller-side UI/state проблема на Vivo, а не общий TURN/render дефект устройства Vivo.
 - Для caller-side Vivo нужен прагматичный fallback поверх subscriptions: активный `CallScreen` должен периодически синхронизировать `webRTCService.remoteStream` и `peerConnection.iceConnectionState` напрямую из singleton service, чтобы выйти из зависшего `Звоним...`, даже если callback remote-stream события был потерян.
+- На релизе Android `1.1.38 (40)` caller-side fallback-sync в `frontend/screens/calls/CallScreen.tsx` подтвердился живым тестом:
+  - направление `Vivo -> Samsung` стало показывать обе камеры;
+  - обратное направление `Samsung -> Vivo` тоже осталось рабочим;
+  - текущий статус бага с двусторонним Android video-call между этими устройствами: исправлен.
 - На прогоне `2026-03-18 18:25-18:30 +1000` главным остаточным дефектом стал не Samsung, а caller-side websocket storm у `User 435`:
   - Vivo логирует цикл `Connection established -> Closed: No reason -> Reconnecting in ~2s`;
   - server logs синхронно показывают бесконечное `User 435 reconnecting, closing old connection`;
@@ -2470,6 +2479,26 @@
 
 ## P2P Calls: Applied Fixes
 - `frontend/services/websocketService.ts` получил `isOpen()` и `waitUntilOpen()`, а `frontend/services/webRTCService.ts` теперь ждёт готовность signaling socket перед `offer/answer` и мягко ретраит отправку `candidate/hangup`, чтобы звонок не терялся на гонке с `auth/refresh`.
+- Для `Vivo -> Samsung` на `4G` от `2026-03-18` найден новый direction-specific media-path дефект:
+  - server signaling остаётся штатным: `offer`, `answer`, `candidate` и `turn-credentials` проходят в обе стороны;
+  - Samsung на этом прогоне получает remote `audio/video` и рендерит кадры;
+  - Vivo caller тоже получает remote tracks и service-level `remoteStream`, но отдельный прогон около `20:41 +1000` уходит в `ICE failed`, а `SurfaceEglRenderer` остаётся на `Frames received: 0`;
+  - прагматичный client-side mitigation: на `cellular` `frontend/services/webRTCService.ts` теперь выбирает `iceTransportPolicy: 'relay'` и расширяет TURN URLs до `?transport=udp` + `?transport=tcp`, чтобы не выбирать нестабильный direct/srflx path на мобильной сети.
+- Для Android renderer-path в `frontend/screens/calls/CallScreen.tsx` больше нельзя держать один общий `streamVersion` сразу для local и remote `RTCView`:
+  - общий ключ одновременно перемонтировал обе `RTCView`, когда менялся только remote stream/video-state;
+  - для Vivo caller на `4G` это оставляло шанс зависнуть на чёрном экране даже при живом `offer/answer` и remote tracks;
+  - безопаснее держать отдельные `localStreamVersion` / `remoteStreamVersion`, но не пытаться автоматически remount'ить `RTCView` по `onDimensionsChange` watchdog в production release.
+- Живой прогон на Android `1.1.41 (43)` показал, что `onDimensionsChange`-watchdog для `RTCView` оказался регрессией:
+  - серверный signaling оставался штатным, но на Samsung логи уже фиксировали `[CallScreen] Remote RTCView watchdog remount attempt 1/2` прямо во время живого звонка;
+  - после этого на Vivo почернели оба направления (`Vivo -> Samsung` и `Samsung -> Vivo`);
+  - rollback в `1.1.42 (44)`: убрать watchdog-remount, оставить только разделение `localStreamVersion` / `remoteStreamVersion`.
+- В `frontend/context/UserContext.tsx` presence больше не зависит только от 10-минутного heartbeat:
+  - heartbeat теперь повторяется сразу после успешного `refreshAuthTokens()`, а не пропускается до следующего таймера;
+  - при возврате приложения в `active` и при смене network transport (`wifi -> cellular`, `cellular -> wifi`) выполняется внеочередной heartbeat;
+  - после успешного heartbeat принудительно инвалидируются активные `contacts` и `contacts-meta` queries, чтобы friend badge / `lastSeen` подтягивались без ручного refresh.
+- Для кейса `Vivo -> 4G` от `2026-03-18` серверные логи подтвердили, что signaling не ломается при смене сети:
+  - на production `vedamatch-server-dnkxc8` по-прежнему проходят `offer`, `answer` и `candidate` между `User 435` и `User 4`;
+  - отдельный дефект с пропажей online-значков не связан с WebSocket hub и был вызван тем, что контакты показывают online только по `lastSeen < 5 минут`, без live-presence канала.
 - В `frontend/App.tsx` добавлен `incomingCallRef`; `answerCall` теперь передает `targetId/callerName` и `autoAccept=true`, `endCall` отправляет `webRTCService.sendHangup()`.
 - Входящий call-flow расширен на push:
   - `frontend/services/notificationService.ts` добавлен `setIncomingCallPushHandler(...)` и маршрут `voip_call` в этот handler;
@@ -3076,7 +3105,7 @@
 - Актуальный release APK для теста звонков на двух Android-устройствах:
   - `frontend/android/app/build.gradle`: `versionName=1.1.38`, `versionCode=40`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - package metadata на подключенных устройствах после следующей установки должны подтвердить: `applicationId=com.ragagent`, `versionName=1.1.38`, `versionCode=40`.
+  - package metadata на подключенных устройствах подтверждены: `applicationId=com.ragagent`, `versionName=1.1.38`, `versionCode=40`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
   - тот же SHA-1 уже присутствует в `frontend/android/app/google-services.json` для `com.ragagent` и совпадает с OAuth client в Google Cloud Console;
@@ -3161,3 +3190,9 @@
 - Для локального `Personal Team` debug-flow это правило уже реализовано через отдельный iOS OAuth/Firebase client и plist на `com.korobkov.vedamatch.dev`; без подмены plist один только апдейт Google Console не чинит Google Sign-In.
 - На `LoginScreen` для iOS Google flow нужен foreground-resume fallback: после возврата приложения в `active` безопасно пробовать добрать native Google session через `getCurrentUser` / `getTokens` / `signInSilently`, потому что `signIn()` может не завершиться в JS сразу после `ASWebAuthenticationSession` round-trip.
 - VK/Telegram mobile login state на iOS нужно хранить в `AsyncStorage` до финализации callback, иначе cold-start или повторный `Linking.getInitialURL()` ломают завершение social login/link flow.
+
+## Web Analytics
+- Для `lkm` на Next.js App Router Yandex.Metrika должна жить в отдельном client component, а не как inline-инициализация внутри server layout:
+  - `tag.js` лучше подключать напрямую через `next/script` с `src="https://mc.yandex.ru/metrika/tag.js"`;
+  - `ym(..., 'init', ...)` можно вызывать отдельным inline script после загрузки страницы;
+  - для client-side переходов нужен явный `ym(counterId, 'hit', url, { title, referer })`, иначе SPA-навигация в App Router не будет стабильно попадать в аналитику.

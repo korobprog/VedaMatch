@@ -74,7 +74,8 @@ export const CallScreen = () => {
     const callStartedAtRef = useRef<number | null>(null);
     const callLoggedRef = useRef(false);
     const hasAcceptedRef = useRef(hasAccepted);
-    const [streamVersion, setStreamVersion] = useState(0);
+    const [localStreamVersion, setLocalStreamVersion] = useState(0);
+    const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [participantProfile, setParticipantProfile] = useState<UserContact | null>(null);
@@ -101,6 +102,12 @@ export const CallScreen = () => {
     const serviceSyncSignatureRef = useRef('');
 
     const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
+    const bumpLocalRenderer = React.useCallback(() => {
+        setLocalStreamVersion((value) => value + 1);
+    }, []);
+    const bumpRemoteRenderer = React.useCallback(() => {
+        setRemoteStreamVersion((value) => value + 1);
+    }, []);
     const setStatusKey = React.useCallback((key: CallStatusKey, values?: Record<string, string | number>) => {
         setStatusState({ key, values });
     }, []);
@@ -316,7 +323,7 @@ export const CallScreen = () => {
                     if (mounted) {
                         setRemoteStream(rStream);
                         setRemoteVideoAvailable(streamHasVideo);
-                        setStreamVersion(v => v + 1);
+                        bumpRemoteRenderer();
                         const trackInfo = tracks.map((track) => track.kind[0].toUpperCase()).join('/');
                         setStatusKey(streamHasVideo ? 'connectedTrack' : 'connectingVideo', streamHasVideo ? { trackInfo } : undefined);
                     }
@@ -366,7 +373,7 @@ export const CallScreen = () => {
             unsubscribeRemoteStream();
             unsubscribeIceState();
         };
-    }, [hasAccepted, isIncoming, setStatusKey, targetId]);
+    }, [bumpRemoteRenderer, hasAccepted, isIncoming, setStatusKey, targetId]);
 
     useEffect(() => {
         hasAcceptedRef.current = hasAccepted;
@@ -414,7 +421,7 @@ export const CallScreen = () => {
                 stopOutgoingRingback();
                 setRemoteStream((prev) => (prev === liveRemoteStream ? prev : liveRemoteStream));
                 setRemoteVideoAvailable(streamHasVideo);
-                setStreamVersion(v => v + 1);
+                bumpRemoteRenderer();
                 setStatusKey(streamHasVideo ? 'connectedTrack' : 'connectingVideo', streamHasVideo ? { trackInfo } : undefined);
                 return;
             }
@@ -436,7 +443,7 @@ export const CallScreen = () => {
             clearInterval(intervalId);
             serviceSyncSignatureRef.current = '';
         };
-    }, [hasAccepted, setStatusKey]);
+    }, [bumpRemoteRenderer, hasAccepted, setStatusKey]);
 
     useEffect(() => {
         let mounted = true;
@@ -501,7 +508,7 @@ export const CallScreen = () => {
             const streamHasVideo = hasVideoTrack(remoteStream);
             if (streamHasVideo) {
                 setRemoteVideoAvailable(true);
-                setStreamVersion(v => v + 1);
+                bumpRemoteRenderer();
                 setStatusKey('connectedAv');
                 clearInterval(intervalId);
                 return;
@@ -515,7 +522,7 @@ export const CallScreen = () => {
         return () => {
             clearInterval(intervalId);
         };
-    }, [remoteStream, remoteVideoAvailable, setStatusKey]);
+    }, [bumpRemoteRenderer, remoteStream, remoteVideoAvailable, setStatusKey]);
 
 
     // Cleanup on unmount (end call)
@@ -827,7 +834,7 @@ export const CallScreen = () => {
             setIsVideoEnabled(streamHasVideo);
         }
         // Force local preview refresh for devices where track-level switch does not repaint immediately.
-        setStreamVersion(v => v + 1);
+        bumpLocalRenderer();
     };
 
     const toggleFeedbackReason = (reason: CallFeedbackReason) => {
@@ -895,7 +902,7 @@ export const CallScreen = () => {
                 Platform.OS === 'ios' ? (
                     <RTCPIPView
                         ref={pipViewRef}
-                        key={`remote-ios-pip-${remoteStream.id}-${streamVersion}`}
+                        key={`remote-ios-pip-${remoteStream.id}-${remoteStreamVersion}`}
                         streamURL={remoteVideoAvailable ? remoteStream.toURL() : undefined}
                         style={styles.remoteVideo}
                         objectFit="cover"
@@ -920,7 +927,7 @@ export const CallScreen = () => {
                     />
                 ) : remoteVideoAvailable ? (
                     <RTCView
-                        key={`remote-${remoteStream.id}-${streamVersion}`}
+                        key={`remote-${remoteStream.id}-${remoteStreamVersion}`}
                         streamURL={remoteStream.toURL()}
                         style={styles.remoteVideo}
                         objectFit="cover"
@@ -951,7 +958,7 @@ export const CallScreen = () => {
             {localStream && localVideoAvailable && (
                 <View style={styles.localVideoContainer}>
                     <RTCView
-                        key={`${localStream.toURL()}-${streamVersion}`}
+                        key={`${localStream.toURL()}-${localStreamVersion}`}
                         streamURL={localStream.toURL()}
                         style={styles.localVideo}
                         objectFit="cover"
