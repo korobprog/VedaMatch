@@ -3213,3 +3213,10 @@
   - `lkm.vedamatch.ru` -> `vedamatch-lkm-oye85b`;
   - `lkm.vedamatch.com` -> `vedamatch-lkm-oye85b`;
   - корневой `vedamatch.com` в Traefik-конфигах отсутствует, поэтому для него нет нормального router/service и валидного Let's Encrypt cert на основной сайт.
+
+## Landing Localization
+- Для публичного landing в `admin` дефолт языка должен определяться по домену:
+  - `vedamatch.com` -> `en`;
+  - `vedamatch.ru` -> `ru`.
+- Ручное переключение `en/hi/ru` лучше хранить в `localStorage`, чтобы пользователь не терял выбранный язык между переходами и перезагрузками.
+- Если локализация landing делается для `.com`, нельзя оставлять частично русский UI: hero, features, philosophy, community CTA, footer и presentation/team-блоки должны брать строки из единого словаря.
