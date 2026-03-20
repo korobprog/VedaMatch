@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearAuthData } from './auth';
+import { resolveApiBaseUrlForHostname } from './vedamatch-hosts';
 
 const normalizeApiBaseURL = (rawBaseURL: string): string => {
     const trimmedBaseURL = rawBaseURL.trim().replace(/\/+$/, '');
@@ -24,16 +25,11 @@ export const getApiBaseURL = (): string => {
     // Если мы в браузере, определяем URL на основе текущего домена
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
-        // Если это продакшн домен, используем API домен
-        if (hostname === 'vedamatch.ru' || hostname === 'www.vedamatch.ru') {
-            return 'https://api.vedamatch.ru/api';
-        }
         // Для локальной разработки
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
             return 'http://localhost:8081/api';
         }
-        // Для других случаев (например, staging) можно использовать тот же домен
-        return `https://api.${hostname}/api`;
+        return resolveApiBaseUrlForHostname(hostname);
     }
 
     // Fallback для SSR

@@ -1,5 +1,64 @@
 # Prompt Log
 
+- 2026-03-20 14:50:28 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:
+# Plan: Separate Portal, Admin Panel, and Keep LKM Untouched
+
+## Summary
+- Keep `admin.vedamatch.com` and `admin.vedamatch.ru` as the public web portal.
+- Keep `lkm.vedamatch.com` and `lkm.vedamatch.ru` unchanged as the wallet zone.
+- Move the management admin panel to a separate dedicated hostname.
+- Move public web login/registration/social auth to `social.vedamatch.com` and `social.vedamatch.ru` only if those flows belong to the portal auth surface rather than the wallet.
+
+## Implementation Changes
+- Treat the current `admin/` Next app as the portal web app, not as the management backoffice.
+  - Audit naming, labels, titles, and route assumptions that expose it as an admin product.
+  - Preserve existing portal behavior for end users on `admin.*`.
+- Create or carve out a separate management admin surface on a new dedicated hostname.
+  - This should host internal moderation/operations/content/monetization screens that are currently mixed into the `admin/` app.
+  - Domain name for this true admin surface is still not fixed in the spec and must be chosen before implementation.
+- Keep `lkm.*` untouched.
+  - No routing, host, callback, or content changes for wallet/cabinet/tariffs.
+- Move portal auth entrypoints to `social.*` only for user-facing auth flows.
+  - Web login/registration/social OAuth should point to `social.vedamatch.ru/.com`.
+  - Ensure portal redirects back into the correct public portal host after auth.
+- Update backend origin/callback allowlists.
+  - Add `social.vedamatch.ru/.com` for web auth origins.
+  - Do not remove `lkm.*` from wallet-specific auth/origin logic if the wallet still needs its own flows.
+  - Keep `.ru` and `.com` API host selection aligned with the requesting TLD.
+
+## Public Interfaces / Routing
+- Canonical public portal:
+  - `admin.vedamatch.ru`
+  - `admin.vedamatch.com`
+- Canonical wallet, unchanged:
+  - `lkm.vedamatch.ru`
+  - `lkm.vedamatch.com`
+- Canonical public auth:
+  - `social.vedamatch.ru`
+  - `social.vedamatch.com`
+- Canonical true management admin:
+  - new dedicated hostname, still to be decided
+
+## Test Plan
+- Portal checks:
+  - `admin.*` opens the public portal, not management admin UI.
+  - Portal auth links point to `social.*`.
+  - Post-login redirect returns users to the portal correctly.
+- Social checks:
+  - Email login, registration, and social auth work on both `social.vedamatch.ru` and `social.vedamatch.com`.
+  - Origin validation and callback handling succeed for both TLDs.
+- Wallet checks:
+  - `lkm.*` remains fully unchanged and functional.
+- Separation checks:
+  - Management admin is no longer exposed on `admin.*`.
+  - No portal routes accidentally depend on wallet hostnames.
+  - No redirect loops between `admin.*`, `social.*`, and API callback pages.
+
+## Assumptions
+- `admin.*` must remain the public portal brand, even though the codebase folder is currently named `admin`.
+- `lkm.*` is explicitly out of scope.
+- A separate hostname is required for the real internal admin panel, but its exact name is not yet defined."
+
 - 2026-03-20 14:15:23 +1000 | Запрос: "давай сделаем если человек перейдет на vedamatch.com то сайт будет на английском и переклбчение чтобы было возмно на хинди и русский"
 
 - 2026-03-20 14:11:46 +1000 | Запрос: "https://vedamatch.com/ 404 хатя должна быть главная страница"

@@ -12,6 +12,11 @@
 - `Veda Match` — это продуктовая платформа, а не один экран или один сервис: основной мобильный клиент на React Native (`frontend`), единый Go backend на Fiber (`server`), web-admin на Next.js (`admin`) и отдельный web-кабинет/тарифы LKM на Next.js (`lkm`).
 - Backend агрегирует ключевые домены в одном API и общей БД: AI chat / RAG, messaging и звонки, dating/matchmaking, wallet/LKM и биллинг, marketplace/shop/cafe/orders, новости/feed, education/library, multimedia, map/dhama/yatra, charity/support, notifications и social auth.
 - Мобильное приложение — основной пользовательский канал; web surfaces обслуживают администрирование, контент- и тарифное управление, а не заменяют mobile UX.
+- С 2026-03-20 принята новая доменная схема web surfaces:
+  - `admin.vedamatch.ru` и `admin.vedamatch.com` — публичный web portal;
+  - `social.vedamatch.ru` и `social.vedamatch.com` — публичные auth entrypoints;
+  - `lkm.vedamatch.ru` и `lkm.vedamatch.com` — кошелек LKM, его не трогать в рамках этого переноса;
+  - для внутренней панели управления выбран временный канонический hostname `panel.vedamatch.ru/.com`, пока пользователь не задаст другой.
 
 ## Chat / Messaging
 - Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.

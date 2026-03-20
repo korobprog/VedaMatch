@@ -65,8 +65,15 @@ func main() {
 				{
 					AllowedOrigins: []string{
 						"https://vedamatch.ru",
+						"https://vedamatch.com",
 						"https://www.vedamatch.ru",
+						"https://www.vedamatch.com",
 						"https://admin.vedamatch.ru",
+						"https://admin.vedamatch.com",
+						"https://social.vedamatch.ru",
+						"https://social.vedamatch.com",
+						"https://panel.vedamatch.ru",
+						"https://panel.vedamatch.com",
 						"http://localhost:3000",
 						"http://localhost:3001",
 						"http://localhost:3005",

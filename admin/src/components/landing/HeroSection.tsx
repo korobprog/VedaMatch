@@ -4,7 +4,9 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles, Wand2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import type { LandingCopy } from '@/lib/landing-copy';
+import { buildVedamatchUrl } from '@/lib/vedamatch-hosts';
 
 const portraitCards = [
   { src: '/portrait_meditation.png', rotate: -15, x: -420, y: 60, scale: 0.7, z: 1 },
@@ -17,6 +19,14 @@ const portraitCards = [
 ];
 
 export function HeroSection({ copy }: { copy: LandingCopy }) {
+  const [hostname, setHostname] = useState('');
+
+  useEffect(() => {
+    setHostname(window.location.hostname);
+  }, []);
+
+  const registerUrl = hostname ? buildVedamatchUrl(hostname, 'social', '/register', '') : '/register';
+
   return (
     <section className="relative min-h-[90vh] flex flex-col items-center overflow-hidden bg-[#faf9f6] pt-32 pb-20">
       <motion.div
@@ -76,7 +86,7 @@ export function HeroSection({ copy }: { copy: LandingCopy }) {
           transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
           className="flex flex-wrap items-center justify-center gap-5"
         >
-          <Link href="/register" className="flex items-center gap-3 bg-[#2c1810] text-[#faf9f6] px-8 py-4 rounded-2xl hover:bg-[#4a2c20] transition-all hover:scale-105 active:scale-95 shadow-xl group">
+          <Link href={registerUrl} className="flex items-center gap-3 bg-[#2c1810] text-[#faf9f6] px-8 py-4 rounded-2xl hover:bg-[#4a2c20] transition-all hover:scale-105 active:scale-95 shadow-xl group">
             <span className="font-bold text-lg">{copy.hero.primaryCta}</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>

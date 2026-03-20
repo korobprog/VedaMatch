@@ -11,8 +11,8 @@ const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 import { ToastProvider } from '@/components/ui/ToastProvider';
 
 export const metadata: Metadata = {
-  title: 'VedaMatch Admin Panel',
-  description: 'Control center for VedaMatch Backend & Frontend',
+  title: 'VedaMatch Portal',
+  description: 'Public web portal and authentication surface for VedaMatch',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

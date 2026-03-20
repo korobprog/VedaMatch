@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Lock, Mail, Loader2, Heart } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import PortalSocialAuthButtons from '@/components/auth/PortalSocialAuthButtons';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -121,6 +122,8 @@ export default function LoginPage() {
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
                         </button>
+
+                        <PortalSocialAuthButtons />
 
                         <div className="text-center mt-6">
                             <p className="text-sm text-[var(--muted-foreground)]">

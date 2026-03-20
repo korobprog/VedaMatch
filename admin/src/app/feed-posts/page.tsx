@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Pin, Rss } from 'lucide-react';
 import api from '@/lib/api';
+import { buildVedamatchUrl } from '@/lib/vedamatch-hosts';
 
 type FeedAuthor = {
   spiritualName?: string;
@@ -47,6 +48,13 @@ const formatDate = (value?: string | null): string => {
 export default function FeedPostsPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
+  const [hostname, setHostname] = useState('');
+  const socialLoginUrl = hostname ? buildVedamatchUrl(hostname, 'social', '/login', '') : '/login';
+  const socialRegisterUrl = hostname ? buildVedamatchUrl(hostname, 'social', '/register', '') : '/register';
+
+  useEffect(() => {
+    setHostname(window.location.hostname);
+  }, []);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -82,11 +90,11 @@ export default function FeedPostsPage() {
             <Link href="/feed-posts" className="font-bold text-[#2c1810]">
               Лента
             </Link>
-            <Link href="/login" className="font-bold text-[#5c4d47] transition-colors hover:text-[#2c1810]">
+            <Link href={socialLoginUrl} className="font-bold text-[#5c4d47] transition-colors hover:text-[#2c1810]">
               Вход
             </Link>
             <Link
-              href="/register"
+              href={socialRegisterUrl}
               className="rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-6 py-2.5 text-sm font-bold text-white transition-all hover:scale-[1.02]"
             >
               Регистрация

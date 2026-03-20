@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { landingCopy, resolveDefaultLandingLanguage, type LandingLanguage } from '@/lib/landing-copy';
+import { buildVedamatchUrl } from '@/lib/vedamatch-hosts';
 import { HeroSection } from './HeroSection';
 import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
@@ -16,6 +17,7 @@ import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle, Sparkles } f
 export default function LandingPage() {
   const [user, setUser] = useState<any>(null);
   const [language, setLanguage] = useState<LandingLanguage>('ru');
+  const [hostname, setHostname] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function LandingPage() {
     const storedLanguage = localStorage.getItem('landing_language') as LandingLanguage | null;
     const defaultLanguage = resolveDefaultLandingLanguage(window.location.hostname);
     const nextLanguage = storedLanguage && landingCopy[storedLanguage] ? storedLanguage : defaultLanguage;
+    setHostname(window.location.hostname);
     setLanguage(nextLanguage);
   }, []);
 
@@ -44,6 +47,11 @@ export default function LandingPage() {
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const copy = landingCopy[language];
   const languages: LandingLanguage[] = ['en', 'hi', 'ru'];
+  const socialLoginUrl = hostname ? buildVedamatchUrl(hostname, 'social', '/login', '') : '/login';
+  const socialRegisterUrl = hostname ? buildVedamatchUrl(hostname, 'social', '/register', '') : '/register';
+  const panelLoginUrl = hostname ? buildVedamatchUrl(hostname, 'panel', '/admin-login', '') : '/admin-login';
+  const panelDashboardUrl = hostname ? buildVedamatchUrl(hostname, 'panel', '/dashboard', '') : '/dashboard';
+  const userDashboardUrl = hostname ? buildVedamatchUrl(hostname, 'admin', '/user/dashboard', '') : '/user/dashboard';
 
   return (
     <div className="min-h-screen bg-[#faf9f6] selection:bg-orange-200">
@@ -88,7 +96,7 @@ export default function LandingPage() {
                   </span>
                 </Link>
                 <Link
-                  href="/user/dashboard"
+                  href={userDashboardUrl}
                   className="px-5 py-2.5 bg-[#2c1810] hover:bg-[#4a2c20] rounded-xl text-sm font-bold text-white shadow-lg transition-all flex items-center gap-2"
                 >
                   <Grid className="w-4 h-4" />
@@ -96,7 +104,7 @@ export default function LandingPage() {
                 </Link>
                 {isAdmin && (
                   <Link
-                    href="/dashboard"
+                    href={panelDashboardUrl}
                     className="bg-white text-[#2c1810] border border-[#e7e5e4] px-5 py-2.5 rounded-xl text-sm font-bold hover:border-orange-200 hover:bg-orange-50 transition-all shadow-sm flex items-center gap-2"
                   >
                     <Sparkles className="w-4 h-4 text-orange-500" />
@@ -116,11 +124,11 @@ export default function LandingPage() {
                 <Link href="/feed-posts" className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
                   {copy.nav.feed}
                 </Link>
-                <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
+                <Link href={socialLoginUrl} className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
                   {copy.nav.login}
                 </Link>
                 <Link
-                  href="/register"
+                  href={socialRegisterUrl}
                   className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
                 >
                   {copy.nav.register}
@@ -197,8 +205,8 @@ export default function LandingPage() {
             <ul className="space-y-2 text-white/60">
               <li><Link href="/" className="hover:text-white transition-colors">{copy.footer.home}</Link></li>
               <li><Link href="/feed-posts" className="hover:text-white transition-colors">{copy.footer.feed}</Link></li>
-              <li><Link href="/login" className="hover:text-white transition-colors">{copy.footer.auth}</Link></li>
-              <li><Link href="/admin-login" className="hover:text-white transition-colors">{copy.footer.admin}</Link></li>
+              <li><Link href={socialLoginUrl} className="hover:text-white transition-colors">{copy.footer.auth}</Link></li>
+              <li><Link href={panelLoginUrl} className="hover:text-white transition-colors">{copy.footer.admin}</Link></li>
             </ul>
           </div>
           <div>

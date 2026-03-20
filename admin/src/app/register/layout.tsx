@@ -12,7 +12,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
                 title: 'Присоединяйся к VedaMatch',
                 description: `Вас пригласили! Используйте код ${inviteCode} при регистрации.`,
                 type: 'website',
-                url: `https://vedamatch.ru/register?inviteCode=${inviteCode}`,
+                url: `https://social.vedamatch.ru/register?inviteCode=${inviteCode}`,
                 images: [
                     {
                         url: 'https://vedamatch.ru/assets/invite_banner.png',
