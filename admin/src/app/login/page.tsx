@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Lock, Mail, Loader2, Heart } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { resolveVedamatchSurface } from '@/lib/vedamatch-hosts';
 import PortalSocialAuthButtons from '@/components/auth/PortalSocialAuthButtons';
 
 export default function LoginPage() {
@@ -15,15 +16,15 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const router = useRouter();
 
+    const resolvePostLoginRoute = () => {
+        const surface = typeof window !== 'undefined' ? resolveVedamatchSurface(window.location.hostname) : 'social';
+        return surface === 'panel' ? '/dashboard' : '/user/dashboard';
+    };
+
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
         if (data) {
-            const user = JSON.parse(data);
-            if (user.role === 'admin' || user.role === 'superadmin') {
-                router.replace('/dashboard');
-            } else {
-                router.replace('/user/dashboard');
-            }
+            router.replace(resolvePostLoginRoute());
         }
     }, [router]);
 
@@ -37,12 +38,7 @@ export default function LoginPage() {
             const { user, token } = response.data;
 
             localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
-
-            if (user.role === 'admin' || user.role === 'superadmin') {
-                router.push('/dashboard');
-            } else {
-                router.push('/user/dashboard');
-            }
+            router.push(resolvePostLoginRoute());
         } catch (err: any) {
             setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
         } finally {

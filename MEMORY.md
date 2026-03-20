@@ -17,6 +17,11 @@
   - `social.vedamatch.ru` и `social.vedamatch.com` — публичные auth entrypoints;
   - `lkm.vedamatch.ru` и `lkm.vedamatch.com` — кошелек LKM, его не трогать в рамках этого переноса;
   - для внутренней панели управления выбран временный канонический hostname `panel.vedamatch.ru/.com`, пока пользователь не задаст другой.
+- Live production routing, подтвержденный по SSH 2026-03-20:
+  - portal container `vedamatch-admin-gompiy` сейчас обслуживает `vedamatch.ru`, `vedamatch.com`, `www.vedamatch.com`;
+  - wallet container `vedamatch-lkm-oye85b` обслуживает `lkm.vedamatch.ru` и `lkm.vedamatch.com`;
+  - API container `vedamatch-server-dnkxc8` обслуживает только `api.vedamatch.ru`;
+  - `admin.vedamatch.ru/.com`, `social.vedamatch.ru/.com`, `panel.vedamatch.ru/.com` и `api.vedamatch.com` в live Traefik пока не заведены.
 
 ## Chat / Messaging
 - Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.

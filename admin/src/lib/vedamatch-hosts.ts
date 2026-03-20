@@ -4,7 +4,6 @@ export type VedamatchSubdomain = 'admin' | 'social' | 'panel' | 'lkm' | 'api';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 const PUBLIC_PORTAL_PREFIXES = [
   '/',
-  '/user',
   '/profile',
   '/feed-posts',
   '/android-testers',

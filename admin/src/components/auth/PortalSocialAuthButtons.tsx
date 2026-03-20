@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { buildVedamatchUrl, resolveApiBaseUrlForHostname } from '@/lib/vedamatch-hosts';
+import { buildVedamatchUrl, resolveApiBaseUrlForHostname, resolveVedamatchSurface } from '@/lib/vedamatch-hosts';
 
 type LoginResponse = {
   token?: string;
@@ -114,14 +114,20 @@ export default function PortalSocialAuthButtons() {
     }
   }, [apiBaseUrl]);
   const socialOrigin = useMemo(() => buildVedamatchUrl(hostname, 'social', '', '').replace(/\/$/, ''), [hostname]);
-  const portalDashboardUrl = useMemo(() => buildVedamatchUrl(hostname, 'admin', '/user/dashboard', ''), [hostname]);
   const panelDashboardUrl = useMemo(() => buildVedamatchUrl(hostname, 'panel', '/dashboard', ''), [hostname]);
+  const surface = useMemo(() => resolveVedamatchSurface(hostname), [hostname]);
+  const userDashboardUrl = useMemo(() => {
+    if (surface === 'social') {
+      return buildVedamatchUrl(hostname, 'social', '/user/dashboard', '');
+    }
+    return buildVedamatchUrl(hostname, 'admin', '/user/dashboard', '');
+  }, [hostname, surface]);
 
   const finalizeAuth = useCallback((payload: LoginResponse) => {
-    const role = persistAuthPayload(payload);
-    const targetUrl = role === 'admin' || role === 'superadmin' ? panelDashboardUrl : portalDashboardUrl;
+    persistAuthPayload(payload);
+    const targetUrl = surface === 'panel' ? panelDashboardUrl : userDashboardUrl;
     window.location.assign(targetUrl);
-  }, [panelDashboardUrl, portalDashboardUrl]);
+  }, [panelDashboardUrl, surface, userDashboardUrl]);
 
   const performSocialLogin = useCallback(async (path: string, body: unknown): Promise<LoginResponse> => {
     const response = await fetch(`${apiBaseUrl}${path}`, {
