@@ -23,6 +23,7 @@
 - Для `apps/web/src/app/app/chats/[peerUserId]/page.tsx` thread route должен нормализовать `peerUserId` и безопасно сериализовать message payload перед render; иначе direct chat может падать client-side на нестандартных `content` значениях из `/api/messages/history`.
 - В `apps/web` переключатель языка сам по себе уже работал, но значительная часть shell была hardcoded на английском; для реального RU-переключения нужно тянуть тексты из `packages/i18n` как минимум в `AppFrame`, `/app`, `ProfileForm`, `ContactsPage`, а остальные доменные страницы остаются хвостом для следующей волны локализации.
 - Вторая волна локализации для `apps/web` уже покрывает `chats`, `library`, `news`, `services`, `travel`, `support`; для SSR-страниц нужно брать словарь server-side через host-based helper (`getRequestDictionary()`), а client pages продолжают брать его из `SessionProvider`.
+- Для `social.vedamatch.ru` принят отдельный visual direction: главная `/` и overview `/app` должны выглядеть как тёмный dashboard в духе `vedamatch.ru/user/dashboard`, с hero cards и сеткой сервисов в виде mobile-like ярлыков, а не как нейтральный docs-style landing.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.

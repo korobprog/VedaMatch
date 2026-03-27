@@ -1,94 +1,130 @@
-import Link from "next/link";
+import { SocialDashboardHome, type DashboardShortcut } from "@/components/social-dashboard-home";
 import { getRequestSurface } from "@/lib/request-surface";
 
 const defaultCards = [
   {
     title: "Shared contracts first",
-    body: "The web app consumes new platform-neutral packages instead of importing React Native runtime code.",
+    body: "The web app consumes platform-neutral packages instead of importing React Native runtime code.",
   },
   {
     title: "Core product V1",
-    body: "Portal shell, auth, profile, contacts, chats, library, news, services, travel, wallet routing, and support entry.",
+    body: "Auth, profile, contacts, chats, library, news, services, travel, support, and wallet routing are already mapped as browser-native flows.",
   },
   {
     title: "Realtime later",
-    body: "Calls, browser notifications, and media-heavy surfaces stay out of the critical path until the core web loop is stable.",
+    body: "Calls, browser notifications, and media-heavy surfaces stay outside the critical path until the social web loop is stable.",
   },
 ];
 
-const socialCards = [
-  {
-    title: "Social-first entry",
-    body: "This host is the web entrypoint for authentication, contacts, direct chats, and the first social user flows.",
-  },
-  {
-    title: "One runtime",
-    body: "social.vedamatch.ru uses the same `apps/web` codebase instead of a separate web project.",
-  },
-  {
-    title: "Deep-linkable shell",
-    body: "After login, users continue into the same `/app/*` browser-native shell for profile, chats, content, support, and wallet routing.",
-  },
-];
+function buildDashboardCopy(language: string) {
+  if (language === "ru") {
+    return {
+      brandSubtitle: "SOCIAL DASHBOARD",
+      badge: "LIVE COMMUNITY",
+      title: "Социальная web-версия VedaMatch",
+      body: "Открывай контакты, чаты, библиотеку, новости и сервисы из единой браузерной панели. Дизайн взят из portal dashboard и адаптирован под social surface.",
+      primaryAction: { href: "/app", label: "Открыть social", variant: "primary" as const },
+      secondaryAction: { href: "/login", label: "Войти", variant: "ghost" as const },
+      timeLabel: "MAYAPUR TIME",
+      shortcutsTitle: "Сервисы портала",
+      shortcutsActionLabel: "ЯРЛЫКИ",
+      shortcuts: [
+        { href: "/app/contacts", label: "Контакты", hint: "Люди", monogram: "CT", tone: "blue" },
+        { href: "/app/chats", label: "Чат", hint: "Диалоги", monogram: "CH", tone: "stone" },
+        { href: "/app/support", label: "Поддержка", hint: "Help", monogram: "SP", tone: "green" },
+        { href: "/app/services", label: "Сервисы", hint: "Услуги", monogram: "SV", tone: "pink" },
+        { href: "/app/library", label: "Библиотека", hint: "Reader", monogram: "LB", tone: "copper" },
+        { href: "/app/news", label: "Новости", hint: "Feed", monogram: "NW", tone: "orange" },
+        { href: "/app/travel", label: "Путешествия", hint: "Yatra", monogram: "TR", tone: "violet" },
+        { href: "/app/wallet", label: "Кошелек", hint: "LKM", monogram: "WL", tone: "indigo" },
+      ] satisfies DashboardShortcut[],
+    };
+  }
+
+  return {
+    brandSubtitle: "SOCIAL DASHBOARD",
+    badge: "LIVE COMMUNITY",
+    title: "VedaMatch social web dashboard",
+    body: "Open contacts, chats, library, news, and services from a single browser dashboard. The visual language is adapted from the portal dashboard for the social surface.",
+    primaryAction: { href: "/app", label: "Open social", variant: "primary" as const },
+    secondaryAction: { href: "/login", label: "Sign in", variant: "ghost" as const },
+    timeLabel: "MAYAPUR TIME",
+    shortcutsTitle: "Portal services",
+    shortcutsActionLabel: "SHORTCUTS",
+    shortcuts: [
+      { href: "/app/contacts", label: "Contacts", hint: "People", monogram: "CT", tone: "blue" },
+      { href: "/app/chats", label: "Chats", hint: "Inbox", monogram: "CH", tone: "stone" },
+      { href: "/app/support", label: "Support", hint: "Help", monogram: "SP", tone: "green" },
+      { href: "/app/services", label: "Services", hint: "Catalog", monogram: "SV", tone: "pink" },
+      { href: "/app/library", label: "Library", hint: "Reader", monogram: "LB", tone: "copper" },
+      { href: "/app/news", label: "News", hint: "Feed", monogram: "NW", tone: "orange" },
+      { href: "/app/travel", label: "Travel", hint: "Yatra", monogram: "TR", tone: "violet" },
+      { href: "/app/wallet", label: "Wallet", hint: "LKM", monogram: "WL", tone: "indigo" },
+    ] satisfies DashboardShortcut[],
+  };
+}
 
 export default async function HomePage() {
-  const { host, isSocial } = await getRequestSurface();
-  const cards = isSocial ? socialCards : defaultCards;
+  const { host, isSocial, language } = await getRequestSurface();
+  const mayapurNow = new Date();
+  const timeValue = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(mayapurNow);
+  const dayLabel = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "long",
+  }).format(mayapurNow);
+  const dateLabel = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(mayapurNow);
+
+  if (isSocial) {
+    const copy = buildDashboardCopy(language);
+
+    return (
+      <main className="shell shell--dashboard">
+        <div className="container">
+          <SocialDashboardHome
+            badge={copy.badge}
+            body={copy.body}
+            brandSubtitle={copy.brandSubtitle}
+            brandTitle="VedaMatch"
+            dateLabel={dateLabel}
+            dayLabel={dayLabel}
+            primaryAction={copy.primaryAction}
+            secondaryAction={copy.secondaryAction}
+            shortcuts={copy.shortcuts}
+            shortcutsActionLabel={copy.shortcutsActionLabel}
+            shortcutsTitle={copy.shortcutsTitle}
+            timeLabel={copy.timeLabel}
+            timeValue={timeValue}
+            title={copy.title}
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="shell">
       <section className="hero">
-        <div className="container hero-grid">
-          <div className="panel">
-            <div className="panel-inner">
-              <span className="eyebrow">{isSocial ? "Social web entrypoint" : "New web runtime"}</span>
-              <h1 className="title-xl">
-                {isSocial
-                  ? "social.vedamatch.ru is the social web entry for the same VedaMatch app."
-                  : "VedaMatch Web starts as a real product, not a React Native port."}
-              </h1>
-              <p className="lead">
-                {isSocial
-                  ? "This host focuses on browser-native auth and social entry flows, then continues into the shared `/app/*` shell without splitting the product into another web codebase."
-                  : "This foundation adds a dedicated Next.js App Router client, shared platform-neutral packages, and deep-linkable routes for the first wave of user-facing web flows."}
-              </p>
-              <p className="muted">Current host: {host}</p>
-              <div className="actions">
-                <Link className="button" href={isSocial ? "/login" : "/app"}>
-                  {isSocial ? "Sign in to social web" : "Open web app"}
-                </Link>
-                <Link className="button-secondary" href="/register">
-                  {isSocial ? "Create social account" : "Create account"}
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div className="panel">
-            <div className="panel-inner stack">
-              <div className="metric">
-                <strong>apps/web</strong>
-                <span>Dedicated user web client on Next.js App Router.</span>
-              </div>
-              <div className="metric">
-                <strong>packages/*</strong>
-                <span>Shared host config, auth session, DTOs, and lightweight i18n.</span>
-              </div>
-              <div className="metric">
-                <strong>V1 routes</strong>
-                <span>Core product pages are deep-linkable and browser-native.</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      <section style={{ paddingBottom: 48 }}>
         <div className="container grid-3">
-          {cards.map((card) => (
+          {defaultCards.map((card) => (
             <div className="panel page-card" key={card.title}>
               <h2>{card.title}</h2>
               <p className="muted">{card.body}</p>
             </div>
           ))}
+          <div className="panel page-card">
+            <h2>Current host</h2>
+            <p className="muted">{host}</p>
+          </div>
         </div>
       </section>
     </main>

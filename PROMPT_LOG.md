@@ -1,5 +1,7 @@
 # Prompt Log
 
+- 2026-03-27 13:28:00 +0300 | Запрос: "возми дизайн от сюда https://vedamatch.ru/user/dashboard для главной social.vedamatch.ru и сервисы кнопочками как в телефоне ярлыки"
+
 - 2026-03-27 13:20:00 +0300 | Запрос: "если захожу в чат то ошибка - Removing unpermitted intrinsics
 core.js:297 Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'payload')
     at core.js:297:66041
