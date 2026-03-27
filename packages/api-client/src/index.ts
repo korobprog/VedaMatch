@@ -8,6 +8,7 @@ import type {
   LoginResponse,
   NewsItem,
   NewsListResponse,
+  P2PMessage,
   PaginatedContactsResponse,
   PaginatedMessagesResponse,
   RootDomain,
@@ -112,7 +113,8 @@ function normalizeTokens(payload: LoginResponse | AuthTokens | null | undefined)
     return null;
   }
 
-  const accessToken = String(payload.accessToken || payload.token || "").trim();
+  const legacyToken = "token" in payload ? payload.token : undefined;
+  const accessToken = String(payload.accessToken || legacyToken || "").trim();
   if (!accessToken) {
     return null;
   }
@@ -223,7 +225,7 @@ export function getBrowserSession(): AuthSession | null {
   }
 
   if (!tokens) {
-    return user ? { user } : null;
+    return null;
   }
 
   return {
@@ -432,8 +434,17 @@ export async function getMessageHistory(baseUrl: string, accessToken: string, pe
   return apiFetch<PaginatedMessagesResponse>(baseUrl, `/messages/history?peerUserId=${peerUserId}&limit=30`, {}, accessToken);
 }
 
-export async function sendMessage(baseUrl: string, accessToken: string, payload: { senderId: number; recipientId: number; content: string; type?: string }) {
-  return apiFetch(baseUrl, "/messages", { method: "POST", body: JSON.stringify({ ...payload, type: payload.type || "text" }) }, accessToken);
+export async function sendMessage(
+  baseUrl: string,
+  accessToken: string,
+  payload: { senderId: number; recipientId: number; content: string; type?: string },
+): Promise<P2PMessage> {
+  return apiFetch<P2PMessage>(
+    baseUrl,
+    "/messages",
+    { method: "POST", body: JSON.stringify({ ...payload, type: payload.type || "text" }) },
+    accessToken,
+  );
 }
 
 export async function getSupportConfig(baseUrl: string): Promise<SupportConfig> {
@@ -570,8 +581,20 @@ export class BrowserVedaClient {
     return getNews(this.baseUrl);
   }
 
+  async getNewsItem(id: number, language?: Language) {
+    return getNewsItem(this.baseUrl, id, language);
+  }
+
   async getBooks() {
     return getBooks(this.baseUrl);
+  }
+
+  async getBookChapters(bookCode: string) {
+    return getBookChapters(this.baseUrl, bookCode);
+  }
+
+  async getVerses(bookCode: string, chapter: number, language?: Language) {
+    return getVerses(this.baseUrl, bookCode, chapter, language);
   }
 
   async getServices() {

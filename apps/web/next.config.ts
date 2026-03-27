@@ -5,6 +5,7 @@ const workspaceRoot = path.resolve(process.cwd(), "../..");
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  output: "standalone",
   outputFileTracingRoot: workspaceRoot,
   transpilePackages: [
     "@vedamatch/api-client",
@@ -25,4 +26,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-

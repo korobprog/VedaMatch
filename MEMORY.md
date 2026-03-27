@@ -15,6 +15,10 @@
 - Для будущей полной web-версии разумнее считать текущий путь таким: выносить shared domain/api слой из `frontend/` и собирать полноценный web-клиент поверх Next.js, а не пытаться быстро запустить весь существующий RN UI в браузере.
 - Для web foundation принят workspace-путь с `apps/web` и platform-neutral пакетами `packages/api-client`, `packages/domain-types`, `packages/i18n`; новые web flow должны быть URL-first и не импортировать RN runtime.
 - В новой web foundation основной authenticated route contract идет через `apps/web` и URL-пространство `/app/*`; старый `/portal` контур удален и не должен использоваться как актуальный web contract.
+- После workspace install новый `apps/web` проходит `pnpm --dir apps/web run typecheck` и `pnpm --dir apps/web run build`; foundation валиден как отдельный Next.js runtime.
+- `social.vedamatch.ru` для web следует вести не как отдельный проект, а как host-aware surface того же `apps/web`: social-oriented landing/auth entry на том же runtime с переходом в общий `/app/*` shell после входа.
+- По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`, но `web` и `vedamatch-social` пока оба собраны из legacy `admin`, а не из нового `apps/web`.
+- Dokploy для `vedamatch-social` сейчас собирает удаленный GitHub `main`, а не локальный workspace; поэтому до коммита и push нового root `Dockerfile` и web-изменений redeploy нового runtime будет падать на шаге `open Dockerfile: no such file or directory`.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
@@ -45,11 +49,12 @@
   - `social.vedamatch.ru` и `social.vedamatch.com` — публичные auth entrypoints;
   - `lkm.vedamatch.ru` и `lkm.vedamatch.com` — кошелек LKM, его не трогать в рамках этого переноса;
   - для внутренней панели управления выбран временный канонический hostname `panel.vedamatch.ru/.com`, пока пользователь не задаст другой.
-- Live production routing, подтвержденный по SSH 2026-03-20:
-  - portal container `vedamatch-admin-gompiy` сейчас обслуживает `vedamatch.ru`, `vedamatch.com`, `www.vedamatch.com`;
-  - wallet container `vedamatch-lkm-oye85b` обслуживает `lkm.vedamatch.ru` и `lkm.vedamatch.com`;
-  - API container `vedamatch-server-dnkxc8` обслуживает только `api.vedamatch.ru`;
-  - `admin.vedamatch.ru/.com`, `social.vedamatch.ru/.com`, `panel.vedamatch.ru/.com` и `api.vedamatch.com` в live Traefik пока не заведены.
+- Live production routing, перепроверенный через Dokploy MCP 2026-03-27:
+  - app `web` сейчас обслуживает `vedamatch.ru`, `vedamatch.com`, `admin.vedamatch.ru`, `admin.vedamatch.com`, но всё ещё собирается из legacy `admin`;
+  - app `vedamatch-social` обслуживает `social.vedamatch.ru`, `social.vedamatch.com`, но тоже пока собирается из legacy `admin`;
+  - app `vedamatch-panel` обслуживает `panel.vedamatch.ru`, `panel.vedamatch.com`;
+  - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
+  - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
 
 ## Chat / Messaging
 - Direct user chat в mobile сейчас построен вокруг экрана контактов и открытия `Chat` по конкретному пользователю, а не вокруг отдельного inbox/списка диалогов с `lastMessage`, `unread` и conversation ordering.

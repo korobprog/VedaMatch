@@ -6,7 +6,11 @@ import { useState } from "react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import { useSession } from "@/components/session-context";
 
-export function LoginForm() {
+type LoginFormProps = {
+  entryVariant?: "default" | "social";
+};
+
+export function LoginForm({ entryVariant = "default" }: LoginFormProps) {
   const router = useRouter();
   const { dictionary, setSession } = useSession();
   const [email, setEmail] = useState("");
@@ -38,9 +42,13 @@ export function LoginForm() {
         <div className="panel" style={{ maxWidth: 640, margin: "0 auto" }}>
           <div className="panel-inner stack">
             <div className="section-head">
-              <span className="eyebrow">{dictionary.auth.loginTitle}</span>
+              <span className="eyebrow">{entryVariant === "social" ? "Social sign in" : dictionary.auth.loginTitle}</span>
               <h1>{dictionary.auth.loginTitle}</h1>
-              <p>{dictionary.portal.subtitle}</p>
+              <p>
+                {entryVariant === "social"
+                  ? "Sign in to the social web entrypoint, then continue into the shared VedaMatch shell."
+                  : dictionary.portal.subtitle}
+              </p>
             </div>
             <form className="form-grid" onSubmit={handleSubmit}>
               {state.error ? <div className="notice">{state.error}</div> : null}
@@ -69,7 +77,7 @@ export function LoginForm() {
               </button>
             </form>
             <p className="muted">
-              No account yet? <Link href="/register">{dictionary.nav.register}</Link>
+              No account yet? <Link href="/register">{entryVariant === "social" ? "Create a social web account" : dictionary.nav.register}</Link>
             </p>
           </div>
         </div>
