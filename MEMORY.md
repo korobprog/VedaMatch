@@ -19,6 +19,7 @@
 - `social.vedamatch.ru` для web следует вести не как отдельный проект, а как host-aware surface того же `apps/web`: social-oriented landing/auth entry на том же runtime с переходом в общий `/app/*` shell после входа.
 - По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`, но `web` и `vedamatch-social` пока оба собраны из legacy `admin`, а не из нового `apps/web`.
 - Dokploy для `vedamatch-social` сейчас собирает удаленный GitHub `main`, а не локальный workspace; поэтому до коммита и push нового root `Dockerfile` и web-изменений redeploy нового runtime будет падать на шаге `open Dockerfile: no such file or directory`.
+- После появления root `Dockerfile` следующий подтвержденный live blocker для `vedamatch-social`: Docker build проходит до runtime stage и падает на `COPY /app/apps/web/public`, потому что в `apps/web` не было каталога `public`; для стабильного deploy этот каталог должен существовать даже пустым.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
