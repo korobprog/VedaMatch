@@ -1,5 +1,13 @@
 # Prompt Log
 
+- 2026-03-27 13:20:00 +0300 | Запрос: "если захожу в чат то ошибка - Removing unpermitted intrinsics
+core.js:297 Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'payload')
+    at core.js:297:66041
+    at async Tx (core.js:297:65982)
+2chats:1 Uncaught (in promise) Error: Could not establish connection. Receiving end does not exist.
+bff67456396e27c4.js:1 Uncaught Error: Minified React error #31; visit https://react.dev/errors/31?args[]=object%20with%20keys%20%7BID%2C%20karmicName%2C%20spiritualName%2C%20nickname%2C%20nicknameDisplay%2C%20displayName%2C%20email%2C%20lastSeen%7D for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+..."
+
 - 2026-03-27 13:12:00 +0300 | Запрос: "давай"
 
 - 2026-03-27 13:06:00 +0300 | Запрос: "давай"

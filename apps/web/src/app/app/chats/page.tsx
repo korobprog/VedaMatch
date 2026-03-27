@@ -6,13 +6,59 @@ import { createBrowserClient } from "@vedamatch/api-client";
 import type { ChatConversationPreview } from "@vedamatch/domain-types";
 import { useSession } from "@/components/session-context";
 
+type ChatDictionary = ReturnType<typeof useSession>["dictionary"]["chats"];
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readUserLabel(value: unknown): string {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  return readString(record.nicknameDisplay)
+    || readString(record.displayName)
+    || readString(record.spiritualName)
+    || readString(record.karmicName)
+    || readString(record.email);
+}
+
+function readConversationTitle(conversation: ChatConversationPreview, dictionary: ChatDictionary): string {
+  return readString(conversation.peerUserPreview)
+    || readUserLabel(conversation.peerUserPreview)
+    || readUserLabel(conversation.peerUser)
+    || `${dictionary.sender} #${conversation.peerUserId}`;
+}
+
+function readConversationPreview(conversation: ChatConversationPreview, dictionary: ChatDictionary): string {
+  const lastMessageValue = conversation.lastMessage as unknown;
+  if (typeof lastMessageValue === "string" && lastMessageValue.trim()) {
+    return lastMessageValue;
+  }
+
+  if (lastMessageValue && typeof lastMessageValue === "object") {
+    const record = lastMessageValue as Record<string, unknown>;
+    return readString(record.content) || readString(record.text) || dictionary.noPreview;
+  }
+
+  return dictionary.noPreview;
+}
+
+function readConversationMeta(conversation: ChatConversationPreview, dictionary: ChatDictionary): string {
+  return readString(conversation.lastMessageAt) || dictionary.recentThread;
+}
+
 export default function ChatsPage() {
   const { dictionary } = useSession();
   const [conversations, setConversations] = useState<ChatConversationPreview[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    createBrowserClient().getConversations().then(setConversations).catch((loadError) => {
+    createBrowserClient().getConversations().then((items) => {
+      setConversations(Array.isArray(items) ? items : []);
+    }).catch((loadError) => {
       setError(loadError instanceof Error ? loadError.message : dictionary.chats.inboxLoadFailed);
     });
   }, [dictionary.chats.inboxLoadFailed]);
@@ -34,12 +80,8 @@ export default function ChatsPage() {
       ) : (
         <div className="stack">
           {conversations.map((conversation) => {
-            const title =
-              conversation.peerUserPreview ||
-              conversation.peerUser?.nicknameDisplay ||
-              conversation.peerUser?.spiritualName ||
-              `${dictionary.chats.sender} #${conversation.peerUserId}`;
-            const preview = conversation.lastMessage || dictionary.chats.noPreview;
+            const title = readConversationTitle(conversation, dictionary.chats);
+            const preview = readConversationPreview(conversation, dictionary.chats);
             const badges = [
               conversation.pinned ? dictionary.chats.pinned : "",
               conversation.muted ? dictionary.chats.muted : "",
@@ -51,7 +93,7 @@ export default function ChatsPage() {
                 <div className="conversation-card__main">
                   <div className="conversation-card__title-row">
                     <strong>{title}</strong>
-                    <span className="muted">{conversation.lastMessageAt || dictionary.chats.recentThread}</span>
+                    <span className="muted">{readConversationMeta(conversation, dictionary.chats)}</span>
                   </div>
                   <p className="conversation-card__preview">{preview}</p>
                 </div>
