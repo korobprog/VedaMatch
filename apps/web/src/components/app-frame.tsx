@@ -3,25 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { LauncherItems } from "@/components/social-launcher";
 import { useSession } from "@/components/session-context";
+import { getSocialLauncherModel, resolveActiveLauncherId } from "@/lib/social-launcher";
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { dictionary, language, ready, session, logout, setLanguage } = useSession();
-
-  const links = [
-    { href: "/app", label: dictionary.nav.portal },
-    { href: "/app/profile", label: dictionary.nav.profile },
-    { href: "/app/contacts", label: dictionary.nav.contacts },
-    { href: "/app/chats", label: dictionary.nav.chats },
-    { href: "/app/library", label: dictionary.nav.library },
-    { href: "/app/news", label: dictionary.nav.news },
-    { href: "/app/services", label: dictionary.nav.services },
-    { href: "/app/travel", label: dictionary.nav.travel },
-    { href: "/app/support", label: dictionary.nav.support },
-    { href: "/app/wallet", label: dictionary.nav.wallet },
-  ] as const;
+  const launcher = getSocialLauncherModel(language);
+  const activeLauncherId = resolveActiveLauncherId(pathname);
+  const activeGroup = launcher.groups.find((group) => group.items.some((item) => item.id === activeLauncherId)) ?? null;
+  const showContextLauncher = Boolean(activeGroup) && pathname !== "/app" && !pathname.startsWith("/app/services");
 
   useEffect(() => {
     if (ready && !session?.accessToken) {
@@ -47,53 +40,83 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <main className="shell">
-      <div className="container" style={{ paddingTop: 32, paddingBottom: 48 }}>
-        <div className="panel" style={{ marginBottom: 20 }}>
-          <div className="panel-inner stack" style={{ gap: 18 }}>
-            <div className="split" style={{ alignItems: "center" }}>
-              <div>
-                <span className="eyebrow">{dictionary.portal.shellEyebrow}</span>
-                <h1 style={{ marginBottom: 8 }}>{dictionary.portal.shellTitle}</h1>
-                <p className="muted">{dictionary.portal.shellSubtitle}</p>
-              </div>
-              <div className="actions" style={{ alignItems: "center" }}>
-                <Link className="button-secondary" href="/">
-                  {dictionary.portal.publicHome}
-                </Link>
-                <select
-                  aria-label={dictionary.languageLabel}
-                  className="select"
-                  onChange={(event) => setLanguage(event.target.value)}
-                  value={language}
-                >
-                  <option value="en">EN</option>
-                  <option value="ru">RU</option>
-                  <option value="hi">HI</option>
-                </select>
-                <button className="button" onClick={() => void logout()} type="button">
-                  {dictionary.nav.logout}
-                </button>
-              </div>
+    <main className="shell shell--dashboard">
+      <div className="container" style={{ paddingTop: 28, paddingBottom: 48 }}>
+        <div className="social-shell-topbar">
+          <Link className="dashboard-brand dashboard-brand--compact" href="/app">
+            <div className="dashboard-brand__mark">VM</div>
+            <div className="dashboard-brand__copy">
+              <strong>VedaMatch</strong>
+              <span>{launcher.copy.brandSubtitle}</span>
             </div>
-            <nav className="nav-grid">
-              {links.map((link) => {
-                const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
-                return (
-                  <Link
-                    aria-current={active ? "page" : undefined}
-                    className={active ? "nav-chip active" : "nav-chip"}
-                    href={link.href}
-                    key={link.href}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
+          </Link>
+          <div className="social-shell-topbar__actions">
+            <Link className="dashboard-action dashboard-action--ghost" href="/">
+              {launcher.copy.publicHome}
+            </Link>
+            <Link
+              aria-current={pathname.startsWith("/app/profile") ? "page" : undefined}
+              className={pathname.startsWith("/app/profile") ? "dashboard-action" : "dashboard-action dashboard-action--ghost"}
+              href="/app/profile"
+            >
+              {launcher.copy.profile}
+            </Link>
+            <select
+              aria-label={dictionary.languageLabel}
+              className="dashboard-select"
+              onChange={(event) => setLanguage(event.target.value)}
+              value={language}
+            >
+              <option value="en">EN</option>
+              <option value="ru">RU</option>
+              <option value="hi">HI</option>
+            </select>
+            <button className="dashboard-action dashboard-action--ghost" onClick={() => void logout()} type="button">
+              {dictionary.nav.logout}
+            </button>
           </div>
         </div>
-        <div className="stack">{children}</div>
+
+        <div className="social-shell-panel">
+          <div className="social-shell-panel__head">
+            <div>
+              <span className="eyebrow">{launcher.copy.quickAccessTitle}</span>
+              <h2>{launcher.copy.shortcutsTitle}</h2>
+            </div>
+            <Link className="dashboard-inline-link" href="/app/services">
+              {launcher.copy.browseAllServices}
+            </Link>
+          </div>
+          <LauncherItems
+            activeId={activeLauncherId}
+            compact
+            currentLabel={launcher.copy.current}
+            items={launcher.dockItems}
+            soonLabel={launcher.copy.comingSoon}
+          />
+        </div>
+
+        {showContextLauncher && activeGroup ? (
+          <div className="social-shell-panel social-shell-panel--context">
+            <div className="social-shell-panel__head">
+              <div>
+                <span className="eyebrow">{launcher.copy.current}</span>
+                <h2>{activeGroup.label}</h2>
+              </div>
+              <Link className="dashboard-inline-link" href="/app/services">
+                {launcher.copy.browseAllServices}
+              </Link>
+            </div>
+            <LauncherItems
+              activeId={activeLauncherId}
+              currentLabel={launcher.copy.current}
+              items={activeGroup.items}
+              soonLabel={launcher.copy.comingSoon}
+            />
+          </div>
+        ) : null}
+
+        <div className="stack social-shell-content">{children}</div>
       </div>
     </main>
   );

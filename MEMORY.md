@@ -17,13 +17,17 @@
 - В новой web foundation основной authenticated route contract идет через `apps/web` и URL-пространство `/app/*`; старый `/portal` контур удален и не должен использоваться как актуальный web contract.
 - После workspace install новый `apps/web` проходит `pnpm --dir apps/web run typecheck` и `pnpm --dir apps/web run build`; foundation валиден как отдельный Next.js runtime.
 - `social.vedamatch.ru` для web следует вести не как отдельный проект, а как host-aware surface того же `apps/web`: social-oriented landing/auth entry на том же runtime с переходом в общий `/app/*` shell после входа.
-- По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`, но `web` и `vedamatch-social` пока оба собраны из legacy `admin`, а не из нового `apps/web`.
+- По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`; `vedamatch-social` уже переведен на новый `apps/web`, а основной `web` для `vedamatch.ru/admin.*` пока еще живет на legacy `admin`.
 - Dokploy для `vedamatch-social` сейчас собирает удаленный GitHub `main`, а не локальный workspace; поэтому до коммита и push нового root `Dockerfile` и web-изменений redeploy нового runtime будет падать на шаге `open Dockerfile: no such file or directory`.
 - После появления root `Dockerfile` следующий подтвержденный live blocker для `vedamatch-social`: Docker build проходит до runtime stage и падает на `COPY /app/apps/web/public`, потому что в `apps/web` не было каталога `public`; для стабильного deploy этот каталог должен существовать даже пустым.
 - Для `apps/web/src/app/app/chats/[peerUserId]/page.tsx` thread route должен нормализовать `peerUserId` и безопасно сериализовать message payload перед render; иначе direct chat может падать client-side на нестандартных `content` значениях из `/api/messages/history`.
-- В `apps/web` переключатель языка сам по себе уже работал, но значительная часть shell была hardcoded на английском; для реального RU-переключения нужно тянуть тексты из `packages/i18n` как минимум в `AppFrame`, `/app`, `ProfileForm`, `ContactsPage`, а остальные доменные страницы остаются хвостом для следующей волны локализации.
-- Вторая волна локализации для `apps/web` уже покрывает `chats`, `library`, `news`, `services`, `travel`, `support`; для SSR-страниц нужно брать словарь server-side через host-based helper (`getRequestDictionary()`), а client pages продолжают брать его из `SessionProvider`.
-- Для `social.vedamatch.ru` принят отдельный visual direction: главная `/` и overview `/app` должны выглядеть как тёмный dashboard в духе `vedamatch.ru/user/dashboard`, с hero cards и сеткой сервисов в виде mobile-like ярлыков, а не как нейтральный docs-style landing.
+- В `apps/web` RU-переключение уже протянуто через shell, core домены и social entry формы; для SSR-страниц словарь нужно брать server-side через host-based helper (`getRequestDictionary()`), а client pages продолжают брать его из `SessionProvider`.
+- Для `social.vedamatch.ru` принят отдельный visual direction: и публичная `/`, и authenticated `/app` используют один тёмный dashboard-язык в духе `vedamatch.ru/user/dashboard`, а не docs-style landing.
+- В repo-состоянии на 2026-03-27 social shell уже переведен на mobile-style launcher:
+  - `AppFrame` больше не должен рендерить большой текстовый hero и pill-nav;
+  - основной паттерн теперь это компактный top bar + icon-first dock + contextual launcher;
+  - источник состава сервисов для launcher-а должен повторять mobile portal order, а не текущий web subset;
+  - для web V1 неготовые mobile сервисы показываются как `Скоро`, без битых ссылок и runtime-crash.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.

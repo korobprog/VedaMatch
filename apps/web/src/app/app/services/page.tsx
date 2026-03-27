@@ -1,8 +1,13 @@
 import { createBrowserClient } from "@vedamatch/api-client";
+import { LauncherGroups } from "@/components/social-launcher";
+import { getRequestSurface } from "@/lib/request-surface";
+import { getSocialLauncherModel } from "@/lib/social-launcher";
 import { getRequestDictionary } from "@/lib/request-surface";
 
 export default async function ServicesPage() {
   const dictionary = await getRequestDictionary();
+  const { language } = await getRequestSurface();
+  const launcher = getSocialLauncherModel(language);
   const client = createBrowserClient("admin.vedamatch.ru");
   const services = await client.getServices().catch(() => []);
 
@@ -12,6 +17,18 @@ export default async function ServicesPage() {
         <span className="eyebrow">{dictionary.services.eyebrow}</span>
         <h1>{dictionary.services.title}</h1>
         <p className="muted">{dictionary.services.subtitle}</p>
+      </div>
+      <div className="panel page-card">
+        <div className="section-head">
+          <h2>{launcher.copy.shortcutsTitle}</h2>
+          <p className="muted">{launcher.copy.shortcutsActionLabel}</p>
+        </div>
+        <LauncherGroups
+          activeId="services_catalog"
+          currentLabel={launcher.copy.current}
+          groups={launcher.groups}
+          soonLabel={launcher.copy.comingSoon}
+        />
       </div>
       {services.length === 0 ? (
         <div className="panel page-card">

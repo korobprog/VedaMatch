@@ -1,12 +1,6 @@
 import Link from "next/link";
-
-export type DashboardShortcut = {
-  href: string;
-  label: string;
-  hint: string;
-  monogram: string;
-  tone: "blue" | "orange" | "green" | "pink" | "violet" | "copper" | "indigo" | "stone";
-};
+import { LauncherItems } from "@/components/social-launcher";
+import type { SocialLauncherItem } from "@/lib/social-launcher";
 
 type DashboardAction = {
   href: string;
@@ -28,7 +22,9 @@ type SocialDashboardHomeProps = {
   secondaryAction?: DashboardAction;
   shortcutsTitle: string;
   shortcutsActionLabel?: string;
-  shortcuts: DashboardShortcut[];
+  shortcuts: SocialLauncherItem[];
+  currentLabel: string;
+  soonLabel: string;
 };
 
 export function SocialDashboardHome({
@@ -41,6 +37,8 @@ export function SocialDashboardHome({
   primaryAction,
   secondaryAction,
   shortcuts,
+  currentLabel,
+  soonLabel,
   shortcutsActionLabel,
   shortcutsTitle,
   timeLabel,
@@ -104,23 +102,13 @@ export function SocialDashboardHome({
       <div className="dashboard-shortcuts">
         <div className="dashboard-shortcuts__head">
           <div className="dashboard-shortcuts__title">
-            <div className="dashboard-shortcuts__icon">[]</div>
+            <div className="dashboard-shortcuts__icon">VM</div>
             <h2>{shortcutsTitle}</h2>
           </div>
           {shortcutsActionLabel ? <span className="dashboard-shortcuts__action">{shortcutsActionLabel}</span> : null}
         </div>
 
-        <div className="shortcut-grid">
-          {shortcuts.map((shortcut) => (
-            <Link className="shortcut-tile" href={shortcut.href} key={shortcut.href}>
-              <div className={`shortcut-icon shortcut-icon--${shortcut.tone}`}>
-                <span>{shortcut.monogram}</span>
-              </div>
-              <strong>{shortcut.label}</strong>
-              <span>{shortcut.hint}</span>
-            </Link>
-          ))}
-        </div>
+        <LauncherItems currentLabel={currentLabel} items={shortcuts} soonLabel={soonLabel} />
       </div>
     </section>
   );

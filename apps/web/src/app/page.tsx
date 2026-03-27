@@ -1,5 +1,6 @@
-import { SocialDashboardHome, type DashboardShortcut } from "@/components/social-dashboard-home";
+import { SocialDashboardHome } from "@/components/social-dashboard-home";
 import { getRequestSurface } from "@/lib/request-surface";
+import { getSocialLauncherModel } from "@/lib/social-launcher";
 
 const defaultCards = [
   {
@@ -16,68 +17,22 @@ const defaultCards = [
   },
 ];
 
-function buildDashboardCopy(language: string) {
-  if (language === "ru") {
-    return {
-      brandSubtitle: "SOCIAL DASHBOARD",
-      badge: "LIVE COMMUNITY",
-      title: "Социальная web-версия VedaMatch",
-      body: "Открывай контакты, чаты, библиотеку, новости и сервисы из единой браузерной панели. Дизайн взят из portal dashboard и адаптирован под social surface.",
-      primaryAction: { href: "/app", label: "Открыть social", variant: "primary" as const },
-      secondaryAction: { href: "/login", label: "Войти", variant: "ghost" as const },
-      timeLabel: "MAYAPUR TIME",
-      shortcutsTitle: "Сервисы портала",
-      shortcutsActionLabel: "ЯРЛЫКИ",
-      shortcuts: [
-        { href: "/app/contacts", label: "Контакты", hint: "Люди", monogram: "CT", tone: "blue" },
-        { href: "/app/chats", label: "Чат", hint: "Диалоги", monogram: "CH", tone: "stone" },
-        { href: "/app/support", label: "Поддержка", hint: "Help", monogram: "SP", tone: "green" },
-        { href: "/app/services", label: "Сервисы", hint: "Услуги", monogram: "SV", tone: "pink" },
-        { href: "/app/library", label: "Библиотека", hint: "Reader", monogram: "LB", tone: "copper" },
-        { href: "/app/news", label: "Новости", hint: "Feed", monogram: "NW", tone: "orange" },
-        { href: "/app/travel", label: "Путешествия", hint: "Yatra", monogram: "TR", tone: "violet" },
-        { href: "/app/wallet", label: "Кошелек", hint: "LKM", monogram: "WL", tone: "indigo" },
-      ] satisfies DashboardShortcut[],
-    };
-  }
-
-  return {
-    brandSubtitle: "SOCIAL DASHBOARD",
-    badge: "LIVE COMMUNITY",
-    title: "VedaMatch social web dashboard",
-    body: "Open contacts, chats, library, news, and services from a single browser dashboard. The visual language is adapted from the portal dashboard for the social surface.",
-    primaryAction: { href: "/app", label: "Open social", variant: "primary" as const },
-    secondaryAction: { href: "/login", label: "Sign in", variant: "ghost" as const },
-    timeLabel: "MAYAPUR TIME",
-    shortcutsTitle: "Portal services",
-    shortcutsActionLabel: "SHORTCUTS",
-    shortcuts: [
-      { href: "/app/contacts", label: "Contacts", hint: "People", monogram: "CT", tone: "blue" },
-      { href: "/app/chats", label: "Chats", hint: "Inbox", monogram: "CH", tone: "stone" },
-      { href: "/app/support", label: "Support", hint: "Help", monogram: "SP", tone: "green" },
-      { href: "/app/services", label: "Services", hint: "Catalog", monogram: "SV", tone: "pink" },
-      { href: "/app/library", label: "Library", hint: "Reader", monogram: "LB", tone: "copper" },
-      { href: "/app/news", label: "News", hint: "Feed", monogram: "NW", tone: "orange" },
-      { href: "/app/travel", label: "Travel", hint: "Yatra", monogram: "TR", tone: "violet" },
-      { href: "/app/wallet", label: "Wallet", hint: "LKM", monogram: "WL", tone: "indigo" },
-    ] satisfies DashboardShortcut[],
-  };
-}
-
 export default async function HomePage() {
   const { host, isSocial, language } = await getRequestSurface();
+  const launcher = getSocialLauncherModel(language);
   const mayapurNow = new Date();
-  const timeValue = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+  const locale = launcher.language === "ru" ? "ru-RU" : "en-US";
+  const timeValue = new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Kolkata",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).format(mayapurNow);
-  const dayLabel = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+  const dayLabel = new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Kolkata",
     weekday: "long",
   }).format(mayapurNow);
-  const dateLabel = new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "en-US", {
+  const dateLabel = new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Kolkata",
     day: "numeric",
     month: "long",
@@ -85,26 +40,26 @@ export default async function HomePage() {
   }).format(mayapurNow);
 
   if (isSocial) {
-    const copy = buildDashboardCopy(language);
-
     return (
       <main className="shell shell--dashboard">
         <div className="container">
           <SocialDashboardHome
-            badge={copy.badge}
-            body={copy.body}
-            brandSubtitle={copy.brandSubtitle}
+            badge={launcher.copy.badge}
+            body={launcher.copy.publicBody}
+            brandSubtitle={launcher.copy.brandSubtitle}
             brandTitle="VedaMatch"
+            currentLabel={launcher.copy.current}
             dateLabel={dateLabel}
             dayLabel={dayLabel}
-            primaryAction={copy.primaryAction}
-            secondaryAction={copy.secondaryAction}
-            shortcuts={copy.shortcuts}
-            shortcutsActionLabel={copy.shortcutsActionLabel}
-            shortcutsTitle={copy.shortcutsTitle}
-            timeLabel={copy.timeLabel}
+            primaryAction={{ href: "/app", label: launcher.copy.openSocial, variant: "primary" }}
+            secondaryAction={{ href: "/login", label: launcher.copy.signIn, variant: "ghost" }}
+            shortcuts={launcher.allItems}
+            shortcutsActionLabel={launcher.copy.shortcutsActionLabel}
+            shortcutsTitle={launcher.copy.shortcutsTitle}
+            soonLabel={launcher.copy.comingSoon}
+            timeLabel={launcher.copy.timeLabel}
             timeValue={timeValue}
-            title={copy.title}
+            title={launcher.copy.publicTitle}
           />
         </div>
       </main>
