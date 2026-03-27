@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import type { ChatConversationPreview } from "@vedamatch/domain-types";
+import { useSession } from "@/components/session-context";
 
 export default function ChatsPage() {
+  const { dictionary } = useSession();
   const [conversations, setConversations] = useState<ChatConversationPreview[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
     createBrowserClient().getConversations().then(setConversations).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load conversations.");
+      setError(loadError instanceof Error ? loadError.message : dictionary.chats.inboxLoadFailed);
     });
-  }, []);
+  }, [dictionary.chats.inboxLoadFailed]);
 
   if (error) {
     return <div className="panel page-card"><div className="notice">{error}</div></div>;
@@ -22,14 +24,12 @@ export default function ChatsPage() {
   return (
     <div className="stack">
       <div className="panel page-card">
-        <h1>Direct chat inbox</h1>
-        <p className="muted">
-          Browser-first inbox powered by `GET /api/messages/conversations`, focused on unread context and fast thread entry.
-        </p>
+        <h1>{dictionary.chats.inboxTitle}</h1>
+        <p className="muted">{dictionary.chats.inboxSubtitle}</p>
       </div>
       {conversations.length === 0 ? (
         <div className="panel page-card">
-          <div className="empty-state">No conversations yet.</div>
+          <div className="empty-state">{dictionary.chats.inboxEmpty}</div>
         </div>
       ) : (
         <div className="stack">
@@ -38,12 +38,12 @@ export default function ChatsPage() {
               conversation.peerUserPreview ||
               conversation.peerUser?.nicknameDisplay ||
               conversation.peerUser?.spiritualName ||
-              `User #${conversation.peerUserId}`;
-            const preview = conversation.lastMessage || "No preview";
+              `${dictionary.chats.sender} #${conversation.peerUserId}`;
+            const preview = conversation.lastMessage || dictionary.chats.noPreview;
             const badges = [
-              conversation.pinned ? "Pinned" : "",
-              conversation.muted ? "Muted" : "",
-              conversation.unreadCount > 0 ? `Unread ${conversation.unreadCount}` : "Read",
+              conversation.pinned ? dictionary.chats.pinned : "",
+              conversation.muted ? dictionary.chats.muted : "",
+              conversation.unreadCount > 0 ? `${dictionary.chats.unread} ${conversation.unreadCount}` : dictionary.chats.read,
             ].filter(Boolean);
 
             return (
@@ -51,7 +51,7 @@ export default function ChatsPage() {
                 <div className="conversation-card__main">
                   <div className="conversation-card__title-row">
                     <strong>{title}</strong>
-                    <span className="muted">{conversation.lastMessageAt || "Recent thread"}</span>
+                    <span className="muted">{conversation.lastMessageAt || dictionary.chats.recentThread}</span>
                   </div>
                   <p className="conversation-card__preview">{preview}</p>
                 </div>

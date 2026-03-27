@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createBrowserClient } from "@vedamatch/api-client";
 import type { NewsItem } from "@vedamatch/domain-types";
+import { getRequestDictionary } from "@/lib/request-surface";
 
 export default async function NewsItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const dictionary = await getRequestDictionary();
   const { id } = await params;
   const parsedId = Number.parseInt(id, 10);
   if (!Number.isFinite(parsedId)) {
@@ -24,11 +26,11 @@ export default async function NewsItemPage({ params }: { params: Promise<{ id: s
     <div className="stack">
       <article className="panel page-card article-page">
         <Link className="button-secondary" href="/app/news">
-          Back to news
+          {dictionary.news.backToNews}
         </Link>
         <div className="content-card__meta">
           {item.category ? <span className="content-pill">{item.category}</span> : null}
-          {item.isImportant ? <span className="content-pill content-pill--accent">Important</span> : null}
+          {item.isImportant ? <span className="content-pill content-pill--accent">{dictionary.news.important}</span> : null}
           {item.sourceName ? <span className="content-pill">{item.sourceName}</span> : null}
         </div>
         <div className="stack" style={{ gap: 12 }}>
@@ -54,10 +56,10 @@ export default async function NewsItemPage({ params }: { params: Promise<{ id: s
             ))}
           </div>
           <div className="actions">
-            <span className="muted">Views: {item.viewsCount}</span>
+            <span className="muted">{dictionary.news.views}: {item.viewsCount}</span>
             {item.originalUrl ? (
               <a className="button-secondary" href={item.originalUrl} rel="noreferrer" target="_blank">
-                Original source
+                {dictionary.news.originalSource}
               </a>
             ) : null}
           </div>

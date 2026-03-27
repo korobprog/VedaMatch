@@ -1,28 +1,30 @@
+"use client";
+
+import { useSession } from "@/components/session-context";
+
 export default function AppHomePage() {
+  const { dictionary } = useSession();
+
   return (
     <>
       <div className="panel page-card">
-        <h1>Core web shell</h1>
-        <p className="muted">
-          This authenticated shell is the new browser-native entrypoint for VedaMatch.
-          It intentionally starts with core domains and keeps calls, live media, and native-only flows out of phase 1.
-        </p>
+        <h1>{dictionary.portal.overviewTitle}</h1>
+        <p className="muted">{dictionary.portal.overviewBody}</p>
       </div>
       <div className="grid-3">
         <div className="panel page-card">
-          <h2>Profile and settings</h2>
-          <p className="muted">Editable through the shared auth session and `/update-profile`.</p>
+          <h2>{dictionary.portal.profileCardTitle}</h2>
+          <p className="muted">{dictionary.portal.profileCardBody}</p>
         </div>
         <div className="panel page-card">
-          <h2>Social core</h2>
-          <p className="muted">Contacts, conversation list, and direct thread pages are browser-first.</p>
+          <h2>{dictionary.portal.socialCardTitle}</h2>
+          <p className="muted">{dictionary.portal.socialCardBody}</p>
         </div>
         <div className="panel page-card">
-          <h2>Content and utility</h2>
-          <p className="muted">Library, news, services, travel, wallet routing, and support entry are mapped to deep links.</p>
+          <h2>{dictionary.portal.utilityCardTitle}</h2>
+          <p className="muted">{dictionary.portal.utilityCardBody}</p>
         </div>
       </div>
     </>
   );
 }
-

@@ -7,13 +7,15 @@ import { createBrowserClient } from "@vedamatch/api-client";
 import type { P2PMessage } from "@vedamatch/domain-types";
 import { useSession } from "@/components/session-context";
 
+type ChatDictionary = ReturnType<typeof useSession>["dictionary"]["chats"];
+
 function normalizePeerUserId(rawValue: string | string[] | undefined): number | null {
   const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
   const parsed = Number.parseInt(value || "", 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function readMessageText(message: P2PMessage): string {
+function readMessageText(message: P2PMessage, dictionary: ChatDictionary): string {
   const rawContent = (message as P2PMessage & { text?: unknown; content?: unknown }).content
     ?? (message as P2PMessage & { text?: unknown }).text;
 
@@ -30,7 +32,7 @@ function readMessageText(message: P2PMessage): string {
     try {
       return JSON.stringify(rawContent);
     } catch {
-      return "Unsupported message payload";
+      return dictionary.unsupportedPayload;
     }
   }
 
@@ -40,28 +42,28 @@ function readMessageText(message: P2PMessage): string {
 
   switch (message.type) {
     case "image":
-      return "Image";
+      return dictionary.image;
     case "audio":
-      return "Audio";
+      return dictionary.audio;
     case "video":
-      return "Video";
+      return dictionary.video;
     case "file":
     case "document":
-      return "File";
+      return dictionary.file;
     case "contact_card":
-      return "Contact card";
+      return dictionary.contactCard;
     default:
-      return "Empty message";
+      return dictionary.emptyMessage;
   }
 }
 
-function readMessageMeta(message: P2PMessage): string {
-  return String(message.createdAt || message.CreatedAt || message.type || "Message");
+function readMessageMeta(message: P2PMessage, dictionary: ChatDictionary): string {
+  return String(message.createdAt || message.CreatedAt || message.type || dictionary.messageMetaFallback);
 }
 
 export default function ChatThreadPage() {
   const params = useParams<{ peerUserId: string }>();
-  const { session } = useSession();
+  const { dictionary, session } = useSession();
   const [peerUserId, setPeerUserId] = useState<number | null>(null);
   const [messages, setMessages] = useState<P2PMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -79,9 +81,9 @@ export default function ChatThreadPage() {
     createBrowserClient().getMessagesHistory(peerUserId).then((response) => {
       setMessages(Array.isArray(response.items) ? response.items : []);
     }).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load messages.");
+      setError(loadError instanceof Error ? loadError.message : dictionary.chats.threadLoadFailed);
     });
-  }, [peerUserId]);
+  }, [dictionary.chats.threadLoadFailed, peerUserId]);
 
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,7 +98,7 @@ export default function ChatThreadPage() {
       setMessages((current) => [...current, nextMessage]);
       setDraft("");
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Failed to send message.");
+      setError(sendError instanceof Error ? sendError.message : dictionary.chats.threadSendFailed);
     } finally {
       setSending(false);
     }
@@ -110,10 +112,10 @@ export default function ChatThreadPage() {
         <div className="thread-head">
           <div className="stack" style={{ gap: 8 }}>
             <Link className="button-secondary" href="/app/chats">
-              Back to inbox
+              {dictionary.chats.backToInbox}
             </Link>
-            <h1>Direct chat thread</h1>
-            <p className="muted">Peer user ID: {peerUserId ?? "..."}</p>
+            <h1>{dictionary.chats.threadTitle}</h1>
+            <p className="muted">{dictionary.chats.peerUserId}: {peerUserId ?? "..."}</p>
           </div>
         </div>
       </div>
@@ -121,16 +123,16 @@ export default function ChatThreadPage() {
       <div className="thread-panel">
         <div className="thread-messages">
           {messages.length === 0 ? (
-            <div className="empty-state">No messages yet.</div>
+            <div className="empty-state">{dictionary.chats.threadEmpty}</div>
           ) : messages.map((message, index) => {
             const isOwn = Boolean(currentUserId && message.senderId === currentUserId);
-            const senderLabel = isOwn ? "You" : String(message.senderName || `Sender #${message.senderId}`);
+            const senderLabel = isOwn ? dictionary.chats.you : String(message.senderName || `${dictionary.chats.sender} #${message.senderId}`);
             return (
               <div className={isOwn ? "thread-message thread-message--own" : "thread-message"} key={String(message.id || message.ID || index)}>
                 <div className="thread-message__bubble">
                   <strong>{senderLabel}</strong>
-                  <p>{readMessageText(message)}</p>
-                  <small>{readMessageMeta(message)}</small>
+                  <p>{readMessageText(message, dictionary.chats)}</p>
+                  <small>{readMessageMeta(message, dictionary.chats)}</small>
                 </div>
               </div>
             );
@@ -138,13 +140,13 @@ export default function ChatThreadPage() {
         </div>
         <form className="composer" onSubmit={handleSend}>
           <label className="field">
-            <span>Reply</span>
-            <textarea onChange={(event) => setDraft(event.target.value)} placeholder="Write a direct message..." value={draft} />
+            <span>{dictionary.chats.reply}</span>
+            <textarea onChange={(event) => setDraft(event.target.value)} placeholder={dictionary.chats.replyPlaceholder} value={draft} />
           </label>
           <div className="composer-actions">
-            <span className="muted">Messages are sent through the shared `/api/messages` contract.</span>
+            <span className="muted">{dictionary.chats.contractHint}</span>
             <button className="button" disabled={sending} type="submit">
-              {sending ? "Sending..." : "Send"}
+              {sending ? dictionary.chats.sending : dictionary.chats.send}
             </button>
           </div>
         </form>

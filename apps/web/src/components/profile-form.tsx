@@ -5,7 +5,7 @@ import { createBrowserClient } from "@vedamatch/api-client";
 import { useSession } from "@/components/session-context";
 
 export function ProfileForm() {
-  const { session, setSession } = useSession();
+  const { dictionary, session, setSession } = useSession();
   const [form, setForm] = useState({
     karmicName: "",
     spiritualName: "",
@@ -33,11 +33,11 @@ export function ProfileForm() {
     try {
       const nextSession = await createBrowserClient().updateProfile(form);
       setSession(nextSession);
-      setState({ loading: false, error: "", success: "Profile updated." });
+      setState({ loading: false, error: "", success: dictionary.profile.updated });
     } catch (submitError) {
       setState({
         loading: false,
-        error: submitError instanceof Error ? submitError.message : "Failed to update profile.",
+        error: submitError instanceof Error ? submitError.message : dictionary.profile.updateFailed,
         success: "",
       });
     }
@@ -45,43 +45,43 @@ export function ProfileForm() {
 
   return (
     <div className="panel page-card">
-      <h1>Profile and settings</h1>
-      <p className="muted">Browser-first profile editor using the shared auth session and `/api/update-profile`.</p>
+      <h1>{dictionary.profile.title}</h1>
+      <p className="muted">{dictionary.profile.subtitle}</p>
       <form className="form-grid" onSubmit={handleSubmit}>
         {state.error ? <div className="notice">{state.error}</div> : null}
         {state.success ? <div className="notice success">{state.success}</div> : null}
         <div className="split">
           <label className="field">
-            <span>Karmic name</span>
+            <span>{dictionary.profile.karmicName}</span>
             <input onChange={(event) => setForm({ ...form, karmicName: event.target.value })} value={form.karmicName} />
           </label>
           <label className="field">
-            <span>Spiritual name</span>
+            <span>{dictionary.profile.spiritualName}</span>
             <input onChange={(event) => setForm({ ...form, spiritualName: event.target.value })} value={form.spiritualName} />
           </label>
         </div>
         <div className="split">
           <label className="field">
-            <span>Nickname</span>
+            <span>{dictionary.profile.nickname}</span>
             <input onChange={(event) => setForm({ ...form, nickname: event.target.value })} value={form.nickname} />
           </label>
           <label className="field">
-            <span>Identity</span>
+            <span>{dictionary.profile.identity}</span>
             <input onChange={(event) => setForm({ ...form, identity: event.target.value })} value={form.identity} />
           </label>
         </div>
         <div className="split">
           <label className="field">
-            <span>City</span>
+            <span>{dictionary.profile.city}</span>
             <input onChange={(event) => setForm({ ...form, city: event.target.value })} value={form.city} />
           </label>
           <label className="field">
-            <span>Country</span>
+            <span>{dictionary.profile.country}</span>
             <input onChange={(event) => setForm({ ...form, country: event.target.value })} value={form.country} />
           </label>
         </div>
         <button className="button" disabled={state.loading} type="submit">
-          {state.loading ? "Saving..." : "Save profile"}
+          {state.loading ? dictionary.profile.saving : dictionary.profile.save}
         </button>
       </form>
     </div>

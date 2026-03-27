@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import type { UserContact } from "@vedamatch/domain-types";
+import { useSession } from "@/components/session-context";
 
 export default function ContactsPage() {
+  const { dictionary } = useSession();
   const [contacts, setContacts] = useState<UserContact[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
     createBrowserClient().getContacts().then(setContacts).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load contacts.");
+      setError(loadError instanceof Error ? loadError.message : dictionary.contacts.loadFailed);
     });
-  }, []);
+  }, [dictionary.contacts.loadFailed]);
 
   if (error) {
     return <div className="panel page-card"><div className="notice">{error}</div></div>;
@@ -22,14 +24,12 @@ export default function ContactsPage() {
   return (
     <div className="stack">
       <div className="panel page-card">
-        <h1>Contacts core</h1>
-        <p className="muted">
-          Protected people directory for the social web entrypoint. Each contact can be opened directly into a browser-first direct chat thread.
-        </p>
+        <h1>{dictionary.contacts.title}</h1>
+        <p className="muted">{dictionary.contacts.subtitle}</p>
       </div>
       {contacts.length === 0 ? (
         <div className="panel page-card">
-          <div className="empty-state">No contacts returned yet.</div>
+          <div className="empty-state">{dictionary.contacts.empty}</div>
         </div>
       ) : (
         <div className="social-grid">
@@ -45,13 +45,13 @@ export default function ContactsPage() {
                   </div>
                   <div className="stack" style={{ gap: 6 }}>
                     <strong>{title}</strong>
-                    <span className="muted">{contact.email || "Protected contact"}</span>
+                    <span className="muted">{contact.email || dictionary.contacts.protectedContact}</span>
                     {subtitle ? <span className="muted">{subtitle}</span> : null}
                   </div>
                 </div>
                 <div className="actions">
                   <Link className="button-secondary" href={`/app/chats/${contact.ID}`}>
-                    Open chat
+                    {dictionary.contacts.openChat}
                   </Link>
                 </div>
               </article>
