@@ -8,6 +8,12 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## Web Architecture
+- В репозитории уже есть три разных клиентских контура: `frontend/` как основной React Native app, `admin/` как Next.js public/admin portal, `lkm/` как отдельный Next.js wallet/cabinet.
+- `server/` это основной Go/Fiber API с широкой доменной поверхностью (`contacts`, `friends`, `library`, `wallet`, `services`, `yatra`, `chat`, `support`, `multimedia`, `education`, `market`, `dhama` и др.), поэтому backend для веб-версии в значительной части уже существует.
+- `frontend/` пока не выглядит подготовленным к прямому `react-native-web` пути: навигация строится на `@react-navigation/native` + `createNativeStackNavigator`, а код широко завязан на native-only модули вроде `react-native-callkeep`, `react-native-webrtc`, `react-native-vision-camera`, `react-native-voip-push-notification`, `react-native-share`, `react-native-fs`, `react-native-mmkv`, `react-native-device-info`.
+- Для будущей полной web-версии разумнее считать текущий путь таким: выносить shared domain/api слой из `frontend/` и собирать полноценный web-клиент поверх Next.js, а не пытаться быстро запустить весь существующий RN UI в браузере.
+
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
 - На iOS для входящих звонков с PushKit/CallKeep нужно держать один источник incoming UI: системный CallKit. Наш in-app экран должен открываться уже как active/connecting screen после `answerCall`, а не показывать второй `accept/decline` поверх системного экрана.
