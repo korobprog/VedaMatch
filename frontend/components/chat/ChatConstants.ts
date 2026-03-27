@@ -70,6 +70,7 @@ export type Message = {
     id: string;
     text: string;
     sender: 'user' | 'bot' | 'other';
+    status?: 'sending' | 'sent' | 'seen' | 'failed';
     type?: 'text' | 'image' | 'audio' | 'video' | 'file' | 'document' | 'video_circle' | 'contact_card';
     fileName?: string;
     fileSize?: number;

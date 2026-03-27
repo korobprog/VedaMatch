@@ -52,6 +52,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
+import { navigateToDirectChatByUserId } from '../../../utils/directChatNavigation';
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -205,7 +206,9 @@ export default function ServiceDetailScreen() {
             Alert.alert(t('portal.serviceDetail.alerts.infoTitle'), t('portal.serviceDetail.alerts.ownService'));
             return;
         }
-        navigation.navigate('Chat', { userId: service.owner.id, name: service.owner.karmicName });
+        navigateToDirectChatByUserId(navigation, service.owner.id, {
+            name: service.owner.spiritualName || service.owner.karmicName,
+        });
     };
 
     const isOwner = user?.ID === service?.ownerId;

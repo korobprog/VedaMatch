@@ -9,7 +9,6 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
-	"rag-agent-server/internal/websocket"
 	"strconv"
 	"strings"
 	"time"
@@ -19,12 +18,12 @@ import (
 
 type MessageHandler struct {
 	aiService       *services.AiChatService
-	hub             *websocket.Hub
+	hub             directConversationBroadcaster
 	walletService   *services.WalletService
 	referralService *services.ReferralService
 }
 
-func NewMessageHandler(aiService *services.AiChatService, hub *websocket.Hub, walletService *services.WalletService, referralService *services.ReferralService) *MessageHandler {
+func NewMessageHandler(aiService *services.AiChatService, hub directConversationBroadcaster, walletService *services.WalletService, referralService *services.ReferralService) *MessageHandler {
 	return &MessageHandler{
 		aiService:       aiService,
 		hub:             hub,
@@ -49,6 +48,7 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 	}
 
 	msg.SenderID = userID
+	msg.ReadAt = nil
 	msg.Content = strings.TrimSpace(msg.Content)
 	if (msg.RecipientID == 0 && msg.RoomID == 0) || msg.Content == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -121,6 +121,9 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 			"error": "Could not save message",
 		})
 	}
+	if msg.RoomID == 0 {
+		_ = clearArchivedDirectPreferencesForPair(msg.SenderID, msg.RecipientID)
+	}
 
 	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
 		RoomName:      roomName,
@@ -136,6 +139,7 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 			}
 		} else {
 			h.hub.Broadcast(msg)
+			h.broadcastDirectConversationUpdated(msg)
 		}
 	}
 

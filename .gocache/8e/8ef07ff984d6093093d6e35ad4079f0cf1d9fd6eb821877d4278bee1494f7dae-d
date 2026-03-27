@@ -1,6 +1,0 @@
-./admin.go
-./auth.go
-./cache_control.go
-./observability.go
-./observability_prometheus.go
-./rate_limit.go

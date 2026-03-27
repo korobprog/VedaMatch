@@ -15,6 +15,7 @@ import { AtSign, ChevronLeft, Mail, MapPin, Shield, MessageCircle, UserPlus, Use
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
+import { navigateToDirectChat } from '../../../utils/directChatNavigation';
 import { friendRequestService } from '../../../services/friendRequestService';
 import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
 import OrganizerBadge from '../../../components/travel/OrganizerBadge';
@@ -122,7 +123,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const handleSendMessage = () => {
         if (!contact) return;
         setChatRecipient(contact);
-        navigation.navigate('Chat');
+        navigateToDirectChat(navigation, contact);
     };
 
     // Background Wrapper Logic

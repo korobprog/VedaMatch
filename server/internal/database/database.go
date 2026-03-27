@@ -195,6 +195,12 @@ func Connect() {
 	// Channel post reactions/comments query paths.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_post_comments_post_created_desc
 		ON channel_post_comments (post_id, created_at DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_direct_conversation_lookup
+		ON messages (room_id, sender_id, recipient_id, created_at DESC, id DESC)
+		WHERE room_id = 0`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_direct_unread_lookup
+		ON messages (recipient_id, created_at DESC, id DESC)
+		WHERE room_id = 0 AND read_at IS NULL`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_roadmap_channel_status_position
 		ON channel_roadmap_points (channel_id, status, position)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_roadmap_channel_event

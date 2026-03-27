@@ -26,6 +26,7 @@ import YatraReviewsSection from '../../../components/travel/YatraReviewsSection'
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { navigateToDirectChatByUserId } from '../../../utils/directChatNavigation';
 
 const YatraDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -318,7 +319,9 @@ const YatraDetailScreen: React.FC = () => {
                         </View>
                         <TouchableOpacity
                             style={[styles.messageButton, { backgroundColor: colors.surface }]}
-                            onPress={() => navigation.navigate('Chat', { userId: yatra.organizerId })}
+                            onPress={() => navigateToDirectChatByUserId(navigation, yatra.organizerId, {
+                                name: yatra.organizer?.spiritualName || yatra.organizer?.karmicName,
+                            })}
                         >
                             <MessageCircle size={20} color={colors.textPrimary} />
                         </TouchableOpacity>

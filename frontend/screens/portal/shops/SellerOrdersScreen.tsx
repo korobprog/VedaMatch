@@ -14,6 +14,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import { RootStackParamList } from '../../../types/navigation';
+import { navigateToDirectChatByUserId } from '../../../utils/directChatNavigation';
 
 const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; tone: 'accent' | 'success' | 'warning' | 'danger'; emoji: string }> = {
     new: { label: 'New', tone: 'accent', emoji: '🆕' },
@@ -38,7 +39,7 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export const SellerOrdersScreen: React.FC = () => {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'SellerOrders'>>();
     const { user } = useUser();
@@ -59,13 +60,7 @@ export const SellerOrdersScreen: React.FC = () => {
     const channelSourceId = route.params?.sourceChannelId;
     const sourceFilter = route.params?.source || (channelSourceId ? 'channel_post' : undefined);
 
-    useFocusEffect(
-        useCallback(() => {
-            loadOrders(1, true);
-        }, [selectedStatus, sourceFilter, channelSourceId])
-    );
-
-    const loadOrders = async (pageNum: number, reset: boolean = false) => {
+    const loadOrders = useCallback(async (pageNum: number, reset: boolean = false) => {
         try {
             if (reset) {
                 setLoading(true);
@@ -125,7 +120,13 @@ export const SellerOrdersScreen: React.FC = () => {
             setRefreshing(false);
             setLoadingMore(false);
         }
-    };
+    }, [channelSourceId, selectedStatus, sourceFilter]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadOrders(1, true);
+        }, [loadOrders])
+    );
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -145,8 +146,7 @@ export const SellerOrdersScreen: React.FC = () => {
     const handleContactBuyer = async (order: Order) => {
         try {
             const result = await marketService.contactBuyer(order.ID);
-            // Navigate to messages with the buyer
-            navigation.navigate('Chat', { userId: result.buyerId, name: result.buyerName });
+            navigateToDirectChatByUserId(navigation, result.buyerId, { name: result.buyerName });
         } catch (error) {
             console.error('Error contacting buyer:', error);
             Alert.alert('Error', 'Failed to open chat');

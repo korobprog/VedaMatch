@@ -35,6 +35,7 @@ import {
 } from '../../../lib/contactCache';
 import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
+import { navigateToDirectChat } from '../../../utils/directChatNavigation';
 import { resolveUserDisplayInitial, resolveUserDisplayName, resolveUserNicknameLabel } from '../../../utils/userDisplay';
 import { friendRequestService } from '../../../services/friendRequestService';
 
@@ -79,7 +80,7 @@ export const ContactsScreen: React.FC = () => {
     const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
     const [friendSubFilter, setFriendSubFilter] = useState<'friends' | 'requests'>('friends');
     const [friendRequestCount, setFriendRequestCount] = useState(0);
-    const [showFriendRequests, setShowFriendRequests] = useState(false);
+    const [_showFriendRequests, _setShowFriendRequests] = useState(false);
     const [requests, setRequests] = useState<any[]>([]);
 
     // City Filter State - support multiple cities
@@ -157,12 +158,10 @@ export const ContactsScreen: React.FC = () => {
 
     const openChat = useCallback((contact: UserContact) => {
         runWithNavigationLock(() => {
-            const fallbackLabel = t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User';
             setChatRecipient(contact);
             requestAnimationFrame(() => {
-                navigation.navigate('Chat', {
-                    userId: contact.ID,
-                    name: resolveUserDisplayName(contact, { fallbackLabel }) || undefined,
+                navigateToDirectChat(navigation, contact, {
+                    fallbackLabel: t('contacts.userFallback', { id: contact.ID, defaultValue: `User #${contact.ID}` }).replace(/\s*#\d+$/, '').trim() || 'User',
                 });
             });
         });
@@ -336,6 +335,16 @@ export const ContactsScreen: React.FC = () => {
     useEffect(() => {
         allContactsRef.current = allContacts;
     }, [allContacts]);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            setDebouncedSearch(search.trim());
+        }, 180);
+
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }, [search]);
 
     useEffect(() => {
         if (!debouncedSearch && filterCities.length === 0) {
@@ -570,7 +579,6 @@ export const ContactsScreen: React.FC = () => {
         void loadBlockedContacts(false, false);
     }, [
         filter,
-        friendSubFilter,
         allContactsHasMore,
         friendsHasMore,
         blockedHasMore,

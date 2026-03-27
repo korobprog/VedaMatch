@@ -67,7 +67,15 @@ func (h *TurnHandler) buildIceServers() []IceServer {
 		return response.IceServers
 	}
 
-	turnURL := fmt.Sprintf("turn:%s:%s", turnHost, "3478")
+	turnPort := firstNonEmptyString(strings.TrimSpace(os.Getenv("TURN_PORT")), "3478")
+	tlsPort := strings.TrimSpace(os.Getenv("TURN_TLS_PORT"))
+	turnURLs := []string{
+		fmt.Sprintf("turn:%s:%s?transport=udp", turnHost, turnPort),
+		fmt.Sprintf("turn:%s:%s?transport=tcp", turnHost, turnPort),
+	}
+	if tlsPort != "" {
+		turnURLs = append(turnURLs, fmt.Sprintf("turns:%s:%s?transport=tcp", turnHost, tlsPort))
+	}
 
 	if h.secret != "" {
 		userID := "user"
@@ -78,23 +86,36 @@ func (h *TurnHandler) buildIceServers() []IceServer {
 		mac.Write([]byte(username))
 		password := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
-		response.IceServers = append(response.IceServers, IceServer{
-			Urls:       turnURL,
-			Username:   username,
-			Credential: password,
-		})
+		for _, turnURL := range turnURLs {
+			response.IceServers = append(response.IceServers, IceServer{
+				Urls:       turnURL,
+				Username:   username,
+				Credential: password,
+			})
+		}
 
 		return response.IceServers
 	}
 
 	// Static credentials are only returned when auth-secret mode is not configured.
 	if h.staticUser != "" && h.staticPass != "" {
-		response.IceServers = append(response.IceServers, IceServer{
-			Urls:       turnURL,
-			Username:   h.staticUser,
-			Credential: h.staticPass,
-		})
+		for _, turnURL := range turnURLs {
+			response.IceServers = append(response.IceServers, IceServer{
+				Urls:       turnURL,
+				Username:   h.staticUser,
+				Credential: h.staticPass,
+			})
+		}
 	}
 
 	return response.IceServers
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

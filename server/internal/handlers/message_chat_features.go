@@ -18,8 +18,9 @@ import (
 )
 
 type ChatPreferenceUpdateRequest struct {
-	Muted  *bool `json:"muted"`
-	Pinned *bool `json:"pinned"`
+	Muted    *bool `json:"muted"`
+	Pinned   *bool `json:"pinned"`
+	Archived *bool `json:"archived"`
 }
 
 type ShareContactRequest struct {
@@ -230,8 +231,8 @@ func (h *MessageHandler) UpdateChatPreference(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	if req.Muted == nil && req.Pinned == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "muted or pinned is required"})
+	if req.Muted == nil && req.Pinned == nil && req.Archived == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "muted, pinned or archived is required"})
 	}
 
 	var pref models.ChatPreference
@@ -258,6 +259,15 @@ func (h *MessageHandler) UpdateChatPreference(c *fiber.Ctx) error {
 			pref.PinnedAt = nil
 		}
 	}
+	if req.Archived != nil {
+		pref.Archived = *req.Archived
+		if *req.Archived {
+			now := time.Now().UTC()
+			pref.ArchivedAt = &now
+		} else {
+			pref.ArchivedAt = nil
+		}
+	}
 
 	if pref.ID == 0 {
 		if err := database.DB.Create(&pref).Error; err != nil {
@@ -268,6 +278,8 @@ func (h *MessageHandler) UpdateChatPreference(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update chat preference"})
 		}
 	}
+
+	broadcastDirectConversationStateToUser(h.hub, userID, peerUserID)
 
 	return c.JSON(pref)
 }
@@ -335,6 +347,9 @@ func (h *MessageHandler) ShareContact(c *fiber.Ctx) error {
 	if err := database.DB.Create(&msg).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not save message"})
 	}
+	if msg.RoomID == 0 {
+		_ = clearArchivedDirectPreferencesForPair(msg.SenderID, msg.RecipientID)
+	}
 
 	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
 		RoomName:      roomName,
@@ -349,6 +364,8 @@ func (h *MessageHandler) ShareContact(c *fiber.Ctx) error {
 			}
 		} else {
 			h.hub.Broadcast(msg)
+			broadcastDirectConversationStateToUser(h.hub, msg.SenderID, msg.RecipientID)
+			broadcastDirectConversationStateToUser(h.hub, msg.RecipientID, msg.SenderID)
 		}
 	}
 

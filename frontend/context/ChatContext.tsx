@@ -7,6 +7,7 @@ import { sendMessage, ChatMessage } from '../services/openaiService';
 import { useSettings } from './SettingsContext';
 import { messageService } from '../services/messageService';
 import { UserContact } from '../services/contactService';
+import { chatInboxService } from '../services/chatInboxService';
 import { useUser } from './UserContext';
 import { useWebSocket } from './WebSocketContext';
 import { mediaService, MediaFile } from '../services/mediaService';
@@ -44,6 +45,12 @@ const getRequestedRagDomains = (messages: Message[], availableDomains: string[])
     const availableSet = new Set(availableDomains);
     const selected = mappedDomains.filter((domain) => availableSet.has(domain));
     return selected.length > 0 ? selected : mappedDomains;
+};
+
+const runAsync = (task: Promise<unknown>) => {
+    task.catch(() => {
+        // Chat side effects already have refresh/retry paths and should not break UI flow.
+    });
 };
 
 interface ChatContextType {
@@ -118,6 +125,7 @@ const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
     id: (m.id || m.ID || Date.now()).toString(),
     text: m.content || m.text || '',
     sender: (m.senderId === currentUserId ? 'user' : 'other') as 'user' | 'other',
+    status: m.senderId === currentUserId ? 'sent' : undefined,
     type: m.type || 'text',
     content: m.content || m.text || '',
     fileName: m.fileName,
@@ -168,6 +176,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recordingStartedAtRef = useRef<number | null>(null);
     const historyPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const draftPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isFirstRun = useRef(true);
     const directChatMediaCopy = React.useMemo(() => {
@@ -279,6 +288,60 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             task.cancel();
         };
     }, [currentUser?.ID]);
+
+    useEffect(() => {
+        if (draftPersistTimeoutRef.current) {
+            clearTimeout(draftPersistTimeoutRef.current);
+            draftPersistTimeoutRef.current = null;
+        }
+
+        if (!recipientId || !currentUser?.ID) {
+            return;
+        }
+
+        let isActive = true;
+        const applyDraft = async () => {
+            try {
+                const [draft] = await Promise.all([
+                    chatInboxService.loadDraft(currentUser.ID, recipientId),
+                    chatInboxService.markConversationRead(recipientId),
+                ]);
+                if (isActive) {
+                    setInputText(draft);
+                }
+            } catch (error) {
+                console.warn('[ChatContext] failed to load draft', error);
+            }
+        };
+
+        runAsync(applyDraft());
+
+        return () => {
+            isActive = false;
+        };
+    }, [currentUser?.ID, recipientId]);
+
+    useEffect(() => {
+        if (draftPersistTimeoutRef.current) {
+            clearTimeout(draftPersistTimeoutRef.current);
+            draftPersistTimeoutRef.current = null;
+        }
+
+        if (!recipientId || !currentUser?.ID) {
+            return;
+        }
+
+        draftPersistTimeoutRef.current = setTimeout(() => {
+            runAsync(chatInboxService.saveDraft(currentUser.ID, recipientId, inputText));
+        }, 180);
+
+        return () => {
+            if (draftPersistTimeoutRef.current) {
+                clearTimeout(draftPersistTimeoutRef.current);
+                draftPersistTimeoutRef.current = null;
+            }
+        };
+    }, [currentUser?.ID, inputText, recipientId]);
 
     // Auto-save messages to current chat or create new one (only for AI chats)
     useEffect(() => {
@@ -400,7 +463,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     setIsLoading(false);
                 }
             };
-            void loadP2PMessages();
+            runAsync(loadP2PMessages());
 
             return () => {
                 isActive = false;
@@ -472,6 +535,40 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
+            if (msg.type === 'conversation_updated') {
+                const peerUserId = Number.parseInt(String(msg.peerUserId || msg.recipientId || msg.senderId || ''), 10);
+                if (Number.isFinite(peerUserId) && peerUserId > 0) {
+                    runAsync(chatInboxService.updateConversationPatch(peerUserId, {
+                        unreadCount: Number.parseInt(String(msg.unreadCount ?? 0), 10) || 0,
+                        lastMessage: String(msg.lastMessage || msg.content || '').trim(),
+                        lastMessageAt: msg.lastMessageAt || msg.createdAt || new Date().toISOString(),
+                        lastMessageType: msg.lastMessageType || msg.type || 'text',
+                        pinned: Boolean(msg.pinned),
+                        muted: Boolean(msg.muted),
+                        pinnedAt: msg.pinnedAt ?? null,
+                        archived: typeof msg.archived === 'boolean' ? msg.archived : undefined,
+                        archivedAt: msg.archivedAt ?? null,
+                        relationshipStatus: msg.relationshipStatus,
+                        friendRequestId: typeof msg.friendRequestId === 'number' ? msg.friendRequestId : undefined,
+                    }));
+                }
+                return;
+            }
+
+            if (msg.type === 'message_read') {
+                const peerUserId = Number.parseInt(String(msg.peerUserId || msg.recipientId || msg.senderId || ''), 10);
+                const messageId = msg.messageId?.toString?.() || msg.id?.toString?.();
+                if (Number.isFinite(peerUserId) && peerUserId > 0) {
+                    runAsync(chatInboxService.markConversationRead(peerUserId));
+                }
+                if (messageId) {
+                    setMessages(prev => prev.map((item) => (
+                        item.id === messageId ? { ...item, status: 'seen' } : item
+                    )));
+                }
+                return;
+            }
+
             if (msg.type === 'message_transcription_updated') {
                 const eventPayload = msg.mapData || {};
                 const targetId = (eventPayload.messageId || msg.messageId)?.toString();
@@ -530,6 +627,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     id: msg.id?.toString() || msg.ID?.toString() || Date.now().toString(),
                     text: msg.content || msg.text || '',
                     sender: senderType,
+                    status: isMyOwnMessage ? 'sent' : undefined,
                     type: msg.type || 'text',
                     content: msg.content || msg.text || '',
                     fileName: msg.fileName,
@@ -543,6 +641,24 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     if (prev.find(m => m.id === newMessage.id)) return prev;
                     return [...prev, newMessage];
                 });
+
+                if (recipientId && currentUser?.ID) {
+                    const peerUserId = isMyOwnMessage ? recipientId : msg.senderId;
+                    if (Number.isFinite(peerUserId) && peerUserId > 0) {
+                        runAsync(chatInboxService.upsertConversationFromMessage({
+                            currentUserId: currentUser.ID,
+                            peerUserId,
+                            content: newMessage.text,
+                            type: newMessage.type,
+                            senderId: msg.senderId || currentUser.ID,
+                            messageId: Number.parseInt(newMessage.id, 10) || undefined,
+                            createdAt: newMessage.createdAt,
+                            peerUser: recipientUser || undefined,
+                            markUnread: !isMyOwnMessage,
+                            seen: false,
+                        }));
+                    }
+                }
             }
         });
 
@@ -552,7 +668,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 clearTimeout(typingTimeoutRef.current);
             }
         };
-    }, [recipientId, currentUser?.ID, addListener]);
+    }, [recipientId, currentUser?.ID, addListener, recipientUser]);
 
     const setChatRecipient = (user: UserContact | null) => {
         if (!user) {
@@ -561,9 +677,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setP2PNextBeforeId(null);
             setHasOlderMessages(false);
             setIsLoadingOlderMessages(false);
+            setInputText('');
             handleNewChat();
             return;
         }
+        setInputText('');
         setRecipientId(user.ID);
         setRecipientUser(user);
         setP2PNextBeforeId(null);
@@ -709,6 +827,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         if (!recipientId || !currentUser?.ID) return false;
 
         let sendTimeout: ReturnType<typeof setTimeout> | null = null;
+        const pendingId = `pending_${Date.now()}`;
+        const pendingCreatedAt = new Date().toISOString();
         
         // Safety timeout: force reset isLoading after 10 seconds
         const scheduleSendTimeout = () => {
@@ -719,15 +839,28 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         };
 
         try {
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: pendingId,
+                    text,
+                    sender: 'user',
+                    status: 'sending',
+                    type: 'text',
+                    content: text,
+                    createdAt: pendingCreatedAt,
+                },
+            ]);
             setIsLoading(true);
             scheduleSendTimeout();
             
             const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
 
             const localMessage: Message = {
-                id: savedMsg.id?.toString() || savedMsg.ID?.toString() || `local_${Date.now()}`,
+                id: savedMsg.id?.toString() || savedMsg.ID?.toString() || pendingId,
                 text: savedMsg.content || text,
                 sender: 'user',
+                status: 'sent',
                 type: savedMsg.type || 'text',
                 content: savedMsg.content || text,
                 fileName: savedMsg.fileName,
@@ -739,15 +872,37 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
             // Keep local UX resilient when WS echo is delayed/missing.
             setMessages(prev => {
-                if (prev.some(m => m.id === localMessage.id)) {
-                    return prev;
+                const withoutPending = prev.filter(item => item.id !== pendingId);
+                if (withoutPending.some(m => m.id === localMessage.id)) {
+                    return withoutPending.map((item) => (
+                        item.id === localMessage.id
+                            ? { ...item, ...localMessage, status: 'sent' }
+                            : item
+                    ));
                 }
-                return [...prev, localMessage];
+                return [...withoutPending, localMessage];
             });
+
+            runAsync(chatInboxService.clearDraft(currentUser.ID, recipientId));
+            runAsync(chatInboxService.upsertConversationFromMessage({
+                currentUserId: currentUser.ID,
+                peerUserId: recipientId,
+                content: localMessage.content || text,
+                type: localMessage.type,
+                senderId: currentUser.ID,
+                messageId: savedMsg.id || savedMsg.ID,
+                createdAt: localMessage.createdAt,
+                peerUser: recipientUser || undefined,
+                markUnread: false,
+                seen: false,
+            }));
 
             return Boolean(savedMsg);
         } catch (error) {
             console.error('Failed to send P2P message', error);
+            setMessages(prev => prev.map((item) => (
+                item.id === pendingId ? { ...item, status: 'failed' } : item
+            )));
             return false;
         } finally {
             if (sendTimeout) clearTimeout(sendTimeout);
@@ -1016,6 +1171,21 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 console.log('➕ Final message not found, appending to list');
                 return [...withoutTemp, { ...finalMessage, id: finalId, uploading: false }];
             });
+
+            if (targetRecipientId) {
+                runAsync(chatInboxService.upsertConversationFromMessage({
+                    currentUserId,
+                    peerUserId: targetRecipientId,
+                    content: finalMessage.text || media.name || media.type,
+                    type: finalMessage.type,
+                    senderId: currentUserId,
+                    messageId: Number.parseInt(finalMessage.id, 10) || undefined,
+                    createdAt: finalMessage.createdAt,
+                    peerUser: recipientUser || undefined,
+                    markUnread: false,
+                    seen: false,
+                }));
+            }
 
             // Hard sync with backend state to avoid rare UI races where media message
             // is persisted but not rendered in current list due local/WS ordering.

@@ -40,6 +40,7 @@ import type { UserContact } from '../../../services/contactService';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import { navigateToDirectChat } from '../../../utils/directChatNavigation';
 import {
     BarChart2,
     Filter,
@@ -797,8 +798,9 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             setShowCompatibilityModal(false);
             const candidate = candidates.find(c => c.ID === currentCandidateId);
             if (candidate) {
-                setChatRecipient(buildChatRecipient(candidate));
-                navigation.navigate('Chat');
+                const chatRecipient = buildChatRecipient(candidate);
+                setChatRecipient(chatRecipient);
+                navigateToDirectChat(navigation, chatRecipient);
             }
             if (isMountedRef.current) {
                 setConnecting(false);

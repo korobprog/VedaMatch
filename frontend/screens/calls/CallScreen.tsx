@@ -54,8 +54,9 @@ export const CallScreen = () => {
     const { t } = useTranslation();
     const { vTheme } = useSettings();
     // @ts-ignore
-    const { targetId, isIncoming, callerName, autoAccept, callUUID } = route.params || {};
+    const { targetId, isIncoming, callerName, autoAccept, callUUID, presentedByCallKeep } = route.params || {};
     const autoAcceptTriggeredRef = useRef(false);
+    const usesNativeIncomingUi = Platform.OS === 'ios' && Boolean(presentedByCallKeep);
     const incomingRingtoneActiveRef = useRef(false);
     const outgoingRingbackActiveRef = useRef(false);
     const pipTransitionRef = useRef(false);
@@ -70,7 +71,7 @@ export const CallScreen = () => {
             : `call-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     );
 
-    const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
+    const [hasAccepted, setHasAccepted] = useState(!isIncoming || (Boolean(autoAccept) && usesNativeIncomingUi));
     const callStartedAtRef = useRef<number | null>(null);
     const callLoggedRef = useRef(false);
     const hasAcceptedRef = useRef(hasAccepted);
@@ -80,7 +81,9 @@ export const CallScreen = () => {
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [participantProfile, setParticipantProfile] = useState<UserContact | null>(null);
     const [statusState, setStatusState] = useState<CallStatusState>({
-        key: isIncoming ? 'incoming' : 'calling',
+        key: isIncoming
+            ? ((Boolean(autoAccept) && usesNativeIncomingUi) ? 'connecting' : 'incoming')
+            : 'calling',
     });
     const [, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
@@ -221,7 +224,7 @@ export const CallScreen = () => {
     }, [targetId]);
 
     useEffect(() => {
-        if (!isIncoming || hasAccepted) {
+        if (!isIncoming || hasAccepted || usesNativeIncomingUi) {
             stopIncomingRingtone();
             return;
         }
@@ -231,7 +234,7 @@ export const CallScreen = () => {
         return () => {
             stopIncomingRingtone();
         };
-    }, [hasAccepted, isIncoming]);
+    }, [hasAccepted, isIncoming, usesNativeIncomingUi]);
 
     useEffect(() => {
         if (isIncoming || !hasAccepted || remoteStream) {

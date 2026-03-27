@@ -246,6 +246,16 @@ func (h *Hub) BroadcastTyping(event models.TypingEvent) {
 	h.broadcast <- TypingWrapper{TypingEvent: event}
 }
 
+func (h *Hub) BroadcastConversationUpdated(event ConversationUpdatedEvent) {
+	event.Type = "conversation_updated"
+	h.broadcast <- event
+}
+
+func (h *Hub) BroadcastMessageRead(event MessageReadEvent) {
+	event.Type = "message_read"
+	h.broadcast <- event
+}
+
 func (h *Hub) SetSignalFallbackHandler(handler func(SignalingMessage)) {
 	h.mu.Lock()
 	h.signalFallbackHandler = handler

@@ -86,6 +86,8 @@ export interface ChatPreference {
     muted: boolean;
     pinned: boolean;
     pinnedAt?: string | null;
+    archived: boolean;
+    archivedAt?: string | null;
 }
 
 export interface ShareContactRequest {
@@ -245,7 +247,7 @@ export const messageService = {
         };
     },
 
-    async updateChatPreference(peerUserId: number, payload: { muted?: boolean; pinned?: boolean }): Promise<ChatPreference> {
+    async updateChatPreference(peerUserId: number, payload: { muted?: boolean; pinned?: boolean; archived?: boolean }): Promise<ChatPreference> {
         const response = await apiClient.put<ChatPreference>(`/messages/preferences/${peerUserId}`, payload);
         return response.data;
     },

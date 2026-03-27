@@ -7,6 +7,7 @@ import (
 
 func TestBuildIceServersPrefersAuthSecretOverStaticCredentials(t *testing.T) {
 	t.Setenv("TURN_EXTERNAL_IP", "45.150.9.229")
+	t.Setenv("TURN_TLS_PORT", "5349")
 
 	handler := &TurnHandler{
 		secret:      "secret-key",
@@ -16,20 +17,31 @@ func TestBuildIceServersPrefersAuthSecretOverStaticCredentials(t *testing.T) {
 	}
 
 	iceServers := handler.buildIceServers()
-	if len(iceServers) != 2 {
-		t.Fatalf("expected 2 ice servers, got %d: %#v", len(iceServers), iceServers)
+	if len(iceServers) != 4 {
+		t.Fatalf("expected 4 ice servers, got %d: %#v", len(iceServers), iceServers)
 	}
 	if iceServers[0].Urls != "stun:stun.l.google.com:19302" {
 		t.Fatalf("unexpected stun server: %#v", iceServers[0])
 	}
-	if iceServers[1].Username == "admin" {
-		t.Fatalf("expected auth-secret credentials, got static credentials: %#v", iceServers[1])
+	expectedURLs := []string{
+		"turn:45.150.9.229:3478?transport=udp",
+		"turn:45.150.9.229:3478?transport=tcp",
+		"turns:45.150.9.229:5349?transport=tcp",
 	}
-	if !strings.Contains(iceServers[1].Username, ":user") {
-		t.Fatalf("expected timestamp username, got %#v", iceServers[1])
-	}
-	if iceServers[1].Credential == "" {
-		t.Fatalf("expected generated credential, got empty")
+	for index, expectedURL := range expectedURLs {
+		server := iceServers[index+1]
+		if server.Urls != expectedURL {
+			t.Fatalf("unexpected turn server at index %d: %#v", index+1, server)
+		}
+		if server.Username == "admin" {
+			t.Fatalf("expected auth-secret credentials, got static credentials: %#v", server)
+		}
+		if !strings.Contains(server.Username, ":user") {
+			t.Fatalf("expected timestamp username, got %#v", server)
+		}
+		if server.Credential == "" {
+			t.Fatalf("expected generated credential, got empty")
+		}
 	}
 }
 
@@ -42,10 +54,20 @@ func TestBuildIceServersFallsBackToStaticCredentials(t *testing.T) {
 	}
 
 	iceServers := handler.buildIceServers()
-	if len(iceServers) != 2 {
-		t.Fatalf("expected 2 ice servers, got %d: %#v", len(iceServers), iceServers)
+	if len(iceServers) != 3 {
+		t.Fatalf("expected 3 ice servers, got %d: %#v", len(iceServers), iceServers)
 	}
-	if iceServers[1].Username != "admin" || iceServers[1].Credential != "password" {
-		t.Fatalf("expected static credentials, got %#v", iceServers[1])
+	expectedURLs := []string{
+		"turn:45.150.9.229:3478?transport=udp",
+		"turn:45.150.9.229:3478?transport=tcp",
+	}
+	for index, expectedURL := range expectedURLs {
+		server := iceServers[index+1]
+		if server.Urls != expectedURL {
+			t.Fatalf("unexpected turn server at index %d: %#v", index+1, server)
+		}
+		if server.Username != "admin" || server.Credential != "password" {
+			t.Fatalf("expected static credentials, got %#v", server)
+		}
 	}
 }

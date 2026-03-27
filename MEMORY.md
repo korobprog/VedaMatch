@@ -8,6 +8,26 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## Calls / LiveKit / TURN
+- iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
+- На iOS для входящих звонков с PushKit/CallKeep нужно держать один источник incoming UI: системный CallKit. Наш in-app экран должен открываться уже как active/connecting screen после `answerCall`, а не показывать второй `accept/decline` поверх системного экрана.
+- В текущем RN слое `frontend/App.tsx` принимает `answerCall` от `react-native-callkeep`; downstream `CallScreen` должен знать, что звонок пришел из CallKit, иначе он кратко рендерит второй incoming screen и конфликтует с native UI/ringtone.
+- Исходная production-проблема: `coturn` был поднят без сертификата и ключа, поэтому TLS/DTLS listener на `5349` не стартовал; в логах было `cannot start TLS and DTLS listeners because certificate file is not set properly`.
+- `Traefik` уже держит `443/tcp` и `443/udp`, поэтому TURN-over-443 нельзя включать без отдельного решения по портам/маршрутизации.
+- Dokploy Traefik хранит ACME в `/etc/dokploy/traefik/dynamic/acme.json`; это текущая точка, откуда можно извлечь сертификат для `coturn`, если делать TLS на существующем сервере.
+- 2026-03-25 по SSH вручную извлечен Let's Encrypt сертификат `livekit.vedamatch.ru` из ACME и сохранен как `/etc/dokploy/coturn/fullchain.pem` и `/etc/dokploy/coturn/privkey.pem`.
+- 2026-03-25 `coturn` сначала был вручную пересоздан как `rag-agent-turn` с bind-mount сертификатов и аргументами `--tls-listening-port=5349 --cert=/certs/fullchain.pem --pkey=/certs/privkey.pem`; это подтвердило рабочую конфигурацию TLS.
+- 2026-03-25 backend swarm service `vedamatch-server-dnkxc8` вручную обновлен по SSH с env `TURN_PORT=3478` и `TURN_TLS_PORT=5349`; это должно включить выдачу `turns:` в `/api/turn-credentials` после авторизованного запроса.
+- 2026-03-25 после включения Dokploy MCP подтверждено, что приложение `Server` в Dokploy уже содержит `TURN_PORT=3478` и `TURN_TLS_PORT=5349`, но production `/api/turn-credentials` все еще отдает старый формат `turn:45.150.9.229:3478` без `turns:`; значит backend-код с новым `turn_handler.go` еще не был задеплоен из репозитория в live.
+- 2026-03-25 рабочая конфигурация TURN перенесена в Dokploy Compose service `turn`; итоговый контейнер `vedamatch-turn-fbejof-turn-1` запущен в `host network`, использует `/etc/dokploy/coturn/fullchain.pem` и `/etc/dokploy/coturn/privkey.pem`, и один слушает `3478/tcp+udp` и `5349/tcp+udp`.
+- 2026-03-25 старый ручной контейнер `rag-agent-turn` удален после проверки compose-контейнера; дальнейшая поддержка TURN должна идти через Dokploy, а не через ручной `docker run`.
+- Dokploy MCP в текущем наборе инструментов полезен для чтения/обновления `application` env, но сама миграция `coturn` в Dokploy потребовала UI + SSH из-за bind-mount сертификатов и host-network / TURN UDP port-range lifecycle.
+- LiveKit контейнер `vedamatch-livekit-b7uedq` работает отдельно на `7881/tcp` и `7882/udp`; по логам он стартует штатно, но предупреждает о слишком маленьком UDP receive buffer для production.
+- В коде есть два стека звонков:
+- P2P-ветка использует `frontend/services/webRTCService.ts` и API `/turn-credentials`.
+- SFU/room-ветка использует `frontend/services/roomSfuClient.ts` и LiveKit напрямую, поэтому один только патч `turn_handler.go` не чинит все звонки.
+- Для мобильных сетей shared client уже переключает P2P ICE в `relay-only` на `cellular`, поэтому отсутствие рабочего TURN/TLS особенно критично на симметричном NAT.
+
 ## Product Overview
 - `Veda Match` — это продуктовая платформа, а не один экран или один сервис: основной мобильный клиент на React Native (`frontend`), единый Go backend на Fiber (`server`), web-admin на Next.js (`admin`) и отдельный web-кабинет/тарифы LKM на Next.js (`lkm`).
 - Backend агрегирует ключевые домены в одном API и общей БД: AI chat / RAG, messaging и звонки, dating/matchmaking, wallet/LKM и биллинг, marketplace/shop/cafe/orders, новости/feed, education/library, multimedia, map/dhama/yatra, charity/support, notifications и social auth.
@@ -24,6 +44,59 @@
   - `admin.vedamatch.ru/.com`, `social.vedamatch.ru/.com`, `panel.vedamatch.ru/.com` и `api.vedamatch.com` в live Traefik пока не заведены.
 
 ## Chat / Messaging
+- Direct user chat в mobile сейчас построен вокруг экрана контактов и открытия `Chat` по конкретному пользователю, а не вокруг отдельного inbox/списка диалогов с `lastMessage`, `unread` и conversation ordering.
+- Текущий P2P chat уже поддерживает realtime delivery через `WebSocket`, typing indicator, пагинацию истории, media index, in-chat search, mute/pin preferences, audio/video-circle/document/contact-card и audio transcription.
+- Для P2P chat в текущем коде и API нет явной модели `read` / `delivered` receipts, нет `mark-as-read/unread` flow, нет conversation list API и нет draft persistence per dialog; support inbox реализован отдельно и уже имеет `lastMessagePreview`, `lastMessageAt` и `unreadCount`.
+- `frontend/components/chat/MessageList.tsx` уже содержит сложную ручную логику удержания скролла и автопрокрутки на `FlatList`; это признак, что chat list близок к порогу, где стоит опираться на chat-ориентированные list patterns вроде `FlashList` + richer `maintainVisibleContentPosition`.
+- С 2026-03-27 direct user chat получил отдельный mobile inbox surface:
+  - добавлен route `ChatInbox` и экран `frontend/screens/portal/chat/ChatInboxScreen.tsx`;
+  - backend отдает `GET /messages/conversations` и принимает `POST /messages/conversations/:peerUserId/read`;
+  - websocket дополнился событиями `conversation_updated` и `message_read`.
+- С 2026-03-27 для P2P сообщений введен server-side `read_at` и unread считается только по входящим direct messages текущему пользователю.
+- С 2026-03-27 direct chat entrypoints должны идти через единый helper `frontend/utils/directChatNavigation.ts`, чтобы `Contacts`, inbox и другие direct-open paths не плодили разные navigation-контракты.
+- С 2026-03-27 direct chat entrypoints в `Contacts`, `ContactProfile`, `NearbyUsers`, `Dating`, `SellerOrders`, `ServiceDetail`, `IncomingBookings`, `YatraDetail`, `VideoCircles` переведены на helper `navigateToDirectChat*`; AI assistant shortcuts и `PortalMainScreen -> Chat` остаются отдельным assistant-flow и не должны смешиваться с P2P inbox.
+- С 2026-03-27 push notifications и deep links для direct chat тоже должны идти через тот же route contract:
+  - deep-link inbox: `vedamatch://chats`
+  - deep-link direct dialog: `vedamatch://chat/:userId`
+  - `notificationService` при `new_message` и `screen=Chat/ChatInbox` теперь открывает либо конкретный direct dialog, либо `ChatInbox`, если `userId` не пришел.
+- С 2026-03-27 drafts для direct chats сохраняются локально по ключу `currentUserId + peerUserId` через `chatInboxService`; draft очищается только после успешной отправки.
+- Минимальный delivery UX для direct chat теперь опирается на статусы `sending | sent | seen`; отдельного `delivered` слоя пока нет.
+- С 2026-03-27 direct inbox тоже показывает базовый статус последнего исходящего сообщения:
+  - `chatInboxService` нормализует backend `lastMessage` object в preview/content/sender/read flags;
+  - `ChatInboxScreen` показывает `You:` и `Sent/Seen` для последнего outgoing message, а не только unread badge для входящих.
+- С 2026-03-27 direct inbox поддерживает swipe-actions по диалогу:
+  - вправо открываются быстрые действия `pin/unpin` и `mute/unmute`;
+  - actions используют существующий endpoint `PUT /messages/preferences/:peerUserId` и сразу обновляют локальный inbox state без full refresh.
+- С 2026-03-27 direct inbox поддерживает поиск по списку диалогов:
+  - mobile inbox отправляет debounced `q` в `GET /messages/conversations`, поэтому search работает и по непрогруженным страницам;
+  - локальный client-side поиск в `ChatInboxScreen` остался как дополнительный UI-filter и network fallback, а не как основная ветка данных.
+- С 2026-03-27 direct inbox поддерживает cursor pagination:
+  - `useChatInbox` хранит `hasMore`, `nextCursor`, `loadingMore` и дозагружает conversation pages через `loadMore`;
+  - `chatInboxService.listConversations` для cursor-страниц подмешивает только локальный metadata overlay, но не притягивает весь local cache как отдельную «страницу»;
+  - `ChatInboxScreen` запускает `loadMore` на `onEndReached` и показывает footer loader только вне локального search mode.
+- С 2026-03-27 direct inbox поддерживает server-side search для P2P диалогов:
+  - backend `GET /messages/conversations` принимает `q` и ищет по `peer.spiritual_name`, `peer.karmic_name`, `nickname_display`, `nickname`, `email` и `last_message.content`;
+  - `chatInboxService` прокидывает `q` в API и при network fallback умеет фильтровать локальный snapshot по тем же основным полям.
+- С 2026-03-27 `Archive` больше не client-only:
+  - `chat_preferences` теперь хранит `archived` и `archived_at` рядом с `muted/pinned`;
+  - `PUT /messages/preferences/:peerUserId` принимает `archived`, а `GET /messages/conversations` учитывает archive прямо на backend в `all/unread/pinned/archived`;
+  - при новом direct message backend автоматически снимает archive для обеих сторон диалога, чтобы сохранить уже принятый inbox UX;
+  - `conversation_updated` websocket event теперь несет `archived/archivedAt`, поэтому archive sync доходит до других сессий того же пользователя без full refresh.
+- С 2026-03-27 archived inbox больше не использует отдельный local-only search path:
+  - все filters `all/unread/pinned/archived` теперь идут через единый `GET /messages/conversations` contract с `q` и `cursor`;
+  - в `chatInboxService` исправлен cursor-merge invariant после перехода на string cursor: `includeLocalOnly` больше не определяется через `typeof cursor !== 'number'`;
+  - локальный search остался только как network fallback, а не как основная ветка для archived dialogs.
+- С 2026-03-27 direct inbox получил отдельный фильтр `Requests`:
+  - `GET /messages/conversations` теперь принимает `filter=requests` и вычисляет `relationshipStatus` для каждого direct dialog как `friend | incoming_request | outgoing_request | none`;
+  - conversation item теперь несет и `friendRequestId`, чтобы mobile inbox мог вызывать `accept/reject/cancel` без отдельного поиска request-а;
+  - `Requests` показывает direct conversations с пользователями вне friends graph, без новой таблицы диалогов;
+  - `conversation_updated` websocket event теперь тоже несет `relationshipStatus`, поэтому inbox не теряет request-state при realtime обновлениях и после refresh.
+  - `AuthHandler` теперь тоже получает optional websocket hub и после `send/accept/reject/cancel friend request` переотправляет `conversation_updated` для пары пользователей, если direct dialog уже существует; это убирает необходимость ручного refresh inbox после social action.
+  - `ChatInboxScreen` в фильтре `Requests` показывает inline-actions:
+    - `incoming_request` -> `accept / reject`
+    - `outgoing_request` -> `cancel`
+    - `none` -> `send friend request`
+  - chips `Unread` и `Requests` теперь показывают badge-count из локального inbox snapshot, независимо от текущего search query, чтобы верхняя панель сразу сигнализировала о новых unread/request dialogs.
 - Для аудиосообщений в mobile chat нельзя отдавать в плеер сырой относительный путь вида `/uploads/...`; перед воспроизведением его нужно прогонять через `getMediaUrl`, иначе audio playback ломается на local-upload / fallback-storage ответах.
 - Chat transcription backend должен уметь работать не только с абсолютными `http(s)` audio URL, но и с локальными путями `/uploads/...`, нормализуя их в публичный API URL перед `ffprobe`/download и перед отправкой в transcription provider.
 - Chat transcription нельзя завязывать только на `OPENAI_API_KEY`: на production используется Polza/OpenAI-compatible конфиг, поэтому backend должен поддерживать fallback через `POLZA_API_KEY` / `POLZA_BASE_URL`.
@@ -1620,6 +1693,14 @@
   - `~/.android/avd` перенесен обратно с `/Volumes/DATA/MacArchive/android/avd` в локальный путь; симлинк удален;
   - `adb` снова доступен локально из `~/Library/Android/sdk/platform-tools/adb`;
   - Android Studio после возврата запускается штатно;
+- Фактическая безопасная системная очистка от `2026-03-27` выполнена:
+  - перед очисткой на `/System/Volumes/Data` оставалось `~12GiB`, после очистки осталось `~52GiB`;
+  - удалены безопасные dev-кэши и transient-данные: `~/Library/Developer/Xcode/DerivedData`, `~/Library/Caches/go-build`, `~/Library/Caches/com.microsoft.VSCode.ShipIt`, `~/Library/Caches/Google`, `~/Library/Caches/GoLogin`, `~/Library/Caches/Homebrew`, `~/Library/Caches/CocoaPods`, `~/Library/Caches/qwen-updater`, `~/Library/Caches/com.openai.atlas`, `~/Library/Caches/ms-playwright-go`, `~/.gradle/caches`, `~/.gradle/wrapper`, `~/.android/metrics`;
+  - в Android AVD удален только `~/.android/avd/Medium_Phone.avd/snapshots/default_boot`; сам эмулятор оставлен;
+  - удалены project-local артефакты: `.gocache`, `frontend/android/.gradle`, `frontend/android/app/build`;
+  - удалены старые локальные `Codex worktrees` старше `2026-03-25`; локально оставлены только свежие `4440`, `8167`, `86e8`, `8c0b`, `9129`, `9b36`, `a23d`, `e969`;
+  - после очистки ориентиры по крупным каталогам: `~/Library/Caches` `~882M`, `~/.gradle` `~631M`, `~/Library/Developer` `~8.2G`, `~/.android` `~10G`, `~/.codex` `~9.1G`, repo `~/Documents/vedicai` `~5.6G`;
+  - оставшиеся крупные, но уже более чувствительные к удалению области: `~/Library/Developer/Xcode/iOS DeviceSupport` (`~5.3G`), `~/Library/Developer/CoreSimulator/Devices` (`~2.8G`), `~/.android/avd/Medium_Phone.avd` (`~10G`), `~/.codex/worktrees` (`~5.6G`), `~/.codex/sessions` (`~2.7G`).
   - Android больше не зависит от внешнего диска `/Volumes/DATA`.
 - Фактическое удаление последнего iOS simulator device от `2026-03-12` выполнено:
   - через `xcrun simctl delete D7804896-63D0-46A5-A65E-D6F26F6003CD` удален последний локальный iOS simulator device `iPhone 17 Pro`;
@@ -2316,6 +2397,11 @@
   - `block/unblock`, `add/remove friend` и `uploadAvatar` инвалидируют contacts cache через `frontend/lib/contactCache.ts`.
 
 ## Chat Runtime Notes
+- Текущая chat-архитектура разделена на три независимых UX-потока:
+  - direct P2P / AI chat на `frontend/screens/ChatScreen.tsx` + `frontend/context/ChatContext.tsx`;
+  - room chat на `frontend/screens/portal/chat/RoomChatScreen.tsx`;
+  - support inbox / conversation на `frontend/screens/support/SupportInboxScreen.tsx` и `frontend/screens/support/SupportConversationScreen.tsx`.
+- Web surfaces (`admin`, `lkm`) сейчас не содержат полноценного пользовательского messaging UI; в `admin/src/app/user/dashboard/page.tsx` сервис `chat` помечен как `availableOnWeb: false`, то есть основной chat UX остается mobile-first.
 - В P2P-чате (`frontend/context/ChatContext.tsx`) добавлен локальный optimistic append после успешного `POST /messages` с дедупом по `id`; отправитель видит свое сообщение даже при проблемах WS-эхо.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` переход в чат переведен на guarded flow (`runWithNavigationLock` + единый `openChat`), чтобы избежать двойного `navigate` из вложенных touchable.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.

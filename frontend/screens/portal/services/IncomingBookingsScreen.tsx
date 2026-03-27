@@ -46,6 +46,7 @@ import {
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { navigateToDirectChatByUserId } from '../../../utils/directChatNavigation';
 
 type FilterTab = 'pending' | 'confirmed' | 'all';
 
@@ -261,7 +262,9 @@ export default function IncomingBookingsScreen() {
         if (booking.chatRoomId) {
             navigation.navigate('RoomChat', { roomId: booking.chatRoomId.toString() });
         } else if (booking.clientId) {
-            navigation.navigate('Chat', { userId: booking.clientId });
+            navigateToDirectChatByUserId(navigation, booking.clientId, {
+                name: booking.client?.spiritualName || booking.client?.karmicName,
+            });
         }
     };
 

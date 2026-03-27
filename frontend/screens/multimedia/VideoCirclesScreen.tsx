@@ -50,6 +50,7 @@ import { useUser } from '../../context/UserContext';
 import { UploadVideoCirclePayload, VideoCircle, VideoTariff, videoCirclesService } from '../../services/videoCirclesService';
 import { RootStackParamList, VideoCirclePlayerPayload } from '../../types/navigation';
 import { DATING_TRADITIONS } from '../../constants/DatingConstants';
+import { navigateToDirectChatByUserId } from '../../utils/directChatNavigation';
 
 type PortalRoleType = 'user' | 'in_goodness' | 'yogi' | 'devotee';
 type VideoCirclesRouteParams = RootStackParamList['VideoCirclesScreen'];
@@ -727,7 +728,7 @@ export const VideoCirclesScreen: React.FC = () => {
     } catch {
       // Ignore interaction logging failure to keep chat entry available.
     }
-    navigation.navigate('Chat', { userId: circle.authorId });
+    navigateToDirectChatByUserId(navigation, circle.authorId);
   };
 
   const openCirclePlayer = (circle: VideoCircle) => {
@@ -799,7 +800,6 @@ export const VideoCirclesScreen: React.FC = () => {
   const roleTextSecondaryStyle = useMemo(() => ({ color: roleColors.textSecondary }), [roleColors.textSecondary]);
   const roleTextPrimaryStyle = useMemo(() => ({ color: roleColors.textPrimary }), [roleColors.textPrimary]);
   const roleAccentBackgroundStyle = useMemo(() => ({ backgroundColor: roleColors.accent }), [roleColors.accent]);
-  const myBtnAccentSoftStyle = useMemo(() => ({ backgroundColor: roleColors.accentSoft }), [roleColors.accentSoft]);
   const inputSurfaceStyle = useMemo(
     () => ({ color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }),
     [roleColors.border, roleColors.surface, roleColors.textPrimary]

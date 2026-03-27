@@ -1,3 +1,308 @@
+## 2026-03-25 (iOS debug incoming path: enable VoIP token registration and debug push entitlements)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/ios/vedamatch.xcodeproj/project.pbxproj`
+
+### Суть правки (от старого к новому)
+- Было:
+  - RN слой на iOS пропускал `VoipPushNotification.registerVoipToken()` в `__DEV__`, поэтому реальное USB/debug-тестирование входящих вызовов на iPhone не могло опереться на PushKit path;
+  - debug-конфиг Xcode не задавал `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, хотя `Info.plist` уже содержал `remote-notification` и `voip`;
+  - в таком состоянии сценарий `Android -> iPhone` мог ломаться еще до прихода incoming push/call event на устройство.
+- Стало:
+  - iOS теперь пытается регистрировать VoIP token и в debug runtime; если entitlement/profile все еще неверны, это пойдет в уже существующий error path вместо молчаливого skip;
+  - debug build settings получили `CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements` и `APS_ENVIRONMENT = development`;
+  - это выравнивает debug iPhone path с реальным VoIP incoming flow и делает USB-проверку `Android -> iPhone` осмысленной.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```ts
+const shouldRegisterVoipPush = useCallKeepNativeUi && VoipPushNotification;
+if (shouldRegisterVoipPush) {
+  VoipPushNotification.registerVoipToken();
+}
+```
+
+`frontend/ios/vedamatch.xcodeproj/project.pbxproj`:
+```pbxproj
+APS_ENVIRONMENT = development;
+CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
+```
+
+## 2026-03-27 (Shared mobile direct chat: added inbox route, read-state sync, and per-dialog drafts)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/context/ChatContext.tsx`
+- `frontend/screens/ChatScreen.tsx`
+- `frontend/components/chat/ChatInput.tsx`
+- `frontend/components/chat/MessageList.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/services/chatInboxService.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+- `frontend/utils/directChatNavigation.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct user chat открывался в основном из `Contacts`, без отдельного inbox-экрана диалогов;
+  - у P2P chat не было общего mobile flow для conversation list, read-state sync и draft persistence per dialog;
+  - typing отправлялся слишком часто, а outgoing message status не отражал базовый `sending/sent/seen` path.
+- Стало:
+  - в shared mobile navigation добавлен отдельный экран `ChatInbox` для direct conversations;
+  - `ChatContext` и inbox hook теперь синхронизируют unread/read state, conversation preview и message seen events через websocket/API;
+  - черновик текста сохраняется локально на уровень `currentUserId + peerUserId` и восстанавливается при повторном входе в диалог;
+  - последний outgoing message в ленте показывает базовый статус отправки/прочтения, а typing отправляется в debounced режиме.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```ts
+<Stack.Screen name="ChatInbox" component={ChatInboxScreen} />
+```
+
+`frontend/context/ChatContext.tsx`:
+```ts
+const tempId = `temp-${Date.now()}`;
+setMessages(prev => [...prev, { id: tempId, status: 'sending', ...pendingMessage }]);
+```
+
+```ts
+await chatInboxService.saveDraft(user?.ID, recipientUser.ID, text);
+await chatInboxService.markConversationRead(recipientUser.ID);
+```
+
+`frontend/components/chat/MessageList.tsx`:
+```ts
+const statusMark = message.sender === 'user' ? formatMessageStatus((message as Message).status) : null;
+```
+
+## 2026-03-27 (Shared mobile direct chat: unified P2P navigation entrypoints onto one helper)
+
+### Измененные файлы
+- `frontend/utils/directChatNavigation.ts`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactProfileScreen.tsx`
+- `frontend/components/chat/NearbyUsers.tsx`
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+- `frontend/screens/portal/shops/SellerOrdersScreen.tsx`
+- `frontend/screens/portal/services/ServiceDetailScreen.tsx`
+- `frontend/screens/portal/services/IncomingBookingsScreen.tsx`
+- `frontend/screens/portal/travel/YatraDetailScreen.tsx`
+- `frontend/screens/multimedia/VideoCirclesScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - разные mobile-экраны открывали direct chat вручную и по-разному: часть через `setChatRecipient + navigate('Chat')`, часть через `navigate('Chat', { userId, name })`;
+  - из-за этого direct-entry contract был размазан по экранам и хуже контролировался после появления `ChatInbox`.
+- Стало:
+  - для direct P2P chat используется общий helper `navigateToDirectChat` / `navigateToDirectChatByUserId`;
+  - `Contacts`, `ContactProfile`, `NearbyUsers`, `Dating`, `SellerOrders`, `ServiceDetail`, `IncomingBookings`, `YatraDetail`, `VideoCircles` теперь идут в один и тот же direct-chat contract;
+  - AI assistant shortcuts сознательно не переведены на этот helper и остаются отдельным flow.
+
+### Сниппеты кода
+
+`frontend/utils/directChatNavigation.ts`:
+```ts
+export const navigateToDirectChatByUserId = (
+    navigation: ChatNavigation,
+    userId: number,
+    options: { name?: string } = {},
+) => {
+    navigation.navigate('Chat', { userId, name: options.name?.trim() || undefined });
+};
+```
+
+`frontend/screens/portal/services/IncomingBookingsScreen.tsx`:
+```ts
+navigateToDirectChatByUserId(navigation, booking.clientId, {
+    name: booking.client?.spiritualName || booking.client?.karmicName,
+});
+```
+
+## 2026-03-27 (Shared mobile direct chat: push notifications and deep links now resolve through the same inbox/direct route contract)
+
+### Измененные файлы
+- `frontend/utils/directChatNavigation.ts`
+- `frontend/services/notificationService.ts`
+- `frontend/navigation/linking.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - push `new_message` открывал `Chat` напрямую только если в payload был `senderId`;
+  - если payload был неполным, direct chat fallback path не был формализован;
+  - deep links не умели явно открывать direct inbox или конкретный P2P dialog.
+- Стало:
+  - `notificationService` использует тот же direct route builder, что и экранные entrypoints;
+  - push с `new_message` или `screen=Chat/ChatInbox` открывает либо конкретный direct chat, либо `ChatInbox`, если `userId` отсутствует;
+  - в linking config добавлены `vedamatch://chats` и `vedamatch://chat/:userId`.
+
+### Сниппеты кода
+
+`frontend/services/notificationService.ts`:
+```ts
+const route = buildDirectChatRoute(options);
+if (route.name === 'Chat') {
+    navigationRef.navigate(route.name, route.params);
+} else {
+    navigationRef.navigate(route.name);
+}
+```
+
+`frontend/navigation/linking.ts`:
+```ts
+ChatInbox: 'chats',
+Chat: {
+    path: 'chat/:userId?',
+}
+```
+
+## 2026-03-27 (Shared mobile direct inbox: normalize backend lastMessage payload and surface sent/seen state in conversation list)
+
+### Измененные файлы
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - backend conversation API отдавал `lastMessage` как object, но mobile inbox service в основном ожидал строковый preview;
+  - из-за этого direct inbox хуже восстанавливал sender/read meta и не мог надежно показывать `sent/seen` у последнего исходящего сообщения.
+- Стало:
+  - `chatInboxService` нормализует nested `lastMessage` payload в `content`, `senderId`, `messageId`, `readAt`;
+  - `useChatInbox` сохраняет `lastMessageSenderId` и `lastMessageSeen` из realtime events;
+  - `ChatInboxScreen` показывает `You:` и `Sent/Seen` у последнего outgoing message, а не только unread badge.
+
+### Сниппеты кода
+
+`frontend/services/chatInboxService.ts`:
+```ts
+const lastMessagePayload = item?.lastMessage && typeof item.lastMessage === 'object' ? item.lastMessage : null;
+const parsedLastMessageSeen = lastMessagePayload?.readAt != null;
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+{item.lastMessageSeen ? '✓✓' : '✓'} {inboxCopy.you}:
+```
+
+## 2026-03-27 (Shared mobile direct inbox: swipe actions for pin and mute)
+
+### Измененные файлы
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct inbox карточки показывали состояние диалога, но не давали быстрых messenger-style действий по свайпу;
+  - pin/mute можно было менять только из самого `ChatScreen`.
+- Стало:
+  - `ChatInboxScreen` поддерживает swipe-actions по direct conversation;
+  - по свайпу доступны `pin/unpin` и `mute/unmute`;
+  - действия используют уже существующий backend endpoint `PUT /messages/preferences/:peerUserId` и локально обновляют inbox без отдельного refresh.
+
+### Сниппеты кода
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+<Swipeable
+  renderRightActions={() => renderSwipeActions(item)}
+  onSwipeableWillOpen={() => handleSwipeableWillOpen(item.peerUserId)}
+>
+```
+
+```ts
+const updated = await messageService.updateChatPreference(item.peerUserId, { [key]: nextValue });
+await updateLocalConversation(item.peerUserId, { muted: updated.muted, pinned: updated.pinned });
+```
+
+## 2026-03-25 (iOS incoming calls: suppress duplicate in-app incoming UI when CallKit already owns the call)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/screens/calls/CallScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - iOS входящий звонок показывался через `react-native-callkeep`, но после ответа `answerCall` приложение открывало `CallScreen` как обычный incoming screen;
+  - `CallScreen` успевал кратко показать второй экран с `accept/decline`, а также мог запускать свой ringtone, хотя системный CallKit уже управлял входящим вызовом;
+  - повторный push / websocket offer мог повторно дергать `displayIncomingCall` для того же звонка.
+- Стало:
+  - при входе из CallKit `App.tsx` передает в роут `presentedByCallKeep: true`;
+  - `CallScreen` на iOS при `autoAccept + presentedByCallKeep` сразу идет в `connecting`/active path и не рисует второй incoming accept/decline экран;
+  - локальный in-app ringtone не запускается, если входящий UI уже принадлежит CallKit;
+  - `App.tsx` дедуплицирует повторные `displayIncomingCall` для одного и того же incoming call.
+
+### Сниппеты кода
+
+`frontend/App.tsx`:
+```ts
+if (!isDuplicateIncoming) {
+  RNCallKeep.displayIncomingCall(callUUID, callerHandle, callerName, 'generic', true);
+}
+```
+
+```ts
+navigationRef.navigate('CallScreen', {
+  isIncoming: true,
+  callUUID,
+  autoAccept: true,
+  presentedByCallKeep: true,
+});
+```
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+const usesNativeIncomingUi = Platform.OS === 'ios' && Boolean(presentedByCallKeep);
+const [hasAccepted, setHasAccepted] = useState(!isIncoming || (Boolean(autoAccept) && usesNativeIncomingUi));
+```
+
+```ts
+if (!isIncoming || hasAccepted || usesNativeIncomingUi) {
+  stopIncomingRingtone();
+  return;
+}
+```
+
+## 2026-03-25 (Shared mobile P2P ICE: backend now returns explicit TURN UDP/TCP URLs and optional TLS URL)
+
+### Измененные файлы
+- `server/internal/handlers/turn_handler.go`
+- `server/internal/handlers/turn_handler_test.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - backend endpoint `/turn-credentials` возвращал только один `turn:<host>:3478` URL без явного транспорта;
+  - iOS/Android клиент уже умел уходить в `relay-only` на cellular, но зависел от того, как нативный ICE-agent сам интерпретирует transport fallback;
+  - опция `turns:` через отдельный TLS-порт вообще не выдавалась backend'ом.
+- Стало:
+  - backend явно отдает `turn:...:3478?transport=udp` и `turn:...:3478?transport=tcp`;
+  - если задан `TURN_TLS_PORT`, backend дополнительно отдает `turns:...:<tls-port>?transport=tcp`;
+  - это улучшает shared mobile NAT traversal для P2P-ветки и готовит клиент к отдельному TLS TURN listener без дальнейшей клиентской правки.
+
+### Сниппеты кода
+
+`server/internal/handlers/turn_handler.go`:
+```go
+turnURLs := []string{
+  fmt.Sprintf("turn:%s:%s?transport=udp", turnHost, turnPort),
+  fmt.Sprintf("turn:%s:%s?transport=tcp", turnHost, turnPort),
+}
+if tlsPort != "" {
+  turnURLs = append(turnURLs, fmt.Sprintf("turns:%s:%s?transport=tcp", turnHost, tlsPort))
+}
+```
+
+```go
+for _, turnURL := range turnURLs {
+  response.IceServers = append(response.IceServers, IceServer{
+    Urls:       turnURL,
+    Username:   username,
+    Credential: password,
+  })
+}
+```
+
 ## 2026-03-18 (Shared mobile call rendering: rollback aggressive Android RTCView watchdog, keep split renderer keys)
 
 ### Измененные файлы
@@ -17221,4 +17526,416 @@ c.Conn.SetPongHandler(func(string) error {
 if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 	return
 }
+```
+
+## 2026-03-27 (Shared mobile direct inbox: local search by name and last message)
+
+- Измененные файлы:
+  - `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+- Суть правки:
+  - Было:
+    - direct inbox имел фильтры `All/Unread/Pinned`, но не давал быстро найти диалог по имени или последнему сообщению;
+    - для большого inbox это быстро ощущается слабее, чем у крупных мессенджеров.
+  - Стало:
+    - в `ChatInboxScreen` добавлена search bar;
+    - поиск работает локально по display name, `peerUserPreview` и preview последнего сообщения;
+    - если search активен и совпадений нет, экран показывает пустое состояние поиска, а не CTA на контакты.
+- Короткие сниппеты:
+
+```ts
+const filteredItems = useMemo(() => {
+  return items.filter((item) => [displayName, item.peerUserPreview, item.lastMessage].some(...));
+}, [items, searchQuery, t]);
+```
+
+```tsx
+<TextInput
+  value={searchQuery}
+  onChangeText={setSearchQuery}
+  placeholder={copy.searchPlaceholder}
+/>
+```
+
+## 2026-03-27 (Shared mobile direct inbox: local archive filter and archive swipe action)
+
+### Измененные файлы
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct inbox не умел скрывать диалоги в отдельный archive surface;
+  - после refresh conversation list любое чисто локальное состояние быстро бы терялось, потому что inbox заново приходил с backend.
+- Стало:
+  - в shared mobile inbox добавлен фильтр `Archived` и swipe-action `Archive/Unarchive`;
+  - archive state хранится локально в `chatInboxService` и подмешивается поверх server conversation list по `peerUserId`, чтобы не теряться после refresh;
+  - archived dialogs исключаются из `All/Unread/Pinned` и автоматически возвращаются в активный inbox при новом сообщении.
+
+### Сниппеты кода
+
+`frontend/services/chatInboxService.ts`:
+```ts
+export const filterConversationItems = (items, filter) => {
+  if (filter === 'archived') {
+    return items.filter((item) => item.archived);
+  }
+  return items.filter((item) => !item.archived);
+};
+```
+
+```ts
+merged.set(item.peerUserId, {
+  ...existing,
+  ...item,
+  archived: existing?.archived ?? false,
+});
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```tsx
+const FILTERS = ['all', 'unread', 'pinned', 'archived'] as const;
+```
+
+```tsx
+<Archive size={14} color="#F8FAFC" />
+<Text style={styles.swipeActionText}>{item.archived ? copy.unarchive : copy.archive}</Text>
+```
+
+## 2026-03-27 (Shared mobile direct inbox: cursor pagination for large conversation lists)
+
+### Измененные файлы
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct inbox грузил только один conversation page и не использовал `hasMore/nextCursor`, хотя backend API уже поддерживал cursor pagination;
+  - локальный merge inbox cache в сервисе был удобен для overlay metadata, но мешал бы корректной постраничной загрузке, потому что мог визуально притягивать весь local cache в любую следующую страницу.
+- Стало:
+  - `useChatInbox` теперь хранит `loadingMore`, `hasMore`, `nextCursor` и умеет догружать direct conversations по `loadMore`;
+  - `chatInboxService` для cursor-страниц подмешивает только локальный metadata overlay, но не превращает локальный cache в отдельную server page;
+  - `ChatInboxScreen` запускает `loadMore` по `onEndReached` и показывает footer loader, если поиск не активен.
+
+### Сниппеты кода
+
+`frontend/hooks/useChatInbox.ts`:
+```ts
+const [loadingMore, setLoadingMore] = useState(false);
+const [hasMore, setHasMore] = useState(false);
+const [nextCursor, setNextCursor] = useState<number | null>(null);
+```
+
+```ts
+const response = await chatInboxService.listConversations({
+  filter,
+  limit: 50,
+  ...(mode === 'more' && nextCursor != null ? { cursor: nextCursor } : {}),
+});
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```tsx
+onEndReached={() => {
+  if (hasMore && !searchQuery.trim()) {
+    void loadMore();
+  }
+}}
+```
+
+## 2026-03-27 (Shared mobile direct inbox: server-side search for direct conversations)
+
+### Измененные файлы
+- `server/internal/handlers/message_inbox.go`
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - поиск в direct inbox работал только локально по уже загруженному snapshot;
+  - на длинном списке диалогов это давало UX хуже крупных мессенджеров, потому что search не видел непрогруженные conversations.
+- Стало:
+  - backend `GET /messages/conversations` принимает `q` и фильтрует direct conversations по peer profile fields и последнему сообщению;
+  - mobile inbox теперь отправляет debounced search query в conversation API и может листать search results постранично;
+  - archived inbox сохранен как локальный search-path, потому что archive state пока живет только в client cache.
+
+### Сниппеты кода
+
+`server/internal/handlers/message_inbox.go`:
+```go
+searchQuery := strings.TrimSpace(c.Query("q"))
+rows, err := loadDirectConversationRows(userID, filter, cursor, limit, searchQuery)
+```
+
+```go
+OR LOWER(COALESCE(peer.email, '')) LIKE ?
+OR LOWER(COALESCE(last_msg.content, '')) LIKE ?
+```
+
+`frontend/services/chatInboxService.ts`:
+```ts
+...(normalizedQuery ? { q: normalizedQuery } : {}),
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+const inbox = useChatInbox(filter, debouncedSearchQuery);
+```
+
+## 2026-03-27 (Shared mobile direct inbox: archive moved from local-only cache to backend-backed chat preference)
+
+### Измененные файлы
+- `server/internal/models/chat_preference.go`
+- `server/internal/handlers/message_inbox.go`
+- `server/internal/handlers/message_chat_features.go`
+- `server/internal/handlers/message_handler.go`
+- `server/internal/handlers/media_handler.go`
+- `server/internal/websocket/chat_events.go`
+- `frontend/services/messageService.ts`
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/context/ChatContext.tsx`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Archive` в direct inbox жил только в local inbox cache и не синхронизировался между устройствами;
+  - `pin/mute` шли через backend `chat_preferences`, а `archive` был отдельной клиентской веткой;
+  - новое direct message снимало archive только локально, что создавало риск рассинхрона между устройствами и после refresh.
+- Стало:
+  - `chat_preferences` расширен полями `archived` и `archived_at`;
+  - `PUT /messages/preferences/:peerUserId` теперь обновляет `archived`, а inbox API использует archive прямо в server-side filters;
+  - `conversation_updated` websocket event несет `archived/archivedAt`, поэтому archive sync доходит до других mobile sessions;
+  - при новом direct message backend автоматически снимает archive для обеих сторон диалога и рассылает уже обновленный conversation state.
+
+### Сниппеты кода
+
+`server/internal/models/chat_preference.go`:
+```go
+Archived   bool       `json:"archived" gorm:"not null;default:false;index"`
+ArchivedAt *time.Time `json:"archivedAt,omitempty" gorm:"index"`
+```
+
+`server/internal/handlers/message_chat_features.go`:
+```go
+type ChatPreferenceUpdateRequest struct {
+  Muted    *bool `json:"muted"`
+  Pinned   *bool `json:"pinned"`
+  Archived *bool `json:"archived"`
+}
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+const updated = await messageService.updateChatPreference(item.peerUserId, {
+  archived: nextArchived,
+});
+```
+
+## 2026-03-27 (Shared mobile direct inbox: archived search now uses the same backend search and cursor flow)
+
+### Измененные файлы
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после переноса archive в backend сам `Archived` filter уже был server-backed, но archived-search все еще шел по отдельной local-only ветке;
+  - плюс cursor merge в inbox service после перехода на string cursor мог ошибочно вести себя как для первой страницы.
+- Стало:
+  - `Archived` search и pagination теперь используют тот же `GET /messages/conversations` contract с `q` и `cursor`, что и остальные inbox filters;
+  - special-case local search path для archived dialogs убран;
+  - `chatInboxService` теперь корректно отличает первую страницу от cursor-page по наличию `params.cursor`, а не по старой numeric-проверке.
+
+### Сниппеты кода
+
+`frontend/hooks/useChatInbox.ts`:
+```ts
+const response = await chatInboxService.listConversations({
+  filter,
+  limit: 50,
+  ...(mode === 'more' && nextCursor != null ? { cursor: nextCursor } : {}),
+  ...(normalizedQuery ? { q: normalizedQuery } : {}),
+});
+```
+
+`frontend/services/chatInboxService.ts`:
+```ts
+const mergedItems = mergeWithLocalState(items, local, {
+  includeLocalOnly: !params.cursor,
+});
+```
+
+## 2026-03-27 (Shared mobile direct inbox: added Requests filter backed by friendship/request relationship state)
+
+### Измененные файлы
+- `server/internal/handlers/message_inbox.go`
+- `server/internal/websocket/chat_events.go`
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/context/ChatContext.tsx`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct inbox умел `All/Unread/Pinned/Archived`, но не выделял отдельную поверхность для диалогов с пользователями вне friends graph;
+  - mobile UI не знал relationship status direct dialog и не мог отличать incoming/outgoing request от просто незнакомого контакта.
+- Стало:
+  - backend `GET /messages/conversations` поддерживает `filter=requests` и отдает `relationshipStatus` в каждом direct conversation item;
+  - `Requests` определяется поверх уже существующих `friends` и `friend_requests`, без новой conversation schema;
+  - `conversation_updated` websocket event теперь тоже несет `relationshipStatus`, поэтому request-state синхронизируется в inbox между сессиями при обычных conversation updates;
+  - mobile inbox получил filter chip `Requests`, request badges и отдельный empty-state для direct dialogs вне friends list.
+
+### Сниппеты кода
+
+`server/internal/handlers/message_inbox.go`:
+```go
+case directConversationFilterRequests:
+	query += ` AND COALESCE(pref.archived, false) = false AND fe.peer_user_id IS NULL`
+```
+
+```go
+CASE
+	WHEN fe.peer_user_id IS NOT NULL THEN 'friend'
+	WHEN ir.peer_user_id IS NOT NULL THEN 'incoming_request'
+	WHEN orq.peer_user_id IS NOT NULL THEN 'outgoing_request'
+	ELSE 'none'
+END AS relationship
+```
+
+`server/internal/websocket/chat_events.go`:
+```go
+Relationship string `json:"relationshipStatus,omitempty"`
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+const FILTERS = ['all', 'unread', 'pinned', 'requests', 'archived'] as const;
+```
+
+## 2026-03-27 (Shared mobile direct inbox: request-state now refreshes in realtime after friend-request actions)
+
+### Измененные файлы
+- `server/internal/handlers/auth_handler.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Requests` в direct inbox получал `relationshipStatus` из conversation API и обычных message-driven `conversation_updated` events;
+  - но после `send/accept/reject/cancel friend request` без нового сообщения mobile inbox мог показать устаревший request-state до следующего refresh/focus.
+- Стало:
+  - `AuthHandler` получил optional websocket conversation hub через setter из `main.go`;
+  - после `send/accept/reject/cancel friend request` backend переотправляет `conversation_updated` для пары пользователей, если у них уже есть direct dialog;
+  - mobile inbox обновляет `relationshipStatus` без ручного refresh, используя уже существующий realtime path.
+
+### Сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+func (h *AuthHandler) SetConversationHub(hub directConversationBroadcaster) {
+	h.hub = hub
+}
+```
+
+```go
+broadcastDirectConversationStateToUser(h.hub, request.SenderID, userId)
+broadcastDirectConversationStateToUser(h.hub, userId, request.SenderID)
+```
+
+`server/cmd/api/main.go`:
+```go
+authHandler := handlers.NewAuthHandler(walletService, referralService)
+authHandler.SetConversationHub(hub)
+```
+
+## 2026-03-27 (Shared mobile direct inbox: Requests now supports inline friend-request actions)
+
+### Измененные файлы
+- `server/internal/handlers/message_inbox.go`
+- `server/internal/websocket/chat_events.go`
+- `frontend/services/chatInboxService.ts`
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/context/ChatContext.tsx`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Requests` filter показывал relationship state, но сам inbox не мог быстро принять, отклонить, отменить или отправить friend request;
+  - для этого нужно было уходить в отдельный social flow, хотя direct dialog уже был открыт в messenger surface.
+- Стало:
+  - conversation API и realtime event теперь несут `friendRequestId` для pending incoming/outgoing request;
+  - `ChatInboxScreen` в `Requests` показывает inline-actions:
+    - `incoming_request` -> `Accept / Decline`
+    - `outgoing_request` -> `Cancel`
+    - `none` -> `Add friend`
+  - после действия inbox локально патчит `relationshipStatus` и `friendRequestId`, а backend realtime path добивает синхронизацию между сессиями.
+
+### Сниппеты кода
+
+`server/internal/websocket/chat_events.go`:
+```go
+FriendRequestID *uint `json:"friendRequestId,omitempty"`
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+if (action === 'accept' && item.friendRequestId) {
+  await friendRequestService.acceptRequest(item.friendRequestId);
+  await updateLocalConversation(item.peerUserId, {
+    relationshipStatus: 'friend',
+    friendRequestId: undefined,
+  });
+}
+```
+
+```ts
+{item.relationshipStatus === 'none' ? (
+  <TouchableOpacity onPress={() => {
+    runAsyncAction(handleRequestAction(item, 'send'));
+  }}>
+    <Text>{copy.sendRequest}</Text>
+  </TouchableOpacity>
+) : null}
+```
+
+## 2026-03-27 (Shared mobile direct inbox: Unread and Requests chips now show live badge counts)
+
+### Измененные файлы
+- `frontend/hooks/useChatInbox.ts`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - chips `Unread` и `Requests` не показывали count, поэтому user видел наличие новых запросов или непрочитанных диалогов только после переключения фильтра;
+  - search query визуально “поглощал” состояние inbox, потому что верхняя панель не показывала глобальные counts.
+- Стало:
+  - `useChatInbox` считает `counts.unread` и `counts.requests` из локального inbox snapshot;
+  - `ChatInboxScreen` показывает badge-count прямо на chips `Unread` и `Requests`;
+  - counts не зависят от текущего search query и отражают глобальное состояние direct inbox.
+
+### Сниппеты кода
+
+`frontend/hooks/useChatInbox.ts`:
+```ts
+const [counts, setCounts] = useState<ChatInboxCounts>({ unread: 0, requests: 0 });
+```
+
+```ts
+const [unreadItems, requestItems] = await Promise.all([
+  chatInboxService.readLocalSnapshot('unread'),
+  chatInboxService.readLocalSnapshot('requests'),
+]);
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```ts
+{((key === 'unread' || key === 'requests') && (filterBadges[key] || 0) > 0) ? (
+  <View style={styles.filterCountBadge}>
+    <Text>{filterBadges[key] > 99 ? '99+' : filterBadges[key]}</Text>
+  </View>
+) : null}
 ```

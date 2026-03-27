@@ -490,8 +490,10 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FC2B5779A8F53CA869FBF2E6 /* Pods-vedamatch.debug.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = vedamatch/vedamatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;

@@ -15,6 +15,7 @@ import { getMediaUrl } from '../../utils/url';
 import { nearbyService, UserWithDistance } from '../../services/nearbyService';
 import { useChat } from '../../context/ChatContext';
 import { useNavigation } from '@react-navigation/native';
+import { navigateToDirectChat } from '../../utils/directChatNavigation';
 
 interface NearbyUsersProps {
 	latitude: number;
@@ -73,7 +74,7 @@ export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, t
 
 	const handleUserPress = (user: UserWithDistance) => {
 		setChatRecipient(user as any);
-		navigation.navigate('Chat');
+		navigateToDirectChat(navigation, user as any);
 	};
 
 	const renderItem = ({ item }: { item: UserWithDistance }) => {

@@ -1,0 +1,255 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: V
+          - generic [ref=e7]:
+            - generic [ref=e8]: VedaMatch
+            - generic [ref=e9]: Ecosystem Agent
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - button "en" [ref=e12]
+            - button "hi" [ref=e13]
+            - button "ru" [ref=e14]
+          - generic [ref=e15]:
+            - link "Лента" [ref=e16] [cursor=pointer]:
+              - /url: /feed-posts
+            - link "Вход" [ref=e17] [cursor=pointer]:
+              - /url: https://social.vedamatch.ru/login
+            - link "Регистрация" [ref=e18] [cursor=pointer]:
+              - /url: https://social.vedamatch.ru/register
+    - main [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - img [ref=e23]
+            - text: Evolution of Sanatana Dharma
+          - heading "Духовные Технологии Нового Времени" [level=1] [ref=e26]:
+            - text: Духовные Технологии
+            - text: Нового Времени
+          - paragraph [ref=e27]: Слияние Ведической Мудрости и Искусственного Интеллекта для глубокого служения и общения в цифровую эпоху.
+          - generic [ref=e28]:
+            - link "Присоединиться" [ref=e29] [cursor=pointer]:
+              - /url: https://social.vedamatch.ru/register
+              - generic [ref=e30]: Присоединиться
+              - img [ref=e31]
+            - link "Узнать больше" [ref=e33] [cursor=pointer]:
+              - /url: "#features"
+              - img [ref=e34]
+              - generic [ref=e37]: Узнать больше
+        - generic [ref=e39]:
+          - img "Portrait 1" [ref=e41] [cursor=pointer]
+          - img "Portrait 2" [ref=e43] [cursor=pointer]
+          - img "Portrait 3" [ref=e45] [cursor=pointer]
+          - img "Portrait 4" [ref=e47] [cursor=pointer]
+          - img "Portrait 5" [ref=e49] [cursor=pointer]
+          - img "Portrait 6" [ref=e51] [cursor=pointer]
+          - img "Portrait 7" [ref=e53] [cursor=pointer]
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - img [ref=e59]
+            - text: Built for Devotees
+          - heading "Всё необходимое в Одном Месте" [level=2] [ref=e62]:
+            - text: Всё необходимое в
+            - text: Одном Месте
+          - paragraph [ref=e63]: Мы собрали лучшие инструменты для духовной практики, общения и жизни в гуне благости.
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - img [ref=e67]
+            - heading "Sattva Market" [level=3] [ref=e70]
+            - paragraph [ref=e71]: Маркетплейс для благостной жизни. Находите продукты, одежду и атрибутику от проверенных вайшнавских магазинов. Безопасные сделки и удобная доставка.
+          - generic [ref=e72]:
+            - img [ref=e74]
+            - heading "VedaMatch" [level=3] [ref=e76]
+            - paragraph [ref=e77]: Осознанные знакомства. Ищите спутника жизни, деловых партнеров или друзей по интересам. Умные фильтры по ашраму, целям и служению.
+          - generic [ref=e78]:
+            - img [ref=e80]
+            - heading "Sanga Общение" [level=3] [ref=e82]
+            - paragraph [ref=e83]: Оставайтесь на связи с общиной. P2P звонки, чаты и поиск преданных рядом с вами для совместного служения и киртанов.
+          - generic [ref=e84]:
+            - img [ref=e86]
+            - heading "Sattva Cafe" [level=3] [ref=e88]
+            - paragraph [ref=e89]: Найдите ближайшее вегетарианское кафе или закажите доставку прасада. Каталог проверенных заведений с отзывами преданных.
+          - generic [ref=e90]:
+            - img [ref=e92]
+            - heading "Библиотека Мудрости" [level=3] [ref=e94]
+            - paragraph [ref=e95]: Образовательная платформа. Изучайте шастры, проходите курсы (Бхакти Шастры) и проверяйте знания в тренажерах.
+          - generic [ref=e96]:
+            - img [ref=e98]
+            - heading "Образование" [level=3] [ref=e101]
+            - paragraph [ref=e102]: Курсы по философии, музыке, кулинарии и другим ведическим искусствам. Обучение от мастеров своего дела.
+          - generic [ref=e103]:
+            - img [ref=e105]
+            - heading "Seva Hub" [level=3] [ref=e109]
+            - paragraph [ref=e110]: Раздел для тех, кто хочет служить. Поиск волонтеров для храмовых проектов, фестивалей и добрых дел.
+          - generic [ref=e111]:
+            - img [ref=e113]
+            - heading "Лента Новостей" [level=3] [ref=e116]
+            - paragraph [ref=e117]: Агрегатор чистого контента. Новости с фильтром по матхам и организациям, очищенные от негатива.
+          - generic [ref=e118]:
+            - img [ref=e120]
+            - heading "Священные Путешествия" [level=3] [ref=e123]
+            - paragraph [ref=e124]: Паломничества в святые места (Дхамы), йога-туры и поездки на фестивали. Организация жилья и трансферов.
+          - generic [ref=e125]:
+            - img [ref=e127]
+            - heading "Экосистема Карт" [level=3] [ref=e130]
+            - paragraph [ref=e131]: Все вайшнавские центры, храмы и культурные объекты на одной карте. Будьте в курсе событий в вашем регионе.
+          - generic [ref=e132]:
+            - img [ref=e134]
+            - heading "Объявления" [level=3] [ref=e137]
+            - paragraph [ref=e138]: Доска объявлений для своих. Покупайте, продавайте, дарите и находите нужные услуги внутри сообщества.
+          - generic [ref=e139]:
+            - img [ref=e141]
+            - heading "AI Ассистент" [level=3] [ref=e144]
+            - paragraph [ref=e145]: Ваш личный гид. Задавайте вопросы по философии и практике — искусственный интеллект найдет ответы.
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - heading "Философия VedaMatch Agent" [level=2] [ref=e152]:
+            - text: Философия
+            - text: VedaMatch Agent
+          - paragraph [ref=e153]: "Век Кали диктует свои правила, но преданность остается неизменной. Мы верим, что технологии — это лишь инструменты, которые должны служить высшей цели: соединению сердец с Божественным и друг другом."
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - img [ref=e157]
+              - heading "Традиция" [level=3] [ref=e160]
+              - paragraph [ref=e161]: Мы опираемся на неизменные наставления ачарьев и священных писаний, адаптируя форму, но сохраняя суть.
+            - generic [ref=e162]:
+              - img [ref=e164]
+              - heading "Инновации" [level=3] [ref=e166]
+              - paragraph [ref=e167]: Использование AI и передовых архитектур для ускорения проповеди и упрощения повседневной духовной практики.
+            - generic [ref=e168]:
+              - img [ref=e170]
+              - heading "Община" [level=3] [ref=e174]
+              - paragraph [ref=e175]: Создание безопасной и вдохновляющей цифровой среды для сангхи, где каждый может найти поддержку и служение.
+            - generic [ref=e176]:
+              - img [ref=e178]
+              - heading "Образование" [level=3] [ref=e180]
+              - paragraph [ref=e181]: Доступ к знаниям в интерактивном формате, помогающий систематизировать изучение шастр в любом месте.
+        - generic [ref=e183]:
+          - img "Mission Illustration" [ref=e184]
+          - paragraph [ref=e187]: "\"Используйте все ради Кришны. Это и есть истинное отречение и совершенство жизни в современном мире.\""
+      - generic [ref=e190]:
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - img [ref=e193]
+            - text: VedaMatch Ecosystem
+          - heading "Найдите единомышленников для Семьи" [level=2] [ref=e196]:
+            - text: Найдите единомышленников для
+            - text: Семьи
+          - generic [ref=e197]:
+            - button "Семьи" [ref=e198]:
+              - img [ref=e199]
+              - text: Семьи
+            - button "Бизнеса" [ref=e201]:
+              - img [ref=e202]
+              - text: Бизнеса
+            - button "Дружбы" [ref=e205]:
+              - img [ref=e206]
+              - text: Дружбы
+            - button "Служения" [ref=e209]:
+              - img [ref=e210]
+              - text: Служения
+        - generic [ref=e214]:
+          - generic [ref=e216]:
+            - paragraph [ref=e217]: Находите спутника жизни на основе ведических ценностей и астрологической совместимости.
+            - generic [ref=e218]:
+              - generic [ref=e219]:
+                - img [ref=e221]
+                - generic [ref=e226]:
+                  - paragraph [ref=e227]: "1"
+                  - paragraph [ref=e228]: М
+              - generic [ref=e229]:
+                - img [ref=e231]
+                - generic [ref=e236]:
+                  - paragraph [ref=e237]: "0"
+                  - paragraph [ref=e238]: Ж
+            - button "Присоединиться" [ref=e239]:
+              - text: Присоединиться
+              - img [ref=e240]
+          - generic [ref=e245]: VedaMatch • Благость • Сообщество
+      - generic [ref=e249]:
+        - generic [ref=e250]:
+          - generic [ref=e251]: Создатели Проекта
+          - heading "Команда Единомышленников" [level=2] [ref=e252]
+          - paragraph [ref=e254]: Мы объединили современную инженерную мысль и преданность ведическим стандартам, чтобы создать инструменты для новой эпохи духовного развития.
+        - generic [ref=e255]:
+          - generic [ref=e257]:
+            - generic [ref=e258]:
+              - img "Санкаршан дас" [ref=e259]
+              - generic [ref=e261]: Общественные связи
+            - generic [ref=e262]:
+              - generic [ref=e264]:
+                - heading "Санкаршан дас" [level=3] [ref=e265]
+                - paragraph [ref=e266]: Основатель и идейный вдохновитель
+              - generic [ref=e267]:
+                - img [ref=e268]
+                - paragraph [ref=e271]: Связь с общественностью. Координация внешних связей и развитие стратегического партнерства в рамках экосистемы.
+          - generic [ref=e273]:
+            - generic [ref=e274]:
+              - img "Маму Тхакур дас" [ref=e275]
+              - generic [ref=e277]: Технологии
+            - generic [ref=e278]:
+              - generic [ref=e280]:
+                - heading "Маму Тхакур дас" [level=3] [ref=e281]
+                - paragraph [ref=e282]: Основатель и идейный вдохновитель
+              - generic [ref=e283]:
+                - img [ref=e284]
+                - paragraph [ref=e287]: Технический специалист. Архитектура системы, разработка AI-сервисов и технологическая реализация видения проекта.
+      - generic [ref=e293]:
+        - img [ref=e295]
+        - heading "Присоединяйтесь к Сангхе" [level=2] [ref=e297]
+        - paragraph [ref=e298]: Обсуждайте развитие экосистемы, предлагайте свои идеи и общайтесь с единомышленниками. Вместе мы создаем технологии будущего в служении преданным.
+        - link "В наш Телеграм" [ref=e299] [cursor=pointer]:
+          - /url: https://t.me/vedamatch
+          - text: В наш Телеграм
+          - img [ref=e300]
+      - generic [ref=e302]:
+        - generic [ref=e304]:
+          - heading "Вдохновение в каждом моменте" [level=2] [ref=e305]
+          - paragraph [ref=e306]: Погрузитесь в атмосферу преданности и служения. Наша платформа помогает сохранять и приумножать эти ценности.
+        - generic:
+          - generic:
+            - img "Киртан"
+          - generic:
+            - img "Храм"
+          - generic:
+            - img "Изучение"
+          - generic:
+            - img "Медитация"
+          - generic:
+            - img "Служение"
+          - generic:
+            - img "Преданность"
+    - contentinfo [ref=e307]:
+      - generic [ref=e308]:
+        - generic [ref=e309]:
+          - heading "VedaMatch" [level=3] [ref=e310]
+          - paragraph [ref=e311]: Современные технологии на службе вечных ценностей.
+        - generic [ref=e312]:
+          - heading "Разделы" [level=4] [ref=e313]
+          - list [ref=e314]:
+            - listitem [ref=e315]:
+              - link "Главная" [ref=e316] [cursor=pointer]:
+                - /url: /
+            - listitem [ref=e317]:
+              - link "Лента" [ref=e318] [cursor=pointer]:
+                - /url: /feed-posts
+            - listitem [ref=e319]:
+              - link "Авторизация" [ref=e320] [cursor=pointer]:
+                - /url: https://social.vedamatch.ru/login
+            - listitem [ref=e321]:
+              - link "Панель управления" [ref=e322] [cursor=pointer]:
+                - /url: https://panel.vedamatch.ru/admin-login
+        - generic [ref=e323]:
+          - heading "Ресурсы" [level=4] [ref=e324]
+          - list [ref=e325]:
+            - listitem [ref=e326]: Документация
+            - listitem [ref=e327]: Блог
+            - listitem [ref=e328]: Сообщество
+        - generic [ref=e329]:
+          - heading "Свяжитесь с нами" [level=4] [ref=e330]
+          - paragraph [ref=e331]: iskcon.dev@gmail.com
+      - generic [ref=e332]: © 2025 VedaMatch Agent. All rights reserved. Hare Krishna.
+  - alert [ref=e333]

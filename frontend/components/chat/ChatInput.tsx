@@ -37,6 +37,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         handleSendMessage,
         handleStopRequest,
         handleSendMedia,
+        inputText,
+        setInputText,
         isLoading,
         showMenu,
         setShowMenu,
@@ -46,7 +48,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const { sendTypingIndicator } = useWebSocket();
     const { user: currentUser } = useUser();
     const { isDarkMode, chatBackgroundType, chatBackground } = useSettings();
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const typingStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const typingStopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const longPressTriggeredRef = useRef(false);
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const isImageBg = chatBackgroundType === 'image';
@@ -116,8 +119,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }[lang];
     }, [i18n.language]);
 
-    // Local states for new logic
-    const [draftText, setDraftText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
 
     const handleTakePhoto = async () => {
@@ -201,9 +202,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             handleStopRequest();
             return;
         }
-        const sent = await handleSendMessage(draftText);
+        const sent = await handleSendMessage(inputText);
         if (sent) {
-            setDraftText('');
+            setInputText('');
         }
     };
 
@@ -230,7 +231,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     const onSendLongPress = async () => {
-        if (isLoading || isUploading || draftText.trim().length > 0) {
+        if (isLoading || isUploading || inputText.trim().length > 0) {
             return;
         }
 
@@ -241,30 +242,45 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const avatarUrl = getMediaUrl(recipientUser?.avatarUrl);
 
     const handleTextChange = (text: string) => {
-        setDraftText(text);
+        setInputText(text);
 
-        if (recipientUser?.ID && currentUser?.ID && recipientUser.ID !== currentUser.ID) {
-            sendTypingIndicator(recipientUser.ID, true);
-
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
-            }
-
-            typingTimeoutRef.current = setTimeout(() => {
-                sendTypingIndicator(recipientUser.ID, false);
-            }, 3000);
+        if (!recipientUser?.ID || !currentUser?.ID || recipientUser.ID === currentUser.ID) {
+            return;
         }
+
+        if (typingStartTimeoutRef.current) {
+            clearTimeout(typingStartTimeoutRef.current);
+        }
+        if (typingStopTimeoutRef.current) {
+            clearTimeout(typingStopTimeoutRef.current);
+        }
+
+        if (!text.trim()) {
+            sendTypingIndicator(recipientUser.ID, false);
+            return;
+        }
+
+        typingStartTimeoutRef.current = setTimeout(() => {
+            sendTypingIndicator(recipientUser.ID, true);
+        }, 120);
+
+        typingStopTimeoutRef.current = setTimeout(() => {
+            sendTypingIndicator(recipientUser.ID, false);
+        }, 1600);
     };
 
     useEffect(() => {
         return () => {
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
+            if (typingStartTimeoutRef.current) {
+                clearTimeout(typingStartTimeoutRef.current);
+            }
+            if (typingStopTimeoutRef.current) {
+                clearTimeout(typingStopTimeoutRef.current);
             }
         };
     }, []);
 
-    const showSendButton = (draftText.length > 0 || isFocused) && !isRecording;
+    const showSendButton = (inputText.length > 0 || isFocused) && !isRecording;
     const panelBg = isImageBg
         ? 'rgba(15,23,42,0.58)'
         : useDarkForeground ? 'rgba(255,255,255,0.88)' : colors.surfaceElevated;
@@ -431,8 +447,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             ]}
                             placeholder={t('chat.placeholder')}
                             placeholderTextColor={placeholderColor}
-                            value={draftText}
-                            onChangeText={handleTextChange}
+                        value={inputText}
+                        onChangeText={handleTextChange}
                             onSubmitEditing={onSendPress}
                             textContentType="none"
                             autoComplete="off"

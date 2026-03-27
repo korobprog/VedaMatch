@@ -1,7 +1,0 @@
-./booking_reminder_worker.go
-./charity_report_worker.go
-./donation_confirm_worker.go
-./feed_rebuild_worker.go
-./media_pipeline_worker.go
-./transcoding_worker.go
-./yatra_billing_worker.go

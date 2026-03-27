@@ -381,6 +381,21 @@ export const MessageList: React.FC<MessageListProps> = ({
         return date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
     };
 
+    const formatMessageStatus = (status?: Message['status']) => {
+        switch (status) {
+            case 'sending':
+                return '·';
+            case 'seen':
+                return '✓✓';
+            case 'failed':
+                return '!';
+            case 'sent':
+                return '✓';
+            default:
+                return '';
+        }
+    };
+
     // Flatten messages with date headers
     const messagesWithHeaders = (() => {
         const result: (Message | { type: 'header', title: string, id: string })[] = [];
@@ -929,6 +944,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         const text = item.text || '';
         const audioUrl = resolveAudioUrl(item);
         const time = formatMessageTime(item.createdAt);
+        const statusLabel = isUser ? formatMessageStatus(item.status) : '';
         const recipientAvatarUrl = getMediaUrl(recipientUser?.avatarUrl);
         const recipientName = recipientUser?.spiritualName || recipientUser?.karmicName || '';
         const recipientInitial = recipientName.trim().charAt(0).toUpperCase() || '?';
@@ -1130,7 +1146,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                 {part}
                                             </Markdown>
                                         </View>
-                                        <Text style={[styles.timeText, styles.embeddedTime, { color: bubbleSubTextColor }]}>{time}</Text>
+                                        <Text style={[styles.timeText, styles.embeddedTime, { color: bubbleSubTextColor }]}>
+                                            {time}{statusLabel ? ` ${statusLabel}` : ''}
+                                        </Text>
                                     </View>
                                 );
                             })}
@@ -1139,7 +1157,9 @@ export const MessageList: React.FC<MessageListProps> = ({
 
                     {!text && !item.uploading && (
                         <View style={styles.timeOverlay}>
-                            <Text style={[styles.timeText, { color: bubbleSubTextColor }]}>{time}</Text>
+                            <Text style={[styles.timeText, { color: bubbleSubTextColor }]}>
+                                {time}{statusLabel ? ` ${statusLabel}` : ''}
+                            </Text>
                         </View>
                     )}
 

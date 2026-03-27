@@ -92,6 +92,7 @@ export type RootStackParamList = {
     } | undefined;
     SupportInbox: undefined;
     SupportConversation: { conversationId: number };
+    ChatInbox: undefined;
     EditProfile: undefined;
     ProPlans: undefined;
     RoomChat: {

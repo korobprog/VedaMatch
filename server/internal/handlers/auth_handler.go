@@ -39,6 +39,7 @@ type AuthHandler struct {
 	telegramAuthService *services.TelegramAuthService
 	webSocialAuthBridge *services.WebSocialAuthBridgeService
 	proService          *services.ProService
+	hub                 directConversationBroadcaster
 }
 
 func NewAuthHandler(walletService *services.WalletService, referralService *services.ReferralService) *AuthHandler {
@@ -51,6 +52,13 @@ func NewAuthHandler(walletService *services.WalletService, referralService *serv
 		webSocialAuthBridge: services.NewWebSocialAuthBridgeService(),
 		proService:          services.NewProService(walletService),
 	}
+}
+
+func (h *AuthHandler) SetConversationHub(hub directConversationBroadcaster) {
+	if h == nil {
+		return
+	}
+	h.hub = hub
 }
 
 func normalizePortalRole(role string) string {
@@ -3869,6 +3877,9 @@ func (h *AuthHandler) SendFriendRequest(c *fiber.Ctx) error {
 		}
 	}()
 
+	broadcastDirectConversationStateToUser(h.hub, userId, body.ReceiverID)
+	broadcastDirectConversationStateToUser(h.hub, body.ReceiverID, userId)
+
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
@@ -4007,6 +4018,9 @@ func (h *AuthHandler) AcceptFriendRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create friendship"})
 	}
 
+	broadcastDirectConversationStateToUser(h.hub, request.SenderID, userId)
+	broadcastDirectConversationStateToUser(h.hub, userId, request.SenderID)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request accepted"})
 }
 
@@ -4047,6 +4061,9 @@ func (h *AuthHandler) RejectFriendRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update request status"})
 	}
 
+	broadcastDirectConversationStateToUser(h.hub, request.SenderID, userId)
+	broadcastDirectConversationStateToUser(h.hub, userId, request.SenderID)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request rejected"})
 }
 
@@ -4085,6 +4102,9 @@ func (h *AuthHandler) CancelFriendRequest(c *fiber.Ctx) error {
 	if err := database.DB.Delete(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not cancel friend request"})
 	}
+
+	broadcastDirectConversationStateToUser(h.hub, userId, request.ReceiverID)
+	broadcastDirectConversationStateToUser(h.hub, request.ReceiverID, userId)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request cancelled"})
 }

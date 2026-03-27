@@ -372,6 +372,9 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 			"error": "Could not save message",
 		})
 	}
+	if msg.RoomID == 0 {
+		_ = clearArchivedDirectPreferencesForPair(msg.SenderID, msg.RecipientID)
+	}
 
 	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
 		RoomName:      roomName,
@@ -386,6 +389,8 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 			}
 		} else {
 			h.hub.Broadcast(msg)
+			broadcastDirectConversationStateToUser(h.hub, msg.SenderID, msg.RecipientID)
+			broadcastDirectConversationStateToUser(h.hub, msg.RecipientID, msg.SenderID)
 		}
 	}
 
@@ -550,6 +555,9 @@ func (h *MediaHandler) FinalizeMessageMedia(c *fiber.Ctx) error {
 	if err := database.DB.Create(&msg).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not save message"})
 	}
+	if msg.RoomID == 0 {
+		_ = clearArchivedDirectPreferencesForPair(msg.SenderID, msg.RecipientID)
+	}
 
 	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
 		RoomName:      roomName,
@@ -564,6 +572,8 @@ func (h *MediaHandler) FinalizeMessageMedia(c *fiber.Ctx) error {
 			}
 		} else {
 			h.hub.Broadcast(msg)
+			broadcastDirectConversationStateToUser(h.hub, msg.SenderID, msg.RecipientID)
+			broadcastDirectConversationStateToUser(h.hub, msg.RecipientID, msg.SenderID)
 		}
 	}
 

@@ -16,6 +16,7 @@ import i18n from '../i18n';
 import { navigationRef } from '../navigation/navigationRef';
 import { contactService } from './contactService';
 import { serializeAndroidPermissionRequest } from '../utils/permissionRequestQueue';
+import { buildDirectChatRoute } from '../utils/directChatNavigation';
 
 // External addNotification hook — wired at runtime from NotificationProvider
 type AddNotificationFn = (notif: { type: string; title: string; body: string; data: Record<string, any> }) => void;
@@ -101,6 +102,15 @@ const parseNumericId = (...values: any[]): number | undefined => {
         }
     }
     return undefined;
+};
+
+const navigateFromNotificationToDirectChat = (options: { userId?: number; name?: string } = {}) => {
+    const route = buildDirectChatRoute(options);
+    if (route.name === 'Chat') {
+        navigationRef.navigate(route.name, route.params);
+        return;
+    }
+    navigationRef.navigate(route.name);
 };
 
 const getVideoCirclePublishCopy = (data: any) => {
@@ -299,6 +309,13 @@ export const notificationService = {
         }
 
         if (data.screen) {
+            if (data.screen === 'Chat' || data.screen === 'ChatInbox') {
+                navigateFromNotificationToDirectChat({
+                    userId: parseNumericId(data.userId, data.senderId, params.userId, params.senderId),
+                    name: typeof data.name === 'string' ? data.name : typeof params.name === 'string' ? params.name : undefined,
+                });
+                return;
+            }
             // @ts-ignore
             navigationRef.navigate(data.screen, params);
             return;
@@ -335,10 +352,16 @@ export const notificationService = {
         if (data.type === 'new_message') {
             const senderRaw = data.senderId || params.userId || params.senderId;
             const senderId = Number.parseInt(String(senderRaw || ''), 10);
-            if (Number.isFinite(senderId) && senderId > 0) {
-                // @ts-ignore
-                navigationRef.navigate('Chat', { userId: senderId });
-            }
+            navigateFromNotificationToDirectChat({
+                userId: Number.isFinite(senderId) && senderId > 0 ? senderId : undefined,
+                name: typeof data.senderName === 'string'
+                    ? data.senderName
+                    : typeof data.name === 'string'
+                        ? data.name
+                        : typeof params.name === 'string'
+                            ? params.name
+                            : undefined,
+            });
             return;
         }
 

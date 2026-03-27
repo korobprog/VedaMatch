@@ -16,6 +16,7 @@ import { ProtectedScreen } from '../components/ProtectedScreen';
 import { shareImage, downloadImage } from '../services/fileService';
 import { contactService } from '../services/contactService';
 import { messageService, P2PMessage } from '../services/messageService';
+import { chatInboxService } from '../services/chatInboxService';
 import LinearGradient from 'react-native-linear-gradient';
 import { isColorLight, isGradientLight } from '../utils/chatBackgroundContrast';
 import { invalidateContactsCaches } from '../lib/contactCache';
@@ -173,7 +174,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         if (navigation.canGoBack() && prevRoute?.name) {
             navigation.goBack();
         } else {
-            navigation.navigate('Portal', { initialTab: 'contacts' });
+            navigation.navigate('ChatInbox');
         }
     }, [navigation]);
 
@@ -192,6 +193,9 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
     useFocusEffect(
         React.useCallback(() => {
+            if (recipientUser?.ID && currentUser?.ID) {
+                void chatInboxService.markConversationRead(recipientUser.ID);
+            }
             const onBackPress = () => {
                 handleBackNavigation();
                 return true;
@@ -199,7 +203,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
             const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
             return () => subscription.remove();
-        }, [handleBackNavigation]),
+        }, [handleBackNavigation, recipientUser?.ID, currentUser?.ID]),
     );
 
     useEffect(() => {

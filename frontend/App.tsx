@@ -82,6 +82,7 @@ const getUUID = () => {
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
 import { RoomInviteEntryScreen } from './screens/portal/chat/RoomInviteEntryScreen';
 import { RoomsHomeScreen } from './screens/portal/chat/RoomsHomeScreen';
+import { ChatInboxScreen } from './screens/portal/chat/ChatInboxScreen';
 import { CallScreen } from './screens/calls/CallScreen';
 import { CallHistoryScreen } from './screens/calls/CallHistoryScreen';
 import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
@@ -381,13 +382,27 @@ const AppContent = () => {
       const { targetId, callerName, callerHandle } = await resolveIncomingCallerIdentity(payload);
       const incomingUUID = String(payload?.callUUID || payload?.uuid || '').trim();
       const callUUID = isUuidLike(incomingUUID) ? incomingUUID : getUUID();
+      const existingIncoming = incomingCallRef.current;
+      const isDuplicateIncoming = Boolean(
+        existingIncoming
+        && (
+          existingIncoming.callUUID === callUUID
+          || (
+            targetId != null
+            && existingIncoming.targetId === targetId
+            && existingIncoming.callerName === callerName
+          )
+        )
+      );
 
       incomingCallRef.current = { callUUID, targetId, callerName };
 
       if (useCallKeepNativeUi) {
         await setupVoIP();
         if (voipSetupRef.current) {
-          RNCallKeep.displayIncomingCall(callUUID, callerHandle, callerName, 'generic', true);
+          if (!isDuplicateIncoming) {
+            RNCallKeep.displayIncomingCall(callUUID, callerHandle, callerName, 'generic', true);
+          }
           return;
         }
       }
@@ -423,6 +438,7 @@ const AppContent = () => {
           isIncoming: true,
           callUUID,
           autoAccept: true,
+          presentedByCallKeep: true,
           targetId: isMatchedCall ? incoming.targetId : undefined,
           callerName: isMatchedCall ? incoming.callerName : undefined,
         });
@@ -462,13 +478,11 @@ const AppContent = () => {
       });
     };
 
-    const shouldRegisterVoipPush = useCallKeepNativeUi && VoipPushNotification && !__DEV__;
+    const shouldRegisterVoipPush = useCallKeepNativeUi && VoipPushNotification;
     if (useCallKeepNativeUi && VoipPushNotification) {
       try {
         if (shouldRegisterVoipPush) {
           VoipPushNotification.registerVoipToken();
-        } else {
-          console.log('[VoIP] registerVoipToken skipped in dev runtime');
         }
         VoipPushNotification.addEventListener('notification', onVoipNotification);
         VoipPushNotification.addEventListener('didLoadWithEvents', onVoipDidLoad);
@@ -617,6 +631,16 @@ const AppContent = () => {
                     name="Chat"
                     component={ChatScreen}
                     options={{
+                      animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
+                      freezeOnBlur: Platform.OS === 'android' ? false : undefined,
+                      contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="ChatInbox"
+                    component={ChatInboxScreen}
+                    options={{
+                      headerShown: false,
                       animation: Platform.OS === 'android' ? 'none' : 'slide_from_right',
                       freezeOnBlur: Platform.OS === 'android' ? false : undefined,
                       contentStyle: { backgroundColor: Platform.OS === 'android' ? (theme.background || '#000000') : 'transparent' },

@@ -50,6 +50,17 @@ export const linking: LinkingOptions<RootStackParamList> = {
 
             // Direct access to Invite Friends screen (for logged in users)
             InviteFriends: 'invite-friends',
+            ChatInbox: 'chats',
+            Chat: {
+                path: 'chat/:userId?',
+                parse: {
+                    userId: (value: string) => {
+                        const parsed = Number.parseInt(String(value || ''), 10);
+                        return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+                    },
+                    name: (value: string) => value,
+                },
+            },
             RoomInviteEntry: {
                 path: 'rooms/join/:token',
                 parse: {
