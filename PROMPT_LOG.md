@@ -1,5 +1,9 @@
 # Prompt Log
 
+- 2026-03-27 12:49:00 +0300 | Запрос: "давай"
+
+- 2026-03-27 12:41:00 +0300 | Запрос: "если перехожу в чат то ошибка Application error: a client-side exception has occurred while loading social.vedamatch.ru (see the browser console for more information)."
+
 - 2026-03-27 12:35:00 +0300 | Запрос: "I
 падает - vedamatch-social
 vedamatch-vedamatchsocial-zcxupcnitializing deployment

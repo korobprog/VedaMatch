@@ -7,6 +7,58 @@ import { createBrowserClient } from "@vedamatch/api-client";
 import type { P2PMessage } from "@vedamatch/domain-types";
 import { useSession } from "@/components/session-context";
 
+function normalizePeerUserId(rawValue: string | string[] | undefined): number | null {
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readMessageText(message: P2PMessage): string {
+  const rawContent = (message as P2PMessage & { text?: unknown; content?: unknown }).content
+    ?? (message as P2PMessage & { text?: unknown }).text;
+
+  if (typeof rawContent === "string" && rawContent.trim()) {
+    return rawContent;
+  }
+
+  if (rawContent && typeof rawContent === "object") {
+    const contentRecord = rawContent as Record<string, unknown>;
+    const objectText = typeof contentRecord.text === "string" ? contentRecord.text : null;
+    if (objectText?.trim()) {
+      return objectText;
+    }
+    try {
+      return JSON.stringify(rawContent);
+    } catch {
+      return "Unsupported message payload";
+    }
+  }
+
+  if (message.fileName) {
+    return message.fileName;
+  }
+
+  switch (message.type) {
+    case "image":
+      return "Image";
+    case "audio":
+      return "Audio";
+    case "video":
+      return "Video";
+    case "file":
+    case "document":
+      return "File";
+    case "contact_card":
+      return "Contact card";
+    default:
+      return "Empty message";
+  }
+}
+
+function readMessageMeta(message: P2PMessage): string {
+  return String(message.createdAt || message.CreatedAt || message.type || "Message");
+}
+
 export default function ChatThreadPage() {
   const params = useParams<{ peerUserId: string }>();
   const { session } = useSession();
@@ -17,8 +69,7 @@ export default function ChatThreadPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    const parsed = Number.parseInt(params.peerUserId, 10);
-    setPeerUserId(Number.isFinite(parsed) ? parsed : null);
+    setPeerUserId(normalizePeerUserId(params.peerUserId));
   }, [params]);
 
   useEffect(() => {
@@ -26,7 +77,7 @@ export default function ChatThreadPage() {
       return;
     }
     createBrowserClient().getMessagesHistory(peerUserId).then((response) => {
-      setMessages(response.items || []);
+      setMessages(Array.isArray(response.items) ? response.items : []);
     }).catch((loadError) => {
       setError(loadError instanceof Error ? loadError.message : "Failed to load messages.");
     });
@@ -73,12 +124,13 @@ export default function ChatThreadPage() {
             <div className="empty-state">No messages yet.</div>
           ) : messages.map((message, index) => {
             const isOwn = Boolean(currentUserId && message.senderId === currentUserId);
+            const senderLabel = isOwn ? "You" : String(message.senderName || `Sender #${message.senderId}`);
             return (
               <div className={isOwn ? "thread-message thread-message--own" : "thread-message"} key={String(message.id || message.ID || index)}>
                 <div className="thread-message__bubble">
-                  <strong>{isOwn ? "You" : message.senderName || `Sender #${message.senderId}`}</strong>
-                  <p>{message.content}</p>
-                  <small>{message.createdAt || message.CreatedAt || message.type}</small>
+                  <strong>{senderLabel}</strong>
+                  <p>{readMessageText(message)}</p>
+                  <small>{readMessageMeta(message)}</small>
                 </div>
               </div>
             );

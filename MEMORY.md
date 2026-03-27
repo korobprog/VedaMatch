@@ -20,6 +20,7 @@
 - По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`, но `web` и `vedamatch-social` пока оба собраны из legacy `admin`, а не из нового `apps/web`.
 - Dokploy для `vedamatch-social` сейчас собирает удаленный GitHub `main`, а не локальный workspace; поэтому до коммита и push нового root `Dockerfile` и web-изменений redeploy нового runtime будет падать на шаге `open Dockerfile: no such file or directory`.
 - После появления root `Dockerfile` следующий подтвержденный live blocker для `vedamatch-social`: Docker build проходит до runtime stage и падает на `COPY /app/apps/web/public`, потому что в `apps/web` не было каталога `public`; для стабильного deploy этот каталог должен существовать даже пустым.
+- Для `apps/web/src/app/app/chats/[peerUserId]/page.tsx` thread route должен нормализовать `peerUserId` и безопасно сериализовать message payload перед render; иначе direct chat может падать client-side на нестандартных `content` значениях из `/api/messages/history`.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
