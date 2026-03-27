@@ -1,0 +1,27 @@
+{
+  "name": "@vedamatch/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3007",
+    "build": "next build",
+    "start": "next start --port 3007",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@vedamatch/api-client": "workspace:*",
+    "@vedamatch/domain-types": "workspace:*",
+    "@vedamatch/i18n": "workspace:*",
+    "next": "16.1.1-canary.5",
+    "react": "19.0.0-rc.1",
+    "react-dom": "19.0.0-rc.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "typescript": "^5"
+  }
+}
+

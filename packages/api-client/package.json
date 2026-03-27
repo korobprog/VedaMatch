@@ -1,0 +1,14 @@
+{
+  "name": "@vedamatch/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vedamatch/domain-types": "workspace:*",
+    "@vedamatch/i18n": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
+

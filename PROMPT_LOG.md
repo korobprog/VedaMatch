@@ -1,5 +1,36 @@
 # Prompt Log
 
+- 2026-03-27 17:34:16 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:
+# План: Полная Web-Версия VedaMatch Через Новый Next.js Клиент
+
+## Summary
+Цель: собрать полноценную web-версию продукта на базе существующего Go backend, не пытаясь тащить весь текущий React Native UI в браузер.  
+Выбранный путь:
+- V1 = `core product`
+- база = `new Next.js app`
+- realtime/calls/media-heavy сценарии = `phase 2`
+
+Итоговая стратегия:
+- создать новый основной web-клиент на Next.js App Router;
+- вынести из мобильного приложения shared domain/api слой;
+- использовать существующие `admin/` и `lkm/` как временные доноры логики и отдельных web-surface, но не как финальную архитектуру “полного приложения”;
+- строить web по доменам, а не по экранам мобильного приложения.
+
+## Key Changes
+### 1. Web Platform Foundation
+- Добавить новый `apps/web` как основной пользовательский web-клиент.
+- Принять Next.js App Router как единственный runtime для полной web-версии.
+- Сразу заложить SSR/CSR hybrid:
+  - SSR для landing, SEO, public pages, library/news entry pages.
+  - client components для auth session, portal workspace, user-interactive screens.
+- Принять browser-native routing, а не переносить `@react-navigation` из mobile.
+- Сразу сделать web shell:
+  - public landing
+  - auth
+  - authenticated portal layout
+  - user settings/profile
+  - deep-linkable routes по доменам"
+
 - 2026-03-27 17:24:04 +1000 | Запрос: "даывй подумаемкак сделать полную веб версию приложения и посмотрим что  у нас есть"
 
 - 2026-03-27 03:06:03 +1000 | Запрос: "PLEASE IMPLEMENT THIS PLAN:

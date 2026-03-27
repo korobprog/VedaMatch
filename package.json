@@ -3,9 +3,17 @@
   "version": "1.0.4",
   "description": "Прокси-сервер для добавления параметра provider в запросы Roo Code Nightly",
   "main": "proxy-server.js",
+  "packageManager": "pnpm@10.17.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "start": "node proxy-server.js",
     "proxy": "node proxy-server.js",
+    "web": "pnpm --dir apps/web run dev",
+    "web:build": "pnpm --dir apps/web run build",
+    "web:start": "pnpm --dir apps/web run start",
     "backend": "cd server && go run cmd/api/main.go",
     "backend:restart": "npx kill-port 8000 && npm run backend",
     "dev:backend": "npx kill-port 8000 || true && echo '🚀 Starting Go Backend on port 8000...' && cd server && go run cmd/api/main.go",

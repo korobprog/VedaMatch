@@ -13,6 +13,8 @@
 - `server/` это основной Go/Fiber API с широкой доменной поверхностью (`contacts`, `friends`, `library`, `wallet`, `services`, `yatra`, `chat`, `support`, `multimedia`, `education`, `market`, `dhama` и др.), поэтому backend для веб-версии в значительной части уже существует.
 - `frontend/` пока не выглядит подготовленным к прямому `react-native-web` пути: навигация строится на `@react-navigation/native` + `createNativeStackNavigator`, а код широко завязан на native-only модули вроде `react-native-callkeep`, `react-native-webrtc`, `react-native-vision-camera`, `react-native-voip-push-notification`, `react-native-share`, `react-native-fs`, `react-native-mmkv`, `react-native-device-info`.
 - Для будущей полной web-версии разумнее считать текущий путь таким: выносить shared domain/api слой из `frontend/` и собирать полноценный web-клиент поверх Next.js, а не пытаться быстро запустить весь существующий RN UI в браузере.
+- Для web foundation принят workspace-путь с `apps/web` и platform-neutral пакетами `packages/api-client`, `packages/domain-types`, `packages/i18n`; новые web flow должны быть URL-first и не импортировать RN runtime.
+- В новой web foundation основной authenticated route contract идет через `apps/web` и URL-пространство `/app/*`; старый `/portal` контур удален и не должен использоваться как актуальный web contract.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
