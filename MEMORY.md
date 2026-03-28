@@ -61,6 +61,43 @@
 - P2P-ветка использует `frontend/services/webRTCService.ts` и API `/turn-credentials`.
 - SFU/room-ветка использует `frontend/services/roomSfuClient.ts` и LiveKit напрямую, поэтому один только патч `turn_handler.go` не чинит все звонки.
 - Для мобильных сетей shared client уже переключает P2P ICE в `relay-only` на `cellular`, поэтому отсутствие рабочего TURN/TLS особенно критично на симметричном NAT.
+- `vk-turn-proxy` не является улучшением качества для продукта VedaMatch: это отдельный reverse-engineered tunnel для WireGuard/V2Ray через чужие TURN-сервера VK/Яндекса, а не drop-in замена нашего WebRTC/TURN stack.
+- Практический вывод по `vk-turn-proxy`: допустим только как временный лабораторный обход плохой сети или цензурного маршрута на одном устройстве; для production-звонков/чатов он добавляет внешний dependency, ToS/legal risk, лишний hop и непредсказуемую задержку вместо системного улучшения качества.
+- По Dokploy на 2026-03-28 контур связи в проекте `Vedamatch` разделён на три независимых сервиса:
+  - `Server` application для API, signaling, `/turn-credentials` и выдачи LiveKit token/config;
+  - `LiveKit` application с доменом `livekit.vedamatch.ru` и отдельным app env;
+  - `turn` compose service без домена, работающий через `host network`.
+- Текущая Dokploy-конфигурация связи согласована по базовым параметрам:
+  - `Server` содержит `TURN_EXTERNAL_IP`, `TURN_SECRET`, `TURN_PORT=3478`, `TURN_TLS_PORT=5349` и LiveKit env;
+  - compose `turn` использует тот же realm/secret, TLS на `5349`, публичный IP `45.150.9.229` и relay range `49152:65535`;
+  - `LiveKit` использует `LIVEKIT_WS_URL=wss://livekit.vedamatch.ru` и внешний IP.
+- Операционный нюанс Dokploy: `Server` стоит на `autoDeploy=true`, а `LiveKit` на `autoDeploy=false`; поэтому backend-call changes могут выкатываться автоматически, а SFU-конфиг оставаться старым до отдельного redeploy.
+- С 2026-03-28 в Dokploy для разграничения деплой-зон по связи зафиксированы `watchPaths`:
+  - `Server` -> `["server/**"]` при `autoDeploy=true`;
+  - `LiveKit` -> `["livekit/**"]` при `autoDeploy=false`.
+- Текущее operational правило после этой правки:
+  - backend-коммиты внутри `server/**` могут автодеплоить `Server`;
+  - web/mobile/root changes вне `server/**` не должны трогать `Server`;
+  - `LiveKit` остаётся только на ручном redeploy, даже если в репозитории меняется `livekit/**`.
+- SSH-проверка прод-сервера `45.150.9.229` от 2026-03-28 подтвердила:
+  - `coturn` реально слушает `3478/tcp+udp` и `5349/tcp+udp`;
+  - `LiveKit` имеет открытый локальный `7882/udp` listener через `docker-proxy`;
+  - cert-файлы `/etc/dokploy/coturn/fullchain.pem` и `/etc/dokploy/coturn/privkey.pem` существуют;
+  - `livekit.vedamatch.ru` по HTTPS отвечает `200`.
+- Та же SSH-проверка показала operational gap в UFW:
+  - правило на `49152:65535/udp` есть;
+  - правила на `5349/tcp`, `5349/udp` и `7882/udp` в `ufw status` не видны;
+  - для `turns:` и LiveKit UDP это нужно считать подозрительным местом, пока внешней сетевой проверкой не доказано обратное.
+- После проверки 2026-03-28 gap закрыт вручную по SSH:
+  - в UFW добавлены `5349/tcp`, `5349/udp`, `7881/tcp`, `7882/udp` для IPv4 и IPv6;
+  - внешняя TCP-проверка с рабочей машины подтвердила доступность `45.150.9.229:5349` и `45.150.9.229:7881`.
+- В тот же день выполнена реальная TURN probe-симуляция внутри контейнера `vedamatch-turn-fbejof-turn-1` через `turnutils_uclient`:
+  - UDP path на `3478` успешно прошёл REST-auth, allocation, refresh и channel bind;
+  - secure TCP/TLS path на `5349` тоже успешно прошёл TLS handshake, allocation, refresh и channel bind;
+  - это подтверждает, что production `coturn` не только слушает порты, но и реально принимает HMAC/REST credentials и выдаёт relay addresses.
+- Также на production read-only проверен backend SFU path:
+  - `/api/rooms/:id/sfu/config` для валидного room member возвращает `200` и ожидаемый policy payload (`enabled`, `provider=livekit`, `maxParticipants`, `maxSubscriptions`, `videoPreset`, `dynacast/adaptive/simulcast`);
+  - `/api/rooms/:id/sfu/token` для валидного room member возвращает `200`, непустой token и корректный `wsUrl=wss://livekit.vedamatch.ru` вместе с `roomName` / `participantIdentity`.
 
 ## Product Overview
 - `Veda Match` — это продуктовая платформа, а не один экран или один сервис: основной мобильный клиент на React Native (`frontend`), единый Go backend на Fiber (`server`), web-admin на Next.js (`admin`) и отдельный web-кабинет/тарифы LKM на Next.js (`lkm`).
