@@ -928,12 +928,16 @@ h3 {
   --dashboard-input-ink: #f4f1eb;
   --dashboard-pill-bg: rgba(22, 29, 44, 0.88);
   --dashboard-pill-border: rgba(78, 103, 163, 0.4);
-  --dashboard-brand-chip-bg: linear-gradient(180deg, rgba(22, 27, 41, 0.96), rgba(25, 30, 40, 0.82));
-  --dashboard-brand-chip-border: rgba(96, 124, 196, 0.38);
-  --dashboard-brand-chip-highlight: rgba(150, 183, 255, 0.18);
-  --dashboard-brand-chip-ink: #9db7ff;
-  --dashboard-brand-title: #fffaf3;
-  --dashboard-brand-subtitle: #f0a157;
+  --dashboard-brand-chip-bg:
+    radial-gradient(circle at top, rgba(131, 168, 255, 0.18), transparent 58%),
+    linear-gradient(180deg, rgba(24, 31, 49, 0.98), rgba(28, 34, 46, 0.84));
+  --dashboard-brand-chip-border: rgba(121, 151, 226, 0.52);
+  --dashboard-brand-chip-highlight: rgba(181, 204, 255, 0.24);
+  --dashboard-brand-chip-ink: #bbcbff;
+  --dashboard-brand-title: #fffdf8;
+  --dashboard-brand-subtitle: #ffb15e;
+  --dashboard-brand-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  --dashboard-brand-title-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   --dashboard-accent-bg: linear-gradient(135deg, #ff6b29 0%, #ff9629 100%);
   --dashboard-accent-ink: #fff7f0;
   --dashboard-accent-shadow: 0 20px 40px rgba(255, 124, 41, 0.16);
@@ -985,12 +989,16 @@ html[data-theme="light"] .shell--dashboard {
   --dashboard-input-ink: #243043;
   --dashboard-pill-bg: rgba(95, 132, 220, 0.1);
   --dashboard-pill-border: rgba(95, 132, 220, 0.2);
-  --dashboard-brand-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 245, 255, 0.92));
-  --dashboard-brand-chip-border: rgba(104, 136, 214, 0.28);
-  --dashboard-brand-chip-highlight: rgba(255, 255, 255, 0.92);
-  --dashboard-brand-chip-ink: #4f6ecb;
-  --dashboard-brand-title: #172232;
-  --dashboard-brand-subtitle: #cb7a24;
+  --dashboard-brand-chip-bg:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.98), transparent 64%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 244, 255, 0.94));
+  --dashboard-brand-chip-border: rgba(95, 128, 208, 0.34);
+  --dashboard-brand-chip-highlight: rgba(255, 255, 255, 0.96);
+  --dashboard-brand-chip-ink: #4668cf;
+  --dashboard-brand-title: #122033;
+  --dashboard-brand-subtitle: #d78027;
+  --dashboard-brand-shadow: 0 14px 34px rgba(106, 83, 45, 0.12);
+  --dashboard-brand-title-shadow: 0 6px 20px rgba(255, 255, 255, 0.22);
   --dashboard-accent-bg: linear-gradient(135deg, #ff7a2f 0%, #ffb34f 100%);
   --dashboard-accent-ink: #fff9f2;
   --dashboard-accent-shadow: 0 20px 44px rgba(255, 151, 72, 0.22);
@@ -1107,11 +1115,12 @@ html[data-theme="light"] .shell--dashboard {
   border-radius: 22px;
   border: 1px solid var(--dashboard-brand-chip-border);
   background: var(--dashboard-brand-chip-bg);
-  box-shadow: inset 0 1px 0 var(--dashboard-brand-chip-highlight);
+  box-shadow: inset 0 1px 0 var(--dashboard-brand-chip-highlight), var(--dashboard-brand-shadow);
   color: var(--dashboard-brand-chip-ink);
-  font-size: 1.15rem;
+  font-size: 1.24rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .dashboard-brand__copy {
@@ -1125,6 +1134,7 @@ html[data-theme="light"] .shell--dashboard {
   font-weight: 800;
   line-height: 0.94;
   color: var(--dashboard-brand-title);
+  text-shadow: var(--dashboard-brand-title-shadow);
 }
 
 .dashboard-brand__copy span {
@@ -1173,6 +1183,7 @@ html[data-theme="light"] .shell--dashboard {
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 18px;
+  padding: 8px 0;
 }
 
 .social-shell-quick-menu {
@@ -1323,7 +1334,7 @@ html[data-theme="light"] .shell--dashboard {
   border-radius: 20px;
   border: 1px solid var(--dashboard-ghost-border);
   background: var(--dashboard-ghost-bg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 24px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
@@ -1365,10 +1376,15 @@ html[data-theme="light"] .shell--dashboard {
   color: var(--dashboard-muted);
   cursor: pointer;
   font-weight: 700;
+  transition: color 0.22s ease, transform 0.18s ease;
 }
 
 .theme-switcher__button span {
   white-space: nowrap;
+}
+
+.theme-switcher__button:hover {
+  color: var(--dashboard-ghost-ink);
 }
 
 .theme-switcher__button.is-active {
@@ -1380,6 +1396,7 @@ html[data-theme="light"] .shell--dashboard {
   justify-content: flex-end;
   width: min(640px, 100%);
   margin: 0 auto 18px;
+  padding: 4px 0;
 }
 
 .dashboard-grid {
