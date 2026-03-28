@@ -13,8 +13,6 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const { dictionary, language, ready, session, logout, setLanguage } = useSession();
   const launcher = getSocialLauncherModel(language);
   const activeLauncherId = resolveActiveLauncherId(pathname);
-  const activeGroup = launcher.groups.find((group) => group.items.some((item) => item.id === activeLauncherId)) ?? null;
-  const showContextLauncher = Boolean(activeGroup) && pathname !== "/app" && !pathname.startsWith("/app/services");
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const quickMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -137,26 +135,6 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-
-        {showContextLauncher && activeGroup ? (
-          <div className="social-shell-panel social-shell-panel--context">
-            <div className="social-shell-panel__head">
-              <div>
-                <span className="eyebrow">{launcher.copy.current}</span>
-                <h2>{activeGroup.label}</h2>
-              </div>
-              <Link className="dashboard-inline-link" href="/app/services">
-                {launcher.copy.browseAllServices}
-              </Link>
-            </div>
-            <LauncherItems
-              activeId={activeLauncherId}
-              currentLabel={launcher.copy.current}
-              items={activeGroup.items}
-              soonLabel={launcher.copy.comingSoon}
-            />
-          </div>
-        ) : null}
 
         <div className="stack social-shell-content">{children}</div>
       </div>

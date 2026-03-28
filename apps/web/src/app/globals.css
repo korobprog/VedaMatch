@@ -1162,10 +1162,6 @@ h3 {
   border-top-right-radius: 24px;
 }
 
-.social-shell-panel--context {
-  background: linear-gradient(180deg, rgba(19, 24, 36, 0.96), rgba(18, 22, 33, 0.92));
-}
-
 .social-shell-dropdown {
   display: grid;
   grid-template-rows: 0fr;
