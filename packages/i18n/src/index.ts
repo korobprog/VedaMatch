@@ -72,9 +72,18 @@ export type Dictionary = {
     title: string;
     subtitle: string;
     empty: string;
+    emptySearch: string;
+    emptyBlocked: string;
     protectedContact: string;
     openChat: string;
     loadFailed: string;
+    allTab: string;
+    friendsTab: string;
+    blockedTab: string;
+    searchPlaceholder: string;
+    resultsLabel: string;
+    loadMore: string;
+    loadingMore: string;
   };
   chats: {
     inboxTitle: string;
@@ -275,9 +284,18 @@ export const dictionaries: Record<Language, Dictionary> = {
       title: "Контакты",
       subtitle: "Защищенный каталог пользователей для social web entrypoint. Каждый контакт можно сразу открыть в browser-first direct chat.",
       empty: "Контакты пока не найдены.",
+      emptySearch: "По этому запросу контакты не найдены.",
+      emptyBlocked: "В заблокированных контактах пока пусто.",
       protectedContact: "Защищенный контакт",
       openChat: "Открыть чат",
       loadFailed: "Не удалось загрузить контакты.",
+      allTab: "Все",
+      friendsTab: "Друзья",
+      blockedTab: "Заблокированные",
+      searchPlaceholder: "Поиск по имени, городу или email",
+      resultsLabel: "контактов",
+      loadMore: "Показать еще",
+      loadingMore: "Загружаем еще...",
     },
     chats: {
       inboxTitle: "Личные чаты",
@@ -476,9 +494,18 @@ export const dictionaries: Record<Language, Dictionary> = {
       title: "Contacts core",
       subtitle: "Protected people directory for the social web entrypoint. Each contact can be opened directly into a browser-first direct chat thread.",
       empty: "No contacts returned yet.",
+      emptySearch: "No contacts matched this search.",
+      emptyBlocked: "No blocked contacts yet.",
       protectedContact: "Protected contact",
       openChat: "Open chat",
       loadFailed: "Failed to load contacts.",
+      allTab: "All",
+      friendsTab: "Friends",
+      blockedTab: "Blocked",
+      searchPlaceholder: "Search by name, city, or email",
+      resultsLabel: "contacts",
+      loadMore: "Load more",
+      loadingMore: "Loading more...",
     },
     chats: {
       inboxTitle: "Direct chat inbox",
@@ -677,9 +704,18 @@ export const dictionaries: Record<Language, Dictionary> = {
       title: "संपर्क",
       subtitle: "Social web entrypoint के लिए सुरक्षित people directory. हर contact को सीधे browser-first direct chat में खोला जा सकता है।",
       empty: "अभी कोई संपर्क उपलब्ध नहीं है।",
+      emptySearch: "इस खोज के लिए कोई संपर्क नहीं मिला।",
+      emptyBlocked: "अभी कोई ब्लॉक किया गया संपर्क नहीं है।",
       protectedContact: "सुरक्षित संपर्क",
       openChat: "चैट खोलें",
       loadFailed: "संपर्क लोड नहीं हो सके।",
+      allTab: "सभी",
+      friendsTab: "मित्र",
+      blockedTab: "अवरुद्ध",
+      searchPlaceholder: "नाम, शहर या ईमेल से खोजें",
+      resultsLabel: "संपर्क",
+      loadMore: "और दिखाएँ",
+      loadingMore: "और लोड हो रहा है...",
     },
     chats: {
       inboxTitle: "डायरेक्ट चैट इनबॉक्स",

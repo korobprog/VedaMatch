@@ -26,7 +26,16 @@
   - quick access launcher теперь вызывается кнопкой в topbar;
   - меню раскрывается сверху вниз через dropdown-panel под topbar, закрывается по повторному нажатию и по клику вне блока;
   - strings не менялись, переиспользуются существующие `launcher.copy.quickAccessTitle / shortcutsTitle / browseAllServices`.
+  - проблема переполнения была структурной: `launcher-dock` пытался уместить 10 compact-карточек через `repeat(auto-fit, minmax(144px, 1fr))`, что требует около `1566px` внутренней ширины, тогда как shell container capped на `1200px` и реально дает примерно `1152px` после padding;
+  - поэтому overflow/наезд на нижнюю секцию возникал не на одном редком breakpoint, а фактически на всем desktop-range внутри этого shell;
+  - fix: dropdown переведен из absolute overlay в flow-based раскрывающийся блок, а `launcher-dock` получил фиксированные responsive колонки `5 -> 4 -> 3 -> 2`.
 - Для `social.vedamatch.ru` принят отдельный visual direction: и публичная `/`, и authenticated `/app` используют один тёмный dashboard-язык в духе `vedamatch.ru/user/dashboard`, а не docs-style landing.
+- С 2026-03-28 web contacts V2 в `apps/web` должен опираться на уже существующий backend `/contacts` contract без server changes:
+  - `packages/api-client/src/index.ts` теперь должен передавать `tab`, `q`, `limit`, `cursor` и возвращать полный `PaginatedContactsResponse`, а не только `items`;
+  - `apps/web/src/app/app/contacts/page.tsx` переведен из простого `getContacts()->items` grid в stateful contacts browser с tab filters `all | friends | blocked`, debounced server-side search и кнопкой `Показать еще`;
+  - для web contacts принята тёмная glass-стилистика, а не светлые плитки;
+  - overflow нужно гасить структурно: `min-width: 0`, line clamp и fixed responsive columns вместо чистого `auto-fit`, иначе длинные oauth usernames/email ломают карточки и соседние колонки;
+  - новые строки для contacts UI должны быть локализованы минимум в `ru/en/hi`.
 - В repo-состоянии на 2026-03-27 social shell уже переведен на mobile-style launcher:
   - `AppFrame` больше не должен рендерить большой текстовый hero и pill-nav;
   - основной паттерн теперь это компактный top bar + icon-first dock + contextual launcher;

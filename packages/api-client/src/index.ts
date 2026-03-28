@@ -27,6 +27,12 @@ import { normalizeLanguage } from "@vedamatch/i18n";
 
 export type VedamatchSurface = "portal" | "social" | "panel" | "lkm" | "local" | "unknown";
 export type VedamatchSubdomain = "admin" | "social" | "panel" | "lkm" | "api";
+export type ContactsQueryOptions = {
+  tab?: "all" | "friends" | "blocked";
+  q?: string;
+  limit?: number;
+  cursor?: number;
+};
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 const AUTH_STORAGE_KEYS = {
@@ -422,8 +428,20 @@ export async function getWalletTransactions(baseUrl: string, accessToken: string
   return apiFetch<TransactionListResponse>(baseUrl, "/wallet/transactions", {}, accessToken);
 }
 
-export async function getContacts(baseUrl: string, accessToken: string): Promise<PaginatedContactsResponse> {
-  return apiFetch<PaginatedContactsResponse>(baseUrl, "/contacts?limit=50", {}, accessToken);
+export async function getContacts(baseUrl: string, accessToken: string, options: ContactsQueryOptions = {}): Promise<PaginatedContactsResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", String(options.limit ?? 24));
+  params.set("tab", options.tab ?? "all");
+
+  if (options.q) {
+    params.set("q", options.q);
+  }
+
+  if (typeof options.cursor === "number" && Number.isFinite(options.cursor) && options.cursor > 0) {
+    params.set("cursor", String(options.cursor));
+  }
+
+  return apiFetch<PaginatedContactsResponse>(baseUrl, `/contacts?${params.toString()}`, {}, accessToken);
 }
 
 export async function getConversations(baseUrl: string, accessToken: string, filter: ChatConversationFilter = "all"): Promise<ChatConversationsResponse> {
@@ -538,13 +556,12 @@ export class BrowserVedaClient {
     return nextSession;
   }
 
-  async getContacts(): Promise<PaginatedContactsResponse["items"]> {
+  async getContacts(options: ContactsQueryOptions = {}): Promise<PaginatedContactsResponse> {
     const session = getBrowserSession();
     if (!session?.accessToken) {
       throw new Error("Unauthorized");
     }
-    const response = await getContacts(this.baseUrl, session.accessToken);
-    return response.items || [];
+    return getContacts(this.baseUrl, session.accessToken, options);
   }
 
   async getConversations() {
