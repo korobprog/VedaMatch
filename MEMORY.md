@@ -60,7 +60,7 @@
   - для внутренней панели управления выбран временный канонический hostname `panel.vedamatch.ru/.com`, пока пользователь не задаст другой.
 - Live production routing, перепроверенный через Dokploy MCP 2026-03-27:
   - app `web` сейчас обслуживает `vedamatch.ru`, `vedamatch.com`, `admin.vedamatch.ru`, `admin.vedamatch.com`, но всё ещё собирается из legacy `admin`;
-  - app `vedamatch-social` обслуживает `social.vedamatch.ru`, `social.vedamatch.com`, но тоже пока собирается из legacy `admin`;
+  - app `vedamatch-social` обслуживает `social.vedamatch.ru`, `social.vedamatch.com` и уже запущен на новом `apps/web`; если Dokploy API недоступен, рабочий fallback для срочного hotfix — пересобрать image вручную на manager из `/etc/dokploy/applications/vedamatch-vedamatchsocial-zcxupc/code` и сделать `docker service update --force vedamatch-vedamatchsocial-zcxupc`;
   - app `vedamatch-panel` обслуживает `panel.vedamatch.ru`, `panel.vedamatch.com`;
   - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
   - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
