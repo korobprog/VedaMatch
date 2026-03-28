@@ -201,6 +201,12 @@ export type Dictionary = {
     loadFailed: string;
     notAvailable: string;
   };
+  theme: {
+    label: string;
+    system: string;
+    light: string;
+    dark: string;
+  };
   common: {
     loading: string;
     error: string;
@@ -413,6 +419,12 @@ export const dictionaries: Record<Language, Dictionary> = {
       loadFailed: "Не удалось загрузить поддержку.",
       notAvailable: "Недоступно",
     },
+    theme: {
+      label: "Тема интерфейса",
+      system: "Авто",
+      light: "Светлая",
+      dark: "Темная",
+    },
     common: {
       loading: "Загрузка...",
       error: "Ошибка",
@@ -623,6 +635,12 @@ export const dictionaries: Record<Language, Dictionary> = {
       loadFailed: "Failed to load support.",
       notAvailable: "N/A",
     },
+    theme: {
+      label: "Interface theme",
+      system: "Auto",
+      light: "Light",
+      dark: "Dark",
+    },
     common: {
       loading: "Loading...",
       error: "Error",
@@ -832,6 +850,12 @@ export const dictionaries: Record<Language, Dictionary> = {
       requesterFallback: "सपोर्ट उपयोगकर्ता",
       loadFailed: "सपोर्ट लोड नहीं हो सका।",
       notAvailable: "उपलब्ध नहीं",
+    },
+    theme: {
+      label: "इंटरफ़ेस थीम",
+      system: "ऑटो",
+      light: "लाइट",
+      dark: "डार्क",
     },
     common: {
       loading: "लोड हो रहा है...",

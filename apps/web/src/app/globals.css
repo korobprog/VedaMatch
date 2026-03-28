@@ -26,6 +26,14 @@ html, body {
   font-family: var(--font-body), sans-serif;
 }
 
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -902,10 +910,115 @@ h3 {
 }
 
 .shell--dashboard {
-  background:
+  --dashboard-bg:
     radial-gradient(circle at top left, rgba(255, 146, 41, 0.18), transparent 28%),
     radial-gradient(circle at top right, rgba(43, 97, 255, 0.12), transparent 18%),
     linear-gradient(180deg, #060607 0%, #090b11 100%);
+  --dashboard-panel-bg: linear-gradient(180deg, rgba(15, 16, 20, 0.96), rgba(17, 18, 24, 0.88));
+  --dashboard-panel-alt-bg: rgba(24, 25, 34, 0.92);
+  --dashboard-panel-border: rgba(45, 69, 122, 0.54);
+  --dashboard-panel-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+  --dashboard-ink: #f4f1eb;
+  --dashboard-muted: rgba(244, 241, 235, 0.68);
+  --dashboard-ghost-bg: rgba(25, 22, 24, 0.88);
+  --dashboard-ghost-border: rgba(58, 74, 118, 0.5);
+  --dashboard-ghost-ink: #ece7df;
+  --dashboard-input-bg: rgba(17, 20, 29, 0.92);
+  --dashboard-input-border: rgba(58, 74, 118, 0.5);
+  --dashboard-input-ink: #f4f1eb;
+  --dashboard-pill-bg: rgba(22, 29, 44, 0.88);
+  --dashboard-pill-border: rgba(78, 103, 163, 0.4);
+  --dashboard-brand-chip-bg: linear-gradient(180deg, rgba(22, 27, 41, 0.96), rgba(25, 30, 40, 0.82));
+  --dashboard-brand-chip-border: rgba(96, 124, 196, 0.38);
+  --dashboard-brand-chip-highlight: rgba(150, 183, 255, 0.18);
+  --dashboard-brand-chip-ink: #9db7ff;
+  --dashboard-brand-title: #fffaf3;
+  --dashboard-brand-subtitle: #f0a157;
+  --dashboard-accent-bg: linear-gradient(135deg, #ff6b29 0%, #ff9629 100%);
+  --dashboard-accent-ink: #fff7f0;
+  --dashboard-accent-shadow: 0 20px 40px rgba(255, 124, 41, 0.16);
+  --dashboard-inline-link: rgba(244, 241, 235, 0.74);
+  --dashboard-hero-bg:
+    radial-gradient(circle at right 22%, rgba(255, 255, 255, 0.05), transparent 18%),
+    linear-gradient(180deg, rgba(25, 29, 39, 0.98), rgba(18, 20, 28, 0.94));
+  --dashboard-hero-mark: rgba(255, 255, 255, 0.08);
+  --dashboard-time-ring: rgba(255, 255, 255, 0.05);
+  --dashboard-badge-bg: rgba(58, 39, 26, 0.54);
+  --dashboard-badge-border: rgba(90, 64, 44, 0.64);
+  --dashboard-badge-ink: #ff951d;
+  --dashboard-shortcuts-icon-bg: rgba(17, 40, 89, 0.56);
+  --dashboard-shortcuts-icon-ink: #6fa2ff;
+  --dashboard-shortcuts-action-ink: rgba(244, 241, 235, 0.74);
+  --dashboard-launcher-bg: rgba(20, 20, 27, 0.94);
+  --dashboard-launcher-soon-bg: rgba(23, 24, 33, 0.9);
+  --dashboard-launcher-border: rgba(60, 79, 129, 0.48);
+  --dashboard-launcher-hover-border: rgba(108, 145, 232, 0.52);
+  --dashboard-launcher-active-border: rgba(255, 154, 47, 0.68);
+  --dashboard-launcher-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  --dashboard-launcher-active-shadow: 0 20px 44px rgba(255, 132, 39, 0.14);
+  --dashboard-launcher-copy: #f8f3ed;
+  --dashboard-launcher-hint: rgba(226, 215, 200, 0.84);
+  --dashboard-launcher-badge-bg: rgba(63, 66, 76, 0.88);
+  --dashboard-launcher-badge-ink: rgba(236, 225, 210, 0.88);
+  --dashboard-launcher-current-bg: rgba(255, 133, 39, 0.18);
+  --dashboard-launcher-current-ink: #ffb066;
+  background: var(--dashboard-bg);
+  color: var(--dashboard-ink);
+}
+
+html[data-theme="light"] .shell--dashboard {
+  --dashboard-bg:
+    radial-gradient(circle at top left, rgba(255, 177, 84, 0.28), transparent 28%),
+    radial-gradient(circle at top right, rgba(84, 128, 255, 0.18), transparent 22%),
+    linear-gradient(180deg, #fff8ef 0%, #f6ead9 100%);
+  --dashboard-panel-bg: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(251, 244, 234, 0.94));
+  --dashboard-panel-alt-bg: rgba(252, 246, 239, 0.94);
+  --dashboard-panel-border: rgba(156, 131, 103, 0.2);
+  --dashboard-panel-shadow: 0 26px 64px rgba(123, 93, 53, 0.14);
+  --dashboard-ink: #1e2734;
+  --dashboard-muted: rgba(65, 74, 88, 0.7);
+  --dashboard-ghost-bg: rgba(255, 255, 255, 0.78);
+  --dashboard-ghost-border: rgba(131, 145, 171, 0.28);
+  --dashboard-ghost-ink: #243043;
+  --dashboard-input-bg: rgba(255, 255, 255, 0.88);
+  --dashboard-input-border: rgba(131, 145, 171, 0.28);
+  --dashboard-input-ink: #243043;
+  --dashboard-pill-bg: rgba(95, 132, 220, 0.1);
+  --dashboard-pill-border: rgba(95, 132, 220, 0.2);
+  --dashboard-brand-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 245, 255, 0.92));
+  --dashboard-brand-chip-border: rgba(104, 136, 214, 0.28);
+  --dashboard-brand-chip-highlight: rgba(255, 255, 255, 0.92);
+  --dashboard-brand-chip-ink: #4f6ecb;
+  --dashboard-brand-title: #172232;
+  --dashboard-brand-subtitle: #cb7a24;
+  --dashboard-accent-bg: linear-gradient(135deg, #ff7a2f 0%, #ffb34f 100%);
+  --dashboard-accent-ink: #fff9f2;
+  --dashboard-accent-shadow: 0 20px 44px rgba(255, 151, 72, 0.22);
+  --dashboard-inline-link: rgba(38, 47, 60, 0.72);
+  --dashboard-hero-bg:
+    radial-gradient(circle at right 22%, rgba(255, 255, 255, 0.76), transparent 18%),
+    linear-gradient(180deg, rgba(255, 250, 243, 0.98), rgba(248, 238, 223, 0.96));
+  --dashboard-hero-mark: rgba(112, 125, 148, 0.14);
+  --dashboard-time-ring: rgba(101, 114, 138, 0.12);
+  --dashboard-badge-bg: rgba(255, 236, 208, 0.92);
+  --dashboard-badge-border: rgba(239, 172, 89, 0.42);
+  --dashboard-badge-ink: #d56d11;
+  --dashboard-shortcuts-icon-bg: rgba(94, 129, 224, 0.12);
+  --dashboard-shortcuts-icon-ink: #4c72d4;
+  --dashboard-shortcuts-action-ink: rgba(65, 74, 88, 0.72);
+  --dashboard-launcher-bg: rgba(255, 255, 255, 0.9);
+  --dashboard-launcher-soon-bg: rgba(250, 245, 237, 0.94);
+  --dashboard-launcher-border: rgba(131, 145, 171, 0.24);
+  --dashboard-launcher-hover-border: rgba(97, 135, 225, 0.34);
+  --dashboard-launcher-active-border: rgba(255, 150, 63, 0.58);
+  --dashboard-launcher-shadow: 0 18px 38px rgba(115, 88, 47, 0.12);
+  --dashboard-launcher-active-shadow: 0 20px 44px rgba(255, 150, 63, 0.18);
+  --dashboard-launcher-copy: #1b2736;
+  --dashboard-launcher-hint: rgba(78, 87, 100, 0.8);
+  --dashboard-launcher-badge-bg: rgba(97, 109, 127, 0.12);
+  --dashboard-launcher-badge-ink: #536070;
+  --dashboard-launcher-current-bg: rgba(255, 134, 39, 0.14);
+  --dashboard-launcher-current-ink: #cf6b18;
 }
 
 .shell--dashboard .container {
@@ -923,10 +1036,10 @@ h3 {
 .shell--dashboard .list-item,
 .shell--dashboard .empty-state,
 .shell--dashboard .hero-side {
-  border-color: rgba(45, 69, 122, 0.54);
-  background: linear-gradient(180deg, rgba(15, 16, 20, 0.96), rgba(17, 18, 24, 0.88));
-  color: #f4f1eb;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+  border-color: var(--dashboard-panel-border);
+  background: var(--dashboard-panel-bg);
+  color: var(--dashboard-ink);
+  box-shadow: var(--dashboard-panel-shadow);
 }
 
 .shell--dashboard .muted,
@@ -936,40 +1049,40 @@ h3 {
 .shell--dashboard .thread-message__bubble small,
 .shell--dashboard .section-head p,
 .shell--dashboard .field span {
-  color: rgba(244, 241, 235, 0.68);
+  color: var(--dashboard-muted);
 }
 
 .shell--dashboard .empty-state,
 .shell--dashboard .list-item {
-  background: rgba(24, 25, 34, 0.92);
+  background: var(--dashboard-panel-alt-bg);
 }
 
 .shell--dashboard .button-secondary,
 .shell--dashboard .ghost-button {
-  border-color: rgba(58, 74, 118, 0.5);
-  color: #ebe6de;
-  background: rgba(25, 22, 24, 0.74);
+  border-color: var(--dashboard-ghost-border);
+  color: var(--dashboard-ghost-ink);
+  background: var(--dashboard-ghost-bg);
 }
 
 .shell--dashboard .content-pill {
-  border-color: rgba(78, 103, 163, 0.4);
-  background: rgba(22, 29, 44, 0.88);
-  color: rgba(244, 241, 235, 0.82);
+  border-color: var(--dashboard-pill-border);
+  background: var(--dashboard-pill-bg);
+  color: var(--dashboard-muted);
 }
 
 .shell--dashboard .field input,
 .shell--dashboard .field textarea,
 .shell--dashboard .lang-select {
-  border-color: rgba(58, 74, 118, 0.5);
-  color: #f4f1eb;
-  background: rgba(17, 20, 29, 0.92);
+  border-color: var(--dashboard-input-border);
+  color: var(--dashboard-input-ink);
+  background: var(--dashboard-input-bg);
 }
 
 .social-dashboard {
   display: grid;
   gap: 32px;
   padding: 32px 0 48px;
-  color: #f4f1eb;
+  color: var(--dashboard-ink);
 }
 
 .social-dashboard__head {
@@ -992,10 +1105,10 @@ h3 {
   width: 72px;
   height: 72px;
   border-radius: 22px;
-  border: 1px solid rgba(80, 113, 191, 0.34);
-  background: linear-gradient(180deg, rgba(19, 24, 36, 0.92), rgba(21, 24, 31, 0.72));
-  box-shadow: inset 0 1px 0 rgba(114, 151, 238, 0.12);
-  color: #7b8bd5;
+  border: 1px solid var(--dashboard-brand-chip-border);
+  background: var(--dashboard-brand-chip-bg);
+  box-shadow: inset 0 1px 0 var(--dashboard-brand-chip-highlight);
+  color: var(--dashboard-brand-chip-ink);
   font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -1011,10 +1124,11 @@ h3 {
   font-size: clamp(2rem, 4vw, 3.25rem);
   font-weight: 800;
   line-height: 0.94;
+  color: var(--dashboard-brand-title);
 }
 
 .dashboard-brand__copy span {
-  color: #c27b3b;
+  color: var(--dashboard-brand-subtitle);
   font-size: 0.98rem;
   font-weight: 700;
   letter-spacing: 0.24em;
@@ -1035,22 +1149,22 @@ h3 {
   min-height: 54px;
   padding: 0 22px;
   border-radius: 20px;
-  border: 1px solid rgba(58, 74, 118, 0.5);
-  background: rgba(25, 22, 24, 0.88);
-  color: #f5f2ee;
+  border: 1px solid var(--dashboard-ghost-border);
+  background: var(--dashboard-ghost-bg);
+  color: var(--dashboard-ghost-ink);
   box-shadow: inset 0 1px 0 rgba(115, 143, 214, 0.08);
 }
 
 .dashboard-action {
-  background: linear-gradient(135deg, #ff6b29 0%, #ff9629 100%);
+  background: var(--dashboard-accent-bg);
   border-color: transparent;
-  color: #fff7f0;
+  color: var(--dashboard-accent-ink);
   font-weight: 700;
-  box-shadow: 0 20px 40px rgba(255, 124, 41, 0.16);
+  box-shadow: var(--dashboard-accent-shadow);
 }
 
 .dashboard-action--ghost {
-  color: #e5e8f0;
+  color: var(--dashboard-ghost-ink);
 }
 
 .social-shell-topbar {
@@ -1103,10 +1217,10 @@ h3 {
 }
 
 .social-shell-menu-trigger.is-open {
-  background: linear-gradient(135deg, #ff6e17 0%, #ff9627 100%);
+  background: var(--dashboard-accent-bg);
   border-color: transparent;
-  color: #fff9f3;
-  box-shadow: 0 20px 40px rgba(255, 124, 41, 0.18);
+  color: var(--dashboard-accent-ink);
+  box-shadow: var(--dashboard-accent-shadow);
 }
 
 .social-shell-menu-trigger__copy {
@@ -1140,9 +1254,9 @@ h3 {
   min-height: 54px;
   padding: 0 16px;
   border-radius: 20px;
-  border: 1px solid rgba(58, 74, 118, 0.5);
-  background: rgba(25, 22, 24, 0.88);
-  color: #f5f2ee;
+  border: 1px solid var(--dashboard-input-border);
+  background: var(--dashboard-input-bg);
+  color: var(--dashboard-input-ink);
 }
 
 .social-shell-panel {
@@ -1151,9 +1265,9 @@ h3 {
   margin-bottom: 18px;
   padding: 24px;
   border-radius: 30px;
-  border: 1px solid rgba(45, 69, 122, 0.54);
-  background: linear-gradient(180deg, rgba(15, 16, 20, 0.96), rgba(17, 18, 24, 0.88));
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+  border: 1px solid var(--dashboard-panel-border);
+  background: var(--dashboard-panel-bg);
+  box-shadow: var(--dashboard-panel-shadow);
 }
 
 .social-shell-panel--dropdown {
@@ -1192,11 +1306,80 @@ h3 {
 
 .social-shell-panel__head h2 {
   margin: 8px 0 0;
-  color: #f8f3ed;
+  color: var(--dashboard-ink);
 }
 
 .social-shell-content {
   gap: 18px;
+}
+
+.theme-switcher {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 54px;
+  min-width: min(100%, 320px);
+  padding: 4px;
+  border-radius: 20px;
+  border: 1px solid var(--dashboard-ghost-border);
+  background: var(--dashboard-ghost-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.theme-switcher__indicator {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  height: calc(100% - 8px);
+  border-radius: 16px;
+  background: var(--dashboard-accent-bg);
+  box-shadow: var(--dashboard-accent-shadow);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
+}
+
+.theme-switcher[data-value="system"] .theme-switcher__indicator {
+  transform: translateX(0%);
+}
+
+.theme-switcher[data-value="light"] .theme-switcher__indicator {
+  transform: translateX(100%);
+}
+
+.theme-switcher[data-value="dark"] .theme-switcher__indicator {
+  transform: translateX(200%);
+}
+
+.theme-switcher__button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--dashboard-muted);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.theme-switcher__button span {
+  white-space: nowrap;
+}
+
+.theme-switcher__button.is-active {
+  color: var(--dashboard-accent-ink);
+}
+
+.auth-surface-bar {
+  display: flex;
+  justify-content: flex-end;
+  width: min(640px, 100%);
+  margin: 0 auto 18px;
 }
 
 .dashboard-grid {
@@ -1209,9 +1392,9 @@ h3 {
   position: relative;
   overflow: hidden;
   border-radius: 38px;
-  border: 1px solid rgba(45, 69, 122, 0.54);
-  background: linear-gradient(180deg, rgba(15, 16, 20, 0.96), rgba(17, 18, 24, 0.88));
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+  border: 1px solid var(--dashboard-panel-border);
+  background: var(--dashboard-panel-bg);
+  box-shadow: var(--dashboard-panel-shadow);
 }
 
 .dashboard-card--time {
@@ -1229,7 +1412,7 @@ h3 {
   width: 190px;
   height: 190px;
   border-radius: 50%;
-  border: 10px solid rgba(255, 255, 255, 0.05);
+  border: 10px solid var(--dashboard-time-ring);
 }
 
 .dashboard-card__eyebrow {
@@ -1257,7 +1440,7 @@ h3 {
 }
 
 .dashboard-time__meta span {
-  color: rgba(244, 241, 235, 0.56);
+  color: var(--dashboard-muted);
   font-size: 1.1rem;
 }
 
@@ -1266,9 +1449,7 @@ h3 {
   gap: 26px;
   min-height: 360px;
   padding: 42px 38px;
-  background:
-    radial-gradient(circle at right 22%, rgba(255, 255, 255, 0.05), transparent 18%),
-    linear-gradient(180deg, rgba(25, 29, 39, 0.98), rgba(18, 20, 28, 0.94));
+  background: var(--dashboard-hero-bg);
 }
 
 .dashboard-card--hero::after {
@@ -1276,7 +1457,7 @@ h3 {
   position: absolute;
   right: 34px;
   top: 20px;
-  color: rgba(255, 255, 255, 0.08);
+  color: var(--dashboard-hero-mark);
   font-family: "Arial Black", sans-serif;
   font-size: 11rem;
   line-height: 1;
@@ -1289,9 +1470,9 @@ h3 {
   min-height: 44px;
   padding: 0 18px;
   border-radius: 999px;
-  border: 1px solid rgba(90, 64, 44, 0.64);
-  background: rgba(58, 39, 26, 0.54);
-  color: #ff951d;
+  border: 1px solid var(--dashboard-badge-border);
+  background: var(--dashboard-badge-bg);
+  color: var(--dashboard-badge-ink);
   font-size: 0.98rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -1315,7 +1496,7 @@ h3 {
 .dashboard-hero__body p {
   margin: 0;
   max-width: 24ch;
-  color: rgba(244, 241, 235, 0.7);
+  color: var(--dashboard-muted);
   font-size: clamp(1.1rem, 1.7vw, 1.55rem);
   line-height: 1.48;
 }
@@ -1336,15 +1517,15 @@ h3 {
   min-height: 68px;
   padding: 0 34px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #ff6e17 0%, #ff9627 100%);
-  color: #fff9f3;
+  background: var(--dashboard-accent-bg);
+  color: var(--dashboard-accent-ink);
   font-size: 1.3rem;
   font-weight: 800;
-  box-shadow: 0 24px 48px rgba(255, 126, 39, 0.18);
+  box-shadow: var(--dashboard-accent-shadow);
 }
 
 .dashboard-inline-link {
-  color: rgba(244, 241, 235, 0.72);
+  color: var(--dashboard-inline-link);
   font-weight: 700;
 }
 
@@ -1379,14 +1560,14 @@ h3 {
   width: 48px;
   height: 48px;
   border-radius: 16px;
-  background: rgba(17, 40, 89, 0.56);
-  color: #6fa2ff;
+  background: var(--dashboard-shortcuts-icon-bg);
+  color: var(--dashboard-shortcuts-icon-ink);
   font-size: 1rem;
   font-weight: 700;
 }
 
 .dashboard-shortcuts__action {
-  color: rgba(244, 241, 235, 0.74);
+  color: var(--dashboard-shortcuts-action-ink);
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -1410,15 +1591,15 @@ h3 {
   min-height: 174px;
   padding: 18px;
   border-radius: 26px;
-  border: 1px solid rgba(60, 79, 129, 0.48);
-  background: rgba(20, 20, 27, 0.94);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--dashboard-launcher-border);
+  background: var(--dashboard-launcher-bg);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.24s ease, color 0.24s ease;
+  box-shadow: var(--dashboard-launcher-shadow);
 }
 
 .launcher-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(108, 145, 232, 0.52);
+  border-color: var(--dashboard-launcher-hover-border);
 }
 
 .launcher-card--compact {
@@ -1429,12 +1610,12 @@ h3 {
 }
 
 .launcher-card.is-active {
-  border-color: rgba(255, 154, 47, 0.68);
-  box-shadow: 0 20px 44px rgba(255, 132, 39, 0.14);
+  border-color: var(--dashboard-launcher-active-border);
+  box-shadow: var(--dashboard-launcher-active-shadow);
 }
 
 .launcher-card.is-soon {
-  background: rgba(23, 24, 33, 0.9);
+  background: var(--dashboard-launcher-soon-bg);
 }
 
 .launcher-card__icon {
@@ -1473,11 +1654,11 @@ h3 {
   font-family: "Trebuchet MS", "Gill Sans", sans-serif;
   font-size: 1.06rem;
   line-height: 1.08;
-  color: #f8f3ed;
+  color: var(--dashboard-launcher-copy);
 }
 
 .launcher-card__copy span {
-  color: rgba(226, 215, 200, 0.84);
+  color: var(--dashboard-launcher-hint);
   font-size: 0.88rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1507,8 +1688,8 @@ h3 {
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(63, 66, 76, 0.88);
-  color: rgba(236, 225, 210, 0.88);
+  background: var(--dashboard-launcher-badge-bg);
+  color: var(--dashboard-launcher-badge-ink);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -1516,8 +1697,8 @@ h3 {
 }
 
 .launcher-badge--current {
-  background: rgba(255, 133, 39, 0.18);
-  color: #ffb066;
+  background: var(--dashboard-launcher-current-bg);
+  color: var(--dashboard-launcher-current-ink);
 }
 
 .launcher-groups {
@@ -1532,7 +1713,41 @@ h3 {
 
 .launcher-group__head h2 {
   margin: 0;
-  color: #f8f3ed;
+  color: var(--dashboard-ink);
+}
+
+.shell--dashboard :is(
+  .panel,
+  .page-card,
+  .mini-card,
+  .row-card,
+  .message-card,
+  .content-card,
+  .conversation-card,
+  .thread-panel,
+  .list-item,
+  .empty-state,
+  .hero-side,
+  .dashboard-card,
+  .dashboard-action,
+  .dashboard-action--ghost,
+  .dashboard-select,
+  .social-shell-panel,
+  .launcher-card,
+  .launcher-card__icon,
+  .launcher-badge,
+  .dashboard-brand__mark,
+  .theme-switcher,
+  .theme-switcher__indicator,
+  .theme-switcher__button
+) {
+  transition:
+    background 0.24s ease,
+    background-color 0.24s ease,
+    border-color 0.24s ease,
+    color 0.24s ease,
+    box-shadow 0.24s ease,
+    transform 0.24s ease;
 }
 
 @media (max-width: 1180px) {
@@ -1593,6 +1808,10 @@ h3 {
     justify-content: flex-start;
   }
 
+  .theme-switcher {
+    width: 100%;
+  }
+
   .social-shell-menu-trigger {
     width: 100%;
     min-width: 0;
@@ -1606,5 +1825,36 @@ h3 {
   .launcher-grid,
   .launcher-dock {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell--dashboard :is(
+    .panel,
+    .page-card,
+    .mini-card,
+    .row-card,
+    .message-card,
+    .content-card,
+    .conversation-card,
+    .thread-panel,
+    .list-item,
+    .empty-state,
+    .hero-side,
+    .dashboard-card,
+    .dashboard-action,
+    .dashboard-action--ghost,
+    .dashboard-select,
+    .social-shell-panel,
+    .launcher-card,
+    .launcher-card__icon,
+    .launcher-badge,
+    .dashboard-brand__mark,
+    .theme-switcher,
+    .theme-switcher__indicator,
+    .theme-switcher__button,
+    .social-shell-dropdown
+  ) {
+    transition: none;
   }
 }

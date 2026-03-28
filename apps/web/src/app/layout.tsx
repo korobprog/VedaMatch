@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { SessionProvider } from "@/components/session-context";
+import { getThemeInitScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "VedaMatch Web",
@@ -9,8 +11,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        <Script id="vm-theme-init" strategy="beforeInteractive">
+          {getThemeInitScript()}
+        </Script>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>

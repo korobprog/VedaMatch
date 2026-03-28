@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import { useSession } from "@/components/session-context";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 type RegisterFormProps = {
   entryVariant?: "default" | "social";
@@ -55,6 +56,11 @@ export function RegisterForm({ entryVariant = "default" }: RegisterFormProps) {
   return (
     <main className={entryVariant === "social" ? "shell shell--dashboard" : "shell"}>
       <div className="container" style={{ padding: "72px 0" }}>
+        {entryVariant === "social" ? (
+          <div className="auth-surface-bar">
+            <ThemeSwitcher />
+          </div>
+        ) : null}
         <div className="panel" style={{ maxWidth: 640, margin: "0 auto" }}>
           <div className="panel-inner stack">
             <div className="section-head">

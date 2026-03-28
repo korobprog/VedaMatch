@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LauncherItems } from "@/components/social-launcher";
 import { useSession } from "@/components/session-context";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { getSocialLauncherModel, resolveActiveLauncherId } from "@/lib/social-launcher";
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
@@ -98,6 +99,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               >
                 {launcher.copy.profile}
               </Link>
+              <ThemeSwitcher />
               <select
                 aria-label={dictionary.languageLabel}
                 className="dashboard-select"

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LauncherItems } from "@/components/social-launcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import type { SocialLauncherItem } from "@/lib/social-launcher";
 
 type DashboardAction = {
@@ -56,6 +57,7 @@ export function SocialDashboardHome({
           </div>
         </div>
         <div className="dashboard-actions">
+          <ThemeSwitcher />
           {secondaryAction ? (
             <Link className="dashboard-action dashboard-action--ghost" href={secondaryAction.href}>
               {secondaryAction.label}
