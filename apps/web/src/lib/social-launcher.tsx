@@ -1,36 +1,5 @@
 import type { Language } from "@vedamatch/domain-types";
 import { normalizeLanguage } from "@vedamatch/i18n";
-import type { LucideIcon } from "lucide-react";
-import {
-  BookOpen,
-  Bot,
-  Briefcase,
-  CalendarDays,
-  Clapperboard,
-  Coffee,
-  Compass,
-  Flame,
-  GraduationCap,
-  Handshake,
-  Heart,
-  History,
-  Landmark,
-  LayoutGrid,
-  LifeBuoy,
-  Map as MapIcon,
-  Megaphone,
-  MessageCircle,
-  Music4,
-  Newspaper,
-  Phone,
-  Radio,
-  Settings,
-  ShoppingBag,
-  Sparkles,
-  Sun,
-  Users,
-  Wallet,
-} from "lucide-react";
 
 export type SocialLauncherStatus = "active" | "soon" | "external";
 export type SocialLauncherTone =
@@ -43,6 +12,36 @@ export type SocialLauncherTone =
   | "indigo"
   | "stone";
 
+export type SocialLauncherIcon =
+  | "book-open"
+  | "bot"
+  | "briefcase"
+  | "calendar-days"
+  | "clapperboard"
+  | "coffee"
+  | "compass"
+  | "flame"
+  | "graduation-cap"
+  | "handshake"
+  | "heart"
+  | "history"
+  | "landmark"
+  | "layout-grid"
+  | "life-buoy"
+  | "map"
+  | "megaphone"
+  | "message-circle"
+  | "music"
+  | "newspaper"
+  | "phone"
+  | "radio"
+  | "settings"
+  | "shopping-bag"
+  | "sparkles"
+  | "sun"
+  | "users"
+  | "wallet";
+
 export type SocialLauncherItem = {
   id: string;
   label: string;
@@ -51,7 +50,7 @@ export type SocialLauncherItem = {
   status: SocialLauncherStatus;
   tone: SocialLauncherTone;
   groupId: string;
-  icon: LucideIcon;
+  icon: SocialLauncherIcon;
   dock: boolean;
 };
 
@@ -65,7 +64,7 @@ type LauncherDefinition = {
   id: string;
   groupId: string;
   tone: SocialLauncherTone;
-  icon: LucideIcon;
+  icon: SocialLauncherIcon;
   href?: string;
   status: SocialLauncherStatus;
   dock?: boolean;
@@ -123,35 +122,35 @@ const GROUP_ORDER = [
 const QUICK_ACCESS_IDS = ["contacts", "calls", "services_catalog"] as const;
 
 const DEFINITIONS: LauncherDefinition[] = [
-  { id: "contacts", groupId: "communication", tone: "blue", icon: Users, href: "/app/contacts", status: "active", dock: true, routeMatch: "/app/contacts" },
-  { id: "chat", groupId: "communication", tone: "stone", icon: MessageCircle, href: "/app/chats", status: "active", dock: true, routeMatch: "/app/chats" },
-  { id: "rooms", groupId: "communication", tone: "indigo", icon: LayoutGrid, status: "soon" },
-  { id: "channels", groupId: "communication", tone: "green", icon: Radio, status: "soon" },
-  { id: "connect", groupId: "communication", tone: "copper", icon: Handshake, status: "soon" },
-  { id: "history", groupId: "communication", tone: "stone", icon: History, status: "soon" },
-  { id: "calls", groupId: "communication", tone: "green", icon: Phone, status: "soon", dock: true },
-  { id: "ekadashi_calendar", groupId: "calendar", tone: "orange", icon: CalendarDays, status: "soon" },
-  { id: "path_tracker", groupId: "practice", tone: "green", icon: Sun, status: "soon" },
-  { id: "sadhu_sanga", groupId: "practice", tone: "orange", icon: Flame, status: "soon" },
-  { id: "seva", groupId: "practice", tone: "pink", icon: Heart, status: "soon" },
-  { id: "education", groupId: "practice", tone: "violet", icon: GraduationCap, status: "soon" },
-  { id: "library", groupId: "practice", tone: "green", icon: BookOpen, href: "/app/library", status: "active", dock: true, routeMatch: "/app/library" },
-  { id: "feed", groupId: "content", tone: "indigo", icon: LayoutGrid, status: "soon" },
-  { id: "news", groupId: "content", tone: "orange", icon: Newspaper, href: "/app/news", status: "active", dock: true, routeMatch: "/app/news" },
-  { id: "multimedia", groupId: "content", tone: "indigo", icon: Music4, status: "soon" },
-  { id: "video_circles", groupId: "content", tone: "pink", icon: Clapperboard, status: "soon" },
-  { id: "services", groupId: "services", tone: "violet", icon: Bot, href: "/app/services", status: "active" },
-  { id: "services_catalog", groupId: "services", tone: "pink", icon: Briefcase, href: "/app/services", status: "active", dock: true, routeMatch: "/app/services" },
-  { id: "cafe", groupId: "services", tone: "copper", icon: Coffee, status: "soon" },
-  { id: "shops", groupId: "services", tone: "stone", icon: ShoppingBag, status: "soon" },
-  { id: "ads", groupId: "services", tone: "orange", icon: Megaphone, status: "soon" },
-  { id: "dating", groupId: "services", tone: "pink", icon: Sparkles, status: "soon" },
-  { id: "travel", groupId: "travel", tone: "violet", icon: Compass, href: "/app/travel", status: "active", dock: true, routeMatch: "/app/travel" },
-  { id: "map", groupId: "travel", tone: "indigo", icon: MapIcon, status: "soon" },
-  { id: "dhama", groupId: "travel", tone: "copper", icon: Landmark, status: "soon" },
-  { id: "support", groupId: "profile", tone: "green", icon: LifeBuoy, href: "/app/support", status: "active", dock: true, routeMatch: "/app/support" },
-  { id: "settings", groupId: "profile", tone: "stone", icon: Settings, href: "/app/profile", status: "active", dock: true, routeMatch: "/app/profile" },
-  { id: "wallet", groupId: "profile", tone: "indigo", icon: Wallet, href: "/app/wallet", status: "active", dock: true, routeMatch: "/app/wallet" },
+  { id: "contacts", groupId: "communication", tone: "blue", icon: "users", href: "/app/contacts", status: "active", dock: true, routeMatch: "/app/contacts" },
+  { id: "chat", groupId: "communication", tone: "stone", icon: "message-circle", href: "/app/chats", status: "active", dock: true, routeMatch: "/app/chats" },
+  { id: "rooms", groupId: "communication", tone: "indigo", icon: "layout-grid", status: "soon" },
+  { id: "channels", groupId: "communication", tone: "green", icon: "radio", status: "soon" },
+  { id: "connect", groupId: "communication", tone: "copper", icon: "handshake", status: "soon" },
+  { id: "history", groupId: "communication", tone: "stone", icon: "history", status: "soon" },
+  { id: "calls", groupId: "communication", tone: "green", icon: "phone", status: "soon", dock: true },
+  { id: "ekadashi_calendar", groupId: "calendar", tone: "orange", icon: "calendar-days", status: "soon" },
+  { id: "path_tracker", groupId: "practice", tone: "green", icon: "sun", status: "soon" },
+  { id: "sadhu_sanga", groupId: "practice", tone: "orange", icon: "flame", status: "soon" },
+  { id: "seva", groupId: "practice", tone: "pink", icon: "heart", status: "soon" },
+  { id: "education", groupId: "practice", tone: "violet", icon: "graduation-cap", status: "soon" },
+  { id: "library", groupId: "practice", tone: "green", icon: "book-open", href: "/app/library", status: "active", dock: true, routeMatch: "/app/library" },
+  { id: "feed", groupId: "content", tone: "indigo", icon: "layout-grid", status: "soon" },
+  { id: "news", groupId: "content", tone: "orange", icon: "newspaper", href: "/app/news", status: "active", dock: true, routeMatch: "/app/news" },
+  { id: "multimedia", groupId: "content", tone: "indigo", icon: "music", status: "soon" },
+  { id: "video_circles", groupId: "content", tone: "pink", icon: "clapperboard", status: "soon" },
+  { id: "services", groupId: "services", tone: "violet", icon: "bot", href: "/app/services", status: "active" },
+  { id: "services_catalog", groupId: "services", tone: "pink", icon: "briefcase", href: "/app/services", status: "active", dock: true, routeMatch: "/app/services" },
+  { id: "cafe", groupId: "services", tone: "copper", icon: "coffee", status: "soon" },
+  { id: "shops", groupId: "services", tone: "stone", icon: "shopping-bag", status: "soon" },
+  { id: "ads", groupId: "services", tone: "orange", icon: "megaphone", status: "soon" },
+  { id: "dating", groupId: "services", tone: "pink", icon: "sparkles", status: "soon" },
+  { id: "travel", groupId: "travel", tone: "violet", icon: "compass", href: "/app/travel", status: "active", dock: true, routeMatch: "/app/travel" },
+  { id: "map", groupId: "travel", tone: "indigo", icon: "map", status: "soon" },
+  { id: "dhama", groupId: "travel", tone: "copper", icon: "landmark", status: "soon" },
+  { id: "support", groupId: "profile", tone: "green", icon: "life-buoy", href: "/app/support", status: "active", dock: true, routeMatch: "/app/support" },
+  { id: "settings", groupId: "profile", tone: "stone", icon: "settings", href: "/app/profile", status: "active", dock: true, routeMatch: "/app/profile" },
+  { id: "wallet", groupId: "profile", tone: "indigo", icon: "wallet", href: "/app/wallet", status: "active", dock: true, routeMatch: "/app/wallet" },
 ];
 
 const EN_COPY: LauncherCopy = {

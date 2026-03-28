@@ -1,7 +1,69 @@
 "use client";
 
 import Link from "next/link";
-import type { SocialLauncherGroup, SocialLauncherItem } from "@/lib/social-launcher";
+import type { LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  Bot,
+  Briefcase,
+  CalendarDays,
+  Clapperboard,
+  Coffee,
+  Compass,
+  Flame,
+  GraduationCap,
+  Handshake,
+  Heart,
+  History,
+  Landmark,
+  LayoutGrid,
+  LifeBuoy,
+  Map,
+  Megaphone,
+  MessageCircle,
+  Music4,
+  Newspaper,
+  Phone,
+  Radio,
+  Settings,
+  ShoppingBag,
+  Sparkles,
+  Sun,
+  Users,
+  Wallet,
+} from "lucide-react";
+import type { SocialLauncherGroup, SocialLauncherIcon, SocialLauncherItem } from "@/lib/social-launcher";
+
+const ICONS: Record<SocialLauncherIcon, LucideIcon> = {
+  "book-open": BookOpen,
+  bot: Bot,
+  briefcase: Briefcase,
+  "calendar-days": CalendarDays,
+  clapperboard: Clapperboard,
+  coffee: Coffee,
+  compass: Compass,
+  flame: Flame,
+  "graduation-cap": GraduationCap,
+  handshake: Handshake,
+  heart: Heart,
+  history: History,
+  landmark: Landmark,
+  "layout-grid": LayoutGrid,
+  "life-buoy": LifeBuoy,
+  map: Map,
+  megaphone: Megaphone,
+  "message-circle": MessageCircle,
+  music: Music4,
+  newspaper: Newspaper,
+  phone: Phone,
+  radio: Radio,
+  settings: Settings,
+  "shopping-bag": ShoppingBag,
+  sparkles: Sparkles,
+  sun: Sun,
+  users: Users,
+  wallet: Wallet,
+};
 
 type LauncherItemsProps = {
   items: SocialLauncherItem[];
@@ -25,7 +87,7 @@ function LauncherCard({
   currentLabel: string;
   soonLabel: string;
 }) {
-  const Icon = item.icon;
+  const Icon = ICONS[item.icon];
   const active = item.id === activeId;
   const classes = [
     "launcher-card",
