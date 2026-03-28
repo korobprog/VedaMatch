@@ -83,3 +83,40 @@ groups:
         annotations:
           summary: "Synthetic probe failed: {{ $labels.instance }}"
           description: "Blackbox HTTP probe to {{ $labels.instance }} failed for more than 2 minutes."
+
+      - alert: RealtimeCallErrorsSpike
+        expr: |
+          sum(
+            rate(realtime_call_events_total{event!="call_ended",severity=~"error|critical"}[10m])
+          ) > 0.005
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Realtime call errors spike detected"
+          description: "TURN/SFU/signaling/client call errors are happening more than expected for the last 10 minutes."
+
+      - alert: RealtimeCallPoorQualitySpike
+        expr: |
+          (
+            sum(rate(realtime_call_feedback_total{rating=~"1|2"}[1h]))
+            /
+            clamp_min(sum(rate(realtime_call_feedback_total[1h])), 1e-9)
+          ) > 0.25
+          and
+          sum(increase(realtime_call_feedback_total[1h])) >= 4
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Poor call quality feedback spike"
+          description: "Low call ratings are above 25% in the last hour with enough feedback volume."
+
+      - alert: TurnCredentialsFallbackStunOnly
+        expr: increase(realtime_call_events_total{subsystem="turn",event="credentials_request",result="fallback_stun_only"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TURN credentials degraded to STUN-only"
+          description: "Clients are falling back to STUN-only responses, which usually means TURN is misconfigured or unavailable."

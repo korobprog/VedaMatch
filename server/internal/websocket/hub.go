@@ -4,6 +4,7 @@ import (
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/observability"
 	"sync"
 )
 
@@ -130,6 +131,7 @@ func (h *Hub) Run() {
 					log.Printf("[Hub] Forwarded %s to User %d", msg.Type, msg.TargetID)
 				default:
 					log.Printf("[Hub] User %d channel full, closing", msg.TargetID)
+					observability.ObserveRealtimeCallEvent("signaling", msg.Type, "dropped_channel_full", "warning", "p2p", "server", "unknown")
 					h.mu.Lock()
 					currentTarget, stillExists := h.clients[msg.TargetID]
 					if stillExists && currentTarget == target {
@@ -143,6 +145,7 @@ func (h *Hub) Run() {
 				}
 			} else {
 				log.Printf("[Hub] Target User %d not connected", msg.TargetID)
+				observability.ObserveRealtimeCallEvent("signaling", msg.Type, "target_offline", "warning", "p2p", "server", "unknown")
 				if msg.Type == "offer" {
 					h.triggerSignalFallback(msg)
 				}
@@ -160,12 +163,14 @@ func (h *Hub) handleRoomSignaling(msg RoomSignalingMessage) {
 
 	if !isRoomMember(msg.RoomID, msg.SenderID) {
 		log.Printf("[Hub] Room signaling rejected: sender %d is not member of room %d", msg.SenderID, msg.RoomID)
+		observability.ObserveRealtimeCallEvent("signaling", msg.Type, "sender_not_member", "warning", "room", "server", "unknown")
 		return
 	}
 
 	if msg.TargetID != 0 {
 		if !isRoomMember(msg.RoomID, msg.TargetID) {
 			log.Printf("[Hub] Room signaling rejected: target %d is not member of room %d", msg.TargetID, msg.RoomID)
+			observability.ObserveRealtimeCallEvent("signaling", msg.Type, "target_not_member", "warning", "room", "server", "unknown")
 			return
 		}
 		h.mu.RLock()
@@ -173,12 +178,14 @@ func (h *Hub) handleRoomSignaling(msg RoomSignalingMessage) {
 		h.mu.RUnlock()
 		if !ok {
 			log.Printf("[Hub] Room target user %d not connected", msg.TargetID)
+			observability.ObserveRealtimeCallEvent("signaling", msg.Type, "target_offline", "warning", "room", "server", "unknown")
 			return
 		}
 		select {
 		case target.Send <- msg:
 		default:
 			log.Printf("[Hub] Room signaling drop: target %d channel full", msg.TargetID)
+			observability.ObserveRealtimeCallEvent("signaling", msg.Type, "dropped_channel_full", "warning", "room", "server", "unknown")
 		}
 		return
 	}
@@ -186,6 +193,7 @@ func (h *Hub) handleRoomSignaling(msg RoomSignalingMessage) {
 	memberIDs, err := getRoomMemberIDs(msg.RoomID)
 	if err != nil {
 		log.Printf("[Hub] Room signaling member lookup failed room=%d: %v", msg.RoomID, err)
+		observability.ObserveRealtimeCallEvent("signaling", msg.Type, "member_lookup_failed", "error", "room", "server", "unknown")
 		return
 	}
 
@@ -269,6 +277,7 @@ func (h *Hub) triggerSignalFallback(msg SignalingMessage) {
 	if handler == nil {
 		return
 	}
+	observability.ObserveRealtimeCallEvent("signaling", msg.Type, "fallback_triggered", "info", "p2p", "server", "unknown")
 	go handler(msg)
 }
 

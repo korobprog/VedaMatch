@@ -17939,3 +17939,78 @@ const [unreadItems, requestItems] = await Promise.all([
   </View>
 ) : null}
 ```
+
+## 2026-03-28 (Shared mobile calls: diagnostics reporting and quality telemetry context)
+
+### Измененные файлы
+- `frontend/screens/calls/CallScreen.tsx`
+- `frontend/services/webRTCService.ts`
+- `frontend/services/callDiagnosticsService.ts`
+- `server/internal/handlers/call_diagnostics_handler.go`
+- `server/internal/observability/realtime_calls.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - mobile call stack почти не отдавал систематизированную телеметрию по `TURN/signaling/ICE/peer` сбоям;
+  - call feedback не нес `networkType/appVersion/deviceModel`, поэтому quality-срезы по сети и build context были слабыми;
+  - при проблемах связи в Grafana/Loki нельзя было быстро разделить backend token/signaling ошибки и client-side connection failures.
+- Стало:
+  - `CallScreen` задает `webRTCService` diagnostics context по `callSessionId`;
+  - `webRTCService` репортит в backend client-side события:
+    - `turn_credentials_fetch`
+    - `signaling_send`
+    - `ice_connection_state`
+    - `peer_connection_state`
+    - `call_established`
+    - `call_ended`
+  - feedback submit теперь включает `networkType`, `appVersion`, `deviceModel`;
+  - backend endpoint `/api/calls/diagnostics` пишет structured logs `[CallDiag] ...` и Prometheus-метрики, которые потом попадают в Grafana/Telegram alerts.
+
+### Сниппеты кода
+
+`frontend/screens/calls/CallScreen.tsx`:
+```ts
+useEffect(() => {
+  const callSessionId = callSessionIdRef.current;
+  webRTCService.setCallDiagnosticsContext({
+    callSessionId,
+    peerUserId: typeof targetId === 'number' ? targetId : undefined,
+    direction: isIncoming ? 'incoming' : 'outgoing',
+  });
+  return () => {
+    webRTCService.clearCallDiagnosticsContext(callSessionId);
+  };
+}, [isIncoming, targetId]);
+```
+
+```ts
+await callFeedbackService.submitFeedback({
+  callSessionId: callSessionIdRef.current,
+  networkType: String(netInfo?.type || 'unknown'),
+  appVersion: DeviceInfo.getVersion(),
+  deviceModel: DeviceInfo.getModel(),
+});
+```
+
+`frontend/services/webRTCService.ts`:
+```ts
+this.reportDiagnosticEvent('ice_connection_state', {
+  result: normalizedState,
+  severity: normalizedState === 'failed' ? 'error' : 'warning',
+  dedupeKey: `ice_connection_state:${normalizedState}`,
+});
+```
+
+`server/internal/handlers/call_diagnostics_handler.go`:
+```go
+observability.ObserveCallDiagnostics(observability.CallDiagnosticsSample{
+    Subsystem:   "client",
+    Event:       event,
+    Result:      result,
+    Severity:    severity,
+    Mode:        mode,
+    Platform:    platform,
+    NetworkType: networkType,
+    DurationSec: stats.DurationSec,
+})
+```

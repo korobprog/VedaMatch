@@ -15,6 +15,12 @@ Production monitoring and logging stack for Vedamatch:
 - Host metrics (CPU, memory, disk, load)
 - Container metrics (runtime + resource usage)
 - API service metrics from `GET /metrics` with Bearer token
+- Realtime/call observability:
+  - TURN credential fallbacks
+  - SFU token/config denials and errors
+  - signaling delivery drops / offline targets
+  - mobile call diagnostics reports
+  - call quality feedback ratings and issue reasons
 - Container logs (`vedamatch-*` + `dokploy-traefik`)
 - System journal logs (selected critical units)
 - External probes:
@@ -94,6 +100,7 @@ Open `http://127.0.0.1:13000` and login with `GRAFANA_ADMIN_USER` / `GRAFANA_ADM
 - `Vedamatch Overview` (API RED metrics, host, containers)
 - `Vedamatch Probes` (external availability checks)
 - `Vedamatch Logs` (Loki stream for `vedamatch-*` and `dokploy-traefik`)
+- `Vedamatch Realtime Calls` (TURN/SFU/signaling errors, call ratings, quality issues, realtime logs)
 
 3. Check alert state:
 - Grafana: `Alerting -> Alert rules`

@@ -7,11 +7,13 @@ import {
 } from 'react-native-webrtc';
 import { PermissionsAndroid, Platform, type Permission } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import DeviceInfo from 'react-native-device-info';
 import { WebSocketService } from './websocketService';
 import InCallManager from 'react-native-incall-manager';
 import { getAccessToken } from './authSessionService';
 import apiClient from '../lib/apiClient';
 import i18n from '../i18n';
+import { callDiagnosticsService } from './callDiagnosticsService';
 
 let configuration: any = {
     iceServers: [
@@ -38,6 +40,13 @@ type IceConfigSelection = {
     iceServers: IceServerConfig[];
     iceTransportPolicy: 'all' | 'relay';
     networkType: string;
+};
+
+type CallDiagnosticsContext = {
+    callSessionId: string;
+    peerUserId?: number;
+    roomId?: number;
+    direction?: 'incoming' | 'outgoing' | 'unknown';
 };
 
 const getWebRtcCopy = () => {
@@ -78,6 +87,11 @@ class WebRTCService {
     private onCallEnded: ((reason: 'local' | 'remote' | 'system') => void) | null = null;
     private remoteStreamListeners = new Set<(stream: MediaStream) => void>();
     private iceStateListeners = new Set<(state: string) => void>();
+    private diagnosticsContext: CallDiagnosticsContext | null = null;
+    private diagnosticsReportedKeys = new Set<string>();
+    private diagnosticsNetworkType: string = 'unknown';
+    private diagnosticsStartedAtMs: number | null = null;
+    private lastPeerConnectionState: string = 'unknown';
 
     public debugLocalCandidates: number = 0;
     public debugRemoteCandidates: number = 0;
@@ -152,6 +166,7 @@ class WebRTCService {
             const isCellular = networkType === 'cellular';
 
             if (isCellular) {
+                this.diagnosticsNetworkType = networkType;
                 return {
                     iceServers: this.pickRelayOnlyServers(candidateServers),
                     iceTransportPolicy: 'relay',
@@ -159,6 +174,7 @@ class WebRTCService {
                 };
             }
 
+            this.diagnosticsNetworkType = networkType;
             return {
                 iceServers: candidateServers,
                 iceTransportPolicy: 'all',
@@ -166,6 +182,7 @@ class WebRTCService {
             };
         } catch (error) {
             console.warn('[WebRTC] NetInfo.fetch failed, falling back to default ICE policy', error);
+            this.diagnosticsNetworkType = 'unknown';
             return {
                 iceServers: candidateServers,
                 iceTransportPolicy: 'all',
@@ -177,12 +194,26 @@ class WebRTCService {
     private async sendSignalingMessage(message: Record<string, unknown>, timeoutMs: number = 2500) {
         if (!this.wsService) {
             console.warn('[WebRTC] Cannot send signaling message, ws service is not configured');
+            this.reportDiagnosticEvent('signaling_send', {
+                result: 'socket_not_configured',
+                severity: 'error',
+                message: `signaling socket missing for ${String(message.type)}`,
+                metadata: { type: String(message.type || 'unknown') },
+                dedupeKey: `signaling_send:${String(message.type || 'unknown')}:socket_not_configured`,
+            });
             return false;
         }
 
         const isReady = await this.wsService.waitUntilOpen(timeoutMs);
         if (!isReady) {
             console.warn(`[WebRTC] Dropped signaling message ${String(message.type)}: socket not ready`);
+            this.reportDiagnosticEvent('signaling_send', {
+                result: 'socket_not_ready',
+                severity: 'warning',
+                message: `signaling socket not ready for ${String(message.type)}`,
+                metadata: { type: String(message.type || 'unknown') },
+                dedupeKey: `signaling_send:${String(message.type || 'unknown')}:socket_not_ready`,
+            });
             return false;
         }
 
@@ -232,6 +263,103 @@ class WebRTCService {
         return () => {
             this.iceStateListeners.delete(callback);
         };
+    }
+
+    setCallDiagnosticsContext(context: CallDiagnosticsContext | null) {
+        if (!context?.callSessionId?.trim()) {
+            this.diagnosticsContext = null;
+            this.diagnosticsReportedKeys.clear();
+            this.diagnosticsStartedAtMs = null;
+            this.diagnosticsNetworkType = 'unknown';
+            return;
+        }
+
+        this.diagnosticsContext = {
+            callSessionId: context.callSessionId.trim(),
+            peerUserId: context.peerUserId,
+            roomId: context.roomId,
+            direction: context.direction || 'unknown',
+        };
+        this.diagnosticsReportedKeys.clear();
+    }
+
+    clearCallDiagnosticsContext(callSessionId?: string) {
+        if (callSessionId && this.diagnosticsContext?.callSessionId !== callSessionId.trim()) {
+            return;
+        }
+        this.diagnosticsContext = null;
+        this.diagnosticsReportedKeys.clear();
+        this.diagnosticsStartedAtMs = null;
+        this.diagnosticsNetworkType = 'unknown';
+    }
+
+    private buildDiagnosticsStats(durationSec?: number) {
+        return {
+            durationSec,
+            localCandidates: this.debugLocalCandidates,
+            remoteCandidates: this.debugRemoteCandidates,
+            iceConnectionState: this.peerConnection?.iceConnectionState || 'unknown',
+            peerConnectionState: (this.peerConnection as any)?.connectionState || this.lastPeerConnectionState || 'unknown',
+        };
+    }
+
+    private async reportDiagnosticEvent(
+        event: string,
+        options: {
+            result?: string;
+            severity?: 'info' | 'warning' | 'error' | 'critical';
+            message?: string;
+            metadata?: Record<string, string | number | boolean | null | undefined>;
+            durationSec?: number;
+            dedupeKey?: string;
+        } = {},
+    ) {
+        if (!this.diagnosticsContext?.callSessionId) {
+            return;
+        }
+
+        const dedupeKey = options.dedupeKey || `${event}:${options.result || 'reported'}`;
+        if (dedupeKey && this.diagnosticsReportedKeys.has(dedupeKey)) {
+            return;
+        }
+        if (dedupeKey) {
+            this.diagnosticsReportedKeys.add(dedupeKey);
+        }
+
+        try {
+            await callDiagnosticsService.submitReport({
+                callSessionId: this.diagnosticsContext.callSessionId,
+                peerUserId: this.diagnosticsContext.peerUserId,
+                roomId: this.diagnosticsContext.roomId,
+                direction: this.diagnosticsContext.direction || 'unknown',
+                mode: this.signalingMode === 'room' ? 'room' : 'p2p',
+                event,
+                result: options.result || 'reported',
+                severity: options.severity || 'info',
+                platform: Platform.OS,
+                networkType: this.diagnosticsNetworkType || 'unknown',
+                appVersion: DeviceInfo.getVersion(),
+                deviceModel: DeviceInfo.getModel(),
+                message: options.message,
+                stats: this.buildDiagnosticsStats(options.durationSec),
+                metadata: options.metadata,
+            });
+        } catch (error: any) {
+            console.warn('[WebRTC] Failed to submit call diagnostics event', event, error?.message || error);
+        }
+    }
+
+    private beginDiagnosticsTimer() {
+        if (!this.diagnosticsStartedAtMs) {
+            this.diagnosticsStartedAtMs = Date.now();
+        }
+    }
+
+    private getDiagnosticsDurationSec() {
+        if (!this.diagnosticsStartedAtMs) {
+            return 0;
+        }
+        return Math.max(0, Math.round((Date.now() - this.diagnosticsStartedAtMs) / 1000));
     }
 
     private rebuildRemoteStreamFromTrackEvent(event: any) {
@@ -518,6 +646,13 @@ class WebRTCService {
             const token = await getAccessToken();
             if (!token) {
                 console.log('No auth token, using fallback STUN');
+                this.diagnosticsNetworkType = 'unknown';
+                this.reportDiagnosticEvent('turn_credentials_fetch', {
+                    result: 'missing_auth_token',
+                    severity: 'warning',
+                    message: 'TURN credentials skipped because auth token is missing',
+                    dedupeKey: 'turn_credentials_fetch:missing_auth_token',
+                });
                 return;
             }
 
@@ -537,9 +672,25 @@ class WebRTCService {
                 console.log(
                     `[WebRTC] Updated ICE config from API: network=${selectedConfig.networkType} policy=${selectedConfig.iceTransportPolicy} servers=${JSON.stringify(selectedConfig.iceServers)}`,
                 );
+                this.reportDiagnosticEvent('turn_credentials_fetch', {
+                    result: selectedConfig.iceTransportPolicy === 'relay' ? 'relay_selected' : 'success',
+                    severity: 'info',
+                    metadata: {
+                        ice_transport_policy: selectedConfig.iceTransportPolicy,
+                        ice_server_count: selectedConfig.iceServers.length,
+                    },
+                    dedupeKey: `turn_credentials_fetch:${selectedConfig.iceTransportPolicy}`,
+                });
             }
         } catch (error: any) {
             console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);
+            this.diagnosticsNetworkType = 'unknown';
+            this.reportDiagnosticEvent('turn_credentials_fetch', {
+                result: 'error',
+                severity: 'error',
+                message: error?.message || 'turn credentials fetch failed',
+                dedupeKey: 'turn_credentials_fetch:error',
+            });
             // Safe fallback: STUN-only configuration when TURN credentials API is unavailable.
             configuration = {
                 iceServers: [
@@ -603,6 +754,41 @@ class WebRTCService {
             const state = this.peerConnection?.iceConnectionState || 'unknown';
             console.log('ICE Connection State:', state);
             this.emitIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+            const normalizedState = String(state).trim().toLowerCase();
+            if (normalizedState === 'connected' || normalizedState === 'completed') {
+                this.reportDiagnosticEvent('ice_connection_state', {
+                    result: normalizedState,
+                    severity: 'info',
+                    dedupeKey: `ice_connection_state:${normalizedState}`,
+                });
+            } else if (normalizedState === 'disconnected' || normalizedState === 'failed') {
+                this.reportDiagnosticEvent('ice_connection_state', {
+                    result: normalizedState,
+                    severity: normalizedState === 'failed' ? 'error' : 'warning',
+                    message: `ice connection state changed to ${normalizedState}`,
+                    dedupeKey: `ice_connection_state:${normalizedState}`,
+                });
+            }
+        };
+
+        (this.peerConnection as any).onconnectionstatechange = () => {
+            const state = (this.peerConnection as any)?.connectionState || 'unknown';
+            this.lastPeerConnectionState = String(state).trim().toLowerCase() || 'unknown';
+            console.log('Peer Connection State:', this.lastPeerConnectionState);
+            if (this.lastPeerConnectionState === 'connected') {
+                this.reportDiagnosticEvent('peer_connection_state', {
+                    result: 'connected',
+                    severity: 'info',
+                    dedupeKey: 'peer_connection_state:connected',
+                });
+            } else if (this.lastPeerConnectionState === 'disconnected' || this.lastPeerConnectionState === 'failed') {
+                this.reportDiagnosticEvent('peer_connection_state', {
+                    result: this.lastPeerConnectionState,
+                    severity: this.lastPeerConnectionState === 'failed' ? 'error' : 'warning',
+                    message: `peer connection state changed to ${this.lastPeerConnectionState}`,
+                    dedupeKey: `peer_connection_state:${this.lastPeerConnectionState}`,
+                });
+            }
         };
 
         (this.peerConnection as any).ontrack = (event: any) => {
@@ -612,6 +798,17 @@ class WebRTCService {
 
             const rebuiltStream = this.rebuildRemoteStreamFromTrackEvent(event);
             this.emitRemoteStream(rebuiltStream);
+            if (rebuiltStream.getTracks().length > 0) {
+                this.reportDiagnosticEvent('call_established', {
+                    result: 'remote_media',
+                    severity: 'info',
+                    metadata: {
+                        remote_audio_tracks: rebuiltStream.getAudioTracks().length,
+                        remote_video_tracks: rebuiltStream.getVideoTracks().length,
+                    },
+                    dedupeKey: 'call_established:remote_media',
+                });
+            }
         };
 
         // Add legacy onaddstream just in case
@@ -637,6 +834,7 @@ class WebRTCService {
     async startCall(targetId: number) {
         await this.fetchTurnCredentials(); // Get TURN config first
         await this.ensureSignalingReady();
+        this.beginDiagnosticsTimer();
         this.signalingMode = 'p2p';
         this.signalingRoomId = null;
         this.targetId = targetId;
@@ -671,6 +869,7 @@ class WebRTCService {
     async startRoomCall(targetId: number, roomId: number) {
         await this.fetchTurnCredentials();
         await this.ensureSignalingReady();
+        this.beginDiagnosticsTimer();
         this.signalingMode = 'room';
         this.signalingRoomId = roomId;
         this.targetId = targetId;
@@ -714,12 +913,19 @@ class WebRTCService {
     async acceptCall() {
         if (!this.pendingOffer) {
             console.error('No pending offer to accept');
+            this.reportDiagnosticEvent('accept_call', {
+                result: 'missing_offer',
+                severity: 'error',
+                message: 'accept call requested without pending offer',
+                dedupeKey: 'accept_call:missing_offer',
+            });
             return;
         }
 
         console.log('Accepting call...');
         await this.fetchTurnCredentials();
         await this.ensureSignalingReady();
+        this.beginDiagnosticsTimer();
 
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
@@ -757,6 +963,12 @@ class WebRTCService {
             }
         } catch (e) {
             console.error('Error accepting call:', e);
+            this.reportDiagnosticEvent('accept_call', {
+                result: 'error',
+                severity: 'error',
+                message: e instanceof Error ? e.message : String(e),
+                dedupeKey: 'accept_call:error',
+            });
         }
     }
 
@@ -780,6 +992,12 @@ class WebRTCService {
                 console.warn('[WebRTC] ICE candidate added successfully');
             } catch (e) {
                 console.error('[WebRTC] Error adding ICE candidate:', e);
+                this.reportDiagnosticEvent('remote_candidate_add', {
+                    result: 'error',
+                    severity: 'warning',
+                    message: e instanceof Error ? e.message : String(e),
+                    dedupeKey: 'remote_candidate_add:error',
+                });
             }
         } else {
             console.warn('[WebRTC] Buffering ICE candidate (no remote description yet)');
@@ -825,6 +1043,20 @@ class WebRTCService {
             || this.targetId
             || this.pendingOffer
         );
+        const finalDurationSec = this.getDiagnosticsDurationSec();
+        if (hadActiveCall) {
+            this.reportDiagnosticEvent('call_ended', {
+                result: reason,
+                severity: reason === 'system' ? 'warning' : 'info',
+                durationSec: finalDurationSec,
+                metadata: {
+                    had_remote_stream: Boolean(this.remoteStream),
+                    local_track_count: this.localStream?.getTracks().length ?? 0,
+                    remote_track_count: this.remoteStream?.getTracks().length ?? 0,
+                },
+                dedupeKey: `call_ended:${reason}`,
+            });
+        }
 
         if (this.peerConnection) {
             this.peerConnection.close();
@@ -843,8 +1075,10 @@ class WebRTCService {
         this.targetId = null;
         this.signalingRoomId = null;
         this.signalingMode = 'p2p';
+        this.lastPeerConnectionState = 'unknown';
         this.remoteStreamListeners.clear();
         this.iceStateListeners.clear();
+        this.diagnosticsStartedAtMs = null;
         const onCallEnded = this.onCallEnded;
         this.onCallEnded = null;
         if (hadActiveCall && onCallEnded) {

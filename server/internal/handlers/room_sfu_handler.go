@@ -4,6 +4,7 @@ import (
 	"log"
 	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/middleware"
+	"rag-agent-server/internal/observability"
 	"rag-agent-server/internal/services"
 	sfuService "rag-agent-server/internal/services/sfu"
 	"strings"
@@ -43,14 +44,20 @@ func (h *RoomSFUHandler) GetRoomConfig(c *fiber.Ctx) error {
 	if h.cfg.RequireMembership {
 		if _, accessErr := ensureRoomAccess(room, actorID, true); accessErr != nil {
 			_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenDeniedTotal, 1)
+			observability.ObserveRealtimeCallEvent("sfu", "config_request", "denied", "warning", "sfu", "server", "unknown")
+			log.Printf("[RoomSFU] config_denied room_id=%d actor_id=%d provider=%s error=%v", roomID, actorID, h.cfg.Provider, accessErr)
 			return respondRoomAccessError(c, accessErr)
 		}
 	} else {
 		if _, accessErr := ensureRoomAccess(room, actorID, false); accessErr != nil {
 			_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenDeniedTotal, 1)
+			observability.ObserveRealtimeCallEvent("sfu", "config_request", "denied", "warning", "sfu", "server", "unknown")
+			log.Printf("[RoomSFU] config_denied room_id=%d actor_id=%d provider=%s error=%v", roomID, actorID, h.cfg.Provider, accessErr)
 			return respondRoomAccessError(c, accessErr)
 		}
 	}
+
+	observability.ObserveRealtimeCallEvent("sfu", "config_request", "allowed", "info", "sfu", "server", "unknown")
 
 	return c.JSON(fiber.Map{
 		"enabled":               h.cfg.Enabled,
@@ -78,6 +85,8 @@ func (h *RoomSFUHandler) IssueRoomToken(c *fiber.Ctx) error {
 	room, err := loadRoomByID(roomID)
 	if err != nil {
 		_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenDeniedTotal, 1)
+		observability.ObserveRealtimeCallEvent("sfu", "token_issue", "room_load_failed", "warning", "sfu", "server", "unknown")
+		log.Printf("[RoomSFU] token_denied room_id=%d actor_id=%d provider=%s error=%v", roomID, actorID, h.cfg.Provider, err)
 		return respondRoomLoadError(c, err)
 	}
 
@@ -85,6 +94,8 @@ func (h *RoomSFUHandler) IssueRoomToken(c *fiber.Ctx) error {
 	actorRole, accessErr := ensureRoomAccess(room, actorID, needMember)
 	if accessErr != nil {
 		_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenDeniedTotal, 1)
+		observability.ObserveRealtimeCallEvent("sfu", "token_issue", "denied", "warning", "sfu", "server", "unknown")
+		log.Printf("[RoomSFU] token_denied room_id=%d actor_id=%d provider=%s error=%v", roomID, actorID, h.cfg.Provider, accessErr)
 		return respondRoomAccessError(c, accessErr)
 	}
 	if actorRole == "" {
@@ -93,6 +104,7 @@ func (h *RoomSFUHandler) IssueRoomToken(c *fiber.Ctx) error {
 
 	if err := h.cfg.ValidateForTokenIssue(); err != nil {
 		_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenErrorTotal, 1)
+		observability.ObserveRealtimeCallEvent("sfu", "token_issue", "misconfigured", "error", "sfu", "server", "unknown")
 		log.Printf("[RoomSFU] token_issue_failed room_id=%d actor_id=%d actor_role=%s provider=%s error=%v",
 			roomID, actorID, actorRole, h.cfg.Provider, err)
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -117,12 +129,14 @@ func (h *RoomSFUHandler) IssueRoomToken(c *fiber.Ctx) error {
 	})
 	if issueErr != nil {
 		_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenErrorTotal, 1)
+		observability.ObserveRealtimeCallEvent("sfu", "token_issue", "error", "error", "sfu", "server", "unknown")
 		log.Printf("[RoomSFU] token_issue_failed room_id=%d actor_id=%d actor_role=%s provider=%s error=%v",
 			roomID, actorID, actorRole, h.cfg.Provider, issueErr)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to issue room token"})
 	}
 
 	_ = services.GetMetricsService().Increment(services.MetricRoomSFUTokenIssuedTotal, 1)
+	observability.ObserveRealtimeCallEvent("sfu", "token_issue", "issued", "info", "sfu", "server", "unknown")
 	log.Printf("[RoomSFU] token_issued room_id=%d actor_id=%d actor_role=%s provider=%s",
 		roomID, actorID, actorRole, h.cfg.Provider)
 

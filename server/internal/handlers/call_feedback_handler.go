@@ -3,10 +3,12 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/observability"
 	"rag-agent-server/internal/services"
 	"strconv"
 	"strings"
@@ -142,6 +144,36 @@ func (h *CallFeedbackHandler) CreateFeedback(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save feedback"})
 	}
+
+	observability.ObserveCallFeedback(observability.CallFeedbackSample{
+		Mode:        "p2p",
+		Platform:    row.Platform,
+		NetworkType: row.NetworkType,
+		Rating:      row.Rating,
+		DurationSec: row.DurationSec,
+		Reasons:     row.Reasons,
+	})
+
+	feedbackResult := "submitted"
+	feedbackSeverity := "info"
+	if row.Rating <= 2 || hasCallQualityProblem(row.Reasons) {
+		feedbackResult = "poor_quality"
+		feedbackSeverity = "warning"
+		log.Printf(
+			"[CallQuality] degraded_feedback user_id=%d peer_user_id=%d call_session_id=%s rating=%d duration_sec=%d platform=%s network_type=%s reasons=%v app_version=%s device_model=%q",
+			userID,
+			row.PeerUserID,
+			row.CallSessionID,
+			row.Rating,
+			row.DurationSec,
+			row.Platform,
+			row.NetworkType,
+			row.Reasons,
+			row.AppVersion,
+			row.DeviceModel,
+		)
+	}
+	observability.ObserveRealtimeCallEvent("call", "feedback", feedbackResult, feedbackSeverity, "p2p", row.Platform, row.NetworkType)
 
 	return c.JSON(fiber.Map{
 		"ok":   true,
@@ -307,6 +339,16 @@ func normalizeFeedbackReasons(reasons []string) []string {
 		result = append(result, item)
 	}
 	return result
+}
+
+func hasCallQualityProblem(reasons []string) bool {
+	for _, reason := range reasons {
+		switch strings.ToLower(strings.TrimSpace(reason)) {
+		case "connection_stability", "latency", "audio_quality", "video_quality", "echo":
+			return true
+		}
+	}
+	return false
 }
 
 func isSystemToggleEnabled(key string, fallback bool) bool {

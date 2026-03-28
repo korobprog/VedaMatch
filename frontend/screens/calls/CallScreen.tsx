@@ -14,6 +14,8 @@ import { callFeedbackService, CallFeedbackReason } from '../../services/callFeed
 import { useTranslation } from 'react-i18next';
 import { contactService, type UserContact } from '../../services/contactService';
 import { resolveUserCallDisplayName } from '../../utils/userDisplay';
+import NetInfo from '@react-native-community/netinfo';
+import DeviceInfo from 'react-native-device-info';
 
 const { width, height } = Dimensions.get('window');
 const FEEDBACK_MIN_DURATION_SEC = 10;
@@ -235,6 +237,19 @@ export const CallScreen = () => {
             stopIncomingRingtone();
         };
     }, [hasAccepted, isIncoming, usesNativeIncomingUi]);
+
+    useEffect(() => {
+        const callSessionId = callSessionIdRef.current;
+        webRTCService.setCallDiagnosticsContext({
+            callSessionId,
+            peerUserId: typeof targetId === 'number' && Number.isFinite(targetId) ? targetId : undefined,
+            direction: isIncoming ? 'incoming' : 'outgoing',
+        });
+
+        return () => {
+            webRTCService.clearCallDiagnosticsContext(callSessionId);
+        };
+    }, [isIncoming, targetId]);
 
     useEffect(() => {
         if (isIncoming || !hasAccepted || remoteStream) {
@@ -635,6 +650,7 @@ export const CallScreen = () => {
         const endedAt = new Date();
 
         try {
+            const netInfo = await NetInfo.fetch().catch(() => null);
             await callFeedbackService.submitFeedback({
                 callSessionId: callSessionIdRef.current,
                 peerUserId: typeof targetId === 'number' && Number.isFinite(targetId) ? targetId : undefined,
@@ -646,6 +662,9 @@ export const CallScreen = () => {
                 reasons: feedbackReasons,
                 comment: feedbackComment.trim() || undefined,
                 platform: Platform.OS,
+                networkType: String(netInfo?.type || 'unknown'),
+                appVersion: DeviceInfo.getVersion(),
+                deviceModel: DeviceInfo.getModel(),
             });
         } catch (error) {
             console.warn('[CallScreen] submitFeedback failed', error);

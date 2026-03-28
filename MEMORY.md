@@ -1348,6 +1348,11 @@
 ## Backend Observability
 - Для `server/internal/middleware/observability_prometheus.go` endpoint `/metrics` должен использовать `promhttp.HandlerFor(..., HandlerOpts{ErrorHandling: ContinueOnError})`, а не дефолтный `promhttp.Handler()`.
 - Причина: при частичной ошибке одного collector дефолтный режим может отдавать `500` на весь scrape; `ContinueOnError` сохраняет доступность `/metrics` и публикует ошибки в payload без полного падения endpoint.
+- Для realtime/calls добавлен отдельный observability слой `server/internal/observability/realtime_calls.go`:
+  - Prometheus counters: `realtime_call_events_total`, `realtime_call_feedback_total`, `realtime_call_quality_issues_total`;
+  - histogram: `realtime_call_duration_seconds`;
+  - эти метрики наполняются из TURN/SFU/signaling backend-path и из клиентских diagnostics report'ов.
+- Для мобильных звонков добавлен защищенный ingest endpoint `POST /api/calls/diagnostics` (`server/internal/handlers/call_diagnostics_handler.go`), который принимает client-side call diagnostics, пишет structured logs `[CallDiag] ...` и публикует Prometheus-метрики без записи в БД.
 
 ## Portal Service UI
 - После выноса `ads`, `travel`, `rooms` и остальных сервисов в отдельные stack screen их больше не нужно поддерживать как visual special-case внутри `PortalMainScreen`.
@@ -2440,6 +2445,8 @@
 ## Calls Architecture (Contacts + Rooms)
 - Контакты: `frontend/services/contactService.ts` не реализует signaling/RTC; звонок стартует из `frontend/screens/portal/contacts/ContactsScreen.tsx` переходом в `CallScreen`.
 - 1:1 звонок: `frontend/screens/calls/CallScreen.tsx` + `frontend/services/webRTCService.ts` (P2P WebRTC, WS-типы `offer/answer/candidate/hangup`, TURN creds из `/turn-credentials`).
+- Для P2P mobile calls `CallScreen` теперь задает `webRTCService` diagnostics context по `callSessionId`, а `webRTCService` отправляет client-side diagnostics в `/calls/diagnostics` для TURN fetch failures, signaling socket errors, ICE/peer state failures и финального `call_ended`.
+- `CallScreen` при submit feedback теперь дополнительно передает `networkType`, `appVersion`, `deviceModel`, поэтому quality dashboards можно разрезать по сети и платформенному build context.
 - Комнаты (совместные звонки): `RoomChatScreen` включает `RoomVideoBar`, который берет SFU config/token через `frontend/services/roomCallService.ts` (`/rooms/:id/sfu/config`, `/rooms/:id/sfu/token`) и подключается через `RoomSfuClient` к LiveKit.
 - Repo-level hardening для LiveKit теперь находится в `livekit/entrypoint.sh` + `livekit/Dockerfile`: контейнер сам нормализует `LIVEKIT_KEYS`, собирает их из `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` и добавляет `--node-ip ${LIVEKIT_NODE_IP}` + `--udp-port ${LIVEKIT_UDP_PORT:-7882}`.
 - Для production room calls у LiveKit должны быть опубликованы media ports `7881/tcp` и `7882/udp` в `host` mode; одного `wss://livekit.vedamatch.ru` недостаточно для устойчивой media connectivity.
@@ -3113,6 +3120,13 @@
   - `infra/monitoring/grafana/dashboards/fastapi-observability.json` (`uid=fastapi-observability`)
   - использует текущие Vedamatch метрики `http_*` вместо `fastapi_*`;
   - Loki-запросы переведены с `compose_service` на `service` (`vedamatch-*`, `dokploy-traefik`).
+- Для realtime/calls добавлен отдельный dashboard `infra/monitoring/grafana/dashboards/vedamatch-realtime-calls.json` (`uid=vedamatch-realtime-calls`):
+  - показывает spike ошибок TURN/SFU/signaling/client, breakdown call feedback ratings, issue reasons, среднюю длительность звонков по типу сети и Loki-ленту по `[CallDiag]`, `[CallQuality]`, `[RoomSFU]`, `[TURN]`, `[Hub]`.
+- В `infra/monitoring/prometheus/alerts.yml` добавлены alert rules:
+  - `RealtimeCallErrorsSpike`
+  - `RealtimeCallPoorQualitySpike`
+  - `TurnCredentialsFallbackStunOnly`
+- Telegram алертинг для этих правил отдельным кодом не добавлялся: они автоматически пойдут в уже существующий Grafana contact point `telegram` из `infra/monitoring/grafana/provisioning/alerting/contact-points.yml`.
 - Фикс панели `Total 5xx Responses`:
   - причина `No data`: при отсутствии 5xx не существовало временных рядов;
   - применен fallback-запрос:

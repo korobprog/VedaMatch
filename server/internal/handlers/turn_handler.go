@@ -5,7 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
+	"rag-agent-server/internal/observability"
 	"strings"
 	"time"
 
@@ -45,8 +47,25 @@ type TurnConfigResponse struct {
 }
 
 func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
+	iceServers := h.buildIceServers()
+	result := "success"
+	severity := "info"
+	if len(iceServers) <= 1 {
+		result = "fallback_stun_only"
+		severity = "warning"
+		log.Printf(
+			"[TURN] credentials_request result=%s turn_external_ip_set=%t turn_host_set=%t turn_secret_set=%t static_credentials_set=%t",
+			result,
+			strings.TrimSpace(os.Getenv("TURN_EXTERNAL_IP")) != "",
+			strings.TrimSpace(os.Getenv("TURN_HOST")) != "",
+			h.secret != "",
+			h.staticUser != "" && h.staticPass != "",
+		)
+	}
+	observability.ObserveRealtimeCallEvent("turn", "credentials_request", result, severity, "p2p", "server", "unknown")
+
 	return c.JSON(TurnConfigResponse{
-		IceServers: h.buildIceServers(),
+		IceServers: iceServers,
 	})
 }
 
