@@ -22,6 +22,10 @@
 - После появления root `Dockerfile` следующий подтвержденный live blocker для `vedamatch-social`: Docker build проходит до runtime stage и падает на `COPY /app/apps/web/public`, потому что в `apps/web` не было каталога `public`; для стабильного deploy этот каталог должен существовать даже пустым.
 - Для `apps/web/src/app/app/chats/[peerUserId]/page.tsx` thread route должен нормализовать `peerUserId` и безопасно сериализовать message payload перед render; иначе direct chat может падать client-side на нестандартных `content` значениях из `/api/messages/history`.
 - В `apps/web` RU-переключение уже протянуто через shell, core домены и social entry формы; для SSR-страниц словарь нужно брать server-side через host-based helper (`getRequestDictionary()`), а client pages продолжают брать его из `SessionProvider`.
+- С 2026-03-28 authenticated social shell в `apps/web/src/components/app-frame.tsx` больше не держит quick access как всегда открытую панель:
+  - quick access launcher теперь вызывается кнопкой в topbar;
+  - меню раскрывается сверху вниз через dropdown-panel под topbar, закрывается по повторному нажатию и по клику вне блока;
+  - strings не менялись, переиспользуются существующие `launcher.copy.quickAccessTitle / shortcutsTitle / browseAllServices`.
 - Для `social.vedamatch.ru` принят отдельный visual direction: и публичная `/`, и authenticated `/app` используют один тёмный dashboard-язык в духе `vedamatch.ru/user/dashboard`, а не docs-style landing.
 - В repo-состоянии на 2026-03-27 social shell уже переведен на mobile-style launcher:
   - `AppFrame` больше не должен рендерить большой текстовый hero и pill-nav;
@@ -475,6 +479,15 @@
 - В `server/internal/services/domain_assistant_service.go` для library verse sources нужно сохранять в metadata не только `bookCode/chapter/verse`, но и `canto`, а `SourceURL` формировать с `verse` query param. Иначе citation теряет точность и ведет только на главу, а не на нужный стих.
 
 ## iOS Build / Signing
+- Текущий source-of-truth для iOS release versioning в repo:
+  - `frontend/ios/vedamatch.xcodeproj/project.pbxproj` содержит `MARKETING_VERSION = 1.1.19`, `CURRENT_PROJECT_VERSION = 11`, `IPHONEOS_DEPLOYMENT_TARGET = 15.1`;
+  - `frontend/ios/vedamatch/Info.plist` только подтягивает эти значения через `$(MARKETING_VERSION)` и `$(CURRENT_PROJECT_VERSION)`.
+- Текущий `Release` config в `frontend/ios/vedamatch.xcodeproj/project.pbxproj` выглядит dev-oriented:
+  - `PRODUCT_BUNDLE_IDENTIFIER = com.korobkov.vedamatch.dev`;
+  - `CODE_SIGN_IDENTITY = Apple Development`;
+  - `APS_ENVIRONMENT = production`.
+- Без отдельного внешнего override такой `Release` config нельзя считать подтвержденно готовым к App Store submission.
+- `docs/store-submission-packet-p0.md` сейчас устарел относительно native source-of-truth: в нем до сих пор указаны `iOS 1.1.0 (2)`, `Android 1.1.0 / 2` и bundle id `com.VedaMatch.vedamatch`, поэтому использовать его как фактический источник текущих build identity нельзя.
 - Для текущей mobile social-auth конфигурации проект должен оставаться на каноническом bundle id `com.korobkov.vedamatch`; временные локальные bundle id вроде `com.makstreid.vedamatch.dev` считать устаревшим workaround, потому что они расходятся с Google/VK provider config.
 - На Xcode 16.2 device-build падал на Pods `VerifyModule` (target `React-debug`) с ошибками quoted includes / missing `glog/logging.h`; стабильный фикс — отключить module verifier в `frontend/ios/Podfile` через post_install (`CLANG_ENABLE_MODULE_VERIFIER = NO`, `GCC_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO`) и выполнить `pod install`.
 - После этого сборка `xcodebuild ... -destination 'id=<device>'` проходит успешно и приложение устанавливается/запускается на устройстве через `ios-deploy` + `xcrun devicectl`.
@@ -1432,10 +1445,7 @@
 - Рабочий mitigation: в `frontend/App.tsx` вызывать `registerVoipToken()` только вне `__DEV__`; в DEV оставлять только listeners (`notification`, `didLoadWithEvents`). Это убирает падение при старте и белый экран в симуляторе.
 
 ## Android Release
-- Актуальная Android production-версия:
-  - `versionCode=18`
-  - `versionName=1.1.16`
-  - файл: `frontend/android/app/build.gradle`.
+- Source-of-truth для Android release versioning: `frontend/android/app/build.gradle`.
 - Для стабильного production-поведения Android в `frontend/android/app/build.gradle` должен быть `project.ext.envConfigFiles` с привязкой `release -> .env.production` (иначе `dotenv.gradle` может взять общий `.env` с `APP_ENV=development`).
 - Проверенный порядок выката на физическое устройство:
   - сборка: `cd frontend/android && ./gradlew clean assembleRelease`
@@ -3221,9 +3231,9 @@
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.38`, `versionCode=40`;
+  - `frontend/android/app/build.gradle`: `versionName=1.1.42`, `versionCode=44`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - package metadata на подключенных устройствах подтверждены: `applicationId=com.ragagent`, `versionName=1.1.38`, `versionCode=40`.
+  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.42`, `versionCode=44`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
   - тот же SHA-1 уже присутствует в `frontend/android/app/google-services.json` для `com.ragagent` и совпадает с OAuth client в Google Cloud Console;
