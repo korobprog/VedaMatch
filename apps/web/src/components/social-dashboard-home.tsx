@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { LauncherItems } from "@/components/social-launcher";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import type { SocialLauncherItem } from "@/lib/social-launcher";
 
 type DashboardAction = {
@@ -49,31 +47,6 @@ export function SocialDashboardHome({
 }: SocialDashboardHomeProps) {
   return (
     <section className="social-dashboard">
-      <div className="social-dashboard__head">
-        <div className="dashboard-brand">
-          <div className="dashboard-brand__mark">VM</div>
-          <div className="dashboard-brand__copy">
-            <strong>{brandTitle}</strong>
-            <span>{brandSubtitle}</span>
-          </div>
-        </div>
-        <div className="dashboard-actions">
-          <ThemeSwitcher />
-          <LanguageSwitcher />
-          {secondaryAction ? (
-            <Link className="dashboard-action dashboard-action--ghost" href={secondaryAction.href}>
-              {secondaryAction.label}
-            </Link>
-          ) : null}
-          <Link
-            className={primaryAction.variant === "ghost" ? "dashboard-action dashboard-action--ghost" : "dashboard-action"}
-            href={primaryAction.href}
-          >
-            {primaryAction.label}
-          </Link>
-        </div>
-      </div>
-
       <div className="dashboard-grid">
         <article className="dashboard-card dashboard-card--time">
           <span className="dashboard-card__eyebrow">{timeLabel}</span>

@@ -101,6 +101,7 @@
   - публичный social home и auth-страницы должны иметь явный `LanguageSwitcher`, а не только authenticated shell.
 - Login promo block должен жить под формой входа, а не вместо нее и не сбоку, чтобы primary action оставался login.
 - Для social web auth parity страница `/register` в `apps/web` должна получать тот же `mobileAppConfig`, что и `/login`, и рендерить тот же mobile download promo под формой.
+- Для authenticated social web portal верхняя навигация должна жить только в `AppFrame`; `SocialDashboardHome` не должен повторно рендерить brand/theme/language/action header, иначе на `/app` появляется дублированное меню.
 - По live-проверке 2026-03-29 маршрут `https://social.vedamatch.ru/register` уже отвечает `200 OK` и снаружи, и внутри контейнера `vedamatch-social`; если пользователь снова увидит `Bad Gateway`, сначала проверять кратковременный runtime/proxy сбой, а не отсутствие самого route.
 
 - В репозитории уже есть три разных клиентских контура: `frontend/` как основной React Native app, `admin/` как Next.js public/admin portal, `lkm/` как отдельный Next.js wallet/cabinet.
