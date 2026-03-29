@@ -3,21 +3,25 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Apple, Download, Smartphone } from "lucide-react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import type { MobileAppConfig } from "@/lib/mobile-app-config";
 
 type RegisterFormProps = {
   entryVariant?: "default" | "social";
+  mobileAppConfig: MobileAppConfig;
 };
 
-export function RegisterForm({ entryVariant = "default" }: RegisterFormProps) {
+export function RegisterForm({ entryVariant = "default", mobileAppConfig }: RegisterFormProps) {
   const router = useRouter();
   const { dictionary, language, setSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState({ loading: false, error: "" });
+  const hasAnyDownload = Boolean(mobileAppConfig.androidUrl || mobileAppConfig.iosUrl);
   const commonCopy = language === "ru"
     ? { haveAccount: "Уже есть аккаунт?" }
     : { haveAccount: "Already have an account?" };
@@ -106,6 +110,51 @@ export function RegisterForm({ entryVariant = "default" }: RegisterFormProps) {
             </p>
           </div>
         </div>
+        {hasAnyDownload ? (
+          <section className="mobile-download-card" aria-label={dictionary.auth.mobilePromo.title}>
+            <div className="mobile-download-card__head">
+              <span className="mobile-download-card__eyebrow">{dictionary.auth.mobilePromo.eyebrow}</span>
+              <h2>{dictionary.auth.mobilePromo.title}</h2>
+              <p>{dictionary.auth.mobilePromo.body}</p>
+            </div>
+            <div className="mobile-download-card__grid">
+              {mobileAppConfig.androidUrl ? (
+                <a className="mobile-download-button mobile-download-button--android" href={mobileAppConfig.androidUrl} rel="noreferrer" target="_blank">
+                  <span className="mobile-download-button__icon" aria-hidden="true">
+                    <Smartphone size={22} />
+                  </span>
+                  <span className="mobile-download-button__copy">
+                    <strong>{dictionary.auth.mobilePromo.androidLabel}</strong>
+                    <span>{dictionary.auth.mobilePromo.androidHint}</span>
+                  </span>
+                  <span className="mobile-download-button__meta">
+                    {mobileAppConfig.androidVersion ? (
+                      <span>{dictionary.auth.mobilePromo.versionLabel}: {mobileAppConfig.androidVersion}</span>
+                    ) : null}
+                    <Download size={18} />
+                  </span>
+                </a>
+              ) : null}
+              {mobileAppConfig.iosUrl ? (
+                <a className="mobile-download-button mobile-download-button--ios" href={mobileAppConfig.iosUrl} rel="noreferrer" target="_blank">
+                  <span className="mobile-download-button__icon" aria-hidden="true">
+                    <Apple size={22} />
+                  </span>
+                  <span className="mobile-download-button__copy">
+                    <strong>{dictionary.auth.mobilePromo.iosLabel}</strong>
+                    <span>{dictionary.auth.mobilePromo.iosHint}</span>
+                  </span>
+                  <span className="mobile-download-button__meta">
+                    {mobileAppConfig.iosVersion ? (
+                      <span>{dictionary.auth.mobilePromo.versionLabel}: {mobileAppConfig.iosVersion}</span>
+                    ) : null}
+                    <Download size={18} />
+                  </span>
+                </a>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );
