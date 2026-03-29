@@ -1,5 +1,6 @@
 import { WS_PATH } from '../config/api.config';
 import { getAccessToken, isOfflineDevAccessToken, refreshAuthTokens } from './authSessionService';
+import { reportNetworkFailure } from '../context/networkStatusRuntime';
 
 type AuthRecoverHandler = () => Promise<boolean> | boolean;
 
@@ -301,7 +302,10 @@ export class WebSocketService {
             if (normalized.includes('401') || normalized.includes('unauthorized')) {
                 console.warn('[WebSocket] AUTH_FAILURE: Token expired or invalid');
                 void this.handleAuthFailure('ws_error_auth');
+                return;
             }
+
+            reportNetworkFailure('ws_reconnect');
         };
     }
 
@@ -316,6 +320,7 @@ export class WebSocketService {
 
         if (this.maxReconnectAttempts === 0 || this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
+            reportNetworkFailure('ws_reconnect');
             const cappedAttempt = Math.min(this.reconnectAttempts, 6);
             const backoffMs = Math.min(Math.pow(2, cappedAttempt) * 1000, 30000);
             const jitterMs = Math.floor(Math.random() * 700);

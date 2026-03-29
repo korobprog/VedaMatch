@@ -506,7 +506,8 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 		if sent.ChatID != 77 {
 			continue
 		}
-		if strings.Contains(sent.Text, "Как пользоваться чатом:") &&
+		if strings.Contains(sent.Text, "Добро пожаловать в поддержку VedaMatch и инструкцию по установке Android-версии.") &&
+			strings.Contains(sent.Text, "Как пользоваться чатом:") &&
 			strings.Contains(sent.Text, "1. Опишите вопрос одним сообщением.") &&
 			strings.Contains(sent.Text, "2. При необходимости прикрепите скриншот.") {
 			gotGuide = true

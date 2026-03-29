@@ -24,10 +24,14 @@ import (
 	"gorm.io/gorm"
 )
 
-type AdminHandler struct{}
+type AdminHandler struct {
+	pushCampaignService adminPushCampaignService
+}
 
 func NewAdminHandler() *AdminHandler {
-	return &AdminHandler{}
+	return &AdminHandler{
+		pushCampaignService: services.NewAdminPushCampaignService(database.DB, services.GetPushService()),
+	}
 }
 
 func requireAdminUserID(c *fiber.Ctx) (uint, error) {

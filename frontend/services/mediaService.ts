@@ -19,6 +19,7 @@ import { AxiosError } from 'axios';
 import apiClient from '../lib/apiClient';
 import i18n from '../i18n';
 import { getAccessToken, isOfflineDevAccessToken } from './authSessionService';
+import { reportNetworkFailure } from '../context/networkStatusRuntime';
 
 export interface MediaFile {
 	uri: string;
@@ -631,8 +632,14 @@ export const mediaService = {
 
 			return response.data;
 		} catch (error) {
+			const errorMessage = getUploadError(error, '');
+			if (/timeout/i.test(errorMessage)) {
+				reportNetworkFailure('upload_timeout');
+			} else if (/network error|network request failed|load failed/i.test(errorMessage)) {
+				reportNetworkFailure('network');
+			}
+
 			if (Platform.OS === 'android' && media.type === 'audio') {
-				const errorMessage = getUploadError(error, '');
 				if (/network error/i.test(errorMessage)) {
 					console.warn('⚠️ Axios audio upload failed on Android, retrying with fetch fallback');
 					try {
@@ -654,76 +661,85 @@ export const mediaService = {
 		roomId?: string
 	): Promise<Message> {
 		const copy = getMediaCopy();
-		if (media.type !== 'video_circle') {
-			throw new Error(copy.invalidVideoCircleMediaType);
-		}
+		try {
+			if (media.type !== 'video_circle') {
+				throw new Error(copy.invalidVideoCircleMediaType);
+			}
 
-		const duration = Number(media.duration || 0);
-		if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
-			throw new Error(copy.videoCircleTooLong);
-		}
-		if (media.size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
-			throw new Error(copy.fileTooLarge);
-		}
+			const duration = Number(media.duration || 0);
+			if (!duration || duration > MAX_VIDEO_CIRCLE_DURATION_SEC) {
+				throw new Error(copy.videoCircleTooLong);
+			}
+			if (media.size > MAX_VIDEO_CIRCLE_FILE_SIZE_BYTES) {
+				throw new Error(copy.fileTooLarge);
+			}
 
-		const mimeType = normalizeMediaMimeType(media);
-		const presignResponse = await apiClient.post<{
-			uploadUrl: string;
-			finalUrl: string;
-			objectKey: string;
-			expiresInSec: number;
-			requiredHeaders?: Record<string, string>;
-		}>('/messages/media/presign', {
-			recipientId,
-			roomId: roomId ? Number(roomId) : undefined,
-			type: 'video_circle',
-			fileName: media.name,
-			mimeType,
-			fileSize: media.size,
-			durationSec: duration,
-		});
+			const mimeType = normalizeMediaMimeType(media);
+			const presignResponse = await apiClient.post<{
+				uploadUrl: string;
+				finalUrl: string;
+				objectKey: string;
+				expiresInSec: number;
+				requiredHeaders?: Record<string, string>;
+			}>('/messages/media/presign', {
+				recipientId,
+				roomId: roomId ? Number(roomId) : undefined,
+				type: 'video_circle',
+				fileName: media.name,
+				mimeType,
+				fileSize: media.size,
+				durationSec: duration,
+			});
 
-		const { uploadUrl, finalUrl, requiredHeaders } = presignResponse.data;
-		const filePath = normalizeLocalFilePath(media.uri);
-		const fileExists = await RNFS.exists(filePath);
-		if (!fileExists) {
-			throw new Error(copy.videoFileMissingBeforeUpload);
-		}
+			const { uploadUrl, finalUrl, requiredHeaders } = presignResponse.data;
+			const filePath = normalizeLocalFilePath(media.uri);
+			const fileExists = await RNFS.exists(filePath);
+			if (!fileExists) {
+				throw new Error(copy.videoFileMissingBeforeUpload);
+			}
 
-		const uploadResult = await RNFS.uploadFiles({
-			toUrl: uploadUrl,
-			files: [
-				{
-					name: 'file',
-					filename: media.name,
-					filepath: filePath,
-					filetype: mimeType,
+			const uploadResult = await RNFS.uploadFiles({
+				toUrl: uploadUrl,
+				files: [
+					{
+						name: 'file',
+						filename: media.name,
+						filepath: filePath,
+						filetype: mimeType,
+					},
+				],
+				method: 'PUT',
+				headers: {
+					'Content-Type': mimeType,
+					...(requiredHeaders || {}),
 				},
-			],
-			method: 'PUT',
-			headers: {
-				'Content-Type': mimeType,
-				...(requiredHeaders || {}),
-			},
-			binaryStreamOnly: true,
-		}).promise;
+				binaryStreamOnly: true,
+			}).promise;
 
-		if (uploadResult.statusCode < 200 || uploadResult.statusCode >= 300) {
-			throw new Error(`CDN upload failed with status ${uploadResult.statusCode}`);
+			if (uploadResult.statusCode < 200 || uploadResult.statusCode >= 300) {
+				reportNetworkFailure('upload_timeout');
+				throw new Error(`CDN upload failed with status ${uploadResult.statusCode}`);
+			}
+
+			const finalizeResponse = await apiClient.post<Message>('/messages/media/finalize', {
+				recipientId,
+				roomId: roomId ? Number(roomId) : undefined,
+				type: 'video_circle',
+				content: finalUrl,
+				fileName: media.name,
+				fileSize: media.size,
+				mimeType,
+				duration,
+			});
+
+			return finalizeResponse.data;
+		} catch (error) {
+			const errorMessage = getUploadError(error, '');
+			if (/timeout|upload failed|network error|network request failed|load failed/i.test(errorMessage)) {
+				reportNetworkFailure(/timeout/i.test(errorMessage) ? 'upload_timeout' : 'network');
+			}
+			throw error;
 		}
-
-		const finalizeResponse = await apiClient.post<Message>('/messages/media/finalize', {
-			recipientId,
-			roomId: roomId ? Number(roomId) : undefined,
-			type: 'video_circle',
-			content: finalUrl,
-			fileName: media.name,
-			fileSize: media.size,
-			mimeType,
-			duration,
-		});
-
-		return finalizeResponse.data;
 	},
 
 	getDownloadUrl(url: string): string {

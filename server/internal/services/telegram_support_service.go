@@ -561,7 +561,7 @@ func (s *TelegramSupportService) startMessageText(languageCode string) string {
 	switch normalizeTelegramLanguageCode(languageCode) {
 	case "hi":
 		return strings.Join([]string{
-			"VedaMatch सपोर्ट में आपका स्वागत है।",
+			"VedaMatch सपोर्ट और Android इंस्टॉलेशन गाइड में आपका स्वागत है।",
 			"",
 			"चैट का उपयोग कैसे करें:",
 			"1. अपना सवाल एक संदेश में लिखें।",
@@ -572,7 +572,7 @@ func (s *TelegramSupportService) startMessageText(languageCode string) string {
 		}, "\n")
 	case "en":
 		return strings.Join([]string{
-			"Welcome to VedaMatch support.",
+			"Welcome to VedaMatch support and Android installation guide.",
 			"",
 			"How to use this chat:",
 			"1. Describe your issue in one message.",
@@ -583,7 +583,7 @@ func (s *TelegramSupportService) startMessageText(languageCode string) string {
 		}, "\n")
 	default:
 		return strings.Join([]string{
-			"Добро пожаловать в поддержку VedaMatch.",
+			"Добро пожаловать в поддержку VedaMatch и инструкцию по установке Android-версии.",
 			"",
 			"Как пользоваться чатом:",
 			"1. Опишите вопрос одним сообщением.",

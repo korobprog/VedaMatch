@@ -5,6 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { queryClient } from '../lib/queryClient';
 import { migrateFromAsyncStorage } from '../lib/mmkvStorage';
 import { FEATURE_FLAGS } from '../config/featureFlags';
+import { updateNetworkConnectivity } from '../context/networkStatusRuntime';
 
 function useOnlineManager(enabled: boolean) {
     useEffect(() => {
@@ -12,8 +13,13 @@ function useOnlineManager(enabled: boolean) {
             return;
         }
         return NetInfo.addEventListener(state => {
-            const status = !!state.isConnected;
+            const status = !!state.isConnected && state.isInternetReachable !== false;
             onlineManager.setOnline(status);
+            updateNetworkConnectivity({
+                isConnected: !!state.isConnected,
+                isInternetReachable: state.isInternetReachable ?? null,
+                connectionType: String(state.type || 'unknown'),
+            });
         });
     }, [enabled]);
 }

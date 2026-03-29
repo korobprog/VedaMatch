@@ -18,6 +18,9 @@ export function middleware(request: NextRequest) {
   }
 
   if (surface === 'portal') {
+    if (pathname === '/') {
+      return NextResponse.redirect(buildVedamatchUrl(host, 'panel', '/admin-login', search));
+    }
     if (isSocialAuthPath(pathname)) {
       return NextResponse.redirect(buildVedamatchUrl(host, 'social', pathname, search));
     }

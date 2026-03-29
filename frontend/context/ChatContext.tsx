@@ -136,6 +136,25 @@ const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
     createdAt: m.createdAt || m.CreatedAt,
 });
 
+const hasRenderableP2PMessagePayload = (m: any): boolean => {
+    const normalizedType = String(m?.type || 'text').toLowerCase();
+    const textContent = String(m?.content || m?.text || '').trim();
+
+    if (textContent.length > 0) {
+        return true;
+    }
+
+    if (normalizedType === 'contact_card' && m?.mapData) {
+        return true;
+    }
+
+    if (['image', 'audio', 'video', 'file', 'document', 'video_circle'].includes(normalizedType)) {
+        return Boolean(m?.content || m?.fileName || m?.mapData);
+    }
+
+    return false;
+};
+
 const dedupeMessagesById = (items: Message[]): Message[] => {
     const seen = new Set<string>();
     const deduped: Message[] = [];
@@ -446,7 +465,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     if (!currentRecipientId || !currentUserId) return;
 
                     const page = await messageService.getMessagesHistory(currentRecipientId, 30);
-                    const formattedMessages: Message[] = page.items.map(m => normalizeP2PMessage(m, currentUserId));
+                    const formattedMessages: Message[] = page.items
+                        .filter((m) => hasRenderableP2PMessagePayload(m))
+                        .map(m => normalizeP2PMessage(m, currentUserId));
 
                     if (!isActive) return;
                     setMessages(dedupeMessagesById(formattedMessages));
@@ -500,7 +521,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setIsLoadingOlderMessages(true);
         try {
             const page = await messageService.getMessagesHistory(recipientId, 30, beforeId);
-            const olderMessages = page.items.map((m) => normalizeP2PMessage(m, currentUserId));
+            const olderMessages = page.items
+                .filter((m) => hasRenderableP2PMessagePayload(m))
+                .map((m) => normalizeP2PMessage(m, currentUserId));
 
             setMessages(prev => dedupeMessagesById([...olderMessages, ...prev]));
             setHasOlderMessages(page.hasMore);
@@ -623,6 +646,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
 
             if (shouldAdd) {
+                if (!hasRenderableP2PMessagePayload(msg)) {
+                    return;
+                }
                 const newMessage: Message = {
                     id: msg.id?.toString() || msg.ID?.toString() || Date.now().toString(),
                     text: msg.content || msg.text || '',
@@ -1192,7 +1218,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             if (targetRecipientId) {
                 try {
                     const refreshedPage = await messageService.getMessagesHistory(targetRecipientId, 30);
-                    const refreshedMessages = refreshedPage.items.map((m) => normalizeP2PMessage(m, currentUserId));
+                    const refreshedMessages = refreshedPage.items
+                        .filter((m) => hasRenderableP2PMessagePayload(m))
+                        .map((m) => normalizeP2PMessage(m, currentUserId));
                     setMessages(prev => dedupeMessagesById([
                         ...refreshedMessages,
                         ...prev.filter(m => m.uploading),

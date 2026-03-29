@@ -151,6 +151,7 @@ func Connect() {
 		// Yatra Admin models (moderation)
 		&models.YatraReport{}, &models.OrganizerBlock{},
 		&models.AdminNotification{}, &models.ModerationTemplate{},
+		&models.AdminPushCampaign{}, &models.AdminPushCampaignRecipient{},
 		// Services (universal service constructor)
 		&models.Service{}, &models.ServiceTariff{},
 		&models.ServiceFeeConfigModel{}, &models.MarketFeeConfigModel{}, &models.CafeFeeConfigModel{},

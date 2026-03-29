@@ -8,6 +8,9 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## Support Bot
+- Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
+
 ## Web Architecture
 - В репозитории уже есть три разных клиентских контура: `frontend/` как основной React Native app, `admin/` как Next.js public/admin portal, `lkm/` как отдельный Next.js wallet/cabinet.
 - `server/` это основной Go/Fiber API с широкой доменной поверхностью (`contacts`, `friends`, `library`, `wallet`, `services`, `yatra`, `chat`, `support`, `multimedia`, `education`, `market`, `dhama` и др.), поэтому backend для веб-версии в значительной части уже существует.
@@ -18,6 +21,7 @@
 - После workspace install новый `apps/web` проходит `pnpm --dir apps/web run typecheck` и `pnpm --dir apps/web run build`; foundation валиден как отдельный Next.js runtime.
 - `social.vedamatch.ru` для web следует вести не как отдельный проект, а как host-aware surface того же `apps/web`: social-oriented landing/auth entry на том же runtime с переходом в общий `/app/*` shell после входа.
 - По Dokploy на 2026-03-27 уже существуют отдельные apps `web`, `vedamatch-social`, `lkm`, `vedamatch-panel`, `Server`; `vedamatch-social` уже переведен на новый `apps/web`, а основной `web` для `vedamatch.ru/admin.*` пока еще живет на legacy `admin`.
+- В legacy `admin/` на 2026-03-29 корневой вход для `admin.vedamatch.ru` и `admin.vedamatch.com` должен вести на admin auth (`/admin-login`), а не на landing; это зафиксировано через host-aware redirect на уровне `middleware` и клиентский fallback в `src/app/page.tsx`.
 - Dokploy для `vedamatch-social` сейчас собирает удаленный GitHub `main`, а не локальный workspace; поэтому до коммита и push нового root `Dockerfile` и web-изменений redeploy нового runtime будет падать на шаге `open Dockerfile: no such file or directory`.
 - После появления root `Dockerfile` следующий подтвержденный live blocker для `vedamatch-social`: Docker build проходит до runtime stage и падает на `COPY /app/apps/web/public`, потому что в `apps/web` не было каталога `public`; для стабильного deploy этот каталог должен существовать даже пустым.
 - Для `apps/web/src/app/app/chats/[peerUserId]/page.tsx` thread route должен нормализовать `peerUserId` и безопасно сериализовать message payload перед render; иначе direct chat может падать client-side на нестандартных `content` значениях из `/api/messages/history`.
@@ -38,9 +42,13 @@
   - новые строки для contacts UI должны быть локализованы минимум в `ru/en/hi`.
 - В repo-состоянии на 2026-03-27 social shell уже переведен на mobile-style launcher:
   - `AppFrame` больше не должен рендерить большой текстовый hero и pill-nav;
-  - основной паттерн теперь это компактный top bar + icon-first dock + contextual launcher;
+  - основной паттерн теперь это компактный top bar + icon-first dock + один dropdown launcher без дублирующего contextual-блока;
   - источник состава сервисов для launcher-а должен повторять mobile portal order, а не текущий web subset;
   - для web V1 неготовые mobile сервисы показываются как `Скоро`, без битых ссылок и runtime-crash.
+- Для `social.vedamatch.ru` c 2026-03-28 theme state стал web-only частью `SessionProvider`, а не backend/shared contract:
+  - preference хранится локально как `vm_web_theme` со значениями `system | light | dark`;
+  - resolved theme применяется на `document.documentElement[data-theme]` ранним inline script до гидрации;
+  - scope светлой темы: весь social web (`/`, `/app/*`, social login/register), а не весь repo.
 
 ## Calls / LiveKit / TURN
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
@@ -454,6 +462,16 @@
   - не использовать `Link`;
   - показывать карточку как `app-only` / `В приложении`;
   - для доступных web routes можно ставить `prefetch={false}` если маршрут дорогой или нестабилен.
+- Для admin push campaigns принят MVP-контур внутри текущих `admin` + `server`, без внешнего брокера:
+  - режимы только `send now` и `schedule once`;
+  - аудитория v1: один пользователь по `userId` или простой сегмент по `role/status/has_push_token`;
+  - snapshot получателей фиксируется в момент создания кампании и дальше не пересчитывается;
+  - отложенные кампании должны вычитываться существующим backend scheduler по порядку `scheduled_for ASC, id ASC`.
+- Реализованный admin push contract на 2026-03-29:
+  - backend routes: `POST /api/admin/push/campaigns`, `GET /api/admin/push/campaigns`, `GET /api/admin/push/campaigns/:id`, `POST /api/admin/push/campaigns/:id/cancel`;
+  - storage: `AdminPushCampaign` + `AdminPushCampaignRecipient`;
+  - scheduler task: `admin_push_campaign_dispatch` раз в минуту;
+  - admin UI собран на `admin/src/app/notifications/page.tsx` и включает форму кампании, журнал, detail-pane получателей и cancel для `scheduled`.
 - `admin/src/app/monetization/page.tsx` должен нормализовать backend response (`sections`, `items`, `actions`) до массивов перед `.map`, потому что на внешнем сервере неполная секция легко вызывает `Cannot read properties of undefined (reading 'map')`.
 - `admin/src/app/settings/page.tsx` не должен считать `401` рабочей ошибкой страницы:
   - при отсутствии локального admin token страница должна сразу редиректить на `/login` без API-запросов;
@@ -2480,6 +2498,8 @@
 - Инвалидация contacts cache:
   - `logout` очищает MMKV snapshots и query cache по префиксам `['contacts']` и `['contacts-meta']`;
   - `block/unblock`, `add/remove friend` и `uploadAvatar` инвалидируют contacts cache через `frontend/lib/contactCache.ts`.
+- Для mobile friend requests в `ContactsScreen` рабочее условие для inline accept/reject — это `filter === 'friends' && friendSubFilter === 'requests'`; проверка по несуществующему `filter === 'requests'` скрывает action-кнопки.
+- Тексты social contact UI (`All/Friends/Blocked/Friend Requests` и заголовок request screen) должны идти через `frontend/i18n/locales/*`, а не через хардкод в screen-компонентах, иначе часть mobile UI остается не локализованной.
 
 ## Chat Runtime Notes
 - Текущая chat-архитектура разделена на три независимых UX-потока:
@@ -2489,9 +2509,12 @@
 - Web surfaces (`admin`, `lkm`) сейчас не содержат полноценного пользовательского messaging UI; в `admin/src/app/user/dashboard/page.tsx` сервис `chat` помечен как `availableOnWeb: false`, то есть основной chat UX остается mobile-first.
 - В P2P-чате (`frontend/context/ChatContext.tsx`) добавлен локальный optimistic append после успешного `POST /messages` с дедупом по `id`; отправитель видит свое сообщение даже при проблемах WS-эхо.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` переход в чат переведен на guarded flow (`runWithNavigationLock` + единый `openChat`), чтобы избежать двойного `navigate` из вложенных touchable.
+- Для shared mobile P2P chat нельзя принимать в `messages` пустые `text` events без контента: они рендерятся в `MessageList` как отдельный bubble только со временем через `timeOverlay` и визуально выглядят как дубль исходящего сообщения.
 - В `frontend/screens/portal/contacts/ContactsScreen.tsx` при открытии чата передаются route params `userId/name`, чтобы `ChatScreen` мог восстановить получателя даже при гонке состояния контекста.
 - В `frontend/components/chat/MessageList.tsx` на iOS отключен `maintainVisibleContentPosition` и ограничен blur для bubble (только photo background), что снижает риск пустого/неотрисованного списка сообщений.
 - В `frontend/components/chat/MessageList.tsx` геометрия bubble теперь строится на мягких асимметричных радиусах (`28/12` вместо жестко срезанных углов), с внутренним stroke и shell-shadow того же контура; это делает края сообщений визуально мягче без изменения layout чата.
+- Для shared mobile network UX source of truth теперь должен жить в общем runtime-слое поверх `NetInfo` и event-сигналов API/websocket/upload, а не в отдельных screen-level `Alert.alert`.
+- Global network banner в mobile app должен показываться почти везде, но не в `CallScreen`; текст про VPN — только мягкая подсказка при нестабильной сети, без попытки нативно детектить VPN.
 - Для AI-отправки в `frontend/context/ChatContext.tsx` и `frontend/services/openaiService.ts` обработанные сетевые ошибки (`Connection error` и т.п.) логируются через `console.warn`, а не `console.error`, чтобы в iOS dev не поднимать RedBox при уже обработанном fallback.
 - Для `Stack.Screen name="Chat"` в `frontend/App.tsx` на Android зафиксированы `freezeOnBlur: false`, `animation: 'none'` и явный `contentStyle.backgroundColor` как mitigation против blank/white screen при выходе из AI Chat.
 - Для AI chat в `frontend/context/ChatContext.tsx` сырой backend/provider error text (`401/502/UNAUTHORIZED/trace_id/API key`) не должен показываться пользователю; такие сообщения маскируются в нейтральный technical-issue fallback.
@@ -3127,6 +3150,25 @@
   - `RealtimeCallPoorQualitySpike`
   - `TurnCredentialsFallbackStunOnly`
 - Telegram алертинг для этих правил отдельным кодом не добавлялся: они автоматически пойдут в уже существующий Grafana contact point `telegram` из `infra/monitoring/grafana/provisioning/alerting/contact-points.yml`.
+- На production rollout 2026-03-28 для backend/calls observability подтвержден end-to-end pipeline:
+  - backend commit `f7a1a289` с call observability реально задеплоен в Dokploy `Server`;
+  - `GET /metrics` на `api.vedamatch.ru` отвечает `200` с корректным bearer token;
+  - synthetic authenticated hit на `/api/turn-credentials` создает серию `realtime_call_events_total{subsystem="turn",event="credentials_request",...}`;
+  - Prometheus после фикса scrape-секрета видит `up{job="vedamatch-server"} = 1` и забирает `realtime_call_events_total`.
+- На production monitoring 2026-03-28 подтвержден рабочий Telegram alert path:
+  - runtime `GRAFANA_TELEGRAM_CHAT_ID=disabled-chat-id` и невалидный `GRAFANA_TELEGRAM_BOT_TOKEN` ломали `Grafana -> Telegram`;
+  - source of truth для monitoring bot лежит в репозитории (`scripts/TELEGRAM_MONITORING.md`, `scripts/send_telegram_notification.sh`);
+  - после обновления prod `.env.monitoring` direct Telegram API `getChat` и `sendMessage` вернули `200`;
+  - Grafana test notification endpoint `/api/alertmanager/grafana/config/api/v1/receivers/test` вернул `status=ok` для receiver `telegram-prod`.
+- Отдельный production-specific фикс для Grafana provisioning:
+  - отрицательный numeric-looking Telegram chat id ломал file provisioning alerting с ошибкой `cannot unmarshal number into Go struct field Config.chatid of type string`;
+  - стабильный workaround для текущего стека Grafana 10.4.7: в `infra/monitoring/grafana/provisioning/alerting/contact-points.yml` хранить `chatid` как строковый literal, а не подставлять его через env.
+- Критичный operational риск observability:
+  - `infra/monitoring/prometheus/secrets/metrics_bearer_token` в репозитории должен оставаться плейсхолдером и не должен бездумно копироваться на production поверх реального секрета;
+  - после `scp -r infra/monitoring` нужно отдельно восстанавливать/проверять production token file.
+- Для production Prometheus token file должен быть читаем контейнером `vedamatch-prometheus`, который запущен под user `nobody` (`uid=65534`);
+  - host-side `chmod 600` ломает scrape с ошибкой `permission denied`;
+  - рабочее состояние на текущем проде: файл читаем Prometheus-контейнером, target `vedamatch-server` healthy.
 - Фикс панели `Total 5xx Responses`:
   - причина `No data`: при отсутствии 5xx не существовало временных рядов;
   - применен fallback-запрос:

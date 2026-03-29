@@ -37,6 +37,22 @@ export default {
             month: 'Month',
         },
     },
+    networkBanner: {
+        offline: {
+            title: 'No internet connection',
+            body: 'Check your connection. Some actions are temporarily unavailable.',
+        },
+        reconnecting: {
+            title: 'Reconnecting',
+            body: 'Please wait a moment. Sync will continue automatically.',
+        },
+        unstable: {
+            title: 'Internet connection is unstable',
+            body: 'Some actions may take longer than usual.',
+        },
+        retryLater: 'The action will be retried when the connection becomes stable.',
+        vpnHint: 'If you have a VPN enabled, try turning it off for a more stable connection.',
+    },
     map: {
         location_error: 'Location detection error',
         location_error_title: 'Location Error',
@@ -1522,6 +1538,14 @@ export default {
             organizer: 'Organizer',
             novice: 'Novice'
         }
+    },
+    friendRequests: {
+        title: 'Friend Requests',
+        empty: 'No incoming requests',
+        accept: 'Accept',
+        reject: 'Decline',
+        acceptError: 'Failed to accept request',
+        rejectError: 'Failed to decline request',
     },
     dating: {
         checkCompatibility: 'Check Compatibility',

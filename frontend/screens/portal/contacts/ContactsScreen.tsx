@@ -706,7 +706,7 @@ export const ContactsScreen: React.FC = () => {
                     >
                         <Text style={[styles.unblockText, { color: theme.accent }]}>{t('contacts.unblock')}</Text>
                     </TouchableOpacity>
-                ) : filter === 'requests' && (item as any).request ? (
+                ) : filter === 'friends' && friendSubFilter === 'requests' && (item as any).request ? (
                     // Кнопки для запросов в друзья
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TouchableOpacity
@@ -785,6 +785,7 @@ export const ContactsScreen: React.FC = () => {
         );
     }, [
         filter,
+        friendSubFilter,
         friendIdsSet,
         isDarkMode,
         navigation,
@@ -886,9 +887,14 @@ export const ContactsScreen: React.FC = () => {
                         onPress={() => navigation.navigate('FriendRequests')}
                         style={styles.friendRequestsButton}
                     >
-                        <Text style={[styles.friendRequestsText, { color: usePhotoBg ? '#ffffff' : theme.text }]}>
-                            ✉️
-                        </Text>
+                        <View style={styles.friendRequestsButtonContent}>
+                            <Text style={[styles.friendRequestsText, { color: usePhotoBg ? '#ffffff' : theme.text }]}>
+                                ✉️
+                            </Text>
+                            <Text style={[styles.friendRequestsLabel, { color: usePhotoBg ? '#ffffff' : theme.text }]}>
+                                {t('contacts.requestsInFriends')}
+                            </Text>
+                        </View>
                         {friendRequestCount > 0 && (
                             <View style={[styles.badge, { backgroundColor: theme.accent }]}>
                                 <Text style={styles.badgeText}>
@@ -904,7 +910,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'all' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
-                            Все ({allCount})
+                            {t('contacts.all')} ({allCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -915,7 +921,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'friends' && friendSubFilter === 'friends' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'friends' && friendSubFilter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' && friendSubFilter === 'friends' ? theme.text : theme.subText) }]}>
-                            Друзья ({friendsCount})
+                            {t('contacts.friends')} ({friendsCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -923,7 +929,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: usePhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: usePhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
-                            Блок ({blockedCount})
+                            {t('contacts.blocked')} ({blockedCount})
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -936,7 +942,7 @@ export const ContactsScreen: React.FC = () => {
                             style={[styles.subFilterBtn, friendSubFilter === 'friends' && { backgroundColor: theme.accent + '20' }]}
                         >
                             <Text style={[styles.subFilterText, { color: friendSubFilter === 'friends' ? theme.accent : theme.subText }]}>
-                                Друзья
+                                {t('contacts.friends')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -944,7 +950,7 @@ export const ContactsScreen: React.FC = () => {
                             style={[styles.subFilterBtn, friendSubFilter === 'requests' && { backgroundColor: theme.accent + '20' }]}
                         >
                             <Text style={[styles.subFilterText, { color: friendSubFilter === 'requests' ? theme.accent : theme.subText }]}>
-                                Запросы в друзья
+                                {t('contacts.requestsInFriends')}
                             </Text>
                             {friendRequestCount > 0 && (
                                 <View style={[styles.subBadge, { backgroundColor: theme.accent }]}>
@@ -1213,8 +1219,17 @@ const styles = StyleSheet.create({
         position: 'relative',
         padding: 8,
     },
+    friendRequestsButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     friendRequestsText: {
         fontSize: 20,
+    },
+    friendRequestsLabel: {
+        fontSize: 12,
+        fontWeight: '600',
     },
     badge: {
         position: 'absolute',

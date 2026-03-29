@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { API_PATH } from '../config/api.config';
 import { getAccessToken, refreshAuthTokens } from '../services/authSessionService';
+import { reportNetworkFailure } from '../context/networkStatusRuntime';
 
 const HEADER_REQUEST_ID = 'X-Request-ID';
 const API_BASE = API_PATH.replace(/\/+$/, '');
@@ -97,6 +98,18 @@ apiClient.interceptors.response.use(
             __skipAuthRetry?: boolean;
             __skipAuthSession?: boolean;
         };
+        const message = String(error?.message || '').toLowerCase();
+        const isTimeout = error.code === 'ECONNABORTED' || message.includes('timeout') || message.includes('aborted');
+        const isNetworkFailure = !error.response && (
+            message.includes('network error')
+            || message.includes('network request failed')
+            || message.includes('load failed')
+            || isTimeout
+        );
+
+        if (isApiRequest(originalConfig.url, originalConfig.baseURL) && isNetworkFailure) {
+            reportNetworkFailure(isTimeout ? 'timeout' : 'network');
+        }
 
         if (
             status !== 401 ||

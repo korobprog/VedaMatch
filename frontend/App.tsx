@@ -194,13 +194,15 @@ import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectio
 
 import { QueryProvider } from './providers/QueryProvider';
 
-import { StatusBar, ActivityIndicator, Image, Text, View } from 'react-native';
+import { StatusBar } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationProvider } from './context/NotificationContext';
 import { crashReportingService } from './services/crashReportingService';
 import { setIncomingCallPushHandler } from './services/notificationService';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
+import { NetworkStatusProvider } from './context/NetworkStatusContext';
+import { NetworkStatusBanner } from './components/NetworkStatusBanner';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -222,8 +224,8 @@ const AppContent = () => {
   const { t } = useTranslation();
   const { theme, isMenuOpen, setIsMenuOpen, isDarkMode, currentModel, selectModel, isSettingsLoaded } = useSettings();
   const { isLoggedIn, isLoading, user } = useUser();
-  const [showPreview, setShowPreview] = useState(true);
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
+  const [currentRouteName, setCurrentRouteName] = useState<string | undefined>(undefined);
   const pendingRoomInviteTokenRef = React.useRef('');
   const voipSetupRef = React.useRef(false);
   const incomingCallRef = React.useRef<{ callUUID: string; targetId?: number; callerName: string } | null>(null);
@@ -594,6 +596,8 @@ const AppContent = () => {
           <NavigationContainer
             ref={navigationRef}
             linking={linking}
+            onReady={() => setCurrentRouteName(navigationRef.getCurrentRoute()?.name)}
+            onStateChange={() => setCurrentRouteName(navigationRef.getCurrentRoute()?.name)}
             theme={{
               ...(isDarkMode ? DarkTheme : DefaultTheme),
               colors: {
@@ -603,6 +607,7 @@ const AppContent = () => {
             }}
           >
             <ThemedStatusBar />
+            <NetworkStatusBanner currentRouteName={currentRouteName} />
             <NotificationManager />
             <Stack.Navigator
               screenOptions={{
@@ -910,15 +915,17 @@ function App(): React.JSX.Element {
         <UserProvider>
           <SettingsProvider>
             <NotificationProvider>
-              <WebSocketProvider>
-                <ChatProvider>
-                  <CafeCartProvider>
-                    <WalletProvider>
-                      <AppContent />
-                    </WalletProvider>
-                  </CafeCartProvider>
-                </ChatProvider>
-              </WebSocketProvider>
+              <NetworkStatusProvider>
+                <WebSocketProvider>
+                  <ChatProvider>
+                    <CafeCartProvider>
+                      <WalletProvider>
+                        <AppContent />
+                      </WalletProvider>
+                    </CafeCartProvider>
+                  </ChatProvider>
+                </WebSocketProvider>
+              </NetworkStatusProvider>
             </NotificationProvider>
           </SettingsProvider>
         </UserProvider>

@@ -1,3 +1,112 @@
+## 2026-03-29 (Shared mobile app shell: global network banner and soft VPN hint)
+
+### Измененные файлы
+- `frontend/context/networkStatusRuntime.ts`
+- `frontend/context/NetworkStatusContext.tsx`
+- `frontend/components/NetworkStatusBanner.tsx`
+- `frontend/providers/QueryProvider.tsx`
+- `frontend/lib/apiClient.ts`
+- `frontend/services/websocketService.ts`
+- `frontend/services/mediaService.ts`
+- `frontend/App.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - у mobile app не было единого UX-слоя для offline/unstable network state; существовали только локальные ошибки и технический `onlineManager` для query cache;
+  - websocket reconnect, API timeout и media upload network failures не собирались в общий пользовательский статус;
+  - пользователь не видел глобальной мягкой подсказки про VPN при деградации сети.
+- Стало:
+  - введен shared network runtime/provider c состояниями `healthy | offline | reconnecting | unstable`;
+  - верхний app shell показывает компактный global banner почти на всех экранах, кроме `CallScreen`;
+  - `QueryProvider`, `apiClient`, `websocketService` и media upload path теперь могут подать сигнал в общий network UX;
+  - для `ru/en/hi` добавлены `networkBanner.*` строки, включая мягкую VPN-подсказку.
+
+### Сниппеты кода
+
+`frontend/context/networkStatusRuntime.ts`:
+```ts
+export type NetworkStatusKind = 'healthy' | 'offline' | 'reconnecting' | 'unstable';
+export const reportNetworkFailure = (kind: NetworkFailureKind) => { ... };
+```
+
+`frontend/App.tsx`:
+```tsx
+<NetworkStatusBanner currentRouteName={currentRouteName} />
+```
+
+`frontend/providers/QueryProvider.tsx`:
+```ts
+updateNetworkConnectivity({
+  isConnected: !!state.isConnected,
+  isInternetReachable: state.isInternetReachable ?? null,
+});
+```
+
+## 2026-03-29 (Shared mobile chat: filtered empty P2P events that rendered as duplicate time-only bubbles)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+
+### Суть правки (от старого к новому)
+- Было:
+  - direct chat мог принять в локальный state вторичный P2P event/history item без `content/text`;
+  - `MessageList` для такого элемента показывал пустой bubble с одним временем через `timeOverlay`, поэтому после отправки текста пользователь видел два пузыря: нормальный и второй только с датой/временем.
+- Стало:
+  - `ChatContext` отфильтровывает P2P items без renderable payload и не добавляет их ни из websocket realtime, ни из history refresh/load.
+
+### Сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```ts
+if (!hasRenderableP2PMessagePayload(msg)) {
+  return;
+}
+```
+
+```ts
+page.items
+  .filter((m) => hasRenderableP2PMessagePayload(m))
+  .map((m) => normalizeP2PMessage(m, currentUserId));
+```
+
+## 2026-03-29 (Shared mobile contacts: friend-request actions restored and request labels localized)
+
+### Измененные файлы
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - в mobile `Contacts` под-вкладка запросов в друзья собирала request items, но inline action-кнопки accept/reject проверяли несуществующий `filter === 'requests'`, поэтому в UI не появлялись;
+  - часть подписей в шапке контактов и на экране friend requests оставалась без локализованных ключей.
+- Стало:
+  - inline accept/reject теперь показываются по корректному mobile state `filter === 'friends' && friendSubFilter === 'requests'`;
+  - entrypoint с конвертом, friend sub-filter и экран запросов используют i18n-ключи, добавленные для `ru/en/hi`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/contacts/ContactsScreen.tsx`:
+```ts
+filter === 'friends' && friendSubFilter === 'requests' && (item as any).request
+```
+
+```ts
+{t('contacts.requestsInFriends')}
+```
+
+`frontend/i18n/locales/en.ts`:
+```ts
+friendRequests: {
+  title: 'Friend Requests',
+  empty: 'No incoming requests',
+}
+```
+
 ## 2026-03-25 (iOS debug incoming path: enable VoIP token registration and debug push entitlements)
 
 ### Измененные файлы
