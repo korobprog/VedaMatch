@@ -18515,6 +18515,27 @@ for _, candidate := range envCandidates {
 }
 ```
 
+## 2026-03-29 (Android production release 1.1.44 + refreshed download build)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android production build был `1.1.43 (45)`;
+  - предыдущий публичный APK в S3 и установленный на устройстве build соответствовали `1.1.43`.
+- Стало:
+  - Android production build поднят до `1.1.44 (46)`;
+  - новый release APK пересобран, установлен на Android-устройство и повторно загружен в S3 как актуальная ссылка для скачивания.
+
+### Сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionName "1.1.44"
+versionCode 46
+```
+
 ## 2026-03-29 (Autonomous Ekadashi calendar review metadata and canonical observance payload for shared mobile behavior)
 
 ### Измененные файлы

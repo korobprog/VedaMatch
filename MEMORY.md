@@ -3445,9 +3445,9 @@
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.43`, `versionCode=45`;
+  - `frontend/android/app/build.gradle`: `versionName=1.1.44`, `versionCode=46`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.43`, `versionCode=45`.
+  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.44`, `versionCode=46`.
 - `server/cmd/upload_apk_to_s3` теперь умеет искать env по кандидатам `server/.env`, `.env`, `../.env`, поэтому upload release APK в S3 работает и из repo root, и из `server/`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
