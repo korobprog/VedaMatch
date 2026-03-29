@@ -157,3 +157,46 @@ func TestBuildEkadashiSequenceIncludesMarch2026(t *testing.T) {
 		t.Fatalf("unexpected second ekadashi date: %s", sequence[1].Format("2006-01-02"))
 	}
 }
+
+func TestAutonomousCalendarProfileRulesCoverKnownOrganizations(t *testing.T) {
+	expected := map[string]bool{
+		"iskcon":             false,
+		"sri_chaitanya_math": false,
+		"pure_bhakti":        false,
+		"default_vaishnava":  false,
+	}
+
+	for _, rule := range autonomousCalendarProfileRules {
+		if _, ok := expected[rule.OrganizationID]; ok {
+			expected[rule.OrganizationID] = true
+		}
+		if rule.ObservanceSlug == "" {
+			t.Fatalf("observance slug must not be empty for org=%s", rule.OrganizationID)
+		}
+	}
+
+	for orgID, hasRule := range expected {
+		if !hasRule {
+			t.Fatalf("expected autonomous calendar rules for %s", orgID)
+		}
+	}
+}
+
+func TestNormalizeCalendarEventPreservesCanonicalMetadata(t *testing.T) {
+	service := &EkadashiService{}
+	org := resolveEkadashiOrganization("iskcon")
+	event := service.normalizeCalendarEvent(models.EkadashiDay{
+		Date:             "2026-03-14",
+		EventType:        "appearance",
+		CanonicalSlug:    "gaura-purnima",
+		SourceConfidence: 92,
+		Title:            "Appearance of Sri Caitanya Mahaprabhu",
+	}, org, nil)
+
+	if event.CanonicalSlug != "gaura-purnima" {
+		t.Fatalf("expected canonical slug to be preserved, got %q", event.CanonicalSlug)
+	}
+	if event.SourceConfidence != 92 {
+		t.Fatalf("expected source confidence to be preserved, got %d", event.SourceConfidence)
+	}
+}

@@ -512,6 +512,7 @@ func main() {
 	api.Get("/support/config", middleware.OptionalAuth(), supportHandler.GetPublicConfig)
 	api.Get("/legal/config", middleware.OptionalAuth(), adminHandler.GetPublicLegalConfig)
 	api.Get("/android-testers/config", middleware.OptionalAuth(), adminHandler.GetPublicAndroidTestersConfig)
+	api.Get("/mobile-app/config", middleware.OptionalAuth(), adminHandler.GetPublicMobileAppConfig)
 	api.Post("/support/uploads", middleware.OptionalAuth(), supportHandler.UploadAttachment)
 	api.Post("/support/tickets", middleware.OptionalAuth(), supportHandler.CreateTicket)
 
@@ -633,6 +634,8 @@ func main() {
 	admin.Get("/push/health/ekadashi", adminHandler.GetEkadashiHealth)
 	admin.Post("/ekadashi/refresh", adminHandler.RefreshEkadashiCalendar)
 	admin.Post("/ekadashi/refresh-all", adminHandler.RefreshAllEkadashiCalendars)
+	admin.Post("/ekadashi/review/approve", adminHandler.ApproveEkadashiPublicationReview)
+	admin.Post("/ekadashi/review/reject", adminHandler.RejectEkadashiPublicationReview)
 	admin.Get("/platform/health", adminHandler.GetPlatformHealth)
 	admin.Get("/education/tutor/metrics", adminHandler.GetEducationTutorMetrics)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)

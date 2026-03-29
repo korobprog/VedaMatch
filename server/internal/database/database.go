@@ -71,7 +71,8 @@ func Connect() {
 		&models.EkadashiReminderDelivery{},
 		&models.CalendarEvent{}, &models.CalendarImportRun{},
 		&models.CalendarSourceSnapshot{}, &models.CalendarPublication{},
-		&models.CalendarImportTarget{},
+		&models.CalendarImportTarget{}, &models.CalendarObservance{},
+		&models.CalendarProfileRule{}, &models.CalendarSourceCatalog{},
 		&models.PreacherProfile{}, &models.PreacherProfileEvent{},
 		&models.ChannelRoadmapPoint{},
 		&models.ChannelLiveSession{}, &models.ChannelLiveViewer{}, &models.ChannelLiveModeration{},
@@ -252,9 +253,14 @@ func Connect() {
 		ON calendar_events (organization_id, scope_key, date)`)
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_calendar_events_pub_scope_date
 		ON calendar_events (publication_version, scope_key, date)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_calendar_events_org_scope_canonical_date
+		ON calendar_events (organization_id, scope_key, canonical_slug, date)`)
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_publications_active_scope
 		ON calendar_publications (organization_id, scope_key)
 		WHERE is_active = true AND deleted_at IS NULL`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_profile_rules_active_unique
+		ON calendar_profile_rules (organization_id, observance_slug, month, day)
+		WHERE deleted_at IS NULL`)
 
 	// Hot-path feed/news/services indexes.
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_channel_posts_status_published_created

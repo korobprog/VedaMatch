@@ -661,6 +661,16 @@ func (h *AdminHandler) GetPublicAndroidTestersConfig(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AdminHandler) GetPublicMobileAppConfig(c *fiber.Ctx) error {
+	config := services.GetPublicMobileAppConfig()
+	return c.JSON(fiber.Map{
+		"iosUrl":         config.IOSURL,
+		"androidUrl":     config.AndroidURL,
+		"iosVersion":     config.IOSVersion,
+		"androidVersion": config.AndroidVersion,
+	})
+}
+
 func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -1145,6 +1155,84 @@ func (h *AdminHandler) RefreshAllEkadashiCalendars(c *fiber.Ctx) error {
 		"successCount": successCount,
 		"failureCount": failureCount,
 		"results":      results,
+	})
+}
+
+func (h *AdminHandler) ApproveEkadashiPublicationReview(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	organizationID := strings.TrimSpace(c.Query("organizationId"))
+	if organizationID == "" {
+		organizationID = "iskcon"
+	}
+	org := services.ResolveEkadashiOrganizationForAdmin(organizationID)
+	city := strings.TrimSpace(c.Query("city"))
+	if org.ID == "iskcon" && city == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "city is required"})
+	}
+	timezone := strings.TrimSpace(c.Query("timezone"))
+	if timezone == "" {
+		timezone = "Asia/Kolkata"
+	}
+	country := strings.TrimSpace(c.Query("country"))
+
+	publication, err := services.NewCalendarImportService().ApprovePublicationReview(organizationID, city, timezone, country)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to approve calendar review"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":            "Ekadashi publication review approved",
+		"organizationId":     publication.OrganizationID,
+		"scopeKey":           publication.ScopeKey,
+		"scopeMode":          publication.ScopeMode,
+		"timezone":           publication.Timezone,
+		"city":               publication.City,
+		"country":            publication.Country,
+		"publicationVersion": publication.PublicationVersion,
+		"reviewStatus":       publication.ReviewStatus,
+		"reviewSummary":      publication.ReviewSummary,
+	})
+}
+
+func (h *AdminHandler) RejectEkadashiPublicationReview(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	organizationID := strings.TrimSpace(c.Query("organizationId"))
+	if organizationID == "" {
+		organizationID = "iskcon"
+	}
+	org := services.ResolveEkadashiOrganizationForAdmin(organizationID)
+	city := strings.TrimSpace(c.Query("city"))
+	if org.ID == "iskcon" && city == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "city is required"})
+	}
+	timezone := strings.TrimSpace(c.Query("timezone"))
+	if timezone == "" {
+		timezone = "Asia/Kolkata"
+	}
+	country := strings.TrimSpace(c.Query("country"))
+
+	publication, err := services.NewCalendarImportService().RejectPublicationReview(organizationID, city, timezone, country)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to reject calendar review"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":            "Ekadashi publication review rejected",
+		"organizationId":     publication.OrganizationID,
+		"scopeKey":           publication.ScopeKey,
+		"scopeMode":          publication.ScopeMode,
+		"timezone":           publication.Timezone,
+		"city":               publication.City,
+		"country":            publication.Country,
+		"publicationVersion": publication.PublicationVersion,
+		"reviewStatus":       publication.ReviewStatus,
+		"reviewSummary":      publication.ReviewSummary,
 	})
 }
 

@@ -1,7 +1,6 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
 
 type Props = {
@@ -10,8 +9,8 @@ type Props = {
 
 export const NetworkStatusBanner: React.FC<Props> = ({ currentRouteName }) => {
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
     const { status, showVpnHint } = useNetworkStatus();
+    const [expanded, setExpanded] = useState(false);
 
     const hidden = status === 'healthy' || currentRouteName === 'CallScreen';
     const copy = useMemo(() => {
@@ -35,30 +34,53 @@ export const NetworkStatusBanner: React.FC<Props> = ({ currentRouteName }) => {
             tone: styles.unstableCard,
         };
     }, [status, t]);
+    const shouldAllowExpand = status !== 'offline' || showVpnHint;
+    const isExpanded = status === 'offline' ? true : expanded;
+
+    useEffect(() => {
+        setExpanded(false);
+    }, [status]);
 
     if (hidden) {
         return null;
     }
 
     return (
-        <View pointerEvents="none" style={[styles.container, { top: Math.max(insets.top, 8) + 6 }]}>
-            <View style={[styles.card, copy.tone]}>
-                <Text style={styles.title}>{copy.title}</Text>
-                <Text style={styles.body}>{copy.body}</Text>
-                {showVpnHint ? (
-                    <Text style={styles.hint}>{t('networkBanner.vpnHint')}</Text>
+        <View style={styles.container}>
+            <Pressable
+                accessibilityRole={shouldAllowExpand ? 'button' : undefined}
+                onPress={shouldAllowExpand ? () => setExpanded((value) => !value) : undefined}
+                style={({ pressed }) => [
+                    styles.card,
+                    copy.tone,
+                    shouldAllowExpand && pressed ? styles.cardPressed : null,
+                ]}
+            >
+                <View style={styles.headerRow}>
+                    <Text style={styles.title}>{copy.title}</Text>
+                    {shouldAllowExpand ? (
+                        <Text style={styles.chevron}>{isExpanded ? 'Hide' : 'Details'}</Text>
+                    ) : null}
+                </View>
+                {isExpanded ? (
+                    <>
+                        <Text style={styles.body}>{copy.body}</Text>
+                        {showVpnHint ? (
+                            <Text style={styles.hint}>{t('networkBanner.vpnHint')}</Text>
+                        ) : null}
+                    </>
                 ) : null}
-            </View>
+            </Pressable>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        zIndex: 50,
+        paddingHorizontal: 12,
+        paddingTop: 6,
+        paddingBottom: 2,
+        zIndex: 10,
     },
     card: {
         borderRadius: 16,
@@ -70,6 +92,10 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowRadius: 10,
         elevation: 5,
+    },
+    cardPressed: {
+        opacity: 0.96,
+        transform: [{ scale: 0.995 }],
     },
     offlineCard: {
         backgroundColor: 'rgba(153, 27, 27, 0.94)',
@@ -83,16 +109,28 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(146, 64, 14, 0.95)',
         borderColor: 'rgba(253, 230, 138, 0.28)',
     },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
     title: {
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '800',
+        flex: 1,
+    },
+    chevron: {
+        color: 'rgba(255,255,255,0.82)',
+        fontSize: 11,
+        fontWeight: '700',
     },
     body: {
         color: 'rgba(255,255,255,0.92)',
         fontSize: 12,
         lineHeight: 16,
-        marginTop: 2,
+        marginTop: 6,
     },
     hint: {
         color: 'rgba(255,255,255,0.82)',

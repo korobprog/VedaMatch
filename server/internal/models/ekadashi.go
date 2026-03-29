@@ -17,6 +17,7 @@ type EkadashiDay struct {
 	OrganizationName  string                    `json:"organizationName"`
 	OrganizationScope string                    `json:"organizationScope,omitempty"`
 	PersonSlug        string                    `json:"personSlug,omitempty"`
+	CanonicalSlug     string                    `json:"canonicalSlug,omitempty"`
 	ObservanceType    string                    `json:"observanceType,omitempty"`
 	Timezone          string                    `json:"timezone"`
 	City              string                    `json:"city"`
@@ -38,6 +39,7 @@ type EkadashiDay struct {
 	ObservanceNotes   string                    `json:"observanceNotes"`
 	Source            string                    `json:"source"`
 	SourceURL         string                    `json:"sourceUrl"`
+	SourceConfidence  int                       `json:"sourceConfidence,omitempty"`
 	ProviderDecision  *EkadashiProviderDecision `json:"providerDecision,omitempty"`
 }
 
@@ -61,16 +63,20 @@ type EkadashiCalendarResponse struct {
 }
 
 type EkadashiImportStatusResponse struct {
-	OrganizationID string `json:"organizationId"`
-	ScopeKey       string `json:"scopeKey"`
-	ScopeMode      string `json:"scopeMode"`
-	City           string `json:"city"`
-	Country        string `json:"country"`
-	Timezone       string `json:"timezone"`
-	TargetExists   bool   `json:"targetExists"`
-	Status         string `json:"status"`
-	LastImportAt   string `json:"lastImportAt,omitempty"`
-	LastError      string `json:"lastError,omitempty"`
+	OrganizationID     string `json:"organizationId"`
+	ScopeKey           string `json:"scopeKey"`
+	ScopeMode          string `json:"scopeMode"`
+	City               string `json:"city"`
+	Country            string `json:"country"`
+	Timezone           string `json:"timezone"`
+	TargetExists       bool   `json:"targetExists"`
+	Status             string `json:"status"`
+	ReviewStatus       string `json:"reviewStatus,omitempty"`
+	CoverageMonths     int    `json:"coverageMonths,omitempty"`
+	UnpublishedChanges int    `json:"unpublishedChanges,omitempty"`
+	Conflicts          int    `json:"conflicts,omitempty"`
+	LastImportAt       string `json:"lastImportAt,omitempty"`
+	LastError          string `json:"lastError,omitempty"`
 }
 
 type EkadashiPushPreference struct {

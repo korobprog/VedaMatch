@@ -58,7 +58,8 @@ import {
     Share2,
     User,
     X,
-    ShieldCheck
+    ShieldCheck,
+    Ellipsis
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
@@ -67,6 +68,7 @@ const { width } = Dimensions.get('window');
 const FULL_WIDTH_KEYBOARD_CONTAINER_STYLE = { width: '100%' } as const;
 const HEADER_TITLE_TEXT_STYLE = { color: '#FFFFFF' } as const;
 const HEADER_SUBTITLE_TEXT_STYLE = { color: 'rgba(255,255,255,0.8)' } as const;
+const PRESS_HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
 
 interface Photo {
     url: string;
@@ -374,14 +376,16 @@ const DatingCandidateCard = ({
 
                 <View style={styles.cardTopActions}>
                     {!isPreview && (
-                        <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare}>
+                        <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare} hitSlop={PRESS_HIT_SLOP}>
                             <Share2 size={18} color="rgba(255,255,255,1)" />
                         </TouchableOpacity>
                     )}
                     {!isPreview && (
                         <TouchableOpacity
-                            style={styles.cardActionCircleRight}
+                            style={[styles.cardActionCircle, styles.cardActionCircleRight]}
                             onPress={handleToggleFavorite}
+                            hitSlop={PRESS_HIT_SLOP}
+                            disabled={favoritingInProgress}
                         >
                             <Heart
                                 size={20}
@@ -480,6 +484,7 @@ const DatingCandidateCard = ({
                                     activeOpacity={0.9}
                                     style={styles.cardCompatibilityBtn}
                                     onPress={() => onCheckCompatibility(item.ID)}
+                                    hitSlop={PRESS_HIT_SLOP}
                                 >
                                     <LinearGradient
                                         colors={[roleTheme.accent, roleTheme.accentStrong]}
@@ -601,6 +606,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const [connecting, setConnecting] = useState(false);
     const [stats, setStats] = useState({ total: 0, city: 0, new: 0 });
     const [showStats, setShowStats] = useState(false);
+    const [showQuickMenu, setShowQuickMenu] = useState(false);
     const [filterNew, setFilterNew] = useState(false);
     const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
     const modalAccentTextStyle = useMemo(() => ({ color: roleColors.accent }), [roleColors.accent]);
@@ -985,6 +991,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <TouchableOpacity
                                         style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}
                                         onPress={() => setShowStats(!showStats)}
+                                        hitSlop={PRESS_HIT_SLOP}
                                     >
                                         <BarChart2 size={20} color={showStats ? roleColors.accent : '#FFFFFF'} />
                                     </TouchableOpacity>
@@ -1005,14 +1012,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     )}
 
                     <View style={styles.topActionScrollContainer}>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.topActionScrollContent}
-                        >
+                        <View style={styles.topActionScrollContent}>
                             <TouchableOpacity
                                 style={styles.glassActionBtn}
                                 onPress={() => setShowFilters(true)}
+                                hitSlop={PRESS_HIT_SLOP}
                             >
                                 <Filter size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.filter')}</Text>
@@ -1021,6 +1025,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <TouchableOpacity
                                 style={styles.glassActionBtn}
                                 onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
+                                hitSlop={PRESS_HIT_SLOP}
                             >
                                 <UserPen size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.editProfile')}</Text>
@@ -1028,24 +1033,8 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                             <TouchableOpacity
                                 style={styles.glassActionBtn}
-                                onPress={() => fetchPreviewProfile()}
-                                disabled={previewLoading}
-                            >
-                                <Eye size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>{previewLoading ? t('common.loading') : t('dating.preview')}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.glassActionBtn}
-                                onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
-                            >
-                                <ImageIcon size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>{t('dating.media')}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.glassActionBtn}
                                 onPress={() => navigation.navigate('DatingFavorites')}
+                                hitSlop={PRESS_HIT_SLOP}
                             >
                                 <Heart size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.favorites')}</Text>
@@ -1053,10 +1042,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                             <TouchableOpacity
                                 style={styles.glassActionBtn}
-                                onPress={() => navigation.navigate('UnionApprovals')}
+                                onPress={() => setShowQuickMenu(true)}
+                                hitSlop={PRESS_HIT_SLOP}
                             >
-                                <ShieldCheck size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>{t('dating.unionApprovals')}</Text>
+                                <Ellipsis size={16} color={roleColors.accent} />
+                                <Text style={styles.glassActionText}>{t('common.more')}</Text>
                                 {pendingApprovalCount > 0 ? (
                                     <View style={styles.actionCountBadge}>
                                         <Text style={styles.actionCountBadgeText}>
@@ -1065,12 +1055,12 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     </View>
                                 ) : null}
                             </TouchableOpacity>
-                        </ScrollView>
+                        </View>
                     </View>
 
                     {/* Mode Switcher */}
                     <View style={styles.modeSwitcherContainer}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeScrollContent}>
+                        <View style={styles.modeScrollContent}>
                             {MODE_OPTIONS.map((m) => (
                                 <TouchableOpacity
                                     key={m.key}
@@ -1082,6 +1072,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         setMode(m.key);
                                         fetchCandidates({ mode: m.key });
                                     }}
+                                    hitSlop={PRESS_HIT_SLOP}
                                 >
                                     <m.icon
                                         color={mode === m.key ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.4)'}
@@ -1093,65 +1084,8 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     ]}>{m.label}</Text>
                                 </TouchableOpacity>
                             ))}
-                        </ScrollView>
-                    </View>
-
-                    {/* Statistics Bar */}
-                    {showStats && (
-                        <View style={styles.statsBar}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScrollContent}>
-                                <TouchableOpacity
-                                    style={styles.statItem}
-                                    onPress={() => {
-                                        setFilterCity('');
-                                        setFilterNew(false);
-                                        fetchCandidates({ city: '', isNew: false });
-                                    }}
-                                >
-                                    <Users2 size={20} color={roleColors.accent} style={styles.statIcon} />
-                                    <View>
-                                        <Text style={styles.statValue}>{stats.total}</Text>
-                                        <Text style={styles.statLabel}>{t('dating.total')}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.statItem}
-                                    onPress={() => {
-                                        if (user?.city) {
-                                            setFilterCity(user.city);
-                                            setFilterNew(false);
-                                            fetchCandidates({ city: user.city, isNew: false });
-                                        }
-                                    }}
-                                >
-                                    <MapPin size={20} color={roleColors.accent} style={styles.statIcon} />
-                                    <View>
-                                        <Text style={styles.statValue}>{stats.city}</Text>
-                                        <Text style={styles.statLabel}>{t('dating.in')} {user?.city}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.statItem}
-                                    onPress={() => {
-                                        const nextFilterNew = !filterNew;
-                                        setFilterNew(nextFilterNew);
-                                        if (nextFilterNew) {
-                                            setFilterCity('');
-                                            fetchCandidates({ city: '', isNew: true });
-                                            return;
-                                        }
-                                        fetchCandidates({ isNew: false });
-                                    }}
-                                >
-                                    <Sparkles size={20} color={roleColors.accent} style={styles.statIcon} />
-                                    <View>
-                                        <Text style={styles.statValue}>{stats.new}</Text>
-                                        <Text style={styles.statLabel}>{t('dating.new24h')}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </ScrollView>
                         </View>
-                    )}
+                    </View>
 
                     {loading ? (
                         <View style={styles.loadingContainer}>
@@ -1180,6 +1114,10 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             )}
                             contentContainerStyle={styles.list}
                             showsVerticalScrollIndicator={false}
+                            removeClippedSubviews={Platform.OS === 'android'}
+                            initialNumToRender={4}
+                            maxToRenderPerBatch={5}
+                            windowSize={5}
                         />
                     )}
 
@@ -1251,6 +1189,156 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowCompatibilityModal(false)}>
                                     <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
+                            </LinearGradient>
+                        </View>
+                    </Modal>
+
+                    <Modal visible={showQuickMenu} transparent animationType="fade" onRequestClose={() => setShowQuickMenu(false)}>
+                        <View style={styles.modalOverlay}>
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                style={StyleSheet.absoluteFill}
+                                onPress={() => setShowQuickMenu(false)}
+                            />
+                            <LinearGradient colors={['rgba(30,30,50,0.88)', 'rgba(15,15,25,0.98)']} style={styles.quickMenuSheet}>
+                                <View style={styles.quickMenuHeader}>
+                                    <Text style={styles.quickMenuTitle}>{t('common.more')}</Text>
+                                    <TouchableOpacity style={styles.quickMenuCloseButton} onPress={() => setShowQuickMenu(false)}>
+                                        <X size={18} color="rgba(255,255,255,0.8)" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <TouchableOpacity
+                                    style={styles.quickMenuItem}
+                                    onPress={() => {
+                                        setShowQuickMenu(false);
+                                        fetchPreviewProfile();
+                                    }}
+                                    disabled={previewLoading}
+                                >
+                                    <View style={styles.quickMenuItemIconWrap}>
+                                        <Eye size={18} color={roleColors.accent} />
+                                    </View>
+                                    <View style={styles.quickMenuItemTextWrap}>
+                                        <Text style={styles.quickMenuItemTitle}>
+                                            {previewLoading ? t('common.loading') : t('dating.preview')}
+                                        </Text>
+                                        <Text style={styles.quickMenuItemSubtitle}>{t('dating.previewHint')}</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.quickMenuItem}
+                                    onPress={() => {
+                                        setShowQuickMenu(false);
+                                        if (user?.ID) {
+                                            navigation.navigate('MediaLibrary', { userId: user.ID });
+                                        }
+                                    }}
+                                >
+                                    <View style={styles.quickMenuItemIconWrap}>
+                                        <ImageIcon size={18} color={roleColors.accent} />
+                                    </View>
+                                    <View style={styles.quickMenuItemTextWrap}>
+                                        <Text style={styles.quickMenuItemTitle}>{t('dating.media')}</Text>
+                                        <Text style={styles.quickMenuItemSubtitle}>{t('dating.managePhotos')}</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.quickMenuItem}
+                                    onPress={() => {
+                                        setShowQuickMenu(false);
+                                        navigation.navigate('UnionApprovals');
+                                    }}
+                                >
+                                    <View style={styles.quickMenuItemIconWrap}>
+                                        <ShieldCheck size={18} color={roleColors.accent} />
+                                    </View>
+                                    <View style={styles.quickMenuItemTextWrap}>
+                                        <Text style={styles.quickMenuItemTitle}>{t('dating.unionApprovals')}</Text>
+                                        <Text style={styles.quickMenuItemSubtitle}>{t('dating.incomingApprovalsHint')}</Text>
+                                    </View>
+                                    {pendingApprovalCount > 0 ? (
+                                        <View style={styles.quickMenuBadge}>
+                                            <Text style={styles.quickMenuBadgeText}>
+                                                {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                                            </Text>
+                                        </View>
+                                    ) : null}
+                                </TouchableOpacity>
+                            </LinearGradient>
+                        </View>
+                    </Modal>
+
+                    <Modal visible={showStats} transparent animationType="fade" onRequestClose={() => setShowStats(false)}>
+                        <View style={styles.modalOverlay}>
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                style={StyleSheet.absoluteFill}
+                                onPress={() => setShowStats(false)}
+                            />
+                            <LinearGradient colors={['rgba(30,30,50,0.9)', 'rgba(15,15,25,0.98)']} style={styles.statsSheet}>
+                                <View style={styles.quickMenuHeader}>
+                                    <Text style={styles.quickMenuTitle}>{t('dating.totalProfiles')}</Text>
+                                    <TouchableOpacity style={styles.quickMenuCloseButton} onPress={() => setShowStats(false)}>
+                                        <X size={18} color="rgba(255,255,255,0.8)" />
+                                    </TouchableOpacity>
+                                </View>
+                                <View style={styles.statsScrollContent}>
+                                    <TouchableOpacity
+                                        style={styles.statItem}
+                                        onPress={() => {
+                                            setShowStats(false);
+                                            setFilterCity('');
+                                            setFilterNew(false);
+                                            fetchCandidates({ city: '', isNew: false });
+                                        }}
+                                    >
+                                        <Users2 size={20} color={roleColors.accent} style={styles.statIcon} />
+                                        <View>
+                                            <Text style={styles.statValue}>{stats.total}</Text>
+                                            <Text style={styles.statLabel}>{t('dating.total')}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.statItem}
+                                        onPress={() => {
+                                            setShowStats(false);
+                                            if (user?.city) {
+                                                setFilterCity(user.city);
+                                                setFilterNew(false);
+                                                fetchCandidates({ city: user.city, isNew: false });
+                                            }
+                                        }}
+                                    >
+                                        <MapPin size={20} color={roleColors.accent} style={styles.statIcon} />
+                                        <View>
+                                            <Text style={styles.statValue}>{stats.city}</Text>
+                                            <Text style={styles.statLabel}>{t('dating.in')} {user?.city}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.statItem}
+                                        onPress={() => {
+                                            setShowStats(false);
+                                            const nextFilterNew = !filterNew;
+                                            setFilterNew(nextFilterNew);
+                                            if (nextFilterNew) {
+                                                setFilterCity('');
+                                                fetchCandidates({ city: '', isNew: true });
+                                                return;
+                                            }
+                                            fetchCandidates({ isNew: false });
+                                        }}
+                                    >
+                                        <Sparkles size={20} color={roleColors.accent} style={styles.statIcon} />
+                                        <View>
+                                            <Text style={styles.statValue}>{stats.new}</Text>
+                                            <Text style={styles.statLabel}>{t('dating.new24h')}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
                             </LinearGradient>
                         </View>
                     </Modal>
@@ -1530,11 +1618,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     header: {
-        marginBottom: 24,
+        marginBottom: 20,
     },
     bannerHeader: {
         width: '100%',
-        height: 240,
+        height: 228,
         justifyContent: 'center',
         paddingTop: Platform.OS === 'ios' ? 44 : 20,
         borderBottomLeftRadius: 36,
@@ -1546,32 +1634,33 @@ const styles = StyleSheet.create({
     },
     bannerOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backgroundColor: 'rgba(8, 8, 16, 0.46)',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
+        paddingBottom: 8,
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 30,
+        fontSize: 28,
         fontWeight: '900',
         fontFamily: 'Cinzel-Bold',
-        letterSpacing: 2,
+        letterSpacing: 1.4,
         textShadowColor: 'rgba(0, 0, 0, 0.6)',
         textShadowOffset: { width: 0, height: 2 },
         textShadowRadius: 12,
     },
     headerSubtitle: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 4,
-        marginTop: 4,
+        letterSpacing: 3,
+        marginTop: 6,
         textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 6,
@@ -1606,29 +1695,35 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.5)',
     },
     topActionScrollContainer: {
-        height: 48,
-        marginBottom: 15,
+        marginBottom: 14,
     },
     topActionScrollContent: {
         paddingHorizontal: 20,
-        alignItems: 'center',
-        gap: 12,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'stretch',
+        justifyContent: 'space-between',
+        gap: 10,
     },
     glassActionBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingVertical: 10,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.065)',
+        paddingVertical: 11,
         paddingHorizontal: 16,
-        borderRadius: 20,
+        borderRadius: 18,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(255,255,255,0.14)',
         gap: 8,
+        minHeight: 46,
+        flexBasis: '48%',
+        flexGrow: 1,
     },
     glassActionText: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 14,
-        fontWeight: '600',
+        color: 'rgba(255,255,255,0.88)',
+        fontSize: 13,
+        fontWeight: '700',
     },
     actionCountBadge: {
         minWidth: 20,
@@ -1646,41 +1741,56 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     modeSwitcherContainer: {
-        marginBottom: 20,
+        marginBottom: 16,
     },
     modeScrollContent: {
         paddingHorizontal: 20,
-        gap: 12,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        justifyContent: 'space-between',
     },
     modeGlassChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 25,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.045)',
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
-        gap: 10,
+        borderColor: 'rgba(255,255,255,0.1)',
+        gap: 7,
+        minHeight: 42,
+        flexBasis: '48%',
     },
     modeGlassChipActive: {
         backgroundColor: 'rgba(245,158,11,1)',
         borderColor: 'rgba(245,158,11,1)',
     },
     modeGlassText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 15,
+        color: 'rgba(255,255,255,0.72)',
+        fontSize: 13,
         fontFamily: 'Cinzel-Regular',
     },
     modeGlassTextActive: {
         color: 'rgba(0,0,0,1)',
         fontWeight: '700',
     },
-    statsBar: {
-        paddingBottom: 20,
+    statsSheet: {
+        width: '100%',
+        maxWidth: 460,
+        borderRadius: 28,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        overflow: 'hidden',
     },
     statsScrollContent: {
-        paddingHorizontal: 20,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 4,
     },
     statIcon: {
         marginRight: 8,
@@ -1694,7 +1804,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
-        marginRight: 12,
+        flexBasis: '31%',
+        flexGrow: 1,
     },
     statValue: {
         color: 'rgba(255,255,255,1)',
@@ -1710,16 +1821,16 @@ const styles = StyleSheet.create({
     },
     list: {
         paddingHorizontal: 20,
-        paddingBottom: 100,
+        paddingBottom: 112,
     },
     cardContainer: {
-        width: width - 36,
-        height: 660,
-        marginBottom: 24,
-        borderRadius: 40,
+        width: '100%',
+        height: 648,
+        marginBottom: 20,
+        borderRadius: 34,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.11)',
     },
     cardImageContainer: {
         flex: 1,
@@ -1757,11 +1868,11 @@ const styles = StyleSheet.create({
     },
     cardPagination: {
         position: 'absolute',
-        top: 20,
-        left: 30,
-        right: 30,
+        top: 18,
+        left: 22,
+        right: 22,
         flexDirection: 'row',
-        gap: 6,
+        gap: 5,
     },
     cardPaginationBar: {
         height: 3,
@@ -1776,20 +1887,20 @@ const styles = StyleSheet.create({
     },
     cardTopActions: {
         position: 'absolute',
-        top: 40,
-        left: 20,
-        right: 20,
+        top: 34,
+        left: 18,
+        right: 18,
         flexDirection: 'row',
     },
     cardActionCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(0,0,0,0.4)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(12,12,20,0.34)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderColor: 'rgba(255,255,255,0.18)',
     },
     cardActionCircleRight: {
         marginLeft: 'auto',
@@ -1799,9 +1910,9 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        minHeight: 280,
+        minHeight: 300,
         padding: 24,
-        paddingBottom: 28,
+        paddingBottom: 30,
         justifyContent: 'flex-end',
         overflow: 'hidden',
     },
@@ -1813,7 +1924,7 @@ const styles = StyleSheet.create({
         alignItems: 'baseline',
     },
     cardSpiritualName: {
-        fontSize: 36,
+        fontSize: 34,
         fontFamily: 'Cinzel-Bold',
         color: 'rgba(255,255,255,1)',
         textShadowColor: 'rgba(0,0,0,0.5)',
@@ -1835,58 +1946,59 @@ const styles = StyleSheet.create({
         marginRight: 6,
     },
     cardLocationText: {
-        fontSize: 15,
-        color: 'rgba(255,255,255,0.6)',
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.7)',
         fontWeight: '600',
     },
     cardTagRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         marginTop: 15,
-        gap: 10,
+        gap: 8,
     },
     cardTag: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        paddingHorizontal: 11,
+        paddingVertical: 5,
+        borderRadius: 11,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
-        gap: 6,
+        borderColor: 'rgba(245, 158, 11, 0.22)',
+        gap: 5,
     },
     cardTagText: {
         color: 'rgba(245,158,11,1)',
-        fontSize: 12,
-        fontWeight: '800',
+        fontSize: 11,
+        fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 0.35,
     },
     cardBioText: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.75)',
-        marginTop: 18,
-        lineHeight: 24,
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.82)',
+        marginTop: 16,
+        lineHeight: 23,
     },
     cardMetaText: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(255,255,255,0.74)',
         marginTop: 8,
         lineHeight: 18,
     },
     cardPostPreview: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.86)',
+        color: 'rgba(255,255,255,0.88)',
         marginTop: 10,
         lineHeight: 20,
         fontStyle: 'italic',
     },
     cardFooterActions: {
-        marginTop: 25,
+        marginTop: 22,
     },
     cardCompatibilityBtn: {
-        height: 60,
-        borderRadius: 20,
+        height: 56,
+        borderRadius: 18,
         overflow: 'hidden',
     },
     cardCompatibilityGradient: {
@@ -1894,14 +2006,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
+        gap: 10,
     },
     cardCompatibilityBtnText: {
         color: 'rgba(0,0,0,1)',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '900',
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
+        letterSpacing: 1.1,
     },
     empty: {
         flex: 1,
@@ -1944,6 +2056,88 @@ const styles = StyleSheet.create({
     modalContentPreview: {
         height: '90%',
         padding: 0,
+    },
+    quickMenuSheet: {
+        width: '100%',
+        maxWidth: 460,
+        borderRadius: 28,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        overflow: 'hidden',
+    },
+    quickMenuHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 14,
+    },
+    quickMenuTitle: {
+        color: 'rgba(255,255,255,1)',
+        fontSize: 22,
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 1,
+    },
+    quickMenuCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+    },
+    quickMenuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        marginTop: 10,
+    },
+    quickMenuItemIconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.24)',
+        marginRight: 14,
+    },
+    quickMenuItemTextWrap: {
+        flex: 1,
+    },
+    quickMenuItemTitle: {
+        color: 'rgba(255,255,255,0.96)',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    quickMenuItemSubtitle: {
+        color: 'rgba(255,255,255,0.58)',
+        fontSize: 12,
+        marginTop: 4,
+        lineHeight: 18,
+    },
+    quickMenuBadge: {
+        minWidth: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#EF4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+        marginLeft: 10,
+    },
+    quickMenuBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '800',
     },
     modalAvatarContainer: {
         alignItems: 'center',

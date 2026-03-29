@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearBrowserSession, createBrowserClient, getBrowserSession, saveBrowserSession } from "@vedamatch/api-client";
 import { getDictionary, normalizeLanguage, type Dictionary } from "@vedamatch/i18n";
 import type { AuthSession, Language } from "@vedamatch/domain-types";
+import { LANGUAGE_COOKIE_KEY, LANGUAGE_STORAGE_KEY } from "@/lib/language-preference";
 import {
   applyDocumentTheme,
   normalizeThemePreference,
@@ -28,13 +29,27 @@ type SessionContextValue = {
   logout: () => Promise<void>;
 };
 
-const LANGUAGE_STORAGE_KEY = "vm_web_language";
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+function writeLanguagePreference(language: Language) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  document.cookie = `${LANGUAGE_COOKIE_KEY}=${language}; Path=/; Max-Age=31536000; SameSite=Lax`;
+}
+
+export function SessionProvider({
+  children,
+  initialLanguage = "en",
+}: {
+  children: React.ReactNode;
+  initialLanguage?: Language;
+}) {
   const [ready, setReady] = useState(false);
   const [session, setSessionState] = useState<AuthSession | null>(null);
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
 
@@ -47,12 +62,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const nextResolvedTheme = resolveThemePreference(nextThemePreference, readSystemTheme() === "dark");
 
     setSessionState(nextSession);
-    setLanguageState(normalizeLanguage(storedLanguage || browserLanguage));
+    const nextLanguage = normalizeLanguage(storedLanguage || initialLanguage || browserLanguage);
+    setLanguageState(nextLanguage);
+    writeLanguagePreference(nextLanguage);
     setThemePreferenceState(nextThemePreference);
     setResolvedTheme(nextResolvedTheme);
     applyDocumentTheme(nextResolvedTheme);
     setReady(true);
-  }, []);
+  }, [initialLanguage]);
 
   useEffect(() => {
     if (typeof window === "undefined" || themePreference !== "system") {
@@ -86,9 +103,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setLanguage: (nextLanguage) => {
       const normalized = normalizeLanguage(nextLanguage);
       setLanguageState(normalized);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
-      }
+      writeLanguagePreference(normalized);
     },
     setThemePreference: (nextThemePreference) => {
       const normalized = normalizeThemePreference(nextThemePreference);

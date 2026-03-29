@@ -33,6 +33,16 @@ export type Dictionary = {
     submitLogin: string;
     submitRegister: string;
     successRedirect: string;
+    mobilePromo: {
+      eyebrow: string;
+      title: string;
+      body: string;
+      versionLabel: string;
+      iosLabel: string;
+      iosHint: string;
+      androidLabel: string;
+      androidHint: string;
+    };
   };
   portal: {
     title: string;
@@ -251,6 +261,16 @@ export const dictionaries: Record<Language, Dictionary> = {
       submitLogin: "Войти",
       submitRegister: "Создать аккаунт",
       successRedirect: "Переходим в портал...",
+      mobilePromo: {
+        eyebrow: "Для телефона удобнее",
+        title: "Пользоваться VedaMatch удобнее в мобильном приложении",
+        body: "С телефона быстрее отвечать, читать сообщения и держать сервисы VedaMatch под рукой. Установите приложение на Android или iPhone, если ссылка уже доступна.",
+        versionLabel: "Версия",
+        iosLabel: "Скачать для iPhone",
+        iosHint: "Открыть App Store",
+        androidLabel: "Скачать для Android",
+        androidHint: "Открыть Google Play или APK",
+      },
     },
     portal: {
       title: "Портал пользователя",
@@ -467,6 +487,16 @@ export const dictionaries: Record<Language, Dictionary> = {
       submitLogin: "Sign in",
       submitRegister: "Create account",
       successRedirect: "Redirecting to portal...",
+      mobilePromo: {
+        eyebrow: "Better on phone",
+        title: "VedaMatch is more convenient in the mobile app",
+        body: "It is faster to reply, check messages, and keep VedaMatch services one tap away on your phone. Install the app for Android or iPhone when a download link is available.",
+        versionLabel: "Version",
+        iosLabel: "Download for iPhone",
+        iosHint: "Open the App Store",
+        androidLabel: "Download for Android",
+        androidHint: "Open Google Play or APK",
+      },
     },
     portal: {
       title: "User portal",
@@ -683,6 +713,16 @@ export const dictionaries: Record<Language, Dictionary> = {
       submitLogin: "लॉगिन",
       submitRegister: "अकाउंट बनाएँ",
       successRedirect: "पोर्टल पर भेजा जा रहा है...",
+      mobilePromo: {
+        eyebrow: "फोन पर बेहतर",
+        title: "VedaMatch मोबाइल ऐप में ज़्यादा सुविधाजनक है",
+        body: "फोन पर जवाब देना, संदेश देखना और VedaMatch सेवाओं तक जल्दी पहुँचना आसान रहता है। लिंक उपलब्ध हो तो Android या iPhone ऐप इंस्टॉल करें।",
+        versionLabel: "वर्ज़न",
+        iosLabel: "iPhone के लिए डाउनलोड करें",
+        iosHint: "App Store खोलें",
+        androidLabel: "Android के लिए डाउनलोड करें",
+        androidHint: "Google Play या APK खोलें",
+      },
     },
     portal: {
       title: "यूज़र पोर्टल",

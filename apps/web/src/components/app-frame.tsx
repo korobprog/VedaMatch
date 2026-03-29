@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { LauncherItems } from "@/components/social-launcher";
 import { useSession } from "@/components/session-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -11,7 +12,7 @@ import { getSocialLauncherModel, resolveActiveLauncherId } from "@/lib/social-la
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { dictionary, language, ready, session, logout, setLanguage } = useSession();
+  const { dictionary, language, ready, session, logout } = useSession();
   const launcher = getSocialLauncherModel(language);
   const activeLauncherId = resolveActiveLauncherId(pathname);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
@@ -100,16 +101,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 {launcher.copy.profile}
               </Link>
               <ThemeSwitcher />
-              <select
-                aria-label={dictionary.languageLabel}
-                className="dashboard-select"
-                onChange={(event) => setLanguage(event.target.value)}
-                value={language}
-              >
-                <option value="en">EN</option>
-                <option value="ru">RU</option>
-                <option value="hi">HI</option>
-              </select>
+              <LanguageSwitcher />
               <button className="dashboard-action dashboard-action--ghost" onClick={() => void logout()} type="button">
                 {dictionary.nav.logout}
               </button>

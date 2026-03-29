@@ -1,3 +1,178 @@
+## 2026-03-29 (Shared mobile network banner: remove overlay over top CTA)
+
+### Измененные файлы
+- `frontend/components/NetworkStatusBanner.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - global network banner рендерился как `position: absolute` overlay в верхней части app shell;
+  - при нестабильной сети он визуально перекрывал верхние кнопки и CTA на плотных мобильных экранах.
+- Стало:
+  - banner переведен в flow-layout без абсолютного позиционирования;
+  - `offline` раскрывается сразу, а `unstable/reconnecting` показываются компактно и раскрывают детали по tap;
+  - верхние action-кнопки больше не закрываются сетевым сообщением.
+
+### Короткие сниппеты кода
+
+`frontend/components/NetworkStatusBanner.tsx`:
+```tsx
+<View style={styles.container}>
+  <Pressable ...>
+    <View style={styles.headerRow}>
+      <Text style={styles.title}>{copy.title}</Text>
+    </View>
+  </Pressable>
+</View>
+```
+
+```ts
+container: {
+  paddingHorizontal: 12,
+  paddingTop: 6,
+  paddingBottom: 2,
+}
+```
+
+## 2026-03-29 (Shared mobile Union: remove horizontal top carousels from main screen)
+
+### Измененные файлы
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на главном экране Union верхние action buttons, mode switcher и stats bar были собраны через горизонтальные `ScrollView`;
+  - внутри portal shell это конфликтовало с горизонтальными свайпами самого портала: кнопки читались хуже, а попытка «листнуть» controls могла случайно увести пользователя назад в портал.
+- Стало:
+  - горизонтальные top strips заменены на статичный wrap/grid layout без карусели;
+  - кнопки действий, режимы и статистические quick-filters теперь нажимаются без горизонтального скролла;
+  - главный Union screen стал устойчивее для мобильного UX внутри portal shell.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/dating/DatingScreen.tsx`:
+```tsx
+<View style={styles.topActionScrollContent}>
+  ...
+</View>
+```
+
+```ts
+topActionScrollContent: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+}
+```
+
+## 2026-03-29 (Shared mobile Union: move secondary header actions into More modal)
+
+### Измененные файлы
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после отказа от горизонтальной карусели верхняя зона Union всё ещё держала слишком много равноправных кнопок на главном экране;
+  - даже без scroll это перегружало first screen и ухудшало читаемость.
+- Стало:
+  - на первом ряду оставлены только основные действия: фильтры, редактирование профиля, избранное;
+  - второстепенные действия `Preview`, `Media`, `Approval requests` перенесены в `More` modal sheet;
+  - в общие mobile локали добавлен ключ `common.more`.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/dating/DatingScreen.tsx`:
+```tsx
+<TouchableOpacity
+  style={styles.glassActionBtn}
+  onPress={() => setShowQuickMenu(true)}
+>
+  <Ellipsis size={16} color={roleColors.accent} />
+  <Text style={styles.glassActionText}>{t('common.more')}</Text>
+</TouchableOpacity>
+```
+
+```tsx
+<Modal visible={showQuickMenu} transparent animationType="fade">
+  <LinearGradient style={styles.quickMenuSheet}>
+    ...
+  </LinearGradient>
+</Modal>
+```
+
+## 2026-03-29 (Shared mobile Union: move stats panel into header-triggered modal)
+
+### Измененные файлы
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - блок статистики `total / city / new24h` рендерился прямо над списком карточек на первом экране Union;
+  - даже после упрощения верхних actions этот блок продолжал забирать вертикальное место и делал first screen визуально тяжелее.
+- Стало:
+  - статистика больше не занимает место в постоянном layout;
+  - по кнопке графика в header открывается отдельный modal stats sheet с теми же quick-filters;
+  - первый экран Union теперь открывается сразу на действия и кандидатов.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/dating/DatingScreen.tsx`:
+```tsx
+<Modal visible={showStats} transparent animationType="fade">
+  <LinearGradient style={styles.statsSheet}>
+    ...
+  </LinearGradient>
+</Modal>
+```
+
+```ts
+statsSheet: {
+  maxWidth: 460,
+  borderRadius: 28,
+}
+```
+
+## 2026-03-29 (Shared mobile calls: unfreeze Call History initial load)
+
+### Измененные файлы
+- `frontend/screens/calls/CallHistoryScreen.tsx`
+- `frontend/services/callHistoryService.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - экран истории звонков стартовал с `isLoading = true`;
+  - `loadCalls()` одновременно содержал guard `if (isLoading && !refresh) return`, поэтому первый `useFocusEffect` сразу выходил и история не загружалась;
+  - вокруг `AsyncStorage` в сервисе истории использовались timeout-ы без явного `clearTimeout`, что оставляло лишние висящие таймеры после успешных операций.
+- Стало:
+  - защита от параллельной загрузки перенесена на отдельный `loadInFlightRef`, который не блокирует самый первый заход на экран;
+  - initial load истории теперь реально выполняется при первом фокусе `CallsHome`;
+  - timeout-ы `AsyncStorage` в `callHistoryService` очищаются в `finally`, чтобы не копить фоновые timer-ы в shared mobile flow.
+
+### Короткие сниппеты кода
+
+`frontend/screens/calls/CallHistoryScreen.tsx`:
+```tsx
+const loadInFlightRef = React.useRef(false);
+
+if (loadInFlightRef.current) {
+    return;
+}
+loadInFlightRef.current = true;
+```
+
+`frontend/services/callHistoryService.ts`:
+```ts
+let timeoutId: ReturnType<typeof setTimeout> | null = null;
+...
+} finally {
+    if (timeoutId) {
+        clearTimeout(timeoutId);
+    }
+}
+```
+
 ## 2026-03-29 (Shared mobile Union V1: publication workflow, structured dating profile fields, profile posts, and meeting invites)
 
 ### Измененные файлы
@@ -18302,4 +18477,89 @@ func main() {
 		"failed":     failedJobs,
 	},
 },
+```
+
+## 2026-03-29 (Android production release 1.1.43 + S3 uploader env fallback)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+- `server/cmd/upload_apk_to_s3/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Android release version была `1.1.42 (44)`;
+  - CLI uploader `server/cmd/upload_apk_to_s3` жёстко смотрел в `server/.env` и мог падать при запуске из `server/`, потому что в модуле уже есть файл `server/server`.
+- Стало:
+  - Android release version поднята до `1.1.43 (45)`;
+  - production APK успешно собран как `frontend/android/app/build/outputs/apk/release/app-release.apk`, установлен на Android-устройство и загружен в S3;
+  - uploader теперь ищет env по нескольким кандидатам: `server/.env`, `.env`, `../.env`, поэтому его можно запускать и из repo root, и из `server/`.
+
+### Сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionName "1.1.43"
+versionCode 45
+```
+
+`server/cmd/upload_apk_to_s3/main.go`:
+```go
+envCandidates := []string{"server/.env", ".env", "../.env"}
+envPath := ""
+for _, candidate := range envCandidates {
+	info, err := os.Stat(candidate)
+	if err == nil && !info.IsDir() {
+		envPath = candidate
+		break
+	}
+}
+```
+
+## 2026-03-29 (Autonomous Ekadashi calendar review metadata and canonical observance payload for shared mobile behavior)
+
+### Измененные файлы
+- `server/internal/models/calendar.go`
+- `server/internal/models/ekadashi.go`
+- `server/internal/services/ekadashi_autonomous_data.go`
+- `server/internal/services/ekadashi_service.go`
+- `server/internal/services/ekadashi_import_service.go`
+- `frontend/types/ekadashi.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - shared mobile calendar payload знал только обычные event-поля и `providerDecision`;
+  - curated observances жили как service-local seeds;
+  - import/publication pipeline не хранил явные review/conflict/coverage метаданные для mobile/admin semantics.
+- Стало:
+  - shared payload `EkadashiDay` и frontend type получили `canonicalSlug` и `sourceConfidence`;
+  - backend добавил canonical reference layer: `calendar_observances`, `calendar_profile_rules`, `calendar_sources_catalog`;
+  - import/publication теперь пишет review metadata (`candidateCount`, `conflictCount`, `warningCount`, `missingMonths`, `reviewStatus`, `reviewSummary`), а mobile copy переведена с live/fallback wording на published/review semantics.
+
+### Сниппеты кода
+
+`server/internal/models/ekadashi.go`:
+```go
+type EkadashiDay struct {
+	CanonicalSlug    string `json:"canonicalSlug,omitempty"`
+	SourceConfidence int    `json:"sourceConfidence,omitempty"`
+}
+```
+
+`server/internal/services/ekadashi_service.go`:
+```go
+func (s *EkadashiService) buildCommemorativeEvents(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) []models.EkadashiDay {
+	rules, observanceMap, err := loadAutonomousObservanceRules(s.db, org.ID, int(monthStart.Month()))
+	// ...
+}
+```
+
+`frontend/types/ekadashi.ts`:
+```ts
+export type EkadashiDay = {
+  canonicalSlug?: string;
+  sourceConfidence?: number;
+};
 ```

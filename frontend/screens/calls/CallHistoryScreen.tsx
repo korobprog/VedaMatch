@@ -33,6 +33,7 @@ export const CallHistoryScreen = () => {
     const [isLoading, setIsLoading] = React.useState(true);
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const contactsByIdRef = React.useRef<ContactsById>({});
+    const loadInFlightRef = React.useRef(false);
 
     React.useEffect(() => {
         contactsByIdRef.current = contactsById;
@@ -128,16 +129,16 @@ export const CallHistoryScreen = () => {
     }, []);
 
     const loadCalls = React.useCallback(async (refresh = false) => {
-        // Prevent concurrent load operations
-        if (isLoading && !refresh) {
+        if (loadInFlightRef.current) {
             return;
         }
-        
-        // Safety timeout: force reset isLoading after 5 seconds
+
         let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+        loadInFlightRef.current = true;
         const scheduleLoadTimeout = () => {
             loadTimeout = setTimeout(() => {
                 console.warn('[CallHistoryScreen] Force resetting isLoading after timeout');
+                loadInFlightRef.current = false;
                 setIsLoading(false);
                 setIsRefreshing(false);
             }, 5000);
@@ -161,10 +162,11 @@ export const CallHistoryScreen = () => {
             console.warn('[CallHistoryScreen] Failed to load call history', error);
         } finally {
             if (loadTimeout) clearTimeout(loadTimeout);
+            loadInFlightRef.current = false;
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [enrichContacts, isLoading]);
+    }, [enrichContacts]);
 
     useFocusEffect(
         React.useCallback(() => {

@@ -86,13 +86,13 @@ const generateEntryId = () => `${Date.now()}-${Math.random().toString(36).slice(
 
 export const callHistoryService = {
     async getHistory(): Promise<CallHistoryEntry[]> {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
         try {
-            // Add timeout for AsyncStorage operation
             const storagePromise = AsyncStorage.getItem(CALL_HISTORY_STORAGE_KEY);
-            const timeoutPromise = new Promise<null>((_, reject) =>
-                setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000)
-            );
-            
+            const timeoutPromise = new Promise<null>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000);
+            });
+
             const raw = await Promise.race([storagePromise, timeoutPromise]);
             return safeParseHistory(raw);
         } catch (error: any) {
@@ -100,6 +100,10 @@ export const callHistoryService = {
                 console.warn('[callHistoryService] getHistory timeout');
             }
             return [];
+        } finally {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         }
     },
 
@@ -122,21 +126,26 @@ export const callHistoryService = {
         };
 
         const updated = [nextEntry, ...history].slice(0, CALL_HISTORY_MAX_ITEMS);
-        
+
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
         try {
             const storagePromise = AsyncStorage.setItem(CALL_HISTORY_STORAGE_KEY, JSON.stringify(updated));
-            const timeoutPromise = new Promise<void>((_, reject) =>
-                setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000)
-            );
-            
+            const timeoutPromise = new Promise<void>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('AsyncStorage timeout')), 3000);
+            });
+
             await Promise.race([storagePromise, timeoutPromise]);
         } catch (error: any) {
             if (error.message === 'AsyncStorage timeout') {
                 console.warn('[callHistoryService] addEntry timeout');
             }
             throw error;
+        } finally {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         }
-        
+
         return updated;
     },
 };

@@ -12,6 +12,25 @@
 - Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
 
 ## Dating / Union
+- Для `frontend/screens/portal/dating/DatingScreen.tsx` на mobile внутри portal shell горизонтальные action-strip/mode-strip в верхней части экрана оказались плохим UX:
+  - пользовательские горизонтальные жесты конфликтуют со swipe-навигацией самого портала;
+  - из-за этого при попытке листать top controls экран может случайно увести назад/в портал или восприниматься как зависший;
+  - для Union safer pattern: статичный grid/wrap layout для верхних кнопок и mode chips, без horizontal `ScrollView`.
+- Для той же верхней зоны Union после отказа от карусели оптимальный паттерн такой:
+  - сверху оставлять только 2-3 основных действия (`filters`, `edit profile`, `favorites`);
+  - второстепенные действия (`preview`, `media`, `approval requests`) убирать в компактный modal `More`;
+  - это уменьшает визуальный шум и ещё сильнее снижает риск случайных тапов/жестов на главном экране.
+- Статистику (`total / city / new24h`) на `DatingScreen` лучше не держать inline над списком карточек:
+  - даже компактный stats row визуально перегружает первый экран;
+  - safer pattern для Union mobile: иконка статистики в header + modal stats sheet по требованию.
+- Mode switcher для Union mobile тоже лучше держать не как длинную горизонтальную полосу, а как компактный 2x2 блок одинаковых chips:
+  - все 4 режима видны сразу;
+  - верх экрана короче и спокойнее;
+  - меньше случайных промахов по узким растянутым chips.
+- Для `DatingScreen` остался ещё один практический UX/perf паттерн, который стоит считать частью финального решения:
+  - ключевые touch-targets (`header stats`, top actions, mode chips, card actions, CTA`) лучше расширять через единый `hitSlop`;
+  - правая favorite-кнопка на карточке должна наследовать тот же круглый button shell, иначе у неё слишком маленькая реальная touch-зона;
+  - `FlatList` для карточек кандидатов безопасно выигрывает от базовых tuning props (`initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `removeClippedSubviews` на Android).
 - По состоянию на 2026-03-29 пользовательский product-вектор для сервиса знакомств расширен в сторону более управляемой публикации и офлайн-конверсии:
   - рекомендации должны учитывать локацию и предлагать знакомства/точки пересечения по географии;
   - публикация dating-профиля должна проходить social approval от 3 друзей пользователя перед выходом в публичный каталог;
@@ -64,6 +83,24 @@
   - project-wide `frontend` TypeScript still has pre-existing unrelated errors вне Union V1 (Google/VK auth, portal helpers, ChatContext, ReaderScreen, WebRTC typings и др.).
 
 ## Web Architecture
+- Login page в `apps/web` теперь должна уметь рекламировать mobile app как более удобный путь для телефона, но только если public config реально содержит хотя бы одну ссылку скачивания.
+- Для этого web/public contract фиксируется как `GET /api/mobile-app/config`:
+  - ссылки берутся из system settings `SUPPORT_DOWNLOAD_IOS_URL` и `SUPPORT_DOWNLOAD_ANDROID_URL`;
+  - версии не хранятся вручную в settings, а вычисляются из native source-of-truth: Android из `frontend/android/app/build.gradle`, iOS из `frontend/ios/vedamatch.xcodeproj/project.pbxproj`.
+- Для `mobile-app/config` parser должен быть устойчив к мелким форматным отличиям native файлов:
+  - Android parsing должен принимать обычный `versionName "x"` и вариант с single quotes/дополнительными пробелами;
+  - iOS parsing должен корректно брать последнее непустое `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` из `project.pbxproj`, а не зависеть от единственного первого совпадения.
+- В `apps/web/src/lib/mobile-app-config.ts` нужен быстрый server-side fallback path на случай несинхронного деплоя web и backend:
+  - запрос к `/api/mobile-app/config` должен идти с коротким timeout, чтобы не тормозить SSR login page;
+  - если endpoint временно недоступен, web может использовать runtime env fallback для download URLs (`SUPPORT_DOWNLOAD_*` / `NEXT_PUBLIC_SUPPORT_DOWNLOAD_*`);
+  - версии в таком fallback-path безопасно читать локально из repo native source-of-truth, чтобы promo block не зависел от backend deploy для version labels.
+- Для web language preference одного `localStorage` недостаточно: server-side auth/login pages тоже должны знать выбор пользователя до гидрации.
+  - `apps/web` хранит язык и в `localStorage`, и в cookie `vm_web_language`;
+  - `getRequestSurface()` должен приоритетно брать язык из cookie, а не только из host default;
+  - `RootLayout` должен прокидывать этот язык в `SessionProvider`, чтобы `/`, `/login`, `/register` и mobile-download promo сразу рендерились в том же языке;
+  - публичный social home и auth-страницы должны иметь явный `LanguageSwitcher`, а не только authenticated shell.
+- Login promo block должен жить под формой входа, а не вместо нее и не сбоку, чтобы primary action оставался login.
+
 - В репозитории уже есть три разных клиентских контура: `frontend/` как основной React Native app, `admin/` как Next.js public/admin portal, `lkm/` как отдельный Next.js wallet/cabinet.
 - `server/` это основной Go/Fiber API с широкой доменной поверхностью (`contacts`, `friends`, `library`, `wallet`, `services`, `yatra`, `chat`, `support`, `multimedia`, `education`, `market`, `dhama` и др.), поэтому backend для веб-версии в значительной части уже существует.
 - `frontend/` пока не выглядит подготовленным к прямому `react-native-web` пути: навигация строится на `@react-navigation/native` + `createNativeStackNavigator`, а код широко завязан на native-only модули вроде `react-native-callkeep`, `react-native-webrtc`, `react-native-vision-camera`, `react-native-voip-push-notification`, `react-native-share`, `react-native-fs`, `react-native-mmkv`, `react-native-device-info`.
@@ -103,6 +140,10 @@
   - scope светлой темы: весь social web (`/`, `/app/*`, social login/register), а не весь repo.
 
 ## Calls / LiveKit / TURN
+- По состоянию на 2026-03-29 зависание `CallsHome`/`CallHistoryScreen` было локальным RN-регрессом экрана, а не проблемой TURN/WebRTC:
+  - экран стартовал с `isLoading=true`, а `loadCalls()` одновременно имел guard `if (isLoading && !refresh) return`, поэтому первый `useFocusEffect` не читал историю вообще и UI зависал на вечном loading;
+  - для защиты от повторных запусков безопаснее держать отдельный `loadInFlightRef`, а не привязывать guard к визуальному `isLoading` state;
+  - в `frontend/services/callHistoryService.ts` timeout-ы вокруг `AsyncStorage` нужно чистить через `clearTimeout`, иначе после успешного чтения/записи остаются лишние висящие timers.
 - iOS debug path для входящих звонков зависит не только от `CallKeep`, но и от реального PushKit entitlement path: если debug-конфиг не задает `CODE_SIGN_ENTITLEMENTS` и `APS_ENVIRONMENT=development`, а RN код одновременно пропускает `registerVoipToken()` в `__DEV__`, сценарий `Android -> iPhone` на USB/dev build ломается еще до WebRTC.
 - На iOS для входящих звонков с PushKit/CallKeep нужно держать один источник incoming UI: системный CallKit. Наш in-app экран должен открываться уже как active/connecting screen после `answerCall`, а не показывать второй `accept/decline` поверх системного экрана.
 - В текущем RN слое `frontend/App.tsx` принимает `answerCall` от `react-native-callkeep`; downstream `CallScreen` должен знать, что звонок пришел из CallKit, иначе он кратко рендерит второй incoming screen и конфликтует с native UI/ringtone.
@@ -908,6 +949,22 @@
   - показывает active `publications`;
   - показывает `recentImportRuns`;
   - умеет запускать `Import selected organization` и `Import all organizations for this scope`.
+- Следующий слой автономности для календаря теперь закреплен в backend schema:
+  - `calendar_observances` хранит канонические observance-сущности;
+  - `calendar_profile_rules` хранит профильные правила по организациям;
+  - `calendar_sources_catalog` хранит source catalog и trust-priority.
+- Curated дни явления/ухода больше не должны жить как основной hardcode внутри `ekadashi_service.go`: canonical reference data грузится через отдельный autonomous data-layer и может расширяться независимо от runtime service logic.
+- `calendar_events` и `EkadashiDay` теперь поддерживают `canonicalSlug` и `sourceConfidence`; это нужно для review/admin-диагностики и для будущей ручной модерации конфликтов источников.
+- `calendar_import_runs` и `calendar_publications` теперь должны хранить review metadata: `candidateCount`, `conflictCount`, `warningCount`, `missingMonths`, `reviewStatus`, `reviewSummary`.
+- Admin calendar surface должен оперировать не только active publications, но и review queue / coverage gaps / provider health; текущий UI уже ориентирован на этот поток, даже если отдельный manual approve endpoint ещё не вынесен.
+- Для автономного календаря добавлен ручной approve review flow:
+  - backend route `POST /api/admin/ekadashi/review/approve`;
+  - approve переводит active publication и связанный import run из `review_pending` в `published` для выбранного scope;
+  - admin `Calendar` page показывает кнопку `Approve review` для publication со статусом `review_pending`.
+- Review flow для автономного календаря теперь двусторонний:
+  - backend route `POST /api/admin/ekadashi/review/reject`;
+  - reject переводит active publication и связанный import run в `conflict` и сохраняет rejection note в `reviewSummary`;
+  - admin `Calendar` page показывает обе операции `Approve review` и `Reject review` для publication со статусом `review_pending`.
 - Mobile Ekadashi UI теперь показывает notice о деградации источника: при fallback пользователь видит причину вроде `city required`, `live unavailable` или `no live source`, а в деталях дня это дополнительно дублируется как источник данных.
 - После перехода на published DB мобильный notice о donor недоступности не должен показываться, если publication уже существует; пользователь должен видеть максимум нейтральную семантику источника данных.
 - `vaishnavacalendar.org` для `ISKCON` теперь нужно парсить по block-level HTML nodes (`h*`, `p`, `li`, `td`, `th`), а не по отдельным text tokens: upstream оборачивает день, `Ekadashi` и `Fast` в `<b>/<strong>`, и token-level tokenizer из-за этого разваливал строку на куски и давал ложный `iskcon_live_fetch_failed: no ekadashi days parsed`.
@@ -2567,6 +2624,9 @@
 - В `frontend/components/chat/MessageList.tsx` геометрия bubble теперь строится на мягких асимметричных радиусах (`28/12` вместо жестко срезанных углов), с внутренним stroke и shell-shadow того же контура; это делает края сообщений визуально мягче без изменения layout чата.
 - Для shared mobile network UX source of truth теперь должен жить в общем runtime-слое поверх `NetInfo` и event-сигналов API/websocket/upload, а не в отдельных screen-level `Alert.alert`.
 - Global network banner в mobile app должен показываться почти везде, но не в `CallScreen`; текст про VPN — только мягкая подсказка при нестабильной сети, без попытки нативно детектить VPN.
+- Для global network banner в mobile app нельзя перекрывать основные CTA и верхние action-кнопки: если экран плотный, приоритет у доступности действий пользователя, а сетевое состояние лучше ужимать, сворачивать или уводить в неblocking pattern.
+- Практический паттерн для mobile network banner: по умолчанию держать его компактным в потоке layout, а не абсолютным overlay; детали (`body`, VPN hint) раскрывать только по явному действию пользователя или для более критичного `offline` статуса.
+- Реализованный shared network UX для mobile: `frontend/components/NetworkStatusBanner.tsx` больше не использует `position: absolute`; баннер идет в потоке layout, `offline` раскрыт сразу, а `unstable/reconnecting` показывают только заголовок и раскрываются по tap через `Details/Hide`.
 - Для AI-отправки в `frontend/context/ChatContext.tsx` и `frontend/services/openaiService.ts` обработанные сетевые ошибки (`Connection error` и т.п.) логируются через `console.warn`, а не `console.error`, чтобы в iOS dev не поднимать RedBox при уже обработанном fallback.
 - Для `Stack.Screen name="Chat"` в `frontend/App.tsx` на Android зафиксированы `freezeOnBlur: false`, `animation: 'none'` и явный `contentStyle.backgroundColor` как mitigation против blank/white screen при выходе из AI Chat.
 - Для AI chat в `frontend/context/ChatContext.tsx` сырой backend/provider error text (`401/502/UNAUTHORIZED/trace_id/API key`) не должен показываться пользователю; такие сообщения маскируются в нейтральный technical-issue fallback.
@@ -3385,9 +3445,10 @@
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.42`, `versionCode=44`;
+  - `frontend/android/app/build.gradle`: `versionName=1.1.43`, `versionCode=45`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.42`, `versionCode=44`.
+  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.43`, `versionCode=45`.
+- `server/cmd/upload_apk_to_s3` теперь умеет искать env по кандидатам `server/.env`, `.env`, `../.env`, поэтому upload release APK в S3 работает и из repo root, и из `server/`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
   - тот же SHA-1 уже присутствует в `frontend/android/app/google-services.json` для `com.ragagent` и совпадает с OAuth client в Google Cloud Console;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { LauncherItems } from "@/components/social-launcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import type { SocialLauncherItem } from "@/lib/social-launcher";
@@ -58,6 +59,7 @@ export function SocialDashboardHome({
         </div>
         <div className="dashboard-actions">
           <ThemeSwitcher />
+          <LanguageSwitcher />
           {secondaryAction ? (
             <Link className="dashboard-action dashboard-action--ghost" href={secondaryAction.href}>
               {secondaryAction.label}

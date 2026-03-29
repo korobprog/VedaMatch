@@ -23,6 +23,10 @@ export type EkadashiImportStatus = {
     status: 'queued' | 'running' | 'published' | 'failed' | 'missing' | string;
     lastImportAt?: string;
     lastError?: string;
+    reviewStatus?: 'queued' | 'running' | 'published' | 'failed' | 'missing' | 'review_pending' | 'conflict' | string;
+    coverageMonths?: number;
+    unpublishedChanges?: number;
+    conflicts?: number;
 };
 
 export type EkadashiDay = {
@@ -32,6 +36,7 @@ export type EkadashiDay = {
     organizationName: string;
     organizationScope?: string;
     personSlug?: string;
+    canonicalSlug?: string;
     observanceType?: 'appearance' | 'disappearance' | string;
     timezone: string;
     city: string;
@@ -39,6 +44,8 @@ export type EkadashiDay = {
     eventType: 'ekadashi' | 'mahadvadashi' | 'appearance' | 'disappearance' | string;
     priority: number;
     markerStyleKey?: string;
+    sourceConfidence?: number;
+    reviewStatus?: 'draft' | 'review_pending' | 'published' | 'conflict' | string;
     isEkadashi: boolean;
     isMahadvadashi: boolean;
     fastStartAt: string | null;

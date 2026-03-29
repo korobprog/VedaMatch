@@ -278,3 +278,47 @@ func TestGetPublicAndroidTestersConfig(t *testing.T) {
 		t.Fatalf("expected allowed attachment types")
 	}
 }
+
+func TestGetPublicMobileAppConfig(t *testing.T) {
+	t.Setenv("SUPPORT_DOWNLOAD_IOS_URL", "https://apps.apple.com/app/id123")
+	t.Setenv("SUPPORT_DOWNLOAD_ANDROID_URL", "https://play.google.com/store/apps/details?id=app")
+	defer os.Unsetenv("SUPPORT_DOWNLOAD_IOS_URL")
+	defer os.Unsetenv("SUPPORT_DOWNLOAD_ANDROID_URL")
+
+	app := fiber.New()
+	handler := &AdminHandler{}
+	app.Get("/mobile-app/config", handler.GetPublicMobileAppConfig)
+
+	req := httptest.NewRequest("GET", "/mobile-app/config", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		IOSURL         string `json:"iosUrl"`
+		AndroidURL     string `json:"androidUrl"`
+		IOSVersion     string `json:"iosVersion"`
+		AndroidVersion string `json:"androidVersion"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+
+	if payload.IOSURL != "https://apps.apple.com/app/id123" {
+		t.Fatalf("unexpected ios url: %q", payload.IOSURL)
+	}
+	if payload.AndroidURL != "https://play.google.com/store/apps/details?id=app" {
+		t.Fatalf("unexpected android url: %q", payload.AndroidURL)
+	}
+	if payload.IOSVersion == "" {
+		t.Fatalf("expected non-empty ios version")
+	}
+	if payload.AndroidVersion == "" {
+		t.Fatalf("expected non-empty android version")
+	}
+}

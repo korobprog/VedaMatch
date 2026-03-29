@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { SessionProvider } from "@/components/session-context";
+import { getRequestSurface } from "@/lib/request-surface";
 import { getThemeInitScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -9,14 +10,16 @@ export const metadata: Metadata = {
   description: "Full web foundation for VedaMatch user portal.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const { language } = await getRequestSurface();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={language} suppressHydrationWarning>
       <body>
         <Script id="vm-theme-init" strategy="beforeInteractive">
           {getThemeInitScript()}
         </Script>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider initialLanguage={language}>{children}</SessionProvider>
       </body>
     </html>
   );

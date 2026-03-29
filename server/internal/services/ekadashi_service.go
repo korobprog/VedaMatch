@@ -55,29 +55,7 @@ var ekadashiOrganizations = []models.EkadashiOrganization{
 	{ID: "default_vaishnava", Name: "Default Vaishnava", Description: "Fallback vaishnava observance profile", Source: "fallback_aggregator", SourceURL: "https://gcal.app"},
 }
 
-var commemorativeEventsByOrganization = map[string][]commemorativeEventSeed{
-	"iskcon": {
-		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Thakura", Subtitle: "ISKCON commemoration", Notes: "Appearance observance remembered in the ISKCON calendar.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://vaishnavacalendar.org"},
-		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "ISKCON commemoration", Notes: "Appearance observance remembered in the ISKCON calendar.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://vaishnavacalendar.org"},
-		{Month: 8, Day: 10, EventType: "disappearance", Title: "Disappearance of Srila Rupa Goswami", Subtitle: "ISKCON commemoration", Notes: "Disappearance observance remembered in the ISKCON calendar.", PersonSlug: "rupa-goswami", ObservanceType: "disappearance", SourceURL: "https://vaishnavacalendar.org"},
-		{Month: 9, Day: 14, EventType: "appearance", Title: "Appearance of Srila Prabhupada", Subtitle: "ISKCON commemoration", Notes: "Appearance observance remembered in the ISKCON calendar.", PersonSlug: "srila-prabhupada", ObservanceType: "appearance", SourceURL: "https://vaishnavacalendar.org"},
-	},
-	"sri_chaitanya_math": {
-		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Prabhupada", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
-		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Appearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
-		{Month: 10, Day: 5, EventType: "disappearance", Title: "Disappearance of Srila Gaura Kishora Dasa Babaji", Subtitle: "Sri Chaitanya Math commemoration", Notes: "Disappearance observance in the Sri Chaitanya Math tradition.", PersonSlug: "gaura-kishora-dasa-babaji", ObservanceType: "disappearance", SourceURL: "https://www.scsmath.com/events/calendar/index.html"},
-	},
-	"pure_bhakti": {
-		{Month: 1, Day: 7, EventType: "appearance", Title: "Appearance of Srila Gurudeva", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "narayana-goswami", ObservanceType: "appearance", SourceURL: "https://gosai.com/calendar"},
-		{Month: 2, Day: 25, EventType: "appearance", Title: "Appearance of Srila Bhaktisiddhanta Sarasvati Goswami Thakura", Subtitle: "Pure Bhakti commemoration", Notes: "Appearance observance in the Pure Bhakti tradition.", PersonSlug: "bhaktisiddhanta-sarasvati", ObservanceType: "appearance", SourceURL: "https://gosai.com/calendar"},
-		{Month: 12, Day: 29, EventType: "disappearance", Title: "Disappearance of Srila Jiva Goswami", Subtitle: "Pure Bhakti commemoration", Notes: "Disappearance observance in the Pure Bhakti tradition.", PersonSlug: "jiva-goswami", ObservanceType: "disappearance", SourceURL: "https://gosai.com/calendar"},
-	},
-	"default_vaishnava": {
-		{Month: 3, Day: 6, EventType: "appearance", Title: "Appearance of Srila Bhaktivinoda Thakura", Subtitle: "Vaishnava commemoration", Notes: "Appearance observance in the broader Vaishnava calendar.", PersonSlug: "bhaktivinoda-thakura", ObservanceType: "appearance", SourceURL: "https://gcal.app"},
-		{Month: 8, Day: 10, EventType: "disappearance", Title: "Disappearance of Srila Rupa Goswami", Subtitle: "Vaishnava commemoration", Notes: "Disappearance observance in the broader Vaishnava calendar.", PersonSlug: "rupa-goswami", ObservanceType: "disappearance", SourceURL: "https://gcal.app"},
-		{Month: 11, Day: 4, EventType: "appearance", Title: "Appearance of Srila Gadadhara Pandita", Subtitle: "Vaishnava commemoration", Notes: "Appearance observance in the broader Vaishnava calendar.", PersonSlug: "gadadhara-pandita", ObservanceType: "appearance", SourceURL: "https://gcal.app"},
-	},
-}
+var commemorativeEventsByOrganization = map[string][]commemorativeEventSeed{}
 
 func newEkadashiProviderDecision(mode, source, reason string) models.EkadashiProviderDecision {
 	return models.EkadashiProviderDecision{
@@ -490,6 +468,45 @@ func (s *EkadashiService) buildEkadashiEventForDate(targetDate time.Time, locDat
 }
 
 func (s *EkadashiService) buildCommemorativeEvents(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) []models.EkadashiDay {
+	rules, observanceMap, err := loadAutonomousObservanceRules(s.db, org.ID, int(monthStart.Month()))
+	if err == nil && len(rules) > 0 {
+		result := make([]models.EkadashiDay, 0, len(rules))
+		for _, rule := range rules {
+			observance, ok := observanceMap[rule.ObservanceSlug]
+			if !ok {
+				continue
+			}
+			title := strings.TrimSpace(firstNonEmptyCalendarString(rule.TitleOverride, observance.Title))
+			subtitle := strings.TrimSpace(firstNonEmptyCalendarString(rule.SubtitleOverride, org.Name+" commemoration"))
+			notes := strings.TrimSpace(firstNonEmptyCalendarString(rule.NotesOverride, observance.Description))
+			result = append(result, models.EkadashiDay{
+				Date:              time.Date(monthStart.Year(), time.Month(rule.Month), rule.Day, 0, 0, 0, 0, time.UTC).Format("2006-01-02"),
+				OrganizationID:    org.ID,
+				OrganizationName:  org.Name,
+				OrganizationScope: org.ID,
+				PersonSlug:        observance.PersonSlug,
+				CanonicalSlug:     observance.Slug,
+				ObservanceType:    strings.TrimSpace(firstNonEmptyCalendarString(rule.ObservanceType, observance.DefaultObservanceType, rule.EventType, observance.DefaultEventType)),
+				Timezone:          locData.TimeZone,
+				City:              locData.City,
+				Country:           locData.Country,
+				EventType:         strings.TrimSpace(firstNonEmptyCalendarString(rule.EventType, observance.DefaultEventType)),
+				Priority:          rule.Priority,
+				MarkerStyleKey:    strings.TrimSpace(firstNonEmptyCalendarString(rule.MarkerStyleKey, calendarMarkerStyleKey(rule.EventType))),
+				Title:             title,
+				Subtitle:          subtitle,
+				Notes:             notes,
+				DisplayTitle:      title,
+				DisplaySubtitle:   subtitle,
+				ObservanceNotes:   notes,
+				Source:            strings.TrimSpace(firstNonEmptyCalendarString(rule.Source, observance.Source, "curated_reference")),
+				SourceURL:         strings.TrimSpace(firstNonEmptyCalendarString(rule.SourceURL, observance.SourceURL)),
+				SourceConfidence:  rule.SourceConfidence,
+			})
+		}
+		return result
+	}
+
 	seeds := commemorativeEventsByOrganization[org.ID]
 	result := make([]models.EkadashiDay, 0, len(seeds))
 	for _, seed := range seeds {
@@ -502,6 +519,7 @@ func (s *EkadashiService) buildCommemorativeEvents(monthStart time.Time, locData
 			OrganizationName:  org.Name,
 			OrganizationScope: org.ID,
 			PersonSlug:        seed.PersonSlug,
+			CanonicalSlug:     strings.TrimSpace(seed.PersonSlug + "-" + seed.ObservanceType),
 			ObservanceType:    seed.ObservanceType,
 			Timezone:          locData.TimeZone,
 			City:              locData.City,
@@ -513,8 +531,9 @@ func (s *EkadashiService) buildCommemorativeEvents(monthStart time.Time, locData
 			DisplayTitle:      seed.Title,
 			DisplaySubtitle:   seed.Subtitle,
 			ObservanceNotes:   seed.Notes,
-			Source:            "curated_commemorations",
+			Source:            "curated_reference",
 			SourceURL:         seed.SourceURL,
+			SourceConfidence:  80,
 		})
 	}
 	return result
@@ -524,6 +543,7 @@ func (s *EkadashiService) normalizeCalendarEvent(event models.EkadashiDay, org m
 	event.OrganizationID = strings.TrimSpace(firstNonEmptyCalendarString(event.OrganizationID, org.ID))
 	event.OrganizationName = strings.TrimSpace(firstNonEmptyCalendarString(event.OrganizationName, org.Name))
 	event.OrganizationScope = strings.TrimSpace(firstNonEmptyCalendarString(event.OrganizationScope, event.OrganizationID))
+	event.CanonicalSlug = strings.TrimSpace(event.CanonicalSlug)
 	event.Timezone = strings.TrimSpace(firstNonEmptyCalendarString(event.Timezone, "Asia/Kolkata"))
 	event.EventType = strings.TrimSpace(firstNonEmptyCalendarString(event.EventType, "ekadashi"))
 	event.Title = strings.TrimSpace(firstNonEmptyCalendarString(event.Title, event.DisplayTitle))

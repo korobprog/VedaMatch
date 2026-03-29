@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createBrowserClient } from "@vedamatch/api-client";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
@@ -59,6 +60,7 @@ export function RegisterForm({ entryVariant = "default" }: RegisterFormProps) {
         {entryVariant === "social" ? (
           <div className="auth-surface-bar">
             <ThemeSwitcher />
+            <LanguageSwitcher />
           </div>
         ) : null}
         <div className="panel" style={{ maxWidth: 640, margin: "0 auto" }}>
