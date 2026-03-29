@@ -64,6 +64,10 @@ import type { LucideIcon } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
+const FULL_WIDTH_KEYBOARD_CONTAINER_STYLE = { width: '100%' } as const;
+const HEADER_TITLE_TEXT_STYLE = { color: '#FFFFFF' } as const;
+const HEADER_SUBTITLE_TEXT_STYLE = { color: 'rgba(255,255,255,0.8)' } as const;
+
 interface Photo {
     url: string;
 }
@@ -969,10 +973,10 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 </TouchableOpacity>
 
                                 <View style={styles.headerTitleContainer}>
-                                    <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>
+                                    <Text style={[styles.headerTitle, HEADER_TITLE_TEXT_STYLE]}>
                                         {t('dating.dating')}
                                     </Text>
-                                    <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>
+                                    <Text style={[styles.headerSubtitle, HEADER_SUBTITLE_TEXT_STYLE]}>
                                         {t('dating.findSoulmate')}
                                     </Text>
                                 </View>
@@ -1255,7 +1259,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showFilters} transparent animationType="slide">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
+                            <KeyboardAwareContainer style={FULL_WIDTH_KEYBOARD_CONTAINER_STYLE} useTopInset={false}>
                                 <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax85]}>
                                     <View style={styles.modalHeader}>
                                         <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
@@ -1419,7 +1423,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showCityPicker} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
+                            <KeyboardAwareContainer style={FULL_WIDTH_KEYBOARD_CONTAINER_STYLE} useTopInset={false}>
                                 <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
                                     <View style={styles.modalHeader}>
                                         <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,10 +15,21 @@ import (
 )
 
 func main() {
-	// 1. Load .env
-	envPath := "server/.env"
-	if _, err := os.Stat(envPath); os.IsNotExist(err) {
-		envPath = ".env"
+	// 1. Load .env from either repo root or server module cwd.
+	envCandidates := []string{"server/.env", ".env", "../.env"}
+	envPath := ""
+	for _, candidate := range envCandidates {
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			envPath = candidate
+			break
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrPermission) {
+			continue
+		}
+	}
+	if envPath == "" {
+		log.Fatal("Error loading .env file: no .env candidate found")
 	}
 	if err := godotenv.Load(envPath); err != nil {
 		log.Fatalf("Error loading .env file: %v", err)

@@ -18256,3 +18256,50 @@ if err != nil {
 	return
 }
 ```
+
+## 2026-03-29 (Union moderation deployment isolation + health surface)
+
+### Измененные файлы
+- `server/cmd/api/main.go`
+- `server/cmd/dating_moderation_worker/main.go`
+- `server/Dockerfile`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `server/internal/handlers/admin_feed_handler.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Union moderation worker жил внутри `api` процесса;
+  - падение/перезапуск API одновременно влияло и на HTTP, и на moderation loop;
+  - admin health surface не показывал состояние очереди Union moderation.
+- Стало:
+  - Union moderation вынесен в отдельный binary/process `dating-moderation-worker`;
+  - dev/prod compose получили отдельный сервис `dating-moderation-worker`;
+  - `/api/admin/feed/workers-health` теперь отдает `datingModerationWorker` с `lastHeartbeat`, `lastStatus` и queue counters `pending/retrying/processing/failed`.
+
+### Сниппеты кода
+
+`server/cmd/dating_moderation_worker/main.go`:
+```go
+func main() {
+	database.Connect()
+	worker := workers.NewDatingModerationWorker()
+	log.Printf("[DatingModerationWorker] boot")
+	worker.Run()
+}
+```
+
+`server/internal/handlers/admin_feed_handler.go`:
+```go
+"datingModerationWorker": fiber.Map{
+	"enabled":       strings.EqualFold(strings.TrimSpace(os.Getenv("DATING_MODERATION_WORKER_ENABLED")), "true"),
+	"lastHeartbeat": datingHeartbeat,
+	"lastStatus":    datingStatus,
+	"queue": fiber.Map{
+		"pending":    pendingJobs,
+		"retrying":   retryingJobs,
+		"processing": processingJobs,
+		"failed":     failedJobs,
+	},
+},
+```

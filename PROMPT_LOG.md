@@ -1,5 +1,20 @@
 # Prompt Log
 
+- 2026-03-29 18:32:56 +0300 | Запрос: "давай обновим андройд версию и установим продакшен и дай сслыку и задиплой на устройтсво"
+
+- 2026-03-29 17:35:44 +0300 | Запрос: "давай
+
+что осталось или где есть риск:
+worker сейчас запускается внутри api процесса; если нужен полностью отдельный deployment/unit, лучше вынести в отдельный cmd и compose/service слой.
+retry policy пока простая: линейный backoff до 5 минут, без jitter и без явного dead-letter UI.
+нет отдельного admin health endpoint для dating_moderation_worker, только heartbeat/status в system_settings.
+я не трогал старые несвязанные warnings/errors вне этого блока.
+Что осталось теперь по делу:
+
+вынести Union moderation worker в отдельный процесс/контейнер, если хотите production-изоляцию как у feed-worker и media-worker;
+добавить admin workers-health для Union moderation queue;
+при желании дочистить старые UI warnings в dating/portal screens."
+
 - 2026-03-29 17:27:48 +0300 | Запрос: "Что осталось теперь по делу: давай"
 
 - 2026-03-29 16:50:32 +0300 | Запрос: "PLEASE IMPLEMENT THIS PLAN:

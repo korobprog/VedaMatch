@@ -118,6 +118,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  dating-moderation-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rag-agent-dating-moderation-worker
+    command: ["./dating-moderation-worker"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: raguser
+      DB_PASSWORD: ragpassword
+      DB_NAME: ragdb
+      API_OPEN_AI: ${API_OPEN_AI:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CORPUS_ID: ${GEMINI_CORPUS_ID:-}
+      DATING_MODERATION_WORKER_ENABLED: "true"
+      DATING_MODERATION_WORKER_INTERVAL_SEC: "30"
+      DATING_MODERATION_WORKER_BATCH_SIZE: "10"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   lkm:
     build:
       context: ./lkm

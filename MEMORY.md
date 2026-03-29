@@ -32,8 +32,11 @@
   - для Union добавлены отдельные модели `DatingSocialLink`, `DatingPost`, `DatingProfileApproval`, `DatingModerationEvent`, `DatingMeetingInvite`;
   - backend lifecycle идет так: `submit -> pending_friend_approval` при >=3 друзьях, иначе `pending_admin_review`; после 3 friend approvals запускается AI moderation и профиль переходит в `published | pending_admin_review | rejected`;
   - AI moderation для Union больше не выполняется inline в HTTP request path: добавлена DB-backed очередь `DatingModerationJob` и worker `server/internal/workers/dating_moderation_worker.go` с retry/backoff;
+  - Union moderation worker теперь выделен в отдельный process/binary `server/cmd/dating_moderation_worker/main.go`; `api` process больше не крутит его внутри себя;
+  - Docker/deploy слой для Union расширен отдельным сервисом `dating-moderation-worker` в `docker-compose.yml` и `docker-compose.prod.yml`, по аналогии с `feed-worker` и `media-worker`;
   - после 3 friend approvals профиль переводится в `pending_ai_review` и получает queued job `approvals_completed`; create/update dating posts тоже создают queued moderation jobs (`post_created`, `post_updated`);
   - post moderation теперь обрабатывается асинхронно: безопасный post остается `active`, risky post уходит в `pending_review | rejected`, а профиль переводится в `pending_admin_review` без fake admin moderation event;
+  - admin workers-health (`/admin/feed/workers-health`) теперь должен включать `datingModerationWorker` с heartbeat/status и queue counters `pending/retrying/processing/failed`;
   - whitelist соцсетей в V1 ограничен доменами `vk.com`, `t.me`, `instagram.com`, `youtube.com`, `facebook.com`, `x.com`; неподдерживаемые ссылки уводят профиль в review/reject path;
   - mobile `EditDatingProfileScreen` теперь включает publication panel, поля children/love-languages/elements/meeting-preferences, social links и profile posts;
   - mobile owner-flow дополнительно поддерживает явную отправку friend approval requests со status-badge по каждому другу (`not_requested | pending | approved | rejected`);
@@ -57,7 +60,7 @@
     - `POST /admin/dating/reviews/:userId/decision`
     - enqueue after `POST /dating/profile/:id/approvals/:approvalId/respond` when the 3rd approval closes the threshold
     - enqueue after `POST /dating/posts` and `PATCH /dating/posts/:id`
-  - frontend targeted eslint по измененным dating-файлам проходит без ошибок, только с существующими `react-native/no-inline-styles` warnings;
+  - frontend targeted eslint по затронутым Union/portal экранам проходит без ошибок; для `PortalMainScreen.tsx` и `DatingScreen.tsx` убраны прежние `react-native/no-inline-styles` warnings;
   - project-wide `frontend` TypeScript still has pre-existing unrelated errors вне Union V1 (Google/VK auth, portal helpers, ChatContext, ReaderScreen, WebRTC typings и др.).
 
 ## Web Architecture

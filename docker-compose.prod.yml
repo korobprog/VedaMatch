@@ -171,6 +171,37 @@ services:
           cpus: '1.00'
           memory: 512M
 
+  dating-moderation-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rag-agent-dating-moderation-worker
+    command: ["./dating-moderation-worker"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-raguser}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-ragdb}
+      API_OPEN_AI: ${API_OPEN_AI}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_CORPUS_ID: ${GEMINI_CORPUS_ID}
+      DATING_MODERATION_WORKER_ENABLED: ${DATING_MODERATION_WORKER_ENABLED:-true}
+      DATING_MODERATION_WORKER_INTERVAL_SEC: ${DATING_MODERATION_WORKER_INTERVAL_SEC:-30}
+      DATING_MODERATION_WORKER_BATCH_SIZE: ${DATING_MODERATION_WORKER_BATCH_SIZE:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+        limits:
+          cpus: '1.00'
+          memory: 512M
+
   admin:
     build:
       context: ./admin

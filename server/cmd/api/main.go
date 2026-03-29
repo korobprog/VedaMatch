@@ -131,9 +131,6 @@ func main() {
 	// Start Yatra billing worker (daily LKM charging, pause/resume).
 	workers.StartYatraBillingWorker()
 
-	// Start Dating moderation worker (async AI moderation queue with retries).
-	go workers.NewDatingModerationWorker().Run()
-
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()

@@ -167,6 +167,18 @@ func (h *AdminFeedHandler) GetWorkersHealth(c *fiber.Ctx) error {
 	mediaHeartbeat := h.getSettingOrEnv("MEDIA_WORKER_LAST_HEARTBEAT", "")
 	mediaStatus := h.getSettingOrEnv("MEDIA_WORKER_LAST_STATUS", "unknown")
 
+	datingHeartbeat := h.getSettingOrEnv("DATING_MODERATION_WORKER_LAST_HEARTBEAT", "")
+	datingStatus := h.getSettingOrEnv("DATING_MODERATION_WORKER_LAST_STATUS", "unknown")
+
+	var pendingJobs int64
+	var retryingJobs int64
+	var processingJobs int64
+	var failedJobs int64
+	_ = database.DB.Model(&models.DatingModerationJob{}).Where("status = ?", models.DatingModerationJobPending).Count(&pendingJobs).Error
+	_ = database.DB.Model(&models.DatingModerationJob{}).Where("status = ?", models.DatingModerationJobRetrying).Count(&retryingJobs).Error
+	_ = database.DB.Model(&models.DatingModerationJob{}).Where("status = ?", models.DatingModerationJobProcessing).Count(&processingJobs).Error
+	_ = database.DB.Model(&models.DatingModerationJob{}).Where("status = ?", models.DatingModerationJobFailed).Count(&failedJobs).Error
+
 	return c.JSON(fiber.Map{
 		"feedWorker": fiber.Map{
 			"enabled":       strings.EqualFold(strings.TrimSpace(os.Getenv("FEED_WORKER_ENABLED")), "true"),
@@ -179,6 +191,17 @@ func (h *AdminFeedHandler) GetWorkersHealth(c *fiber.Ctx) error {
 			"enabled":       strings.EqualFold(strings.TrimSpace(os.Getenv("MEDIA_WORKER_ENABLED")), "true"),
 			"lastHeartbeat": mediaHeartbeat,
 			"lastStatus":    mediaStatus,
+		},
+		"datingModerationWorker": fiber.Map{
+			"enabled":       strings.EqualFold(strings.TrimSpace(os.Getenv("DATING_MODERATION_WORKER_ENABLED")), "true"),
+			"lastHeartbeat": datingHeartbeat,
+			"lastStatus":    datingStatus,
+			"queue": fiber.Map{
+				"pending":    pendingJobs,
+				"retrying":   retryingJobs,
+				"processing": processingJobs,
+				"failed":     failedJobs,
+			},
 		},
 	})
 }
