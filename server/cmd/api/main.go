@@ -131,6 +131,9 @@ func main() {
 	// Start Yatra billing worker (daily LKM charging, pause/resume).
 	workers.StartYatraBillingWorker()
 
+	// Start Dating moderation worker (async AI moderation queue with retries).
+	go workers.NewDatingModerationWorker().Run()
+
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()
@@ -616,6 +619,9 @@ func main() {
 	admin.Post("/path-tracker/alerts/retry-failed", pathTrackerHandler.RetryFailedAlerts)
 	admin.Get("/dating/profiles", adminHandler.GetDatingProfiles)
 	admin.Post("/dating/profiles/:id/flag", adminHandler.FlagDatingProfile)
+	admin.Get("/dating/reviews", adminHandler.GetDatingReviews)
+	admin.Get("/dating/reviews/:userId", adminHandler.GetDatingReviewDetail)
+	admin.Post("/dating/reviews/:userId/decision", adminHandler.ModerateDatingReview)
 	admin.Get("/settings", adminHandler.GetSystemSettings)
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 	admin.Get("/portal/services/visibility", adminHandler.GetPortalServiceVisibility)
@@ -1093,12 +1099,25 @@ func main() {
 	protected.Post("/dating/compatibility/:userId/:candidateId", datingHandler.GetCompatibility)
 	protected.Get("/dating/profile/:id", datingHandler.GetDatingProfile)
 	protected.Put("/dating/profile/:id", datingHandler.UpdateDatingProfile)
+	protected.Post("/dating/profile/:id/submit", datingHandler.SubmitDatingProfile)
+	protected.Get("/dating/profile/:id/publication-status", datingHandler.GetPublicationStatus)
+	protected.Get("/dating/profile/:id/approvals", datingHandler.GetProfileApprovals)
+	protected.Get("/dating/approval-requests", datingHandler.GetIncomingApprovalRequests)
+	protected.Post("/dating/profile/:id/approvals/request", datingHandler.RequestProfileApprovals)
+	protected.Post("/dating/profile/:id/approvals/:approvalId/respond", datingHandler.RespondToProfileApproval)
 	protected.Post("/dating/favorites", datingHandler.AddToFavorites)
 	protected.Get("/dating/favorites", datingHandler.GetFavorites)
 	protected.Get("/dating/likes/:userId", datingHandler.GetFavoriteCount)
 	protected.Get("/dating/is-favorited", datingHandler.CheckIsFavorited)
 	protected.Get("/dating/liked-me", datingHandler.GetWhoLikedMe)
 	protected.Get("/dating/notifications", datingHandler.GetNotifications)
+	protected.Get("/dating/posts", datingHandler.ListDatingPosts)
+	protected.Post("/dating/posts", datingHandler.CreateDatingPost)
+	protected.Patch("/dating/posts/:id", datingHandler.UpdateDatingPost)
+	protected.Delete("/dating/posts/:id", datingHandler.DeleteDatingPost)
+	protected.Post("/dating/meeting-invites", datingHandler.CreateMeetingInvite)
+	protected.Get("/dating/meeting-invites", datingHandler.ListMeetingInvites)
+	protected.Post("/dating/meeting-invites/:id/respond", datingHandler.RespondMeetingInvite)
 	protected.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)
 
 	// RAG Routes

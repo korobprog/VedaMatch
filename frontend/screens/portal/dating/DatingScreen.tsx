@@ -27,7 +27,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useChat } from '../../../context/ChatContext';
 import { datingService } from '../../../services/datingService';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import LinearGradient from 'react-native-linear-gradient';
@@ -57,7 +57,8 @@ import {
     Users2,
     Share2,
     User,
-    X
+    X,
+    ShieldCheck
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
@@ -79,6 +80,13 @@ interface Profile {
     industry?: string;
     skills?: string;
     lookingForBusiness?: string;
+    childrenIntent?: string;
+    loveLanguages?: string | string[];
+    elementalPrimary?: string;
+    elementalSecondary?: string;
+    meetingPreferences?: string | string[];
+    datingSocialLinks?: Array<{ platform?: string; url?: string; visible?: boolean }>;
+    datingPosts?: Array<{ id?: number; body?: string; status?: string }>;
 }
 
 type MatchMode = 'family' | 'business' | 'friendship' | 'seva';
@@ -132,6 +140,16 @@ const parseNumericId = (value: unknown): number | null => {
         return Number.isFinite(parsed) ? parsed : null;
     }
     return null;
+};
+
+const toList = (value: string | string[] | undefined): string[] => {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item).trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+        return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    return [];
 };
 
 const buildChatRecipient = (candidate: Profile): UserContact => ({
@@ -435,6 +453,23 @@ const DatingCandidateCard = ({
                             {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || t('dating.seekingResonance'))}
                         </Text>
 
+                        {!!item.childrenIntent && (
+                            <Text style={styles.cardMetaText}>{t(`dating.childrenOptions.${item.childrenIntent}`)}</Text>
+                        )}
+                        {!!item.elementalPrimary && (
+                            <Text style={styles.cardMetaText}>{t(`dating.elementOptions.${item.elementalPrimary}`)}</Text>
+                        )}
+                        {toList(item.loveLanguages).length > 0 && (
+                            <Text style={styles.cardMetaText}>
+                                {toList(item.loveLanguages).map((entry) => t(`dating.loveLanguageOptions.${entry}`)).join(' · ')}
+                            </Text>
+                        )}
+                        {!!item.datingPosts?.length && (
+                            <Text style={styles.cardPostPreview} numberOfLines={2}>
+                                {item.datingPosts[0]?.body || ''}
+                            </Text>
+                        )}
+
                         {!isPreview && (
                             <View style={styles.cardFooterActions}>
                                 <TouchableOpacity
@@ -563,6 +598,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const [stats, setStats] = useState({ total: 0, city: 0, new: 0 });
     const [showStats, setShowStats] = useState(false);
     const [filterNew, setFilterNew] = useState(false);
+    const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
     const modalAccentTextStyle = useMemo(() => ({ color: roleColors.accent }), [roleColors.accent]);
     const filterCityTextStyle = filterCity ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
     const filterMadhTextStyle = filterMadh ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
@@ -588,6 +624,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const citiesRequestRef = useRef(0);
     const previewRequestRef = useRef(0);
     const compatibilityRequestRef = useRef(0);
+    const incomingApprovalsRequestRef = useRef(0);
     const isMountedRef = useRef(true);
 
     useEffect(() => {
@@ -599,21 +636,9 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             citiesRequestRef.current += 1;
             previewRequestRef.current += 1;
             compatibilityRequestRef.current += 1;
+            incomingApprovalsRequestRef.current += 1;
         };
     }, []);
-
-    useEffect(() => {
-        if (user?.ID) {
-            fetchFriends();
-            // Sync filters with user profile to ensure they find people like themselves by default
-            const u = user as UserProfileFilters;
-            const nextMadh = u.madh || u.sampradaya || '';
-            if (nextMadh) setFilterMadh(nextMadh);
-            if (u.yogaStyle) setFilterYogaStyle(u.yogaStyle);
-            if (u.guna) setFilterGuna(u.guna);
-            if (u.identity) setFilterIdentity(u.identity);
-        }
-    }, [user]);
 
     const fetchFriends = async () => {
         const requestId = ++friendsRequestRef.current;
@@ -631,6 +656,39 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             console.error('Failed to fetch friends:', error);
         }
     };
+
+    const fetchIncomingApprovalCount = useCallback(async () => {
+        const requestId = ++incomingApprovalsRequestRef.current;
+        try {
+            const data = await datingService.getIncomingApprovalRequests({ status: 'pending', countOnly: true });
+            const pending = Number(data?.count) || 0;
+            if (requestId === incomingApprovalsRequestRef.current && isMountedRef.current) {
+                setPendingApprovalCount(pending);
+            }
+        } catch (error) {
+            console.error('Failed to fetch incoming approval count:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (user?.ID) {
+            fetchFriends();
+            fetchIncomingApprovalCount();
+            // Sync filters with user profile to ensure they find people like themselves by default
+            const u = user as UserProfileFilters;
+            const nextMadh = u.madh || u.sampradaya || '';
+            if (nextMadh) setFilterMadh(nextMadh);
+            if (u.yogaStyle) setFilterYogaStyle(u.yogaStyle);
+            if (u.guna) setFilterGuna(u.guna);
+            if (u.identity) setFilterIdentity(u.identity);
+        }
+    }, [user, fetchIncomingApprovalCount]);
+
+    useFocusEffect(useCallback(() => {
+        if (user?.ID) {
+            fetchIncomingApprovalCount();
+        }
+    }, [user?.ID, fetchIncomingApprovalCount]));
 
     useEffect(() => {
         filtersRef.current = {
@@ -776,11 +834,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                 compatibilityScore: compatibilityText
             });
             if (isMountedRef.current) {
-                Alert.alert('Saved', 'Added to favorites!');
+                Alert.alert(t('common.success'), t('dating.addedToFavorites'));
             }
         } catch {
             if (isMountedRef.current) {
-                Alert.alert('Error', 'Could not save to favorites');
+                Alert.alert(t('common.error'), t('dating.favoriteSaveError'));
             }
         } finally {
             if (isMountedRef.current) {
@@ -814,17 +872,46 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             if (isMountedRef.current) {
                 setFriendIds((prev) => (prev.includes(currentCandidateId) ? prev : [...prev, currentCandidateId]));
                 setShowCompatibilityModal(false);
-                Alert.alert('Success', 'Request sent! You can now chat.');
+                Alert.alert(t('common.success'), t('dating.connectSuccess'));
             }
         } catch {
             if (isMountedRef.current) {
-                Alert.alert('Error', 'Could not connect.');
+                Alert.alert(t('common.error'), t('dating.connectError'));
             }
         } finally {
             if (isMountedRef.current) {
                 setConnecting(false);
             }
         }
+    };
+
+    const handleInviteToMeet = () => {
+        if (!currentCandidateId) return;
+        const invite = (placeType: string) => {
+            datingService.createMeetingInvite({
+                inviteeId: currentCandidateId,
+                placeType,
+                message: t(`dating.meetingInviteMessages.${placeType}`),
+            })
+                .then(() => {
+                    Alert.alert(t('common.success'), t('dating.meetingInviteSent'));
+                })
+                .catch(() => {
+                    Alert.alert(t('common.error'), t('dating.meetingInviteError'));
+                });
+        };
+
+        Alert.alert(
+            t('dating.meetingInviteTitle'),
+            t('dating.meetingInvitePrompt'),
+            [
+                { text: t('dating.meetingOptions.personal'), onPress: () => invite('personal') },
+                { text: t('dating.meetingOptions.bhakti_vriksha'), onPress: () => invite('bhakti_vriksha') },
+                { text: t('dating.meetingOptions.temple_sunday_program'), onPress: () => invite('temple_sunday_program') },
+                { text: t('dating.meetingOptions.event'), onPress: () => invite('event') },
+                { text: t('common.cancel'), style: 'cancel' },
+            ],
+        );
     };
 
     const fetchPreviewProfile = async () => {
@@ -958,6 +1045,21 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             >
                                 <Heart size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.favorites')}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.glassActionBtn}
+                                onPress={() => navigation.navigate('UnionApprovals')}
+                            >
+                                <ShieldCheck size={16} color={roleColors.accent} />
+                                <Text style={styles.glassActionText}>{t('dating.unionApprovals')}</Text>
+                                {pendingApprovalCount > 0 ? (
+                                    <View style={styles.actionCountBadge}>
+                                        <Text style={styles.actionCountBadgeText}>
+                                            {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                                        </Text>
+                                    </View>
+                                ) : null}
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
@@ -1115,6 +1217,16 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         disabled={checkingComp || savingFavorite || !currentCandidateId}
                                     >
                                         <Text style={styles.glassButtonText}>{t('dating.save')}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.glassButtonSecondary,
+                                            (checkingComp || !currentCandidateId) && styles.buttonDisabled
+                                        ]}
+                                        onPress={handleInviteToMeet}
+                                        disabled={checkingComp || !currentCandidateId}
+                                    >
+                                        <Text style={styles.glassButtonText}>{t('dating.inviteToMeet')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[
@@ -1514,6 +1626,21 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
+    actionCountBadge: {
+        minWidth: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#EF4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+        marginLeft: 2,
+    },
+    actionCountBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
     modeSwitcherContainer: {
         marginBottom: 20,
     },
@@ -1736,6 +1863,19 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.75)',
         marginTop: 18,
         lineHeight: 24,
+    },
+    cardMetaText: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.7)',
+        marginTop: 8,
+        lineHeight: 18,
+    },
+    cardPostPreview: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.86)',
+        marginTop: 10,
+        lineHeight: 20,
+        fontStyle: 'italic',
     },
     cardFooterActions: {
         marginTop: 25,

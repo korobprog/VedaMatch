@@ -49,6 +49,7 @@ import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
+import { datingService } from '../../services/datingService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 import { useChat } from '../../context/ChatContext';
 import { WidgetPageContent } from '../../components/portal/widgets/WidgetPageContent';
@@ -120,6 +121,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [workspacePage, setWorkspacePage] = useState<PortalWorkspacePage>(initialWorkspacePage);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+    const [unionApprovalCount, setUnionApprovalCount] = useState(0);
     const [isPortalBootOverlayVisible, setIsPortalBootOverlayVisible] = useState(false);
     const [isPortalBackgroundReady, setIsPortalBackgroundReady] = useState(true);
     const [isPortalFirstLayoutReady, setIsPortalFirstLayoutReady] = useState(false);
@@ -248,14 +250,29 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     }, [user?.ID]);
 
+    const refreshUnionApprovalCount = useCallback(async () => {
+        if (!user?.ID || user.ID === 999999) {
+            setUnionApprovalCount(0);
+            return;
+        }
+        try {
+            const payload = await datingService.getIncomingApprovalRequests({ status: 'pending', countOnly: true });
+            setUnionApprovalCount(Number(payload?.count) || 0);
+        } catch (error) {
+            console.warn('[Portal] failed to load union approvals count:', error);
+            setUnionApprovalCount(0);
+        }
+    }, [user?.ID]);
+
     useFocusEffect(
         useCallback(() => {
             if (Platform.OS === 'android' && activeTab === null && !isPortalStartupSettled) {
                 return undefined;
             }
             refreshSupportUnread();
+            refreshUnionApprovalCount();
             return undefined;
-        }, [activeTab, isPortalStartupSettled, refreshSupportUnread])
+        }, [activeTab, isPortalStartupSettled, refreshSupportUnread, refreshUnionApprovalCount])
     );
 
     const { effectiveBackgroundType: effectiveBgType } = useMemo(
@@ -1289,7 +1306,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                             roleHighlights={roleDescriptor?.heroServices || []}
                                             godModeEnabled={!!user?.godModeEnabled}
                                             activeMathLabel={activeMathLabel}
-                                            serviceBadges={{ support: supportUnreadCount }}
+                                            serviceBadges={{ support: supportUnreadCount, dating: unionApprovalCount }}
                                             onInitialLayoutReady={handlePortalFirstLayoutReady}
                                             hideQuickAccessDock
                                             onDraggingStateChange={setIsPortalDragging}
@@ -1314,7 +1331,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 hidden={workspacePage === 'portal' && isEditMode}
                                 forceReadOnly={workspacePage === 'widgets'}
                                 roleHighlights={roleDescriptor?.heroServices || []}
-                                serviceBadges={{ support: supportUnreadCount }}
+                                serviceBadges={{ support: supportUnreadCount, dating: unionApprovalCount }}
                                 orgMathBadge={workspaceOrgMathBadge}
                             />
                         )}

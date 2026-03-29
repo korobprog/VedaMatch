@@ -316,6 +316,13 @@ export const notificationService = {
                 });
                 return;
             }
+            if (data.screen === 'UnionApprovals') {
+                // @ts-ignore
+                navigationRef.navigate('UnionApprovals', {
+                    focusApprovalId: parseNumericId(data.approvalId, params.approvalId),
+                });
+                return;
+            }
             // @ts-ignore
             navigationRef.navigate(data.screen, params);
             return;

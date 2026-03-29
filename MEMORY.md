@@ -11,6 +11,55 @@
 ## Support Bot
 - Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
 
+## Dating / Union
+- По состоянию на 2026-03-29 пользовательский product-вектор для сервиса знакомств расширен в сторону более управляемой публикации и офлайн-конверсии:
+  - рекомендации должны учитывать локацию и предлагать знакомства/точки пересечения по географии;
+  - публикация dating-профиля должна проходить social approval от 3 друзей пользователя перед выходом в публичный каталог;
+  - после friend-approval и публикации анкета должна проходить AI-модерацию с уведомлением и пользователю, и модератору при проблемах;
+  - в профиль знакомств нужно добавить поля/секции: `loveLanguages`, `childrenIntent`, `elementalInterests`, `socialLinks`, `datingPosts`;
+  - `childrenIntent`: как минимум сценарий `want_children` / `do_not_want_children`;
+  - `elementalInterests` опирается на 4 архетипа пользователя:
+    - воздух: любит творить и создавать;
+    - вода: любит самообучаться;
+    - земля: может делать однообразную работу;
+    - огонь: любит управлять и отстаивать правоту;
+  - профиль знакомств должен поддерживать posts/feed-модель, чтобы интересующиеся могли лучше понять человека до диалога;
+  - в dating-профиле допустимы ссылки на популярные соцсети (например VK и др.) как часть публичного self-introduction;
+  - путь взаимодействия должен покрывать не только online matching, но и этапы `личные сообщения -> личная встреча -> участие во встречах/событиях` (например бхакти-врикша, воскресная программа в храме, другие офлайн-точки).
+- Dating / Union V1 implementation baseline на 2026-03-29:
+  - `users` расширен полями `childrenIntent`, `loveLanguages`, `elementalPrimary`, `elementalSecondary`, `meetingPreferences` и publication lifecycle полями `datingPublicationStatus`, `datingStatusReason`, `datingLastModerationNote`, `datingSubmittedAt`, `datingPublishedAt`;
+  - publication visibility больше не должна зависеть только от `datingEnabled`: публичная выдача `GET /dating/candidates`, stats и city list показывают только `dating_publication_status = published`;
+  - для Union добавлены отдельные модели `DatingSocialLink`, `DatingPost`, `DatingProfileApproval`, `DatingModerationEvent`, `DatingMeetingInvite`;
+  - backend lifecycle идет так: `submit -> pending_friend_approval` при >=3 друзьях, иначе `pending_admin_review`; после 3 friend approvals запускается AI moderation и профиль переходит в `published | pending_admin_review | rejected`;
+  - AI moderation для Union больше не выполняется inline в HTTP request path: добавлена DB-backed очередь `DatingModerationJob` и worker `server/internal/workers/dating_moderation_worker.go` с retry/backoff;
+  - после 3 friend approvals профиль переводится в `pending_ai_review` и получает queued job `approvals_completed`; create/update dating posts тоже создают queued moderation jobs (`post_created`, `post_updated`);
+  - post moderation теперь обрабатывается асинхронно: безопасный post остается `active`, risky post уходит в `pending_review | rejected`, а профиль переводится в `pending_admin_review` без fake admin moderation event;
+  - whitelist соцсетей в V1 ограничен доменами `vk.com`, `t.me`, `instagram.com`, `youtube.com`, `facebook.com`, `x.com`; неподдерживаемые ссылки уводят профиль в review/reject path;
+  - mobile `EditDatingProfileScreen` теперь включает publication panel, поля children/love-languages/elements/meeting-preferences, social links и profile posts;
+  - mobile owner-flow дополнительно поддерживает явную отправку friend approval requests со status-badge по каждому другу (`not_requested | pending | approved | rejected`);
+  - для approver-side mobile flow добавлен route `UnionApprovals`: backend `GET /dating/approval-requests` возвращает входящие approval requests, а screen позволяет ответить `approved/rejected` без входа в owner profile edit flow;
+  - `GET /dating/approval-requests` поддерживает `status` и `countOnly`; `DatingScreen` и `PortalMainScreen` берут badge-count по `pending` через легкий server-side count вместо загрузки полного списка;
+  - push/open flow для Union approvals теперь может не только открыть экран `UnionApprovals`, но и передать `approvalId` для фокуса на конкретном incoming request;
+  - admin `Union Management` detail-view теперь питается отдельным endpoint `GET /admin/dating/reviews/:userId` и показывает structured profile fields, friend approvals, moderation history, social links и profile posts в существующем modal, без отдельного route;
+  - mobile `DatingScreen` показывает новые profile signals и умеет отправлять `meeting invite` по типу места без full scheduler/calendar;
+  - admin `Union Management` теперь использует moderation queue `/admin/dating/reviews` и action endpoint `/admin/dating/reviews/:userId/decision`, а не только flag toggle;
+  - backend compile-check проходит на `go test -run '^$' ./internal/handlers ./internal/services`;
+  - integration coverage для handler layer теперь включает Union endpoints:
+    - `GET /dating/approval-requests?status=pending&countOnly=true`
+    - invalid `status` rejection for `GET /dating/approval-requests`
+    - `POST /dating/profile/:id/approvals/:approvalId/respond`
+    - `POST /dating/profile/:id/submit`
+    - `POST /dating/profile/:id/approvals/request`
+    - `POST /dating/meeting-invites`
+    - `GET /dating/meeting-invites`
+    - `POST /dating/meeting-invites/:id/respond`
+    - `GET /admin/dating/reviews`
+    - `POST /admin/dating/reviews/:userId/decision`
+    - enqueue after `POST /dating/profile/:id/approvals/:approvalId/respond` when the 3rd approval closes the threshold
+    - enqueue after `POST /dating/posts` and `PATCH /dating/posts/:id`
+  - frontend targeted eslint по измененным dating-файлам проходит без ошибок, только с существующими `react-native/no-inline-styles` warnings;
+  - project-wide `frontend` TypeScript still has pre-existing unrelated errors вне Union V1 (Google/VK auth, portal helpers, ChatContext, ReaderScreen, WebRTC typings и др.).
+
 ## Web Architecture
 - В репозитории уже есть три разных клиентских контура: `frontend/` как основной React Native app, `admin/` как Next.js public/admin portal, `lkm/` как отдельный Next.js wallet/cabinet.
 - `server/` это основной Go/Fiber API с широкой доменной поверхностью (`contacts`, `friends`, `library`, `wallet`, `services`, `yatra`, `chat`, `support`, `multimedia`, `education`, `market`, `dhama` и др.), поэтому backend для веб-версии в значительной части уже существует.

@@ -1,3 +1,83 @@
+## 2026-03-29 (Shared mobile Union V1: publication workflow, structured dating profile fields, profile posts, and meeting invites)
+
+### Измененные файлы
+- `frontend/services/datingService.ts`
+- `frontend/screens/portal/dating/EditDatingProfileScreen.tsx`
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `server/internal/models/user.go`
+- `server/internal/models/dating_v1.go`
+- `server/internal/services/dating_lifecycle_service.go`
+- `server/internal/handlers/dating_handler.go`
+- `server/internal/handlers/admin_handler.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - Union mobile flow опирался почти только на `datingEnabled/isProfileComplete`, без publication lifecycle, friend approvals, AI moderation, profile posts и structured social links;
+  - mobile `EditDatingProfileScreen` редактировал базовые dating/astro поля, но не умел показывать publication status, прогресс approvals, новые structured profile signals и offline conversion path;
+  - mobile `DatingScreen` показывал кандидатов и чат/избранное, но не имел meeting-invite CTA и не рендерил новые profile signals вроде children/love-languages/elements/posts;
+  - admin Union page умела только искать и flag/unflag профили.
+- Стало:
+  - введен shared Union publication lifecycle `draft | pending_friend_approval | pending_admin_review | pending_ai_review | published | rejected | flagged_after_publish`;
+  - профиль пользователя расширен полями `childrenIntent`, `loveLanguages`, `elementalPrimary`, `elementalSecondary`, `meetingPreferences`, а social links/posts вынесены в отдельные сущности;
+  - mobile edit screen теперь показывает publication panel, progress approvals, CTA на submit, секции children/love-languages/elements/meeting-preferences, editable social links и profile posts;
+  - owner-flow в mobile edit screen теперь умеет явно отправлять friend approval requests и показывает per-friend status-badges `not_requested | pending | approved | rejected`;
+  - shared mobile navigation получил экран `UnionApprovals`, где пользователь видит входящие запросы на одобрение анкет и может ответить `approve/reject`;
+  - на `DatingScreen` action-кнопка `UnionApprovals` теперь показывает badge-count по `pending` входящим approval requests через server-side `countOnly` query, без загрузки полного списка;
+  - push navigation для Union approvals теперь передает `approvalId`, а mobile screen поднимает и подсвечивает нужный request; тот же pending-count вынесен в общий Portal grid/dock badge layer для сервиса знакомств;
+  - mobile dating discovery screen теперь отображает новые profile signals и умеет отправлять invite на встречу с выбором типа места;
+  - admin surface переведен на moderation queue и manual decisions `publish/reject/flag`.
+
+### Сниппеты кода
+
+`frontend/screens/portal/dating/EditDatingProfileScreen.tsx`:
+```ts
+await datingService.submitProfile(userId);
+setPublication(publicationData);
+```
+
+```tsx
+{LOVE_LANGUAGE_OPTIONS.map((option) => (
+  <TouchableOpacity onPress={() => toggleChoice('loveLanguages', option)} />
+))}
+```
+
+```ts
+await datingService.requestApprovals(userId, approverIds);
+```
+
+```tsx
+{t(`dating.approvalStatus.${approvalStatusByFriendId.get(friendId) || 'not_requested'}`)}
+```
+
+`frontend/screens/portal/dating/UnionApprovalRequestsScreen.tsx`:
+```ts
+const response = await datingService.getIncomingApprovalRequests();
+await datingService.respondApproval(requesterId, approvalId, status);
+```
+
+`frontend/screens/portal/dating/DatingScreen.tsx`:
+```ts
+await datingService.createMeetingInvite({
+  inviteeId: currentCandidateId,
+  placeType,
+  message: t(`dating.meetingInviteMessages.${placeType}`),
+});
+```
+
+`server/internal/services/dating_lifecycle_service.go`:
+```go
+if len(friendIDs) < s.requiredApprovals() {
+    status = models.DatingPublicationPendingAdminReview
+}
+```
+
+```go
+updateMap["dating_publication_status"] = string(models.DatingPublicationPublished)
+```
+
 ## 2026-03-29 (Shared mobile app shell: global network banner and soft VPN hint)
 
 ### Измененные файлы
@@ -18122,4 +18202,57 @@ observability.ObserveCallDiagnostics(observability.CallDiagnosticsSample{
     NetworkType: networkType,
     DurationSec: stats.DurationSec,
 })
+```
+
+## 2026-03-29 (Union moderation flow: async queue instead of inline moderation)
+
+### Измененные файлы
+- `server/internal/models/dating_v1.go`
+- `server/internal/services/dating_lifecycle_service.go`
+- `server/internal/handlers/dating_handler.go`
+- `server/internal/workers/dating_moderation_worker.go`
+- `server/internal/database/database.go`
+- `server/cmd/api/main.go`
+
+### Суть правки (от старого к новому)
+- Было:
+  - после 3 friend approvals и при создании dating post AI moderation запускалась прямо в request path;
+  - create/update post могли дольше отвечать пользователю и зависели от inline moderation result;
+  - retry/backoff для Union moderation отсутствовал.
+- Стало:
+  - добавлена DB-backed очередь `dating_moderation_jobs` и worker `DatingModerationWorker`;
+  - профиль после 3 approvals уходит в `pending_ai_review`, а сама AI moderation дорабатывается асинхронно;
+  - create/update dating post теперь только ставят moderation job в очередь;
+  - worker применяет retry/backoff и затем переводит profile/post в итоговые состояния `published | pending_admin_review | rejected` и `active | pending_review | rejected`.
+
+### Сниппеты кода
+
+`server/internal/services/dating_lifecycle_service.go`:
+```go
+func (s *DatingLifecycleService) handleCompletedApprovals(ctx context.Context, userID uint) error {
+	return s.enqueueModerationJob(userID, nil, models.DatingModerationTriggerApprovalsCompleted)
+}
+```
+
+```go
+func (s *DatingLifecycleService) EnqueuePostModeration(userID uint, postID uint, trigger models.DatingModerationJobTrigger) error {
+	postRef := postID
+	return s.enqueueModerationJob(userID, &postRef, trigger)
+}
+```
+
+`server/internal/handlers/dating_handler.go`:
+```go
+if err := h.lifecycle.EnqueuePostModeration(authUserID, post.ID, models.DatingModerationTriggerPostCreated); err != nil {
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not schedule post moderation"})
+}
+```
+
+`server/internal/workers/dating_moderation_worker.go`:
+```go
+count, err := w.lifecycle.ProcessDueModerationJobs(context.Background(), w.batchSize)
+if err != nil {
+	w.setStatus("error:" + err.Error())
+	return
+}
 ```

@@ -34,6 +34,12 @@ const INTENTION_OPTIONS = [
     { key: 'seva', labelKey: 'dating.intentions.seva' }
 ];
 
+const LOVE_LANGUAGE_OPTIONS = ['words_of_affirmation', 'quality_time', 'acts_of_service', 'receiving_gifts', 'physical_touch'];
+const ELEMENT_OPTIONS = ['air', 'water', 'earth', 'fire'];
+const CHILDREN_OPTIONS = ['want', 'dont_want', 'undecided'];
+const MEETING_PREFERENCE_OPTIONS = ['personal', 'bhakti_vriksha', 'temple_sunday_program', 'event', 'public_place'];
+const SOCIAL_PLATFORM_OPTIONS = ['vk', 'telegram', 'instagram', 'youtube', 'facebook', 'x'];
+
 export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { userId } = route.params;
@@ -72,8 +78,20 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         intentions: [] as string[],
         skills: '',
         industry: '',
-        lookingForBusiness: ''
+        lookingForBusiness: '',
+        childrenIntent: '',
+        loveLanguages: [] as string[],
+        elementalPrimary: '',
+        elementalSecondary: '',
+        meetingPreferences: [] as string[],
+        socialLinks: [] as Array<{ id?: number; platform: string; url: string; visible: boolean }>,
     });
+    const [publication, setPublication] = useState<any>(null);
+    const [approvalSummary, setApprovalSummary] = useState<any>(null);
+    const [posts, setPosts] = useState<Array<{ id: number; body: string; status: string; moderationReason?: string }>>([]);
+    const [newPostBody, setNewPostBody] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [requestingApprovals, setRequestingApprovals] = useState(false);
 
     const [openTimePicker, setOpenTimePicker] = useState(false);
     const [citySearchModal, setCitySearchModal] = useState(false);
@@ -137,8 +155,25 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     intentions: normalizedIntentions,
                     skills: me.skills || '',
                     industry: me.industry || '',
-                    lookingForBusiness: me.lookingForBusiness || ''
+                    lookingForBusiness: me.lookingForBusiness || '',
+                    childrenIntent: me.childrenIntent || '',
+                    loveLanguages: datingService.normalizeCsvList(me.loveLanguages),
+                    elementalPrimary: me.elementalPrimary || '',
+                    elementalSecondary: me.elementalSecondary || '',
+                    meetingPreferences: datingService.normalizeCsvList(me.meetingPreferences),
+                    socialLinks: Array.isArray(me.datingSocialLinks) ? me.datingSocialLinks.map((link: any) => ({
+                        id: link.id || link.ID,
+                        platform: link.platform || '',
+                        url: link.url || '',
+                        visible: link.visible !== false,
+                    })) : []
                 });
+                setPosts(Array.isArray(me.datingPosts) ? me.datingPosts.map((post: any) => ({
+                    id: Number(post.id || post.ID),
+                    body: String(post.body || ''),
+                    status: String(post.status || ''),
+                    moderationReason: post.moderationReason ? String(post.moderationReason) : '',
+                })) : []);
                 if (me.birthTime) {
                     const today = new Date();
                     const [hours, minutes] = me.birthTime.split(':');
@@ -168,6 +203,26 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         fetchProfile();
     }, [fetchProfile]);
 
+    const fetchPublicationState = useCallback(async () => {
+        try {
+            const [publicationData, approvalsData] = await Promise.all([
+                datingService.getPublicationStatus(userId),
+                datingService.getApprovals(userId),
+            ]);
+            if (!isMountedRef.current) {
+                return;
+            }
+            setPublication(publicationData);
+            setApprovalSummary(approvalsData);
+        } catch (error) {
+            console.error('Failed to fetch publication state:', error);
+        }
+    }, [userId]);
+
+    useEffect(() => {
+        fetchPublicationState();
+    }, [fetchPublicationState]);
+
     const handleSaveProfile = async () => {
         if (saving) return;
 
@@ -185,7 +240,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         try {
             const profileData = {
                 ...profile,
-                intentions: profile.intentions.join(',')
+                intentions: profile.intentions.join(','),
+                socialLinks: profile.socialLinks.filter((item) => item.url.trim() !== ''),
             };
             const updatedUser = await datingService.updateProfile(userId, profileData);
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
@@ -193,6 +249,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             }
             // Update user in context
             await login(updatedUser);
+            await fetchPublicationState();
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;
             }
@@ -207,6 +264,102 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
                 setSaving(false);
             }
+        }
+    };
+
+    const handleSubmitProfile = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        try {
+            await datingService.submitProfile(userId);
+            await fetchProfile();
+            await fetchPublicationState();
+            Alert.alert(t('common.success'), t('dating.publicationSubmitted'));
+        } catch (error) {
+            console.error('Submit profile error:', error);
+            Alert.alert(t('common.error'), t('dating.publicationSubmitError'));
+        } finally {
+            if (isMountedRef.current) {
+                setSubmitting(false);
+            }
+        }
+    };
+
+    const handleRequestApprovals = async () => {
+        if (requestingApprovals) {
+            return;
+        }
+        const approverIds = Array.isArray(approvalSummary?.friends)
+            ? approvalSummary.friends
+                .map((friend: any) => Number(friend.id || friend.ID))
+                .filter((id: number) => Number.isFinite(id) && id > 0)
+            : [];
+        if (approverIds.length === 0) {
+            Alert.alert(t('common.info'), t('dating.approvalsNoFriends'));
+            return;
+        }
+        setRequestingApprovals(true);
+        try {
+            await datingService.requestApprovals(userId, approverIds);
+            await fetchPublicationState();
+            Alert.alert(t('common.success'), t('dating.approvalsRequested'));
+        } catch (error) {
+            console.error('Request approvals error:', error);
+            Alert.alert(t('common.error'), t('dating.approvalsRequestError'));
+        } finally {
+            if (isMountedRef.current) {
+                setRequestingApprovals(false);
+            }
+        }
+    };
+
+    const toggleChoice = (field: 'loveLanguages' | 'meetingPreferences', value: string) => {
+        setProfile((prev) => {
+            const current = prev[field];
+            const next = current.includes(value)
+                ? current.filter((item) => item !== value)
+                : [...current, value];
+            return {
+                ...prev,
+                [field]: field === 'loveLanguages' ? next.slice(0, 2) : next,
+            };
+        });
+    };
+
+    const addSocialLink = () => {
+        setProfile((prev) => ({
+            ...prev,
+            socialLinks: [...prev.socialLinks, { platform: 'vk', url: '', visible: true }],
+        }));
+    };
+
+    const updateSocialLink = (index: number, patch: Partial<{ platform: string; url: string; visible: boolean }>) => {
+        setProfile((prev) => ({
+            ...prev,
+            socialLinks: prev.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+        }));
+    };
+
+    const removeSocialLink = (index: number) => {
+        setProfile((prev) => ({
+            ...prev,
+            socialLinks: prev.socialLinks.filter((_, itemIndex) => itemIndex !== index),
+        }));
+    };
+
+    const handleCreatePost = async () => {
+        const body = newPostBody.trim();
+        if (!body) {
+            return;
+        }
+        try {
+            await datingService.createPost({ body });
+            setNewPostBody('');
+            await fetchProfile();
+            await fetchPublicationState();
+        } catch (error) {
+            console.error('Create post error:', error);
+            Alert.alert(t('common.error'), t('dating.postCreateError'));
         }
     };
 
@@ -288,6 +441,19 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         });
     };
 
+    const approvalStatusByFriendId = React.useMemo(() => {
+        const result = new Map<number, string>();
+        const approvals = Array.isArray(approvalSummary?.approvals) ? approvalSummary.approvals : [];
+        approvals.forEach((approval: any) => {
+            const approverId = Number(approval.approverId || approval.ApproverID || approval.approver_id);
+            const status = String(approval.status || approval.Status || '').trim();
+            if (Number.isFinite(approverId) && approverId > 0 && status) {
+                result.set(approverId, status);
+            }
+        });
+        return result;
+    }, [approvalSummary]);
+
     if (loading) {
         return <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />;
     }
@@ -318,6 +484,22 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             onValueChange={(val) => setProfile(prev => ({ ...prev, datingEnabled: val }))}
                             trackColor={{ false: theme.borderColor, true: theme.accent }}
                         />
+                    </View>
+
+                    <View style={[styles.publicationPanel, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>{t('dating.publicationTitle')}</Text>
+                        <Text style={[styles.infoText, { color: theme.text }]}>{t('dating.publicationStatusLabel')}: {publication?.status || t('dating.status.draft')}</Text>
+                        <Text style={[styles.infoText, { color: theme.subText }]}>{publication?.reason || t('dating.publicationHint')}</Text>
+                        <Text style={[styles.infoText, { color: theme.subText }]}>
+                            {t('dating.approvalsProgress', { approved: publication?.approvedCount || 0, required: publication?.requiredApprovals || 3 })}
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, styles.submitBtn, { backgroundColor: theme.button, borderColor: theme.button }]}
+                            onPress={handleSubmitProfile}
+                            disabled={submitting}
+                        >
+                            {submitting ? <ActivityIndicator color={theme.buttonText} /> : <Text style={{ color: theme.buttonText, fontWeight: '700' }}>{t('dating.submitForPublication')}</Text>}
+                        </TouchableOpacity>
                     </View>
 
                     <Text style={[styles.infoText, { color: theme.subText, marginBottom: 15 }]}>
@@ -364,6 +546,71 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         placeholder={t('dating.interestsPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.childrenIntent')}</Text>
+                    <View style={styles.chipWrap}>
+                        {CHILDREN_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={[styles.chip, { backgroundColor: profile.childrenIntent === option ? theme.accent : theme.inputBackground, borderColor: theme.borderColor }]}
+                                onPress={() => setProfile((prev) => ({ ...prev, childrenIntent: option }))}
+                            >
+                                <Text style={{ color: profile.childrenIntent === option ? theme.buttonText : theme.text }}>{t(`dating.childrenOptions.${option}`)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.loveLanguages')}</Text>
+                    <View style={styles.chipWrap}>
+                        {LOVE_LANGUAGE_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={[styles.chip, { backgroundColor: profile.loveLanguages.includes(option) ? theme.accent : theme.inputBackground, borderColor: theme.borderColor }]}
+                                onPress={() => toggleChoice('loveLanguages', option)}
+                            >
+                                <Text style={{ color: profile.loveLanguages.includes(option) ? theme.buttonText : theme.text }}>{t(`dating.loveLanguageOptions.${option}`)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.elementalPrimary')}</Text>
+                    <View style={styles.chipWrap}>
+                        {ELEMENT_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={[styles.chip, { backgroundColor: profile.elementalPrimary === option ? theme.accent : theme.inputBackground, borderColor: theme.borderColor }]}
+                                onPress={() => setProfile((prev) => ({ ...prev, elementalPrimary: option }))}
+                            >
+                                <Text style={{ color: profile.elementalPrimary === option ? theme.buttonText : theme.text }}>{t(`dating.elementOptions.${option}`)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.elementalSecondary')}</Text>
+                    <View style={styles.chipWrap}>
+                        {ELEMENT_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={[styles.chip, { backgroundColor: profile.elementalSecondary === option ? theme.accent : theme.inputBackground, borderColor: theme.borderColor }]}
+                                onPress={() => setProfile((prev) => ({ ...prev, elementalSecondary: option }))}
+                            >
+                                <Text style={{ color: profile.elementalSecondary === option ? theme.buttonText : theme.text }}>{t(`dating.elementOptions.${option}`)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.meetingPreferences')}</Text>
+                    <View style={styles.chipWrap}>
+                        {MEETING_PREFERENCE_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option}
+                                style={[styles.chip, { backgroundColor: profile.meetingPreferences.includes(option) ? theme.accent : theme.inputBackground, borderColor: theme.borderColor }]}
+                                onPress={() => toggleChoice('meetingPreferences', option)}
+                            >
+                                <Text style={{ color: profile.meetingPreferences.includes(option) ? theme.buttonText : theme.text }}>{t(`dating.meetingOptions.${option}`)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
                     {/* Networking Goals */}
                     <Text style={[styles.label, { color: theme.text }]}>{t('dating.goals')}</Text>
@@ -473,6 +720,36 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         ))}
                     </View>
 
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.socialLinks')}</Text>
+                    {profile.socialLinks.map((link, index) => (
+                        <View key={`${link.platform}-${index}`} style={[styles.socialLinkCard, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                            <View style={styles.chipWrap}>
+                                {SOCIAL_PLATFORM_OPTIONS.map((platform) => (
+                                    <TouchableOpacity
+                                        key={platform}
+                                        style={[styles.chip, { backgroundColor: link.platform === platform ? theme.accent : theme.background, borderColor: theme.borderColor }]}
+                                        onPress={() => updateSocialLink(index, { platform })}
+                                    >
+                                        <Text style={{ color: link.platform === platform ? theme.buttonText : theme.text }}>{platform}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <TextInput
+                                style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.background }]}
+                                value={link.url}
+                                onChangeText={(url) => updateSocialLink(index, { url })}
+                                placeholder={t('dating.socialLinkPlaceholder')}
+                                placeholderTextColor={theme.subText}
+                            />
+                            <TouchableOpacity onPress={() => removeSocialLink(index)}>
+                                <Text style={{ color: theme.accent }}>{t('common.delete')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                    <TouchableOpacity style={styles.actionBtn} onPress={addSocialLink}>
+                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.addSocialLink')}</Text>
+                    </TouchableOpacity>
+
                     <Text style={[styles.label, { color: theme.text }]}>{t('dating.lookingFor')}</Text>
                     <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
@@ -558,6 +835,60 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             {profile.birthPlaceLink || t('dating.selectCity')}
                         </Text>
                     </TouchableOpacity>
+
+                    <View style={styles.divider} />
+                    <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>{t('dating.profilePosts')}</Text>
+                    <TextInput
+                        style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
+                        multiline
+                        numberOfLines={4}
+                        value={newPostBody}
+                        onChangeText={setNewPostBody}
+                        placeholder={t('dating.postPlaceholder')}
+                        placeholderTextColor={theme.subText}
+                    />
+                    <TouchableOpacity style={styles.actionBtn} onPress={handleCreatePost}>
+                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.addPost')}</Text>
+                    </TouchableOpacity>
+                    {posts.map((post) => (
+                        <View key={post.id} style={[styles.postCard, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                            <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 6 }}>{post.body}</Text>
+                            <Text style={{ color: theme.subText }}>{t(`dating.postStatus.${post.status}`)}</Text>
+                            {!!post.moderationReason && <Text style={{ color: theme.subText, marginTop: 4 }}>{post.moderationReason}</Text>}
+                        </View>
+                    ))}
+
+                    {!!approvalSummary?.friends?.length && (
+                        <>
+                            <View style={styles.divider} />
+                            <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>{t('dating.approvalsTitle')}</Text>
+                            <TouchableOpacity
+                                style={[
+                                    styles.actionBtn,
+                                    styles.inlineActionBtn,
+                                    { opacity: requestingApprovals ? 0.7 : 1 }
+                                ]}
+                                onPress={handleRequestApprovals}
+                                disabled={requestingApprovals}
+                            >
+                                {requestingApprovals ? (
+                                    <ActivityIndicator color={theme.accent} />
+                                ) : (
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.requestApprovals')}</Text>
+                                )}
+                            </TouchableOpacity>
+                            {approvalSummary.friends.map((friend: any) => (
+                                <View key={friend.id || friend.ID} style={[styles.friendApprovalRow, { borderBottomColor: theme.borderColor }]}>
+                                    <Text style={{ color: theme.text, flex: 1 }}>{friend.spiritualName || friend.karmicName}</Text>
+                                    <View style={[styles.approvalStatusBadge, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                        <Text style={{ color: theme.subText, fontSize: 12, fontWeight: '600' }}>
+                                            {t(`dating.approvalStatus.${approvalStatusByFriendId.get(Number(friend.id || friend.ID)) || 'not_requested'}`)}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </>
+                    )}
                     
                     <View style={{ height: 40 }} />
                 </View>
@@ -789,6 +1120,21 @@ const createStyles = (theme: {
         backgroundColor: theme.borderColor,
         marginVertical: 20,
     },
+    chipWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 6,
+    },
+    publicationPanel: {
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 16,
+    },
+    submitBtn: {
+        marginTop: 10,
+        marginBottom: 0,
+    },
     modalContainer: {
         flex: 1,
     },
@@ -867,6 +1213,34 @@ const createStyles = (theme: {
         borderWidth: 1,
         marginRight: 8,
         marginBottom: 10,
+    },
+    socialLinkCard: {
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+    },
+    postCard: {
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 10,
+    },
+    friendApprovalRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+    },
+    inlineActionBtn: {
+        marginBottom: 10,
+    },
+    approvalStatusBadge: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        marginLeft: 12,
     },
     saveButton: {
         height: 50,

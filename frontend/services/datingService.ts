@@ -3,6 +3,16 @@ import apiClient from '../lib/apiClient';
 import { getGodModeQueryParams } from './godModeService';
 
 class DatingService {
+    normalizeCsvList(value: unknown): string[] {
+        if (Array.isArray(value)) {
+            return value.map((item) => String(item).trim()).filter(Boolean);
+        }
+        if (typeof value === 'string') {
+            return value.split(',').map((item) => item.trim()).filter(Boolean);
+        }
+        return [];
+    }
+
     async getStats(city?: string) {
         const godModeParams = await getGodModeQueryParams();
         const response = await apiClient.get('/dating/stats', {
@@ -92,6 +102,38 @@ class DatingService {
         return response.data;
     }
 
+    async submitProfile(id: number) {
+        const response = await apiClient.post(`/dating/profile/${id}/submit`, {});
+        return response.data;
+    }
+
+    async getPublicationStatus(id: number) {
+        const response = await apiClient.get(`/dating/profile/${id}/publication-status`);
+        return response.data;
+    }
+
+    async getApprovals(id: number) {
+        const response = await apiClient.get(`/dating/profile/${id}/approvals`);
+        return response.data;
+    }
+
+    async getIncomingApprovalRequests(params?: { status?: 'pending' | 'approved' | 'rejected'; countOnly?: boolean }) {
+        const response = await apiClient.get('/dating/approval-requests', {
+            params,
+        });
+        return response.data;
+    }
+
+    async requestApprovals(id: number, approverIds?: number[]) {
+        const response = await apiClient.post(`/dating/profile/${id}/approvals/request`, { approverIds: approverIds || [] });
+        return response.data;
+    }
+
+    async respondApproval(id: number, approvalId: number, status: 'approved' | 'rejected', note = '') {
+        const response = await apiClient.post(`/dating/profile/${id}/approvals/${approvalId}/respond`, { status, note });
+        return response.data;
+    }
+
     async getUsers() {
         const response = await apiClient.get('/contacts');
         return response.data;
@@ -158,6 +200,48 @@ class DatingService {
         const response = await apiClient.get('/dating/liked-me', {
             params: { userId },
         });
+        return response.data;
+    }
+
+    async getNotifications() {
+        const response = await apiClient.get('/dating/notifications');
+        return response.data;
+    }
+
+    async getPosts(userId?: number) {
+        const response = await apiClient.get('/dating/posts', {
+            params: userId ? { userId } : undefined,
+        });
+        return response.data;
+    }
+
+    async createPost(data: { body: string; mediaUrl?: string }) {
+        const response = await apiClient.post('/dating/posts', data);
+        return response.data;
+    }
+
+    async updatePost(id: number, data: { body: string; mediaUrl?: string }) {
+        const response = await apiClient.patch(`/dating/posts/${id}`, data);
+        return response.data;
+    }
+
+    async deletePost(id: number) {
+        const response = await apiClient.delete(`/dating/posts/${id}`);
+        return response.data;
+    }
+
+    async getMeetingInvites() {
+        const response = await apiClient.get('/dating/meeting-invites');
+        return response.data;
+    }
+
+    async createMeetingInvite(data: { inviteeId: number; placeType: string; message: string }) {
+        const response = await apiClient.post('/dating/meeting-invites', data);
+        return response.data;
+    }
+
+    async respondMeetingInvite(id: number, status: 'accepted' | 'rejected') {
+        const response = await apiClient.post(`/dating/meeting-invites/${id}/respond`, { status });
         return response.data;
     }
 

@@ -26,11 +26,13 @@ import (
 
 type AdminHandler struct {
 	pushCampaignService adminPushCampaignService
+	datingLifecycle     *services.DatingLifecycleService
 }
 
 func NewAdminHandler() *AdminHandler {
 	return &AdminHandler{
 		pushCampaignService: services.NewAdminPushCampaignService(database.DB, services.GetPushService()),
+		datingLifecycle:     services.NewDatingLifecycleService(database.DB, services.NewAiChatService()),
 	}
 }
 
@@ -511,6 +513,114 @@ func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "Profile flag updated"})
+}
+
+func (h *AdminHandler) GetDatingReviews(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+	rawStatuses := strings.TrimSpace(c.Query("statuses"))
+	statuses := make([]models.DatingPublicationStatus, 0)
+	if rawStatuses != "" {
+		for _, item := range strings.Split(rawStatuses, ",") {
+			trimmed := strings.TrimSpace(item)
+			if trimmed == "" {
+				continue
+			}
+			statuses = append(statuses, models.DatingPublicationStatus(trimmed))
+		}
+	} else {
+		statuses = []models.DatingPublicationStatus{
+			models.DatingPublicationPendingAdminReview,
+			models.DatingPublicationPendingAIReview,
+			models.DatingPublicationFlaggedAfterPublish,
+		}
+	}
+	users, err := h.datingLifecycle.ListModerationQueue(statuses)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch moderation queue"})
+	}
+	for i := range users {
+		users[i].Password = ""
+	}
+	return c.JSON(users)
+}
+
+func (h *AdminHandler) GetDatingReviewDetail(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+	userID, parseErr := parsePositiveUint(c.Params("userId"))
+	if parseErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+
+	var user models.User
+	if err := database.DB.
+		Preload("DatingSocialLinks").
+		Preload("DatingPosts", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at DESC")
+		}).
+		First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load dating review detail"})
+	}
+
+	var approvals []models.DatingProfileApproval
+	if err := database.DB.
+		Preload("Approver", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "karmic_name", "spiritual_name", "avatar_url", "city")
+		}).
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&approvals).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load approvals"})
+	}
+
+	var moderationEvents []models.DatingModerationEvent
+	if err := database.DB.
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&moderationEvents).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load moderation events"})
+	}
+
+	user.Password = ""
+	return c.JSON(fiber.Map{
+		"profile":          user,
+		"approvals":        approvals,
+		"moderationEvents": moderationEvents,
+	})
+}
+
+func (h *AdminHandler) ModerateDatingReview(c *fiber.Ctx) error {
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
+		return err
+	}
+	userID, parseErr := parsePositiveUint(c.Params("userId"))
+	if parseErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	var body struct {
+		Action string `json:"action"`
+		Note   string `json:"note"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	action := models.DatingModerationOutcome(strings.TrimSpace(body.Action))
+	switch action {
+	case models.DatingModerationPublish, models.DatingModerationReject, models.DatingModerationFlag, models.DatingModerationNeedsAdminReview:
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid moderation action"})
+	}
+	if err := h.datingLifecycle.ModerateProfile(userID, adminID, action, body.Note); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not moderate dating profile"})
+	}
+	return c.JSON(fiber.Map{"message": "Dating moderation updated"})
 }
 
 // System Settings

@@ -109,6 +109,7 @@ export type RootStackParamList = {
     MediaLibrary: { userId: number; readOnly?: boolean };
     EditDatingProfile: { userId: number };
     DatingFavorites: undefined;
+    UnionApprovals: { focusApprovalId?: number } | undefined;
     Chat: { userId?: number; name?: string } | undefined;
     BookList: { category: string; title: string } & AiNavigationMeta;
     Reader: { bookCode: string; title: string; chapter?: number; verse?: string; canto?: number } & AiNavigationMeta;

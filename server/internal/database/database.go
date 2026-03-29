@@ -84,6 +84,8 @@ func Connect() {
 		&models.SystemSetting{}, &models.PortalServiceVisibility{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
+		&models.DatingSocialLink{}, &models.DatingPost{},
+		&models.DatingProfileApproval{}, &models.DatingModerationEvent{}, &models.DatingMeetingInvite{}, &models.DatingModerationJob{},
 		&models.ConnectCommunity{}, &models.ConnectOpportunity{},
 		&models.ConnectMatchProfile{}, &models.ConnectApplication{}, &models.ConnectFeedback{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},

@@ -89,6 +89,7 @@ import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
 import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
 import { DatingFavoritesScreen } from './screens/portal/dating/DatingFavoritesScreen';
 import { DatingScreen } from './screens/portal/dating/DatingScreen';
+import { UnionApprovalRequestsScreen } from './screens/portal/dating/UnionApprovalRequestsScreen';
 
 import { AdsScreen } from './screens/portal/ads/AdsScreen';
 import { CreateAdScreen } from './screens/portal/ads/CreateAdScreen';
@@ -704,6 +705,7 @@ const AppContent = () => {
                   <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
                   <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
                   <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
+                  <Stack.Screen name="UnionApprovals" component={UnionApprovalRequestsScreen} options={{ headerShown: false }} />
 
                   {/* Ads Routes */}
                   <Stack.Screen name="Ads" component={AdsScreen} />

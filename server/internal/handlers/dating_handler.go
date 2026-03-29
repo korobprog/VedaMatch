@@ -1,17 +1,18 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"regexp"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -20,6 +21,7 @@ import (
 type DatingHandler struct {
 	aiService       *services.AiChatService
 	domainAssistant *services.DomainAssistantService
+	lifecycle       *services.DatingLifecycleService
 }
 
 func parsePositiveUint(raw string) (uint, error) {
@@ -47,6 +49,7 @@ func NewDatingHandler(aiService *services.AiChatService) *DatingHandler {
 	return &DatingHandler{
 		aiService:       aiService,
 		domainAssistant: services.GetDomainAssistantService(),
+		lifecycle:       services.NewDatingLifecycleService(database.DB, aiService),
 	}
 }
 
@@ -100,7 +103,13 @@ func firstNonEmptyDating(values ...string) string {
 
 func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	var candidates []models.User
-	query := database.DB.Preload("Photos").Where("dating_enabled = ? AND is_profile_complete = ?", true, true)
+	query := database.DB.
+		Preload("Photos").
+		Preload("DatingSocialLinks").
+		Preload("DatingPosts", func(db *gorm.DB) *gorm.DB {
+			return db.Where("status = ?", models.DatingPostActive).Order("created_at DESC").Limit(3)
+		}).
+		Where("dating_enabled = ? AND is_profile_complete = ? AND dating_publication_status = ?", true, true, string(models.DatingPublicationPublished))
 
 	// Simple filtering
 	// Parse query params
@@ -110,6 +119,10 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	yogaStyle := c.Query("yogaStyle")
 	guna := c.Query("guna")
 	identity := c.Query("identity")
+	childrenIntent := c.Query("childrenIntent")
+	loveLanguage := c.Query("loveLanguage")
+	element := c.Query("element")
+	meetingPreference := c.Query("meetingPreference")
 	mode := c.Query("mode", "family") // family, business, friendship, seva
 	isNew := c.QueryBool("isNew", false)
 	skills := c.Query("skills")
@@ -178,6 +191,18 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	if identity != "" {
 		query = query.Where("identity = ?", identity)
 	}
+	if childrenIntent != "" {
+		query = query.Where("children_intent = ?", childrenIntent)
+	}
+	if loveLanguage != "" {
+		query = query.Where("love_languages ILIKE ?", "%"+loveLanguage+"%")
+	}
+	if element != "" {
+		query = query.Where("elemental_primary = ? OR elemental_secondary = ?", element, element)
+	}
+	if meetingPreference != "" {
+		query = query.Where("meeting_preferences ILIKE ?", "%"+meetingPreference+"%")
+	}
 
 	// Apply Age Filter (assuming Dob is YYYY-MM-DD or compatible string)
 	// We need to calculate date thresholds.
@@ -217,6 +242,10 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not fetch candidates",
 		})
+	}
+
+	if currentUser.ID != 0 {
+		services.SortUsersByDatingScore(&currentUser, candidates)
 	}
 
 	return c.JSON(candidates)
@@ -368,98 +397,90 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
-	// Use a struct with pointers for partial updates (handles zero values and correct mapping)
-	var updates struct {
-		Bio            *string `json:"bio"`
-		Interests      *string `json:"interests"`
-		LookingFor     *string `json:"lookingFor"`
-		MaritalStatus  *string `json:"maritalStatus"`
-		Dob            *string `json:"dob"`
-		BirthTime      *string `json:"birthTime"`
-		BirthPlaceLink *string `json:"birthPlaceLink"`
-		City           *string `json:"city"`
-
-		Madh               *string `json:"madh"`
-		YogaStyle          *string `json:"yogaStyle"`
-		Guna               *string `json:"guna"`
-		Identity           *string `json:"identity"`
-		Intentions         *string `json:"intentions"`
-		Skills             *string `json:"skills"`
-		Industry           *string `json:"industry"`
-		LookingForBusiness *string `json:"lookingForBusiness"`
-		DatingEnabled      *bool   `json:"datingEnabled"`
-		IsProfileComplete  *bool   `json:"isProfileComplete"`
-	}
-
-	if err := c.BodyParser(&updates); err != nil {
+	var payload map[string]interface{}
+	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	// Map to snake_case column names for GORM
 	updateMap := make(map[string]interface{})
-	if updates.Bio != nil {
-		updateMap["bio"] = *updates.Bio
+	stringFields := map[string]string{
+		"bio":                     "bio",
+		"interests":               "interests",
+		"lookingFor":              "looking_for",
+		"maritalStatus":           "marital_status",
+		"dob":                     "dob",
+		"birthTime":               "birth_time",
+		"birthPlaceLink":          "birth_place_link",
+		"city":                    "city",
+		"madh":                    "madh",
+		"yogaStyle":               "yoga_style",
+		"guna":                    "guna",
+		"identity":                "identity",
+		"skills":                  "skills",
+		"industry":                "industry",
+		"lookingForBusiness":      "looking_for_business",
+		"childrenIntent":          "children_intent",
+		"elementalPrimary":        "elemental_primary",
+		"elementalSecondary":      "elemental_secondary",
+		"datingPublicationStatus": "dating_publication_status",
+		"datingStatusReason":      "dating_status_reason",
 	}
-	if updates.Interests != nil {
-		updateMap["interests"] = *updates.Interests
+	for jsonKey, column := range stringFields {
+		if value, ok := payload[jsonKey]; ok {
+			updateMap[column] = strings.TrimSpace(fmt.Sprintf("%v", value))
+		}
 	}
-	if updates.LookingFor != nil {
-		updateMap["looking_for"] = *updates.LookingFor
+
+	csvFields := map[string]string{
+		"intentions":         "intentions",
+		"loveLanguages":      "love_languages",
+		"meetingPreferences": "meeting_preferences",
 	}
-	if updates.MaritalStatus != nil {
-		updateMap["marital_status"] = *updates.MaritalStatus
+	for jsonKey, column := range csvFields {
+		if raw, ok := payload[jsonKey]; ok {
+			switch typed := raw.(type) {
+			case []interface{}:
+				values := make([]string, 0, len(typed))
+				for _, item := range typed {
+					values = append(values, fmt.Sprintf("%v", item))
+				}
+				updateMap[column] = strings.Join(values, ",")
+			default:
+				updateMap[column] = strings.TrimSpace(fmt.Sprintf("%v", raw))
+			}
+		}
 	}
-	if updates.Dob != nil {
-		updateMap["dob"] = *updates.Dob
+	if raw, ok := payload["datingEnabled"]; ok {
+		if typed, ok := raw.(bool); ok {
+			updateMap["dating_enabled"] = typed
+		}
 	}
-	if updates.BirthTime != nil {
-		updateMap["birth_time"] = *updates.BirthTime
-	}
-	if updates.BirthPlaceLink != nil {
-		updateMap["birth_place_link"] = *updates.BirthPlaceLink
-	}
-	if updates.City != nil {
-		updateMap["city"] = *updates.City
-	}
-	if updates.Madh != nil {
-		updateMap["madh"] = *updates.Madh
-	}
-	if updates.YogaStyle != nil {
-		updateMap["yoga_style"] = *updates.YogaStyle
-	}
-	if updates.Guna != nil {
-		updateMap["guna"] = *updates.Guna
-	}
-	if updates.Identity != nil {
-		updateMap["identity"] = *updates.Identity
-	}
-	if updates.Intentions != nil {
-		updateMap["intentions"] = *updates.Intentions
-	}
-	if updates.Skills != nil {
-		updateMap["skills"] = *updates.Skills
-	}
-	if updates.Industry != nil {
-		updateMap["industry"] = *updates.Industry
-	}
-	if updates.LookingForBusiness != nil {
-		updateMap["looking_for_business"] = *updates.LookingForBusiness
-	}
-	if updates.DatingEnabled != nil {
-		updateMap["dating_enabled"] = *updates.DatingEnabled
-	}
-	if updates.IsProfileComplete != nil {
-		updateMap["is_profile_complete"] = *updates.IsProfileComplete
+	if raw, ok := payload["isProfileComplete"]; ok {
+		if typed, ok := raw.(bool); ok {
+			updateMap["is_profile_complete"] = typed
+		}
 	}
 
 	if len(updateMap) == 0 {
+		if err := h.lifecycle.LoadProfileRelations(&user); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load profile"})
+		}
 		return c.JSON(user)
 	}
 
 	if err := database.DB.Model(&user).Updates(updateMap).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update profile"})
 	}
-	if err := database.DB.Preload("Photos").First(&user, user.ID).Error; err != nil {
+	if socialLinksRaw, ok := payload["socialLinks"]; ok {
+		var links []models.DatingSocialLink
+		rawJSON, _ := json.Marshal(socialLinksRaw)
+		if err := json.Unmarshal(rawJSON, &links); err == nil {
+			if err := h.lifecycle.SaveSocialLinks(user.ID, links); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update social links"})
+			}
+		}
+	}
+	if err := h.lifecycle.LoadProfileRelations(&user); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load updated profile"})
 	}
 
@@ -534,8 +555,9 @@ func (h *DatingHandler) GetFavorites(c *fiber.Ctx) error {
 func (h *DatingHandler) GetDatingProfile(c *fiber.Ctx) error {
 	userID := c.Params("id")
 	var user models.User
-	// Preload Photos to ensure they are available for the preview
-	if err := database.DB.Preload("Photos").First(&user, userID).Error; err != nil {
+	if err := database.DB.Preload("Photos").Preload("DatingSocialLinks").Preload("DatingPosts", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at DESC")
+	}).First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 	return c.JSON(user)
@@ -592,7 +614,7 @@ func cleanResponse(resp string) string {
 
 func (h *DatingHandler) GetDatingCities(c *fiber.Ctx) error {
 	var cities []string
-	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city != ?", true, "").Distinct().Pluck("city", &cities).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND dating_publication_status = ? AND city != ?", true, string(models.DatingPublicationPublished), "").Distinct().Pluck("city", &cities).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch cities"})
 	}
 	return c.JSON(cities)
@@ -606,20 +628,20 @@ func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
 	city := strings.TrimSpace(c.Query("city"))
 
 	// Total active dating profiles
-	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ?", true).Count(&totalCount).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND dating_publication_status = ?", true, string(models.DatingPublicationPublished)).Count(&totalCount).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch total stats"})
 	}
 
 	// Profiles in specific city
 	if city != "" {
-		if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city = ?", true, city).Count(&cityCount).Error; err != nil {
+		if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND dating_publication_status = ? AND city = ?", true, string(models.DatingPublicationPublished), city).Count(&cityCount).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch city stats"})
 		}
 	}
 
 	// New profiles in last 24h
 	twentyFourHoursAgo := time.Now().UTC().Add(-24 * time.Hour)
-	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND created_at > ?", true, twentyFourHoursAgo).Count(&newCount).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND dating_publication_status = ? AND created_at > ?", true, string(models.DatingPublicationPublished), twentyFourHoursAgo).Count(&newCount).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch new stats"})
 	}
 
@@ -700,7 +722,391 @@ func (h *DatingHandler) CheckIsFavorited(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) GetNotifications(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	var events []models.DatingModerationEvent
+	if err := database.DB.Where("user_id = ?", authUserID).Order("created_at DESC").Limit(20).Find(&events).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load notifications"})
+	}
+	var user models.User
+	if err := database.DB.First(&user, authUserID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	state, err := h.lifecycle.GetPublicationState(&user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load publication state"})
+	}
+	return c.JSON(fiber.Map{
+		"publication": state,
+		"events":      events,
+	})
+}
+
+func (h *DatingHandler) SubmitDatingProfile(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	paramUserID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	if paramUserID != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	var user models.User
+	if err := database.DB.First(&user, authUserID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	state, err := h.lifecycle.SubmitProfile(context.Background(), &user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(state)
+}
+
+func (h *DatingHandler) GetPublicationStatus(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	paramUserID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	if paramUserID != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	var user models.User
+	if err := database.DB.First(&user, authUserID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	state, err := h.lifecycle.GetPublicationState(&user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load publication status"})
+	}
+	return c.JSON(state)
+}
+
+func (h *DatingHandler) GetProfileApprovals(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	paramUserID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	if paramUserID != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	approvals, err := h.lifecycle.ListApprovals(authUserID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load approvals"})
+	}
+	var friendRelations []models.Friend
+	if err := database.DB.Where("user_id = ?", authUserID).Find(&friendRelations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load friends"})
+	}
+	friendIDs := make([]uint, 0, len(friendRelations))
+	for _, relation := range friendRelations {
+		friendIDs = append(friendIDs, relation.FriendID)
+	}
+	var friends []models.User
+	if len(friendIDs) > 0 {
+		if err := database.DB.Select("id", "karmic_name", "spiritual_name", "avatar_url", "city").Where("id IN ?", friendIDs).Find(&friends).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load friends"})
+		}
+	}
+	var user models.User
+	if err := database.DB.First(&user, authUserID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	state, err := h.lifecycle.GetPublicationState(&user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load publication state"})
+	}
+	return c.JSON(fiber.Map{
+		"approvals":   approvals,
+		"friends":     friends,
+		"publication": state,
+	})
+}
+
+func (h *DatingHandler) GetIncomingApprovalRequests(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	statusFilter := strings.TrimSpace(c.Query("status"))
+	countOnly := c.QueryBool("countOnly", false)
+	if statusFilter != "" {
+		switch models.DatingApprovalStatus(statusFilter) {
+		case models.DatingApprovalPending, models.DatingApprovalApproved, models.DatingApprovalRejected:
+		default:
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid approval status"})
+		}
+	}
+
+	query := database.DB.Where("approver_id = ?", authUserID)
+	if statusFilter != "" {
+		query = query.Where("status = ?", statusFilter)
+	}
+	if countOnly {
+		var count int64
+		if err := query.Model(&models.DatingProfileApproval{}).Count(&count).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not count incoming approval requests"})
+		}
+		return c.JSON(fiber.Map{"count": count})
+	}
+
+	var approvals []models.DatingProfileApproval
+	if err := query.
+		Preload("User", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "karmic_name", "spiritual_name", "avatar_url", "city")
+		}).
+		Order("created_at DESC").
+		Find(&approvals).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load incoming approval requests"})
+	}
+	return c.JSON(approvals)
+}
+
+func (h *DatingHandler) RequestProfileApprovals(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	paramUserID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	if paramUserID != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	var body struct {
+		ApproverIDs []uint `json:"approverIds"`
+	}
+	_ = c.BodyParser(&body)
+	approvals, err := h.lifecycle.RequestApprovals(authUserID, body.ApproverIDs)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not request approvals"})
+	}
+	return c.JSON(approvals)
+}
+
+func (h *DatingHandler) RespondToProfileApproval(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	approvalID, err := parsePositiveUint(c.Params("approvalId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid approval ID"})
+	}
+	var body struct {
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	status := models.DatingApprovalStatus(strings.TrimSpace(body.Status))
+	if status != models.DatingApprovalApproved && status != models.DatingApprovalRejected {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid status"})
+	}
+	approval, err := h.lifecycle.RespondApproval(context.Background(), approvalID, authUserID, status, body.Note)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update approval"})
+	}
+	return c.JSON(approval)
+}
+
+func (h *DatingHandler) ListDatingPosts(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	targetUserID := authUserID
+	if raw := strings.TrimSpace(c.Query("userId")); raw != "" {
+		if parsed, err := parsePositiveUint(raw); err == nil {
+			targetUserID = parsed
+		}
+	}
+	query := database.DB.Where("user_id = ?", targetUserID).Order("created_at DESC")
+	if targetUserID != authUserID {
+		query = query.Where("status = ?", models.DatingPostActive)
+	}
+	var posts []models.DatingPost
+	if err := query.Find(&posts).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load posts"})
+	}
+	return c.JSON(posts)
+}
+
+func (h *DatingHandler) CreateDatingPost(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	var body struct {
+		Body     string `json:"body"`
+		MediaURL string `json:"mediaUrl"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	post := models.DatingPost{
+		UserID:   authUserID,
+		Body:     strings.TrimSpace(body.Body),
+		MediaURL: strings.TrimSpace(body.MediaURL),
+		Status:   models.DatingPostActive,
+	}
+	if post.Body == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body is required"})
+	}
+	if err := database.DB.Create(&post).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create post"})
+	}
+	if err := h.lifecycle.EnqueuePostModeration(authUserID, post.ID, models.DatingModerationTriggerPostCreated); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not schedule post moderation"})
+	}
+	return c.Status(fiber.StatusCreated).JSON(post)
+}
+
+func (h *DatingHandler) UpdateDatingPost(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	postID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	var post models.DatingPost
+	if err := database.DB.Where("id = ? AND user_id = ?", postID, authUserID).First(&post).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Post not found"})
+	}
+	var body struct {
+		Body     string `json:"body"`
+		MediaURL string `json:"mediaUrl"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	post.Body = strings.TrimSpace(body.Body)
+	post.MediaURL = strings.TrimSpace(body.MediaURL)
+	post.Status = models.DatingPostActive
+	post.ModerationReason = ""
+	post.ModeratedAt = nil
+	if err := database.DB.Save(&post).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update post"})
+	}
+	if err := h.lifecycle.EnqueuePostModeration(authUserID, post.ID, models.DatingModerationTriggerPostUpdated); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not schedule post moderation"})
+	}
+	return c.JSON(post)
+}
+
+func (h *DatingHandler) DeleteDatingPost(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	postID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+	if err := database.DB.Where("id = ? AND user_id = ?", postID, authUserID).Delete(&models.DatingPost{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete post"})
+	}
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func (h *DatingHandler) CreateMeetingInvite(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	var body struct {
+		InviteeID uint   `json:"inviteeId"`
+		PlaceType string `json:"placeType"`
+		Message   string `json:"message"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	invite := models.DatingMeetingInvite{
+		InviterID: authUserID,
+		InviteeID: body.InviteeID,
+		PlaceType: strings.TrimSpace(body.PlaceType),
+		Message:   strings.TrimSpace(body.Message),
+		Status:    models.DatingMeetingInvitePending,
+	}
+	if invite.InviteeID == 0 || invite.PlaceType == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "inviteeId and placeType are required"})
+	}
+	if err := database.DB.Create(&invite).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create meeting invite"})
+	}
+	if push := services.GetPushService(); push != nil {
+		_ = push.SendToUser(invite.InviteeID, services.PushMessage{
+			Title: "Union meeting invite",
+			Body:  invite.Message,
+			Data: map[string]string{
+				"screen":   "Dating",
+				"inviteId": fmt.Sprintf("%d", invite.ID),
+			},
+			Priority: "high",
+		})
+	}
+	return c.Status(fiber.StatusCreated).JSON(invite)
+}
+
+func (h *DatingHandler) ListMeetingInvites(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	var invites []models.DatingMeetingInvite
+	if err := database.DB.Where("inviter_id = ? OR invitee_id = ?", authUserID, authUserID).Order("created_at DESC").Find(&invites).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load meeting invites"})
+	}
+	return c.JSON(invites)
+}
+
+func (h *DatingHandler) RespondMeetingInvite(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	inviteID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid invite ID"})
+	}
+	var invite models.DatingMeetingInvite
+	if err := database.DB.Where("id = ? AND invitee_id = ?", inviteID, authUserID).First(&invite).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Invite not found"})
+	}
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	status := models.DatingMeetingInviteStatus(strings.TrimSpace(body.Status))
+	if status != models.DatingMeetingInviteAccepted && status != models.DatingMeetingInviteRejected {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid status"})
+	}
+	now := time.Now().UTC()
+	invite.Status = status
+	invite.RespondedAt = &now
+	if err := database.DB.Save(&invite).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update invite"})
+	}
+	return c.JSON(invite)
 }
 
 // GetDatingPresentation returns public stats and top photos for landing page
