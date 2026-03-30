@@ -223,6 +223,21 @@
 - По состоянию на 2026-03-30 контур mobile release для direct distribution без маркетов частично готов, но остается в значительной степени ручным:
   - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.44`, `versionCode 46`, release signing настроен через env/keystore.
   - iOS release тоже собирается вручную через локальные `xcodebuild` scripts из root `package.json`; автоматизированного канала вроде EAS/Fastlane/AppCenter в репозитории нет.
+- По состоянию на 2026-03-30 production Android direct-distribution контур уже активирован на live backend:
+  - `SUPPORT_DOWNLOAD_ANDROID_URL` указывает на свежий S3 APK;
+  - `ANDROID_TESTERS_APP_VERSION = 1.1.44 (46)`;
+  - `/api/android-testers/config` теперь отдает `versionCode`, `minimumSupportedVersionCode`, `publishedAt`;
+  - `/api/mobile-app/config` теперь отдает непустой `androidRelease` contract c `downloadUrl`, `appVersion`, `versionCode`, `releaseNotes`, `installInstructions`, `minimumSupportedVersionCode`, `publishedAt`.
+- Для production Dokploy на 2026-03-30 есть операционная особенность:
+  - `application_redeploy` не создал новый rollout и не поднял новый Swarm task;
+  - сработал только явный `application_deploy`, после которого появился новый service task и live endpoints начали отдавать новый Android release contract.
+- Текущий live APK upload endpoint по-прежнему неверно именует файл по исходному локальному filename:
+  - при загрузке `app-release.apk` production сохранил артефакт как `ragagent-release-v1.0.0-...apk`;
+  - реальная версия внутри APK и в backend settings при этом `1.1.44 (46)`;
+  - это пока не ломает раздачу, но создает путаницу в имени файла и release traceability.
+- Push в production на 2026-03-30 остается отдельной live-проблемой:
+  - `POST /api/admin/push/test` падает с `fcm v1 returned status=401 code=THIRD_PARTY_AUTH_ERROR`;
+  - `FCM_SENDER_MODE=v1`, поэтому release/update push и admin push нельзя считать рабочими до починки live Firebase v1 credentials/config.
 - Для iOS Firebase/push/crash цепочка зависит от локального файла `frontend/ios/vedamatch/GoogleService-Info.plist`, который намеренно не хранится в git:
   - в репозитории есть только `GoogleService-Info.plist.example`;
   - `AppDelegate.mm` пропускает `FIRApp configure`, если в реальном plist нет валидного `API_KEY`;
