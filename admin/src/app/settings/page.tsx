@@ -71,8 +71,11 @@ interface SettingsState {
     ANDROID_TESTERS_PAGE_TITLE: string;
     ANDROID_TESTERS_PAGE_SUBTITLE: string;
     ANDROID_TESTERS_APP_VERSION: string;
+    ANDROID_TESTERS_VERSION_CODE: string;
     ANDROID_TESTERS_RELEASE_NOTES: string;
     ANDROID_TESTERS_INSTALL_INSTRUCTIONS: string;
+    ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE: string;
+    ANDROID_TESTERS_PUBLISHED_AT: string;
     ANDROID_TESTERS_SUPPORT_TEXT: string;
     SUPPORT_APP_ENTRY_ENABLED: string;
     SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: string;
@@ -183,8 +186,11 @@ const DEFAULT_SETTINGS: SettingsState = {
     ANDROID_TESTERS_PAGE_TITLE: 'Android test builds',
     ANDROID_TESTERS_PAGE_SUBTITLE: 'Скачайте актуальный APK, установите его на Android и отправьте отзыв со скриншотом, если что-то пошло не так.',
     ANDROID_TESTERS_APP_VERSION: '',
+    ANDROID_TESTERS_VERSION_CODE: '',
     ANDROID_TESTERS_RELEASE_NOTES: '',
     ANDROID_TESTERS_INSTALL_INSTRUCTIONS: '1. Скачайте APK на Android.\n2. Разрешите установку из этого источника.\n3. Откройте файл и подтвердите установку.\n4. Если приложение не обновилось, удалите старую сборку и установите заново.',
+    ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE: '',
+    ANDROID_TESTERS_PUBLISHED_AT: '',
     ANDROID_TESTERS_SUPPORT_TEXT: 'Если поймали баг, отправьте короткое описание и один скриншот.',
     SUPPORT_APP_ENTRY_ENABLED: 'false',
     SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: '10',
@@ -1287,6 +1293,42 @@ export default function SettingsPage() {
                                                 placeholder="1.1.27 (29)"
                                                 className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
                                             />
+                                        </div>
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Version Code</label>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    min={0}
+                                                    value={settings.ANDROID_TESTERS_VERSION_CODE || ''}
+                                                    onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_VERSION_CODE: e.target.value })}
+                                                    placeholder="46"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Min Supported Code</label>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    min={0}
+                                                    value={settings.ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE || ''}
+                                                    onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE: e.target.value })}
+                                                    placeholder="44"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Published At (ISO)</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.ANDROID_TESTERS_PUBLISHED_AT || ''}
+                                                    onChange={(e) => setSettings({ ...settings, ANDROID_TESTERS_PUBLISHED_AT: e.target.value })}
+                                                    placeholder="2026-03-30T10:00:00Z"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Release Notes</label>

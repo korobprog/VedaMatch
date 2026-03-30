@@ -513,6 +513,7 @@ func main() {
 	api.Get("/legal/config", middleware.OptionalAuth(), adminHandler.GetPublicLegalConfig)
 	api.Get("/android-testers/config", middleware.OptionalAuth(), adminHandler.GetPublicAndroidTestersConfig)
 	api.Get("/mobile-app/config", middleware.OptionalAuth(), adminHandler.GetPublicMobileAppConfig)
+	api.Post("/mobile-app/android-release/events", middleware.OptionalAuth(), adminHandler.TrackAndroidReleaseEvent)
 	api.Post("/support/uploads", middleware.OptionalAuth(), supportHandler.UploadAttachment)
 	api.Post("/support/tickets", middleware.OptionalAuth(), supportHandler.CreateTicket)
 

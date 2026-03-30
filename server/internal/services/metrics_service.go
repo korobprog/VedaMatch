@@ -118,6 +118,10 @@ const (
 	MetricConnectPushApplicationCreatedFailedTotal = "connect_push_application_created_failed_total"
 	MetricConnectPushApplicationStatusSentTotal    = "connect_push_application_status_sent_total"
 	MetricConnectPushApplicationStatusFailedTotal  = "connect_push_application_status_failed_total"
+	MetricAndroidReleasePromptShownTotal           = "android_release_prompt_shown_total"
+	MetricAndroidReleasePromptOpenTotal            = "android_release_prompt_open_total"
+	MetricAndroidReleaseDownloadClickTotal         = "android_release_download_click_total"
+	MetricAndroidReleasePageViewTotal              = "android_release_page_view_total"
 )
 
 type MetricsService struct {

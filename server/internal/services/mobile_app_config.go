@@ -12,10 +12,21 @@ import (
 )
 
 type PublicMobileAppConfig struct {
-	IOSURL         string `json:"iosUrl"`
-	AndroidURL     string `json:"androidUrl"`
-	IOSVersion     string `json:"iosVersion"`
-	AndroidVersion string `json:"androidVersion"`
+	IOSURL         string                     `json:"iosUrl"`
+	AndroidURL     string                     `json:"androidUrl"`
+	IOSVersion     string                     `json:"iosVersion"`
+	AndroidVersion string                     `json:"androidVersion"`
+	AndroidRelease PublicAndroidReleaseConfig `json:"androidRelease"`
+}
+
+type PublicAndroidReleaseConfig struct {
+	DownloadURL                 string `json:"downloadUrl"`
+	AppVersion                  string `json:"appVersion"`
+	VersionCode                 int    `json:"versionCode"`
+	ReleaseNotes                string `json:"releaseNotes"`
+	InstallInstructions         string `json:"installInstructions"`
+	MinimumSupportedVersionCode int    `json:"minimumSupportedVersionCode"`
+	PublishedAt                 string `json:"publishedAt"`
 }
 
 var (
@@ -26,11 +37,26 @@ var (
 )
 
 func GetPublicMobileAppConfig() PublicMobileAppConfig {
+	androidURL := strings.TrimSpace(getSystemSettingOrEnvOrDB("SUPPORT_DOWNLOAD_ANDROID_URL"))
+	appVersion := strings.TrimSpace(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_APP_VERSION"))
+	if appVersion == "" {
+		appVersion = readAndroidAppVersion()
+	}
+
 	return PublicMobileAppConfig{
 		IOSURL:         strings.TrimSpace(getSystemSettingOrEnvOrDB("SUPPORT_DOWNLOAD_IOS_URL")),
-		AndroidURL:     strings.TrimSpace(getSystemSettingOrEnvOrDB("SUPPORT_DOWNLOAD_ANDROID_URL")),
+		AndroidURL:     androidURL,
 		IOSVersion:     readIOSAppVersion(),
 		AndroidVersion: readAndroidAppVersion(),
+		AndroidRelease: PublicAndroidReleaseConfig{
+			DownloadURL:                 androidURL,
+			AppVersion:                  appVersion,
+			VersionCode:                 parsePositiveInt(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_VERSION_CODE")),
+			ReleaseNotes:                strings.TrimSpace(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_RELEASE_NOTES")),
+			InstallInstructions:         strings.TrimSpace(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_INSTALL_INSTRUCTIONS")),
+			MinimumSupportedVersionCode: parsePositiveInt(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE")),
+			PublishedAt:                 strings.TrimSpace(getSystemSettingOrEnvOrDB("ANDROID_TESTERS_PUBLISHED_AT")),
+		},
 	}
 }
 
@@ -93,6 +119,24 @@ func formatVersionLabel(version string, build string) string {
 	}
 }
 
+func parsePositiveInt(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value := 0
+	for _, ch := range raw {
+		if ch < '0' || ch > '9' {
+			return 0
+		}
+		value = value*10 + int(ch-'0')
+	}
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
 func readRepoFile(relativePath string) (string, error) {
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -110,8 +154,10 @@ func readRepoFile(relativePath string) (string, error) {
 func getSystemSettingOrEnvOrDB(key string) string {
 	var setting models.SystemSetting
 	if database.DB != nil {
-		if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil && setting.Value != "" {
-			return setting.Value
+		if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil {
+			if value := strings.TrimSpace(setting.Value); value != "" {
+				return value
+			}
 		}
 	}
 	return os.Getenv(key)

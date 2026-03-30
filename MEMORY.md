@@ -219,6 +219,19 @@
   - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
   - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
 
+## Mobile Release / Distribution
+- По состоянию на 2026-03-30 контур mobile release для direct distribution без маркетов частично готов, но остается в значительной степени ручным:
+  - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.44`, `versionCode 46`, release signing настроен через env/keystore.
+  - iOS release тоже собирается вручную через локальные `xcodebuild` scripts из root `package.json`; автоматизированного канала вроде EAS/Fastlane/AppCenter в репозитории нет.
+- Для iOS Firebase/push/crash цепочка зависит от локального файла `frontend/ios/vedamatch/GoogleService-Info.plist`, который намеренно не хранится в git:
+  - в репозитории есть только `GoogleService-Info.plist.example`;
+  - `AppDelegate.mm` пропускает `FIRApp configure`, если в реальном plist нет валидного `API_KEY`;
+  - это значит, что без локально подложенного production plist iOS push/crash reporting могут тихо не инициализироваться.
+- В mobile-коде уже используются `@react-native-firebase/messaging` и Crashlytics abstraction, но текущие iOS entitlements-файлы `frontend/ios/vedamatch/vedamatch.entitlements` и `frontend/ios/vedamatch/vedamatch.debug.entitlements` пустые; для полноценного production push/VoIP-поведения это место нужно считать обязательной точкой перепроверки перед выпуском.
+- QA-контур для mobile есть только частично:
+  - присутствуют Jest/unit tests;
+  - не видно настроенного Detox/Maestro/Fastlane-based release validation для финального release smoke по устройствам.
+
 ## Chat / Messaging
 - Direct user chat в mobile сейчас построен вокруг экрана контактов и открытия `Chat` по конкретному пользователю, а не вокруг отдельного inbox/списка диалогов с `lastMessage`, `unread` и conversation ordering.
 - Текущий P2P chat уже поддерживает realtime delivery через `WebSocket`, typing indicator, пагинацию истории, media index, in-chat search, mute/pin preferences, audio/video-circle/document/contact-card и audio transcription.
@@ -3447,6 +3460,46 @@
 
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
+- 2026-03-30 live Android release ops:
+  - release APK `1.1.44 (46)` загружен в live storage и `SUPPORT_DOWNLOAD_ANDROID_URL` переключен на новый публичный S3 URL;
+  - admin upload endpoint сейчас извлекает версию только из имени файла, поэтому при загрузке локального `app-release.apk` публичный filename в S3 ушел как `ragagent-release-v1.0.0-...apk`, даже если внутри APK реальная версия `1.1.44 (46)`;
+  - для корректного user-facing version source of truth нужно опираться на `ANDROID_TESTERS_APP_VERSION` и `ANDROID_TESTERS_VERSION_CODE`, а не на filename.
+- 2026-03-30 live backend still lagging behind Android release metadata code:
+  - public `/api/android-testers/config` на production уже читает старые поля вроде `apkUrl` и `appVersion`, но не отдает новые `versionCode`, `minimumSupportedVersionCode`, `publishedAt`;
+  - public `/api/mobile-app/config` на production еще не отдает `androidRelease`;
+  - причина: production server еще не задеплоен на код с новым Android release contract.
+- 2026-03-30 live push smoke for admin/test delivery failed at provider level:
+  - `POST /api/admin/push/test` вернул `fcm v1 returned status=401 code=THIRD_PARTY_AUTH_ERROR`;
+  - runtime status при этом показывал `fcmSenderMode=v1`, `fcmActiveSender=v1`, `fcmLegacyConfigured=true`, `fcmV1Configured=true`;
+  - это указывает не на Android client regression, а на проблему текущей production FCM v1 auth/config.
+- Android MVP distribution без Google Play теперь опирается на один контур:
+  - канонический download URL хранится в `SUPPORT_DOWNLOAD_ANDROID_URL`;
+  - public install page использует `/android-testers`;
+  - in-app update check читает public mobile config, а не имя APK.
+- Source of truth для Android release metadata хранится в system settings/admin, а не вычисляется из имени файла:
+  - `ANDROID_TESTERS_APP_VERSION`
+  - `ANDROID_TESTERS_VERSION_CODE`
+  - `ANDROID_TESTERS_RELEASE_NOTES`
+  - `ANDROID_TESTERS_INSTALL_INSTRUCTIONS`
+  - `ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE`
+  - `ANDROID_TESTERS_PUBLISHED_AT`
+- Public mobile config (`/api/mobile-app/config`) теперь должен включать nested `androidRelease` с полями:
+  - `downloadUrl`
+  - `appVersion`
+  - `versionCode`
+  - `releaseNotes`
+  - `installInstructions`
+  - `minimumSupportedVersionCode`
+  - `publishedAt`
+- Public Android testers config (`/api/android-testers/config`) теперь тоже отдает `versionCode`, `minimumSupportedVersionCode` и `publishedAt`, чтобы сайт и Telegram install flow показывали одну и ту же release-информацию.
+- Android app использует soft in-app update prompt:
+  - сравнение идет по локальному `buildNumber` против backend `versionCode`;
+  - force-update пока не включен;
+  - dismissed prompt запоминается локально по `versionCode`.
+- Минимальная Android release analytics заведена через public endpoint `POST /api/mobile-app/android-release/events`:
+  - события: `page_view`, `download_click`, `prompt_shown`, `prompt_open`;
+  - entry source ожидается как `site`, `telegram` или `in_app`;
+  - метрики пишутся в counters `android_release_*`.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
   - `frontend/android/app/build.gradle`: `versionName=1.1.44`, `versionCode=46`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;

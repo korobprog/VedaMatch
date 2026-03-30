@@ -500,6 +500,18 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "ANDROID_TESTERS_VERSION_CODE",
+			Value: "",
+		},
+		{
+			Key:   "ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE",
+			Value: "",
+		},
+		{
+			Key:   "ANDROID_TESTERS_PUBLISHED_AT",
+			Value: "",
+		},
+		{
 			Key:   "SUPPORT_CHANNEL_URL",
 			Value: "",
 		},

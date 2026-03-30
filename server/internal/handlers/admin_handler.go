@@ -643,16 +643,23 @@ func (h *AdminHandler) GetPublicLegalConfig(c *fiber.Ctx) error {
 func (h *AdminHandler) GetPublicAndroidTestersConfig(c *fiber.Ctx) error {
 	title := strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_PAGE_TITLE", "Android test builds"))
 	subtitle := strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_PAGE_SUBTITLE", "Скачайте актуальный APK, установите его на Android и отправьте отзыв со скриншотом, если что-то пошло не так."))
+	appVersion := strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_APP_VERSION", ""))
+	if appVersion == "" {
+		appVersion = services.GetPublicMobileAppConfig().AndroidVersion
+	}
 
 	return c.JSON(fiber.Map{
-		"title":               title,
-		"subtitle":            subtitle,
-		"apkUrl":              strings.TrimSpace(getSettingWithFallback("SUPPORT_DOWNLOAD_ANDROID_URL", "")),
-		"appVersion":          strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_APP_VERSION", "")),
-		"releaseNotes":        strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_RELEASE_NOTES", "")),
-		"installInstructions": strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "")),
-		"supportText":         strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_SUPPORT_TEXT", "")),
-		"feedbackEntryPoint":  "android_tester_feedback",
+		"title":                       title,
+		"subtitle":                    subtitle,
+		"apkUrl":                      strings.TrimSpace(getSettingWithFallback("SUPPORT_DOWNLOAD_ANDROID_URL", "")),
+		"appVersion":                  appVersion,
+		"versionCode":                 parseSettingPositiveInt("ANDROID_TESTERS_VERSION_CODE", 0, 0, 10_000_000),
+		"releaseNotes":                strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_RELEASE_NOTES", "")),
+		"installInstructions":         strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "")),
+		"supportText":                 strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_SUPPORT_TEXT", "")),
+		"minimumSupportedVersionCode": parseSettingPositiveInt("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE", 0, 0, 10_000_000),
+		"publishedAt":                 strings.TrimSpace(getSettingWithFallback("ANDROID_TESTERS_PUBLISHED_AT", "")),
+		"feedbackEntryPoint":          "android_tester_feedback",
 		"attachment": fiber.Map{
 			"maxBytes":     supportUploadMaxBytes,
 			"maxMegabytes": supportUploadMaxBytes / (1024 * 1024),
@@ -668,7 +675,46 @@ func (h *AdminHandler) GetPublicMobileAppConfig(c *fiber.Ctx) error {
 		"androidUrl":     config.AndroidURL,
 		"iosVersion":     config.IOSVersion,
 		"androidVersion": config.AndroidVersion,
+		"androidRelease": config.AndroidRelease,
 	})
+}
+
+func (h *AdminHandler) TrackAndroidReleaseEvent(c *fiber.Ctx) error {
+	var body struct {
+		Event       string `json:"event"`
+		EntrySource string `json:"entrySource"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	event := strings.TrimSpace(strings.ToLower(body.Event))
+	var metricKey string
+	switch event {
+	case "page_view":
+		metricKey = services.MetricAndroidReleasePageViewTotal
+	case "download_click":
+		metricKey = services.MetricAndroidReleaseDownloadClickTotal
+	case "prompt_shown":
+		metricKey = services.MetricAndroidReleasePromptShownTotal
+	case "prompt_open":
+		metricKey = services.MetricAndroidReleasePromptOpenTotal
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unsupported android release event"})
+	}
+
+	if err := services.GetMetricsService().Increment(metricKey, 1); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not persist android release metric"})
+	}
+
+	entrySource := strings.TrimSpace(strings.ToLower(body.EntrySource))
+	if entrySource != "" {
+		entryMetricKey := metricKey + "_" + entrySource
+		_ = services.GetMetricsService().Increment(entryMetricKey, 1)
+	}
+
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {

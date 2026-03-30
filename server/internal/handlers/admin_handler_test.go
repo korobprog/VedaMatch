@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"rag-agent-server/internal/services"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -219,15 +220,21 @@ func TestGetPublicAndroidTestersConfig(t *testing.T) {
 	t.Setenv("ANDROID_TESTERS_PAGE_TITLE", "Android QA")
 	t.Setenv("ANDROID_TESTERS_PAGE_SUBTITLE", "Install and report issues")
 	t.Setenv("ANDROID_TESTERS_APP_VERSION", "1.1.27 (29)")
+	t.Setenv("ANDROID_TESTERS_VERSION_CODE", "29")
 	t.Setenv("ANDROID_TESTERS_RELEASE_NOTES", "Fix Telegram auth")
 	t.Setenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "1. Download\n2. Install")
+	t.Setenv("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE", "27")
+	t.Setenv("ANDROID_TESTERS_PUBLISHED_AT", "2026-03-30T10:00:00Z")
 	t.Setenv("ANDROID_TESTERS_SUPPORT_TEXT", "Attach a screenshot if possible")
 	defer os.Unsetenv("SUPPORT_DOWNLOAD_ANDROID_URL")
 	defer os.Unsetenv("ANDROID_TESTERS_PAGE_TITLE")
 	defer os.Unsetenv("ANDROID_TESTERS_PAGE_SUBTITLE")
 	defer os.Unsetenv("ANDROID_TESTERS_APP_VERSION")
+	defer os.Unsetenv("ANDROID_TESTERS_VERSION_CODE")
 	defer os.Unsetenv("ANDROID_TESTERS_RELEASE_NOTES")
 	defer os.Unsetenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS")
+	defer os.Unsetenv("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE")
+	defer os.Unsetenv("ANDROID_TESTERS_PUBLISHED_AT")
 	defer os.Unsetenv("ANDROID_TESTERS_SUPPORT_TEXT")
 
 	app := fiber.New()
@@ -245,15 +252,18 @@ func TestGetPublicAndroidTestersConfig(t *testing.T) {
 	defer resp.Body.Close()
 
 	var payload struct {
-		Title               string `json:"title"`
-		Subtitle            string `json:"subtitle"`
-		ApkURL              string `json:"apkUrl"`
-		AppVersion          string `json:"appVersion"`
-		ReleaseNotes        string `json:"releaseNotes"`
-		InstallInstructions string `json:"installInstructions"`
-		SupportText         string `json:"supportText"`
-		FeedbackEntryPoint  string `json:"feedbackEntryPoint"`
-		Attachment          struct {
+		Title                       string `json:"title"`
+		Subtitle                    string `json:"subtitle"`
+		ApkURL                      string `json:"apkUrl"`
+		AppVersion                  string `json:"appVersion"`
+		VersionCode                 int    `json:"versionCode"`
+		ReleaseNotes                string `json:"releaseNotes"`
+		InstallInstructions         string `json:"installInstructions"`
+		MinimumSupportedVersionCode int    `json:"minimumSupportedVersionCode"`
+		PublishedAt                 string `json:"publishedAt"`
+		SupportText                 string `json:"supportText"`
+		FeedbackEntryPoint          string `json:"feedbackEntryPoint"`
+		Attachment                  struct {
 			MaxBytes int64    `json:"maxBytes"`
 			Types    []string `json:"types"`
 		} `json:"attachment"`
@@ -268,6 +278,15 @@ func TestGetPublicAndroidTestersConfig(t *testing.T) {
 	if payload.ApkURL != "https://api.vedamatch.ru/uploads/apk/app.apk" {
 		t.Fatalf("unexpected apk url: %q", payload.ApkURL)
 	}
+	if payload.VersionCode != 29 {
+		t.Fatalf("unexpected version code: %d", payload.VersionCode)
+	}
+	if payload.MinimumSupportedVersionCode != 27 {
+		t.Fatalf("unexpected minimum supported version code: %d", payload.MinimumSupportedVersionCode)
+	}
+	if payload.PublishedAt != "2026-03-30T10:00:00Z" {
+		t.Fatalf("unexpected published at: %q", payload.PublishedAt)
+	}
 	if payload.FeedbackEntryPoint != "android_tester_feedback" {
 		t.Fatalf("unexpected entry point: %q", payload.FeedbackEntryPoint)
 	}
@@ -281,9 +300,21 @@ func TestGetPublicAndroidTestersConfig(t *testing.T) {
 
 func TestGetPublicMobileAppConfig(t *testing.T) {
 	t.Setenv("SUPPORT_DOWNLOAD_IOS_URL", "https://apps.apple.com/app/id123")
-	t.Setenv("SUPPORT_DOWNLOAD_ANDROID_URL", "https://play.google.com/store/apps/details?id=app")
+	t.Setenv("SUPPORT_DOWNLOAD_ANDROID_URL", "https://api.vedamatch.ru/downloads/android/app.apk")
+	t.Setenv("ANDROID_TESTERS_APP_VERSION", "1.1.44 (46)")
+	t.Setenv("ANDROID_TESTERS_VERSION_CODE", "46")
+	t.Setenv("ANDROID_TESTERS_RELEASE_NOTES", "Fix Telegram auth\nImprove install flow")
+	t.Setenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS", "1. Download APK\n2. Allow install")
+	t.Setenv("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE", "44")
+	t.Setenv("ANDROID_TESTERS_PUBLISHED_AT", "2026-03-30T10:00:00Z")
 	defer os.Unsetenv("SUPPORT_DOWNLOAD_IOS_URL")
 	defer os.Unsetenv("SUPPORT_DOWNLOAD_ANDROID_URL")
+	defer os.Unsetenv("ANDROID_TESTERS_APP_VERSION")
+	defer os.Unsetenv("ANDROID_TESTERS_VERSION_CODE")
+	defer os.Unsetenv("ANDROID_TESTERS_RELEASE_NOTES")
+	defer os.Unsetenv("ANDROID_TESTERS_INSTALL_INSTRUCTIONS")
+	defer os.Unsetenv("ANDROID_TESTERS_MIN_SUPPORTED_VERSION_CODE")
+	defer os.Unsetenv("ANDROID_TESTERS_PUBLISHED_AT")
 
 	app := fiber.New()
 	handler := &AdminHandler{}
@@ -304,6 +335,15 @@ func TestGetPublicMobileAppConfig(t *testing.T) {
 		AndroidURL     string `json:"androidUrl"`
 		IOSVersion     string `json:"iosVersion"`
 		AndroidVersion string `json:"androidVersion"`
+		AndroidRelease struct {
+			DownloadURL                 string `json:"downloadUrl"`
+			AppVersion                  string `json:"appVersion"`
+			VersionCode                 int    `json:"versionCode"`
+			ReleaseNotes                string `json:"releaseNotes"`
+			InstallInstructions         string `json:"installInstructions"`
+			MinimumSupportedVersionCode int    `json:"minimumSupportedVersionCode"`
+			PublishedAt                 string `json:"publishedAt"`
+		} `json:"androidRelease"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode failed: %v", err)
@@ -312,7 +352,7 @@ func TestGetPublicMobileAppConfig(t *testing.T) {
 	if payload.IOSURL != "https://apps.apple.com/app/id123" {
 		t.Fatalf("unexpected ios url: %q", payload.IOSURL)
 	}
-	if payload.AndroidURL != "https://play.google.com/store/apps/details?id=app" {
+	if payload.AndroidURL != "https://api.vedamatch.ru/downloads/android/app.apk" {
 		t.Fatalf("unexpected android url: %q", payload.AndroidURL)
 	}
 	if payload.IOSVersion == "" {
@@ -320,5 +360,38 @@ func TestGetPublicMobileAppConfig(t *testing.T) {
 	}
 	if payload.AndroidVersion == "" {
 		t.Fatalf("expected non-empty android version")
+	}
+	if payload.AndroidRelease.DownloadURL != payload.AndroidURL {
+		t.Fatalf("unexpected android release url: %q", payload.AndroidRelease.DownloadURL)
+	}
+	if payload.AndroidRelease.AppVersion != "1.1.44 (46)" {
+		t.Fatalf("unexpected android release version: %q", payload.AndroidRelease.AppVersion)
+	}
+	if payload.AndroidRelease.VersionCode != 46 {
+		t.Fatalf("unexpected android release version code: %d", payload.AndroidRelease.VersionCode)
+	}
+	if payload.AndroidRelease.MinimumSupportedVersionCode != 44 {
+		t.Fatalf("unexpected min supported version code: %d", payload.AndroidRelease.MinimumSupportedVersionCode)
+	}
+	if payload.AndroidRelease.PublishedAt != "2026-03-30T10:00:00Z" {
+		t.Fatalf("unexpected published at: %q", payload.AndroidRelease.PublishedAt)
+	}
+}
+
+func TestTrackAndroidReleaseEventRejectsUnknownEvent(t *testing.T) {
+	app := fiber.New()
+	handler := &AdminHandler{}
+	app.Post("/mobile-app/android-release/events", handler.TrackAndroidReleaseEvent)
+
+	req := httptest.NewRequest("POST", "/mobile-app/android-release/events", strings.NewReader(`{"event":"unknown","entrySource":"site"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }

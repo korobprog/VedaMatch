@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AlertCircle, CheckCircle2, Download, Loader2, MessageSquarePlus, Paperclip, Send } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -20,8 +20,11 @@ interface AndroidTestersConfig {
     subtitle: string;
     apkUrl: string;
     appVersion: string;
+    versionCode: number;
     releaseNotes: string;
     installInstructions: string;
+    minimumSupportedVersionCode: number;
+    publishedAt: string;
     supportText: string;
     feedbackEntryPoint: string;
     attachment?: {
@@ -43,8 +46,11 @@ const DEFAULT_CONFIG: AndroidTestersConfig = {
     subtitle: 'Скачайте APK и отправьте отзыв, если нашли баг или странное поведение.',
     apkUrl: '',
     appVersion: '',
+    versionCode: 0,
     releaseNotes: '',
     installInstructions: '1. Скачайте APK на Android.\n2. Разрешите установку из этого источника.\n3. Откройте файл и подтвердите установку.',
+    minimumSupportedVersionCode: 0,
+    publishedAt: '',
     supportText: 'Можно приложить один скриншот проблемы.',
     feedbackEntryPoint: 'android_tester_feedback',
     attachment: {
@@ -101,6 +107,14 @@ export default function AndroidTestersPageClient() {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
+    const trackReleaseEvent = useCallback(async (event: string, entrySource: string) => {
+        try {
+            await api.post('/mobile-app/android-release/events', { event, entrySource });
+        } catch (error) {
+            console.warn('Failed to track android release event', error);
+        }
+    }, []);
+
     useEffect(() => {
         const loadConfig = async () => {
             setLoadingConfig(true);
@@ -119,8 +133,30 @@ export default function AndroidTestersPageClient() {
         loadConfig();
     }, []);
 
+    useEffect(() => {
+        if (!loadingConfig && !configError) {
+            trackReleaseEvent('page_view', 'site').catch(() => {});
+        }
+    }, [loadingConfig, configError, trackReleaseEvent]);
+
     const releaseNotes = useMemo(() => splitMultilineContent(config.releaseNotes), [config.releaseNotes]);
     const installSteps = useMemo(() => splitMultilineContent(config.installInstructions), [config.installInstructions]);
+    const publishedAtLabel = useMemo(() => {
+        if (!config.publishedAt) {
+            return '';
+        }
+        const parsed = new Date(config.publishedAt);
+        if (Number.isNaN(parsed.getTime())) {
+            return config.publishedAt;
+        }
+        return parsed.toLocaleString('ru-RU', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }, [config.publishedAt]);
 
     const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0] ?? null;
@@ -223,6 +259,12 @@ export default function AndroidTestersPageClient() {
                         <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
                             <div className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Current build</div>
                             <div className="mt-1 text-lg font-semibold">{config.appVersion || 'version not set'}</div>
+                            {config.versionCode > 0 && (
+                                <div className="mt-1 text-xs text-emerald-100/80">versionCode {config.versionCode}</div>
+                            )}
+                            {publishedAtLabel && (
+                                <div className="mt-2 text-xs text-emerald-100/80">Опубликовано: {publishedAtLabel}</div>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -261,6 +303,9 @@ export default function AndroidTestersPageClient() {
                                             href={config.apkUrl}
                                             target="_blank"
                                             rel="noreferrer"
+                                            onClick={() => {
+                                                trackReleaseEvent('download_click', 'site').catch(() => {});
+                                            }}
                                             className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
                                         >
                                             <Download className="h-4 w-4" />
@@ -277,6 +322,11 @@ export default function AndroidTestersPageClient() {
 
                             <div className="rounded-[28px] border border-white/10 bg-slate-950/75 p-6 shadow-xl shadow-slate-950/20">
                                 <h2 className="text-xl font-semibold">Как установить</h2>
+                                {config.minimumSupportedVersionCode > 0 && (
+                                    <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm text-cyan-100">
+                                        Минимально поддерживаемая сборка: versionCode {config.minimumSupportedVersionCode}. Если приложение давно не обновлялось, установите новый APK поверх текущей версии.
+                                    </div>
+                                )}
                                 <ol className="mt-4 space-y-3">
                                     {installSteps.map((step, index) => (
                                         <li key={`${step}-${index}`} className="flex gap-3 text-sm text-slate-200">

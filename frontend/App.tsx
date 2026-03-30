@@ -204,6 +204,8 @@ import { setIncomingCallPushHandler } from './services/notificationService';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { NetworkStatusBanner } from './components/NetworkStatusBanner';
+import { androidReleaseService, type AndroidReleaseConfig } from './services/androidReleaseService';
+import { AndroidUpdatePrompt } from './components/AndroidUpdatePrompt';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -231,6 +233,9 @@ const AppContent = () => {
   const voipSetupRef = React.useRef(false);
   const incomingCallRef = React.useRef<{ callUUID: string; targetId?: number; callerName: string } | null>(null);
   const callerProfileCacheRef = React.useRef<Map<number, UserContact | null>>(new Map());
+  const updateCheckInFlightRef = React.useRef(false);
+  const [availableAndroidRelease, setAvailableAndroidRelease] = useState<AndroidReleaseConfig | null>(null);
+  const [androidUpdateVisible, setAndroidUpdateVisible] = useState(false);
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -264,6 +269,74 @@ const AppContent = () => {
   React.useEffect(() => {
     crashReportingService.setUserContext(user?.ID ?? null);
   }, [user?.ID]);
+
+  const checkAndroidRelease = React.useCallback(async () => {
+    if (Platform.OS !== 'android' || updateCheckInFlightRef.current) {
+      return;
+    }
+
+    updateCheckInFlightRef.current = true;
+    try {
+      const release = await androidReleaseService.checkForUpdate();
+      if (!release) {
+        return;
+      }
+
+      setAvailableAndroidRelease(release);
+      setAndroidUpdateVisible(true);
+      await androidReleaseService.trackEvent('prompt_shown', 'in_app');
+      crashReportingService.logBreadcrumb(`android_release_prompt_shown:${release.versionCode}`);
+    } catch (error) {
+      console.warn('[AndroidRelease] Failed to check updates', error);
+    } finally {
+      updateCheckInFlightRef.current = false;
+    }
+  }, []);
+
+  const handleDismissAndroidUpdate = React.useCallback(() => {
+    if (availableAndroidRelease) {
+      void androidReleaseService.dismissPrompt(availableAndroidRelease.versionCode);
+    }
+    setAndroidUpdateVisible(false);
+  }, [availableAndroidRelease]);
+
+  const handleOpenAndroidUpdate = React.useCallback(async () => {
+    if (!availableAndroidRelease) {
+      return;
+    }
+
+    try {
+      await androidReleaseService.trackEvent('prompt_open', 'in_app');
+      await androidReleaseService.openDownloadUrl(availableAndroidRelease);
+      await androidReleaseService.dismissPrompt(availableAndroidRelease.versionCode);
+      setAndroidUpdateVisible(false);
+    } catch (error) {
+      console.warn('[AndroidRelease] Failed to open download URL', error);
+    }
+  }, [availableAndroidRelease]);
+
+  React.useEffect(() => {
+    if (!minLoadTime || !isSettingsLoaded) {
+      return;
+    }
+    void checkAndroidRelease();
+  }, [minLoadTime, isSettingsLoaded, checkAndroidRelease, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void checkAndroidRelease();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [checkAndroidRelease]);
 
   React.useEffect(() => {
     if (!isLoggedIn) {
@@ -901,6 +974,14 @@ const AppContent = () => {
                   // @ts-ignore
                   navigationRef.navigate('Chat');
                 }
+              }}
+            />
+            <AndroidUpdatePrompt
+              visible={androidUpdateVisible}
+              release={availableAndroidRelease}
+              onDismiss={handleDismissAndroidUpdate}
+              onDownload={() => {
+                void handleOpenAndroidUpdate();
               }}
             />
           </NavigationContainer>
