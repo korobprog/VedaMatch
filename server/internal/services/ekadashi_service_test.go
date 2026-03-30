@@ -200,3 +200,83 @@ func TestNormalizeCalendarEventPreservesCanonicalMetadata(t *testing.T) {
 		t.Fatalf("expected source confidence to be preserved, got %d", event.SourceConfidence)
 	}
 }
+
+func TestPickCalendarPublicationForTargetPrefersSameTimezoneFallback(t *testing.T) {
+	target := calendarImportTarget{
+		Organization: resolveEkadashiOrganization("iskcon"),
+		Location: locationSnapshot{
+			TimeZone: "Europe/Moscow",
+			City:     "Moscow",
+			Country:  "Russia",
+		},
+		ScopeMode: calendarScopeModeLocation,
+		ScopeKey:  "city:moscow|tz:europe/moscow",
+	}
+
+	publication, found := pickCalendarPublicationForTarget(target, []models.CalendarPublication{
+		{
+			OrganizationID: "iskcon",
+			ScopeKey:       "city:mayapur|tz:asia/kolkata",
+			ScopeMode:      calendarScopeModeLocation,
+			City:           "Mayapur",
+			Country:        "India",
+			Timezone:       "Asia/Kolkata",
+			IsActive:       true,
+		},
+		{
+			OrganizationID: "iskcon",
+			ScopeKey:       "city:tbilisi|tz:europe/moscow",
+			ScopeMode:      calendarScopeModeLocation,
+			City:           "Tbilisi",
+			Country:        "Georgia",
+			Timezone:       "Europe/Moscow",
+			IsActive:       true,
+		},
+	})
+	if !found {
+		t.Fatalf("expected fallback publication to be found")
+	}
+	if publication.ScopeKey != "city:tbilisi|tz:europe/moscow" {
+		t.Fatalf("expected same-timezone publication, got %q", publication.ScopeKey)
+	}
+}
+
+func TestPickCalendarPublicationForTargetFallsBackWithoutCity(t *testing.T) {
+	target := calendarImportTarget{
+		Organization: resolveEkadashiOrganization("iskcon"),
+		Location: locationSnapshot{
+			TimeZone: "Europe/Moscow",
+			City:     "",
+			Country:  "Russia",
+		},
+		ScopeMode: calendarScopeModeLocation,
+		ScopeKey:  "city_missing|tz:europe/moscow",
+	}
+
+	publication, found := pickCalendarPublicationForTarget(target, []models.CalendarPublication{
+		{
+			OrganizationID: "iskcon",
+			ScopeKey:       "city:mayapur|tz:asia/kolkata",
+			ScopeMode:      calendarScopeModeLocation,
+			City:           "Mayapur",
+			Country:        "India",
+			Timezone:       "Asia/Kolkata",
+			IsActive:       true,
+		},
+		{
+			OrganizationID: "iskcon",
+			ScopeKey:       "city:moscow|tz:europe/moscow",
+			ScopeMode:      calendarScopeModeLocation,
+			City:           "Moscow",
+			Country:        "Russia",
+			Timezone:       "Europe/Moscow",
+			IsActive:       true,
+		},
+	})
+	if !found {
+		t.Fatalf("expected fallback publication without city")
+	}
+	if publication.ScopeKey != "city:moscow|tz:europe/moscow" {
+		t.Fatalf("expected nearest same-timezone publication, got %q", publication.ScopeKey)
+	}
+}

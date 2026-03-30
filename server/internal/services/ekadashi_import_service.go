@@ -1081,11 +1081,11 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 
 	target, hasUsableLocation := s.targetFromLocation(org, locData)
 	scopeMode := target.ScopeMode
-	scopeKey := target.ScopeKey
-	var publication models.CalendarPublication
-	if err := s.db.Where("organization_id = ? AND scope_key = ? AND is_active = ?", org.ID, scopeKey, true).
-		Order("created_at DESC").
-		First(&publication).Error; err != nil {
+	publication, publicationMatchesScope, publicationFound, err := s.resolvePublishedPublicationForTarget(org, target)
+	if err != nil {
+		return []models.EkadashiDay{}, []models.EkadashiDay{}, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", "db_query_failed")
+	}
+	if !publicationFound {
 		if !hasUsableLocation && scopeMode == calendarScopeModeLocation {
 			return []models.EkadashiDay{}, []models.EkadashiDay{}, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", "location_required")
 		}
@@ -1103,7 +1103,7 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 	end := monthStart.AddDate(0, 1, 0).Add(-24 * time.Hour).Format("2006-01-02")
 	var rows []models.CalendarEvent
 	if err := s.db.Where("publication_version = ? AND organization_id = ? AND scope_key = ? AND date >= ? AND date <= ?",
-		publication.PublicationVersion, org.ID, scopeKey, start, end).
+		publication.PublicationVersion, org.ID, publication.ScopeKey, start, end).
 		Order("date ASC, priority ASC, title ASC").
 		Find(&rows).Error; err != nil {
 		return []models.EkadashiDay{}, []models.EkadashiDay{}, "", newEkadashiProviderDecision(calendarProviderModeDBMissing, "calendar_db", "db_query_failed")
@@ -1130,6 +1130,9 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 			if !hasImported {
 				copyDecision = newEkadashiProviderDecision(calendarProviderModeDBCurated, "calendar_db", "")
 			}
+			if !publicationMatchesScope {
+				copyDecision.Reason = "scope_fallback"
+			}
 			event.ProviderDecision = &copyDecision
 			days = append(days, event)
 		}
@@ -1146,6 +1149,8 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 	decision := newEkadashiProviderDecision(mode, "calendar_db", "")
 	if mode == calendarProviderModeDBMissing {
 		decision.Reason = "publication_empty"
+	} else if !publicationMatchesScope {
+		decision.Reason = "scope_fallback"
 	}
 
 	generatedFrom := "calendar_db"
@@ -1155,6 +1160,78 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 		generatedFrom = "calendar_db_curated"
 	}
 	return events, days, generatedFrom, decision
+}
+
+func (s *CalendarImportService) resolvePublishedPublicationForTarget(org models.EkadashiOrganization, target calendarImportTarget) (models.CalendarPublication, bool, bool, error) {
+	var publication models.CalendarPublication
+	if err := s.db.Where("organization_id = ? AND scope_key = ? AND is_active = ?", org.ID, target.ScopeKey, true).
+		Order("created_at DESC").
+		First(&publication).Error; err == nil {
+		return publication, true, true, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.CalendarPublication{}, false, false, err
+	}
+
+	var candidates []models.CalendarPublication
+	if err := s.db.Where("organization_id = ? AND is_active = ?", org.ID, true).
+		Order("created_at DESC").
+		Find(&candidates).Error; err != nil {
+		return models.CalendarPublication{}, false, false, err
+	}
+
+	publication, found := pickCalendarPublicationForTarget(target, candidates)
+	return publication, false, found, nil
+}
+
+func pickCalendarPublicationForTarget(target calendarImportTarget, candidates []models.CalendarPublication) (models.CalendarPublication, bool) {
+	bestScore := -1
+	bestIndex := -1
+	for index, candidate := range candidates {
+		score := rankCalendarPublicationFallback(target, candidate)
+		if score > bestScore {
+			bestScore = score
+			bestIndex = index
+		}
+	}
+	if bestIndex < 0 {
+		return models.CalendarPublication{}, false
+	}
+	return candidates[bestIndex], true
+}
+
+func rankCalendarPublicationFallback(target calendarImportTarget, publication models.CalendarPublication) int {
+	if !publication.IsActive {
+		return -1
+	}
+
+	score := 0
+	targetTimezone := strings.ToLower(strings.TrimSpace(target.Location.TimeZone))
+	publicationTimezone := strings.ToLower(strings.TrimSpace(publication.Timezone))
+	targetCity := strings.ToLower(strings.TrimSpace(target.Location.City))
+	publicationCity := strings.ToLower(strings.TrimSpace(publication.City))
+	targetCountry := strings.ToLower(strings.TrimSpace(target.Location.Country))
+	publicationCountry := strings.ToLower(strings.TrimSpace(publication.Country))
+
+	if publication.ScopeMode == target.ScopeMode {
+		score += 40
+	}
+	if targetTimezone != "" && publicationTimezone == targetTimezone {
+		score += 30
+	}
+	if targetCity != "" && publicationCity == targetCity {
+		score += 20
+	}
+	if targetCountry != "" && publicationCountry == targetCountry {
+		score += 5
+	}
+	if publicationTimezone == "asia/kolkata" {
+		score += 10
+	}
+	if publication.ScopeMode == calendarScopeModeTimezone {
+		score += 3
+	}
+
+	return score
 }
 
 func (s *CalendarImportService) ListPublicationStatuses(limit int) ([]models.CalendarPublication, error) {
