@@ -2,6 +2,9 @@ import apiClient from '../lib/apiClient';
 import type {
     LilaBalanceSummary,
     LilaBootstrap,
+    LilaCurrency,
+    LilaGiftHistoryEntry,
+    LilaInventoryItem,
     LilaJoinQueueResponse,
     LilaLeaderboardEntry,
     LilaLocation,
@@ -13,6 +16,7 @@ import type {
     LilaPassProgress,
     LilaPassSeason,
     LilaProfileSnapshot,
+    LilaPurchaseHistoryEntry,
     LilaPurchaseResult,
     LilaQuestionView,
     LilaQuestSummary,
@@ -21,6 +25,7 @@ import type {
     LilaRoundSnapshot,
     LilaSiddhiId,
     LilaStoreItem,
+    LilaStoreSpendOption,
     LilaStoreSection,
     LilaSubscription,
     LilaSubscriptionResult,
@@ -93,6 +98,60 @@ type LilaSubscriptionApi = {
     endsAt?: string;
     autoRenew?: boolean;
     priceReal?: number;
+};
+
+type LilaPassProgressApi = {
+    seasonId?: number;
+    userId?: number;
+    currentPoints?: number;
+    currentLevel?: number;
+    claimedLevels?: number[];
+    premiumUnlockedAt?: string | null;
+    lastClaimedAt?: string | null;
+    status?: string;
+    expiresAt?: string | null;
+};
+
+type LilaInventoryItemApi = {
+    code?: string;
+    type?: string;
+    name?: string;
+    description?: string;
+    state?: string;
+    source?: string;
+    ownedAt?: string | null;
+    expiresAt?: string | null;
+    isEquipped?: boolean;
+};
+
+type LilaPurchaseHistoryApi = {
+    purchaseId?: number;
+    itemCode?: string;
+    itemType?: string;
+    itemName?: string;
+    currency?: string;
+    priceBonus?: number;
+    priceReal?: number;
+    status?: string;
+    state?: string;
+    purchasedAt?: string;
+    fulfilledAt?: string | null;
+    expiresAt?: string | null;
+};
+
+type LilaGiftHistoryApi = {
+    giftId?: number;
+    itemCode?: string;
+    itemName?: string;
+    direction?: string;
+    status?: string;
+    message?: string;
+    currency?: string;
+    bonusAmount?: number;
+    realAmount?: number;
+    counterpartyUserId?: number;
+    sentAt?: string;
+    deliveredAt?: string | null;
 };
 
 type LilaQuestionApi = {
@@ -175,7 +234,11 @@ type LilaBootstrapApi = {
     profile?: LilaProfileApi | null;
     queueDepth?: Record<string, number>;
     activeSeason?: LilaPassSeasonApi | null;
+    passProgress?: LilaPassProgressApi | null;
     storeItems?: LilaStoreItemApi[];
+    ownedItems?: LilaInventoryItemApi[];
+    purchaseHistory?: LilaPurchaseHistoryApi[];
+    giftHistory?: LilaGiftHistoryApi[];
     quests?: LilaQuestApi[];
     leaderboard?: LilaLeaderboardEntry[];
     subscription?: LilaSubscriptionApi | null;
@@ -399,6 +462,65 @@ const mapSubscription = (subscription?: LilaSubscriptionApi | null): LilaSubscri
     };
 };
 
+const mapPassProgress = (progress?: LilaPassProgressApi | null): LilaPassProgress | null => {
+    if (!progress) {
+        return null;
+    }
+    return {
+        seasonId: Number(progress.seasonId || 0),
+        userId: Number(progress.userId || 0),
+        currentPoints: Number(progress.currentPoints || 0),
+        currentLevel: Number(progress.currentLevel || 1),
+        claimedLevels: Array.isArray(progress.claimedLevels) ? progress.claimedLevels.map((value) => Number(value || 0)) : [],
+        premiumUnlockedAt: progress.premiumUnlockedAt ?? null,
+        lastClaimedAt: progress.lastClaimedAt ?? null,
+        status: progress.status,
+        expiresAt: progress.expiresAt ?? null,
+    };
+};
+
+const mapInventoryItem = (item: LilaInventoryItemApi): LilaInventoryItem => ({
+    code: String(item.code || ''),
+    type: String(item.type || 'cosmetic'),
+    name: String(item.name || ''),
+    description: String(item.description || ''),
+    state: String(item.state || 'owned'),
+    source: String(item.source || 'store_purchase'),
+    ownedAt: item.ownedAt ?? null,
+    expiresAt: item.expiresAt ?? null,
+    isEquipped: Boolean(item.isEquipped),
+});
+
+const mapPurchaseHistoryEntry = (entry: LilaPurchaseHistoryApi): LilaPurchaseHistoryEntry => ({
+    purchaseId: Number(entry.purchaseId || 0),
+    itemCode: String(entry.itemCode || ''),
+    itemType: String(entry.itemType || 'cosmetic'),
+    itemName: String(entry.itemName || entry.itemCode || ''),
+    currency: String(entry.currency || 'real') as LilaCurrency,
+    priceBonus: Number(entry.priceBonus || 0),
+    priceReal: Number(entry.priceReal || 0),
+    status: String(entry.status || 'paid'),
+    state: String(entry.state || entry.status || 'paid'),
+    purchasedAt: String(entry.purchasedAt || ''),
+    fulfilledAt: entry.fulfilledAt ?? null,
+    expiresAt: entry.expiresAt ?? null,
+});
+
+const mapGiftHistoryEntry = (entry: LilaGiftHistoryApi): LilaGiftHistoryEntry => ({
+    giftId: Number(entry.giftId || 0),
+    itemCode: String(entry.itemCode || ''),
+    itemName: String(entry.itemName || entry.itemCode || ''),
+    direction: String(entry.direction || 'incoming'),
+    status: String(entry.status || 'sent'),
+    message: String(entry.message || ''),
+    currency: String(entry.currency || 'bonus') as LilaCurrency,
+    bonusAmount: Number(entry.bonusAmount || 0),
+    realAmount: Number(entry.realAmount || 0),
+    counterpartyUserId: Number(entry.counterpartyUserId || 0),
+    sentAt: String(entry.sentAt || ''),
+    deliveredAt: entry.deliveredAt ?? null,
+});
+
 const mapQuestion = (question: LilaQuestionApi): LilaQuestionView => ({
     id: Number(question.id),
     slug: question.slug,
@@ -549,6 +671,44 @@ export const getLilaSiddhis = (): LilaSiddhiId[] => [...DEFAULT_SIDDHIS];
 
 export const getLilaStoreSections = (items: LilaStoreItem[]): LilaStoreSection[] => buildStoreSections(items);
 
+export const getLilaPreferredStoreCurrency = (item: LilaStoreItem): LilaCurrency | null => {
+    const hasBonusPrice = item.canUseBonus && item.bonusPrice > 0;
+    const hasRealPrice = item.canUseReal && item.realPrice > 0;
+
+    if (hasBonusPrice) {
+        return 'bonus';
+    }
+    if (hasRealPrice) {
+        return 'real';
+    }
+    return null;
+};
+
+export const getLilaStoreSpendOptions = (
+    item: LilaStoreItem,
+    balance: LilaBalanceSummary,
+): LilaStoreSpendOption[] => {
+    const options: LilaStoreSpendOption[] = [];
+
+    if (item.canUseBonus && item.bonusPrice > 0) {
+        options.push({
+            currency: 'bonus',
+            amount: item.bonusPrice,
+            affordable: balance.bonus >= item.bonusPrice,
+        });
+    }
+
+    if (item.canUseReal && item.realPrice > 0) {
+        options.push({
+            currency: 'real',
+            amount: item.realPrice,
+            affordable: balance.real >= item.realPrice,
+        });
+    }
+
+    return options;
+};
+
 export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootstrap> => {
     const locale = normalizeLocale(localeInput);
     const { data } = await apiClient.get<LilaBootstrapApi>('/games/lila/bootstrap', {
@@ -567,7 +727,11 @@ export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootst
         siddhis: getLilaSiddhis(),
         queueDepth: mapQueueDepth(data.queueDepth),
         activeSeason: mapPassSeason(data.activeSeason, locale),
+        passProgress: mapPassProgress(data.passProgress),
         storeItems,
+        ownedItems: Array.isArray(data.ownedItems) ? data.ownedItems.map(mapInventoryItem) : [],
+        purchaseHistory: Array.isArray(data.purchaseHistory) ? data.purchaseHistory.map(mapPurchaseHistoryEntry) : [],
+        giftHistory: Array.isArray(data.giftHistory) ? data.giftHistory.map(mapGiftHistoryEntry) : [],
         leaderboard: mapLeaderboard(data.leaderboard),
         subscription: mapSubscription(data.subscription),
         bonusBalance: Number(data.bonusBalance || 0),
@@ -651,7 +815,7 @@ export const useLilaSiddhi = async (
 
 export const purchaseLilaStoreItem = async (
     itemCode: string,
-    currency: 'bonus' | 'real',
+    currency: LilaCurrency,
 ): Promise<LilaPurchaseResult> => {
     const { data } = await apiClient.post<LilaPurchaseResult>('/games/lila/store/purchase', {
         itemCode,
@@ -665,7 +829,7 @@ export const purchaseLilaStoreItem = async (
 export const sendLilaGift = async (
     toUserId: number,
     itemCode: string,
-    currency: 'bonus' | 'real',
+    currency: LilaCurrency,
     message?: string,
 ): Promise<void> => {
     await apiClient.post('/games/lila/store/gift', {
@@ -682,24 +846,12 @@ export const claimLilaPassReward = async (
     points: number,
     premium: boolean,
 ): Promise<LilaPassProgress> => {
-    const { data } = await apiClient.post<{ progress: LilaPassProgress & { claimedLevelsJson?: string } }>('/games/lila/pass/claim', {
+    const { data } = await apiClient.post<{ progress: LilaPassProgressApi }>('/games/lila/pass/claim', {
         seasonCode,
         points,
         premium,
     });
-    const progress = data.progress || {};
-    return {
-        seasonId: progress.seasonId,
-        userId: progress.userId,
-        currentPoints: Number(progress.currentPoints || 0),
-        currentLevel: Number(progress.currentLevel || 1),
-        claimedLevels: Array.isArray(progress.claimedLevels)
-            ? progress.claimedLevels
-            : [],
-        premiumUnlockedAt: progress.premiumUnlockedAt ?? null,
-        lastClaimedAt: progress.lastClaimedAt ?? null,
-        status: progress.status,
-    };
+    return mapPassProgress(data.progress) || {};
 };
 
 export const activateLilaSubscription = async (packageCode: string): Promise<LilaSubscriptionResult> => {

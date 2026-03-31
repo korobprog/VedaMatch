@@ -1,14 +1,13 @@
 import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { Crown, ScrollText } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import {
-    activateLilaSubscription,
-    claimLilaPassReward,
     getLilaBootstrap,
+    purchaseLilaStoreItem,
 } from '../../../services/lilaGameService';
-import type { LilaBootstrap, LilaPassProgress } from '../../../types/lila';
+import type { LilaBootstrap } from '../../../types/lila';
 import { LILA_COLORS, LilaCard, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
 
 const renderRewardEntries = (record: Record<string, unknown>): Array<{ code: string; value: string }> => (
@@ -21,7 +20,6 @@ const renderRewardEntries = (record: Record<string, unknown>): Array<{ code: str
 const LilaPassScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [progress, setProgress] = React.useState<LilaPassProgress | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [busy, setBusy] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
@@ -41,37 +39,78 @@ const LilaPassScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            void loadBootstrap();
+            loadBootstrap();
         }, [loadBootstrap]),
     );
 
     const activeSeason = bootstrap?.activeSeason;
+    const progress = bootstrap?.passProgress || null;
+    const passItem = React.useMemo(
+        () => bootstrap?.storeItems.find((item) => item.code === 'sadhana_pass_premium') || null,
+        [bootstrap?.storeItems],
+    );
     const freeRewards = activeSeason ? renderRewardEntries(activeSeason.dailyBonus) : [];
     const premiumRewards = activeSeason ? renderRewardEntries(activeSeason.premiumReward) : [];
     const displayProgress = progress
         ? Math.max(0, Math.min((progress.currentPoints || 0) / 100, 1))
         : bootstrap?.profile?.nextRankProgress || 0;
+    const passUnlocked = Boolean(progress?.premiumUnlockedAt) && progress?.status !== 'expired';
+    const formatDate = React.useCallback((value?: string | null) => {
+        if (!value) {
+            return '—';
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return value;
+        }
+        return parsed.toLocaleDateString(i18n.language || 'ru');
+    }, [i18n.language]);
 
     const handlePrimaryAction = React.useCallback(async () => {
         if (!activeSeason || busy) {
             return;
         }
-        try {
-            setBusy(true);
-            setError(null);
-            if (bootstrap?.subscription?.status === 'active') {
-                const nextProgress = await claimLilaPassReward(activeSeason.code, 10, true);
-                setProgress(nextProgress);
-            } else {
-                await activateLilaSubscription('bhakti_premium_monthly');
-                await loadBootstrap();
+        if (!passUnlocked) {
+            const realPrice = passItem?.realPrice
+                || activeSeason.premiumPriceReal
+                || 0;
+            if (realPrice <= 0) {
+                setError(t('portal.lila.store.priceUnavailable'));
+                return;
             }
-        } catch (actionError: any) {
-            setError(actionError?.response?.data?.error || actionError?.message || t('common.error'));
-        } finally {
-            setBusy(false);
+            Alert.alert(
+                t('portal.lila.store.confirmTitle'),
+                t('portal.lila.pass.confirmUnlockMessage', {
+                    amount: t('portal.lila.store.realPrice', { amount: realPrice }),
+                }),
+                [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                        text: t('portal.lila.store.confirmAction'),
+                        onPress: () => {
+                            (async () => {
+                                try {
+                                    setBusy(true);
+                                    setError(null);
+                                    await purchaseLilaStoreItem('sadhana_pass_premium', 'real');
+                                    await loadBootstrap();
+                                } catch (actionError: any) {
+                                    setError(actionError?.response?.data?.error || actionError?.message || t('common.error'));
+                                } finally {
+                                    setBusy(false);
+                                }
+                            })();
+                        },
+                    },
+                ],
+            );
+            return;
         }
-    }, [activeSeason, bootstrap?.subscription?.status, busy, loadBootstrap, t]);
+        Alert.alert(
+            t('portal.lila.pass.passUnlocked'),
+            t('portal.lila.pass.openUntil', { date: formatDate(progress?.expiresAt || activeSeason.endsAt) }),
+        );
+    }, [activeSeason, busy, formatDate, loadBootstrap, passItem?.realPrice, passUnlocked, progress?.expiresAt, t]);
 
     return (
         <LilaScreenLayout
@@ -91,7 +130,24 @@ const LilaPassScreen: React.FC = () => {
                         <Text style={styles.seasonBody}>
                             {activeSeason?.description || t('portal.lila.pass.progressCopy')}
                         </Text>
+                        {activeSeason ? (
+                            <Text style={styles.seasonMeta}>
+                                {t('portal.lila.pass.seasonDates', {
+                                    start: formatDate(activeSeason.startsAt),
+                                    end: formatDate(activeSeason.endsAt),
+                                })}
+                            </Text>
+                        ) : null}
                         <LilaProgressBar progress={displayProgress} accent={LILA_COLORS.parchment} />
+                        <View style={styles.metaRow}>
+                            <LilaPill
+                                label={passUnlocked ? t('portal.lila.pass.passUnlocked') : t('portal.lila.pass.passLocked')}
+                                tone={passUnlocked ? 'gold' : 'surface'}
+                            />
+                            {bootstrap?.subscription?.status === 'active' ? (
+                                <LilaPill label="Bhakti Premium" tone="surface" />
+                            ) : null}
+                        </View>
                     </>
                 )}
             </LilaCard>
@@ -116,12 +172,22 @@ const LilaPassScreen: React.FC = () => {
                 ))}
                 <View style={styles.subscriptionRow}>
                     <LilaPill
-                        label={bootstrap?.subscription?.status === 'active'
-                            ? 'Bhakti Premium'
-                            : t('portal.lila.pass.subscriptionBadge')}
+                        label={passUnlocked ? t('portal.lila.pass.passUnlocked') : t('portal.lila.pass.subscriptionBadge')}
                         tone="gold"
                     />
                 </View>
+                <Text style={styles.subscriptionText}>
+                    {passUnlocked
+                        ? t('portal.lila.pass.openUntil', { date: formatDate(progress?.expiresAt || activeSeason?.endsAt) })
+                        : t('portal.lila.pass.passLockedCopy')}
+                </Text>
+                {bootstrap?.subscription ? (
+                    <Text style={styles.subscriptionText}>
+                        {bootstrap.subscription.status === 'active'
+                            ? t('portal.lila.pass.subscriptionSupportActive', { date: formatDate(bootstrap.subscription.endsAt) })
+                            : t('portal.lila.pass.subscriptionSupportExpired', { date: formatDate(bootstrap.subscription.endsAt) })}
+                    </Text>
+                ) : null}
             </LilaCard>
 
             {error ? (
@@ -133,10 +199,10 @@ const LilaPassScreen: React.FC = () => {
             <LilaPrimaryButton
                 label={busy
                     ? t('common.loading')
-                    : bootstrap?.subscription?.status === 'active'
-                        ? t('portal.lila.pass.claimAction')
-                        : t('portal.lila.pass.subscribeAction')}
-                onPress={() => void handlePrimaryAction()}
+                    : passUnlocked
+                        ? t('portal.lila.pass.openedAction')
+                        : t('portal.lila.pass.unlockAction')}
+                onPress={handlePrimaryAction}
             />
         </LilaScreenLayout>
     );
@@ -164,6 +230,18 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         marginBottom: 12,
     },
+    seasonMeta: {
+        color: 'rgba(255,244,224,0.72)',
+        fontSize: 12,
+        lineHeight: 18,
+        marginBottom: 12,
+    },
+    metaRow: {
+        marginTop: 12,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
     rewardRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -182,6 +260,12 @@ const styles = StyleSheet.create({
     },
     subscriptionRow: {
         marginTop: 10,
+    },
+    subscriptionText: {
+        marginTop: 8,
+        color: 'rgba(255,244,224,0.78)',
+        fontSize: 13,
+        lineHeight: 19,
     },
     errorText: {
         color: LILA_COLORS.crimson,

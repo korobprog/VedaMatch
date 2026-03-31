@@ -82,6 +82,207 @@ func (s *Service) getProfileTx(tx *gorm.DB, userID uint) (*models.LilaProfile, e
 	return &profile, nil
 }
 
+type lilaProfileSettings struct {
+	EquippedFrame string `json:"equippedFrame,omitempty"`
+}
+
+func parseLilaProfileSettings(raw string) lilaProfileSettings {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return lilaProfileSettings{}
+	}
+	var settings lilaProfileSettings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return lilaProfileSettings{}
+	}
+	return settings
+}
+
+func (s *Service) saveProfileSettingsTx(tx *gorm.DB, profile *models.LilaProfile, settings lilaProfileSettings) error {
+	if profile == nil {
+		return errors.New("profile is required")
+	}
+	profile.SettingsJSON = marshalJSON(settings)
+	return tx.Model(profile).Update("settings_json", profile.SettingsJSON).Error
+}
+
+func localizedStoreItemName(item models.LilaStoreItem, locale Locale) string {
+	return localizedString(LocalizedText{Ru: item.NameRu, En: item.NameEn, Hi: item.NameHi}, locale)
+}
+
+func localizedStoreItemDescription(item models.LilaStoreItem, locale Locale) string {
+	return localizedString(LocalizedText{Ru: item.DescriptionRu, En: item.DescriptionEn, Hi: item.DescriptionHi}, locale)
+}
+
+func copyTimePtr(value time.Time) *time.Time {
+	copied := value
+	return &copied
+}
+
+func seasonIDFromPtr(season *models.LilaPassSeason) uint {
+	if season == nil {
+		return 0
+	}
+	return season.ID
+}
+
+func seasonEndFromPtr(season *models.LilaPassSeason) time.Time {
+	if season == nil {
+		return time.Time{}
+	}
+	return season.EndsAt
+}
+
+func (s *Service) loadActiveSeasonTx(tx *gorm.DB) (*models.LilaPassSeason, error) {
+	now := s.now()
+	if err := tx.Model(&models.LilaPassSeason{}).
+		Where("status = ? AND ends_at < ?", models.LilaPassStatusActive, now).
+		Update("status", models.LilaPassStatusExpired).Error; err != nil {
+		return nil, err
+	}
+
+	var season models.LilaPassSeason
+	if err := tx.Where("status = ? AND starts_at <= ? AND ends_at >= ?", models.LilaPassStatusActive, now, now).
+		Order("starts_at desc").
+		First(&season).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &season, nil
+}
+
+func (s *Service) loadLatestSubscriptionTx(tx *gorm.DB, userID uint) (*models.LilaSubscription, error) {
+	var subscription models.LilaSubscription
+	if err := tx.Where("user_id = ?", userID).Order("created_at desc").First(&subscription).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if subscription.Status == models.LilaSubscriptionStatusActive && !subscription.EndsAt.IsZero() && s.now().After(subscription.EndsAt) {
+		subscription.Status = models.LilaSubscriptionStatusExpired
+		if err := tx.Model(&subscription).Update("status", models.LilaSubscriptionStatusExpired).Error; err != nil {
+			return nil, err
+		}
+	}
+	return &subscription, nil
+}
+
+func (s *Service) loadPassProgressTx(tx *gorm.DB, seasonID uint, userID uint, seasonEndsAt time.Time) (*models.LilaPassProgress, error) {
+	if seasonID == 0 {
+		return nil, nil
+	}
+	var progress models.LilaPassProgress
+	if err := tx.Where("season_id = ? AND user_id = ?", seasonID, userID).First(&progress).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if progress.Status == models.LilaPassStatusActive && !seasonEndsAt.IsZero() && s.now().After(seasonEndsAt) {
+		progress.Status = models.LilaPassStatusExpired
+		if err := tx.Model(&progress).Update("status", models.LilaPassStatusExpired).Error; err != nil {
+			return nil, err
+		}
+	}
+	return &progress, nil
+}
+
+func (s *Service) ensurePassProgressTx(tx *gorm.DB, seasonID uint, userID uint) (*models.LilaPassProgress, error) {
+	progress, err := s.loadPassProgressTx(tx, seasonID, userID, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if progress != nil {
+		return progress, nil
+	}
+	progress = &models.LilaPassProgress{
+		SeasonID:      seasonID,
+		UserID:        userID,
+		CurrentLevel:  1,
+		CurrentPoints: 0,
+		Status:        models.LilaPassStatusLocked,
+	}
+	if err := tx.Create(progress).Error; err != nil {
+		return nil, err
+	}
+	return progress, nil
+}
+
+func (s *Service) normalizeSelfGiftsTx(tx *gorm.DB, userID uint) error {
+	return tx.Model(&models.LilaGift{}).
+		Where("from_user_id = ? AND to_user_id = ? AND status = ?", userID, userID, "sent").
+		Updates(map[string]interface{}{
+			"status":       "stored",
+			"delivered_at": s.now(),
+		}).Error
+}
+
+func (s *Service) loadStoreItemMapTx(tx *gorm.DB, itemIDs []uint) (map[uint]models.LilaStoreItem, error) {
+	itemIDs = uniqueUintSlice(itemIDs)
+	out := make(map[uint]models.LilaStoreItem, len(itemIDs))
+	if len(itemIDs) == 0 {
+		return out, nil
+	}
+	var items []models.LilaStoreItem
+	if err := tx.Where("id IN ?", itemIDs).Find(&items).Error; err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		out[item.ID] = item
+	}
+	return out, nil
+}
+
+func (s *Service) userOwnsCosmeticTx(tx *gorm.DB, userID uint, itemID uint) (bool, error) {
+	var count int64
+	if err := tx.Model(&models.LilaPurchase{}).
+		Where("user_id = ? AND item_id = ? AND status IN ?", userID, itemID, []models.LilaPurchaseStatus{models.LilaPurchaseStatusPaid, models.LilaPurchaseStatusFulfilled}).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Service) repairLegacyEntitlementsTx(tx *gorm.DB, userID uint) error {
+	var purchases []models.LilaPurchase
+	if err := tx.Where("user_id = ? AND status = ?", userID, models.LilaPurchaseStatusPaid).
+		Order("created_at asc").
+		Find(&purchases).Error; err != nil {
+		return err
+	}
+	if len(purchases) == 0 {
+		return nil
+	}
+	itemIDs := make([]uint, 0, len(purchases))
+	for _, purchase := range purchases {
+		itemIDs = append(itemIDs, purchase.ItemID)
+	}
+	itemMap, err := s.loadStoreItemMapTx(tx, itemIDs)
+	if err != nil {
+		return err
+	}
+	for idx := range purchases {
+		item, ok := itemMap[purchases[idx].ItemID]
+		if !ok {
+			continue
+		}
+		switch item.Type {
+		case "cosmetic":
+			if err := s.fulfillCosmeticPurchaseTx(tx, userID, item, &purchases[idx]); err != nil {
+				return err
+			}
+		case "pass":
+			if err := s.fulfillPassPurchaseTx(tx, userID, item, &purchases[idx]); err != nil && !strings.Contains(strings.ToLower(err.Error()), "active season is not configured") {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Service) GetProfile(ctx context.Context, userID uint) (*models.LilaProfile, error) {
 	db := s.dbConn().WithContext(ctx)
 	return s.getProfileTx(db, userID)
@@ -198,20 +399,69 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 		if err := tx.Order("sort_order asc, id asc").Find(&resp.StoreItems).Error; err != nil {
 			return err
 		}
+		if err := s.repairLegacyEntitlementsTx(tx, userID); err != nil {
+			return err
+		}
 		if err := tx.Where("status = ?", models.LilaQuestionStatusActive).Order("is_daily desc, ends_at asc, id asc").Find(&resp.Quests).Error; err != nil {
 			return err
 		}
-		var season models.LilaPassSeason
-		if err := tx.Where("status = ?", models.LilaPassStatusActive).Order("starts_at desc").First(&season).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		season, err := s.loadActiveSeasonTx(tx)
+		if err != nil {
 			return err
-		} else if err == nil {
-			resp.ActiveSeason = &season
 		}
-		var subscriptions []models.LilaSubscription
-		if err := tx.Where("user_id = ?", userID).Order("created_at desc").Limit(1).Find(&subscriptions).Error; err != nil {
+		if season != nil {
+			resp.ActiveSeason = season
+		}
+
+		passProgress, err := s.loadPassProgressTx(tx, seasonIDFromPtr(season), userID, seasonEndFromPtr(season))
+		if err != nil {
 			return err
-		} else if len(subscriptions) > 0 {
-			resp.Subscription = &subscriptions[0]
+		}
+		resp.PassProgress = toPassProgressView(passProgress, season)
+
+		subscription, err := s.loadLatestSubscriptionTx(tx, userID)
+		if err != nil {
+			return err
+		}
+		resp.Subscription = subscription
+
+		settings := parseLilaProfileSettings(profile.SettingsJSON)
+		purchaseHistory, purchaseInventory, err := s.buildPurchaseHistoryTx(tx, userID, locale, settings, passProgress, season)
+		if err != nil {
+			return err
+		}
+		resp.PurchaseHistory = purchaseHistory
+
+		if err := s.normalizeSelfGiftsTx(tx, userID); err != nil {
+			return err
+		}
+		giftHistory, giftInventory, err := s.buildGiftHistoryTx(tx, userID, locale)
+		if err != nil {
+			return err
+		}
+		resp.GiftHistory = giftHistory
+		resp.OwnedItems = append(resp.OwnedItems, purchaseInventory...)
+		resp.OwnedItems = append(resp.OwnedItems, giftInventory...)
+		if subscription != nil {
+			itemName := subscription.PackageCode
+			itemDescription := ""
+			for _, item := range resp.StoreItems {
+				if item.Code == subscription.PackageCode {
+					itemName = localizedStoreItemName(item, locale)
+					itemDescription = localizedStoreItemDescription(item, locale)
+					break
+				}
+			}
+			resp.OwnedItems = append(resp.OwnedItems, InventoryItemView{
+				Code:        subscription.PackageCode,
+				Type:        "subscription",
+				Name:        itemName,
+				Description: itemDescription,
+				State:       subscriptionInventoryState(subscription),
+				Source:      "subscription",
+				OwnedAt:     copyTimePtr(subscription.StartsAt),
+				ExpiresAt:   copyTimePtr(subscription.EndsAt),
+			})
 		}
 
 		var queueRows []models.LilaQueueEntry
@@ -301,6 +551,225 @@ func (s *Service) buildLeaderboardTx(tx *gorm.DB, limit int) ([]models.LilaLeade
 		})
 	}
 	return out, nil
+}
+
+func toPassProgressView(progress *models.LilaPassProgress, season *models.LilaPassSeason) *PassProgressView {
+	if progress == nil {
+		return nil
+	}
+	view := &PassProgressView{
+		SeasonID:          progress.SeasonID,
+		UserID:            progress.UserID,
+		CurrentPoints:     progress.CurrentPoints,
+		CurrentLevel:      progress.CurrentLevel,
+		ClaimedLevels:     unmarshalIntSlice(progress.ClaimedLevelsJSON),
+		PremiumUnlockedAt: progress.PremiumUnlockedAt,
+		LastClaimedAt:     progress.LastClaimedAt,
+		Status:            progress.Status,
+	}
+	if season != nil && !season.EndsAt.IsZero() {
+		view.ExpiresAt = copyTimePtr(season.EndsAt)
+	}
+	return view
+}
+
+func purchaseStateForItem(item models.LilaStoreItem, purchase models.LilaPurchase, settings lilaProfileSettings, progress *models.LilaPassProgress, season *models.LilaPassSeason) string {
+	switch item.Type {
+	case "cosmetic":
+		if settings.EquippedFrame != "" && settings.EquippedFrame == item.Code {
+			return "equipped"
+		}
+		return "owned"
+	case "pass":
+		if progress != nil && progress.PremiumUnlockedAt != nil {
+			return "active"
+		}
+		if purchase.Status == models.LilaPurchaseStatusFulfilled {
+			return "owned"
+		}
+	default:
+		if purchase.Status == models.LilaPurchaseStatusFulfilled {
+			return "owned"
+		}
+	}
+	return string(purchase.Status)
+}
+
+func subscriptionInventoryState(subscription *models.LilaSubscription) string {
+	if subscription == nil {
+		return ""
+	}
+	if subscription.Status == models.LilaSubscriptionStatusExpired {
+		return "expired"
+	}
+	return "active"
+}
+
+func (s *Service) buildPurchaseHistoryTx(
+	tx *gorm.DB,
+	userID uint,
+	locale Locale,
+	settings lilaProfileSettings,
+	progress *models.LilaPassProgress,
+	season *models.LilaPassSeason,
+) ([]PurchaseHistoryView, []InventoryItemView, error) {
+	var purchases []models.LilaPurchase
+	if err := tx.Where("user_id = ?", userID).Order("created_at desc").Limit(20).Find(&purchases).Error; err != nil {
+		return nil, nil, err
+	}
+	itemIDs := make([]uint, 0, len(purchases))
+	for _, purchase := range purchases {
+		itemIDs = append(itemIDs, purchase.ItemID)
+	}
+	itemMap, err := s.loadStoreItemMapTx(tx, itemIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	history := make([]PurchaseHistoryView, 0, len(purchases))
+	inventory := make([]InventoryItemView, 0)
+	seenInventory := make(map[string]struct{})
+	now := s.now()
+
+	for _, purchase := range purchases {
+		item, ok := itemMap[purchase.ItemID]
+		if !ok {
+			continue
+		}
+		var expiresAt *time.Time
+		if item.Type == "pass" && season != nil && !season.EndsAt.IsZero() {
+			expiresAt = copyTimePtr(season.EndsAt)
+		}
+		state := purchaseStateForItem(item, purchase, settings, progress, season)
+		if expiresAt != nil && now.After(*expiresAt) {
+			state = "expired"
+		}
+		history = append(history, PurchaseHistoryView{
+			PurchaseID:  purchase.ID,
+			ItemCode:    item.Code,
+			ItemType:    item.Type,
+			ItemName:    localizedStoreItemName(item, locale),
+			Currency:    purchase.Currency,
+			PriceBonus:  purchase.PriceBonus,
+			PriceReal:   purchase.PriceReal,
+			Status:      string(purchase.Status),
+			State:       state,
+			PurchasedAt: purchase.CreatedAt,
+			FulfilledAt: purchase.FulfilledAt,
+			ExpiresAt:   expiresAt,
+		})
+
+		if item.Type != "cosmetic" && item.Type != "pass" {
+			continue
+		}
+		if _, exists := seenInventory[item.Code]; exists {
+			continue
+		}
+		seenInventory[item.Code] = struct{}{}
+		ownedAt := purchase.FulfilledAt
+		if ownedAt == nil {
+			ownedAt = copyTimePtr(purchase.CreatedAt)
+		}
+		inventory = append(inventory, InventoryItemView{
+			Code:        item.Code,
+			Type:        item.Type,
+			Name:        localizedStoreItemName(item, locale),
+			Description: localizedStoreItemDescription(item, locale),
+			State:       state,
+			Source:      "store_purchase",
+			OwnedAt:     ownedAt,
+			ExpiresAt:   expiresAt,
+			IsEquipped:  item.Type == "cosmetic" && settings.EquippedFrame == item.Code,
+		})
+	}
+
+	return history, inventory, nil
+}
+
+func (s *Service) buildGiftHistoryTx(tx *gorm.DB, userID uint, locale Locale) ([]GiftHistoryView, []InventoryItemView, error) {
+	var gifts []models.LilaGift
+	if err := tx.Where("from_user_id = ? OR to_user_id = ?", userID, userID).
+		Order("created_at desc").
+		Limit(20).
+		Find(&gifts).Error; err != nil {
+		return nil, nil, err
+	}
+
+	itemIDs := make([]uint, 0, len(gifts))
+	for _, gift := range gifts {
+		if gift.ItemID != nil {
+			itemIDs = append(itemIDs, *gift.ItemID)
+		}
+	}
+	itemMap, err := s.loadStoreItemMapTx(tx, itemIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	history := make([]GiftHistoryView, 0, len(gifts))
+	inventory := make([]InventoryItemView, 0)
+	seenInventory := make(map[string]struct{})
+
+	for _, gift := range gifts {
+		itemCode := strings.TrimSpace(gift.Title)
+		itemName := itemCode
+		itemDescription := ""
+		itemType := "gift"
+		if gift.ItemID != nil {
+			if item, ok := itemMap[*gift.ItemID]; ok {
+				itemCode = item.Code
+				itemName = localizedStoreItemName(item, locale)
+				itemDescription = localizedStoreItemDescription(item, locale)
+				itemType = item.Type
+			}
+		}
+		direction := "incoming"
+		counterpartyUserID := gift.FromUserID
+		if gift.FromUserID == userID && gift.ToUserID == userID {
+			direction = "self"
+			counterpartyUserID = userID
+		} else if gift.FromUserID == userID {
+			direction = "outgoing"
+			counterpartyUserID = gift.ToUserID
+		}
+		history = append(history, GiftHistoryView{
+			GiftID:             gift.ID,
+			ItemCode:           itemCode,
+			ItemName:           itemName,
+			Direction:          direction,
+			Status:             gift.Status,
+			Message:            gift.Message,
+			Currency:           gift.Currency,
+			BonusAmount:        gift.BonusAmount,
+			RealAmount:         gift.RealAmount,
+			CounterpartyUserID: counterpartyUserID,
+			SentAt:             gift.SentAt,
+			DeliveredAt:        gift.DeliveredAt,
+		})
+
+		if direction != "self" {
+			continue
+		}
+		if _, exists := seenInventory[itemCode]; exists {
+			continue
+		}
+		seenInventory[itemCode] = struct{}{}
+		ownedAt := gift.DeliveredAt
+		if ownedAt == nil {
+			ownedAt = copyTimePtr(gift.SentAt)
+		}
+		inventory = append(inventory, InventoryItemView{
+			Code:        itemCode,
+			Type:        itemType,
+			Name:        itemName,
+			Description: itemDescription,
+			State:       "stored",
+			Source:      "gift_self_reserve",
+			OwnedAt:     ownedAt,
+		})
+	}
+
+	return history, inventory, nil
 }
 
 func (s *Service) JoinQueue(ctx context.Context, userID uint, req JoinQueueRequest) (*models.LilaQueueEntry, error) {
@@ -622,6 +1091,58 @@ func (s *Service) UseSiddhi(ctx context.Context, req SiddhiUsageRequest) (*model
 	return &usage, nil
 }
 
+func (s *Service) fulfillCosmeticPurchaseTx(tx *gorm.DB, userID uint, item models.LilaStoreItem, purchase *models.LilaPurchase) error {
+	profile, err := s.ensureProfileTx(tx, userID)
+	if err != nil {
+		return err
+	}
+	settings := parseLilaProfileSettings(profile.SettingsJSON)
+	settings.EquippedFrame = item.Code
+	if err := s.saveProfileSettingsTx(tx, profile, settings); err != nil {
+		return err
+	}
+	now := s.now()
+	purchase.Status = models.LilaPurchaseStatusFulfilled
+	purchase.FulfilledAt = &now
+	purchase.MetaJSON = marshalJSON(map[string]interface{}{
+		"equippedFrame": item.Code,
+	})
+	return tx.Save(purchase).Error
+}
+
+func (s *Service) fulfillPassPurchaseTx(tx *gorm.DB, userID uint, item models.LilaStoreItem, purchase *models.LilaPurchase) error {
+	season, err := s.loadActiveSeasonTx(tx)
+	if err != nil {
+		return err
+	}
+	if season == nil {
+		return errors.New("active season is not configured")
+	}
+	progress, err := s.ensurePassProgressTx(tx, season.ID, userID)
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	progress.Status = models.LilaPassStatusActive
+	progress.PremiumUnlockedAt = &now
+	if progress.CurrentLevel <= 0 {
+		progress.CurrentLevel = 1
+	}
+	progress.MetaJSON = marshalJSON(map[string]interface{}{
+		"purchaseId": purchase.ID,
+		"itemCode":   item.Code,
+	})
+	if err := tx.Save(progress).Error; err != nil {
+		return err
+	}
+	purchase.Status = models.LilaPurchaseStatusFulfilled
+	purchase.FulfilledAt = &now
+	purchase.MetaJSON = marshalJSON(map[string]interface{}{
+		"seasonCode": season.Code,
+	})
+	return tx.Save(purchase).Error
+}
+
 func (s *Service) PurchaseStoreItem(ctx context.Context, userID uint, req PurchaseRequest) (*models.LilaPurchase, error) {
 	if req.Quantity <= 0 {
 		req.Quantity = 1
@@ -632,6 +1153,31 @@ func (s *Service) PurchaseStoreItem(ctx context.Context, userID uint, req Purcha
 		var item models.LilaStoreItem
 		if err := tx.Where("code = ?", req.ItemCode).First(&item).Error; err != nil {
 			return err
+		}
+		switch item.Type {
+		case "cosmetic":
+			owned, err := s.userOwnsCosmeticTx(tx, userID, item.ID)
+			if err != nil {
+				return err
+			}
+			if owned {
+				return errors.New("store item is already owned")
+			}
+		case "pass":
+			season, err := s.loadActiveSeasonTx(tx)
+			if err != nil {
+				return err
+			}
+			if season == nil {
+				return errors.New("active season is not configured")
+			}
+			progress, err := s.loadPassProgressTx(tx, season.ID, userID, season.EndsAt)
+			if err != nil {
+				return err
+			}
+			if progress != nil && progress.PremiumUnlockedAt != nil && progress.Status == models.LilaPassStatusActive {
+				return errors.New("season pass is already active")
+			}
 		}
 		totalBonus, totalReal, err := resolveStoreSpendTotals(item, req.Currency, req.Quantity, "store item")
 		if err != nil {
@@ -689,7 +1235,14 @@ func (s *Service) PurchaseStoreItem(ctx context.Context, userID uint, req Purcha
 				return err
 			}
 		}
-		return nil
+		switch item.Type {
+		case "cosmetic":
+			return s.fulfillCosmeticPurchaseTx(tx, userID, item, &purchase)
+		case "pass":
+			return s.fulfillPassPurchaseTx(tx, userID, item, &purchase)
+		default:
+			return nil
+		}
 	})
 	if err != nil {
 		return nil, err
@@ -727,6 +1280,13 @@ func (s *Service) ActivateSubscription(ctx context.Context, userID uint, req Sub
 	db := s.dbConn().WithContext(ctx)
 	var subscription models.LilaSubscription
 	err := db.Transaction(func(tx *gorm.DB) error {
+		existing, err := s.loadLatestSubscriptionTx(tx, userID)
+		if err != nil {
+			return err
+		}
+		if existing != nil && existing.PackageCode == req.PackageCode && existing.Status == models.LilaSubscriptionStatusActive {
+			return errors.New("subscription is already active")
+		}
 		var item models.LilaStoreItem
 		if err := tx.Where("code = ? AND type = ?", req.PackageCode, "subscription").First(&item).Error; err != nil {
 			return err
@@ -802,6 +1362,7 @@ func (s *Service) SendGift(ctx context.Context, fromUserID uint, req GiftRequest
 		gift = models.LilaGift{
 			FromUserID:  fromUserID,
 			ToUserID:    req.ToUserID,
+			ItemID:      &item.ID,
 			Title:       item.Code,
 			Message:     req.Message,
 			Currency:    req.Currency,
@@ -809,6 +1370,11 @@ func (s *Service) SendGift(ctx context.Context, fromUserID uint, req GiftRequest
 			RealAmount:  totalReal,
 			Status:      "sent",
 			SentAt:      s.now(),
+		}
+		if fromUserID == req.ToUserID {
+			now := s.now()
+			gift.Status = "stored"
+			gift.DeliveredAt = &now
 		}
 		if err := tx.Create(&gift).Error; err != nil {
 			return err
@@ -972,20 +1538,31 @@ func (s *Service) ClaimPassReward(ctx context.Context, userID uint, req PassClai
 		if err := tx.Where("code = ?", req.SeasonCode).First(&season).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("season_id = ? AND user_id = ?", season.ID, userID).First(&progress).Error; err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			progress = models.LilaPassProgress{SeasonID: season.ID, UserID: userID, CurrentLevel: 1, CurrentPoints: 0, Status: models.LilaPassStatusActive}
-			if err := tx.Create(&progress).Error; err != nil {
-				return err
+		if season.Status != models.LilaPassStatusActive || (!season.EndsAt.IsZero() && s.now().After(season.EndsAt)) {
+			return errors.New("season is not active")
+		}
+		existing, err := s.loadPassProgressTx(tx, season.ID, userID, season.EndsAt)
+		if err != nil {
+			return err
+		}
+		if existing == nil {
+			return errors.New("season pass is not unlocked")
+		}
+		progress = *existing
+		if req.Premium && progress.PremiumUnlockedAt == nil {
+			return errors.New("premium track is not unlocked")
+		}
+		now := s.now()
+		if progress.LastClaimedAt != nil {
+			last := progress.LastClaimedAt.In(now.Location())
+			current := now.In(now.Location())
+			if last.Year() == current.Year() && last.YearDay() == current.YearDay() {
+				return nil
 			}
 		}
-		progress.CurrentPoints += req.Points
-		progress.CurrentLevel = defaultLevelForExperience(progress.CurrentPoints * 10)
-		if req.Premium {
-			now := s.now()
-			progress.PremiumUnlockedAt = &now
+		progress.LastClaimedAt = &now
+		if progress.Status == models.LilaPassStatusLocked {
+			progress.Status = models.LilaPassStatusActive
 		}
 		return tx.Save(&progress).Error
 	})

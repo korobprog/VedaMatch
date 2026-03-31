@@ -8,6 +8,7 @@ export type LilaQuestionType = 'single_choice' | 'image_choice' | 'ordering';
 export type LilaMatchStatus = 'lobby' | 'active' | 'finished' | 'abandoned' | string;
 export type LilaQueueStatus = 'waiting' | 'ready' | 'matched' | 'left' | 'expired' | 'cancelled' | string;
 export type LilaPassStatus = 'locked' | 'active' | 'expired' | string;
+export type LilaCurrency = 'bonus' | 'real';
 
 export interface LilaModeConfig {
     id: LilaMode;
@@ -89,6 +90,48 @@ export interface LilaSubscription {
     endsAt: string;
     autoRenew: boolean;
     priceReal: number;
+}
+
+export interface LilaInventoryItem {
+    code: string;
+    type: string;
+    name: string;
+    description: string;
+    state: string;
+    source: string;
+    ownedAt?: string | null;
+    expiresAt?: string | null;
+    isEquipped: boolean;
+}
+
+export interface LilaPurchaseHistoryEntry {
+    purchaseId: number;
+    itemCode: string;
+    itemType: string;
+    itemName: string;
+    currency: LilaCurrency;
+    priceBonus: number;
+    priceReal: number;
+    status: string;
+    state: string;
+    purchasedAt: string;
+    fulfilledAt?: string | null;
+    expiresAt?: string | null;
+}
+
+export interface LilaGiftHistoryEntry {
+    giftId: number;
+    itemCode: string;
+    itemName: string;
+    direction: 'incoming' | 'outgoing' | 'self' | string;
+    status: string;
+    message: string;
+    currency: LilaCurrency;
+    bonusAmount: number;
+    realAmount: number;
+    counterpartyUserId: number;
+    sentAt: string;
+    deliveredAt?: string | null;
 }
 
 export interface LilaLeaderboardEntry {
@@ -192,7 +235,11 @@ export interface LilaBootstrap {
     siddhis: LilaSiddhiId[];
     queueDepth: Record<string, number>;
     activeSeason: LilaPassSeason | null;
+    passProgress: LilaPassProgress | null;
     storeItems: LilaStoreItem[];
+    ownedItems: LilaInventoryItem[];
+    purchaseHistory: LilaPurchaseHistoryEntry[];
+    giftHistory: LilaGiftHistoryEntry[];
     leaderboard: LilaLeaderboardEntry[];
     subscription: LilaSubscription | null;
     bonusBalance: number;
@@ -259,6 +306,7 @@ export interface LilaPassProgress {
     premiumUnlockedAt?: string | null;
     lastClaimedAt?: string | null;
     status?: LilaPassStatus;
+    expiresAt?: string | null;
 }
 
 export interface LilaGuruLink {
@@ -271,4 +319,10 @@ export interface LilaGuruLink {
 export interface LilaBalanceSummary {
     bonus: number;
     real: number;
+}
+
+export interface LilaStoreSpendOption {
+    currency: LilaCurrency;
+    amount: number;
+    affordable: boolean;
 }

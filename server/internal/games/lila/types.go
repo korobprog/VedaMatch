@@ -59,7 +59,11 @@ type BootstrapResponse struct {
 	Profile            *models.LilaProfile           `json:"profile,omitempty"`
 	QueueDepth         map[string]int64              `json:"queueDepth"`
 	ActiveSeason       *models.LilaPassSeason        `json:"activeSeason,omitempty"`
+	PassProgress       *PassProgressView             `json:"passProgress,omitempty"`
 	StoreItems         []models.LilaStoreItem        `json:"storeItems"`
+	OwnedItems         []InventoryItemView           `json:"ownedItems"`
+	PurchaseHistory    []PurchaseHistoryView         `json:"purchaseHistory"`
+	GiftHistory        []GiftHistoryView             `json:"giftHistory"`
 	Quests             []models.LilaQuest            `json:"quests"`
 	Leaderboard        []models.LilaLeaderboardEntry `json:"leaderboard"`
 	Subscription       *models.LilaSubscription      `json:"subscription,omitempty"`
@@ -69,6 +73,60 @@ type BootstrapResponse struct {
 	OpenQueue          []models.LilaQueueEntry       `json:"openQueue"`
 	AvailableQuestions []QuestionView                `json:"availableQuestions"`
 	Metrics            MetricsSnapshot               `json:"metrics"`
+}
+
+type PassProgressView struct {
+	SeasonID          uint                  `json:"seasonId"`
+	UserID            uint                  `json:"userId"`
+	CurrentPoints     int                   `json:"currentPoints"`
+	CurrentLevel      int                   `json:"currentLevel"`
+	ClaimedLevels     []int                 `json:"claimedLevels"`
+	PremiumUnlockedAt *time.Time            `json:"premiumUnlockedAt,omitempty"`
+	LastClaimedAt     *time.Time            `json:"lastClaimedAt,omitempty"`
+	Status            models.LilaPassStatus `json:"status"`
+	ExpiresAt         *time.Time            `json:"expiresAt,omitempty"`
+}
+
+type InventoryItemView struct {
+	Code        string     `json:"code"`
+	Type        string     `json:"type"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	State       string     `json:"state"`
+	Source      string     `json:"source"`
+	OwnedAt     *time.Time `json:"ownedAt,omitempty"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	IsEquipped  bool       `json:"isEquipped"`
+}
+
+type PurchaseHistoryView struct {
+	PurchaseID  uint                    `json:"purchaseId"`
+	ItemCode    string                  `json:"itemCode"`
+	ItemType    string                  `json:"itemType"`
+	ItemName    string                  `json:"itemName"`
+	Currency    models.LilaCurrencyType `json:"currency"`
+	PriceBonus  int                     `json:"priceBonus"`
+	PriceReal   int                     `json:"priceReal"`
+	Status      string                  `json:"status"`
+	State       string                  `json:"state"`
+	PurchasedAt time.Time               `json:"purchasedAt"`
+	FulfilledAt *time.Time              `json:"fulfilledAt,omitempty"`
+	ExpiresAt   *time.Time              `json:"expiresAt,omitempty"`
+}
+
+type GiftHistoryView struct {
+	GiftID             uint                    `json:"giftId"`
+	ItemCode           string                  `json:"itemCode"`
+	ItemName           string                  `json:"itemName"`
+	Direction          string                  `json:"direction"`
+	Status             string                  `json:"status"`
+	Message            string                  `json:"message"`
+	Currency           models.LilaCurrencyType `json:"currency"`
+	BonusAmount        int                     `json:"bonusAmount"`
+	RealAmount         int                     `json:"realAmount"`
+	CounterpartyUserID uint                    `json:"counterpartyUserId"`
+	SentAt             time.Time               `json:"sentAt"`
+	DeliveredAt        *time.Time              `json:"deliveredAt,omitempty"`
 }
 
 type JoinQueueRequest struct {

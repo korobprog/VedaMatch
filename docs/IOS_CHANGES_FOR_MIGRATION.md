@@ -1,3 +1,149 @@
+## 2026-03-31 (Shared mobile Lila ownership flow: real inventory/history and pass entitlement)
+
+### Измененные файлы
+- `frontend/services/lilaGameService.ts`
+- `frontend/types/lila.ts`
+- `frontend/screens/portal/games/LilaProfileScreen.tsx`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/screens/portal/games/LilaPassScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `Profile -> Инвентарь` на iOS/Android рисовал preview из store catalog, а не реальные купленные предметы;
+  - `Sadhana Pass` на mobile не был связан с premium season track, а pass screen смотрел на `Bhakti Premium` subscription;
+  - self-send `Guru-Shishya Gift Pack` после покупки визуально «пропадал».
+- Стало:
+  - shared Lila bootstrap теперь содержит `passProgress`, `ownedItems`, `purchaseHistory`, `giftHistory`, и mobile screens используют эти данные как source-of-truth;
+  - `Profile` показывает реальные owned items / purchases / gifts;
+  - `Store` показывает ownership badges и блокирует повторную покупку unique entitlements;
+  - `Pass` открывает именно `Sadhana Pass`, показывает срок действия сезона и отдельно отображает `Bhakti Premium` как подписочный benefit.
+
+### Короткие сниппеты кода
+
+`frontend/services/lilaGameService.ts`:
+```ts
+return {
+  activeSeason: mapPassSeason(data.activeSeason, locale),
+  passProgress: mapPassProgress(data.passProgress),
+  ownedItems: Array.isArray(data.ownedItems) ? data.ownedItems.map(mapInventoryItem) : [],
+  purchaseHistory: Array.isArray(data.purchaseHistory) ? data.purchaseHistory.map(mapPurchaseHistoryEntry) : [],
+  giftHistory: Array.isArray(data.giftHistory) ? data.giftHistory.map(mapGiftHistoryEntry) : [],
+};
+```
+
+`frontend/screens/portal/games/LilaStoreScreen.tsx`:
+```tsx
+const isUniqueOwned = item.type !== 'gift' && item.type !== 'siddhi' && Boolean(ownershipState) && ownershipState !== 'expired';
+
+<Pressable disabled={!getLilaPreferredStoreCurrency(item) || isUniqueOwned}>
+  {stateBadge ? <Text style={styles.itemStateBadge}>{stateBadge}</Text> : null}
+</Pressable>
+```
+
+`frontend/screens/portal/games/LilaPassScreen.tsx`:
+```tsx
+await purchaseLilaStoreItem('sadhana_pass_premium', 'real');
+
+<Text style={styles.subscriptionText}>
+  {passUnlocked
+    ? t('portal.lila.pass.openUntil', { date: formatDate(progress?.expiresAt || activeSeason?.endsAt) })
+    : t('portal.lila.pass.passLockedCopy')}
+</Text>
+```
+
+## 2026-03-31 (Shared mobile Lila Store: correct purchase currency fallback)
+
+### Измененные файлы
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/types/lila.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - mobile store выбирал `bonus`, если у item стоял `canUseBonus = true`, даже когда `bonusPrice = 0`, а реальная рабочая цена была только в `realPrice`;
+  - на устройстве это приводило к backend-ошибке `store item bonus price is not configured`;
+  - карточка могла показывать одну цену, а в сеть отправлялась другая валюта.
+- Стало:
+  - shared helper выбора валюты теперь сначала смотрит на реально настроенную цену, а не только на capability-флаг;
+  - для dual-priced item показываются обе цены, для partially-configured item показывается только рабочая цена;
+  - полностью не сконфигурированные item визуально приглушаются и не отправляют purchase request.
+
+### Короткие сниппеты кода
+
+`frontend/services/lilaGameService.ts`:
+```ts
+export const getLilaPreferredStoreCurrency = (item: LilaStoreItem): LilaCurrency | null => {
+  if (item.canUseBonus && item.bonusPrice > 0) return 'bonus';
+  if (item.canUseReal && item.realPrice > 0) return 'real';
+  return null;
+};
+```
+
+`frontend/screens/portal/games/LilaStoreScreen.tsx`:
+```tsx
+const currency = getLilaPreferredStoreCurrency(item);
+if (!currency) {
+  Alert.alert(t('common.error'), t('portal.lila.store.priceUnavailable'));
+  return;
+}
+```
+
+## 2026-03-31 (Shared mobile Lila purchases: explicit spend confirmation and balance-aware currency choice)
+
+### Измененные файлы
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/screens/portal/games/LilaPassScreen.tsx`
+- `frontend/types/lila.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - dual-currency товар вроде `Guru-Shishya Gift Pack` мог по умолчанию уходить в `bonus`, а затем падать на `insufficient bonus balance`;
+  - покупка store item или активация `Bhakti Premium` происходили без явного предупреждения о списании.
+- Стало:
+  - mobile сначала рассчитывает доступные варианты оплаты по текущему балансу и предлагает только те, которые реально можно оплатить;
+  - если у товара есть и `bonus`, и `real`, пользователь явно выбирает валюту из confirmation alert;
+  - перед списанием показывается confirm с конкретной суммой, а для `Bhakti Premium` аналогичное предупреждение добавлено в `LilaPassScreen`.
+
+### Короткие сниппеты кода
+
+`frontend/services/lilaGameService.ts`:
+```ts
+export const getLilaStoreSpendOptions = (item, balance) => {
+  if (item.canUseBonus && item.bonusPrice > 0) { ... }
+  if (item.canUseReal && item.realPrice > 0) { ... }
+};
+```
+
+`frontend/screens/portal/games/LilaStoreScreen.tsx`:
+```tsx
+Alert.alert(
+  t('portal.lila.store.chooseCurrencyTitle'),
+  t('portal.lila.store.chooseCurrencyGiftMessage', { item: item.name }),
+  affordableOptions.map((option) => ({ text: formatSpendLabel(option), onPress: ... })),
+);
+```
+
+`frontend/screens/portal/games/LilaPassScreen.tsx`:
+```tsx
+Alert.alert(
+  t('portal.lila.store.confirmTitle'),
+  t('portal.lila.pass.confirmSubscribeMessage', {
+    amount: t('portal.lila.store.realPrice', { amount: realPrice }),
+  }),
+  ...
+);
+```
+
 ## 2026-03-31 (Shared mobile Lila: explicit exit, no accidental back, no fake loading states)
 
 ### Измененные файлы

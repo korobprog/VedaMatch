@@ -68,6 +68,18 @@ func unmarshalStringSlice(raw string) []string {
 	return []string{raw}
 }
 
+func unmarshalIntSlice(raw string) []int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var out []int
+	if err := json.Unmarshal([]byte(raw), &out); err == nil {
+		return out
+	}
+	return nil
+}
+
 func normalizeStringSlice(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))

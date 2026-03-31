@@ -243,6 +243,21 @@
   - Queue/Lobby/Match/Results работают через `join/leave`, `ready`, `match snapshot`, `answer`, `siddhi` и HTTP polling.
 - Текущий mobile runtime для Lila — это HTTP + polling; backend websocket fanout уже существует, но клиент на него пока не подписан, поэтому realtime на устройстве не должен считаться завершённым.
 - Для rollout/beta controls новый сервис должен считаться частью системного portal visibility catalog под id `lila_battle_of_sages`.
+- Lila Store на mobile не должен выбирать валюту только по флагу `canUseBonus`:
+  - если `bonusPrice = 0`, а `realPrice > 0`, клиент обязан отправлять `real`, иначе пользователь видит backend-ошибку `store item bonus price is not configured`;
+  - карточка store item должна показывать либо обе валидные цены, либо единственную реально настроенную цену, а полностью не сконфигурированный item должен визуально дизейблиться с текстом `Цена обновляется`.
+- Dual-currency покупки в Lila mobile не должны происходить без явного подтверждения:
+  - если товар поддерживает и `bonus`, и `real`, экран должен предлагать только реально доступные по балансу варианты оплаты;
+  - `Guru-Shishya Gift Pack` не должен молча пытаться списать бонусную валюту при недостатке bonus-balance, если real-оплата доступна;
+  - перед store purchase / gift send / Bhakti Premium subscription пользователь должен видеть confirm-текст с точной суммой списания.
+- Lila mobile bootstrap теперь должен быть source-of-truth для ownership/history:
+  - `Bootstrap` несёт `passProgress`, `ownedItems`, `purchaseHistory`, `giftHistory`;
+  - `Profile` показывает реальные купленные предметы, покупки и подарки вместо витрины store catalog;
+  - `Store` помечает `owned / active / stored / expired` и не даёт повторно купить unique entitlements вроде `Lotus Frame`, активного `Sadhana Pass` или активного subscription item.
+- Текущие продуктовые хвосты Lila mobile после этой починки:
+  - `Guru-Shishya Gift Pack` пока всё ещё уходит в self-store режим на `user.ID`, но теперь честно виден в `Подарки` и `Инвентарь` как `stored`; отдельного picker-а получателя ещё нет;
+  - `Sadhana Pass` и `Bhakti Premium` разведены по смыслу: pass screen открывает premium season track через store item `sadhana_pass_premium`, а monthly subscription остаётся отдельным benefit;
+  - realtime для store/profile/pass по-прежнему не через websocket, а через bootstrap/polling refresh.
 
 ## Lila Backend
 - Новый backend-домен для игры `Lila: Battle of Sages` собран в `server/internal/games/lila`; отдельные Gorm-модели вынесены в `server/internal/models/lila_game.go`.
@@ -253,6 +268,13 @@
   - при старых production rows с `price_bonus=0` или `price_real=0` клики по `Lotus Frame`, `Sadhana Pass`, `Bhakti Premium`, `Guru-Shishya Gift Pack` падали сырым `amount must be positive`;
   - `server/internal/games/lila/seed.go` теперь должен мягко repair-ить существующие `lila_store_items` и `lila_pass_seasons`, если у enabled-currency цена отсутствует или пусты базовые localized поля;
   - purchase/gift/subscription flow должен возвращать доменную ошибку вида `... price is not configured`, а не протаскивать низкоуровневую wallet/bonus ошибку.
+- В backend Lila ownership/entitlement flow теперь должен считаться таким:
+  - `PurchaseStoreItem` делает fulfillment для `cosmetic` и `pass`, заполняет `fulfilledAt`, автоэкипирует `Lotus Frame` через `profile.SettingsJSON` и unlock-ит active season progress для `Sadhana Pass`;
+  - `Bootstrap` нормализует expired subscription status по `ends_at`, поднимает legacy `paid` purchases в реальные entitlements и переводит self-sent gifts из `sent` в `stored`;
+  - user-facing bootstrap/history payload больше не требует отдельных ad-hoc SQL запросов на mobile для owned inventory / gifts / purchases.
+- Оставшиеся backend-хвосты Lila:
+  - `ClaimPassReward` больше не unlock-ит premium track, но всё ещё остаётся упрощённым daily-claim суррогатом без полноценного reward-level/grant pipeline;
+  - полноценного gift recipient flow (`send -> deliver -> claim by another user`) ещё нет: пока закрыт только self-store salvage path для уже купленных gift packs;
   - `server/cmd/api/main.go` запускает Lila auto-migrate + seed defaults и регистрирует `/api/games/lila/...` и `/api/admin/games/lila/...` endpoints;
   - `server/internal/websocket/client.go` пропускает `game_*` события через existing signal bridge.
 - Match runtime уже не должен считаться чистым scaffold:
