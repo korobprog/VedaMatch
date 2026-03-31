@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import {
     getLilaBootstrap,
     getLilaModeConfig,
+    getLilaModePlayerCount,
     getLilaSiddhis,
     joinLilaQueue,
     leaveLilaQueue,
@@ -120,7 +121,7 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={styles.metrics}>
                     <LilaMetric label={t('portal.lila.queue.estWait')} value={`${config.waitSeconds}s`} />
                     <LilaMetric label={t('portal.lila.queue.rounds')} value={String(config.rounds)} />
-                    <LilaMetric label={t('portal.lila.queue.players')} value={String(bootstrap?.queueDepth[mode] || 0)} />
+                    <LilaMetric label={t('portal.lila.queue.players')} value={String(getLilaModePlayerCount(bootstrap, mode))} />
                 </View>
             </LilaCard>
 

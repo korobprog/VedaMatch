@@ -375,6 +375,44 @@ func (s *Service) spendBonusTx(tx *gorm.DB, userID uint, amount int, reason, ref
 	return err
 }
 
+func shouldCountQueueEntryForModePlayers(
+	entry models.LilaQueueEntry,
+	matchStatuses map[uint]models.LilaMatchStatus,
+) bool {
+	switch entry.Status {
+	case models.LilaQueueStatusWaiting:
+		return true
+	case models.LilaQueueStatusMatched, models.LilaQueueStatusReady:
+		if entry.MatchID == nil {
+			return false
+		}
+		status, ok := matchStatuses[*entry.MatchID]
+		if !ok {
+			return false
+		}
+		return status == models.LilaMatchStatusLobby || status == models.LilaMatchStatusActive
+	default:
+		return false
+	}
+}
+
+func buildModePlayerCounts(
+	queueRows []models.LilaQueueEntry,
+	matchStatuses map[uint]models.LilaMatchStatus,
+) map[string]int64 {
+	counts := make(map[string]int64)
+	for _, row := range queueRows {
+		if row.Mode == "" || row.UserID == 0 {
+			continue
+		}
+		if !shouldCountQueueEntryForModePlayers(row, matchStatuses) {
+			continue
+		}
+		counts[string(row.Mode)]++
+	}
+	return counts
+}
+
 func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*BootstrapResponse, error) {
 	db := s.dbConn().WithContext(ctx)
 	var resp BootstrapResponse
@@ -502,6 +540,7 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 		}
 
 		resp.QueueDepth = make(map[string]int64)
+		resp.ModePlayerCounts = make(map[string]int64)
 		var depthRows []struct {
 			Mode  models.LilaGameMode
 			Count int64
@@ -516,6 +555,34 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 		for _, row := range depthRows {
 			resp.QueueDepth[string(row.Mode)] = row.Count
 		}
+
+		var playerQueueRows []models.LilaQueueEntry
+		if err := tx.Where("status IN ?", []models.LilaQueueStatus{
+			models.LilaQueueStatusWaiting,
+			models.LilaQueueStatusReady,
+			models.LilaQueueStatusMatched,
+		}).Find(&playerQueueRows).Error; err != nil {
+			return err
+		}
+		matchStatuses := make(map[uint]models.LilaMatchStatus)
+		playerMatchIDs := make([]uint, 0, len(playerQueueRows))
+		for _, row := range playerQueueRows {
+			if row.MatchID == nil {
+				continue
+			}
+			playerMatchIDs = append(playerMatchIDs, *row.MatchID)
+		}
+		playerMatchIDs = uniqueUintSlice(playerMatchIDs)
+		if len(playerMatchIDs) > 0 {
+			var matches []models.LilaMatch
+			if err := tx.Select("id", "status").Where("id IN ?", playerMatchIDs).Find(&matches).Error; err != nil {
+				return err
+			}
+			for _, match := range matches {
+				matchStatuses[match.ID] = match.Status
+			}
+		}
+		resp.ModePlayerCounts = buildModePlayerCounts(playerQueueRows, matchStatuses)
 
 		leaderboard, err := s.buildLeaderboardTx(tx, 20)
 		if err != nil {

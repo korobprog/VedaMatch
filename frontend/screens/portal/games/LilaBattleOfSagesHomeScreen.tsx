@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Crown, MapPinned, ScrollText, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { getLilaBootstrap, getLilaModeConfig } from '../../../services/lilaGameService';
+import { getLilaBootstrap, getLilaModeConfig, getLilaModePlayerCount } from '../../../services/lilaGameService';
 import type { LilaBootstrap, LilaMatchRecord, LilaMode } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
 import { LILA_COLORS, LilaCard, LilaMetric, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
@@ -34,6 +34,15 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
     useFocusEffect(
         React.useCallback(() => {
             void loadBootstrap();
+        }, [loadBootstrap]),
+    );
+
+    useFocusEffect(
+        React.useCallback(() => {
+            const timer = setInterval(() => {
+                void loadBootstrap();
+            }, 3000);
+            return () => clearInterval(timer);
         }, [loadBootstrap]),
     );
 
@@ -170,7 +179,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                             </View>
                         </View>
                         <View style={styles.modeMetrics}>
-                            <LilaMetric label={t('portal.lila.queue.players')} value={String(bootstrap.queueDepth[modeConfig.id] || 0)} />
+                            <LilaMetric label={t('portal.lila.queue.players')} value={String(getLilaModePlayerCount(bootstrap, modeConfig.id))} />
                             <LilaMetric label={t('portal.lila.queue.rounds')} value={String(modeConfig.rounds)} />
                             <LilaMetric label={t('portal.lila.queue.estWait')} value={`${modeConfig.waitSeconds}s`} />
                         </View>

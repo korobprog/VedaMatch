@@ -234,6 +234,7 @@ export interface LilaBootstrap {
     quests: LilaQuestSummary[];
     siddhis: LilaSiddhiId[];
     queueDepth: Record<string, number>;
+    modePlayerCounts: Record<string, number>;
     activeSeason: LilaPassSeason | null;
     passProgress: LilaPassProgress | null;
     storeItems: LilaStoreItem[];

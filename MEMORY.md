@@ -254,6 +254,10 @@
   - `Bootstrap` несёт `passProgress`, `ownedItems`, `purchaseHistory`, `giftHistory`;
   - `Profile` показывает реальные купленные предметы, покупки и подарки вместо витрины store catalog;
   - `Store` помечает `owned / active / stored / expired` и не даёт повторно купить unique entitlements вроде `Lotus Frame`, активного `Sadhana Pass` или активного subscription item.
+- User-facing счётчик игроков в Lila mobile не должен брать raw `queueDepth` как источник истины:
+  - raw `queueDepth` считает только `waiting/ready` и может показывать `1` в `Дуэль Дхармы`, когда второй игрок уже в `matched`;
+  - mobile `Home` и `Queue` должны использовать отдельный `modePlayerCounts` из bootstrap;
+  - backend считает туда `waiting` плюс `matched/ready` только для матчей со статусом `lobby|active`, чтобы не тянуть хвосты завершённых игр.
 - Текущие продуктовые хвосты Lila mobile после этой починки:
   - `Guru-Shishya Gift Pack` пока всё ещё уходит в self-store режим на `user.ID`, но теперь честно виден в `Подарки` и `Инвентарь` как `stored`; отдельного picker-а получателя ещё нет;
   - `Sadhana Pass` и `Bhakti Premium` разведены по смыслу: pass screen открывает premium season track через store item `sadhana_pass_premium`, а monthly subscription остаётся отдельным benefit;
@@ -296,11 +300,11 @@
 
 ## Mobile Release / Distribution
 - По состоянию на 2026-03-30 контур mobile release для direct distribution без маркетов частично готов, но остается в значительной степени ручным:
-  - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.45`, `versionCode 47`, release signing настроен через env/keystore.
+  - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.46`, `versionCode 48`, release signing настроен через env/keystore.
   - iOS release тоже собирается вручную через локальные `xcodebuild` scripts из root `package.json`; автоматизированного канала вроде EAS/Fastlane/AppCenter в репозитории нет.
 - По состоянию на 2026-03-30 production Android direct-distribution контур уже активирован на live backend:
   - `SUPPORT_DOWNLOAD_ANDROID_URL` указывает на свежий S3 APK;
-  - `ANDROID_TESTERS_APP_VERSION = 1.1.45 (47)`;
+  - `ANDROID_TESTERS_APP_VERSION = 1.1.46 (48)`;
   - `/api/android-testers/config` теперь отдает `versionCode`, `minimumSupportedVersionCode`, `publishedAt`;
   - `/api/mobile-app/config` теперь отдает непустой `androidRelease` contract c `downloadUrl`, `appVersion`, `versionCode`, `releaseNotes`, `installInstructions`, `minimumSupportedVersionCode`, `publishedAt`.
 - Для production Dokploy на 2026-03-30 есть операционная особенность:
@@ -308,7 +312,7 @@
   - сработал только явный `application_deploy`, после которого появился новый service task и live endpoints начали отдавать новый Android release contract.
 - Текущий live APK upload endpoint по-прежнему неверно именует файл по исходному локальному filename:
   - при загрузке `app-release.apk` production сохранил артефакт как `ragagent-release-v1.0.0-...apk`;
-  - реальная версия внутри APK и в backend settings при этом `1.1.45 (47)`;
+  - реальная версия внутри APK и в backend settings при этом `1.1.46 (48)`;
   - это пока не ломает раздачу, но создает путаницу в имени файла и release traceability.
 - Push в production на 2026-03-30 остается отдельной live-проблемой:
   - `POST /api/admin/push/test` падает с `fcm v1 returned status=401 code=THIRD_PARTY_AUTH_ERROR`;
@@ -3551,6 +3555,11 @@
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
 - 2026-03-31 live Android release ops:
+  - release APK `1.1.46 (48)` собран локально через `./gradlew app:assembleRelease`, установлен на устройство `R58N10182QN` и загружен в S3;
+  - публичный direct-download URL: `https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/downloads/android/ragagent-release-v1.1.46-build48-20260331.apk`;
+  - HTTP-проверка публичной ссылки вернула `200 OK`, а `adb shell dumpsys package com.ragagent` подтвердил `versionName=1.1.46`, `versionCode=48`;
+  - production `system_settings` обновлены до нового APK, и live `/api/android-testers/config` + `/api/mobile-app/config` уже отдают `1.1.46 (48)` и новый S3 URL.
+- 2026-03-31 live Android release ops:
   - release APK `1.1.45 (47)` собран локально через `./gradlew app:assembleRelease`, установлен на устройство `R58N10182QN` и загружен в S3;
   - публичный direct-download URL: `https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/downloads/android/ragagent-release-v1.1.45-build47-20260331.apk`;
   - HTTP-проверка публичной ссылки вернула `200 OK`, а `adb shell dumpsys package com.ragagent` подтвердил `versionName=1.1.45`, `versionCode=47`;
@@ -3596,9 +3605,9 @@
   - entry source ожидается как `site`, `telegram` или `in_app`;
   - метрики пишутся в counters `android_release_*`.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.45`, `versionCode=47`;
+  - `frontend/android/app/build.gradle`: `versionName=1.1.46`, `versionCode=48`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.45`, `versionCode=47`.
+  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.46`, `versionCode=48`.
 - `server/cmd/upload_apk_to_s3` теперь умеет искать env по кандидатам `server/.env`, `.env`, `../.env`, поэтому upload release APK в S3 работает и из repo root, и из `server/`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;

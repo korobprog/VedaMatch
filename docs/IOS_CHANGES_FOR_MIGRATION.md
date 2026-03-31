@@ -1,3 +1,57 @@
+## 2026-03-31 (Shared mobile Lila player counters: active mode population instead of raw queue depth)
+
+### Измененные файлы
+- `server/internal/games/lila/types.go`
+- `server/internal/games/lila/service.go`
+- `server/internal/games/lila/player_counts_test.go`
+- `frontend/types/lila.ts`
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/__tests__/services/lilaGameService.test.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - mobile карточки режимов и экран очереди брали число игроков из `queueDepth`;
+  - `queueDepth` считал только `waiting/ready`, поэтому в `Дуэль Дхармы` можно было видеть `1`, когда второй игрок уже был в `matched`;
+  - из-за этого на iOS/Android пользователь видел заниженный онлайн по режиму.
+- Стало:
+  - backend bootstrap теперь отдаёт отдельный `modePlayerCounts`;
+  - в него входят `waiting` игроки и участники `matched/ready`, только если связанный матч ещё `lobby|active`;
+  - mobile `Home` и `Queue` используют новый счётчик, а `LilaBattleOfSagesHome` дополнительно обновляет bootstrap по таймеру.
+
+### Короткие сниппеты кода
+
+`server/internal/games/lila/service.go`:
+```go
+func shouldCountQueueEntryForModePlayers(entry models.LilaQueueEntry, matchStatuses map[uint]models.LilaMatchStatus) bool {
+	switch entry.Status {
+	case models.LilaQueueStatusWaiting:
+		return true
+	case models.LilaQueueStatusMatched, models.LilaQueueStatusReady:
+		return entry.MatchID != nil && (matchStatuses[*entry.MatchID] == models.LilaMatchStatusLobby || matchStatuses[*entry.MatchID] == models.LilaMatchStatusActive)
+	default:
+		return false
+	}
+}
+```
+
+`frontend/services/lilaGameService.ts`:
+```ts
+export const getLilaModePlayerCount = (bootstrap, mode) =>
+  Number(bootstrap?.modePlayerCounts?.[mode] ?? bootstrap?.queueDepth?.[mode] ?? 0);
+```
+
+`frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`:
+```tsx
+useFocusEffect(
+  React.useCallback(() => {
+    const timer = setInterval(() => void loadBootstrap(), 3000);
+    return () => clearInterval(timer);
+  }, [loadBootstrap]),
+);
+```
+
 ## 2026-03-31 (Shared mobile Lila ownership flow: real inventory/history and pass entitlement)
 
 ### Измененные файлы
@@ -284,6 +338,27 @@ if (response.match?.code) {
 await submitLilaAnswer(matchCode, currentRound.number, selectedAnswer);
 const next = await getLilaMatch(matchCode, i18n.language);
 setSnapshot(next);
+```
+
+## 2026-03-31 (Android production release 1.1.46 + refreshed sideload distribution)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Android production build был `1.1.45 (47)`;
+  - предыдущий публичный APK и установленная на тестовом устройстве сборка соответствовали `1.1.45`.
+- Стало:
+  - Android production build поднят до `1.1.46 (48)`;
+  - новый release APK пересобран, установлен на Android-устройство и опубликован в S3 как свежая ссылка для прямого скачивания.
+
+### Короткие сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionName "1.1.46"
+versionCode 48
 ```
 
 ## 2026-03-31 (Android production release 1.1.45 + refreshed sideload distribution)

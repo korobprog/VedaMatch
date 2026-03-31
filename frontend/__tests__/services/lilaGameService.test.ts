@@ -1,5 +1,5 @@
-import { getLilaPreferredStoreCurrency, getLilaStoreSpendOptions } from '../../services/lilaGameService';
-import type { LilaBalanceSummary, LilaStoreItem } from '../../types/lila';
+import { getLilaModePlayerCount, getLilaPreferredStoreCurrency, getLilaStoreSpendOptions } from '../../services/lilaGameService';
+import type { LilaBalanceSummary, LilaBootstrap, LilaStoreItem } from '../../types/lila';
 
 const buildItem = (overrides: Partial<LilaStoreItem> = {}): LilaStoreItem => ({
     code: 'test_item',
@@ -83,5 +83,45 @@ describe('getLilaStoreSpendOptions', () => {
         )).toEqual([
             { currency: 'real', amount: 299, affordable: true },
         ]);
+    });
+});
+
+describe('getLilaModePlayerCount', () => {
+    const buildBootstrap = (overrides: Partial<LilaBootstrap> = {}): LilaBootstrap => ({
+        locations: [],
+        modes: [],
+        profile: null,
+        quests: [],
+        siddhis: [],
+        queueDepth: {},
+        modePlayerCounts: {},
+        activeSeason: null,
+        passProgress: null,
+        storeItems: [],
+        ownedItems: [],
+        purchaseHistory: [],
+        giftHistory: [],
+        leaderboard: [],
+        subscription: null,
+        bonusBalance: 0,
+        realBalance: 0,
+        openMatches: [],
+        openQueue: [],
+        availableQuestions: [],
+        metrics: {},
+        ...overrides,
+    });
+
+    it('prefers backend mode player counts when available', () => {
+        expect(getLilaModePlayerCount(buildBootstrap({
+            queueDepth: { duel: 1 },
+            modePlayerCounts: { duel: 2 },
+        }), 'duel')).toBe(2);
+    });
+
+    it('falls back to queue depth for older payloads', () => {
+        expect(getLilaModePlayerCount(buildBootstrap({
+            queueDepth: { survival: 4 },
+        }), 'survival')).toBe(4);
     });
 });

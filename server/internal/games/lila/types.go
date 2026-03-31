@@ -58,6 +58,7 @@ type MatchScoreEntry struct {
 type BootstrapResponse struct {
 	Profile            *models.LilaProfile           `json:"profile,omitempty"`
 	QueueDepth         map[string]int64              `json:"queueDepth"`
+	ModePlayerCounts   map[string]int64              `json:"modePlayerCounts"`
 	ActiveSeason       *models.LilaPassSeason        `json:"activeSeason,omitempty"`
 	PassProgress       *PassProgressView             `json:"passProgress,omitempty"`
 	StoreItems         []models.LilaStoreItem        `json:"storeItems"`

@@ -233,6 +233,7 @@ type LilaMatchSnapshotApi = {
 type LilaBootstrapApi = {
     profile?: LilaProfileApi | null;
     queueDepth?: Record<string, number>;
+    modePlayerCounts?: Record<string, number>;
     activeSeason?: LilaPassSeasonApi | null;
     passProgress?: LilaPassProgressApi | null;
     storeItems?: LilaStoreItemApi[];
@@ -671,6 +672,11 @@ export const getLilaSiddhis = (): LilaSiddhiId[] => [...DEFAULT_SIDDHIS];
 
 export const getLilaStoreSections = (items: LilaStoreItem[]): LilaStoreSection[] => buildStoreSections(items);
 
+export const getLilaModePlayerCount = (
+    bootstrap: Pick<LilaBootstrap, 'modePlayerCounts' | 'queueDepth'> | null | undefined,
+    mode: LilaMode,
+): number => Number(bootstrap?.modePlayerCounts?.[mode] ?? bootstrap?.queueDepth?.[mode] ?? 0);
+
 export const getLilaPreferredStoreCurrency = (item: LilaStoreItem): LilaCurrency | null => {
     const hasBonusPrice = item.canUseBonus && item.bonusPrice > 0;
     const hasRealPrice = item.canUseReal && item.realPrice > 0;
@@ -726,6 +732,7 @@ export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootst
         quests: Array.isArray(data.quests) ? data.quests.map((quest) => mapQuest(quest, locale)) : [],
         siddhis: getLilaSiddhis(),
         queueDepth: mapQueueDepth(data.queueDepth),
+        modePlayerCounts: mapQueueDepth(data.modePlayerCounts),
         activeSeason: mapPassSeason(data.activeSeason, locale),
         passProgress: mapPassProgress(data.passProgress),
         storeItems,
