@@ -2,6 +2,8 @@ package lila
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"rag-agent-server/internal/models"
@@ -161,10 +163,21 @@ func SeedDefaultCatalog(ctx context.Context, db *gorm.DB) error {
 
 	for _, item := range defaultStore {
 		var existing models.LilaStoreItem
-		if err := db.WithContext(ctx).Where("code = ?", item.Code).First(&existing).Error; err == nil {
+		err := db.WithContext(ctx).Where("code = ?", item.Code).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := db.WithContext(ctx).Create(&item).Error; err != nil {
+				return err
+			}
 			continue
 		}
-		if err := db.WithContext(ctx).Create(&item).Error; err != nil {
+		if err != nil {
+			return err
+		}
+		updates := repairStoreItemUpdates(existing, item)
+		if len(updates) == 0 {
+			continue
+		}
+		if err := db.WithContext(ctx).Model(&existing).Updates(updates).Error; err != nil {
 			return err
 		}
 	}
@@ -186,10 +199,102 @@ func SeedDefaultCatalog(ctx context.Context, db *gorm.DB) error {
 	}
 	var existingSeason models.LilaPassSeason
 	if err := db.WithContext(ctx).Where("code = ?", defaultSeason.Code).First(&existingSeason).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		if err := db.WithContext(ctx).Create(&defaultSeason).Error; err != nil {
 			return err
+		}
+	} else {
+		updates := repairPassSeasonUpdates(existingSeason, defaultSeason)
+		if len(updates) > 0 {
+			if err := db.WithContext(ctx).Model(&existingSeason).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
+}
+
+func repairStoreItemUpdates(existing, fallback models.LilaStoreItem) map[string]interface{} {
+	updates := make(map[string]interface{})
+	effectiveCanUseBonus := existing.CanUseBonus
+	effectiveCanUseReal := existing.CanUseReal
+
+	if strings.TrimSpace(existing.Type) == "" {
+		updates["type"] = fallback.Type
+	}
+	if strings.TrimSpace(existing.NameRu) == "" {
+		updates["name_ru"] = fallback.NameRu
+	}
+	if strings.TrimSpace(existing.NameEn) == "" {
+		updates["name_en"] = fallback.NameEn
+	}
+	if strings.TrimSpace(existing.NameHi) == "" {
+		updates["name_hi"] = fallback.NameHi
+	}
+	if strings.TrimSpace(existing.DescriptionRu) == "" {
+		updates["description_ru"] = fallback.DescriptionRu
+	}
+	if strings.TrimSpace(existing.DescriptionEn) == "" {
+		updates["description_en"] = fallback.DescriptionEn
+	}
+	if strings.TrimSpace(existing.DescriptionHi) == "" {
+		updates["description_hi"] = fallback.DescriptionHi
+	}
+	if existing.Status == "" {
+		updates["status"] = fallback.Status
+	}
+	if !existing.CanUseBonus && !existing.CanUseReal {
+		updates["can_use_bonus"] = fallback.CanUseBonus
+		updates["can_use_real"] = fallback.CanUseReal
+		effectiveCanUseBonus = fallback.CanUseBonus
+		effectiveCanUseReal = fallback.CanUseReal
+	}
+	if effectiveCanUseBonus && existing.PriceBonus <= 0 && fallback.PriceBonus > 0 {
+		updates["price_bonus"] = fallback.PriceBonus
+	}
+	if effectiveCanUseReal && existing.PriceReal <= 0 && fallback.PriceReal > 0 {
+		updates["price_real"] = fallback.PriceReal
+	}
+
+	return updates
+}
+
+func repairPassSeasonUpdates(existing, fallback models.LilaPassSeason) map[string]interface{} {
+	updates := make(map[string]interface{})
+
+	if strings.TrimSpace(existing.NameRu) == "" {
+		updates["name_ru"] = fallback.NameRu
+	}
+	if strings.TrimSpace(existing.NameEn) == "" {
+		updates["name_en"] = fallback.NameEn
+	}
+	if strings.TrimSpace(existing.NameHi) == "" {
+		updates["name_hi"] = fallback.NameHi
+	}
+	if strings.TrimSpace(existing.DescriptionRu) == "" {
+		updates["description_ru"] = fallback.DescriptionRu
+	}
+	if strings.TrimSpace(existing.DescriptionEn) == "" {
+		updates["description_en"] = fallback.DescriptionEn
+	}
+	if strings.TrimSpace(existing.DescriptionHi) == "" {
+		updates["description_hi"] = fallback.DescriptionHi
+	}
+	if existing.Status == "" {
+		updates["status"] = fallback.Status
+	}
+	if existing.PremiumPriceReal <= 0 && fallback.PremiumPriceReal > 0 {
+		updates["premium_price_real"] = fallback.PremiumPriceReal
+	}
+	if strings.TrimSpace(existing.DailyBonusJSON) == "" {
+		updates["daily_bonus_json"] = fallback.DailyBonusJSON
+	}
+	if strings.TrimSpace(existing.PremiumRewardJSON) == "" {
+		updates["premium_reward_json"] = fallback.PremiumRewardJSON
+	}
+
+	return updates
 }

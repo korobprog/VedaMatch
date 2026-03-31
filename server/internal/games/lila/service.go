@@ -207,11 +207,11 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 		} else if err == nil {
 			resp.ActiveSeason = &season
 		}
-		var subscription models.LilaSubscription
-		if err := tx.Where("user_id = ?", userID).Order("created_at desc").Limit(1).First(&subscription).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		var subscriptions []models.LilaSubscription
+		if err := tx.Where("user_id = ?", userID).Order("created_at desc").Limit(1).Find(&subscriptions).Error; err != nil {
 			return err
-		} else if err == nil {
-			resp.Subscription = &subscription
+		} else if len(subscriptions) > 0 {
+			resp.Subscription = &subscriptions[0]
 		}
 
 		var queueRows []models.LilaQueueEntry
@@ -633,20 +633,16 @@ func (s *Service) PurchaseStoreItem(ctx context.Context, userID uint, req Purcha
 		if err := tx.Where("code = ?", req.ItemCode).First(&item).Error; err != nil {
 			return err
 		}
-		totalBonus := item.PriceBonus * req.Quantity
-		totalReal := item.PriceReal * req.Quantity
+		totalBonus, totalReal, err := resolveStoreSpendTotals(item, req.Currency, req.Quantity, "store item")
+		if err != nil {
+			return err
+		}
 		switch req.Currency {
 		case models.LilaCurrencyTypeBonus:
-			if !item.CanUseBonus {
-				return errors.New("item is not purchasable with bonus balance")
-			}
 			if err := s.spendBonusTx(tx, userID, totalBonus, "Lila store purchase", "store_item", item.Code); err != nil {
 				return err
 			}
 		case models.LilaCurrencyTypeReal:
-			if !item.CanUseReal {
-				return errors.New("item is not purchasable with real balance")
-			}
 			processed, err := s.wallet.SpendTx(tx, userID, totalReal, req.DedupKey, "Lila store purchase", services.SpendOptions{AllowBonus: false})
 			if err != nil {
 				return err
@@ -654,8 +650,6 @@ func (s *Service) PurchaseStoreItem(ctx context.Context, userID uint, req Purcha
 			if !processed {
 				return errors.New("purchase already processed")
 			}
-		default:
-			return errors.New("currency is required")
 		}
 
 		dharmaPercent := 7
@@ -740,6 +734,9 @@ func (s *Service) ActivateSubscription(ctx context.Context, userID uint, req Sub
 		if !item.CanUseReal {
 			return errors.New("subscription must be purchased with real balance")
 		}
+		if err := validatePositiveRealPrice(item.PriceReal, "subscription"); err != nil {
+			return err
+		}
 		processed, err := s.wallet.SpendTx(tx, userID, item.PriceReal, req.DedupKey, "Lila subscription", services.SpendOptions{AllowBonus: false})
 		if err != nil {
 			return err
@@ -784,20 +781,16 @@ func (s *Service) SendGift(ctx context.Context, fromUserID uint, req GiftRequest
 		if err := tx.Where("code = ?", req.ItemCode).First(&item).Error; err != nil {
 			return err
 		}
-		totalBonus := item.PriceBonus * req.Quantity
-		totalReal := item.PriceReal * req.Quantity
+		totalBonus, totalReal, err := resolveStoreSpendTotals(item, req.Currency, req.Quantity, "gift")
+		if err != nil {
+			return err
+		}
 		switch req.Currency {
 		case models.LilaCurrencyTypeBonus:
-			if !item.CanUseBonus {
-				return errors.New("gift is not purchasable with bonus balance")
-			}
 			if err := s.spendBonusTx(tx, fromUserID, totalBonus, "Gift sent", "gift", item.Code); err != nil {
 				return err
 			}
 		case models.LilaCurrencyTypeReal:
-			if !item.CanUseReal {
-				return errors.New("gift is not purchasable with real balance")
-			}
 			processed, err := s.wallet.SpendTx(tx, fromUserID, totalReal, "", "Gift sent", services.SpendOptions{AllowBonus: false})
 			if err != nil {
 				return err
@@ -805,8 +798,6 @@ func (s *Service) SendGift(ctx context.Context, fromUserID uint, req GiftRequest
 			if !processed {
 				return errors.New("gift already processed")
 			}
-		default:
-			return errors.New("currency is required")
 		}
 		gift = models.LilaGift{
 			FromUserID:  fromUserID,

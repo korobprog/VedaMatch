@@ -187,3 +187,39 @@ func generateMatchCode(mode models.LilaGameMode, now time.Time, userCount int) s
 	segment := strings.ToUpper(strings.ReplaceAll(string(mode), "_", ""))
 	return fmt.Sprintf("LILA-%s-%d-%d", segment, now.Unix()%100000, userCount)
 }
+
+func resolveStoreSpendTotals(item models.LilaStoreItem, currency models.LilaCurrencyType, quantity int, subject string) (int, int, error) {
+	if quantity <= 0 {
+		quantity = 1
+	}
+
+	switch currency {
+	case models.LilaCurrencyTypeBonus:
+		if !item.CanUseBonus {
+			return 0, 0, fmt.Errorf("%s is not purchasable with bonus balance", subject)
+		}
+		totalBonus := item.PriceBonus * quantity
+		if totalBonus <= 0 {
+			return 0, 0, fmt.Errorf("%s bonus price is not configured", subject)
+		}
+		return totalBonus, 0, nil
+	case models.LilaCurrencyTypeReal:
+		if !item.CanUseReal {
+			return 0, 0, fmt.Errorf("%s is not purchasable with real balance", subject)
+		}
+		totalReal := item.PriceReal * quantity
+		if totalReal <= 0 {
+			return 0, 0, fmt.Errorf("%s real price is not configured", subject)
+		}
+		return 0, totalReal, nil
+	default:
+		return 0, 0, errors.New("currency is required")
+	}
+}
+
+func validatePositiveRealPrice(amount int, subject string) error {
+	if amount <= 0 {
+		return fmt.Errorf("%s real price is not configured", subject)
+	}
+	return nil
+}

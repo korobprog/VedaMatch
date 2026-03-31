@@ -4,6 +4,24 @@ jest.mock('react-native-config', () => ({
   API_BASE_URL: 'http://localhost:8000/api',
   APP_ENV: 'test',
 }));
+jest.mock('react-native-device-info', () => ({
+  getVersion: jest.fn(() => '1.0.0'),
+  getBuildNumber: jest.fn(() => '1'),
+  getUniqueId: jest.fn(async () => 'test-device-id'),
+  getSystemName: jest.fn(() => 'Android'),
+  getSystemVersion: jest.fn(() => '14'),
+  getModel: jest.fn(() => 'Test Device'),
+  isEmulator: jest.fn(async () => false),
+}));
+jest.mock('react-native-mmkv', () => ({
+  createMMKV: jest.fn(() => ({
+    getString: jest.fn(),
+    getBoolean: jest.fn(),
+    set: jest.fn(),
+    remove: jest.fn(),
+    contains: jest.fn(() => false),
+  })),
+}));
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 jest.mock(

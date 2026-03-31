@@ -441,6 +441,22 @@ describe('PortalMainScreen', () => {
         expect(navigation.navigate).toHaveBeenCalledWith('EkadashiCalendar');
     });
 
+    it('opens lila home screen for lila shortcut', () => {
+        const navigation = createNavigation();
+        render(
+            <PortalMainScreen
+                navigation={navigation}
+                route={{ params: {} }}
+            />,
+        );
+
+        act(() => {
+            latestOnServicePress?.('lila_battle_of_sages');
+        });
+
+        expect(navigation.navigate).toHaveBeenCalledWith('LilaBattleOfSagesHome');
+    });
+
     it('shows profile completion CTA in locked service hint and opens EditProfile', () => {
         mockUserState.isProfileComplete = false;
         mockUserState.godModeEnabled = false;

@@ -1,3 +1,93 @@
+## 2026-03-31 (Shared mobile Lila: explicit exit, no accidental back, no fake loading states)
+
+### Измененные файлы
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/App.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на главном экране Lila пользователь мог случайно выйти назад системным жестом/свайпом;
+  - на home/queue части Lila некоторые уже известные состояния показывались как вечная `loading` (`Садху-карма дня`, активная очередь);
+  - длинные названия локаций вроде `Курукшетра` читались плохо в правом верхнем углу карточек режимов.
+- Стало:
+  - `LilaBattleOfSagesHome` получил явную верхнюю кнопку `Выйти`, а случайный back/pop для этого экрана блокируется;
+  - для главного Lila screen отключены stack gestures через screen options;
+  - пустой daily quest блок теперь показывает empty-state, а активная очередь отображается как `В очереди` вместо ложной загрузки;
+  - location chip перенесён в отдельную строку и переведён в контрастный tone, чтобы длинные названия были читаемы на мобильном экране.
+
+### Короткие сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="LilaBattleOfSagesHome"
+  component={LilaBattleOfSagesHomeScreen}
+  options={{ headerShown: false, gestureEnabled: false, fullScreenGestureEnabled: false }}
+/>
+```
+
+`frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`:
+```tsx
+const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+  const isBackNavigation = actionType === 'GO_BACK' || actionType === 'POP' || actionType === 'POP_TO_TOP';
+  if (!isBackNavigation) return;
+  if (allowExitRef.current) return;
+  event.preventDefault();
+});
+```
+
+```tsx
+headerRight={(
+  <Pressable onPress={handleExit} style={styles.exitButton}>
+    <Text style={styles.exitButtonLabel}>{t('portal.lila.actions.exit')}</Text>
+  </Pressable>
+)}
+```
+
+`frontend/screens/portal/games/LilaQueueScreen.tsx`:
+```tsx
+{queueEntry
+  ? t('portal.lila.queue.queueState', { status: queueStatusLabel })
+  : t('portal.lila.queue.serverAuthority')}
+```
+
+## 2026-03-31 (Shared mobile portal: fix Lila launch from portal grid)
+
+### Измененные файлы
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - tap по сервису `lila_battle_of_sages` в portal grid резолвился в `LilaBattleOfSagesHome`, но shared helper `navigateResolvedScreen()` не содержал ветки для этого route;
+  - на Android/iOS это выглядело как «игра не запускается», потому что навигационный переход просто не происходил.
+- Стало:
+  - `PortalMainScreen` теперь явно умеет открывать `LilaBattleOfSagesHome`;
+  - добавлен regression test на tap по Lila service shortcut.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/PortalMainScreen.tsx`:
+```tsx
+if (screen === 'LilaBattleOfSagesHome') {
+  navigation.navigate('LilaBattleOfSagesHome');
+  return;
+}
+```
+
+`frontend/__tests__/screens/portal/PortalMainScreen.test.tsx`:
+```tsx
+act(() => {
+  latestOnServicePress?.('lila_battle_of_sages');
+});
+
+expect(navigation.navigate).toHaveBeenCalledWith('LilaBattleOfSagesHome');
+```
+
 ## 2026-03-30 (Shared mobile Lila: live HTTP game flow instead of local previews)
 
 ### Измененные файлы
@@ -48,6 +138,27 @@ if (response.match?.code) {
 await submitLilaAnswer(matchCode, currentRound.number, selectedAnswer);
 const next = await getLilaMatch(matchCode, i18n.language);
 setSnapshot(next);
+```
+
+## 2026-03-31 (Android production release 1.1.45 + refreshed sideload distribution)
+
+### Измененные файлы
+- `frontend/android/app/build.gradle`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Android production build был `1.1.44 (46)`;
+  - предыдущий публичный APK и установленная на тестовом устройстве сборка соответствовали `1.1.44`.
+- Стало:
+  - Android production build поднят до `1.1.45 (47)`;
+  - новый release APK пересобран, установлен на Android-устройство и опубликован в S3 как свежая ссылка для прямого скачивания.
+
+### Короткие сниппеты кода
+
+`frontend/android/app/build.gradle`:
+```gradle
+versionName "1.1.45"
+versionCode 47
 ```
 
 ## 2026-03-30 (Shared mobile portal: localized Games folder and Lila navigation flow)

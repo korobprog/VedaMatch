@@ -770,6 +770,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('EkadashiCalendar');
             return;
         }
+        if (screen === 'LilaBattleOfSagesHome') {
+            navigation.navigate('LilaBattleOfSagesHome');
+            return;
+        }
         if (screen === 'ConnectHome') {
             navigation.navigate('ConnectHome');
         }

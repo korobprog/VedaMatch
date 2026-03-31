@@ -932,7 +932,15 @@ const AppContent = () => {
                   <Stack.Screen name="PathStep" component={PathStepScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="PathReflection" component={PathReflectionScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="PathWeeklySummary" component={PathWeeklySummaryScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="LilaBattleOfSagesHome" component={LilaBattleOfSagesHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="LilaBattleOfSagesHome"
+                    component={LilaBattleOfSagesHomeScreen}
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: false,
+                      fullScreenGestureEnabled: false,
+                    }}
+                  />
                   <Stack.Screen name="LilaQueue" component={LilaQueueScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="LilaLobby" component={LilaLobbyScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="LilaMatch" component={LilaMatchScreen} options={{ headerShown: false }} />

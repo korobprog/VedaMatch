@@ -49,6 +49,9 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const queueEntry = bootstrap?.openQueue.find((entry) => entry.mode === mode && entry.status !== 'left') || null;
     const liveMatch = bootstrap?.openMatches.find((match) => match.mode === mode) || null;
+    const queueStatusLabel = queueEntry
+        ? t(`portal.lila.queue.statuses.${queueEntry.status}`, { defaultValue: queueEntry.status })
+        : null;
 
     React.useEffect(() => {
         if (liveMatch) {
@@ -109,7 +112,9 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
             <LilaCard>
                 <View style={styles.header}>
                     <Text style={styles.title}>{t(`portal.lila.modes.${mode}.title`)}</Text>
-                    <LilaPill label={t(`portal.lila.locations.${config.location}`)} tone="night" />
+                    <View style={styles.headerMeta}>
+                        <LilaPill label={t(`portal.lila.locations.${config.location}`)} tone="night" />
+                    </View>
                 </View>
                 <Text style={styles.body}>{t(`portal.lila.modes.${mode}.detail`)}</Text>
                 <View style={styles.metrics}>
@@ -157,7 +162,9 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={styles.lineItem}>
                     <Sparkles size={16} color={LILA_COLORS.parchment} />
                     <Text style={styles.lineTextGold}>
-                        {queueEntry ? `${t('common.loading')} · ${queueEntry.status}` : t('portal.lila.queue.serverAuthority')}
+                        {queueEntry
+                            ? t('portal.lila.queue.queueState', { status: queueStatusLabel })
+                            : t('portal.lila.queue.serverAuthority')}
                     </Text>
                 </View>
             </LilaCard>
@@ -185,13 +192,12 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         gap: 12,
     },
+    headerMeta: {
+        alignItems: 'flex-start',
+    },
     title: {
-        flex: 1,
         color: LILA_COLORS.ink,
         fontSize: 21,
         fontWeight: '700',

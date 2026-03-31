@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Crown, MapPinned, ScrollText, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { getLilaBootstrap, getLilaModeConfig } from '../../../services/lilaGameService';
@@ -16,6 +16,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
     const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
+    const allowExitRef = React.useRef(false);
 
     const loadBootstrap = React.useCallback(async () => {
         try {
@@ -36,8 +37,26 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
         }, [loadBootstrap]),
     );
 
+    React.useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+            const actionType = event.data.action.type;
+            const isBackNavigation = actionType === 'GO_BACK' || actionType === 'POP' || actionType === 'POP_TO_TOP';
+            if (!isBackNavigation) {
+                return;
+            }
+            if (allowExitRef.current) {
+                allowExitRef.current = false;
+                return;
+            }
+            event.preventDefault();
+        });
+        return unsubscribe;
+    }, [navigation]);
+
     const profile = bootstrap?.profile;
     const activeMatch = bootstrap?.openMatches[0] || null;
+    const quests = bootstrap?.quests || [];
+    const isQuestSectionLoading = loading && !bootstrap;
 
     const navigateToMatch = React.useCallback((mode: LilaMode, match: LilaMatchRecord) => {
         if (match.status === 'finished') {
@@ -51,12 +70,26 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
         navigation.navigate('LilaLobby', { mode, matchCode: match.code });
     }, [navigation]);
 
+    const handleExit = React.useCallback(() => {
+        allowExitRef.current = true;
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate('Portal');
+    }, [navigation]);
+
     return (
         <LilaScreenLayout
             badge={t('portal.lila.badge')}
             title={t('portal.lila.home.title')}
             subtitle={t('portal.lila.home.subtitle')}
             showBack={false}
+            headerRight={(
+                <Pressable onPress={handleExit} style={styles.exitButton}>
+                    <Text style={styles.exitButtonLabel}>{t('portal.lila.actions.exit')}</Text>
+                </Pressable>
+            )}
         >
             <LilaCard tone="gold">
                 {loading && !bootstrap ? (
@@ -131,8 +164,10 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                             <View style={styles.modeTitleWrap}>
                                 <Text style={styles.modeTitle}>{t(`portal.lila.modes.${modeConfig.id}.title`)}</Text>
                                 <Text style={styles.modeSubtitle}>{t(`portal.lila.modes.${modeConfig.id}.detail`)}</Text>
+                                <View style={styles.modeLocationRow}>
+                                    <LilaPill label={t(`portal.lila.locations.${modeConfig.location}`)} tone="night" />
+                                </View>
                             </View>
-                            <LilaPill label={t(`portal.lila.locations.${modeConfig.location}`)} tone="gold" />
                         </View>
                         <View style={styles.modeMetrics}>
                             <LilaMetric label={t('portal.lila.queue.players')} value={String(bootstrap.queueDepth[modeConfig.id] || 0)} />
@@ -140,7 +175,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                             <LilaMetric label={t('portal.lila.queue.estWait')} value={`${modeConfig.waitSeconds}s`} />
                         </View>
                         <LilaPrimaryButton
-                            label={liveMatch ? t('common.open') : queued ? t('common.loading') : t('portal.lila.actions.join')}
+                            label={liveMatch ? t('common.open') : queued ? t('portal.lila.actions.inQueue') : t('portal.lila.actions.join')}
                             onPress={() => {
                                 if (liveMatch) {
                                     navigateToMatch(modeConfig.id, liveMatch);
@@ -155,17 +190,24 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
 
             <LilaSectionTitle title={t('portal.lila.home.dailyTitle')} subtitle={t('portal.lila.home.dailySubtitle')} />
             <LilaCard tone="night">
-                {bootstrap?.quests.length ? bootstrap.quests.map((quest) => (
-                    <View key={quest.code} style={styles.questRow}>
-                        <View style={styles.questHeader}>
-                            <ScrollText size={16} color={LILA_COLORS.parchment} />
-                            <Text style={styles.questTitle}>{quest.title}</Text>
-                        </View>
-                        <Text style={styles.questDescription}>{quest.description}</Text>
-                        <Text style={styles.questReward}>{t('portal.lila.home.questReward', { amount: quest.rewardBonus })}</Text>
+                {isQuestSectionLoading ? (
+                    <View style={styles.loadingRow}>
+                        <ActivityIndicator color={LILA_COLORS.parchment} />
+                        <Text style={styles.questDescription}>{t('common.loading')}</Text>
                     </View>
-                )) : (
-                    <Text style={styles.questDescription}>{t('common.loading')}</Text>
+                ) : quests.length ? (
+                    quests.map((quest) => (
+                        <View key={quest.code} style={styles.questRow}>
+                            <View style={styles.questHeader}>
+                                <ScrollText size={16} color={LILA_COLORS.parchment} />
+                                <Text style={styles.questTitle}>{quest.title}</Text>
+                            </View>
+                            <Text style={styles.questDescription}>{quest.description}</Text>
+                            <Text style={styles.questReward}>{t('portal.lila.home.questReward', { amount: quest.rewardBonus })}</Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.questDescription}>{t('portal.lila.home.dailyEmpty')}</Text>
                 )}
             </LilaCard>
 
@@ -201,6 +243,21 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 10,
+    },
+    exitButton: {
+        minHeight: 40,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,244,224,0.14)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,244,224,0.18)',
+    },
+    exitButtonLabel: {
+        color: LILA_COLORS.parchment,
+        fontSize: 13,
+        fontWeight: '700',
     },
     profileTitleWrap: {
         flexDirection: 'row',
@@ -290,8 +347,6 @@ const styles = StyleSheet.create({
         color: LILA_COLORS.crimson,
     },
     modeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         gap: 12,
     },
     modeTitleWrap: {
@@ -307,6 +362,10 @@ const styles = StyleSheet.create({
         color: 'rgba(42,24,16,0.72)',
         fontSize: 13,
         lineHeight: 20,
+    },
+    modeLocationRow: {
+        marginTop: 2,
+        alignItems: 'flex-start',
     },
     modeMetrics: {
         flexDirection: 'row',

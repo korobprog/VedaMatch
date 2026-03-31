@@ -227,6 +227,16 @@
 - На mobile portal добавлен новый локализованный folder `Games` (`folder-games`) с первым сервисом `lila_battle_of_sages`; лейблы и game-facing copy заведены в `ru/en/hi`.
 - Для уже сохранённых portal layouts действует миграция: `lila_battle_of_sages` автоматически переносится в `folder-games` на первой странице, не затрагивая quick access/dock.
 - Shared mobile navigation получила отдельные экраны `LilaBattleOfSagesHome`, `LilaQueue`, `LilaLobby`, `LilaMatch`, `LilaResults`, `LilaProfile`, `LilaStore`, `LilaPass`; запуск из portal grid идёт через `serviceLaunchResolver`.
+- В `frontend/screens/portal/PortalMainScreen.tsx` при добавлении новых portal services недостаточно зарегистрировать route в `serviceLaunchResolver`: `navigateResolvedScreen()` тоже должен уметь явно `navigation.navigate(...)` в новый экран, иначе tap по иконке визуально ничего не запускает.
+- На главном экране Lila нельзя оставлять back gesture как единственный способ выхода:
+  - `LilaBattleOfSagesHome` должен иметь явную верхнюю кнопку выхода;
+  - accidental `GO_BACK/POP` с этого экрана нужно блокировать, иначе пользователь случайно вылетает из игры свайпом/жестом.
+- Для Lila нельзя использовать `common.loading` как placeholder для уже известных non-loading состояний:
+  - пустой блок `Садху-карма дня` должен показывать empty-state, а не вечную загрузку;
+  - активная очередь на home/queue карточках должна показывать статус вроде `В очереди`, а не `Загрузка...`.
+- На светлых Lila mode cards длинные локации (`Курукшетра`, `Айодхья`) плохо читаются в светлых chip-ах справа сверху:
+  - безопасный паттерн — переносить location chip под описание;
+  - для читаемости использовать контрастный `night` tone вместо светлого `gold`.
 - Lila screens больше не должны опираться на локальные mock previews:
   - `frontend/services/lilaGameService.ts` ходит в реальные `/games/lila/...` endpoints;
   - Home/Profile/Store/Pass читают live bootstrap/balance/store;
@@ -238,6 +248,11 @@
 - Новый backend-домен для игры `Lila: Battle of Sages` собран в `server/internal/games/lila`; отдельные Gorm-модели вынесены в `server/internal/models/lila_game.go`.
 - Домен покрывает `question bank`, `queue`, `match`, `rounds`, `answers`, `siddhi usage`, `profile/progression`, `quests`, `guru links`, `store items`, `purchases`, `pass progress`, `subscriptions`, `gifts`, `Dharma Fund`, и отдельный `bonus ledger`.
 - Runtime wiring уже подключено в shared backend entrypoints:
+- В production server logs `GET /api/games/lila/bootstrap` может засоряться ложным `record not found` на `lila_subscriptions`, если использовать `First(&subscription)` для необязательной подписки. Для optional latest-subscription lookup безопаснее `Limit(1).Find(&slice)` и затем проверка `len(slice) > 0`, чтобы не плодить noise при штатном отсутствии подписки.
+- Дефолтный Lila catalog не должен оставаться insert-only для store/pass конфигурации:
+  - при старых production rows с `price_bonus=0` или `price_real=0` клики по `Lotus Frame`, `Sadhana Pass`, `Bhakti Premium`, `Guru-Shishya Gift Pack` падали сырым `amount must be positive`;
+  - `server/internal/games/lila/seed.go` теперь должен мягко repair-ить существующие `lila_store_items` и `lila_pass_seasons`, если у enabled-currency цена отсутствует или пусты базовые localized поля;
+  - purchase/gift/subscription flow должен возвращать доменную ошибку вида `... price is not configured`, а не протаскивать низкоуровневую wallet/bonus ошибку.
   - `server/cmd/api/main.go` запускает Lila auto-migrate + seed defaults и регистрирует `/api/games/lila/...` и `/api/admin/games/lila/...` endpoints;
   - `server/internal/websocket/client.go` пропускает `game_*` события через existing signal bridge.
 - Match runtime уже не должен считаться чистым scaffold:
@@ -259,11 +274,11 @@
 
 ## Mobile Release / Distribution
 - По состоянию на 2026-03-30 контур mobile release для direct distribution без маркетов частично готов, но остается в значительной степени ручным:
-  - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.44`, `versionCode 46`, release signing настроен через env/keystore.
+  - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.45`, `versionCode 47`, release signing настроен через env/keystore.
   - iOS release тоже собирается вручную через локальные `xcodebuild` scripts из root `package.json`; автоматизированного канала вроде EAS/Fastlane/AppCenter в репозитории нет.
 - По состоянию на 2026-03-30 production Android direct-distribution контур уже активирован на live backend:
   - `SUPPORT_DOWNLOAD_ANDROID_URL` указывает на свежий S3 APK;
-  - `ANDROID_TESTERS_APP_VERSION = 1.1.44 (46)`;
+  - `ANDROID_TESTERS_APP_VERSION = 1.1.45 (47)`;
   - `/api/android-testers/config` теперь отдает `versionCode`, `minimumSupportedVersionCode`, `publishedAt`;
   - `/api/mobile-app/config` теперь отдает непустой `androidRelease` contract c `downloadUrl`, `appVersion`, `versionCode`, `releaseNotes`, `installInstructions`, `minimumSupportedVersionCode`, `publishedAt`.
 - Для production Dokploy на 2026-03-30 есть операционная особенность:
@@ -271,7 +286,7 @@
   - сработал только явный `application_deploy`, после которого появился новый service task и live endpoints начали отдавать новый Android release contract.
 - Текущий live APK upload endpoint по-прежнему неверно именует файл по исходному локальному filename:
   - при загрузке `app-release.apk` production сохранил артефакт как `ragagent-release-v1.0.0-...apk`;
-  - реальная версия внутри APK и в backend settings при этом `1.1.44 (46)`;
+  - реальная версия внутри APK и в backend settings при этом `1.1.45 (47)`;
   - это пока не ломает раздачу, но создает путаницу в имени файла и release traceability.
 - Push в production на 2026-03-30 остается отдельной live-проблемой:
   - `POST /api/admin/push/test` падает с `fcm v1 returned status=401 code=THIRD_PARTY_AUTH_ERROR`;
@@ -3513,6 +3528,11 @@
 
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
+- 2026-03-31 live Android release ops:
+  - release APK `1.1.45 (47)` собран локально через `./gradlew app:assembleRelease`, установлен на устройство `R58N10182QN` и загружен в S3;
+  - публичный direct-download URL: `https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/downloads/android/ragagent-release-v1.1.45-build47-20260331.apk`;
+  - HTTP-проверка публичной ссылки вернула `200 OK`, а `adb shell dumpsys package com.ragagent` подтвердил `versionName=1.1.45`, `versionCode=47`;
+  - production `system_settings` обновлены до нового APK, и live `/api/android-testers/config` + `/api/mobile-app/config` уже отдают `1.1.45 (47)` и новый S3 URL.
 - 2026-03-30 live Android release ops:
   - release APK `1.1.44 (46)` загружен в live storage и `SUPPORT_DOWNLOAD_ANDROID_URL` переключен на новый публичный S3 URL;
   - admin upload endpoint сейчас извлекает версию только из имени файла, поэтому при загрузке локального `app-release.apk` публичный filename в S3 ушел как `ragagent-release-v1.0.0-...apk`, даже если внутри APK реальная версия `1.1.44 (46)`;
@@ -3554,9 +3574,9 @@
   - entry source ожидается как `site`, `telegram` или `in_app`;
   - метрики пишутся в counters `android_release_*`.
 - Актуальный release APK для теста звонков на двух Android-устройствах:
-  - `frontend/android/app/build.gradle`: `versionName=1.1.44`, `versionCode=46`;
+  - `frontend/android/app/build.gradle`: `versionName=1.1.45`, `versionCode=47`;
   - артефакт: `frontend/android/app/build/outputs/apk/release/app-release.apk`;
-  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.44`, `versionCode=46`.
+  - source-of-truth package config: `applicationId=com.ragagent`, `versionName=1.1.45`, `versionCode=47`.
 - `server/cmd/upload_apk_to_s3` теперь умеет искать env по кандидатам `server/.env`, `.env`, `../.env`, поэтому upload release APK в S3 работает и из repo root, и из `server/`.
 - Google Sign-In Android release config для sideload APK согласован:
   - release keystore SHA-1 из `./gradlew app:signingReport`: `13:A0:82:F5:49:C1:E2:E9:3A:14:77:E3:4E:88:38:5D:54:A0:0C:1B`;
