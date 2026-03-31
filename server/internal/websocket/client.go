@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gofiber/websocket/v2"
@@ -66,6 +67,15 @@ func (c *Client) ReadPump() {
 				SenderID: c.UserID,
 			}
 		default:
+			if strings.HasPrefix(msg.Type, "game_") {
+				c.Hub.Signal <- SignalingMessage{
+					Type:     msg.Type,
+					TargetID: msg.TargetID,
+					Payload:  msg.Payload,
+					SenderID: c.UserID,
+				}
+				continue
+			}
 			log.Printf("[WS] Ignored message type: %s", msg.Type)
 		}
 	}

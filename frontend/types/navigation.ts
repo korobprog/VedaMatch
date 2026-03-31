@@ -1,6 +1,7 @@
 import { CartItem } from './market';
 import type { ChannelPost } from './channel';
 import type { ConnectFeedFilters } from './connect';
+import type { LilaMode } from './lila';
 
 export type PortalInitialTab =
     | 'contacts'
@@ -25,7 +26,8 @@ export type PortalInitialTab =
     | 'connect'
     | 'path_tracker'
     | 'channels'
-    | 'ekadashi_calendar';
+    | 'ekadashi_calendar'
+    | 'lila_battle_of_sages';
 
 export type VideoCirclePlayerPayload = {
     id: number;
@@ -247,4 +249,12 @@ export type RootStackParamList = {
     PathStep: { stepId?: number; step?: any };
     PathReflection: { stepId: number };
     PathWeeklySummary: undefined;
+    LilaBattleOfSagesHome: undefined;
+    LilaQueue: { mode?: LilaMode; matchCode?: string } | undefined;
+    LilaLobby: { mode: LilaMode; matchCode?: string };
+    LilaMatch: { mode: LilaMode; matchCode?: string };
+    LilaResults: { mode: LilaMode; matchCode?: string };
+    LilaProfile: undefined;
+    LilaStore: undefined;
+    LilaPass: undefined;
 };

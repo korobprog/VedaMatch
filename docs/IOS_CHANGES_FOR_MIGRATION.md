@@ -1,3 +1,103 @@
+## 2026-03-30 (Shared mobile Lila: live HTTP game flow instead of local previews)
+
+### Измененные файлы
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/screens/portal/games/LilaLobbyScreen.tsx`
+- `frontend/screens/portal/games/LilaMatchScreen.tsx`
+- `frontend/screens/portal/games/LilaResultsScreen.tsx`
+- `frontend/screens/portal/games/LilaProfileScreen.tsx`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/screens/portal/games/LilaPassScreen.tsx`
+- `frontend/types/lila.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Lila mobile screens были в основном декоративными и читали локальный `LILA_BOOTSTRAP` mock;
+  - `Home` screen фактически отсутствовал как файл, хотя route уже был зарегистрирован;
+  - Queue/Lobby/Match/Results не были привязаны к реальным `/games/lila/...` endpoints и не умели вести игрока по live match flow.
+- Стало:
+  - общий `lilaGameService` переведен на реальные backend endpoints `/games/lila/bootstrap`, `queue`, `lobby`, `matches`, `store`, `balance`, `pass`, `subscription`;
+  - добавлен реальный `LilaBattleOfSagesHomeScreen`, а Lila screens теперь работают как shared mobile flow внутри portal shell;
+  - Queue/Lobby/Match/Results используют live snapshots и polling, а Profile/Store/Pass показывают реальные balances/catalog/season данные вместо hardcoded preview.
+
+### Короткие сниппеты кода
+
+`frontend/services/lilaGameService.ts`:
+```ts
+export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootstrap> => {
+  const { data } = await apiClient.get('/games/lila/bootstrap', { params: { locale } });
+  return { ...mappedLivePayload, modes: getLilaModeConfigs(), siddhis: getLilaSiddhis() };
+};
+```
+
+`frontend/screens/portal/games/LilaQueueScreen.tsx`:
+```tsx
+const response = await joinLilaQueue(mode, config.location);
+if (response.match?.code) {
+  navigation.replace('LilaLobby', { mode, matchCode: response.match.code });
+}
+```
+
+`frontend/screens/portal/games/LilaMatchScreen.tsx`:
+```tsx
+await submitLilaAnswer(matchCode, currentRound.number, selectedAnswer);
+const next = await getLilaMatch(matchCode, i18n.language);
+setSnapshot(next);
+```
+
+## 2026-03-30 (Shared mobile portal: localized Games folder and Lila navigation flow)
+
+### Измененные файлы
+- `frontend/types/portal.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/App.tsx`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в mobile portal не существовало отдельной папки `Games`;
+  - сервис `Lila: Battle of Sages` не был зарегистрирован как launchable portal item;
+  - старые сохраненные portal layouts не умели автоматически получить новую игровую зону, а навигация не знала маршрутов Lila-экранов.
+- Стало:
+  - в portal grid добавлен новый локализованный folder `folder-games` с первым сервисом `lila_battle_of_sages`;
+  - существующие layouts мигрируются так, чтобы Lila попадала в `Games` на первой странице без ломки quick access;
+  - shared mobile navigation и app shell теперь знают новые routes/screens для Lila, а tap по иконке из portal folder открывает `LilaBattleOfSagesHome`.
+
+### Короткие сниппеты кода
+
+`frontend/context/PortalLayoutContext.tsx`:
+```tsx
+{
+  id: 'folder-games',
+  type: 'folder',
+  title: 'Games',
+  items: [lilaServiceItem],
+}
+```
+
+`frontend/screens/portal/serviceLaunchResolver.ts`:
+```ts
+if (serviceId === 'lila_battle_of_sages') {
+  return { routeName: 'LilaBattleOfSagesHome' };
+}
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen name="LilaBattleOfSagesHome" component={LilaBattleOfSagesHomeScreen} />
+<Stack.Screen name="LilaMatch" component={LilaMatchScreen} />
+<Stack.Screen name="LilaStore" component={LilaStoreScreen} />
+```
+
 ## 2026-03-29 (Shared mobile network banner: remove overlay over top CTA)
 
 ### Измененные файлы

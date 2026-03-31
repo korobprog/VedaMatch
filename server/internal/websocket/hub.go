@@ -259,6 +259,13 @@ func (h *Hub) BroadcastConversationUpdated(event ConversationUpdatedEvent) {
 	h.broadcast <- event
 }
 
+func (h *Hub) BroadcastWS(message WSMessage) {
+	if message == nil {
+		return
+	}
+	h.broadcast <- message
+}
+
 func (h *Hub) BroadcastMessageRead(event MessageReadEvent) {
 	event.Type = "message_read"
 	h.broadcast <- event

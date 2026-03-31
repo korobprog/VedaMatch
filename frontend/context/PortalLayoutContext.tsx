@@ -37,7 +37,7 @@ import {
     reorderWidgetCanvas,
 } from './widgetCanvasLayout';
 
-const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'services_catalog', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles']);
+const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'services_catalog', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'lila_battle_of_sages']);
 const SEEKER_LOCKED_FOLDER_NAME = 'Откроется после профиля';
 const SEEKER_LOCKED_FOLDER_ID = 'folder-seeker-locked';
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((s) => s.id));
@@ -191,6 +191,7 @@ export const migrateCalendarServiceIntoCalendarFolder = (inputLayout: PortalLayo
         if (!extractedCalendarItem) {
             return page;
         }
+        const calendarItem = extractedCalendarItem as PortalItem;
 
         const calendarFolderIndex = updatedItems.findIndex((item) => item.type === 'folder' && item.id === 'folder-calendar');
         if (calendarFolderIndex >= 0) {
@@ -198,7 +199,7 @@ export const migrateCalendarServiceIntoCalendarFolder = (inputLayout: PortalLayo
             if (!calendarFolder.items.some((folderItem) => folderItem.serviceId === 'ekadashi_calendar')) {
                 updatedItems[calendarFolderIndex] = {
                     ...calendarFolder,
-                    items: [{ ...extractedCalendarItem, position: 0 }],
+                    items: [{ ...calendarItem, position: 0 }],
                 };
                 changed = true;
             }
@@ -209,7 +210,123 @@ export const migrateCalendarServiceIntoCalendarFolder = (inputLayout: PortalLayo
                 name: 'Календарь',
                 type: 'folder',
                 color: '#D97706',
-                items: [{ ...extractedCalendarItem, position: 0 }],
+                items: [{ ...calendarItem, position: 0 }],
+                position: insertIndex,
+            });
+            changed = true;
+        }
+
+        const reindexedItems = updatedItems
+            .filter((item) => item.type !== 'folder' || item.items.length > 0)
+            .map((item, index) => item.type === 'folder'
+                ? {
+                    ...item,
+                    position: index,
+                    items: item.items.map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex })),
+                }
+                : { ...item, position: index });
+
+        return {
+            ...page,
+            items: reindexedItems,
+        };
+    });
+
+    if (!changed) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    return {
+        layout: {
+            ...layout,
+            lastModified: Date.now(),
+            syncedWithServer: false,
+        },
+        changed: true,
+    };
+};
+
+export const migrateLilaServiceIntoGamesFolder = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...page.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+        widgetCanvas: cloneWidgetCanvas(inputLayout),
+    };
+
+    if (layout.pages.length === 0) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    let changed = false;
+    let extractedLilaItem: PortalItem | null = null;
+
+    layout.pages = layout.pages.map((page) => {
+        const updatedItems = page.items
+            .map((item) => {
+                if (item.type === 'service') {
+                    if (item.serviceId !== 'lila_battle_of_sages') {
+                        return { ...item };
+                    }
+                    extractedLilaItem = { ...item, position: 0 };
+                    changed = true;
+                    return null;
+                }
+
+                const filteredItems = item.items
+                    .filter((folderItem) => {
+                        if (folderItem.serviceId !== 'lila_battle_of_sages') {
+                            return true;
+                        }
+                        extractedLilaItem = { ...folderItem, position: 0 };
+                        changed = true;
+                        return false;
+                    })
+                    .map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex }));
+
+                return {
+                    ...item,
+                    items: filteredItems,
+                };
+            })
+            .filter((item): item is PortalItem | PortalFolder => Boolean(item));
+
+        if (!extractedLilaItem) {
+            return {
+                ...page,
+                items: updatedItems.map((item, index) => item.type === 'folder'
+                    ? {
+                        ...item,
+                        position: index,
+                        items: item.items.map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex })),
+                    }
+                    : { ...item, position: index }),
+            };
+        }
+        const lilaItem = extractedLilaItem as PortalItem;
+
+        const gamesFolderIndex = updatedItems.findIndex((item) => item.type === 'folder' && item.id === 'folder-games');
+        if (gamesFolderIndex >= 0) {
+            const gamesFolder = updatedItems[gamesFolderIndex] as PortalFolder;
+            updatedItems[gamesFolderIndex] = {
+                ...gamesFolder,
+                items: [{ ...lilaItem, position: 0 }],
+            };
+            changed = true;
+        } else {
+            const insertIndex = Math.min(5, updatedItems.length);
+            updatedItems.splice(insertIndex, 0, {
+                id: 'folder-games',
+                name: 'Игры',
+                type: 'folder',
+                color: '#7C3AED',
+                items: [{ ...lilaItem, position: 0 }],
                 position: insertIndex,
             });
             changed = true;
@@ -682,13 +799,14 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
                 const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
                 const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
-                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
+                const { layout: gamesFolderLayout, changed: gamesFolderChanged } = migrateLilaServiceIntoGamesFolder(calendarFolderLayout);
+                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(gamesFolderLayout);
                 const { layout: adjustedLayout, changed } = hasPortalBypass(user?.godModeEnabled, user?.currentPlan)
                     ? { layout: sanitizedLayout, changed: false }
                     : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
                 const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap, role);
-                if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+                if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || gamesFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                     await saveLocalLayout(filteredLayout);
                 }
                 setLayout(filteredLayout);
@@ -908,13 +1026,14 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             const { layout: layoutWithWidgetCanvas, changed: widgetCanvasChanged } = normalizeWidgetCanvasLayout(savedLayout);
             const { layout: migratedLayout, changed: migratedChanged } = migrateLegacyFlatLayoutToDefaultFolders(layoutWithWidgetCanvas);
             const { layout: calendarFolderLayout, changed: calendarFolderChanged } = migrateCalendarServiceIntoCalendarFolder(migratedLayout);
-            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(calendarFolderLayout);
+            const { layout: gamesFolderLayout, changed: gamesFolderChanged } = migrateLilaServiceIntoGamesFolder(calendarFolderLayout);
+            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(gamesFolderLayout);
             const { layout: adjustedLayout, changed } = hasPortalBypass(user?.godModeEnabled, user?.currentPlan)
                 ? { layout: sanitizedLayout, changed: false }
                 : groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
             const filteredLayout = filterLayoutByPortalVisibility(layoutWithCircles, visibilityMap, role);
-            if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
+            if (widgetCanvasChanged || migratedChanged || calendarFolderChanged || gamesFolderChanged || sanitizedChanged || changed || circlesChanged || filteredLayout !== layoutWithCircles) {
                 await saveLocalLayout(filteredLayout);
             }
             setLayout(filteredLayout);

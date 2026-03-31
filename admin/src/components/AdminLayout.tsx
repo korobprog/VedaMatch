@@ -55,6 +55,7 @@ const menuItems = [
     { icon: MapPin, label: '  └ Collections', path: '/dhama/collections' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
     { icon: Heart, label: 'Union', path: '/dating' },
+    { icon: Sparkles, label: 'Games / Lila', path: '/games/lila' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
     { icon: Newspaper, label: 'News', path: '/news' },
@@ -118,6 +119,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/calendar',
                 '/dhama',
                 '/financials'
+                ,
+                '/games'
             ];
 
             if (!isAdmin && exclusiveAdminRoutes.some(route => pathname.startsWith(route))) {

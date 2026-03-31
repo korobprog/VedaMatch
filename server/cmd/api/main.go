@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"rag-agent-server/internal/database"
+	lilagame "rag-agent-server/internal/games/lila"
 	"rag-agent-server/internal/handlers"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
@@ -84,6 +86,13 @@ func main() {
 	database.SeedMapTestData()
 	database.SeedDhamaPlaces()
 	database.SeedDhamaCollections()
+	lilaService := lilagame.NewService(database.DB)
+	if err := lilaService.AutoMigrate(context.Background()); err != nil {
+		log.Printf("[Lila] auto-migrate failed: %v", err)
+	}
+	if err := lilaService.SeedDefaults(context.Background()); err != nil {
+		log.Printf("[Lila] seed defaults failed: %v", err)
+	}
 
 	// Initialize Services
 	services.InitScheduler()
@@ -342,6 +351,7 @@ func main() {
 	supportHandler := handlers.NewSupportHandler()
 	lkmTopupHandler := handlers.NewLKMTopupHandler(lkmTopupService)
 	monetizationHandler := handlers.NewMonetizationHandler()
+	lilaHandler := handlers.NewLilaHandler(lilaService, hub)
 	proHandler := handlers.NewProHandler(walletService)
 	adminFeedHandler := handlers.NewAdminFeedHandler()
 	apkHandler := handlers.NewApkHandler()
@@ -599,6 +609,24 @@ func main() {
 	protected.Post("/support/tickets/:id/messages", supportHandler.PostMyTicketMessage)
 	protected.Post("/support/tickets/:id/read", supportHandler.MarkMyTicketRead)
 	protected.Get("/support/unread-count", supportHandler.GetMyUnreadCount)
+	protected.Get("/games/lila/bootstrap", lilaHandler.GetBootstrap)
+	protected.Get("/games/lila/profile", lilaHandler.GetProfile)
+	protected.Put("/games/lila/profile", lilaHandler.UpsertProfile)
+	protected.Get("/games/lila/questions", lilaHandler.ListQuestions)
+	protected.Post("/games/lila/queue/join", lilaHandler.JoinQueue)
+	protected.Post("/games/lila/queue/leave", lilaHandler.LeaveQueue)
+	protected.Post("/games/lila/lobby/:matchCode/ready", lilaHandler.ReadyLobby)
+	protected.Get("/games/lila/matches/:matchCode", lilaHandler.GetMatch)
+	protected.Post("/games/lila/matches/:matchCode/answer", lilaHandler.SubmitAnswer)
+	protected.Post("/games/lila/matches/:matchCode/siddhi", lilaHandler.UseSiddhi)
+	protected.Get("/games/lila/store", lilaHandler.GetStore)
+	protected.Post("/games/lila/store/purchase", lilaHandler.PurchaseStoreItem)
+	protected.Post("/games/lila/store/gift", lilaHandler.SendGift)
+	protected.Post("/games/lila/pass/claim", lilaHandler.ClaimPassReward)
+	protected.Post("/games/lila/subscription", lilaHandler.ActivateSubscription)
+	protected.Post("/games/lila/guru-link", lilaHandler.LinkGuru)
+	protected.Post("/games/lila/quests/progress", lilaHandler.AwardQuestProgress)
+	protected.Get("/games/lila/balance", lilaHandler.GetBalance)
 
 	// Admin Routes (Protected - should ideally have middleware)
 	admin := api.Group("/admin", middleware.Protected(), middleware.AdminProtected())
@@ -1349,6 +1377,14 @@ func main() {
 	admin.Get("/charity/projects", charityHandler.GetPendingProjects)
 	admin.Post("/charity/projects/:id/approve", charityHandler.ApproveProject)
 	admin.Post("/charity/projects/:id/reject", charityHandler.RejectProject)
+	admin.Get("/games/lila/questions", lilaHandler.AdminListQuestions)
+	admin.Post("/games/lila/questions", lilaHandler.AdminCreateQuestion)
+	admin.Put("/games/lila/questions/:id", lilaHandler.AdminUpdateQuestion)
+	admin.Post("/games/lila/questions/:id/publish", lilaHandler.AdminPublishQuestion)
+	admin.Post("/games/lila/questions/:id/archive", lilaHandler.AdminArchiveQuestion)
+	admin.Get("/games/lila/live-ops", lilaHandler.AdminGetLiveOps)
+	admin.Put("/games/lila/live-ops", lilaHandler.AdminUpdateLiveOps)
+	admin.Get("/games/lila/metrics", lilaHandler.AdminGetMetrics)
 
 	// WebSocket Route
 	api.Use("/ws", middleware.RateLimitByIP("ws_upgrade", 60, time.Minute), func(c *fiber.Ctx) error {

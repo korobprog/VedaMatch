@@ -39,6 +39,21 @@ describe('resolvePortalFolderName', () => {
         expect(resolvePortalFolderName(folder, t)).toBe('Unlocks after profile');
     });
 
+    it('localizes games folder name by folder id', () => {
+        const folder = makeFolder({
+            id: 'folder-games',
+            name: 'Игры',
+        });
+        const t = ((key: string) => {
+            if (key === 'portal.folderLabels.games') {
+                return 'Games';
+            }
+            return key;
+        }) as any;
+
+        expect(resolvePortalFolderName(folder, t)).toBe('Games');
+    });
+
     it('preserves user-renamed folder names', () => {
         const folder = makeFolder({ name: 'My Circle' });
         const t = ((key: string) => {

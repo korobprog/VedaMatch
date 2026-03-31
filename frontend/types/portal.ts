@@ -126,6 +126,12 @@ export const DEFAULT_PORTAL_FOLDER_DEFINITIONS = [
         serviceIds: ['services_catalog', 'cafe', 'shops', 'ads', 'dating'],
     },
     {
+        id: 'folder-games',
+        name: 'Игры',
+        color: '#7C3AED',
+        serviceIds: ['lila_battle_of_sages'],
+    },
+    {
         id: 'folder-travel',
         name: 'Путешествия',
         color: '#D67D3E',
@@ -167,6 +173,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'travel', label: 'Travel', icon: 'Compass', color: '#FF9500' },
     { id: 'services', label: 'Assistant', icon: 'Bot', color: '#6366F1' },
     { id: 'services_catalog', label: 'Services', icon: 'Briefcase', color: '#2563EB' },
+    { id: 'lila_battle_of_sages', label: 'Lila', icon: 'Swords', color: '#7C3AED' },
     { id: 'connect', label: 'Connect', icon: 'HeartHandshake', color: '#C2410C' },
     { id: 'seva', label: 'Seva', icon: 'Heart', color: '#EF4444' },
 ];

@@ -30,6 +30,7 @@ import {
     Flame,
     Landmark,
     CalendarDays,
+    Swords,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import type { PortalIconStyle } from '../../context/SettingsContext';
@@ -73,6 +74,7 @@ const IconComponents: Record<string, any> = {
     Flame,
     Landmark,
     CalendarDays,
+    Swords,
 };
 
 const SERVICE_EMOJIS: Record<string, string> = {
@@ -101,6 +103,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     travel: '✈️',
     services: '🤖',
     services_catalog: '🧰',
+    lila_battle_of_sages: '⚔️',
     seva: '🤲',
 };
 

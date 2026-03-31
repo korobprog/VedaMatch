@@ -127,6 +127,10 @@ export const resolveServiceLaunch = (serviceId: string): ServiceLaunchResolution
         return { kind: 'navigate', screen: 'EkadashiCalendar' };
     }
 
+    if (serviceId === 'lila_battle_of_sages') {
+        return { kind: 'navigate', screen: 'LilaBattleOfSagesHome' };
+    }
+
     if (serviceId === 'knowledge_base') {
         return { kind: 'navigate', screen: 'LibraryHome' };
     }

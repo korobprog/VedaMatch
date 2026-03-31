@@ -223,6 +223,40 @@
   - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
   - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
 
+## Lila Mobile Portal
+- На mobile portal добавлен новый локализованный folder `Games` (`folder-games`) с первым сервисом `lila_battle_of_sages`; лейблы и game-facing copy заведены в `ru/en/hi`.
+- Для уже сохранённых portal layouts действует миграция: `lila_battle_of_sages` автоматически переносится в `folder-games` на первой странице, не затрагивая quick access/dock.
+- Shared mobile navigation получила отдельные экраны `LilaBattleOfSagesHome`, `LilaQueue`, `LilaLobby`, `LilaMatch`, `LilaResults`, `LilaProfile`, `LilaStore`, `LilaPass`; запуск из portal grid идёт через `serviceLaunchResolver`.
+- Lila screens больше не должны опираться на локальные mock previews:
+  - `frontend/services/lilaGameService.ts` ходит в реальные `/games/lila/...` endpoints;
+  - Home/Profile/Store/Pass читают live bootstrap/balance/store;
+  - Queue/Lobby/Match/Results работают через `join/leave`, `ready`, `match snapshot`, `answer`, `siddhi` и HTTP polling.
+- Текущий mobile runtime для Lila — это HTTP + polling; backend websocket fanout уже существует, но клиент на него пока не подписан, поэтому realtime на устройстве не должен считаться завершённым.
+- Для rollout/beta controls новый сервис должен считаться частью системного portal visibility catalog под id `lila_battle_of_sages`.
+
+## Lila Backend
+- Новый backend-домен для игры `Lila: Battle of Sages` собран в `server/internal/games/lila`; отдельные Gorm-модели вынесены в `server/internal/models/lila_game.go`.
+- Домен покрывает `question bank`, `queue`, `match`, `rounds`, `answers`, `siddhi usage`, `profile/progression`, `quests`, `guru links`, `store items`, `purchases`, `pass progress`, `subscriptions`, `gifts`, `Dharma Fund`, и отдельный `bonus ledger`.
+- Runtime wiring уже подключено в shared backend entrypoints:
+  - `server/cmd/api/main.go` запускает Lila auto-migrate + seed defaults и регистрирует `/api/games/lila/...` и `/api/admin/games/lila/...` endpoints;
+  - `server/internal/websocket/client.go` пропускает `game_*` события через existing signal bridge.
+- Match runtime уже не должен считаться чистым scaffold:
+  - `ReadyLobby` ждёт готовности всех игроков перед переводом матча в `active`;
+  - `SubmitAnswer` больше не резолвит раунд мгновенно по первому ответу, а двигает authoritative state machine;
+  - `GetMatchView/Bootstrap` продвигают матч через `round creation -> resolution -> finish`;
+  - `survival_in_samsara` собирается как 10-player lobby;
+  - outbound `game_*` события теперь реально рассылаются из server handler'ов через websocket hub с snapshot payload.
+- Локальный compile-check проходит:
+  - `go test ./cmd/api -run TestNonExistent`
+  - `go test ./internal/websocket ./internal/games/lila`
+- Полный `go test ./internal/handlers` в репозитории по-прежнему зависит от локально поднятых Postgres/Redis и может падать из-за старых integration/env блокеров, не связанных с Lila.
+
+## Lila Admin
+- Admin subtree `/games/lila` должен быть рабочей панелью, а не локальным mock: overview, questions, live-ops и metrics страницы читают/пишут реальные `/api/admin/games/lila/...` endpoints.
+- Question editor использует live CRUD/publish/archive flow с обязательной полнотой `ru/en/hi`, mode compatibility и status mapping `draft | review | active | archived`.
+- Live Ops привязан к backend payload `storeItems + passSeasons + dharmaPercent`; store/gift/subscription/pass summary cards строятся поверх реальных данных, а raw JSON editors сохраняют exact payload обратно на backend.
+- Admin overview/metrics используют live metrics snapshot и editorial moderation queue, а глобальная admin sidebar должна иметь прямой entrypoint на `/games/lila`.
+
 ## Mobile Release / Distribution
 - По состоянию на 2026-03-30 контур mobile release для direct distribution без маркетов частично готов, но остается в значительной степени ручным:
   - Android release собирается локально через `pnpm run build:release` / `frontend/android/app/build.gradle`, версия сейчас `versionName 1.1.44`, `versionCode 46`, release signing настроен через env/keystore.

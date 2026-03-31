@@ -44,6 +44,7 @@ var portalServiceCatalog = []string{
 	"services_catalog",
 	"connect",
 	"seva",
+	"lila_battle_of_sages",
 }
 
 var portalServiceCatalogSet = func() map[string]struct{} {

@@ -186,6 +186,16 @@ import {
   ConnectCreateOpportunityScreen,
   ConnectModerationScreen,
 } from './screens/portal/connect';
+import {
+  LilaBattleOfSagesHomeScreen,
+  LilaLobbyScreen,
+  LilaMatchScreen,
+  LilaPassScreen,
+  LilaProfileScreen,
+  LilaQueueScreen,
+  LilaResultsScreen,
+  LilaStoreScreen,
+} from './screens/portal/games';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
 import WalletScreen from './screens/wallet/WalletScreen';
@@ -922,6 +932,14 @@ const AppContent = () => {
                   <Stack.Screen name="PathStep" component={PathStepScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="PathReflection" component={PathReflectionScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="PathWeeklySummary" component={PathWeeklySummaryScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaBattleOfSagesHome" component={LilaBattleOfSagesHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaQueue" component={LilaQueueScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaLobby" component={LilaLobbyScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaMatch" component={LilaMatchScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaResults" component={LilaResultsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaProfile" component={LilaProfileScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaStore" component={LilaStoreScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="LilaPass" component={LilaPassScreen} options={{ headerShown: false }} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

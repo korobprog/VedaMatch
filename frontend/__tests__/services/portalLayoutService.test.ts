@@ -14,9 +14,21 @@ jest.mock('react-native-mmkv', () => ({
   })),
 }));
 
+jest.mock(
+  '@react-native-community/netinfo',
+  () => ({
+    __esModule: true,
+    default: {
+      fetch: jest.fn(async () => ({ type: 'wifi', isConnected: true })),
+      addEventListener: jest.fn(() => jest.fn()),
+    },
+  }),
+  { virtual: true }
+);
+
 import { applyRoleBlueprint, filterLayoutByPortalVisibility, isPortalServiceVisibleForUser } from '../../services/portalLayoutService';
 import { createDefaultLayout } from '../../types/portal';
-import { migrateCalendarServiceIntoCalendarFolder, migrateLegacyFlatLayoutToDefaultFolders } from '../../context/PortalLayoutContext';
+import { migrateCalendarServiceIntoCalendarFolder, migrateLegacyFlatLayoutToDefaultFolders, migrateLilaServiceIntoGamesFolder } from '../../context/PortalLayoutContext';
 
 describe('portal default layout folders', () => {
   it('creates first page with default thematic folders and keeps quick access unchanged', () => {
@@ -32,6 +44,7 @@ describe('portal default layout folders', () => {
       'folder',
       'folder',
       'folder',
+      'folder',
     ]);
     expect(layout.pages[0].items.map((item: any) => item.name)).toEqual([
       'Общение',
@@ -39,6 +52,7 @@ describe('portal default layout folders', () => {
       'Практика',
       'Контент',
       'Сервисы',
+      'Игры',
       'Путешествия',
       'Профиль',
     ]);
@@ -55,6 +69,9 @@ describe('portal default layout folders', () => {
       'shops',
       'ads',
       'dating',
+    ]);
+    expect((layout.pages[0].items[5] as any).items.map((item: any) => item.serviceId)).toEqual([
+      'lila_battle_of_sages',
     ]);
   });
 });
@@ -78,6 +95,7 @@ describe('portalLayoutService.applyRoleBlueprint', () => {
       .map((item: any) => item.serviceId);
     expect(firstPageServices).toEqual([]);
     expect(result.pages[0].items.map((item: any) => item.type)).toEqual([
+      'folder',
       'folder',
       'folder',
       'folder',
@@ -193,5 +211,47 @@ describe('portal legacy flat layout migration', () => {
     ]);
     expect((layout.pages[0].items[1] as any).items.map((item: any) => item.serviceId)).toEqual(['ekadashi_calendar']);
     expect((layout.pages[0].items[2] as any).items.map((item: any) => item.serviceId)).toEqual(['path_tracker']);
+  });
+
+  it('moves Lila service into dedicated games folder for saved layouts', () => {
+    const base = createDefaultLayout();
+    const savedLayout = {
+      ...base,
+      pages: [{
+        ...base.pages[0],
+        items: [
+          {
+            id: 'folder-services',
+            name: 'Сервисы',
+            type: 'folder',
+            color: '#F59E0B',
+            position: 0,
+            items: [
+              { id: 'item-services_catalog', serviceId: 'services_catalog', type: 'service', position: 0 },
+              { id: 'item-lila', serviceId: 'lila_battle_of_sages', type: 'service', position: 1 },
+            ],
+          },
+          {
+            id: 'folder-profile',
+            name: 'Профиль',
+            type: 'folder',
+            color: '#6B7280',
+            position: 1,
+            items: [{ id: 'item-settings', serviceId: 'settings', type: 'service', position: 0 }],
+          },
+        ],
+      }],
+    };
+
+    const { layout, changed } = migrateLilaServiceIntoGamesFolder(savedLayout as any);
+
+    expect(changed).toBe(true);
+    expect(layout.pages[0].items.map((item: any) => item.name)).toEqual([
+      'Сервисы',
+      'Профиль',
+      'Игры',
+    ]);
+    expect((layout.pages[0].items[0] as any).items.map((item: any) => item.serviceId)).toEqual(['services_catalog']);
+    expect((layout.pages[0].items[2] as any).items.map((item: any) => item.serviceId)).toEqual(['lila_battle_of_sages']);
   });
 });
