@@ -258,6 +258,10 @@
   - raw `queueDepth` считает только `waiting/ready` и может показывать `1` в `Дуэль Дхармы`, когда второй игрок уже в `matched`;
   - mobile `Home` и `Queue` должны использовать отдельный `modePlayerCounts` из bootstrap;
   - backend считает туда `waiting` плюс `matched/ready` только для матчей со статусом `lobby|active`, чтобы не тянуть хвосты завершённых игр.
+- Lila queue-state не должен жить бесконечно:
+  - production уже показал кейс, где одна `waiting` запись висела с утра и весь вечер держала экран в состоянии `ожидание соперника`;
+  - backend bootstrap/join/matchmaking должен сначала чистить stale queue entries и stale lobby matches;
+  - mobile `openQueue` должен считать активными только `waiting|ready|matched`, а `expired/left` не должен переводить кнопку в `В очереди`/`Cancel`.
 - Текущие продуктовые хвосты Lila mobile после этой починки:
   - `Guru-Shishya Gift Pack` пока всё ещё уходит в self-store режим на `user.ID`, но теперь честно виден в `Подарки` и `Инвентарь` как `stored`; отдельного picker-а получателя ещё нет;
   - `Sadhana Pass` и `Bhakti Premium` разведены по смыслу: pass screen открывает premium season track через store item `sadhana_pass_premium`, а monthly subscription остаётся отдельным benefit;
@@ -1112,6 +1116,10 @@
 - Скриншоты в support-боте обрабатываются без AI/vision-анализа:
   - фото сохраняется как media-message и пересылается оператору;
   - auto-AI анализ изображения не вызывается.
+- Foreground support push `type=support_update` теперь должен обновлять мобильный UI сразу, а не только падать в общую историю уведомлений:
+  - в клиенте есть легкий pub/sub канал `subscribeSupportUpdates(...)`;
+  - `notificationService` эмитит событие при приходе support push;
+  - `SupportConversationScreen`, `SupportInboxScreen` и `PortalMainScreen` подписаны на него и обновляют тред/список тикетов/unread count без ручного refresh.
 
 ## Auth / Login Localization
 - Login auth rollout сейчас состоит из `i18n + language switch + Google auth + VK auth + Telegram mobile auth`.
@@ -1831,6 +1839,9 @@
   - добавлен фильтр `isExpectedClientDisconnectError(...)`;
   - для этой ситуации выставляется статус `Disconnected` без error-overlay в dev/эмуляторе;
   - остальные ошибки подключения SFU по-прежнему логируются.
+- В `frontend/context/ChatContext.tsx` active direct chat теперь использует fallback-ресинк по событию `conversation_updated`:
+  - если inbox-state обновился, но websocket не донес полноценный `message` payload в открытую ленту, клиент подтягивает свежую страницу `/messages/history`;
+  - при этом сохраняются локальные `sending/failed` сообщения, чтобы optimistic UX не терялся при ресинке.
 
 ## Chat Navigation Reliability (Android)
 - Для `frontend/screens/ChatScreen.tsx` аппаратный back переведен на `useFocusEffect` + единый `handleBackNavigation`, чтобы listener был активен только при фокусе экрана.

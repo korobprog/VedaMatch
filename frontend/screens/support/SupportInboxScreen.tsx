@@ -12,7 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { supportService, SupportConversation } from '../../services/supportService';
+import { subscribeSupportUpdates, supportService, SupportConversation } from '../../services/supportService';
 import { useUser } from '../../context/UserContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupportInbox'>;
@@ -68,6 +68,12 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
     useFocusEffect(
         useCallback(() => {
             load(false);
+            const unsubscribe = subscribeSupportUpdates(() => {
+                void load(true);
+            });
+            return () => {
+                unsubscribe();
+            };
         }, [load])
     );
 

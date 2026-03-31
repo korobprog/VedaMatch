@@ -48,7 +48,7 @@ import { SplashScreen } from '../../components/ui/SplashScreen';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
-import { supportService } from '../../services/supportService';
+import { subscribeSupportUpdates, supportService } from '../../services/supportService';
 import { datingService } from '../../services/datingService';
 import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 import { useChat } from '../../context/ChatContext';
@@ -274,6 +274,15 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return undefined;
         }, [activeTab, isPortalStartupSettled, refreshSupportUnread, refreshUnionApprovalCount])
     );
+
+    useEffect(() => {
+        const unsubscribe = subscribeSupportUpdates(() => {
+            void refreshSupportUnread();
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [refreshSupportUnread]);
 
     const { effectiveBackgroundType: effectiveBgType } = useMemo(
         () => deriveEffectivePortalBackground(portalBackgroundType, portalBackground, activeWallpaper, isSlideshowEnabled),

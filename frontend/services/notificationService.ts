@@ -15,6 +15,7 @@ import DeviceInfo from 'react-native-device-info';
 import i18n from '../i18n';
 import { navigationRef } from '../navigation/navigationRef';
 import { contactService } from './contactService';
+import { emitSupportUpdate } from './supportService';
 import { serializeAndroidPermissionRequest } from '../utils/permissionRequestQueue';
 import { buildDirectChatRoute } from '../utils/directChatNavigation';
 
@@ -256,6 +257,7 @@ export const notificationService = {
         console.log('[NotificationService] Foreground message:', message);
 
         const data = message?.data || {};
+        const params = safeParseParams(data.params);
         if (data?.type === 'voip_call' && _incomingCallPushHandler) {
             _incomingCallPushHandler(data);
         }
@@ -272,6 +274,13 @@ export const notificationService = {
                 title,
                 body,
                 data,
+            });
+        }
+
+        if (data?.type === 'support_update') {
+            emitSupportUpdate({
+                conversationId: parseNumericId(data.conversationId, params.conversationId),
+                source: 'push',
             });
         }
     },

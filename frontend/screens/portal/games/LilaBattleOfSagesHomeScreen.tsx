@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Crown, MapPinned, ScrollText, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { getLilaBootstrap, getLilaModeConfig, getLilaModePlayerCount } from '../../../services/lilaGameService';
+import { getLilaBootstrap, getLilaModeConfig, getLilaModePlayerCount, isLilaActiveQueueStatus } from '../../../services/lilaGameService';
 import type { LilaBootstrap, LilaMatchRecord, LilaMode } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
 import { LILA_COLORS, LilaCard, LilaMetric, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
@@ -165,7 +165,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
 
             <LilaSectionTitle title={t('portal.lila.home.modesTitle')} subtitle={t('portal.lila.home.modesSubtitle')} />
             {bootstrap?.modes.map((modeConfig) => {
-                const queued = bootstrap.openQueue.find((entry) => entry.mode === modeConfig.id && entry.status !== 'left');
+                const queued = bootstrap.openQueue.find((entry) => entry.mode === modeConfig.id && isLilaActiveQueueStatus(entry.status));
                 const liveMatch = bootstrap.openMatches.find((match) => match.mode === modeConfig.id);
                 return (
                     <LilaCard key={modeConfig.id}>

@@ -9,6 +9,7 @@ import {
     getLilaModeConfig,
     getLilaModePlayerCount,
     getLilaSiddhis,
+    isLilaActiveQueueStatus,
     joinLilaQueue,
     leaveLilaQueue,
 } from '../../../services/lilaGameService';
@@ -48,7 +49,7 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
         }, [loadBootstrap]),
     );
 
-    const queueEntry = bootstrap?.openQueue.find((entry) => entry.mode === mode && entry.status !== 'left') || null;
+    const queueEntry = bootstrap?.openQueue.find((entry) => entry.mode === mode && isLilaActiveQueueStatus(entry.status)) || null;
     const liveMatch = bootstrap?.openMatches.find((match) => match.mode === mode) || null;
     const queueStatusLabel = queueEntry
         ? t(`portal.lila.queue.statuses.${queueEntry.status}`, { defaultValue: queueEntry.status })

@@ -258,6 +258,7 @@ type LilaStoreApiResponse = {
 
 const DEFAULT_LOCATIONS: LilaLocation[] = ['vrindavan', 'dwarka', 'ayodhya', 'kurukshetra'];
 const DEFAULT_SIDDHIS: LilaSiddhiId[] = ['drishti', 'mantra_shield', 'vimana', 'maya'];
+const ACTIVE_QUEUE_STATUSES = new Set<LilaQueueEntry['status']>(['waiting', 'ready', 'matched']);
 
 const MODE_CONFIGS: Record<LilaMode, LilaModeConfig> = {
     duel: {
@@ -676,6 +677,9 @@ export const getLilaModePlayerCount = (
     bootstrap: Pick<LilaBootstrap, 'modePlayerCounts' | 'queueDepth'> | null | undefined,
     mode: LilaMode,
 ): number => Number(bootstrap?.modePlayerCounts?.[mode] ?? bootstrap?.queueDepth?.[mode] ?? 0);
+
+export const isLilaActiveQueueStatus = (status?: string | null): boolean =>
+    ACTIVE_QUEUE_STATUSES.has((status || '').trim() as LilaQueueEntry['status']);
 
 export const getLilaPreferredStoreCurrency = (item: LilaStoreItem): LilaCurrency | null => {
     const hasBonusPrice = item.canUseBonus && item.bonusPrice > 0;

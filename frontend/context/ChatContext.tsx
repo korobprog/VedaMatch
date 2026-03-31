@@ -170,6 +170,22 @@ const dedupeMessagesById = (items: Message[]): Message[] => {
     return deduped;
 };
 
+const sortMessagesByCreatedAt = (items: Message[]): Message[] => {
+    return [...items].sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeA - timeB;
+    });
+};
+
+const mergeServerSyncedP2PMessages = (prev: Message[], fetched: Message[]): Message[] => {
+    const fetchedIds = new Set(fetched.map((item) => item.id));
+    const pendingOnly = prev.filter((item) => (
+        (item.status === 'sending' || item.status === 'failed') && !fetchedIds.has(item.id)
+    ));
+    return sortMessagesByCreatedAt(dedupeMessagesById([...fetched, ...pendingOnly]));
+};
+
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { t, i18n } = useTranslation();
     const { currentModel, currentProvider, isAutoMagicEnabled, assistantType } = useSettings();
@@ -196,6 +212,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const recordingStartedAtRef = useRef<number | null>(null);
     const historyPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const draftPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const messagesRef = useRef<Message[]>([]);
+    const recipientIdRef = useRef<number | null>(null);
+    const activeP2PSyncPeerRef = useRef<number | null>(null);
 
     const isFirstRun = useRef(true);
     const directChatMediaCopy = React.useMemo(() => {
@@ -283,6 +302,14 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     }, [t]);
 
     useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    useEffect(() => {
+        recipientIdRef.current = recipientId;
+    }, [recipientId]);
+
+    useEffect(() => {
         let isMounted = true;
 
         if (!currentUser?.ID || currentUser.ID === 999999) {
@@ -314,7 +341,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             draftPersistTimeoutRef.current = null;
         }
 
-        if (!recipientId || !currentUser?.ID) {
+        const currentUserId = currentUser?.ID;
+        if (!recipientId || !currentUserId) {
             return;
         }
 
@@ -322,7 +350,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         const applyDraft = async () => {
             try {
                 const [draft] = await Promise.all([
-                    chatInboxService.loadDraft(currentUser.ID, recipientId),
+                    chatInboxService.loadDraft(currentUserId, recipientId),
                     chatInboxService.markConversationRead(recipientId),
                 ]);
                 if (isActive) {
@@ -346,12 +374,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             draftPersistTimeoutRef.current = null;
         }
 
-        if (!recipientId || !currentUser?.ID) {
+        const currentUserId = currentUser?.ID;
+        if (!recipientId || !currentUserId) {
             return;
         }
 
         draftPersistTimeoutRef.current = setTimeout(() => {
-            runAsync(chatInboxService.saveDraft(currentUser.ID, recipientId, inputText));
+            runAsync(chatInboxService.saveDraft(currentUserId, recipientId, inputText));
         }, 180);
 
         return () => {
@@ -506,6 +535,38 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         return;
     }, [recipientId, currentUser?.ID, addListener, t]);
 
+    const syncActiveP2PMessages = useCallback(async (peerUserId: number) => {
+        const currentUserId = currentUser?.ID;
+        if (!currentUserId || !peerUserId || recipientIdRef.current !== peerUserId) {
+            return;
+        }
+        if (activeP2PSyncPeerRef.current === peerUserId) {
+            return;
+        }
+
+        activeP2PSyncPeerRef.current = peerUserId;
+        try {
+            const page = await messageService.getMessagesHistory(peerUserId, 30);
+            const fetchedMessages = page.items
+                .filter((m) => hasRenderableP2PMessagePayload(m))
+                .map((m) => normalizeP2PMessage(m, currentUserId));
+
+            if (recipientIdRef.current !== peerUserId) {
+                return;
+            }
+
+            setMessages((prev) => mergeServerSyncedP2PMessages(prev, fetchedMessages));
+            setHasOlderMessages(page.hasMore);
+            setP2PNextBeforeId(page.nextBeforeId ?? null);
+        } catch (error) {
+            console.warn('[ChatContext] failed to resync active conversation', error);
+        } finally {
+            if (activeP2PSyncPeerRef.current === peerUserId) {
+                activeP2PSyncPeerRef.current = null;
+            }
+        }
+    }, [currentUser?.ID]);
+
     const loadOlderMessages = async () => {
         const currentUserId = currentUser?.ID;
         if (!recipientId || !currentUserId || isLoadingOlderMessages || !hasOlderMessages) {
@@ -561,6 +622,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             if (msg.type === 'conversation_updated') {
                 const peerUserId = Number.parseInt(String(msg.peerUserId || msg.recipientId || msg.senderId || ''), 10);
                 if (Number.isFinite(peerUserId) && peerUserId > 0) {
+                    const eventMessageId = msg.messageId?.toString?.() || msg.id?.toString?.();
                     runAsync(chatInboxService.updateConversationPatch(peerUserId, {
                         unreadCount: Number.parseInt(String(msg.unreadCount ?? 0), 10) || 0,
                         lastMessage: String(msg.lastMessage || msg.content || '').trim(),
@@ -574,6 +636,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                         relationshipStatus: msg.relationshipStatus,
                         friendRequestId: typeof msg.friendRequestId === 'number' ? msg.friendRequestId : undefined,
                     }));
+                    if (
+                        recipientIdRef.current === peerUserId &&
+                        (!eventMessageId || !messagesRef.current.some((item) => item.id === eventMessageId))
+                    ) {
+                        runAsync(syncActiveP2PMessages(peerUserId));
+                    }
                 }
                 return;
             }
@@ -694,7 +762,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 clearTimeout(typingTimeoutRef.current);
             }
         };
-    }, [recipientId, currentUser?.ID, addListener, recipientUser]);
+    }, [recipientId, currentUser?.ID, addListener, recipientUser, syncActiveP2PMessages]);
 
     const setChatRecipient = (user: UserContact | null) => {
         if (!user) {

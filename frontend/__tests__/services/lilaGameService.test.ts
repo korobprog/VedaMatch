@@ -1,4 +1,4 @@
-import { getLilaModePlayerCount, getLilaPreferredStoreCurrency, getLilaStoreSpendOptions } from '../../services/lilaGameService';
+import { getLilaModePlayerCount, getLilaPreferredStoreCurrency, getLilaStoreSpendOptions, isLilaActiveQueueStatus } from '../../services/lilaGameService';
 import type { LilaBalanceSummary, LilaBootstrap, LilaStoreItem } from '../../types/lila';
 
 const buildItem = (overrides: Partial<LilaStoreItem> = {}): LilaStoreItem => ({
@@ -123,5 +123,18 @@ describe('getLilaModePlayerCount', () => {
         expect(getLilaModePlayerCount(buildBootstrap({
             queueDepth: { survival: 4 },
         }), 'survival')).toBe(4);
+    });
+});
+
+describe('isLilaActiveQueueStatus', () => {
+    it('treats waiting, ready and matched as active', () => {
+        expect(isLilaActiveQueueStatus('waiting')).toBe(true);
+        expect(isLilaActiveQueueStatus('ready')).toBe(true);
+        expect(isLilaActiveQueueStatus('matched')).toBe(true);
+    });
+
+    it('treats expired and left as inactive', () => {
+        expect(isLilaActiveQueueStatus('expired')).toBe(false);
+        expect(isLilaActiveQueueStatus('left')).toBe(false);
     });
 });

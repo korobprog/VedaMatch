@@ -1,3 +1,96 @@
+## 2026-03-31 (Shared mobile chat reliability: direct history resync and support push fan-out)
+
+### Измененные файлы
+- `frontend/context/ChatContext.tsx`
+- `frontend/services/supportService.ts`
+- `frontend/services/notificationService.ts`
+- `frontend/screens/support/SupportConversationScreen.tsx`
+- `frontend/screens/support/SupportInboxScreen.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в активном direct chat история могла визуально не обновиться, если websocket прислал `conversation_updated`, но сам `message` payload в открытую ленту не доехал;
+  - support push `type=support_update` попадал в общую историю уведомлений, но сам экран поддержки и unread-счетчики не обновлялись сразу в foreground;
+  - из-за этого на iOS/Android пользователь мог не увидеть новый ответ в support thread без ручного pull-to-refresh или повторного открытия экрана.
+- Стало:
+  - `ChatContext` при `conversation_updated` умеет безопасно ресинкать активный direct dialog через свежую страницу `/messages/history`, сохраняя локальные `sending/failed` сообщения;
+  - support push теперь фан-аутится через локальный client-side bus `subscribeSupportUpdates(...)`;
+  - `SupportConversationScreen`, `SupportInboxScreen` и порталный unread-счетчик подписаны на это событие и обновляют UI сразу после прихода push.
+
+### Короткие сниппеты кода
+
+`frontend/context/ChatContext.tsx`:
+```ts
+if (
+  recipientIdRef.current === peerUserId &&
+  (!eventMessageId || !messagesRef.current.some((item) => item.id === eventMessageId))
+) {
+  runAsync(syncActiveP2PMessages(peerUserId));
+}
+```
+
+`frontend/services/notificationService.ts`:
+```ts
+if (data?.type === 'support_update') {
+  emitSupportUpdate({
+    conversationId: parseNumericId(data.conversationId, params.conversationId),
+    source: 'push',
+  });
+}
+```
+
+`frontend/screens/support/SupportConversationScreen.tsx`:
+```tsx
+const unsubscribe = subscribeSupportUpdates((event) => {
+  if (!conversationId || !event.conversationId || event.conversationId === conversationId) {
+    void load(true);
+  }
+});
+```
+
+## 2026-03-31 (Shared mobile Lila queue cleanup: stale queue no longer blocks the UI)
+
+### Измененные файлы
+- `server/internal/games/lila/service.go`
+- `server/internal/games/lila/queue_cleanup_test.go`
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/__tests__/services/lilaGameService.test.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - stale `waiting` queue entry мог висеть часами и mobile продолжал показывать `ожидание соперника` / `в очереди`;
+  - пользователь видел активную очередь даже когда на сервере уже не было реального matchmaking session;
+  - `Home` и `Queue` считали почти любой status, кроме `left`, как всё ещё активный.
+- Стало:
+  - backend перед `bootstrap`, `join queue` и `ensure match` чистит stale queue entries и stale lobby matches;
+  - старые `waiting/ready/matched` записи переводятся в `expired`, зависшие lobby matches в `abandoned`;
+  - mobile считает активными только `waiting|ready|matched`, поэтому `expired` больше не держит UI в состоянии очереди.
+
+### Короткие сниппеты кода
+
+`server/internal/games/lila/service.go`:
+```go
+const (
+  lilaQueueEntryStaleTTL = 30 * time.Minute
+  lilaLobbyStaleTTL      = 10 * time.Minute
+)
+
+if err := s.cleanupStaleQueueStateTx(tx); err != nil {
+  return err
+}
+```
+
+`frontend/services/lilaGameService.ts`:
+```ts
+const ACTIVE_QUEUE_STATUSES = new Set(['waiting', 'ready', 'matched']);
+
+export const isLilaActiveQueueStatus = (status?: string | null): boolean =>
+  ACTIVE_QUEUE_STATUSES.has((status || '').trim() as LilaQueueEntry['status']);
+```
+
 ## 2026-03-31 (Shared mobile Lila player counters: active mode population instead of raw queue depth)
 
 ### Измененные файлы

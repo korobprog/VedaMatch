@@ -22,6 +22,11 @@ type Service struct {
 	now    func() time.Time
 }
 
+const (
+	lilaQueueEntryStaleTTL = 30 * time.Minute
+	lilaLobbyStaleTTL      = 10 * time.Minute
+)
+
 func NewService(db *gorm.DB) *Service {
 	if db == nil {
 		db = database.DB
@@ -413,10 +418,124 @@ func buildModePlayerCounts(
 	return counts
 }
 
+func shouldExpireLilaQueueEntry(
+	entry models.LilaQueueEntry,
+	match *models.LilaMatch,
+	now time.Time,
+) bool {
+	switch entry.Status {
+	case models.LilaQueueStatusWaiting:
+		return !entry.JoinedAt.IsZero() && now.Sub(entry.JoinedAt) > lilaQueueEntryStaleTTL
+	case models.LilaQueueStatusReady, models.LilaQueueStatusMatched:
+		if entry.MatchID == nil || match == nil {
+			return true
+		}
+		if match.Status == models.LilaMatchStatusFinished || match.Status == models.LilaMatchStatusAbandoned {
+			return true
+		}
+		if match.Status != models.LilaMatchStatusLobby {
+			return false
+		}
+		if match.LobbyStartedAt != nil && now.Sub(*match.LobbyStartedAt) > lilaLobbyStaleTTL {
+			return true
+		}
+		if !entry.JoinedAt.IsZero() && now.Sub(entry.JoinedAt) > lilaQueueEntryStaleTTL {
+			return true
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func (s *Service) cleanupStaleQueueStateTx(tx *gorm.DB) error {
+	var queueRows []models.LilaQueueEntry
+	if err := tx.Where("status IN ?", []models.LilaQueueStatus{
+		models.LilaQueueStatusWaiting,
+		models.LilaQueueStatusReady,
+		models.LilaQueueStatusMatched,
+	}).Find(&queueRows).Error; err != nil {
+		return err
+	}
+	if len(queueRows) == 0 {
+		return nil
+	}
+
+	matchIDs := make([]uint, 0, len(queueRows))
+	for _, row := range queueRows {
+		if row.MatchID == nil {
+			continue
+		}
+		matchIDs = append(matchIDs, *row.MatchID)
+	}
+	matchIDs = uniqueUintSlice(matchIDs)
+
+	matchMap := make(map[uint]models.LilaMatch, len(matchIDs))
+	if len(matchIDs) > 0 {
+		var matches []models.LilaMatch
+		if err := tx.Where("id IN ?", matchIDs).Find(&matches).Error; err != nil {
+			return err
+		}
+		for _, match := range matches {
+			matchMap[match.ID] = match
+		}
+	}
+
+	now := s.now()
+	expiredQueueIDs := make([]uint, 0)
+	abandonedMatchIDs := make([]uint, 0)
+	for _, row := range queueRows {
+		var match *models.LilaMatch
+		if row.MatchID != nil {
+			if existing, ok := matchMap[*row.MatchID]; ok {
+				match = &existing
+			}
+		}
+		if !shouldExpireLilaQueueEntry(row, match, now) {
+			continue
+		}
+		expiredQueueIDs = append(expiredQueueIDs, row.ID)
+		if match != nil && match.Status == models.LilaMatchStatusLobby {
+			abandonedMatchIDs = append(abandonedMatchIDs, match.ID)
+		}
+	}
+
+	expiredQueueIDs = uniqueUintSlice(expiredQueueIDs)
+	if len(expiredQueueIDs) > 0 {
+		if err := tx.Model(&models.LilaQueueEntry{}).
+			Where("id IN ?", expiredQueueIDs).
+			Updates(map[string]interface{}{
+				"status":   models.LilaQueueStatusExpired,
+				"left_at":  now,
+				"ready_at": nil,
+			}).Error; err != nil {
+			return err
+		}
+	}
+
+	abandonedMatchIDs = uniqueUintSlice(abandonedMatchIDs)
+	if len(abandonedMatchIDs) > 0 {
+		if err := tx.Model(&models.LilaMatch{}).
+			Where("id IN ? AND status = ?", abandonedMatchIDs, models.LilaMatchStatusLobby).
+			Updates(map[string]interface{}{
+				"status":           models.LilaMatchStatusAbandoned,
+				"abandoned_reason": "lila_lobby_timeout",
+				"finished_at":      now,
+			}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*BootstrapResponse, error) {
 	db := s.dbConn().WithContext(ctx)
 	var resp BootstrapResponse
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.cleanupStaleQueueStateTx(tx); err != nil {
+			return err
+		}
 		profile, err := s.ensureProfileTx(tx, userID)
 		if err != nil {
 			return err
@@ -503,7 +622,11 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 		}
 
 		var queueRows []models.LilaQueueEntry
-		if err := tx.Where("user_id = ?", userID).Order("created_at desc").Find(&queueRows).Error; err != nil {
+		if err := tx.Where("user_id = ? AND status IN ?", userID, []models.LilaQueueStatus{
+			models.LilaQueueStatusWaiting,
+			models.LilaQueueStatusReady,
+			models.LilaQueueStatusMatched,
+		}).Order("created_at desc").Find(&queueRows).Error; err != nil {
 			return err
 		}
 		resp.OpenQueue = queueRows
@@ -846,6 +969,9 @@ func (s *Service) JoinQueue(ctx context.Context, userID uint, req JoinQueueReque
 	db := s.dbConn().WithContext(ctx)
 	var entry models.LilaQueueEntry
 	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.cleanupStaleQueueStateTx(tx); err != nil {
+			return err
+		}
 		if _, err := s.ensureProfileTx(tx, userID); err != nil {
 			return err
 		}
@@ -898,6 +1024,9 @@ func (s *Service) EnsureMatchFromQueue(ctx context.Context, mode models.LilaGame
 	db := s.dbConn().WithContext(ctx)
 	var match *models.LilaMatch
 	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.cleanupStaleQueueStateTx(tx); err != nil {
+			return err
+		}
 		var queue []models.LilaQueueEntry
 		if err := tx.Where("mode = ? AND status IN ?", mode, []models.LilaQueueStatus{models.LilaQueueStatusWaiting, models.LilaQueueStatusReady}).
 			Order("joined_at asc").Limit(10).Find(&queue).Error; err != nil {

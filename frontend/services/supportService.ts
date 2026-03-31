@@ -101,6 +101,32 @@ export interface SupportPreacherQuestion {
     myVote: boolean;
 }
 
+export type SupportUpdateEvent = {
+    conversationId?: number;
+    source?: 'push' | 'local';
+};
+
+type SupportUpdateListener = (event: SupportUpdateEvent) => void;
+
+const supportUpdateListeners = new Set<SupportUpdateListener>();
+
+export const emitSupportUpdate = (event: SupportUpdateEvent = {}) => {
+    supportUpdateListeners.forEach((listener) => {
+        try {
+            listener(event);
+        } catch (error) {
+            console.warn('[supportService] support update listener failed', error);
+        }
+    });
+};
+
+export const subscribeSupportUpdates = (listener: SupportUpdateListener) => {
+    supportUpdateListeners.add(listener);
+    return () => {
+        supportUpdateListeners.delete(listener);
+    };
+};
+
 const getSupportFallback = (
     key:
         | 'requestFailed'

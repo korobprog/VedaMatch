@@ -18,7 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../types/navigation';
-import { supportService, SupportConversation, SupportMessage } from '../../services/supportService';
+import { subscribeSupportUpdates, supportService, SupportConversation, SupportMessage } from '../../services/supportService';
 import { useUser } from '../../context/UserContext';
 import { API_BASE_URL } from '../../config/api.config';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
@@ -159,7 +159,15 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
     useFocusEffect(
         useCallback(() => {
             load(false);
-        }, [load])
+            const unsubscribe = subscribeSupportUpdates((event) => {
+                if (!conversationId || !event.conversationId || event.conversationId === conversationId) {
+                    void load(true);
+                }
+            });
+            return () => {
+                unsubscribe();
+            };
+        }, [conversationId, load])
     );
 
     const pickImage = useCallback(async () => {
