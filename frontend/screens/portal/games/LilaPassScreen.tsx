@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { Crown, ScrollText } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import {
+    getCachedLilaBootstrap,
     getLilaBootstrap,
     purchaseLilaStoreItem,
 } from '../../../services/lilaGameService';
@@ -19,15 +20,15 @@ const renderRewardEntries = (record: Record<string, unknown>): Array<{ code: str
 
 const LilaPassScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
-    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [loading, setLoading] = React.useState(true);
+    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+    const [loading, setLoading] = React.useState(!getCachedLilaBootstrap(i18n.language));
     const [busy, setBusy] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
 
     const loadBootstrap = React.useCallback(async () => {
         try {
             setError(null);
-            const next = await getLilaBootstrap(i18n.language);
+            const next = await getLilaBootstrap(i18n.language, { force: true });
             setBootstrap(next);
         } catch (loadError: any) {
             setError(loadError?.response?.data?.error || loadError?.message || t('common.error'));
@@ -39,7 +40,7 @@ const LilaPassScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            loadBootstrap();
+            loadBootstrap().catch(() => undefined);
         }, [loadBootstrap]),
     );
 
@@ -144,6 +145,7 @@ const LilaPassScreen: React.FC = () => {
                                 label={passUnlocked ? t('portal.lila.pass.passUnlocked') : t('portal.lila.pass.passLocked')}
                                 tone={passUnlocked ? 'gold' : 'surface'}
                             />
+                            <LilaPill label={`${t('portal.lila.home.streakLabel')}: ${bootstrap?.activeStreak || 0}`} tone="surface" />
                             {bootstrap?.subscription?.status === 'active' ? (
                                 <LilaPill label="Bhakti Premium" tone="surface" />
                             ) : null}
@@ -188,6 +190,19 @@ const LilaPassScreen: React.FC = () => {
                             : t('portal.lila.pass.subscriptionSupportExpired', { date: formatDate(bootstrap.subscription.endsAt) })}
                     </Text>
                 ) : null}
+            </LilaCard>
+
+            <LilaSectionTitle title={t('portal.lila.results.progressTitle')} subtitle={t('portal.lila.results.progressSubtitle')} />
+            <LilaCard>
+                {(bootstrap?.dailyQuestProgress || []).slice(0, 2).map((entry) => (
+                    <View key={entry.code} style={styles.rewardRow}>
+                        <ScrollText size={16} color={LILA_COLORS.saffron} />
+                        <View style={styles.progressEntry}>
+                            <Text style={styles.rewardText}>{entry.title}</Text>
+                            <LilaProgressBar progress={Math.max(0, Math.min(entry.current / Math.max(entry.target, 1), 1))} accent={LILA_COLORS.lotus} />
+                        </View>
+                    </View>
+                ))}
             </LilaCard>
 
             {error ? (
@@ -252,6 +267,10 @@ const styles = StyleSheet.create({
         color: LILA_COLORS.ink,
         fontSize: 14,
         fontWeight: '700',
+    },
+    progressEntry: {
+        flex: 1,
+        gap: 8,
     },
     rewardTextLight: {
         color: LILA_COLORS.parchment,

@@ -6,7 +6,7 @@ import (
 )
 
 func TestEventWithTargetsDeduplicatesRecipients(t *testing.T) {
-	event := NewEvent(EventRoundStarted, "match-1", 42, 2, map[string]interface{}{"ok": true}, time.Now()).WithTargets(7, 7, 0, 9)
+	event := NewEvent(EventRoundStarted, "match-1", 42, 2, map[string]interface{}{"ok": true}, time.Now(), 4).WithTargets(7, 7, 0, 9)
 
 	targets := event.GetTargetUserIDs()
 	if len(targets) != 2 {
@@ -20,5 +20,8 @@ func TestEventWithTargetsDeduplicatesRecipients(t *testing.T) {
 	}
 	if got := event.GetSenderID(); got != 42 {
 		t.Fatalf("unexpected sender id: %d", got)
+	}
+	if event.StateVersion != 4 {
+		t.Fatalf("unexpected state version: %d", event.StateVersion)
 	}
 }

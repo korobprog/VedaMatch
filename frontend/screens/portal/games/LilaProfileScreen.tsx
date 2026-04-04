@@ -3,20 +3,20 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Crown, HeartHandshake, ScrollText, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { getLilaBootstrap } from '../../../services/lilaGameService';
+import { getCachedLilaBootstrap, getLilaBootstrap } from '../../../services/lilaGameService';
 import type { LilaBootstrap } from '../../../types/lila';
 import { LILA_COLORS, LilaCard, LilaPill, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
 
 const LilaProfileScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
-    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [loading, setLoading] = React.useState(true);
+    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+    const [loading, setLoading] = React.useState(!getCachedLilaBootstrap(i18n.language));
     const [error, setError] = React.useState<string | null>(null);
 
     const loadBootstrap = React.useCallback(async () => {
         try {
             setError(null);
-            const next = await getLilaBootstrap(i18n.language);
+            const next = await getLilaBootstrap(i18n.language, { force: true });
             setBootstrap(next);
         } catch (loadError: any) {
             setError(loadError?.response?.data?.error || loadError?.message || t('common.error'));
@@ -28,7 +28,7 @@ const LilaProfileScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            loadBootstrap();
+            loadBootstrap().catch(() => undefined);
         }, [loadBootstrap]),
     );
 
@@ -114,16 +114,32 @@ const LilaProfileScreen: React.FC = () => {
 
             <LilaSectionTitle title={t('portal.lila.profile.questsTitle')} subtitle={t('portal.lila.profile.questsSubtitle')} />
             <LilaCard tone="night">
-                {(bootstrap?.quests || []).map((quest) => (
+                {[...(bootstrap?.dailyQuestProgress || []), ...(bootstrap?.weeklyQuestProgress || [])].map((quest) => (
                     <View key={quest.code} style={styles.questRow}>
                         <View style={styles.header}>
                             <ScrollText size={16} color={LILA_COLORS.parchment} />
                             <Text style={styles.questTitle}>{quest.title}</Text>
                         </View>
-                        <Text style={styles.questDescription}>{quest.description}</Text>
-                        <LilaProgressBar progress={quest.isDaily ? 1 : 0.5} accent={LILA_COLORS.lotus} />
+                        <Text style={styles.questDescription}>
+                            {quest.isDaily ? t('portal.lila.home.dailySubtitle') : t('portal.lila.results.progressSubtitle')}
+                        </Text>
+                        <LilaProgressBar progress={Math.max(0, Math.min(quest.current / Math.max(quest.target, 1), 1))} accent={LILA_COLORS.lotus} />
                     </View>
                 ))}
+            </LilaCard>
+
+            <LilaSectionTitle title={t('portal.lila.results.recentRewardTitle')} subtitle={t('portal.lila.results.progressSubtitle')} />
+            <LilaCard>
+                {(bootstrap?.recentRewards || []).length ? (
+                    (bootstrap?.recentRewards || []).slice(0, 4).map((reward) => (
+                        <View key={`${reward.kind}-${reward.awardedAt}`} style={styles.timelineRow}>
+                            <Text style={styles.timelineTitle}>{reward.title}</Text>
+                            <Text style={styles.timelineMeta}>{`${reward.amount > 0 ? '+' : ''}${reward.amount} ${reward.currency}`}</Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.sectionBody}>{t('portal.lila.profile.purchasesEmpty')}</Text>
+                )}
             </LilaCard>
 
             <LilaSectionTitle title={t('portal.lila.profile.inventoryTitle')} subtitle={t('portal.lila.profile.inventorySubtitle')} />

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(qwen *)",
+      "Bash(npm *)",
+      "Bash(brew *)",
+      "Bash(true)"
+    ]
+  },
+  "$version": 3
+}

@@ -20,6 +20,18 @@ type LocalizedText struct {
 	Hi string `json:"hi"`
 }
 
+type MatchPhase string
+
+const (
+	MatchPhaseQueue         MatchPhase = "queue"
+	MatchPhaseLobby         MatchPhase = "lobby"
+	MatchPhaseRoundIntro    MatchPhase = "round_intro"
+	MatchPhaseQuestionOpen  MatchPhase = "question_open"
+	MatchPhaseAnswerLocked  MatchPhase = "answer_locked"
+	MatchPhaseRoundResolved MatchPhase = "round_resolved"
+	MatchPhaseMatchFinished MatchPhase = "match_finished"
+)
+
 type QuestionView struct {
 	ID           uint                    `json:"id"`
 	Slug         string                  `json:"slug"`
@@ -40,8 +52,14 @@ type MatchView struct {
 	Players           []uint                  `json:"players"`
 	QueueEntries      []models.LilaQueueEntry `json:"queueEntries"`
 	Locale            Locale                  `json:"locale"`
+	Phase             MatchPhase              `json:"phase"`
+	StateVersion      int                     `json:"stateVersion"`
+	ServerTime        time.Time               `json:"serverTime"`
+	PhaseStartedAt    *time.Time              `json:"phaseStartedAt,omitempty"`
+	PhaseEndsAt       *time.Time              `json:"phaseEndsAt,omitempty"`
 	CurrentRound      *models.LilaRound       `json:"currentRound,omitempty"`
 	CurrentQuestion   *QuestionView           `json:"currentQuestion,omitempty"`
+	Resolution        *RoundResolutionView    `json:"resolution,omitempty"`
 	ReadyUserIDs      []uint                  `json:"readyUserIds"`
 	Scoreboard        []MatchScoreEntry       `json:"scoreboard"`
 	EliminatedUserIDs []uint                  `json:"eliminatedUserIds,omitempty"`
@@ -49,31 +67,77 @@ type MatchView struct {
 }
 
 type MatchScoreEntry struct {
-	UserID       uint `json:"userId"`
-	Score        int  `json:"score"`
-	IsReady      bool `json:"isReady"`
-	IsEliminated bool `json:"isEliminated"`
+	UserID       uint   `json:"userId"`
+	Score        int    `json:"score"`
+	IsReady      bool   `json:"isReady"`
+	IsEliminated bool   `json:"isEliminated"`
+	ScoreDelta   int    `json:"scoreDelta,omitempty"`
+	Streak       int    `json:"streak,omitempty"`
+	TeamKey      string `json:"teamKey,omitempty"`
+}
+
+type RoundResolutionView struct {
+	CorrectAnswer string `json:"correctAnswer,omitempty"`
+	ScoreDelta    int    `json:"scoreDelta,omitempty"`
+	RoundOutcome  string `json:"roundOutcome,omitempty"`
+	MomentumDelta int    `json:"momentumDelta,omitempty"`
+	TempoBonus    int    `json:"tempoBonus,omitempty"`
+	Streak        int    `json:"streak,omitempty"`
+}
+
+type QuestProgressSummary struct {
+	Code        string `json:"code"`
+	Title       string `json:"title"`
+	Current     int    `json:"current"`
+	Target      int    `json:"target"`
+	Claimed     bool   `json:"claimed"`
+	IsDaily     bool   `json:"isDaily"`
+	RewardBonus int    `json:"rewardBonus"`
+	RewardReal  int    `json:"rewardReal"`
+	Status      string `json:"status"`
+}
+
+type RecentRewardView struct {
+	Kind      string                  `json:"kind"`
+	Title     string                  `json:"title"`
+	Amount    int                     `json:"amount"`
+	Currency  models.LilaCurrencyType `json:"currency"`
+	AwardedAt time.Time               `json:"awardedAt"`
+	Detail    string                  `json:"detail,omitempty"`
+}
+
+type TutorialStateView struct {
+	Completed        bool   `json:"completed"`
+	CurrentStep      string `json:"currentStep"`
+	SeenIntro        bool   `json:"seenIntro"`
+	CompletedMatches int    `json:"completedMatches"`
 }
 
 type BootstrapResponse struct {
-	Profile            *models.LilaProfile           `json:"profile,omitempty"`
-	QueueDepth         map[string]int64              `json:"queueDepth"`
-	ModePlayerCounts   map[string]int64              `json:"modePlayerCounts"`
-	ActiveSeason       *models.LilaPassSeason        `json:"activeSeason,omitempty"`
-	PassProgress       *PassProgressView             `json:"passProgress,omitempty"`
-	StoreItems         []models.LilaStoreItem        `json:"storeItems"`
-	OwnedItems         []InventoryItemView           `json:"ownedItems"`
-	PurchaseHistory    []PurchaseHistoryView         `json:"purchaseHistory"`
-	GiftHistory        []GiftHistoryView             `json:"giftHistory"`
-	Quests             []models.LilaQuest            `json:"quests"`
-	Leaderboard        []models.LilaLeaderboardEntry `json:"leaderboard"`
-	Subscription       *models.LilaSubscription      `json:"subscription,omitempty"`
-	BonusBalance       int                           `json:"bonusBalance"`
-	RealBalance        int                           `json:"realBalance"`
-	OpenMatches        []models.LilaMatch            `json:"openMatches"`
-	OpenQueue          []models.LilaQueueEntry       `json:"openQueue"`
-	AvailableQuestions []QuestionView                `json:"availableQuestions"`
-	Metrics            MetricsSnapshot               `json:"metrics"`
+	Profile             *models.LilaProfile           `json:"profile,omitempty"`
+	QueueDepth          map[string]int64              `json:"queueDepth"`
+	ModePlayerCounts    map[string]int64              `json:"modePlayerCounts"`
+	ActiveSeason        *models.LilaPassSeason        `json:"activeSeason,omitempty"`
+	PassProgress        *PassProgressView             `json:"passProgress,omitempty"`
+	StoreItems          []models.LilaStoreItem        `json:"storeItems"`
+	OwnedItems          []InventoryItemView           `json:"ownedItems"`
+	PurchaseHistory     []PurchaseHistoryView         `json:"purchaseHistory"`
+	GiftHistory         []GiftHistoryView             `json:"giftHistory"`
+	Quests              []models.LilaQuest            `json:"quests"`
+	Leaderboard         []models.LilaLeaderboardEntry `json:"leaderboard"`
+	Subscription        *models.LilaSubscription      `json:"subscription,omitempty"`
+	BonusBalance        int                           `json:"bonusBalance"`
+	RealBalance         int                           `json:"realBalance"`
+	OpenMatches         []models.LilaMatch            `json:"openMatches"`
+	OpenQueue           []models.LilaQueueEntry       `json:"openQueue"`
+	AvailableQuestions  []QuestionView                `json:"availableQuestions"`
+	Metrics             MetricsSnapshot               `json:"metrics"`
+	ActiveStreak        int                           `json:"activeStreak"`
+	DailyQuestProgress  []QuestProgressSummary        `json:"dailyQuestProgress"`
+	WeeklyQuestProgress []QuestProgressSummary        `json:"weeklyQuestProgress"`
+	RecentRewards       []RecentRewardView            `json:"recentRewards"`
+	RecommendedMode     models.LilaGameMode           `json:"recommendedMode"`
+	TutorialState       TutorialStateView             `json:"tutorialState"`
 }
 
 type PassProgressView struct {

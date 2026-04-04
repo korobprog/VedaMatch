@@ -9,6 +9,7 @@ import type {
     LilaLeaderboardEntry,
     LilaLocation,
     LilaMatchRecord,
+    LilaMatchPhase,
     LilaMatchScoreEntry,
     LilaMatchSnapshot,
     LilaMode,
@@ -19,20 +20,29 @@ import type {
     LilaPurchaseHistoryEntry,
     LilaPurchaseResult,
     LilaQuestionView,
+    LilaQuestProgressSummary,
     LilaQuestSummary,
     LilaQueueEntry,
     LilaReadyLobbyResponse,
+    LilaRecentReward,
+    LilaRealtimeEvent,
+    LilaRealtimeEventPayload,
     LilaRoundSnapshot,
+    LilaRoundResolution,
     LilaSiddhiId,
     LilaStoreItem,
     LilaStoreSpendOption,
     LilaStoreSection,
     LilaSubscription,
     LilaSubscriptionResult,
+    LilaTutorialState,
 } from '../types/lila';
 
 type LilaLocale = 'ru' | 'en' | 'hi';
 type LilaApiMode = 'dharma_duel' | 'sabha' | 'survival_in_samsara';
+type LilaBootstrapRequestOptions = {
+    force?: boolean;
+};
 
 type LocalizedStringFields = {
     titleRu?: string;
@@ -182,6 +192,7 @@ type LilaQueueEntryApi = {
     readyAt?: string | null;
     leftAt?: string | null;
     metadataJson?: string;
+    matchCode?: string;
 };
 
 type LilaMatchApi = {
@@ -214,6 +225,18 @@ type LilaRoundApi = {
     resolvedAt?: string | null;
     durationMs?: number;
     bonusWindowMs?: number;
+    introEndsAt?: string | null;
+    lockInAt?: string | null;
+    revealEndsAt?: string | null;
+};
+
+type LilaRoundResolutionApi = {
+    correctAnswer?: string;
+    scoreDelta?: number;
+    roundOutcome?: string;
+    momentumDelta?: number;
+    tempoBonus?: number;
+    streak?: number;
 };
 
 type LilaMatchSnapshotApi = {
@@ -228,6 +251,40 @@ type LilaMatchSnapshotApi = {
     scoreboard?: LilaMatchScoreEntry[];
     eliminatedUserIds?: number[];
     answeredUserIds?: number[];
+    phase?: string;
+    stateVersion?: number;
+    serverTime?: string;
+    phaseStartedAt?: string | null;
+    nextPhaseAt?: string | null;
+    resolution?: LilaRoundResolutionApi | null;
+};
+
+type LilaQuestProgressApi = {
+    code?: string;
+    title?: string;
+    current?: number;
+    target?: number;
+    claimed?: boolean;
+    isDaily?: boolean;
+    rewardBonus?: number;
+    rewardReal?: number;
+    status?: string;
+};
+
+type LilaRecentRewardApi = {
+    kind?: string;
+    title?: string;
+    amount?: number;
+    currency?: string;
+    awardedAt?: string;
+    detail?: string;
+};
+
+type LilaTutorialStateApi = {
+    completed?: boolean;
+    currentStep?: string;
+    seenIntro?: boolean;
+    completedMatches?: number;
 };
 
 type LilaBootstrapApi = {
@@ -249,6 +306,12 @@ type LilaBootstrapApi = {
     openQueue?: LilaQueueEntryApi[];
     availableQuestions?: LilaQuestionApi[];
     metrics?: Record<string, unknown>;
+    activeStreak?: number;
+    dailyQuestProgress?: LilaQuestProgressApi[];
+    weeklyQuestProgress?: LilaQuestProgressApi[];
+    recentRewards?: LilaRecentRewardApi[];
+    recommendedMode?: string;
+    tutorialState?: LilaTutorialStateApi | null;
 };
 
 type LilaStoreApiResponse = {
@@ -256,9 +319,22 @@ type LilaStoreApiResponse = {
     items?: LilaStoreItemApi[];
 };
 
+type LilaRealtimeEventApi = {
+    type?: string;
+    matchCode?: string;
+    userId?: number;
+    round?: number;
+    serverTime?: string;
+    stateVersion?: number;
+    payload?: Record<string, unknown> & {
+        snapshot?: LilaMatchSnapshotApi;
+    };
+};
+
 const DEFAULT_LOCATIONS: LilaLocation[] = ['vrindavan', 'dwarka', 'ayodhya', 'kurukshetra'];
 const DEFAULT_SIDDHIS: LilaSiddhiId[] = ['drishti', 'mantra_shield', 'vimana', 'maya'];
 const ACTIVE_QUEUE_STATUSES = new Set<LilaQueueEntry['status']>(['waiting', 'ready', 'matched']);
+const bootstrapCache = new Map<LilaLocale, LilaBootstrap>();
 
 const MODE_CONFIGS: Record<LilaMode, LilaModeConfig> = {
     duel: {
@@ -587,6 +663,52 @@ const mapRound = (round?: LilaRoundApi | null): LilaRoundSnapshot | null => {
         resolvedAt: round.resolvedAt ?? null,
         durationMs: Number(round.durationMs || 0),
         bonusWindowMs: Number(round.bonusWindowMs || 0),
+        introEndsAt: round.introEndsAt ?? null,
+        lockInAt: round.lockInAt ?? null,
+        revealEndsAt: round.revealEndsAt ?? null,
+    };
+};
+
+const normalizePhase = (phase?: string, status?: string, round?: LilaRoundSnapshot | null): LilaMatchPhase => {
+    switch (String(phase || '').trim()) {
+    case 'queue':
+    case 'lobby':
+    case 'round_intro':
+    case 'question_open':
+    case 'answer_locked':
+    case 'round_resolved':
+    case 'match_finished':
+        return phase as LilaMatchPhase;
+    default:
+        break;
+    }
+
+    if (status === 'finished') {
+        return 'match_finished';
+    }
+    if (status === 'lobby') {
+        return 'lobby';
+    }
+    if (round?.status === 'resolved') {
+        return 'round_resolved';
+    }
+    if (status === 'active') {
+        return 'question_open';
+    }
+    return 'queue';
+};
+
+const mapRoundResolution = (resolution?: LilaRoundResolutionApi | null): LilaRoundResolution | null => {
+    if (!resolution) {
+        return null;
+    }
+    return {
+        correctAnswer: typeof resolution.correctAnswer === 'string' ? resolution.correctAnswer : undefined,
+        scoreDelta: Number(resolution.scoreDelta || 0),
+        roundOutcome: String(resolution.roundOutcome || 'pending'),
+        momentumDelta: Number(resolution.momentumDelta || 0),
+        tempoBonus: Number(resolution.tempoBonus || 0),
+        streak: Number(resolution.streak || 0),
     };
 };
 
@@ -608,9 +730,20 @@ const mapMatchSnapshot = (snapshot: LilaMatchSnapshotApi): LilaMatchSnapshot => 
         score: Number(entry.score || 0),
         isReady: Boolean(entry.isReady),
         isEliminated: Boolean(entry.isEliminated),
+        scoreDelta: Number((entry as LilaMatchScoreEntry & { scoreDelta?: number }).scoreDelta || 0),
+        streak: Number((entry as LilaMatchScoreEntry & { streak?: number }).streak || 0),
+        teamKey: typeof (entry as LilaMatchScoreEntry & { teamKey?: string }).teamKey === 'string'
+            ? (entry as LilaMatchScoreEntry & { teamKey?: string }).teamKey
+            : undefined,
     })) : [],
     eliminatedUserIds: Array.isArray(snapshot.eliminatedUserIds) ? snapshot.eliminatedUserIds.map((userId) => Number(userId)) : [],
     answeredUserIds: Array.isArray(snapshot.answeredUserIds) ? snapshot.answeredUserIds.map((userId) => Number(userId)) : [],
+    phase: normalizePhase(snapshot.phase, snapshot.match?.status, mapRound(snapshot.currentRound)),
+    stateVersion: Number(snapshot.stateVersion || 0),
+    serverTime: String(snapshot.serverTime || ''),
+    phaseStartedAt: snapshot.phaseStartedAt ?? null,
+    nextPhaseAt: snapshot.nextPhaseAt ?? null,
+    resolution: mapRoundResolution(snapshot.resolution),
 });
 
 const mapQueueDepth = (depth?: Record<string, number>): Record<string, number> => {
@@ -637,6 +770,42 @@ const mapLeaderboard = (entries?: LilaLeaderboardEntry[]): LilaLeaderboardEntry[
         }))
         : []
 );
+
+const mapQuestProgress = (progress?: LilaQuestProgressApi[]): LilaQuestProgressSummary[] => (
+    Array.isArray(progress)
+        ? progress.map((entry) => ({
+            code: String(entry.code || ''),
+            title: String(entry.title || entry.code || ''),
+            current: Number(entry.current || 0),
+            target: Math.max(1, Number(entry.target || 1)),
+            claimed: Boolean(entry.claimed),
+            isDaily: Boolean(entry.isDaily),
+            rewardBonus: Number(entry.rewardBonus || 0),
+            rewardReal: Number(entry.rewardReal || 0),
+            status: String(entry.status || 'active'),
+        }))
+        : []
+);
+
+const mapRecentRewards = (rewards?: LilaRecentRewardApi[]): LilaRecentReward[] => (
+    Array.isArray(rewards)
+        ? rewards.map((entry) => ({
+            kind: String(entry.kind || 'reward'),
+            title: String(entry.title || ''),
+            amount: Number(entry.amount || 0),
+            currency: String(entry.currency || 'bonus') as LilaRecentReward['currency'],
+            awardedAt: String(entry.awardedAt || ''),
+            detail: entry.detail ? String(entry.detail) : undefined,
+        }))
+        : []
+);
+
+const mapTutorialState = (state?: LilaTutorialStateApi | null): LilaTutorialState => ({
+    completed: Boolean(state?.completed),
+    currentStep: String(state?.currentStep || 'intro'),
+    seenIntro: Boolean(state?.seenIntro),
+    completedMatches: Number(state?.completedMatches || 0),
+});
 
 const buildStoreSections = (items: LilaStoreItem[]): LilaStoreSection[] => {
     const sections: Record<LilaStoreSection['id'], LilaStoreItem[]> = {
@@ -719,8 +888,32 @@ export const getLilaStoreSpendOptions = (
     return options;
 };
 
-export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootstrap> => {
+export const getCachedLilaBootstrap = (localeInput?: string): LilaBootstrap | null =>
+    bootstrapCache.get(normalizeLocale(localeInput)) || null;
+
+export const primeLilaBootstrap = (localeInput: string | undefined, bootstrap: LilaBootstrap): void => {
+    bootstrapCache.set(normalizeLocale(localeInput), bootstrap);
+};
+
+export const invalidateLilaBootstrap = (localeInput?: string): void => {
+    if (localeInput) {
+        bootstrapCache.delete(normalizeLocale(localeInput));
+        return;
+    }
+    bootstrapCache.clear();
+};
+
+export const getLilaBootstrap = async (
+    localeInput?: string,
+    options?: LilaBootstrapRequestOptions,
+): Promise<LilaBootstrap> => {
     const locale = normalizeLocale(localeInput);
+    if (!options?.force) {
+        const cached = bootstrapCache.get(locale);
+        if (cached) {
+            return cached;
+        }
+    }
     const { data } = await apiClient.get<LilaBootstrapApi>('/games/lila/bootstrap', {
         params: { locale },
     });
@@ -729,7 +922,7 @@ export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootst
         ? data.storeItems.map((item) => mapStoreItem(item, locale))
         : [];
 
-    return {
+    const nextBootstrap: LilaBootstrap = {
         locations: [...DEFAULT_LOCATIONS],
         modes: getLilaModeConfigs(),
         profile: mapProfile(data.profile),
@@ -751,6 +944,43 @@ export const getLilaBootstrap = async (localeInput?: string): Promise<LilaBootst
         openQueue: Array.isArray(data.openQueue) ? data.openQueue.map(mapQueueEntry) : [],
         availableQuestions: Array.isArray(data.availableQuestions) ? data.availableQuestions.map(mapQuestion) : [],
         metrics: data.metrics || {},
+        activeStreak: Number(data.activeStreak || 0),
+        dailyQuestProgress: mapQuestProgress(data.dailyQuestProgress),
+        weeklyQuestProgress: mapQuestProgress(data.weeklyQuestProgress),
+        recentRewards: mapRecentRewards(data.recentRewards),
+        recommendedMode: toFrontendMode(data.recommendedMode),
+        tutorialState: mapTutorialState(data.tutorialState),
+    };
+    bootstrapCache.set(locale, nextBootstrap);
+    return nextBootstrap;
+};
+
+export const parseLilaRealtimeEvent = (raw: unknown): LilaRealtimeEvent | null => {
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+    const event = raw as LilaRealtimeEventApi;
+    const type = String(event.type || '').trim();
+    if (!type.startsWith('game_')) {
+        return null;
+    }
+
+    const payload = event.payload || {};
+    const nextPayload: LilaRealtimeEventPayload = {
+        ...payload,
+        snapshot: payload.snapshot ? mapMatchSnapshot(payload.snapshot) : undefined,
+    };
+
+    return {
+        type,
+        matchCode: typeof event.matchCode === 'string'
+            ? event.matchCode
+            : nextPayload.snapshot?.match.code,
+        userId: Number(event.userId || 0) || undefined,
+        round: Number(event.round || 0) || undefined,
+        serverTime: typeof event.serverTime === 'string' ? event.serverTime : undefined,
+        stateVersion: Number(event.stateVersion || nextPayload.snapshot?.stateVersion || 0) || undefined,
+        payload: nextPayload,
     };
 };
 
@@ -770,6 +1000,7 @@ export const joinLilaQueue = async (mode: LilaMode, location?: string): Promise<
         mode: toApiMode(mode),
         location: location || MODE_CONFIGS[mode].location,
     });
+    invalidateLilaBootstrap();
 
     return {
         queueEntry: mapQueueEntry(data.queueEntry as unknown as LilaQueueEntryApi),
@@ -781,10 +1012,12 @@ export const leaveLilaQueue = async (mode: LilaMode): Promise<void> => {
     await apiClient.post('/games/lila/queue/leave', null, {
         params: { mode: toApiMode(mode) },
     });
+    invalidateLilaBootstrap();
 };
 
 export const readyLilaLobby = async (matchCode: string): Promise<LilaReadyLobbyResponse> => {
     const { data } = await apiClient.post<LilaReadyLobbyResponse>(`/games/lila/lobby/${matchCode}/ready`);
+    invalidateLilaBootstrap();
     return {
         match: mapMatch(data.match as unknown as LilaMatchApi),
     };
@@ -801,13 +1034,23 @@ export const getLilaMatch = async (matchCode: string, localeInput?: string): Pro
 export const submitLilaAnswer = async (
     matchCode: string,
     roundNumber: number,
-    selectedOption: string,
+    answer: string | {
+        selectedOption?: string;
+        ordering?: string[];
+        answerText?: string;
+    },
 ): Promise<void> => {
+    const payload = typeof answer === 'string'
+        ? { selectedOption: answer }
+        : answer;
     await apiClient.post(`/games/lila/matches/${matchCode}/answer`, {
         matchCode,
         roundNumber,
-        selectedOption,
+        selectedOption: payload.selectedOption || '',
+        ordering: Array.isArray(payload.ordering) ? payload.ordering : [],
+        answerText: payload.answerText || '',
     });
+    invalidateLilaBootstrap();
 };
 
 export const useLilaSiddhi = async (
@@ -822,6 +1065,7 @@ export const useLilaSiddhi = async (
         type,
         payload: payload || {},
     });
+    invalidateLilaBootstrap();
 };
 
 export const purchaseLilaStoreItem = async (
@@ -834,6 +1078,7 @@ export const purchaseLilaStoreItem = async (
         quantity: 1,
         dedupKey: createDedupKey(`lila-purchase-${itemCode}`),
     });
+    invalidateLilaBootstrap();
     return data;
 };
 
@@ -850,6 +1095,7 @@ export const sendLilaGift = async (
         quantity: 1,
         message: message || '',
     });
+    invalidateLilaBootstrap();
 };
 
 export const claimLilaPassReward = async (
@@ -862,6 +1108,7 @@ export const claimLilaPassReward = async (
         points,
         premium,
     });
+    invalidateLilaBootstrap();
     return mapPassProgress(data.progress) || {};
 };
 
@@ -871,6 +1118,7 @@ export const activateLilaSubscription = async (packageCode: string): Promise<Lil
         autoRenew: true,
         dedupKey: createDedupKey(`lila-subscription-${packageCode}`),
     });
+    invalidateLilaBootstrap();
     return {
         subscription: mapSubscription(data.subscription as unknown as LilaSubscriptionApi) as LilaSubscription,
     };

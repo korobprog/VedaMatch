@@ -247,6 +247,8 @@ export const migrateCalendarServiceIntoCalendarFolder = (inputLayout: PortalLayo
 };
 
 export const migrateLilaServiceIntoGamesFolder = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    const GAME_SERVICE_IDS = ['lila_battle_of_sages'] as const;
+
     const layout: PortalLayout = {
         ...inputLayout,
         pages: inputLayout.pages.map((page) => ({
@@ -265,26 +267,30 @@ export const migrateLilaServiceIntoGamesFolder = (inputLayout: PortalLayout): { 
     }
 
     let changed = false;
-    let extractedLilaItem: PortalItem | null = null;
 
     layout.pages = layout.pages.map((page) => {
+        const extractedGameItems = new Map<string, PortalItem>();
         const updatedItems = page.items
             .map((item) => {
                 if (item.type === 'service') {
-                    if (item.serviceId !== 'lila_battle_of_sages') {
+                    if (!GAME_SERVICE_IDS.includes(item.serviceId as (typeof GAME_SERVICE_IDS)[number])) {
                         return { ...item };
                     }
-                    extractedLilaItem = { ...item, position: 0 };
+                    if (!extractedGameItems.has(item.serviceId)) {
+                        extractedGameItems.set(item.serviceId, { ...item, position: 0 });
+                    }
                     changed = true;
                     return null;
                 }
 
                 const filteredItems = item.items
                     .filter((folderItem) => {
-                        if (folderItem.serviceId !== 'lila_battle_of_sages') {
+                        if (!GAME_SERVICE_IDS.includes(folderItem.serviceId as (typeof GAME_SERVICE_IDS)[number])) {
                             return true;
                         }
-                        extractedLilaItem = { ...folderItem, position: 0 };
+                        if (!extractedGameItems.has(folderItem.serviceId)) {
+                            extractedGameItems.set(folderItem.serviceId, { ...folderItem, position: 0 });
+                        }
                         changed = true;
                         return false;
                     })
@@ -297,26 +303,36 @@ export const migrateLilaServiceIntoGamesFolder = (inputLayout: PortalLayout): { 
             })
             .filter((item): item is PortalItem | PortalFolder => Boolean(item));
 
-        if (!extractedLilaItem) {
-            return {
-                ...page,
-                items: updatedItems.map((item, index) => item.type === 'folder'
-                    ? {
-                        ...item,
-                        position: index,
-                        items: item.items.map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex })),
-                    }
-                    : { ...item, position: index }),
-            };
-        }
-        const lilaItem = extractedLilaItem as PortalItem;
-
         const gamesFolderIndex = updatedItems.findIndex((item) => item.type === 'folder' && item.id === 'folder-games');
+        const existingGamesFolder = gamesFolderIndex >= 0 ? updatedItems[gamesFolderIndex] as PortalFolder : null;
+        const existingGamesItems = existingGamesFolder?.items ?? [];
+        const existingGamesById = new Map(existingGamesItems.map((item) => [item.serviceId, item]));
+        const canonicalGameItems = GAME_SERVICE_IDS.map((serviceId) => {
+            const existing = extractedGameItems.get(serviceId) || existingGamesById.get(serviceId);
+            if (existing) {
+                return { ...existing, serviceId, position: 0 };
+            }
+            changed = true;
+            return {
+                id: `item-${serviceId}`,
+                serviceId,
+                type: 'service' as const,
+                position: 0,
+            };
+        });
+        const nonCanonicalExisting = existingGamesItems.filter((item) => !GAME_SERVICE_IDS.includes(item.serviceId as (typeof GAME_SERVICE_IDS)[number]));
+        const mergedGamesItems = [...canonicalGameItems, ...nonCanonicalExisting]
+            .reduce<PortalItem[]>((acc, item) => {
+                if (!acc.some((entry) => entry.serviceId === item.serviceId)) {
+                    acc.push({ ...item, position: acc.length });
+                }
+                return acc;
+            }, []);
+
         if (gamesFolderIndex >= 0) {
-            const gamesFolder = updatedItems[gamesFolderIndex] as PortalFolder;
             updatedItems[gamesFolderIndex] = {
-                ...gamesFolder,
-                items: [{ ...lilaItem, position: 0 }],
+                ...(existingGamesFolder as PortalFolder),
+                items: mergedGamesItems,
             };
             changed = true;
         } else {
@@ -326,7 +342,7 @@ export const migrateLilaServiceIntoGamesFolder = (inputLayout: PortalLayout): { 
                 name: 'Игры',
                 type: 'folder',
                 color: '#7C3AED',
-                items: [{ ...lilaItem, position: 0 }],
+                items: mergedGamesItems,
                 position: insertIndex,
             });
             changed = true;

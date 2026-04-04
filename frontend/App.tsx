@@ -948,7 +948,6 @@ const AppContent = () => {
                   <Stack.Screen name="LilaProfile" component={LilaProfileScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="LilaStore" component={LilaStoreScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="LilaPass" component={LilaPassScreen} options={{ headerShown: false }} />
-
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="RadioPlayer" component={RadioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

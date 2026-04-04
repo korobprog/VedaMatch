@@ -2,19 +2,34 @@ import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Crown, MapPinned, ScrollText, Sparkles } from 'lucide-react-native';
+import { Crown, Flame, MapPinned, ScrollText, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { getLilaBootstrap, getLilaModeConfig, getLilaModePlayerCount, isLilaActiveQueueStatus } from '../../../services/lilaGameService';
+import {
+    getCachedLilaBootstrap,
+    getLilaBootstrap,
+    getLilaModeConfig,
+    getLilaModePlayerCount,
+    isLilaActiveQueueStatus,
+} from '../../../services/lilaGameService';
 import type { LilaBootstrap, LilaMatchRecord, LilaMode } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
-import { LILA_COLORS, LilaCard, LilaMetric, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
+import {
+    LILA_COLORS,
+    LilaCard,
+    LilaMetric,
+    LilaPill,
+    LilaPrimaryButton,
+    LilaProgressBar,
+    LilaScreenLayout,
+    LilaSectionTitle,
+} from './LilaUi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LilaBattleOfSagesHome'>;
 
 const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
-    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [loading, setLoading] = React.useState(true);
+    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+    const [loading, setLoading] = React.useState(!getCachedLilaBootstrap(i18n.language));
     const [error, setError] = React.useState<string | null>(null);
     const allowExitRef = React.useRef(false);
 
@@ -22,7 +37,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
         try {
             setError(null);
             setLoading(true);
-            const next = await getLilaBootstrap(i18n.language);
+            const next = await getLilaBootstrap(i18n.language, { force: true });
             setBootstrap(next);
         } catch (loadError: any) {
             setError(loadError?.response?.data?.error || loadError?.message || t('common.error'));
@@ -33,16 +48,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
 
     useFocusEffect(
         React.useCallback(() => {
-            void loadBootstrap();
-        }, [loadBootstrap]),
-    );
-
-    useFocusEffect(
-        React.useCallback(() => {
-            const timer = setInterval(() => {
-                void loadBootstrap();
-            }, 3000);
-            return () => clearInterval(timer);
+            loadBootstrap().catch(() => undefined);
         }, [loadBootstrap]),
     );
 
@@ -66,6 +72,11 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
     const activeMatch = bootstrap?.openMatches[0] || null;
     const quests = bootstrap?.quests || [];
     const isQuestSectionLoading = loading && !bootstrap;
+    const recommendedMode = bootstrap?.recommendedMode || 'duel';
+    const recommendedModeConfig = getLilaModeConfig(recommendedMode);
+    const tutorialState = bootstrap?.tutorialState;
+    const latestReward = bootstrap?.recentRewards[0] || null;
+    const activeQueue = bootstrap?.openQueue.find((entry) => isLilaActiveQueueStatus(entry.status)) || null;
 
     const navigateToMatch = React.useCallback((mode: LilaMode, match: LilaMatchRecord) => {
         if (match.status === 'finished') {
@@ -87,6 +98,18 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
         }
         navigation.navigate('Portal');
     }, [navigation]);
+
+    const handlePlayNow = React.useCallback(() => {
+        if (activeMatch) {
+            navigateToMatch(activeMatch.mode, activeMatch);
+            return;
+        }
+        if (activeQueue) {
+            navigation.navigate('LilaQueue', { mode: activeQueue.mode, matchCode: activeQueue.matchCode });
+            return;
+        }
+        navigation.navigate('LilaQueue', { mode: recommendedMode });
+    }, [activeMatch, activeQueue, navigateToMatch, navigation, recommendedMode]);
 
     return (
         <LilaScreenLayout
@@ -120,6 +143,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                             <LilaMetric label="LVL" value={String(profile.level)} tone="light" />
                             <LilaMetric label="XP" value={String(profile.experience)} tone="light" />
                             <LilaMetric label="W/L" value={`${profile.winCount}/${profile.loseCount}`} tone="light" />
+                            <LilaMetric label={t('portal.lila.home.streakLabel')} value={String(bootstrap?.activeStreak || 0)} tone="light" />
                         </View>
                         <Text style={styles.progressLabel}>{t('portal.lila.home.rankProgress')}</Text>
                         <LilaProgressBar progress={profile.nextRankProgress} accent={LILA_COLORS.parchment} />
@@ -133,16 +157,56 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                 )}
             </LilaCard>
 
-            {activeMatch ? (
-                <LilaCard tone="night" onPress={() => navigateToMatch(activeMatch.mode, activeMatch)}>
-                    <View style={styles.liveMatchHeader}>
-                        <Sparkles size={18} color={LILA_COLORS.parchment} />
-                        <Text style={styles.liveMatchTitle}>{t('common.open')}</Text>
+            <LilaCard tone="night">
+                <View style={styles.recommendedHeader}>
+                    <View style={styles.modeTitleWrap}>
+                        <Text style={styles.liveMatchTitle}>{t('portal.lila.home.playNowTitle')}</Text>
+                        <Text style={styles.recommendedText}>
+                            {tutorialState?.completed
+                                ? t('portal.lila.home.recommendedMode', { mode: t(`portal.lila.modes.${recommendedMode}.title`) })
+                                : t('portal.lila.home.firstMatchBody')}
+                        </Text>
                     </View>
-                    <Text style={styles.liveMatchBody}>
-                        {t(`portal.lila.modes.${activeMatch.mode}.title`)} · {t(`portal.lila.locations.${getLilaModeConfig(activeMatch.mode).location}`)}
+                    <LilaPill label={t(`portal.lila.locations.${recommendedModeConfig.location}`)} tone="gold" />
+                </View>
+                <View style={styles.metricRow}>
+                    <LilaMetric label={t('portal.lila.queue.players')} value={String(getLilaModePlayerCount(bootstrap, recommendedMode))} tone="light" />
+                    <LilaMetric label={t('portal.lila.queue.rounds')} value={String(recommendedModeConfig.rounds)} tone="light" />
+                    <LilaMetric label={t('portal.lila.queue.estWait')} value={`${recommendedModeConfig.waitSeconds}s`} tone="light" />
+                </View>
+                <View style={styles.primaryActions}>
+                    <LilaPrimaryButton
+                        label={activeMatch ? t('common.open') : activeQueue ? t('portal.lila.actions.resumeQueue') : t('portal.lila.actions.playNow')}
+                        onPress={handlePlayNow}
+                    />
+                </View>
+            </LilaCard>
+
+            {!tutorialState?.completed ? (
+                <LilaCard>
+                    <View style={styles.headerRow}>
+                        <Sparkles size={16} color={LILA_COLORS.saffron} />
+                        <Text style={styles.sectionTitle}>{t('portal.lila.home.onboardingTitle')}</Text>
+                    </View>
+                    <Text style={styles.sectionBody}>{t('portal.lila.home.onboardingBody')}</Text>
+                    <View style={styles.onboardingList}>
+                        <Text style={styles.onboardingItem}>{t('portal.lila.home.onboardingStep1')}</Text>
+                        <Text style={styles.onboardingItem}>{t('portal.lila.home.onboardingStep2')}</Text>
+                        <Text style={styles.onboardingItem}>{t('portal.lila.home.onboardingStep3')}</Text>
+                    </View>
+                </LilaCard>
+            ) : null}
+
+            {latestReward ? (
+                <LilaCard>
+                    <View style={styles.headerRow}>
+                        <Flame size={16} color={LILA_COLORS.saffron} />
+                        <Text style={styles.sectionTitle}>{t('portal.lila.home.latestRewardTitle')}</Text>
+                    </View>
+                    <Text style={styles.sectionBody}>{latestReward.title}</Text>
+                    <Text style={styles.rewardMeta}>
+                        {latestReward.amount > 0 ? `+${latestReward.amount}` : latestReward.amount} {latestReward.currency}
                     </Text>
-                    <Text style={styles.liveMatchMeta}>{activeMatch.code}</Text>
                 </LilaCard>
             ) : null}
 
@@ -205,16 +269,22 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.questDescription}>{t('common.loading')}</Text>
                     </View>
                 ) : quests.length ? (
-                    quests.map((quest) => (
-                        <View key={quest.code} style={styles.questRow}>
-                            <View style={styles.questHeader}>
-                                <ScrollText size={16} color={LILA_COLORS.parchment} />
-                                <Text style={styles.questTitle}>{quest.title}</Text>
+                    quests.map((quest) => {
+                        const progress = bootstrap?.dailyQuestProgress.find((entry) => entry.code === quest.code)
+                            || bootstrap?.weeklyQuestProgress.find((entry) => entry.code === quest.code);
+                        const ratio = progress ? Math.max(0, Math.min(progress.current / Math.max(progress.target, 1), 1)) : 0;
+                        return (
+                            <View key={quest.code} style={styles.questRow}>
+                                <View style={styles.questHeader}>
+                                    <ScrollText size={16} color={LILA_COLORS.parchment} />
+                                    <Text style={styles.questTitle}>{quest.title}</Text>
+                                </View>
+                                <Text style={styles.questDescription}>{quest.description}</Text>
+                                <LilaProgressBar progress={ratio} accent={LILA_COLORS.lotus} />
+                                <Text style={styles.questReward}>{t('portal.lila.home.questReward', { amount: quest.rewardBonus })}</Text>
                             </View>
-                            <Text style={styles.questDescription}>{quest.description}</Text>
-                            <Text style={styles.questReward}>{t('portal.lila.home.questReward', { amount: quest.rewardBonus })}</Text>
-                        </View>
-                    ))
+                        );
+                    })
                 ) : (
                     <Text style={styles.questDescription}>{t('portal.lila.home.dailyEmpty')}</Text>
                 )}
@@ -223,7 +293,7 @@ const LilaBattleOfSagesHomeScreen: React.FC<Props> = ({ navigation }) => {
             {error ? (
                 <LilaCard>
                     <Text style={styles.errorText}>{error}</Text>
-                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => void loadBootstrap()} />
+                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => { loadBootstrap().catch(() => undefined); }} />
                 </LilaCard>
             ) : null}
 
@@ -253,6 +323,88 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 10,
     },
+    profileTitleWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
+    },
+    profileTitle: {
+        color: LILA_COLORS.parchment,
+        fontSize: 22,
+        fontWeight: '700',
+        flex: 1,
+    },
+    profileBody: {
+        marginTop: 10,
+        color: 'rgba(255,244,224,0.84)',
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    metricRow: {
+        marginTop: 14,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    progressLabel: {
+        marginTop: 12,
+        marginBottom: 8,
+        color: 'rgba(255,244,224,0.84)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    balanceRow: {
+        marginTop: 12,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    recommendedHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    recommendedText: {
+        marginTop: 8,
+        color: 'rgba(255,244,224,0.82)',
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    primaryActions: {
+        marginTop: 16,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    sectionTitle: {
+        color: LILA_COLORS.ink,
+        fontSize: 17,
+        fontWeight: '700',
+    },
+    sectionBody: {
+        marginTop: 8,
+        color: 'rgba(42,24,16,0.76)',
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    onboardingList: {
+        marginTop: 10,
+        gap: 6,
+    },
+    onboardingItem: {
+        color: 'rgba(42,24,16,0.76)',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    rewardMeta: {
+        marginTop: 6,
+        color: LILA_COLORS.saffron,
+        fontSize: 14,
+        fontWeight: '700',
+    },
     exitButton: {
         minHeight: 40,
         paddingHorizontal: 14,
@@ -268,64 +420,10 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
-    profileTitleWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        flex: 1,
-    },
-    profileTitle: {
-        color: LILA_COLORS.parchment,
-        fontSize: 22,
-        fontWeight: '700',
-        flex: 1,
-    },
-    profileBody: {
-        marginTop: 10,
-        color: 'rgba(255,244,224,0.82)',
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    metricRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-        marginTop: 14,
-    },
-    progressLabel: {
-        marginTop: 14,
-        marginBottom: 8,
-        color: 'rgba(255,244,224,0.82)',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    balanceRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-        marginTop: 14,
-    },
-    liveMatchHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
     liveMatchTitle: {
         color: LILA_COLORS.parchment,
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
-    },
-    liveMatchBody: {
-        marginTop: 10,
-        color: LILA_COLORS.parchment,
-        fontSize: 15,
-        lineHeight: 22,
-    },
-    liveMatchMeta: {
-        marginTop: 8,
-        color: 'rgba(255,244,224,0.72)',
-        fontSize: 12,
-        letterSpacing: 1,
     },
     journeyWrap: {
         flexDirection: 'row',
@@ -333,19 +431,20 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     journeyItem: {
+        minWidth: '47%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        borderRadius: 18,
-        paddingHorizontal: 12,
         paddingVertical: 10,
-        backgroundColor: 'rgba(255,255,255,0.56)',
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,250,238,0.9)',
         borderWidth: 1,
-        borderColor: 'rgba(42,24,16,0.08)',
+        borderColor: 'rgba(199,148,47,0.18)',
     },
     journeyItemActive: {
-        backgroundColor: 'rgba(224,108,79,0.12)',
-        borderColor: 'rgba(224,108,79,0.28)',
+        borderColor: 'rgba(142,47,30,0.32)',
+        backgroundColor: 'rgba(242,183,166,0.22)',
     },
     journeyText: {
         color: LILA_COLORS.ink,
@@ -359,35 +458,31 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     modeTitleWrap: {
-        flex: 1,
         gap: 6,
     },
     modeTitle: {
         color: LILA_COLORS.ink,
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
     },
     modeSubtitle: {
-        color: 'rgba(42,24,16,0.72)',
-        fontSize: 13,
+        color: 'rgba(42,24,16,0.76)',
+        fontSize: 14,
         lineHeight: 20,
     },
     modeLocationRow: {
-        marginTop: 2,
+        marginTop: 4,
         alignItems: 'flex-start',
     },
     modeMetrics: {
+        marginTop: 14,
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
-        marginTop: 14,
-        marginBottom: 14,
     },
     questRow: {
-        gap: 6,
-        paddingVertical: 8,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(255,244,224,0.12)',
+        gap: 10,
+        marginBottom: 14,
     },
     questHeader: {
         flexDirection: 'row',
@@ -406,18 +501,18 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
     questReward: {
-        color: LILA_COLORS.lotusSoft,
-        fontSize: 12,
+        color: LILA_COLORS.parchment,
+        fontSize: 13,
         fontWeight: '700',
+    },
+    footerActions: {
+        gap: 10,
     },
     errorText: {
         color: LILA_COLORS.crimson,
         fontSize: 14,
         lineHeight: 20,
         marginBottom: 12,
-    },
-    footerActions: {
-        gap: 10,
     },
 });
 

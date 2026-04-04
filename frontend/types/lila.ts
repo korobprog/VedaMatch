@@ -6,9 +6,21 @@ export type LilaSiddhiId = 'drishti' | 'mantra_shield' | 'vimana' | 'maya';
 export type LilaLocation = 'vrindavan' | 'dwarka' | 'ayodhya' | 'kurukshetra';
 export type LilaQuestionType = 'single_choice' | 'image_choice' | 'ordering';
 export type LilaMatchStatus = 'lobby' | 'active' | 'finished' | 'abandoned' | string;
+export type LilaMatchPhase = 'queue' | 'lobby' | 'round_intro' | 'question_open' | 'answer_locked' | 'round_resolved' | 'match_finished';
 export type LilaQueueStatus = 'waiting' | 'ready' | 'matched' | 'left' | 'expired' | 'cancelled' | string;
 export type LilaPassStatus = 'locked' | 'active' | 'expired' | string;
 export type LilaCurrency = 'bonus' | 'real';
+export type LilaRealtimeEventType =
+    | 'game_match_snapshot'
+    | 'game_match_state_changed'
+    | 'game_round_started'
+    | 'game_answer_accepted'
+    | 'game_round_resolved'
+    | 'game_siddhi_used'
+    | 'game_match_finished'
+    | 'game_reward_granted'
+    | string;
+export type LilaRealtimeConnectionState = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'fallback_polling';
 
 export interface LilaModeConfig {
     id: LilaMode;
@@ -43,6 +55,34 @@ export interface LilaQuestSummary {
     rewardReal: number;
     isDaily: boolean;
     status: string;
+}
+
+export interface LilaQuestProgressSummary {
+    code: string;
+    title: string;
+    current: number;
+    target: number;
+    claimed: boolean;
+    isDaily: boolean;
+    rewardBonus: number;
+    rewardReal: number;
+    status: string;
+}
+
+export interface LilaRecentReward {
+    kind: string;
+    title: string;
+    amount: number;
+    currency: LilaCurrency | 'xp' | 'rank' | string;
+    awardedAt: string;
+    detail?: string;
+}
+
+export interface LilaTutorialState {
+    completed: boolean;
+    currentStep: string;
+    seenIntro: boolean;
+    completedMatches: number;
 }
 
 export interface LilaStoreItem {
@@ -190,6 +230,9 @@ export interface LilaRoundSnapshot {
     resolvedAt?: string | null;
     durationMs?: number;
     bonusWindowMs?: number;
+    introEndsAt?: string | null;
+    lockInAt?: string | null;
+    revealEndsAt?: string | null;
 }
 
 export interface LilaQuestionView {
@@ -211,6 +254,18 @@ export interface LilaMatchScoreEntry {
     score: number;
     isReady: boolean;
     isEliminated: boolean;
+    scoreDelta?: number;
+    streak?: number;
+    teamKey?: string;
+}
+
+export interface LilaRoundResolution {
+    correctAnswer?: string;
+    scoreDelta?: number;
+    roundOutcome?: 'correct' | 'incorrect' | 'timeout' | 'pending' | string;
+    momentumDelta?: number;
+    tempoBonus?: number;
+    streak?: number;
 }
 
 export interface LilaMatchSnapshot {
@@ -225,6 +280,12 @@ export interface LilaMatchSnapshot {
     scoreboard: LilaMatchScoreEntry[];
     eliminatedUserIds: number[];
     answeredUserIds: number[];
+    phase: LilaMatchPhase;
+    stateVersion: number;
+    serverTime: string;
+    phaseStartedAt?: string | null;
+    nextPhaseAt?: string | null;
+    resolution?: LilaRoundResolution | null;
 }
 
 export interface LilaBootstrap {
@@ -249,6 +310,31 @@ export interface LilaBootstrap {
     openQueue: LilaQueueEntry[];
     availableQuestions: LilaQuestionView[];
     metrics: Record<string, unknown>;
+    activeStreak: number;
+    dailyQuestProgress: LilaQuestProgressSummary[];
+    weeklyQuestProgress: LilaQuestProgressSummary[];
+    recentRewards: LilaRecentReward[];
+    recommendedMode: LilaMode;
+    tutorialState: LilaTutorialState;
+}
+
+export interface LilaRealtimeEventPayload {
+    snapshot?: LilaMatchSnapshot;
+    answeredUserId?: number;
+    readyUserId?: number;
+    winnerUserId?: number;
+    type?: string;
+    [key: string]: unknown;
+}
+
+export interface LilaRealtimeEvent {
+    type: LilaRealtimeEventType;
+    matchCode?: string;
+    userId?: number;
+    round?: number;
+    serverTime?: string;
+    stateVersion?: number;
+    payload?: LilaRealtimeEventPayload;
 }
 
 export interface LilaJoinQueueResponse {

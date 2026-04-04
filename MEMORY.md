@@ -11,6 +11,10 @@
 ## Ekadashi Calendar
 - Runtime календаря не должен оставлять месяц пустым только из-за отсутствия точного `scope_key`; если для профиля нет exact publication, backend выбирает ближайшую активную publication того же `organization_id` и помечает ответ `providerDecision.reason = "scope_fallback"`.
 - Для `ISKCON` отсутствие города всё ещё блокирует точечный import/review scope, но не блокирует чтение уже опубликованного календаря через fallback publication.
+- Для curated appearance/disappearance layer нельзя полагаться только на фиксированные `month/day` seeds:
+  - часть observances в `2026` уезжала в неверные месяцы;
+  - безопасный паттерн для текущего backend: держать year-specific overrides для подтвержденных дат и применять их уже при runtime-чтении месяца, а не только во время import/publication.
+- Для уже опубликованных месяцев calendar backend должен уметь runtime-подменять устаревшие curated observances свежим curated слоем по `CanonicalSlug`/`PersonSlug`, иначе старые publication продолжают показывать неверные saint appearance/disappearance dates до ручного реимпорта.
 
 ## Support Bot
 - Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
@@ -241,7 +245,10 @@
   - `frontend/services/lilaGameService.ts` ходит в реальные `/games/lila/...` endpoints;
   - Home/Profile/Store/Pass читают live bootstrap/balance/store;
   - Queue/Lobby/Match/Results работают через `join/leave`, `ready`, `match snapshot`, `answer`, `siddhi` и HTTP polling.
-- Текущий mobile runtime для Lila — это HTTP + polling; backend websocket fanout уже существует, но клиент на него пока не подписан, поэтому realtime на устройстве не должен считаться завершённым.
+- Lila mobile runtime переведён в websocket-first поверх `game_*` событий с HTTP recovery/fallback:
+  - client-side session controller живёт в `frontend/services/lilaRealtimeSession.ts` и `frontend/hooks/useLilaMatchSession.ts`;
+  - authoritative match shape для экранов теперь нормализован вокруг фаз `queue -> lobby -> round_intro -> question_open -> answer_locked -> round_resolved -> match_finished`;
+  - при разрыве соединения клиент делает resubscribe/recovery через `match snapshot`, а polling остаётся только fallback-path, а не главным источником UI-обновлений.
 - Для rollout/beta controls новый сервис должен считаться частью системного portal visibility catalog под id `lila_battle_of_sages`.
 - Lila Store на mobile не должен выбирать валюту только по флагу `canUseBonus`:
   - если `bonusPrice = 0`, а `realPrice > 0`, клиент обязан отправлять `real`, иначе пользователь видит backend-ошибку `store item bonus price is not configured`;
@@ -258,6 +265,47 @@
   - raw `queueDepth` считает только `waiting/ready` и может показывать `1` в `Дуэль Дхармы`, когда второй игрок уже в `matched`;
   - mobile `Home` и `Queue` должны использовать отдельный `modePlayerCounts` из bootstrap;
   - backend считает туда `waiting` плюс `matched/ready` только для матчей со статусом `lobby|active`, чтобы не тянуть хвосты завершённых игр.
+- На 2026-04-03 для дальнейшего улучшения Lila стоит держать приоритеты в таком порядке:
+  - сначала убрать ощущение `опросника с polling` и усилить `живой матч` через realtime, тайминги, эффекты ответов и более явный round resolution;
+  - затем добавить мета-прогрессию поверх уже существующих `rank / XP / quests / pass / store`, чтобы у игрока была понятная долгосрочная цель между матчами;
+  - только после этого расширять контент новыми режимами и сценариями, иначе новый объём вопросов не решит проблему удержания.
+- После первого большого rework Lila home/match/results/profile/pass должны опираться на расширенный bootstrap и match snapshot, а не на локальные догадки:
+  - `Bootstrap` теперь несёт `activeStreak`, `dailyQuestProgress`, `weeklyQuestProgress`, `recentRewards`, `recommendedMode`, `tutorialState`;
+  - `MatchSnapshot` теперь несёт `phase`, `stateVersion`, `serverTime`, phase timing и `resolution`, чтобы UI не вычислял конец раунда из набора разрозненных флагов;
+  - `Results/Profile/Pass` должны показывать связанный прогресс `XP/rank/quests/pass/rewards` без обязательного ручного refresh после матча.
+- `LilaQueue` и `LilaStore` тоже не должны оставаться изолированными экранами:
+  - queue screen должен показывать не только wait time, но и ближайший progression payoff: first-match hint, phase rail, quest progress и latest reward;
+  - store screen должен связывать покупки с meta-loop через inventory/reward counters, recent payout и краткий progress summary, а не быть просто каталогом товаров.
+- Для Lila post-match refresh path на mobile больше нельзя полагаться на ручной re-enter экрана:
+  - `frontend/services/lilaGameService.ts` держит client-side cache последнего `Bootstrap` по locale;
+  - `Results` после загрузки должен prime-ить этот cache, а `Home/Queue/Profile/Pass/Store` должны стартовать из cache и затем делать forced refresh;
+  - write actions (`join/leave/ready/answer/siddhi/purchase/gift/pass/subscription`) должны инвалидировать cache, чтобы следующий экран не показывал устаревший meta-state.
+  - cache/invalidation path покрыт unit tests в `frontend/__tests__/services/lilaGameService.test.ts`, вместе с existing realtime-session tests это даёт базовую regression-сетку для shared client runtime.
+- Для Lila mobile modes product baseline теперь такой:
+  - `duel` должен читаться как быстрый head-to-head с компактным scoreboard и pressure timer;
+  - `sabha` должен явно показывать командный вклад и готовность участников;
+  - `survival` должен показывать волну/раунд и выбывших игроков;
+  - question runtime обязан поддерживать не только `single_choice`, но и полноценный `image_choice` / `ordering`.
+- После mode-specific UI pass в mobile `Lila` нельзя снова сводить все режимы к одному scoreboard:
+  - `sabha` screen/results должны агрегировать вклад по `teamKey` и показывать командный score/ready/alive view;
+  - `survival` должен показывать alive/eliminated pressure и итоговое standing place;
+  - `duel` должен подчёркивать tempo через lead delta, а не мимикрировать под командный режим.
+- Различие режимов должно начинаться ещё до матча:
+  - `Queue` должен объяснять fantasy/promise режима (`duel` = быстрый pressure start, `sabha` = командная координация, `survival` = волновое выживание);
+  - `Lobby` должен показывать mode-specific prep state, а не один и тот же ready-check для всех режимов.
+- Для `Lila` теперь есть первый screen-level regression slice:
+  - `frontend/__tests__/screens/portal/games/LilaFlowScreens.test.tsx` проверяет mode-specific copy на `Queue`, `Lobby` и `Results`;
+  - тот же файл теперь покрывает и базовые navigation decisions (`Lobby -> Match`, `Queue -> Results`);
+  - это всё ещё не full E2E, но уже защищает от случайного схлопывания `sabha/survival` обратно в generic screen copy и от грубых regressions в pre-match routing.
+- Для RN screen tests с `useFocusEffect` добавлен задел `frontend/__tests__/utils/focusScreenTestUtils.tsx`, но текущий harness всё ещё может печатать `act(...)` warnings на async bootstrap loads:
+  - helper безопасно хранить как базу для будущей унификации;
+  - сами Lila screen tests пока лучше считать passing-with-warning-noise, а не полностью quiet.
+
+## Kurukshetra Mobile Game
+- По состоянию на 2026-04-03 игра `Kurukshetra 3D` удалена из mobile app:
+  - сервис `kurukshetra_war` убран из portal catalog, games folder, launch resolver и navigation stack;
+  - локальные runtime/screens/services/types удалены из `frontend`;
+  - `playcanvas` удален из frontend dependencies.
 - Lila queue-state не должен жить бесконечно:
   - production уже показал кейс, где одна `waiting` запись висела с утра и весь вечер держала экран в состоянии `ожидание соперника`;
   - backend bootstrap/join/matchmaking должен сначала чистить stale queue entries и stale lobby matches;

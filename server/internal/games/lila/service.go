@@ -712,6 +712,20 @@ func (s *Service) Bootstrap(ctx context.Context, userID uint, locale Locale) (*B
 			return err
 		}
 		resp.Leaderboard = leaderboard
+		dailyQuestProgress, weeklyQuestProgress, err := s.buildQuestProgressSummariesTx(tx, userID, locale)
+		if err != nil {
+			return err
+		}
+		resp.ActiveStreak = profile.StreakDays
+		resp.DailyQuestProgress = dailyQuestProgress
+		resp.WeeklyQuestProgress = weeklyQuestProgress
+		recentRewards, err := s.buildRecentRewardsTx(tx, userID)
+		if err != nil {
+			return err
+		}
+		resp.RecentRewards = recentRewards
+		resp.RecommendedMode = buildRecommendedMode(profile)
+		resp.TutorialState = buildTutorialState(profile)
 		metrics, err := BuildMetricsSnapshot(ctx, tx)
 		if err != nil {
 			return err
@@ -741,6 +755,166 @@ func (s *Service) buildLeaderboardTx(tx *gorm.DB, limit int) ([]models.LilaLeade
 		})
 	}
 	return out, nil
+}
+
+func buildTutorialState(profile *models.LilaProfile) TutorialStateView {
+	completedMatches := 0
+	if profile != nil {
+		completedMatches = profile.WinCount + profile.LoseCount
+	}
+	completed := completedMatches > 0
+	currentStep := "intro"
+	switch {
+	case completedMatches >= 3:
+		currentStep = "mastery"
+	case completedMatches >= 1:
+		currentStep = "loadout"
+	}
+	return TutorialStateView{
+		Completed:        completed,
+		CurrentStep:      currentStep,
+		SeenIntro:        completedMatches > 0,
+		CompletedMatches: completedMatches,
+	}
+}
+
+func buildRecommendedMode(profile *models.LilaProfile) models.LilaGameMode {
+	if profile == nil {
+		return models.LilaGameModeDharmaDuel
+	}
+	completedMatches := profile.WinCount + profile.LoseCount
+	switch {
+	case completedMatches <= 1:
+		return models.LilaGameModeDharmaDuel
+	case profile.WinCount >= 3:
+		return models.LilaGameModeSurvivalSamsara
+	default:
+		return models.LilaGameModeSabha
+	}
+}
+
+func (s *Service) buildQuestProgressSummariesTx(tx *gorm.DB, userID uint, locale Locale) ([]QuestProgressSummary, []QuestProgressSummary, error) {
+	var quests []models.LilaQuest
+	if err := tx.Where("status = ?", models.LilaQuestionStatusActive).Order("is_daily desc, ends_at asc, id asc").Find(&quests).Error; err != nil {
+		return nil, nil, err
+	}
+	var progresses []models.LilaQuestProgress
+	if err := tx.Where("user_id = ?", userID).Find(&progresses).Error; err != nil {
+		return nil, nil, err
+	}
+	progressMap := make(map[uint]models.LilaQuestProgress, len(progresses))
+	for _, progress := range progresses {
+		progressMap[progress.QuestID] = progress
+	}
+
+	daily := make([]QuestProgressSummary, 0)
+	weekly := make([]QuestProgressSummary, 0)
+	for _, quest := range quests {
+		progress := progressMap[quest.ID]
+		target := progress.Target
+		if target <= 0 {
+			target = 10
+		}
+		title := localizedString(LocalizedText{
+			Ru: quest.TitleRu,
+			En: quest.TitleEn,
+			Hi: quest.TitleHi,
+		}, locale)
+		summary := QuestProgressSummary{
+			Code:        quest.Code,
+			Title:       title,
+			Current:     progress.Progress,
+			Target:      target,
+			Claimed:     progress.ClaimedAt != nil,
+			IsDaily:     quest.IsDaily,
+			RewardBonus: quest.RewardBonus,
+			RewardReal:  quest.RewardReal,
+			Status:      string(quest.Status),
+		}
+		if quest.IsDaily {
+			daily = append(daily, summary)
+			continue
+		}
+		weekly = append(weekly, summary)
+	}
+
+	return daily, weekly, nil
+}
+
+func (s *Service) buildRecentRewardsTx(tx *gorm.DB, userID uint) ([]RecentRewardView, error) {
+	var ledger []models.LilaBonusLedgerEntry
+	if err := tx.Where("user_id = ?", userID).Order("occurred_at desc").Limit(5).Find(&ledger).Error; err != nil {
+		return nil, err
+	}
+	rewards := make([]RecentRewardView, 0, len(ledger))
+	for _, entry := range ledger {
+		amount := entry.Amount
+		if amount < 0 {
+			amount = -amount
+		}
+		rewards = append(rewards, RecentRewardView{
+			Kind:      entry.ReferenceType,
+			Title:     entry.Reason,
+			Amount:    amount,
+			Currency:  entry.Currency,
+			AwardedAt: entry.OccurredAt,
+			Detail:    entry.ReferenceID,
+		})
+	}
+	return rewards, nil
+}
+
+func inferMatchPhase(now time.Time, match models.LilaMatch, currentRound *models.LilaRound, answeredUserIDs []uint, activePlayers int) (MatchPhase, *time.Time, *time.Time) {
+	switch match.Status {
+	case models.LilaMatchStatusFinished:
+		return MatchPhaseMatchFinished, match.FinishedAt, nil
+	case models.LilaMatchStatusLobby:
+		return MatchPhaseLobby, match.LobbyStartedAt, nil
+	}
+
+	if currentRound == nil {
+		return MatchPhaseQueue, match.StartedAt, nil
+	}
+	if currentRound.Status == models.LilaRoundStatusResolved {
+		return MatchPhaseRoundResolved, currentRound.ResolvedAt, nil
+	}
+
+	if currentRound.StartedAt != nil {
+		introEndsAt := currentRound.StartedAt.Add(2 * time.Second)
+		if now.Before(introEndsAt) {
+			return MatchPhaseRoundIntro, currentRound.StartedAt, &introEndsAt
+		}
+	}
+
+	if currentRound.Status == models.LilaRoundStatusRunning {
+		if currentRound.EndsAt != nil && activePlayers > 0 && len(answeredUserIDs) >= activePlayers {
+			return MatchPhaseAnswerLocked, currentRound.StartedAt, currentRound.EndsAt
+		}
+		return MatchPhaseQuestionOpen, currentRound.StartedAt, currentRound.EndsAt
+	}
+
+	return MatchPhaseQueue, match.StartedAt, nil
+}
+
+func buildRoundResolutionView(round *models.LilaRound) *RoundResolutionView {
+	if round == nil || round.Status != models.LilaRoundStatusResolved {
+		return nil
+	}
+
+	var correctOption struct {
+		CorrectOption string   `json:"correctOption"`
+		CorrectOrder  []string `json:"correctOrder"`
+	}
+	_ = json.Unmarshal([]byte(round.CorrectAnswerJSON), &correctOption)
+	correctAnswer := strings.TrimSpace(correctOption.CorrectOption)
+	if correctAnswer == "" && len(correctOption.CorrectOrder) > 0 {
+		correctAnswer = strings.Join(correctOption.CorrectOrder, " -> ")
+	}
+
+	return &RoundResolutionView{
+		CorrectAnswer: correctAnswer,
+		RoundOutcome:  "resolved",
+	}
 }
 
 func toPassProgressView(progress *models.LilaPassProgress, season *models.LilaPassSeason) *PassProgressView {
@@ -1662,14 +1836,22 @@ func (s *Service) GetMatchView(ctx context.Context, matchCode string, locale Loc
 				}
 			}
 		}
+		activePlayers := len(filterActivePlayers(players, scoreboardState.EliminatedUserIDs))
+		phase, phaseStartedAt, phaseEndsAt := inferMatchPhase(s.now(), match, currentRound, answeredUserIDs, activePlayers)
 		view = MatchView{
 			Match:             match,
 			Rounds:            rounds,
 			Players:           players,
 			QueueEntries:      queueEntries,
 			Locale:            locale,
+			Phase:             phase,
+			StateVersion:      match.LastEventSeq,
+			ServerTime:        s.now(),
+			PhaseStartedAt:    phaseStartedAt,
+			PhaseEndsAt:       phaseEndsAt,
 			CurrentRound:      currentRound,
 			CurrentQuestion:   currentQuestion,
+			Resolution:        buildRoundResolutionView(currentRound),
 			ReadyUserIDs:      readyUserIDs,
 			Scoreboard:        scoreboard,
 			EliminatedUserIDs: scoreboardState.EliminatedUserIDs,

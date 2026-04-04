@@ -1,3 +1,600 @@
+## 2026-04-04 (Lila pre-match shared mobile flow: queue and lobby now diverge by mode)
+
+### Измененные файлы
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/screens/portal/games/LilaLobbyScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - различие `duel / sabha / survival` начиналось в основном только на match/results;
+  - queue и lobby оставались почти одинаковыми по подаче и плохо объясняли, что именно ждёт игрока дальше.
+- Стало:
+  - `Queue` теперь показывает mode-specific promise card для каждого режима;
+  - `Lobby` теперь показывает mode-specific prep summary:
+    - `duel` как быстрый старт;
+    - `sabha` как командную синхронизацию;
+    - `survival` как подготовку к волне и отсеву.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/LilaQueueScreen.tsx`:
+```tsx
+if (mode === 'survival') {
+  return (
+    <LilaCard>
+      <Text style={styles.inlineTitle}>{t('portal.lila.queue.modeFocus.survivalTitle')}</Text>
+      <Text style={styles.inlineBody}>{t('portal.lila.queue.modeFocus.survivalBody')}</Text>
+    </LilaCard>
+  );
+}
+```
+
+`frontend/screens/portal/games/LilaLobbyScreen.tsx`:
+```tsx
+if (mode === 'sabha') {
+  return (
+    <LilaCard>
+      <Text style={styles.modeTitle}>{t('portal.lila.lobby.modePrep.sabhaTitle')}</Text>
+      <Text style={styles.modeBody}>{t('portal.lila.lobby.modePrep.sabhaBody')}</Text>
+    </LilaCard>
+  );
+}
+```
+
+## 2026-04-04 (Lila mode-specific shared mobile UI: sabha and survival no longer read like duel clones)
+
+### Измененные файлы
+- `frontend/screens/portal/games/LilaMatchScreen.tsx`
+- `frontend/screens/portal/games/LilaResultsScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `duel`, `sabha` и `survival` внутри mobile match/results в основном выглядели одинаково и различались главным образом title/labels;
+  - командный и survival-specific payoff считывался слабо.
+- Стало:
+  - `LilaMatchScreen` теперь рендерит mode-specific summary:
+    - `sabha` агрегирует команды по `teamKey` и показывает team score / ready / alive;
+    - `survival` показывает alive/eliminated pressure и wave indicator;
+    - `duel` подчёркивает tempo через lead delta;
+  - `LilaResultsScreen` тоже выводит разные итоговые summaries для `duel`, `sabha` и `survival`.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/LilaMatchScreen.tsx`:
+```tsx
+if (mode === 'sabha') {
+  return (
+    <LilaCard>
+      {sabhaTeams.map((team) => (
+        <View key={team.label} style={styles.teamSummaryCard}>
+          <LilaMetric label={t('portal.lila.match.teamScore')} value={String(team.score)} />
+        </View>
+      ))}
+    </LilaCard>
+  );
+}
+```
+
+`frontend/screens/portal/games/LilaResultsScreen.tsx`:
+```tsx
+if (mode === 'survival') {
+  return t('portal.lila.results.modeSummary.survivalBody', {
+    place: survivalStanding || scoreboard.length || 1,
+    total: scoreboard.length || 1,
+  });
+}
+```
+
+## 2026-04-04 (Lila shared mobile bootstrap cache: post-match screens now hydrate from a common client state)
+
+### Измененные файлы
+- `frontend/services/lilaGameService.ts`
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/screens/portal/games/LilaProfileScreen.tsx`
+- `frontend/screens/portal/games/LilaPassScreen.tsx`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/screens/portal/games/LilaResultsScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - после завершения матча каждый Lila screen заново грузил bootstrap с нуля и визуально зависел от ручного возврата/повторного открытия;
+  - между `Results`, `Home`, `Queue`, `Store` и `Pass` мог быть краткий разнобой по свежести progression state.
+- Стало:
+  - client-side `Lila` service держит locale-scoped cache последнего bootstrap и умеет его invalidation после write actions;
+  - results screen prime-ит свежий bootstrap в общий cache;
+  - home/queue/profile/pass/store стартуют из этого cache и затем делают forced refresh, поэтому shared mobile flow после матча выглядит заметно более цельным и быстрым.
+
+### Короткие сниппеты кода
+
+`frontend/services/lilaGameService.ts`:
+```ts
+const bootstrapCache = new Map<LilaLocale, LilaBootstrap>();
+
+export const getCachedLilaBootstrap = (localeInput?: string): LilaBootstrap | null =>
+  bootstrapCache.get(normalizeLocale(localeInput)) || null;
+
+export const invalidateLilaBootstrap = (localeInput?: string): void => {
+  if (localeInput) {
+    bootstrapCache.delete(normalizeLocale(localeInput));
+    return;
+  }
+  bootstrapCache.clear();
+};
+```
+
+`frontend/screens/portal/games/LilaResultsScreen.tsx`:
+```tsx
+const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+
+const [nextMatch, nextBootstrap] = await Promise.all([
+  getLilaMatch(matchCode, i18n.language),
+  getLilaBootstrap(i18n.language, { force: true }),
+]);
+
+primeLilaBootstrap(i18n.language, nextBootstrap);
+```
+
+## 2026-04-04 (Lila queue/store shared mobile follow-up: meta-loop extended beyond match screen)
+
+### Измененные файлы
+- `frontend/screens/portal/games/LilaQueueScreen.tsx`
+- `frontend/screens/portal/games/LilaStoreScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - `Queue` в основном показывал wait-time и siddhi chips, но почти не объяснял, зачем игроку идти в матч именно сейчас;
+  - `Store` был отдельной витриной без явной связи с текущим streak, наградами и progression loop.
+- Стало:
+  - `Queue` теперь показывает first-match guidance, phase rail `queue -> lobby -> battle -> rewards`, текущие quest targets и latest reward, чтобы переход в матч был привязан к ближайшему payoff;
+  - `Store` теперь показывает inventory/reward counters, latest reward summary, progression highlights и прямой переход в `Pass`, чтобы shared mobile economy читалась как часть одного цикла `match -> reward -> store/pass`.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/LilaQueueScreen.tsx`:
+```tsx
+<LilaSectionTitle title={t('portal.lila.queue.progressTitle')} subtitle={t('portal.lila.queue.progressSubtitle')} />
+<LilaCard>
+  {questHighlights.map((quest) => (
+    <View key={quest.code} style={styles.progressEntry}>
+      <Text style={styles.progressTitle}>{quest.title}</Text>
+      <LilaProgressBar progress={quest.current / Math.max(quest.target, 1)} accent={LILA_COLORS.lotus} />
+    </View>
+  ))}
+</LilaCard>
+```
+
+`frontend/screens/portal/games/LilaStoreScreen.tsx`:
+```tsx
+<View style={styles.metricsRow}>
+  <LilaMetric label={t('portal.lila.home.streakLabel')} value={String(bootstrap?.activeStreak || 0)} tone="light" />
+  <LilaMetric label={t('portal.lila.store.inventoryLabel')} value={String((bootstrap?.ownedItems || []).length)} tone="light" />
+  <LilaMetric label={t('portal.lila.store.recentRewardsLabel')} value={String((bootstrap?.recentRewards || []).length)} tone="light" />
+</View>
+```
+
+## 2026-04-04 (Lila shared mobile rework: websocket-first match runtime and phase-based UI)
+
+### Измененные файлы
+- `frontend/types/lila.ts`
+- `frontend/services/lilaGameService.ts`
+- `frontend/services/lilaRealtimeSession.ts`
+- `frontend/hooks/useLilaMatchSession.ts`
+- `frontend/screens/portal/games/LilaBattleOfSagesHomeScreen.tsx`
+- `frontend/screens/portal/games/LilaLobbyScreen.tsx`
+- `frontend/screens/portal/games/LilaMatchScreen.tsx`
+- `frontend/screens/portal/games/LilaResultsScreen.tsx`
+- `frontend/screens/portal/games/LilaProfileScreen.tsx`
+- `frontend/screens/portal/games/LilaPassScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+- `server/internal/games/lila/types.go`
+- `server/internal/games/lila/service.go`
+- `server/internal/games/lila/events.go`
+- `server/internal/handlers/lila_handler.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - mobile `Lila` в основном жила на HTTP polling, а экраны собирали состояние матча из разрозненных флагов;
+  - round loop ощущался как статичный список ответов без чётких phase transitions;
+  - home/results/profile/pass не получали связанный progression summary и требовали дополнительные догадки/refresh.
+- Стало:
+  - shared mobile runtime переведён в websocket-first с HTTP fallback/recovery;
+  - match UI нормализован вокруг фаз `queue -> lobby -> round_intro -> question_open -> answer_locked -> round_resolved -> match_finished`;
+  - bootstrap и match snapshot расширены authoritative полями `stateVersion`, `serverTime`, phase timing, `resolution`, `activeStreak`, quest progress и reward summary;
+  - home/results/profile/pass теперь показывают более связанный meta-loop для `XP/rank/quests/pass/rewards`, а onboarding и reconnect states локализованы для `ru/en/hi`.
+
+### Короткие сниппеты кода
+
+`frontend/hooks/useLilaMatchSession.ts`:
+```ts
+const nextState = applyLilaRealtimeEvent(current, parsedEvent);
+if (!nextState.needsRecovery) {
+  setState(nextState);
+  return;
+}
+
+const snapshot = await getLilaMatch(parsedEvent.matchCode);
+setState((prev) => ({
+  ...applyLilaRealtimeEvent(prev, {
+    type: 'game_match_snapshot',
+    matchCode: parsedEvent.matchCode,
+    serverTime: snapshot.match.serverTime,
+    stateVersion: snapshot.match.stateVersion,
+    match: snapshot.match,
+  }),
+  needsRecovery: false,
+}));
+```
+
+`server/internal/games/lila/types.go`:
+```go
+type MatchView struct {
+	Match       MatchStateView        `json:"match"`
+	Phase       MatchPhase            `json:"phase"`
+	StateVersion int                  `json:"stateVersion"`
+	ServerTime  time.Time             `json:"serverTime"`
+	PhaseStartedAt *time.Time         `json:"phaseStartedAt,omitempty"`
+	PhaseEndsAt  *time.Time           `json:"phaseEndsAt,omitempty"`
+	Resolution   *RoundResolutionView `json:"resolution,omitempty"`
+}
+```
+
+## 2026-04-03 (Kurukshetra 3D removal from shared mobile app)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/types/portal.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/games/index.ts`
+- `frontend/components/portal/portalIconShared.tsx`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Kurukshetra 3D был отдельным mobile game flow внутри portal `Games`, с собственным route stack, portal service id и runtime dependency `playcanvas`.
+- Стало:
+  - Kurukshetra 3D полностью удален из shared mobile app;
+  - сервис `kurukshetra_war` больше не существует в portal catalog, migration logic и launch routing;
+  - game stack и связанные runtime files удалены, dependency `playcanvas` исключена из frontend.
+
+### Короткие сниппеты кода
+
+`frontend/types/portal.ts`:
+```ts
+{
+  id: 'folder-games',
+  name: 'Игры',
+  color: '#7C3AED',
+  serviceIds: ['lila_battle_of_sages'],
+}
+```
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="LilaBattleOfSagesHome"
+  component={LilaBattleOfSagesHomeScreen}
+  options={{ headerShown: false, gestureEnabled: false, fullScreenGestureEnabled: false }}
+/>
+```
+
+## 2026-04-02 (Kurukshetra stack navigation: swipe-back disabled for game flow)
+
+### Измененные файлы
+- `frontend/App.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Kurukshetra screens жили в общем native stack без явного запрета gesture back;
+  - во время игры и переходов это создавало конфликт с пользовательским swipe, из-за чего можно было случайно выйти из game flow.
+- Стало:
+  - для всего Kurukshetra stack отключен `gestureEnabled`;
+  - выйти из игры теперь можно только через явные экранные кнопки, а не системным свайпом назад.
+
+### Короткие сниппеты кода
+
+`frontend/App.tsx`:
+```tsx
+<Stack.Screen
+  name="KurukshetraBattle"
+  component={KurukshetraBattleScreen}
+  options={{ headerShown: false, gestureEnabled: false }}
+/>
+```
+
+## 2026-04-02 (Kurukshetra first playable runtime slice: touch controls, enemy waves, and chapter clear)
+
+### Измененные файлы
+- `frontend/features/kurukshetra3d/runtimeHtml.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - embedded runtime рисовал атмосферную 3D-like сцену и HUD, но почти не давал реального gameplay;
+  - надписи про `Move / Camera / Action` были в основном декоративными, без настоящего touch combat loop.
+- Стало:
+  - runtime переведен в первый реально играбельный mobile slice прямо внутри WebView-hosted HTML runtime;
+  - добавлены virtual joystick, touch-кнопки `attack / dodge / guard / Krishna`, две-три волны врагов, локальные hp/focus/support бары, checkpoint sync и автоматический `chapterComplete` после зачистки;
+  - поведение остается автономным и не требует сети, что безопасно для shared mobile flow на iOS/Android.
+
+### Короткие сниппеты кода
+
+`frontend/features/kurukshetra3d/runtimeHtml.ts`:
+```ts
+function performAttack() {
+  if (heroId === 'bhima') {
+    damageEnemy(enemy, 18, dir.x * 18, dir.y * 14);
+    return;
+  }
+
+  projectiles.push({
+    x: player.x + aim.x * 16,
+    y: player.y + aim.y * 16,
+    vx: aim.x * 420,
+    vy: aim.y * 420,
+  });
+}
+```
+
+```ts
+safePost({
+  type: 'chapterComplete',
+  chapterId: chapter.id,
+  nextChapterId: chapters[chapter.order] ? chapters[chapter.order].id : undefined,
+  rewardIds: chapter.unlocks,
+});
+```
+
+## 2026-04-02 (Kurukshetra Android WebView stability: fixed runtime reload loop)
+
+### Измененные файлы
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - battle screen обновлял bootstrap/state после каждого runtime bridge event, из-за чего `react-native-webview` мог пересоздаваться;
+  - на Android это сопровождалось `tile memory limits exceeded`, прыгающим экраном и падением sandboxed WebView process.
+- Стало:
+  - runtime session фиксируется один раз при входе в battle screen и больше не пересоздается на каждом `progress/status`;
+  - bridge events продолжают писаться в storage, но не триггерят постоянный rerender battle host;
+  - на Android runtime quality принудительно опускается до `low` для снижения памяти.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`:
+```tsx
+setRuntimeSession({
+  chapterId: nextBootstrap.runtimeSaveState.currentChapterId,
+  levelId: nextBootstrap.runtimeSaveState.currentLevelId,
+  saveState: nextBootstrap.runtimeSaveState,
+  qualityTier: Platform.OS === 'android' ? 'low' : (nextBootstrap.save.qualityTier ?? 'mid'),
+});
+```
+
+```tsx
+const handleRuntimeEvent = React.useCallback(async (event: any) => {
+  await recordKurukshetraRuntimeBridgeEvent(event);
+  if (event.type === 'chapterComplete') {
+    navigation.replace('KurukshetraDharmaChoice', { chapter, choiceSetId: `chapter_${chapter}_alignment` });
+  }
+}, [chapter, navigation]);
+```
+
+## 2026-04-02 (Kurukshetra game-like direct launch flow)
+
+### Измененные файлы
+- `frontend/screens/portal/games/kurukshetra/KurukshetraHomeScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - на iOS/Android иконка Kurukshetra открывала насыщенный home/dashboard экран с выбором героя, картой глав и дополнительными карточками;
+  - перед реальным runtime пользователь делал лишние клики.
+- Стало:
+  - старт игры переведен в game-like flow: тап по иконке -> короткий loader -> сразу battle runtime;
+  - `KurukshetraHomeScreen` теперь выполняет роль автозапуска и fallback-retry, а не тяжелого меню;
+  - `KurukshetraBattleScreen` упрощен до почти full-screen runtime surface с минимальным верхним overlay.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraHomeScreen.tsx`:
+```tsx
+await startKurukshetraChapter(nextChapter.id, selectedHero);
+navigation.replace('KurukshetraBattle', { chapter: nextChapter.id, stage: 'runtime_host' });
+```
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`:
+```tsx
+<Kurukshetra3DRuntimeView
+  heroId={heroId}
+  saveState={bootstrap?.runtimeSaveState}
+  style={styles.runtimeView}
+/>
+```
+
+## 2026-04-02 (Kurukshetra loader simplification and WebView runtime boot optimization)
+
+### Измененные файлы
+- `frontend/screens/portal/games/kurukshetra/KurukshetraUi.tsx`
+- `frontend/features/kurukshetra3d/runtimeHtml.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - mobile Kurukshetra loader использовал тяжёлый анимированный ring/pulse UI в React Native shell;
+  - embedded WebView runtime держал искусственно длинную staged загрузку и повышенный canvas DPR, что на Android сопровождалось `Skipped frames` и `chromium ... tile memory limits exceeded`.
+- Стало:
+  - loader в shared mobile shell упрощен до привычной игровой схемы с одной горизонтальной полоской и процентом;
+  - WebView runtime boot ускорен: фазы загрузки короче, фейковый медленный progress loop убран;
+  - canvas DPR и плотность отрисовки в runtime снижены, чтобы уменьшить память и нагрузку на Android WebView.
+
+### Короткие сниппеты кода
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraUi.tsx`:
+```tsx
+const progressPercent = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+
+<View style={styles.loaderTrack}>
+  <View style={[styles.loaderFill, { width: `${progressPercent}%` }]} />
+</View>
+```
+
+`frontend/features/kurukshetra3d/runtimeHtml.ts`:
+```ts
+var dpr = Math.min(window.devicePixelRatio || 1, quality === 'high' ? 1.35 : quality === 'mid' ? 1.1 : 1);
+
+setTimeout(function () {
+  setProgress(0.42, 'Loading chapter manifest', 'Loading local chapter and level metadata', 'manifest');
+}, 90);
+```
+
+## 2026-04-02 (Kurukshetra campaign refresh: Arjuna feats, bow draw system, and dual Krishna battle modes)
+
+### Измененные файлы
+- `frontend/types/navigation.ts`
+- `frontend/types/kurukshetra.ts`
+- `frontend/services/kurukshetraGameService.ts`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraHomeScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraStoryScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraDharmaChoiceScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBossScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraProgressScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Kurukshetra mobile flow оставался ближе к MVP-демо: один базовый chariot combat slice, один набор choice/boss beats и минимальный набор боевых действий;
+  - сюжет был сосредоточен почти только на открытии Гиты и первом локальном столкновении;
+  - bow gameplay не различал уровни натяжения, режимы стрел и отдельные сценарии `с Кришной на колеснице / с Кришной без колесницы / без Кришны`.
+- Стало:
+  - shared mobile campaign переоформлена как `Arjuna: Divine Archer` с 6 подвигами Арджуны и многоуровневой chapter progression;
+  - на iOS/Android теперь есть отдельные chapter modes:
+    `chariot_with_krishna`, `ground_with_krishna`, `ground_trial`, `chariot_without_krishna`;
+  - battle loop получил draw tiers (`quick`, `steady`, `full`, `divine`), cycle по стрелам (`standard`, `piercing`, `fire`, `vajra`, `serpent`, `pashupata`), divine charge, combo и `Krishna guidance`;
+  - локальный boss route расширен до `Bhishma`, `Rudra`, `Jayadratha`, `Karna`, а progress screen показывает не только главы, но и освоенные подвиги/стрелы.
+
+### Короткие сниппеты кода
+
+`frontend/types/kurukshetra.ts`:
+```ts
+export type KurukshetraBattleMode =
+  | 'chariot_with_krishna'
+  | 'ground_with_krishna'
+  | 'ground_trial'
+  | 'chariot_without_krishna';
+
+export type KurukshetraArrowType =
+  | 'standard'
+  | 'piercing'
+  | 'fire'
+  | 'vajra'
+  | 'serpent'
+  | 'pashupata';
+```
+
+`frontend/services/kurukshetraGameService.ts`:
+```ts
+const STORAGE_KEY = 'kurukshetra_war_save_v2';
+
+const CHAPTER_DEFINITIONS: ChapterDefinition[] = [
+  { id: 1, boss: 'bhishma', battleMode: 'chariot_with_krishna', levelCount: 3, featReward: 'gita_dawn' },
+  { id: 2, battleMode: 'ground_with_krishna', levelCount: 3, featReward: 'khandava_alliance' },
+  { id: 3, boss: 'rudra', battleMode: 'ground_trial', levelCount: 3, featReward: 'pashupata_vow' },
+];
+```
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`:
+```tsx
+<KurukshetraActionButton label={t('portal.kurukshetra.battle.actions.quickShot')} onPress={() => executeAction('quick_shot')} />
+<KurukshetraActionButton label={t('portal.kurukshetra.battle.actions.fullDraw')} onPress={() => executeAction('full_draw')} />
+<KurukshetraActionButton label={t('portal.kurukshetra.battle.actions.krishnaGuidance')} onPress={() => executeAction('krishna_guidance')} />
+```
+
+## 2026-04-02 (Shared mobile portal games: Kurukshetra War module and dual-game folder)
+
+### Измененные файлы
+- `frontend/App.tsx`
+- `frontend/types/navigation.ts`
+- `frontend/types/portal.ts`
+- `frontend/context/PortalLayoutContext.tsx`
+- `frontend/screens/portal/PortalMainScreen.tsx`
+- `frontend/screens/portal/serviceLaunchResolver.ts`
+- `frontend/screens/portal/games/index.ts`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraHomeScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraStoryScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraDharmaChoiceScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBossScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraProgressScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraUi.tsx`
+- `frontend/services/kurukshetraGameService.ts`
+- `frontend/types/kurukshetra.ts`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в mobile portal папка `Games` была фактически завязана на один сервис `lila_battle_of_sages`;
+  - migration логика могла перезаписать содержимое `folder-games` одним элементом;
+  - отдельного мобильного gameplay flow для Kurukshetra не существовало.
+- Стало:
+  - в portal появился второй games-service `kurukshetra_war` с собственным route stack;
+  - `folder-games` теперь canonical хранит обе игры: `Lila` и `Kurukshetra`;
+  - на iOS/Android добавлен новый локальный игровой flow:
+    `KurukshetraHome -> Story -> Battle -> DharmaChoice -> Boss -> Progress`;
+  - gameplay state сохраняется локально через `AsyncStorage`, поэтому progress переживает cold restart приложения.
+
+### Короткие сниппеты кода
+
+`frontend/types/navigation.ts`:
+```ts
+KurukshetraHome: undefined;
+KurukshetraStory: { chapter: number };
+KurukshetraBattle: { chapter: number; stage: string };
+KurukshetraDharmaChoice: { chapter: number; choiceSetId: string };
+KurukshetraBoss: { boss: 'bhishma' | 'drona' | 'karna'; chapter: number };
+KurukshetraProgress: undefined;
+```
+
+`frontend/types/portal.ts`:
+```ts
+{
+  id: 'folder-games',
+  name: 'Игры',
+  color: '#7C3AED',
+  serviceIds: ['lila_battle_of_sages', 'kurukshetra_war'],
+}
+```
+
+`frontend/services/kurukshetraGameService.ts`:
+```ts
+const STORAGE_KEY = 'kurukshetra_war_save_v1';
+
+export const startKurukshetraChapter = async (chapter: number) => {
+  const save = cloneSave(await loadKurukshetraSave());
+  save.unlockedChapter = Math.max(save.unlockedChapter, chapter);
+  save.currentBattle = save.currentBattle ?? createInitialBattle(chapter);
+  return persistKurukshetraSave(save);
+};
+```
+
 ## 2026-03-31 (Shared mobile chat reliability: direct history resync and support push fan-out)
 
 ### Измененные файлы
@@ -19108,4 +19705,177 @@ export type EkadashiDay = {
   canonicalSlug?: string;
   sourceConfidence?: number;
 };
+```
+
+## 2026-04-02 (Kurukshetra 3D runtime shell inside shared mobile app)
+
+### Измененные файлы
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/features/kurukshetra3d/Kurukshetra3DRuntimeView.tsx`
+- `frontend/features/kurukshetra3d/bridge.ts`
+- `frontend/features/kurukshetra3d/content.ts`
+- `frontend/features/kurukshetra3d/runtimeHtml.ts`
+- `frontend/features/kurukshetra3d/types.ts`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraHomeScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraStoryScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraDharmaChoiceScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraBossScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraProgressScreen.tsx`
+- `frontend/screens/portal/games/kurukshetra/KurukshetraContent.ts`
+- `frontend/services/kurukshetraGameService.ts`
+- `frontend/types/kurukshetra.ts`
+
+### Суть правки (от старого к новому)
+- Было:
+  - `Kurukshetra` в mobile app был набором локальных экранов с button/quiz-like flow и без реального runtime host;
+  - chapter state хранился как `kurukshetra_war_save_v2` и не знал о runtime boot, bridge events, checkpoint sync и hero selection между `Arjuna`/`Bhima`;
+  - shared mobile behavior не имел отдельного full-screen runtime surface для 3D gameplay.
+- Стало:
+  - внутри существующего iOS/Android mobile app появился локальный `3D runtime shell` на базе `react-native-webview` с bridge-командами `boot/pause/resume/setCheckpoint/completeChapter`;
+  - Kurukshetra save/storage переведен на `kurukshetra_runtime_save_v3` с runtime checkpoint, bridge log, selected hero, quality tier и accessibility flags;
+  - mobile shell теперь разделяет launcher, loader, runtime host, dharma/codex и progress surfaces, а Krishna закреплён как companion/system layer во всех chapter transitions.
+
+### Сниппеты кода
+
+`frontend/screens/portal/games/kurukshetra/KurukshetraBattleScreen.tsx`:
+```tsx
+<Kurukshetra3DRuntimeView
+  ref={runtimeRef}
+  locale={locale}
+  chapterId={bootstrap?.runtimeSaveState.currentChapterId ?? 'prologue'}
+  heroId={heroId}
+  saveState={bootstrap?.runtimeSaveState}
+  onEvent={(event) => {
+    handleRuntimeEvent(event).catch((error) => {
+      console.warn('[KurukshetraBattle] runtime event failed:', error);
+    });
+  }}
+/>
+```
+
+`frontend/services/kurukshetraGameService.ts`:
+```ts
+const STORAGE_KEY = 'kurukshetra_runtime_save_v3';
+
+export const buildKurukshetraRuntimeBootConfig = async (
+  chapter: number,
+  locale: Kurukshetra3dBootConfig['locale'],
+): Promise<Kurukshetra3dBootConfig> => {
+  const save = await loadKurukshetraSave();
+  // ...
+};
+```
+
+`frontend/features/kurukshetra3d/bridge.ts`:
+```ts
+export const KURUKSHETRA3D_SUPPORTED_COMMANDS: Kurukshetra3dHostCommand['type'][] = [
+  'boot',
+  'pause',
+  'resume',
+  'setChapter',
+  'setCheckpoint',
+  'input',
+  'completeChapter',
+  'syncState',
+  'ping',
+];
+```
+
+## 2026-04-02 (Kurukshetra first playable runtime slice with touch controls)
+
+### Измененные файлы
+- `frontend/features/kurukshetra3d/runtimeHtml.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - embedded runtime показывал только 3D/2D атмосферную сцену, loader и HUD-подсказки;
+  - пользователь видел battlefield screen, но не мог реально двигаться, атаковать, уклоняться или завершить главу.
+- Стало:
+  - внутри shared mobile WebView runtime появился первый реально играбельный loop:
+    virtual joystick, `Attack`, `Dodge`, `Guard`, `Astra`, враги, локальный урон, checkpoints и `chapterComplete`;
+  - bridge продолжает работать с RN host без внешней сети: runtime шлет `progress`, `checkpoint`, `status`, `telemetry`, `chapterComplete`;
+  - mobile behavior стал ближе к обычной игре: загрузка -> бой -> победа -> переход дальше.
+
+### Короткие сниппеты кода
+
+`frontend/features/kurukshetra3d/runtimeHtml.ts`:
+```ts
+function attack() {
+  if (paused || !ready || game.hero.attackCooldown > 0) {
+    return;
+  }
+  game.hero.attackCooldown = game.hero.id === 'bhima' ? 0.42 : 0.28;
+  // ...
+}
+```
+
+```ts
+function bindJoystick() {
+  joystick.addEventListener('pointerdown', function (event) {
+    joystickPointerId = event.pointerId;
+    joystick.setPointerCapture(event.pointerId);
+    updateJoystick(event.clientX, event.clientY);
+  });
+}
+```
+
+```ts
+function completeChapter() {
+  safePost({
+    type: 'chapterComplete',
+    chapterId: chapter.id,
+    nextChapterId: chapters[chapter.order] ? chapters[chapter.order].id : undefined,
+    rewardIds: chapter.unlocks,
+  });
+}
+```
+
+## 2026-04-04 (Vedic calendar: 2026 curated observance date overrides + runtime replacement)
+
+### Измененные файлы
+- `server/internal/services/ekadashi_autonomous_data.go`
+- `server/internal/services/ekadashi_import_service.go`
+- `server/internal/services/ekadashi_service.go`
+- `server/internal/services/ekadashi_service_test.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - shared calendar backend держал curated `appearance/disappearance` даты как условно фиксированные `month/day`;
+  - из-за этого часть saint observances в `2026` попадала в неверные месяцы;
+  - старые опубликованные месяцы продолжали отдавать устаревшие curated даты до ручного реимпорта.
+- Стало:
+  - для подтвержденных `2026` observances добавлены year-specific overrides по источникам `drikpanchang`, `scsmath`, `gosai`;
+  - `buildCommemorativeEvents` выбирает curated правила по effective date override для конкретного года;
+  - `LoadPublishedMonth` runtime-подмешивает свежий curated слой и заменяет устаревшие curated записи той же observance, поэтому mobile iOS/RN calendar screen получает исправленные даты сразу, без обязательного переимпорта всех publication.
+
+### Короткие сниппеты кода
+
+`server/internal/services/ekadashi_autonomous_data.go`:
+```go
+var autonomousCalendarProfileRuleDateOverrides = []autonomousProfileRuleDateOverride{
+	{OrganizationID: "iskcon", ObservanceSlug: "bhaktisiddhanta-sarasvati-appearance", Year: 2026, Month: 2, Day: 6},
+	{OrganizationID: "iskcon", ObservanceSlug: "gaura-purnima", Year: 2026, Month: 3, Day: 3},
+	{OrganizationID: "sri_chaitanya_math", ObservanceSlug: "gaura-kishora-dasa-babaji-disappearance", Year: 2026, Month: 11, Day: 20},
+}
+```
+
+```go
+effectiveMonth, effectiveDay := resolveAutonomousProfileRuleDate(
+	rule.OrganizationID,
+	rule.ObservanceSlug,
+	year,
+	rule.Month,
+	rule.Day,
+)
+```
+
+`server/internal/services/ekadashi_import_service.go`:
+```go
+runtimeCurated := (&EkadashiService{db: s.db, nowFunc: s.nowFunc}).buildCommemorativeEvents(monthStart, locData, org)
+if len(runtimeCurated) > 0 {
+	hasCurated = true
+	events = mergeRuntimeCuratedCalendarEvents(events, runtimeCurated)
+}
 ```

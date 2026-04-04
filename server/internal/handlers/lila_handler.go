@@ -103,6 +103,24 @@ func (h *LilaHandler) emitLilaEvent(event lilagame.Event, targetUserIDs ...uint)
 	h.hub.BroadcastWS(event.WithTargets(targetUserIDs...))
 }
 
+func (h *LilaHandler) emitLilaSnapshot(view *lilagame.MatchView, targetUserIDs ...uint) {
+	if view == nil {
+		return
+	}
+	h.emitLilaEvent(
+		lilagame.NewEvent(
+			lilagame.EventMatchSnapshot,
+			view.Match.Code,
+			0,
+			view.Match.CurrentRound,
+			buildLilaRealtimePayload(view, nil),
+			view.ServerTime,
+			view.StateVersion,
+		),
+		targetUserIDs...,
+	)
+}
+
 func (h *LilaHandler) emitLilaMatchEvent(eventType lilagame.EventType, userID uint, round int, view *lilagame.MatchView, extra map[string]interface{}, targetUserIDs ...uint) {
 	if view == nil {
 		return
@@ -114,10 +132,14 @@ func (h *LilaHandler) emitLilaMatchEvent(eventType lilagame.EventType, userID ui
 			userID,
 			round,
 			buildLilaRealtimePayload(view, extra),
-			time.Now(),
+			view.ServerTime,
+			view.StateVersion,
 		),
 		targetUserIDs...,
 	)
+	if eventType != lilagame.EventMatchSnapshot {
+		h.emitLilaSnapshot(view, targetUserIDs...)
+	}
 }
 
 func parseLilaLocale(raw string) lilagame.Locale {
@@ -224,18 +246,19 @@ func (h *LilaHandler) JoinQueue(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventQueueJoined, "", userID, 0, map[string]interface{}{"mode": req.Mode}, time.Now()),
+		lilagame.NewEvent(lilagame.EventQueueJoined, "", userID, 0, map[string]interface{}{"mode": req.Mode}, time.Now(), 0),
 		userID,
 	)
 	if match != nil {
 		if view, viewErr := h.getLilaMatchView(c.UserContext(), match.Code, locale); viewErr == nil && view != nil {
+			h.emitLilaMatchEvent(lilagame.EventMatchStateChanged, userID, 0, view, map[string]interface{}{"mode": req.Mode}, view.Players...)
 			h.emitLilaMatchEvent(lilagame.EventQueueJoined, userID, 0, view, map[string]interface{}{"mode": req.Mode}, view.Players...)
 		}
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"queueEntry": entry,
 		"match":      match,
-		"event":      lilagame.NewEvent(lilagame.EventQueueJoined, "", userID, 0, map[string]interface{}{"mode": req.Mode}, time.Now()),
+		"event":      lilagame.NewEvent(lilagame.EventQueueJoined, "", userID, 0, map[string]interface{}{"mode": req.Mode}, time.Now(), 0),
 	})
 }
 
@@ -249,12 +272,12 @@ func (h *LilaHandler) LeaveQueue(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventQueueLeft, "", userID, 0, map[string]interface{}{"mode": mode}, time.Now()),
+		lilagame.NewEvent(lilagame.EventQueueLeft, "", userID, 0, map[string]interface{}{"mode": mode}, time.Now(), 0),
 		userID,
 	)
 	return c.JSON(fiber.Map{
 		"ok":    true,
-		"event": lilagame.NewEvent(lilagame.EventQueueLeft, "", userID, 0, map[string]interface{}{"mode": mode}, time.Now()),
+		"event": lilagame.NewEvent(lilagame.EventQueueLeft, "", userID, 0, map[string]interface{}{"mode": mode}, time.Now(), 0),
 	})
 }
 
@@ -266,6 +289,7 @@ func (h *LilaHandler) ReadyLobby(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	if view, viewErr := h.getLilaMatchView(c.UserContext(), match.Code, locale); viewErr == nil && view != nil {
+		h.emitLilaMatchEvent(lilagame.EventMatchStateChanged, userID, view.Match.CurrentRound, view, map[string]interface{}{"readyUserId": userID}, view.Players...)
 		h.emitLilaMatchEvent(lilagame.EventLobbyReady, userID, view.Match.CurrentRound, view, map[string]interface{}{"readyUserId": userID}, view.Players...)
 		if view.Match.Status == models.LilaMatchStatusActive {
 			h.emitLilaMatchEvent(lilagame.EventLobbyStarted, userID, view.Match.CurrentRound, view, nil, view.Players...)
@@ -276,7 +300,7 @@ func (h *LilaHandler) ReadyLobby(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{
 		"match": match,
-		"event": lilagame.NewEvent(lilagame.EventLobbyReady, match.Code, userID, 0, nil, time.Now()),
+		"event": lilagame.NewEvent(lilagame.EventLobbyReady, match.Code, userID, 0, nil, time.Now(), 0),
 	})
 }
 
@@ -318,12 +342,14 @@ func (h *LilaHandler) SubmitAnswer(c *fiber.Ctx) error {
 						*view.Match.WinnerUserID,
 						req.RoundNumber,
 						buildLilaRealtimePayload(view, map[string]interface{}{"winnerUserId": *view.Match.WinnerUserID}),
-						time.Now(),
+						view.ServerTime,
+						view.StateVersion,
 					),
 					*view.Match.WinnerUserID,
 				)
 			}
 		} else if view.CurrentRound == nil || view.CurrentRound.Number != req.RoundNumber || view.CurrentRound.Status != models.LilaRoundStatusRunning {
+			h.emitLilaMatchEvent(lilagame.EventMatchStateChanged, userID, req.RoundNumber, view, nil, view.Players...)
 			h.emitLilaMatchEvent(lilagame.EventRoundResolved, userID, req.RoundNumber, view, nil, view.Players...)
 			if view.CurrentRound != nil && view.CurrentRound.Status == models.LilaRoundStatusRunning {
 				h.emitLilaMatchEvent(lilagame.EventRoundStarted, userID, view.CurrentRound.Number, view, nil, view.Players...)
@@ -332,7 +358,7 @@ func (h *LilaHandler) SubmitAnswer(c *fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"answer": answer,
-		"event":  lilagame.NewEvent(lilagame.EventAnswerAccepted, req.MatchCode, userID, req.RoundNumber, map[string]interface{}{"correct": answer.IsCorrect}, time.Now()),
+		"event":  lilagame.NewEvent(lilagame.EventAnswerAccepted, req.MatchCode, userID, req.RoundNumber, map[string]interface{}{"correct": answer.IsCorrect}, time.Now(), 0),
 	})
 }
 
@@ -356,7 +382,7 @@ func (h *LilaHandler) UseSiddhi(c *fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"usage": usage,
-		"event": lilagame.NewEvent(lilagame.EventSiddhiUsed, req.MatchCode, userID, req.RoundNumber, map[string]interface{}{"type": req.Type}, time.Now()),
+		"event": lilagame.NewEvent(lilagame.EventSiddhiUsed, req.MatchCode, userID, req.RoundNumber, map[string]interface{}{"type": req.Type}, time.Now(), 0),
 	})
 }
 
@@ -379,12 +405,12 @@ func (h *LilaHandler) PurchaseStoreItem(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"purchaseId": purchase.ID}, time.Now()),
+		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"purchaseId": purchase.ID}, time.Now(), 0),
 		userID,
 	)
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"purchase": purchase,
-		"event":    lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"purchaseId": purchase.ID}, time.Now()),
+		"event":    lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"purchaseId": purchase.ID}, time.Now(), 0),
 	})
 }
 
@@ -399,7 +425,7 @@ func (h *LilaHandler) SendGift(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"giftId": gift.ID, "toUserId": gift.ToUserID}, time.Now()),
+		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"giftId": gift.ID, "toUserId": gift.ToUserID}, time.Now(), 0),
 		userID,
 		gift.ToUserID,
 	)
@@ -417,7 +443,7 @@ func (h *LilaHandler) ClaimPassReward(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"seasonCode": req.SeasonCode, "premium": req.Premium}, time.Now()),
+		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"seasonCode": req.SeasonCode, "premium": req.Premium}, time.Now(), 0),
 		userID,
 	)
 	return c.JSON(fiber.Map{"progress": progress})
@@ -434,7 +460,7 @@ func (h *LilaHandler) ActivateSubscription(c *fiber.Ctx) error {
 		return respondLilaError(c, err)
 	}
 	h.emitLilaEvent(
-		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"packageCode": req.PackageCode}, time.Now()),
+		lilagame.NewEvent(lilagame.EventRewardGranted, "", userID, 0, map[string]interface{}{"packageCode": req.PackageCode}, time.Now(), 0),
 		userID,
 	)
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"subscription": subscription})

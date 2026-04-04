@@ -2329,6 +2329,16 @@ export default {
                 "subtitle": "मोबाइल पोर्टल के भीतर पवित्र एरीना, तेज क्विज़ और RPG प्रगति।",
                 "rankSummary": "MVP प्रोफ़ाइल में रैंक, कर्म, बोनस बैलेंस, पवित्र स्थानों की प्रगति और दैनिक क्वेस्ट पहले से शामिल हैं।",
                 "rankProgress": "अगली वर्ण तक प्रगति",
+                "streakLabel": "स्ट्रीक",
+                "playNowTitle": "अभी खेलें",
+                "recommendedMode": "सुझाया गया मोड: {{mode}}",
+                "firstMatchBody": "पहले सत्र में हम खिलाड़ी को सबसे तेज मोड में भेजते हैं ताकि गेम धीमे क्विज़ जैसा नहीं बल्कि जीवित एरीना जैसा लगे।",
+                "onboardingTitle": "पहला मैच कैसे चलता है",
+                "onboardingBody": "पहली लीला कुछ सेकंड में समझ आनी चाहिए। एरीना में जाने से पहले पूरा प्रवाह यहाँ है।",
+                "onboardingStep1": "1. कतार में जाएँ और लॉबी में readiness confirm करें।",
+                "onboardingStep2": "2. हर राउंड countdown, answer-open और answer-lock चरणों से गुजरता है।",
+                "onboardingStep3": "3. resolve के बाद सही उत्तर, score swing और progression update दिखते हैं।",
+                "latestRewardTitle": "ताज़ा इनाम",
                 "journeyTitle": "पवित्र यात्रा",
                 "journeySubtitle": "रेटिंग और ज्ञान बढ़ने पर नए एरीना खुलते हैं।",
                 "activeJourney": "खुले तीर्थ",
@@ -2352,6 +2362,23 @@ export default {
                 "rewardLine": "जीतने पर मूल इनाम: +{{amount}} बोनस लक्ष्मणि।",
                 "loadoutTitle": "सिद्धि लोडआउट",
                 "loadoutSubtitle": "हर मैच में एक विशेष शक्ति एक बार सक्रिय की जा सकती है।",
+                "firstMatchHint": "पहला मैच बिना रुकावट शुरू होना चाहिए: कतार, छोटा लॉबी, लाइव राउंड और खत्म होते ही साफ प्रगति।",
+                "phaseSearching": "सर्वर मोड और कतार स्थिति के अनुसार उपयुक्त मैच खोज रहा है।",
+                "phaseLobby": "मैचमेकिंग के बाद खिलाड़ी readiness confirm करके लॉबी में जाते हैं।",
+                "phaseBattle": "मैच question phase और authoritative answer timer खोलता है।",
+                "phaseRewards": "मैच खत्म होते ही XP, इनाम और क्वेस्ट प्रगति तुरंत जुड़ती है।",
+                "progressTitle": "अभी कतार में क्यों जाएँ",
+                "progressSubtitle": "कतार अब daily, weekly और reward momentum से जुड़ी है।",
+                "progressEmpty": "जैसे ही सक्रिय लक्ष्य मिलेंगे, यहाँ दिखेगा कि अगला कौन-सा मैच खेलना सबसे सही है।",
+                "latestRewardLine": "ताज़ा इनाम: {{reward}} · {{amount}} {{currency}}",
+                "modeFocus": {
+                    "duelTitle": "द्वंद्व क्या वादा करता है",
+                    "duelBody": "द्वंद्व तेजी से शुरू होना चाहिए: छोटी कतार, कम शोर और सीधे pressure round में प्रवेश।",
+                    "sabhaTitle": "सभा क्या वादा करती है",
+                    "sabhaBody": "सभा तब बेहतर लगती है जब खिलाड़ी पहले से टीम लॉबी, सलाह और संयुक्त सम्प्रदाय योगदान की अपेक्षा करे।",
+                    "survivalTitle": "सर्वाइवल क्या वादा करता है",
+                    "survivalBody": "सर्वाइवल को wave-based endurance की तरह महसूस होना चाहिए: सिर्फ एक सही उत्तर नहीं, बल्कि बाकी सब से ज़्यादा देर तक टिकना।"
+                },
                 "queueState": "कतार स्थिति: {{status}}",
                 "statuses": {
                     "waiting": "प्रतिद्वंद्वियों की प्रतीक्षा",
@@ -2367,13 +2394,22 @@ export default {
                 "title": "एरीना लॉबी",
                 "subtitle": "शुरुआत से पहले टीम तैयार होने की पुष्टि करती है और शुरुआती योजना तय करती है।",
                 "readyCheck": "रेडी चेक",
+                "connectionHint": "जब websocket ठीक चलता है, लॉबी अपडेट और मैच स्टार्ट बिना manual refresh के आते हैं।",
                 "teamPanels": "सम्प्रदाय और रोस्टर",
                 "consultWindow": "सभा मोड में टीम चैट में 10-सेकंड सलाह विंडो मिलती है।",
                 "sampradaya_sun": "सूर्य सम्प्रदाय",
                 "sampradaya_moon": "चन्द्र सम्प्रदाय",
                 "consultBadge": "सलाह 10s",
                 "consultHint": "कठिन प्रश्न से पहले टीम उत्तर मिलाने के लिए एक छोटी चैट विंडो पाती है।",
-                "instantHint": "इस मोड में सलाह चरण नहीं है: ready के बाद मैच तुरंत शुरू होता है।"
+                "instantHint": "इस मोड में सलाह चरण नहीं है: ready के बाद मैच तुरंत शुरू होता है।",
+                "modePrep": {
+                    "duelTitle": "द्वंद्व की शुरुआत",
+                    "duelBody": "यह flow तेज होना चाहिए: ready check, छोटी pause, फिर सीधे पहला pressure round।",
+                    "sabhaTitle": "सभा की तैयारी",
+                    "sabhaBody": "सभा लॉबी को साफ दिखाना चाहिए कि round शुरू होने से पहले team readiness और sampradaya coordination मायने रखते हैं।",
+                    "survivalTitle": "सर्वाइवल की तैयारी",
+                    "survivalBody": "सर्वाइवल शुरू होने से पहले खिलाड़ी को साफ दिखना चाहिए कि कितने प्रतिभागी अभी भी बचे हैं और कितने पहली wave के लिए तैयार हैं।"
+                }
             },
             "match": {
                 "title": "ऋषि राउंड",
@@ -2384,7 +2420,32 @@ export default {
                 "questionTitle": "राउंड प्रश्न",
                 "questionSubtitle": "मोबाइल MVP के लिए लाइव मैच की एक स्क्रीन स्थिति।",
                 "scoreboardTitle": "सिद्धि दबाव",
-                "siddhiPanel": "सक्रिय सिद्धियाँ"
+                "siddhiPanel": "सक्रिय सिद्धियाँ",
+                "serverClock": "सर्वर समय: {{value}}",
+                "waitingQuestion": "सर्वर अगला प्रश्न तैयार कर रहा है और सभी खिलाड़ियों को sync कर रहा है।",
+                "phaseIntroTitle": "राउंड शुरू हो रहा है",
+                "phaseIntroBody": "छोटा युद्ध-गणना। प्रश्न {{count}}s में खुलेगा।",
+                "phaseResolvedTitle": "राउंड निष्कर्ष",
+                "correctAnswer": "सही उत्तर: {{answer}}",
+                "answerLockedTitle": "उत्तर लॉक हो गया",
+                "answerLockedBody": "आपका उत्तर सर्वर पर भेज दिया गया है: {{answer}}",
+                "answerLockedWaiting": "उत्तर स्वीकार हो गया। authoritative resolve विंडो बंद होने की प्रतीक्षा है।",
+                "waitingResolve": "राउंड resolve की प्रतीक्षा",
+                "teamScore": "टीम स्कोर",
+                "teamReady": "तैयार",
+                "teamAlive": "बचे हुए",
+                "eliminationCount": "बाहर हुए",
+                "pressureLevel": "वेव",
+                "leadDelta": "अंतर",
+                "teamFallback": "टीम",
+                "modeFocus": {
+                    "duelTitle": "द्वंद्व की गति",
+                    "duelBody": "द्वंद्व में गति सबसे अहम है: छोटा बढ़त भी एक राउंड की धीमी प्रतिक्रिया से तुरंत खो सकती है।",
+                    "sabhaTitle": "टीम समन्वय",
+                    "sabhaBody": "सभा में सिर्फ आपका उत्तर नहीं, पूरी सम्प्रदाय का संयुक्त योगदान मायने रखता है।",
+                    "survivalTitle": "सर्वाइवल दबाव",
+                    "survivalBody": "सर्वाइवल में लक्ष्य अधिक समय तक टिके रहना है, क्योंकि हर नए राउंड में दबाव बढ़ता है।"
+                }
             },
             "matchPreview": {
                 "question": "यह वचन किसने कहा: \"मैं समय हूँ, लोकों का महाविनाशक\"?",
@@ -2402,7 +2463,33 @@ export default {
                 "karmaDelta": "कर्म",
                 "punnyaEarned": "पुण्य",
                 "bonusEarned": "बोनस",
-                "rankProgress": "रैंक प्रगति"
+                "rankProgress": "रैंक प्रगति",
+                "recentRewardTitle": "नया इनाम",
+                "progressTitle": "मैच के बाद प्रगति",
+                "progressSubtitle": "दैनिक लक्ष्य, साप्ताहिक लक्ष्य और पास प्रगति मैच खत्म होते ही अपडेट हो जाती है।",
+                "modeSummary": {
+                    "duelTitle": "द्वंद्व परिणाम",
+                    "duelBody": "द्वंद्व {{delta}} अंकों के अंतर से खत्म हुआ। इस मोड में यही गति का मुख्य संकेत है।",
+                    "sabhaTitle": "सभा परिणाम",
+                    "sabhaBody": "सम्प्रदाय {{team}} ने कुल {{score}} अंकों के संयुक्त योगदान के साथ मैच समाप्त किया।",
+                    "survivalTitle": "सर्वाइवल परिणाम",
+                    "survivalBody": "आप {{total}} में से {{place}} स्थान पर समाप्त हुए। सर्वाइवल में यह एकल राउंड स्कोर से अधिक महत्वपूर्ण है।"
+                }
+            },
+            "phases": {
+                "queue": "कतार",
+                "lobby": "लॉबी",
+                "round_intro": "काउंटडाउन",
+                "question_open": "उत्तर खुला",
+                "answer_locked": "उत्तर लॉक",
+                "round_resolved": "निष्कर्ष",
+                "match_finished": "मैच समाप्त"
+            },
+            "realtime": {
+                "connecting": "realtime जुड़ रहा है",
+                "live": "Realtime सक्रिय",
+                "reconnecting": "फिर से जुड़ रहा है",
+                "fallbackPolling": "Fallback: polling"
             },
             "profile": {
                 "title": "ऋषि प्रोफ़ाइल",
@@ -2463,6 +2550,14 @@ export default {
                     "stored": "सहेजा गया",
                     "expired": "समाप्त"
                 },
+                "inventoryLabel": "इन्वेंटरी",
+                "recentRewardsLabel": "इनाम",
+                "recentRewardTitle": "ताज़ा प्राप्ति",
+                "recentRewardBadge": "Live loop",
+                "recentRewardLine": "पिछले मैच से {{amount}} {{currency}}",
+                "progressTitle": "जुड़ी हुई प्रगति",
+                "progressSubtitle": "स्टोर की खरीद तभी सार्थक है जब वह मैच, क्वेस्ट और पास से जुड़ी रहे।",
+                "progressEmpty": "यहाँ अगली क्वेस्ट और सीज़न प्रगति देखने के लिए एक मैच खेलें।",
                 "walletHint": "रियल खरीद के लिए ऐप का साझा वॉलेट उपयोग होता है, जबकि बोनस मुद्रा गेम डोमेन के भीतर अलग रहती है।"
             },
             "pass": {
@@ -2541,6 +2636,8 @@ export default {
                 "pass": "पास खोलें",
                 "join": "कतार में शामिल हों",
                 "inQueue": "कतार में",
+                "playNow": "अभी खेलें",
+                "resumeQueue": "कतार पर लौटें",
                 "ready": "तैयारी की पुष्टि करें",
                 "backHome": "होम पर लौटें",
                 "exit": "बाहर निकलें",

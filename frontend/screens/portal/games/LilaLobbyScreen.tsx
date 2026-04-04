@@ -2,19 +2,31 @@ import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { MessageCircleMore, ShieldCheck, Users } from 'lucide-react-native';
+import { MessageCircleMore, ShieldCheck, Users, Wifi, WifiOff } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { useLilaMatchSession } from '../../../hooks/useLilaMatchSession';
 import { getLilaMatch, readyLilaLobby } from '../../../services/lilaGameService';
-import type { LilaMatchSnapshot } from '../../../types/lila';
+import type { LilaRealtimeConnectionState } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
-import { LILA_COLORS, LilaCard, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
+import { LILA_COLORS, LilaCard, LilaMetric, LilaPill, LilaPrimaryButton, LilaProgressBar, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LilaLobby'>;
+
+const getConnectionMeta = (state: LilaRealtimeConnectionState, t: (key: string, options?: any) => string) => {
+    switch (state) {
+    case 'live':
+        return { label: t('portal.lila.realtime.live'), icon: Wifi };
+    case 'fallback_polling':
+        return { label: t('portal.lila.realtime.fallbackPolling'), icon: WifiOff };
+    default:
+        return { label: t('portal.lila.realtime.reconnecting'), icon: WifiOff };
+    }
+};
 
 const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t, i18n } = useTranslation();
     const { mode, matchCode } = route.params;
-    const [snapshot, setSnapshot] = React.useState<LilaMatchSnapshot | null>(null);
+    const { snapshot, connectionState, recoverSnapshot, setInitialSnapshot } = useLilaMatchSession(matchCode, i18n.language);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
     const [readying, setReadying] = React.useState(false);
@@ -28,30 +40,30 @@ const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
             setError(null);
             const next = await getLilaMatch(matchCode, i18n.language);
-            setSnapshot(next);
+            setInitialSnapshot(next);
         } catch (loadError: any) {
             setError(loadError?.response?.data?.error || loadError?.message || t('common.error'));
         } finally {
             setLoading(false);
         }
-    }, [i18n.language, matchCode, t]);
+    }, [i18n.language, matchCode, setInitialSnapshot, t]);
 
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            void loadSnapshot();
+            loadSnapshot().catch(() => undefined);
         }, [loadSnapshot]),
     );
 
     React.useEffect(() => {
-        if (!matchCode) {
+        if (connectionState !== 'fallback_polling' || !matchCode) {
             return undefined;
         }
         const timer = setInterval(() => {
-            void loadSnapshot();
+            recoverSnapshot().catch(() => undefined);
         }, 2500);
         return () => clearInterval(timer);
-    }, [loadSnapshot, matchCode]);
+    }, [connectionState, matchCode, recoverSnapshot]);
 
     React.useEffect(() => {
         if (snapshot?.match.status === 'active') {
@@ -68,13 +80,12 @@ const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
             setReadying(true);
             await readyLilaLobby(matchCode);
-            await loadSnapshot();
         } catch (readyError: any) {
             setError(readyError?.response?.data?.error || readyError?.message || t('common.error'));
         } finally {
             setReadying(false);
         }
-    }, [loadSnapshot, matchCode, t]);
+    }, [matchCode, t]);
 
     const queueEntries = snapshot?.queueEntries || [];
     const teams = mode === 'sabha'
@@ -87,6 +98,46 @@ const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
             }, {}),
         )
         : [];
+    const survivalAlive = queueEntries.filter((entry) => entry.status !== 'eliminated').length || snapshot?.players.length || 0;
+    const survivalReady = queueEntries.filter((entry) => entry.status === 'ready').length || snapshot?.readyUserIds.length || 0;
+    const connectionMeta = getConnectionMeta(connectionState, t);
+    const ConnectionIcon = connectionMeta.icon;
+    const renderModePrep = () => {
+        if (mode === 'sabha') {
+            return (
+                <LilaCard>
+                    <Text style={styles.modeTitle}>{t('portal.lila.lobby.modePrep.sabhaTitle')}</Text>
+                    <Text style={styles.modeBody}>{t('portal.lila.lobby.modePrep.sabhaBody')}</Text>
+                    <View style={styles.metricWrap}>
+                        <LilaMetric label={t('portal.lila.match.teamScore')} value={String(snapshot?.scoreboard.length || teams.length || 2)} />
+                        <LilaMetric label={t('portal.lila.match.teamReady')} value={`${snapshot?.readyUserIds.length || 0}/${snapshot?.players.length || 0}`} />
+                    </View>
+                </LilaCard>
+            );
+        }
+        if (mode === 'survival') {
+            return (
+                <LilaCard>
+                    <Text style={styles.modeTitle}>{t('portal.lila.lobby.modePrep.survivalTitle')}</Text>
+                    <Text style={styles.modeBody}>{t('portal.lila.lobby.modePrep.survivalBody')}</Text>
+                    <View style={styles.metricWrap}>
+                        <LilaMetric label={t('portal.lila.match.teamAlive')} value={String(survivalAlive)} />
+                        <LilaMetric label={t('portal.lila.match.teamReady')} value={String(survivalReady)} />
+                    </View>
+                </LilaCard>
+            );
+        }
+        return (
+            <LilaCard>
+                <Text style={styles.modeTitle}>{t('portal.lila.lobby.modePrep.duelTitle')}</Text>
+                <Text style={styles.modeBody}>{t('portal.lila.lobby.modePrep.duelBody')}</Text>
+                <View style={styles.metricWrap}>
+                    <LilaMetric label={t('portal.lila.match.teamReady')} value={`${snapshot?.readyUserIds.length || 0}/${snapshot?.players.length || 0}`} />
+                    <LilaMetric label={t('portal.lila.queue.estWait')} value={`${mode === 'duel' ? 12 : 18}s`} />
+                </View>
+            </LilaCard>
+        );
+    };
 
     return (
         <LilaScreenLayout
@@ -109,9 +160,19 @@ const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
                             progress={snapshot?.players.length ? (snapshot.readyUserIds.length / snapshot.players.length) : 0}
                             accent={LILA_COLORS.parchment}
                         />
+                        <View style={styles.metaRow}>
+                            <LilaPill label={t(`portal.lila.phases.${snapshot?.phase || 'lobby'}`)} tone="night" />
+                            <LilaPill label={connectionMeta.label} tone="surface" />
+                        </View>
+                        <View style={styles.connectionRow}>
+                            <ConnectionIcon size={16} color={LILA_COLORS.parchment} />
+                            <Text style={styles.connectionText}>{t('portal.lila.lobby.connectionHint')}</Text>
+                        </View>
                     </>
                 )}
             </LilaCard>
+
+            {renderModePrep()}
 
             {teams.length ? (
                 <>
@@ -160,13 +221,13 @@ const LilaLobbyScreen: React.FC<Props> = ({ navigation, route }) => {
             {error ? (
                 <LilaCard>
                     <Text style={styles.errorText}>{error}</Text>
-                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => void loadSnapshot()} />
+                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => { recoverSnapshot().catch(() => undefined); }} />
                 </LilaCard>
             ) : null}
 
             <LilaPrimaryButton
                 label={readying ? t('common.loading') : t('portal.lila.actions.ready')}
-                onPress={() => void handleReady()}
+                onPress={() => { handleReady().catch(() => undefined); }}
             />
             <LilaPrimaryButton
                 label={t('portal.lila.actions.backHome')}
@@ -199,6 +260,24 @@ const styles = StyleSheet.create({
         color: LILA_COLORS.parchment,
         fontSize: 14,
     },
+    metaRow: {
+        marginTop: 12,
+        flexDirection: 'row',
+        gap: 10,
+        flexWrap: 'wrap',
+    },
+    connectionRow: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    connectionText: {
+        color: 'rgba(255,244,224,0.78)',
+        fontSize: 12,
+        lineHeight: 18,
+        flex: 1,
+    },
     teamHeader: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -215,6 +294,23 @@ const styles = StyleSheet.create({
         color: LILA_COLORS.ink,
         fontSize: 18,
         fontWeight: '700',
+    },
+    modeTitle: {
+        color: LILA_COLORS.ink,
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    modeBody: {
+        color: 'rgba(42,24,16,0.72)',
+        fontSize: 14,
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    metricWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
     },
     playerRow: {
         flexDirection: 'row',

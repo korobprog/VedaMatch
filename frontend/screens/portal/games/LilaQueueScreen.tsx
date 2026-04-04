@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Clock3, ScrollText, Sparkles, Users } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import {
+    getCachedLilaBootstrap,
     getLilaBootstrap,
     getLilaModeConfig,
     getLilaModePlayerCount,
@@ -15,7 +16,17 @@ import {
 } from '../../../services/lilaGameService';
 import type { LilaBootstrap } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
-import { LILA_COLORS, LilaCard, LilaMetric, LilaPill, LilaPrimaryButton, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
+import {
+    LILA_COLORS,
+    LilaCard,
+    LilaMetric,
+    LilaPhaseRail,
+    LilaPill,
+    LilaPrimaryButton,
+    LilaProgressBar,
+    LilaScreenLayout,
+    LilaSectionTitle,
+} from './LilaUi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LilaQueue'>;
 
@@ -24,8 +35,8 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
     const mode = route.params?.mode || 'duel';
     const config = getLilaModeConfig(mode);
     const siddhis = getLilaSiddhis();
-    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [loading, setLoading] = React.useState(true);
+    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+    const [loading, setLoading] = React.useState(!getCachedLilaBootstrap(i18n.language));
     const [error, setError] = React.useState<string | null>(null);
     const [joining, setJoining] = React.useState(false);
     const [leaving, setLeaving] = React.useState(false);
@@ -33,7 +44,7 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
     const loadBootstrap = React.useCallback(async () => {
         try {
             setError(null);
-            const next = await getLilaBootstrap(i18n.language);
+            const next = await getLilaBootstrap(i18n.language, { force: true });
             setBootstrap(next);
         } catch (loadError: any) {
             setError(loadError?.response?.data?.error || loadError?.message || t('common.error'));
@@ -45,7 +56,7 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            void loadBootstrap();
+            loadBootstrap().catch(() => undefined);
         }, [loadBootstrap]),
     );
 
@@ -54,6 +65,66 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
     const queueStatusLabel = queueEntry
         ? t(`portal.lila.queue.statuses.${queueEntry.status}`, { defaultValue: queueEntry.status })
         : null;
+    const tutorialState = bootstrap?.tutorialState;
+    const latestReward = bootstrap?.recentRewards[0] || null;
+    const questHighlights = React.useMemo(
+        () => ([...(bootstrap?.dailyQuestProgress || []).slice(0, 2), ...(bootstrap?.weeklyQuestProgress || []).slice(0, 1)]),
+        [bootstrap?.dailyQuestProgress, bootstrap?.weeklyQuestProgress],
+    );
+    const phaseSteps = React.useMemo(() => ([
+        {
+            id: 'queue',
+            label: t('portal.lila.phases.queue'),
+            helper: queueEntry ? queueStatusLabel || undefined : t('portal.lila.queue.phaseSearching'),
+            active: !liveMatch,
+            done: false,
+        },
+        {
+            id: 'lobby',
+            label: t('portal.lila.phases.lobby'),
+            helper: t('portal.lila.queue.phaseLobby'),
+            active: Boolean(liveMatch && liveMatch.status === 'lobby'),
+            done: Boolean(liveMatch),
+        },
+        {
+            id: 'round',
+            label: t('portal.lila.phases.question_open'),
+            helper: t('portal.lila.queue.phaseBattle'),
+            active: Boolean(liveMatch && liveMatch.status === 'active'),
+            done: Boolean(liveMatch && liveMatch.status === 'finished'),
+        },
+        {
+            id: 'results',
+            label: t('portal.lila.phases.match_finished'),
+            helper: t('portal.lila.queue.phaseRewards'),
+            active: Boolean(liveMatch && liveMatch.status === 'finished'),
+            done: Boolean(liveMatch && liveMatch.status === 'finished'),
+        },
+    ]), [liveMatch, queueEntry, queueStatusLabel, t]);
+    const renderModeFocus = () => {
+        if (mode === 'sabha') {
+            return (
+                <LilaCard>
+                    <Text style={styles.inlineTitle}>{t('portal.lila.queue.modeFocus.sabhaTitle')}</Text>
+                    <Text style={styles.inlineBody}>{t('portal.lila.queue.modeFocus.sabhaBody')}</Text>
+                </LilaCard>
+            );
+        }
+        if (mode === 'survival') {
+            return (
+                <LilaCard>
+                    <Text style={styles.inlineTitle}>{t('portal.lila.queue.modeFocus.survivalTitle')}</Text>
+                    <Text style={styles.inlineBody}>{t('portal.lila.queue.modeFocus.survivalBody')}</Text>
+                </LilaCard>
+            );
+        }
+        return (
+            <LilaCard>
+                <Text style={styles.inlineTitle}>{t('portal.lila.queue.modeFocus.duelTitle')}</Text>
+                <Text style={styles.inlineBody}>{t('portal.lila.queue.modeFocus.duelBody')}</Text>
+            </LilaCard>
+        );
+    };
 
     React.useEffect(() => {
         if (liveMatch) {
@@ -69,7 +140,7 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
             return undefined;
         }
         const timer = setInterval(() => {
-            void loadBootstrap();
+            loadBootstrap().catch(() => undefined);
         }, 3000);
         return () => clearInterval(timer);
     }, [loadBootstrap, liveMatch, queueEntry]);
@@ -123,8 +194,19 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
                     <LilaMetric label={t('portal.lila.queue.estWait')} value={`${config.waitSeconds}s`} />
                     <LilaMetric label={t('portal.lila.queue.rounds')} value={String(config.rounds)} />
                     <LilaMetric label={t('portal.lila.queue.players')} value={String(getLilaModePlayerCount(bootstrap, mode))} />
+                    <LilaMetric label={t('portal.lila.home.streakLabel')} value={String(bootstrap?.activeStreak || 0)} />
                 </View>
             </LilaCard>
+
+            {!tutorialState?.completed ? (
+                <LilaCard>
+                    <View style={styles.lineItem}>
+                        <Sparkles size={16} color={LILA_COLORS.saffron} />
+                        <Text style={styles.inlineTitle}>{t('portal.lila.home.onboardingTitle')}</Text>
+                    </View>
+                    <Text style={styles.inlineBody}>{t('portal.lila.queue.firstMatchHint')}</Text>
+                </LilaCard>
+            ) : null}
 
             <LilaSectionTitle title={t('portal.lila.queue.rotationTitle')} subtitle={t('portal.lila.queue.rotationSubtitle')} />
             <LilaCard tone="night">
@@ -147,8 +229,44 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
                             <ScrollText size={16} color={LILA_COLORS.parchment} />
                             <Text style={styles.lineText}>{t('portal.lila.queue.rewardLine', { amount: config.rewardBonus })}</Text>
                         </View>
+                        <View style={styles.phaseRailWrap}>
+                            <LilaPhaseRail steps={phaseSteps} />
+                        </View>
                     </>
                 )}
+            </LilaCard>
+
+            {renderModeFocus()}
+
+            <LilaSectionTitle title={t('portal.lila.queue.progressTitle')} subtitle={t('portal.lila.queue.progressSubtitle')} />
+            <LilaCard>
+                {questHighlights.length ? (
+                    <View style={styles.progressWrap}>
+                        {questHighlights.map((quest) => (
+                            <View key={quest.code} style={styles.progressEntry}>
+                                <View style={styles.progressHeader}>
+                                    <Text style={styles.progressTitle}>{quest.title}</Text>
+                                    <Text style={styles.progressMeta}>{`${quest.current}/${quest.target}`}</Text>
+                                </View>
+                                <LilaProgressBar progress={Math.max(0, Math.min(quest.current / Math.max(quest.target, 1), 1))} accent={LILA_COLORS.lotus} />
+                            </View>
+                        ))}
+                    </View>
+                ) : (
+                    <Text style={styles.inlineBody}>{t('portal.lila.queue.progressEmpty')}</Text>
+                )}
+                {latestReward ? (
+                    <View style={styles.rewardRow}>
+                        <Sparkles size={16} color={LILA_COLORS.saffron} />
+                        <Text style={styles.rewardText}>
+                            {t('portal.lila.queue.latestRewardLine', {
+                                reward: latestReward.title,
+                                amount: latestReward.amount > 0 ? `+${latestReward.amount}` : String(latestReward.amount),
+                                currency: latestReward.currency,
+                            })}
+                        </Text>
+                    </View>
+                ) : null}
             </LilaCard>
 
             <LilaSectionTitle title={t('portal.lila.queue.loadoutTitle')} subtitle={t('portal.lila.queue.loadoutSubtitle')} />
@@ -174,19 +292,21 @@ const LilaQueueScreen: React.FC<Props> = ({ navigation, route }) => {
             {error ? (
                 <LilaCard>
                     <Text style={styles.errorText}>{error}</Text>
-                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => void loadBootstrap()} />
+                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => { loadBootstrap().catch(() => undefined); }} />
                 </LilaCard>
             ) : null}
 
             <LilaPrimaryButton
-                label={queueEntry ? t('common.cancel') : t('portal.lila.actions.join')}
-                onPress={queueEntry ? () => void handleLeave() : () => void handleJoin()}
+                label={joining || leaving ? t('common.loading') : queueEntry ? t('common.cancel') : t('portal.lila.actions.join')}
+                onPress={queueEntry
+                    ? () => { handleLeave().catch(() => undefined); }
+                    : () => { handleJoin().catch(() => undefined); }}
                 tone={queueEntry ? 'night' : 'gold'}
             />
             <LilaPrimaryButton
-                label={joining || leaving ? t('common.loading') : t('portal.lila.actions.store')}
+                label={tutorialState?.completed ? t('portal.lila.actions.pass') : t('portal.lila.actions.store')}
                 tone="night"
-                onPress={() => navigation.navigate('LilaStore')}
+                onPress={() => navigation.navigate(tutorialState?.completed ? 'LilaPass' : 'LilaStore')}
             />
         </LilaScreenLayout>
     );
@@ -239,10 +359,58 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         flex: 1,
     },
+    phaseRailWrap: {
+        marginTop: 10,
+    },
     pillWrap: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
+    },
+    inlineTitle: {
+        color: LILA_COLORS.ink,
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    inlineBody: {
+        marginTop: 6,
+        color: 'rgba(42,24,16,0.72)',
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    progressWrap: {
+        gap: 12,
+    },
+    progressEntry: {
+        gap: 6,
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    progressTitle: {
+        flex: 1,
+        color: LILA_COLORS.ink,
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    progressMeta: {
+        color: 'rgba(42,24,16,0.6)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    rewardRow: {
+        marginTop: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    rewardText: {
+        flex: 1,
+        color: 'rgba(42,24,16,0.72)',
+        fontSize: 13,
+        lineHeight: 18,
     },
     errorText: {
         color: LILA_COLORS.crimson,

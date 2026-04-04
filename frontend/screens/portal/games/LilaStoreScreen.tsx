@@ -6,6 +6,7 @@ import { HeartHandshake, Sparkles, Wallet } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../../context/UserContext';
 import {
+    getCachedLilaBootstrap,
     getLilaBootstrap,
     getLilaPreferredStoreCurrency,
     getLilaStoreSpendOptions,
@@ -15,7 +16,16 @@ import {
 } from '../../../services/lilaGameService';
 import type { LilaBalanceSummary, LilaBootstrap, LilaCurrency, LilaStoreItem, LilaStoreSpendOption } from '../../../types/lila';
 import { RootStackParamList } from '../../../types/navigation';
-import { LILA_COLORS, LilaCard, LilaPrimaryButton, LilaScreenLayout, LilaSectionTitle } from './LilaUi';
+import {
+    LILA_COLORS,
+    LilaCard,
+    LilaMetric,
+    LilaPill,
+    LilaPrimaryButton,
+    LilaProgressBar,
+    LilaScreenLayout,
+    LilaSectionTitle,
+} from './LilaUi';
 
 const LilaStoreScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -23,15 +33,15 @@ const LilaStoreScreen: React.FC = () => {
     const { user } = useUser();
     const [items, setItems] = React.useState<LilaStoreItem[]>([]);
     const [balance, setBalance] = React.useState<LilaBalanceSummary>({ bonus: 0, real: 0 });
-    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(null);
-    const [loading, setLoading] = React.useState(true);
+    const [bootstrap, setBootstrap] = React.useState<LilaBootstrap | null>(() => getCachedLilaBootstrap(i18n.language));
+    const [loading, setLoading] = React.useState(!getCachedLilaBootstrap(i18n.language));
     const [busyCode, setBusyCode] = React.useState<string | null>(null);
     const [error, setError] = React.useState<string | null>(null);
 
     const loadStore = React.useCallback(async () => {
         try {
             setError(null);
-            const next = await getLilaBootstrap(i18n.language);
+            const next = await getLilaBootstrap(i18n.language, { force: true });
             setBootstrap(next);
             setItems(next.storeItems);
             setBalance({ bonus: next.bonusBalance, real: next.realBalance });
@@ -45,7 +55,7 @@ const LilaStoreScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             setLoading(true);
-            loadStore();
+            loadStore().catch(() => undefined);
         }, [loadStore]),
     );
 
@@ -154,6 +164,11 @@ const LilaStoreScreen: React.FC = () => {
     }, [balance, executeItemAction, formatSpendLabel, showInsufficientBalance, t]);
 
     const sections = getLilaStoreSections(items);
+    const latestReward = bootstrap?.recentRewards[0] || null;
+    const progressHighlights = React.useMemo(
+        () => ([...(bootstrap?.dailyQuestProgress || []).slice(0, 1), ...(bootstrap?.weeklyQuestProgress || []).slice(0, 1)]),
+        [bootstrap?.dailyQuestProgress, bootstrap?.weeklyQuestProgress],
+    );
     const ownedItemByCode = React.useMemo(() => {
         const next = new Map<string, string>();
         (bootstrap?.ownedItems || []).forEach((item) => {
@@ -200,6 +215,11 @@ const LilaStoreScreen: React.FC = () => {
                         <Text style={styles.balanceValue}>{balance.bonus}</Text>
                     </View>
                 </View>
+                <View style={styles.metricsRow}>
+                    <LilaMetric label={t('portal.lila.home.streakLabel')} value={String(bootstrap?.activeStreak || 0)} tone="light" />
+                    <LilaMetric label={t('portal.lila.store.inventoryLabel')} value={String((bootstrap?.ownedItems || []).length)} tone="light" />
+                    <LilaMetric label={t('portal.lila.store.recentRewardsLabel')} value={String((bootstrap?.recentRewards || []).length)} tone="light" />
+                </View>
             </LilaCard>
 
             {loading && !items.length ? (
@@ -210,6 +230,40 @@ const LilaStoreScreen: React.FC = () => {
                     </View>
                 </LilaCard>
             ) : null}
+
+            {latestReward ? (
+                <LilaCard tone="night">
+                    <View style={styles.rewardSummaryHeader}>
+                        <Sparkles size={16} color={LILA_COLORS.parchment} />
+                        <Text style={styles.rewardSummaryTitle}>{t('portal.lila.store.recentRewardTitle')}</Text>
+                        <LilaPill label={t('portal.lila.store.recentRewardBadge')} tone="gold" />
+                    </View>
+                    <Text style={styles.rewardSummaryBody}>{latestReward.title}</Text>
+                    <Text style={styles.rewardSummaryMeta}>
+                        {t('portal.lila.store.recentRewardLine', {
+                            amount: latestReward.amount > 0 ? `+${latestReward.amount}` : String(latestReward.amount),
+                            currency: latestReward.currency,
+                        })}
+                    </Text>
+                </LilaCard>
+            ) : null}
+
+            <LilaSectionTitle title={t('portal.lila.store.progressTitle')} subtitle={t('portal.lila.store.progressSubtitle')} />
+            <LilaCard>
+                {progressHighlights.length ? (
+                    progressHighlights.map((entry) => (
+                        <View key={entry.code} style={styles.progressEntry}>
+                            <View style={styles.progressHeader}>
+                                <Text style={styles.progressTitle}>{entry.title}</Text>
+                                <Text style={styles.progressMeta}>{`${entry.current}/${entry.target}`}</Text>
+                            </View>
+                            <LilaProgressBar progress={Math.max(0, Math.min(entry.current / Math.max(entry.target, 1), 1))} accent={LILA_COLORS.lotus} />
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.loadingText}>{t('portal.lila.store.progressEmpty')}</Text>
+                )}
+            </LilaCard>
 
             {sections.map((section) => (
                 <React.Fragment key={section.id}>
@@ -257,11 +311,12 @@ const LilaStoreScreen: React.FC = () => {
             {error ? (
                 <LilaCard>
                     <Text style={styles.errorText}>{error}</Text>
-                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={loadStore} />
+                    <LilaPrimaryButton label={t('common.retry')} tone="night" onPress={() => { loadStore().catch(() => undefined); }} />
                 </LilaCard>
             ) : null}
 
             <LilaPrimaryButton label={t('portal.lila.actions.wallet')} onPress={() => navigation.navigate('Wallet')} />
+            <LilaPrimaryButton label={t('portal.lila.actions.pass')} tone="night" onPress={() => navigation.navigate('LilaPass')} />
             <LilaCard tone="night">
                 <View style={styles.walletHint}>
                     <Wallet size={16} color={LILA_COLORS.parchment} />
@@ -299,6 +354,55 @@ const styles = StyleSheet.create({
     loadingText: {
         color: LILA_COLORS.ink,
         fontSize: 14,
+    },
+    metricsRow: {
+        marginTop: 14,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    rewardSummaryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    rewardSummaryTitle: {
+        flex: 1,
+        color: LILA_COLORS.parchment,
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    rewardSummaryBody: {
+        marginTop: 10,
+        color: LILA_COLORS.parchment,
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    rewardSummaryMeta: {
+        marginTop: 6,
+        color: 'rgba(255,244,224,0.72)',
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    progressEntry: {
+        gap: 6,
+        marginBottom: 12,
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    progressTitle: {
+        flex: 1,
+        color: LILA_COLORS.ink,
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    progressMeta: {
+        color: 'rgba(42,24,16,0.6)',
+        fontSize: 12,
+        fontWeight: '700',
     },
     itemRow: {
         flexDirection: 'row',

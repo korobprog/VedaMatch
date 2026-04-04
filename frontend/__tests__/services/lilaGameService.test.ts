@@ -1,5 +1,23 @@
-import { getLilaModePlayerCount, getLilaPreferredStoreCurrency, getLilaStoreSpendOptions, isLilaActiveQueueStatus } from '../../services/lilaGameService';
+import apiClient from '../../lib/apiClient';
+import {
+    getCachedLilaBootstrap,
+    getLilaBootstrap,
+    getLilaModePlayerCount,
+    getLilaPreferredStoreCurrency,
+    getLilaStoreSpendOptions,
+    invalidateLilaBootstrap,
+    isLilaActiveQueueStatus,
+    primeLilaBootstrap,
+} from '../../services/lilaGameService';
 import type { LilaBalanceSummary, LilaBootstrap, LilaStoreItem } from '../../types/lila';
+
+jest.mock('../../lib/apiClient', () => ({
+    __esModule: true,
+    default: {
+        get: jest.fn(),
+        post: jest.fn(),
+    },
+}));
 
 const buildItem = (overrides: Partial<LilaStoreItem> = {}): LilaStoreItem => ({
     code: 'test_item',
@@ -109,6 +127,17 @@ describe('getLilaModePlayerCount', () => {
         openQueue: [],
         availableQuestions: [],
         metrics: {},
+        activeStreak: 0,
+        dailyQuestProgress: [],
+        weeklyQuestProgress: [],
+        recentRewards: [],
+        recommendedMode: 'duel',
+        tutorialState: {
+            completed: false,
+            currentStep: 'intro',
+            seenIntro: false,
+            completedMatches: 0,
+        },
         ...overrides,
     });
 
@@ -123,6 +152,60 @@ describe('getLilaModePlayerCount', () => {
         expect(getLilaModePlayerCount(buildBootstrap({
             queueDepth: { survival: 4 },
         }), 'survival')).toBe(4);
+    });
+
+    describe('bootstrap cache', () => {
+        beforeEach(() => {
+            invalidateLilaBootstrap();
+            jest.clearAllMocks();
+        });
+
+        it('stores and returns locale-scoped cached bootstrap payloads', () => {
+            const ruBootstrap = buildBootstrap({ activeStreak: 3 });
+            const enBootstrap = buildBootstrap({ activeStreak: 5 });
+
+            primeLilaBootstrap('ru', ruBootstrap);
+            primeLilaBootstrap('en', enBootstrap);
+
+            expect(getCachedLilaBootstrap('ru')?.activeStreak).toBe(3);
+            expect(getCachedLilaBootstrap('en')?.activeStreak).toBe(5);
+            expect(getCachedLilaBootstrap('hi')).toBeNull();
+        });
+
+        it('clears one locale or the whole cache through invalidation', () => {
+            primeLilaBootstrap('ru', buildBootstrap({ activeStreak: 2 }));
+            primeLilaBootstrap('en', buildBootstrap({ activeStreak: 4 }));
+
+            invalidateLilaBootstrap('ru');
+            expect(getCachedLilaBootstrap('ru')).toBeNull();
+            expect(getCachedLilaBootstrap('en')?.activeStreak).toBe(4);
+
+            invalidateLilaBootstrap();
+            expect(getCachedLilaBootstrap('en')).toBeNull();
+        });
+
+        it('reuses cached bootstrap until force refresh is requested', async () => {
+            const mockedGet = apiClient.get as jest.Mock;
+            mockedGet.mockResolvedValueOnce({
+                data: {
+                    queueDepth: {},
+                    modePlayerCounts: {},
+                    bonusBalance: 0,
+                    realBalance: 0,
+                    recentRewards: [],
+                    dailyQuestProgress: [],
+                    weeklyQuestProgress: [],
+                    openMatches: [],
+                    openQueue: [],
+                },
+            });
+
+            const first = await getLilaBootstrap('ru', { force: true });
+            const second = await getLilaBootstrap('ru');
+
+            expect(second).toBe(first);
+            expect(mockedGet).toHaveBeenCalledTimes(1);
+        });
     });
 });
 

@@ -64,6 +64,14 @@ type LilaPrimaryButtonProps = {
     tone?: 'gold' | 'night';
 };
 
+type LilaPhaseStep = {
+    id: string;
+    label: string;
+    helper?: string;
+    active?: boolean;
+    done?: boolean;
+};
+
 export const LilaScreenLayout: React.FC<LilaScreenLayoutProps> = ({
     badge,
     title,
@@ -152,6 +160,28 @@ export const LilaSectionTitle: React.FC<{ title: string; subtitle?: string }> = 
     <View style={styles.sectionTitleWrap}>
         <Text style={styles.sectionTitle}>{title}</Text>
         {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+    </View>
+);
+
+export const LilaPhaseRail: React.FC<{ steps: LilaPhaseStep[] }> = ({ steps }) => (
+    <View style={styles.phaseRail}>
+        {steps.map((step, index) => {
+            const stepStyle = step.active
+                ? styles.phaseStepActive
+                : step.done
+                    ? styles.phaseStepDone
+                    : styles.phaseStepIdle;
+            const labelStyle = step.active || step.done ? styles.phaseLabelLight : styles.phaseLabelDark;
+            const helperStyle = step.active || step.done ? styles.phaseHelperLight : styles.phaseHelperDark;
+
+            return (
+                <View key={step.id} style={[styles.phaseStep, stepStyle, index === steps.length - 1 ? styles.phaseStepLast : null]}>
+                    <View style={[styles.phaseDot, step.active ? styles.phaseDotActive : step.done ? styles.phaseDotDone : styles.phaseDotIdle]} />
+                    <Text style={[styles.phaseLabel, labelStyle]}>{step.label}</Text>
+                    {step.helper ? <Text style={[styles.phaseHelper, helperStyle]}>{step.helper}</Text> : null}
+                </View>
+            );
+        })}
     </View>
 );
 
@@ -346,6 +376,65 @@ const styles = StyleSheet.create({
         color: 'rgba(255,244,224,0.74)',
         fontSize: 13,
         lineHeight: 18,
+    },
+    phaseRail: {
+        gap: 10,
+    },
+    phaseStep: {
+        padding: 12,
+        borderRadius: 18,
+        borderWidth: 1,
+        gap: 6,
+    },
+    phaseStepLast: {
+        marginBottom: 0,
+    },
+    phaseStepIdle: {
+        backgroundColor: 'rgba(255,250,238,0.72)',
+        borderColor: 'rgba(199,148,47,0.18)',
+    },
+    phaseStepActive: {
+        backgroundColor: 'rgba(42,24,16,0.72)',
+        borderColor: 'rgba(255,221,166,0.3)',
+    },
+    phaseStepDone: {
+        backgroundColor: 'rgba(224,108,79,0.18)',
+        borderColor: 'rgba(255,221,166,0.2)',
+    },
+    phaseDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    phaseDotIdle: {
+        backgroundColor: 'rgba(42,24,16,0.22)',
+    },
+    phaseDotActive: {
+        backgroundColor: '#F7D27D',
+    },
+    phaseDotDone: {
+        backgroundColor: '#E06C4F',
+    },
+    phaseLabel: {
+        fontSize: 13,
+        fontWeight: '800',
+        letterSpacing: 0.2,
+    },
+    phaseLabelDark: {
+        color: LILA_COLORS.ink,
+    },
+    phaseLabelLight: {
+        color: LILA_COLORS.parchment,
+    },
+    phaseHelper: {
+        fontSize: 12,
+        lineHeight: 17,
+    },
+    phaseHelperDark: {
+        color: 'rgba(42,24,16,0.7)',
+    },
+    phaseHelperLight: {
+        color: 'rgba(255,244,224,0.74)',
     },
     metric: {
         flex: 1,

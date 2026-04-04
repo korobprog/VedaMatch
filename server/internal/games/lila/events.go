@@ -5,16 +5,18 @@ import "time"
 type EventType string
 
 const (
-	EventQueueJoined    EventType = "game_queue_joined"
-	EventQueueLeft      EventType = "game_queue_left"
-	EventLobbyReady     EventType = "game_lobby_ready"
-	EventLobbyStarted   EventType = "game_lobby_started"
-	EventRoundStarted   EventType = "game_round_started"
-	EventRoundResolved  EventType = "game_round_resolved"
-	EventAnswerAccepted EventType = "game_answer_accepted"
-	EventSiddhiUsed     EventType = "game_siddhi_used"
-	EventMatchFinished  EventType = "game_match_finished"
-	EventRewardGranted  EventType = "game_reward_granted"
+	EventMatchSnapshot     EventType = "game_match_snapshot"
+	EventMatchStateChanged EventType = "game_match_state_changed"
+	EventQueueJoined       EventType = "game_queue_joined"
+	EventQueueLeft         EventType = "game_queue_left"
+	EventLobbyReady        EventType = "game_lobby_ready"
+	EventLobbyStarted      EventType = "game_lobby_started"
+	EventRoundStarted      EventType = "game_round_started"
+	EventRoundResolved     EventType = "game_round_resolved"
+	EventAnswerAccepted    EventType = "game_answer_accepted"
+	EventSiddhiUsed        EventType = "game_siddhi_used"
+	EventMatchFinished     EventType = "game_match_finished"
+	EventRewardGranted     EventType = "game_reward_granted"
 )
 
 type Event struct {
@@ -23,18 +25,22 @@ type Event struct {
 	UserID        uint                   `json:"userId,omitempty"`
 	Round         int                    `json:"round,omitempty"`
 	Timestamp     time.Time              `json:"timestamp"`
+	ServerTime    time.Time              `json:"serverTime"`
+	StateVersion  int                    `json:"stateVersion,omitempty"`
 	Payload       map[string]interface{} `json:"payload,omitempty"`
 	TargetUserIDs []uint                 `json:"-"`
 }
 
-func NewEvent(eventType EventType, matchCode string, userID uint, round int, payload map[string]interface{}, at time.Time) Event {
+func NewEvent(eventType EventType, matchCode string, userID uint, round int, payload map[string]interface{}, at time.Time, stateVersion int) Event {
 	return Event{
-		Type:      eventType,
-		MatchCode: matchCode,
-		UserID:    userID,
-		Round:     round,
-		Timestamp: at,
-		Payload:   payload,
+		Type:         eventType,
+		MatchCode:    matchCode,
+		UserID:       userID,
+		Round:        round,
+		Timestamp:    at,
+		ServerTime:   at,
+		StateVersion: stateVersion,
+		Payload:      payload,
 	}
 }
 
