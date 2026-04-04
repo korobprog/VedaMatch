@@ -36,6 +36,14 @@ type autonomousProfileRuleSeed struct {
 	SourceConfidence int
 }
 
+type autonomousProfileRuleDateOverride struct {
+	OrganizationID string
+	ObservanceSlug string
+	Year           int
+	Month          int
+	Day            int
+}
+
 var autonomousCalendarSources = []models.CalendarSourceCatalog{
 	{SourceKey: "vaishnavacalendar.org", DisplayName: "Vaishnava Calendar", BaseURL: "https://vaishnavacalendar.org", SourceKind: "imported", TrustPriority: 10, Enabled: true, Notes: "Primary ingest source for ISKCON ekadashi and parana windows."},
 	{SourceKey: "scsmath.com", DisplayName: "Sri Chaitanya Saraswat Math", BaseURL: "https://www.scsmath.com/events/calendar/index.html", SourceKind: "imported", TrustPriority: 20, Enabled: true, Notes: "Primary ingest source for Sri Chaitanya Math observance profile."},
@@ -79,6 +87,46 @@ var autonomousCalendarProfileRules = []autonomousProfileRuleSeed{
 	{OrganizationID: "default_vaishnava", ObservanceSlug: "gaura-purnima", EventType: "appearance", ObservanceType: "appearance", Month: 3, Day: 14, Priority: 2, TitleOverride: "Appearance of Sri Caitanya Mahaprabhu", SubtitleOverride: "Vaishnava festival", NotesOverride: "Gaura Purnima appears in the broader Vaishnava festival profile.", MarkerStyleKey: "appearance", Source: "curated_reference", SourceURL: "https://gcal.app", SourceConfidence: 88},
 	{OrganizationID: "default_vaishnava", ObservanceSlug: "rupa-goswami-disappearance", EventType: "disappearance", ObservanceType: "disappearance", Month: 8, Day: 10, Priority: 4, TitleOverride: "Disappearance of Srila Rupa Goswami", SubtitleOverride: "Vaishnava commemoration", NotesOverride: "Disappearance observance in the broader Vaishnava calendar.", MarkerStyleKey: "disappearance", Source: "curated_reference", SourceURL: "https://gcal.app", SourceConfidence: 90},
 	{OrganizationID: "default_vaishnava", ObservanceSlug: "gadadhara-pandita-appearance", EventType: "appearance", ObservanceType: "appearance", Month: 11, Day: 4, Priority: 3, TitleOverride: "Appearance of Srila Gadadhara Pandita", SubtitleOverride: "Vaishnava commemoration", NotesOverride: "Appearance observance in the broader Vaishnava calendar.", MarkerStyleKey: "appearance", Source: "curated_reference", SourceURL: "https://gcal.app", SourceConfidence: 90},
+}
+
+var autonomousCalendarProfileRuleDateOverrides = []autonomousProfileRuleDateOverride{
+	{OrganizationID: "iskcon", ObservanceSlug: "nityananda-trayodashi", Year: 2026, Month: 1, Day: 31},
+	{OrganizationID: "iskcon", ObservanceSlug: "bhaktisiddhanta-sarasvati-appearance", Year: 2026, Month: 2, Day: 6},
+	{OrganizationID: "iskcon", ObservanceSlug: "gaura-purnima", Year: 2026, Month: 3, Day: 3},
+	{OrganizationID: "iskcon", ObservanceSlug: "rupa-goswami-disappearance", Year: 2026, Month: 8, Day: 24},
+	{OrganizationID: "iskcon", ObservanceSlug: "srila-prabhupada-appearance", Year: 2026, Month: 9, Day: 5},
+	{OrganizationID: "iskcon", ObservanceSlug: "radhastami", Year: 2026, Month: 9, Day: 19},
+	{OrganizationID: "iskcon", ObservanceSlug: "bhaktivinoda-thakura-appearance", Year: 2026, Month: 9, Day: 24},
+	{OrganizationID: "iskcon", ObservanceSlug: "govardhana-puja", Year: 2026, Month: 11, Day: 9},
+
+	{OrganizationID: "sri_chaitanya_math", ObservanceSlug: "bhaktisiddhanta-sarasvati-appearance", Year: 2026, Month: 2, Day: 6},
+	{OrganizationID: "sri_chaitanya_math", ObservanceSlug: "gaura-purnima", Year: 2026, Month: 3, Day: 3},
+	{OrganizationID: "sri_chaitanya_math", ObservanceSlug: "bhaktivinoda-thakura-appearance", Year: 2026, Month: 9, Day: 24},
+	{OrganizationID: "sri_chaitanya_math", ObservanceSlug: "gaura-kishora-dasa-babaji-disappearance", Year: 2026, Month: 11, Day: 20},
+
+	{OrganizationID: "pure_bhakti", ObservanceSlug: "bhaktisiddhanta-sarasvati-appearance", Year: 2026, Month: 2, Day: 6},
+	{OrganizationID: "pure_bhakti", ObservanceSlug: "gaura-purnima", Year: 2026, Month: 3, Day: 3},
+
+	{OrganizationID: "default_vaishnava", ObservanceSlug: "gaura-purnima", Year: 2026, Month: 3, Day: 3},
+	{OrganizationID: "default_vaishnava", ObservanceSlug: "gadadhara-pandita-appearance", Year: 2026, Month: 4, Day: 17},
+	{OrganizationID: "default_vaishnava", ObservanceSlug: "rupa-goswami-disappearance", Year: 2026, Month: 8, Day: 24},
+	{OrganizationID: "default_vaishnava", ObservanceSlug: "bhaktivinoda-thakura-appearance", Year: 2026, Month: 9, Day: 24},
+}
+
+func resolveAutonomousProfileRuleDate(organizationID, observanceSlug string, year, fallbackMonth, fallbackDay int) (int, int) {
+	for _, override := range autonomousCalendarProfileRuleDateOverrides {
+		if override.Year != year {
+			continue
+		}
+		if strings.TrimSpace(override.OrganizationID) != strings.TrimSpace(organizationID) {
+			continue
+		}
+		if strings.TrimSpace(override.ObservanceSlug) != strings.TrimSpace(observanceSlug) {
+			continue
+		}
+		return override.Month, override.Day
+	}
+	return fallbackMonth, fallbackDay
 }
 
 func ensureAutonomousCalendarReferenceData(db *gorm.DB) error {
@@ -138,7 +186,7 @@ func ensureAutonomousCalendarReferenceData(db *gorm.DB) error {
 	return nil
 }
 
-func loadAutonomousObservanceRules(db *gorm.DB, organizationID string, month int) ([]models.CalendarProfileRule, map[string]models.CalendarObservance, error) {
+func loadAutonomousObservanceRules(db *gorm.DB, organizationID string, year int, month int) ([]models.CalendarProfileRule, map[string]models.CalendarObservance, error) {
 	if db == nil {
 		return nil, nil, nil
 	}
@@ -146,11 +194,22 @@ func loadAutonomousObservanceRules(db *gorm.DB, organizationID string, month int
 		return nil, nil, err
 	}
 
-	var rules []models.CalendarProfileRule
-	if err := db.Where("organization_id = ? AND month = ? AND is_active = ?", strings.TrimSpace(organizationID), month, true).
-		Order("day ASC, priority ASC, observance_slug ASC").
-		Find(&rules).Error; err != nil {
+	var allRules []models.CalendarProfileRule
+	if err := db.Where("organization_id = ? AND is_active = ?", strings.TrimSpace(organizationID), true).
+		Order("month ASC, day ASC, priority ASC, observance_slug ASC").
+		Find(&allRules).Error; err != nil {
 		return nil, nil, err
+	}
+
+	rules := make([]models.CalendarProfileRule, 0, len(allRules))
+	for _, rule := range allRules {
+		effectiveMonth, effectiveDay := resolveAutonomousProfileRuleDate(rule.OrganizationID, rule.ObservanceSlug, year, rule.Month, rule.Day)
+		if effectiveMonth != month {
+			continue
+		}
+		rule.Month = effectiveMonth
+		rule.Day = effectiveDay
+		rules = append(rules, rule)
 	}
 	if len(rules) == 0 {
 		return rules, map[string]models.CalendarObservance{}, nil

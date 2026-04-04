@@ -182,6 +182,52 @@ func TestAutonomousCalendarProfileRulesCoverKnownOrganizations(t *testing.T) {
 	}
 }
 
+func TestResolveAutonomousProfileRuleDateUses2026Override(t *testing.T) {
+	month, day := resolveAutonomousProfileRuleDate("iskcon", "bhaktivinoda-thakura-appearance", 2026, 3, 6)
+	if month != 9 || day != 24 {
+		t.Fatalf("expected 2026 override 9/24, got %d/%d", month, day)
+	}
+
+	month, day = resolveAutonomousProfileRuleDate("iskcon", "bhaktivinoda-thakura-appearance", 2027, 3, 6)
+	if month != 3 || day != 6 {
+		t.Fatalf("expected fallback 3/6 for years without override, got %d/%d", month, day)
+	}
+}
+
+func TestMergeRuntimeCuratedCalendarEventsReplacesOutdatedCuratedEntry(t *testing.T) {
+	merged := mergeRuntimeCuratedCalendarEvents(
+		[]models.EkadashiDay{
+			{
+				OrganizationID: "iskcon",
+				Date:           "2026-02-25",
+				EventType:      "appearance",
+				CanonicalSlug:  "bhaktisiddhanta-sarasvati-appearance",
+				PersonSlug:     "bhaktisiddhanta-sarasvati",
+				Title:          "Appearance of Srila Bhaktisiddhanta Sarasvati Thakura",
+				Source:         calendarCuratedObservanceSource,
+			},
+		},
+		[]models.EkadashiDay{
+			{
+				OrganizationID: "iskcon",
+				Date:           "2026-02-06",
+				EventType:      "appearance",
+				CanonicalSlug:  "bhaktisiddhanta-sarasvati-appearance",
+				PersonSlug:     "bhaktisiddhanta-sarasvati",
+				Title:          "Appearance of Srila Bhaktisiddhanta Sarasvati Thakura",
+				Source:         calendarCuratedObservanceSource,
+			},
+		},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("expected one merged event, got %d", len(merged))
+	}
+	if merged[0].Date != "2026-02-06" {
+		t.Fatalf("expected runtime curated date to win, got %s", merged[0].Date)
+	}
+}
+
 func TestNormalizeCalendarEventPreservesCanonicalMetadata(t *testing.T) {
 	service := &EkadashiService{}
 	org := resolveEkadashiOrganization("iskcon")

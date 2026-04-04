@@ -468,7 +468,7 @@ func (s *EkadashiService) buildEkadashiEventForDate(targetDate time.Time, locDat
 }
 
 func (s *EkadashiService) buildCommemorativeEvents(monthStart time.Time, locData locationSnapshot, org models.EkadashiOrganization) []models.EkadashiDay {
-	rules, observanceMap, err := loadAutonomousObservanceRules(s.db, org.ID, int(monthStart.Month()))
+	rules, observanceMap, err := loadAutonomousObservanceRules(s.db, org.ID, monthStart.Year(), int(monthStart.Month()))
 	if err == nil && len(rules) > 0 {
 		result := make([]models.EkadashiDay, 0, len(rules))
 		for _, rule := range rules {

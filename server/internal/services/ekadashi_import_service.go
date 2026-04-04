@@ -289,6 +289,64 @@ func dedupeCalendarEvents(events []models.EkadashiDay) []models.EkadashiDay {
 	return result
 }
 
+func runtimeCuratedReplacementKey(event models.EkadashiDay) string {
+	canonicalSlug := strings.TrimSpace(event.CanonicalSlug)
+	if canonicalSlug != "" {
+		return strings.Join([]string{
+			strings.TrimSpace(event.OrganizationID),
+			strings.TrimSpace(event.EventType),
+			canonicalSlug,
+		}, "|")
+	}
+
+	personSlug := strings.TrimSpace(event.PersonSlug)
+	if personSlug != "" {
+		return strings.Join([]string{
+			strings.TrimSpace(event.OrganizationID),
+			strings.TrimSpace(event.EventType),
+			personSlug,
+		}, "|")
+	}
+
+	return strings.Join([]string{
+		strings.TrimSpace(event.OrganizationID),
+		strings.TrimSpace(event.EventType),
+		normalizeCalendarConflictValue(event.Title),
+	}, "|")
+}
+
+func mergeRuntimeCuratedCalendarEvents(existing []models.EkadashiDay, curated []models.EkadashiDay) []models.EkadashiDay {
+	if len(curated) == 0 {
+		return existing
+	}
+
+	replacements := make(map[string]struct{}, len(curated))
+	for _, event := range curated {
+		replacements[runtimeCuratedReplacementKey(event)] = struct{}{}
+	}
+
+	merged := make([]models.EkadashiDay, 0, len(existing)+len(curated))
+	for _, event := range existing {
+		if strings.TrimSpace(event.Source) == calendarCuratedObservanceSource {
+			if _, shouldReplace := replacements[runtimeCuratedReplacementKey(event)]; shouldReplace {
+				continue
+			}
+		}
+		merged = append(merged, event)
+	}
+	merged = append(merged, curated...)
+	sort.Slice(merged, func(i, j int) bool {
+		if merged[i].Date == merged[j].Date {
+			if merged[i].Priority == merged[j].Priority {
+				return merged[i].Title < merged[j].Title
+			}
+			return merged[i].Priority < merged[j].Priority
+		}
+		return merged[i].Date < merged[j].Date
+	})
+	return dedupeCalendarEvents(merged)
+}
+
 func calendarSourceKindForFetch(orgID string, source string) string {
 	normalizedSource := strings.ToLower(strings.TrimSpace(source))
 	switch normalizedSource {
@@ -1121,6 +1179,11 @@ func (s *CalendarImportService) LoadPublishedMonth(monthStart time.Time, org mod
 			hasImported = hasImported || event.IsEkadashi || event.IsMahadvadashi
 		}
 		events = append(events, event)
+	}
+	runtimeCurated := (&EkadashiService{db: s.db, nowFunc: s.nowFunc}).buildCommemorativeEvents(monthStart, locData, org)
+	if len(runtimeCurated) > 0 {
+		hasCurated = true
+		events = mergeRuntimeCuratedCalendarEvents(events, runtimeCurated)
 	}
 
 	days := make([]models.EkadashiDay, 0, len(events))
