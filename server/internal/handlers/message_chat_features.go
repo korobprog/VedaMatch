@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -572,10 +573,19 @@ func (h *MessageHandler) TranscribeMessage(c *fiber.Ctx) error {
 			lockedMsg.MapData = map[string]interface{}{}
 		}
 		lockedMsg.MapData["transcript"] = transcript
-		// Use Updates() instead of Update() to trigger GORM's json serializer
-		if err := tx.Model(&models.Message{}).Where("id = ?", lockedMsg.ID).Updates(map[string]interface{}{
-			"map_data": lockedMsg.MapData,
-		}).Error; err != nil {
+
+		// Marshal to JSON bytes so GORM's json serializer works correctly
+		jsonBytes, err := json.Marshal(lockedMsg.MapData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal map_data: %w", err)
+		}
+		// Use raw SQL to set the jsonb column directly
+		if err := tx.Exec(
+			"UPDATE messages SET map_data = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+			string(jsonBytes),
+			time.Now().UTC(),
+			lockedMsg.ID,
+		).Error; err != nil {
 			return err
 		}
 		now := time.Now().UTC()
