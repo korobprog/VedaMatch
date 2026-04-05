@@ -572,7 +572,10 @@ func (h *MessageHandler) TranscribeMessage(c *fiber.Ctx) error {
 			lockedMsg.MapData = map[string]interface{}{}
 		}
 		lockedMsg.MapData["transcript"] = transcript
-		if err := tx.Model(&models.Message{}).Where("id = ?", lockedMsg.ID).Update("map_data", lockedMsg.MapData).Error; err != nil {
+		// Use Updates() instead of Update() to trigger GORM's json serializer
+		if err := tx.Model(&models.Message{}).Where("id = ?", lockedMsg.ID).Updates(map[string]interface{}{
+			"map_data": lockedMsg.MapData,
+		}).Error; err != nil {
 			return err
 		}
 		now := time.Now().UTC()
