@@ -97,7 +97,7 @@ func GetPolzaService() *PolzaService {
 func NewPolzaService() *PolzaService {
 	baseURL := os.Getenv("POLZA_BASE_URL")
 	if baseURL == "" {
-		baseURL = "https://api.polza.ai/api" // Correct URL per docs.polza.ai
+		baseURL = "https://polza.ai/api" // Correct URL per docs.polza.ai (normalizes to /api/v1)
 	}
 	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
 		baseURL = baseURL[:len(baseURL)-1]
