@@ -528,6 +528,7 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		return errors.New("telegram support client is not configured")
 	}
 
+	// Configure menu button but don't fail if it errors (non-critical operation)
 	s.configureMiniAppMenuButtonBestEffort(ctx, chatID, languageCode)
 
 	message := s.startMessageText(languageCode)
@@ -537,6 +538,7 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		ReplyMarkup: replyMarkup,
 	})
 	if err != nil {
+		log.Printf("[Support] sendStartMessage SendMessage failed for chat %d: %v", chatID, err)
 		return err
 	}
 
@@ -552,9 +554,14 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		SentAt:            now,
 	}
 	if err := s.store.AddMessage(outbound); err != nil {
+		log.Printf("[Support] sendStartMessage AddMessage failed: %v", err)
 		return err
 	}
-	return s.store.UpdateConversationActivity(conversationID, s.preview(message), now)
+	if err := s.store.UpdateConversationActivity(conversationID, s.preview(message), now); err != nil {
+		log.Printf("[Support] sendStartMessage UpdateConversationActivity failed: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (s *TelegramSupportService) startMessageText(languageCode string) string {
