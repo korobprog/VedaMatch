@@ -707,25 +707,11 @@ func (s *TelegramSupportService) buildStartButtons(languageCode string) map[stri
 			},
 		})
 	}
-	addWebAppButton := func(text, webAppURL string) {
-		webAppURL = strings.TrimSpace(webAppURL)
-		if webAppURL == "" {
-			return
-		}
-		rows = append(rows, []map[string]interface{}{
-			{
-				"text": text,
-				"web_app": map[string]string{
-					"url": webAppURL,
-				},
-			},
-		})
-	}
-
+	// Skip web app button for /start - it requires user to be authorized in Mini App
+	// Only use regular URL buttons for initial contact
 	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS", "Download iOS", "iOS डाउनलोड करें"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
 	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android", "Download Android", "Android डाउनलोड करें"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
 	addURLButton(s.localizedButtonLabel(languageCode, "SUPPORT_CHANNEL_TEXT", "Наш канал", "Our channel", "हमारा चैनल"), s.getSetting("SUPPORT_CHANNEL_URL"))
-	addWebAppButton(s.lkmInlineButtonText(languageCode), s.miniAppURLByLanguage(languageCode))
 
 	if len(rows) == 0 {
 		return nil
