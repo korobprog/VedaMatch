@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -98,8 +97,6 @@ func (c *TelegramSupportHTTPClient) SendMessage(ctx context.Context, chatID int6
 		return 0, err
 	}
 
-	log.Printf("[TelegramAPI] SendMessage request: url=%s payload=%s", url, string(body))
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
@@ -116,8 +113,6 @@ func (c *TelegramSupportHTTPClient) SendMessage(ctx context.Context, chatID int6
 	if err != nil {
 		return 0, err
 	}
-
-	log.Printf("[TelegramAPI] SendMessage response: status=%d body=%s", resp.StatusCode, string(respBody))
 
 	var tgResp struct {
 		OK          bool   `json:"ok"`
