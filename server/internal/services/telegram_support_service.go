@@ -538,8 +538,10 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		ReplyMarkup: replyMarkup,
 	})
 	if err != nil {
-		log.Printf("[Support] sendStartMessage SendMessage failed for chat %d: %v", chatID, err)
-		return err
+		// Log but don't fail - user may have blocked the bot or chat is unavailable
+		log.Printf("[Support] sendStartMessage SendMessage failed for chat %d: %v (non-fatal)", chatID, err)
+		// Don't return error - webhook should return 200 to avoid Telegram retries
+		return nil
 	}
 
 	now := s.nowUTC()
