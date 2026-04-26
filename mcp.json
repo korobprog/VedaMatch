@@ -9,8 +9,8 @@
       "command": "npx",
       "args": ["-y", "@ahdev/dokploy-mcp"],
       "env": {
-        "DOKPLOY_API_KEY": "vedamath_appsKnQiYmEXtuKzuZsIWJgAuguaIJTVUXSccEtowjXqqrEgRWRPXoGzJwvGNYrQYPt",
-        "DOKPLOY_URL": "http://45.150.9.229:3000"
+        "DOKPLOY_API_KEY": "vedamath_appSzKpwJoOwaRTYEtfbwFiGkgGbikvaskjOTxxXGnsPzJiKgCZOhdDDPxUFNfvdnwe",
+        "DOKPLOY_URL": "https://dokploy.vedamatch.ru/api"
       },
       "description": "Dokploy MCP server for deployment management"
     },

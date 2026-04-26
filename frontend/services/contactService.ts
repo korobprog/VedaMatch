@@ -123,8 +123,8 @@ export const contactService = {
         return Array.isArray(data) ? data : [];
     },
 
-    addFriend: async (userId: number, friendId: number) => {
-        const { data } = await apiClient.post('/friends/add', { userId, friendId });
+    addFriend: async (_userId: number, friendId: number) => {
+        const { data } = await apiClient.post('/friends/request', { receiverId: friendId });
         return data;
     },
 

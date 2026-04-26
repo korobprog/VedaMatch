@@ -68,20 +68,20 @@ export const ProPlansScreen: React.FC<Props> = ({ navigation }) => {
 
       <View style={styles.content}>
         <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>PRO status</Text>
-          <Text style={styles.statusValue}>{status?.isProEffective ? 'Active' : 'Inactive'}</Text>
+          <Text style={styles.statusTitle}>{t('settings.proStatusTitle', { defaultValue: 'Статус PRO' })}</Text>
+          <Text style={styles.statusValue}>{status?.isProEffective ? t('settings.proStatusActive', { defaultValue: 'Активен' }) : t('settings.proStatusInactive', { defaultValue: 'Неактивен' })}</Text>
           {roleFree ? (
-            <Text style={styles.statusHint}>Access is enabled by role (free)</Text>
+            <Text style={styles.statusHint}>{t('settings.proAccessByRole', { defaultValue: 'Доступ включён по роли (бесплатно)' })}</Text>
           ) : status?.currentSubscription?.endsAt ? (
-            <Text style={styles.statusHint}>Active until {formatDate(status.currentSubscription.endsAt)}</Text>
+            <Text style={styles.statusHint}>{t('settings.proActiveUntil', { defaultValue: 'Активен до' })} {formatDate(status.currentSubscription.endsAt)}</Text>
           ) : (
-            <Text style={styles.statusHint}>No active PRO access on this account</Text>
+            <Text style={styles.statusHint}>{t('settings.noProAccess', { defaultValue: 'Нет активного PRO доступа на этом аккаунте' })}</Text>
           )}
         </View>
 
         <View style={styles.infoCard}>
           <Text style={styles.infoText}>
-            Status is synced automatically for your account.
+            {t('settings.proStatusSynced', { defaultValue: 'Статус синхронизируется автоматически для вашего аккаунта.' })}
           </Text>
         </View>
       </View>

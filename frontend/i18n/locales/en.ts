@@ -1181,6 +1181,7 @@ export default {
         supportCta: 'Support',
         idLabel: 'Your ID',
         operationFailed: 'Operation failed. Please try again.',
+        profileUpdateFailed: 'Could not update profile',
         vpnNotice: {
             title: 'VPN may block registration',
             body: 'For registration to work correctly, disable your VPN or add the Veda Match app to the VPN exceptions list.',

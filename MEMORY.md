@@ -20,6 +20,20 @@
 - Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
 
 ## Dating / Union
+- Social/friends regression от 2026-04-26 закрыта в коде:
+  - backend `server/internal/handlers/auth_handler.go` теперь использует `POST /friends/add` как compatibility-bridge к request-based модели:
+    - уже существующая дружба нормализуется до взаимной;
+    - встречный pending request принимается и достраивает обе `friends` edges;
+    - повторный outgoing request даёт idempotent success;
+    - новый legacy add создаёт `friend_requests` pending вместо односторонней записи в `friends`;
+  - `RemoveFriend` теперь удаляет обе стороны дружбы;
+  - `AcceptFriendRequest` теперь тоже достраивает missing reverse edge, если до этого в БД уже была legacy one-way friendship.
+- Mobile friend UX тоже выровнен:
+  - `frontend/screens/portal/dating/DatingScreen.tsx` больше не считает отправленный request готовой дружбой и не добавляет кандидата в `friendIds` до accept;
+  - `FriendRequestsScreen`, `ContactsScreen` и `ChatInboxScreen` после friend actions инвалидируют contacts caches, чтобы принятие/отклонение не выглядело как "ничего не произошло".
+- В production БД остаётся исторический хвост legacy данных:
+  - при read-only проверке 2026-04-26 в `friends` было `62` edges, из них `23` односторонние;
+  - новый код больше не должен создавать такие записи, но старые rows при необходимости нужно чистить отдельным backfill/repair script.
 - Для `frontend/screens/portal/dating/DatingScreen.tsx` на mobile внутри portal shell горизонтальные action-strip/mode-strip в верхней части экрана оказались плохим UX:
   - пользовательские горизонтальные жесты конфликтуют со swipe-навигацией самого портала;
   - из-за этого при попытке листать top controls экран может случайно увести назад/в портал или восприниматься как зависший;
@@ -3190,6 +3204,10 @@
 - Ограничение безопасности по God Mode:
   - обычные пользователи не могут включить `godModeEnabled` через `update-profile`;
   - управление флагом допускается только для admin/superadmin-ролей (см. `resolveGodModeForUpdate` в `server/internal/handlers/auth_handler.go`).
+- Shared mobile flow выбора роли требует двух инвариантов:
+  - экран `frontend/screens/roles/RoleDetailScreen.tsx` должен явно подсвечивать текущую выбранную роль, включая дефолтный `user`, иначе пользователь не понимает, какая роль активна при первом заходе;
+  - карточка активной роли должна брать изображение из того же `ROLE_OPTIONS`, что и chips/buttons, и использовать локальный fallback (`defaultSource` + `fadeDuration=0`), чтобы первая отрисовка не показывала пустой image-slot.
+- `frontend/screens/roles/RoleProfileFormScreen.tsx` нельзя оставлять с разъехавшимися сигнатурами `login(...)` / `invalidateContactsCaches(...)` и неинициализированными `i18n`, `useMemo`, `godModeEnabled`: такие ошибки проявляются как краш при сохранении роли в registration/settings flow.
 
 ## Feed V2 / Org-Pro / CDN
 - В backend добавлен `feed v2` namespace (`/api/v2/feed`) с cursor-пагинацией и unified items (`post` + `video_circle`).

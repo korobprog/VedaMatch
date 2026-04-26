@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView, Image, FlatList, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Archive, MessageCircle, Pin, VolumeX, Plus, Search, X } from 'lucide-react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -12,6 +13,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { getMediaUrl } from '../../../utils/url';
 import { navigateToDirectChat } from '../../../utils/directChatNavigation';
+import { invalidateContactsCaches } from '../../../lib/contactCache';
 import { resolveUserDisplayName } from '../../../utils/userDisplay';
 import { messageService } from '../../../services/messageService';
 import { friendRequestService } from '../../../services/friendRequestService';
@@ -25,6 +27,7 @@ export const ChatInboxScreen: React.FC = () => {
     const navigation = useNavigation<ChatInboxNavigation>();
     const { t, i18n } = useTranslation();
     const { user } = useUser();
+    const queryClient = useQueryClient();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const [filter, setFilter] = useState<'all' | 'unread' | 'pinned' | 'requests' | 'archived'>('all');
@@ -238,6 +241,7 @@ export const ChatInboxScreen: React.FC = () => {
         try {
             if (action === 'accept' && item.friendRequestId) {
                 await friendRequestService.acceptRequest(item.friendRequestId);
+                await invalidateContactsCaches(queryClient);
                 await updateLocalConversation(item.peerUserId, {
                     relationshipStatus: 'friend',
                     friendRequestId: undefined,
@@ -246,6 +250,7 @@ export const ChatInboxScreen: React.FC = () => {
             }
             if (action === 'reject' && item.friendRequestId) {
                 await friendRequestService.rejectRequest(item.friendRequestId);
+                await invalidateContactsCaches(queryClient);
                 await updateLocalConversation(item.peerUserId, {
                     relationshipStatus: 'none',
                     friendRequestId: undefined,
@@ -254,6 +259,7 @@ export const ChatInboxScreen: React.FC = () => {
             }
             if (action === 'cancel' && item.friendRequestId) {
                 await friendRequestService.cancelRequest(item.friendRequestId);
+                await invalidateContactsCaches(queryClient);
                 await updateLocalConversation(item.peerUserId, {
                     relationshipStatus: 'none',
                     friendRequestId: undefined,
@@ -262,6 +268,7 @@ export const ChatInboxScreen: React.FC = () => {
             }
             if (action === 'send') {
                 const response = await friendRequestService.sendRequest(item.peerUserId);
+                await invalidateContactsCaches(queryClient);
                 await updateLocalConversation(item.peerUserId, {
                     relationshipStatus: 'outgoing_request',
                     friendRequestId: response.id,
@@ -272,7 +279,7 @@ export const ChatInboxScreen: React.FC = () => {
         } finally {
             setProcessingRequestPeerIds((prev) => prev.filter((peerUserId) => peerUserId !== item.peerUserId));
         }
-    }, [processingRequestPeerIds, updateLocalConversation]);
+    }, [processingRequestPeerIds, queryClient, updateLocalConversation]);
 
     const renderSwipeActions = useCallback((item: NonNullable<typeof items[number]>) => {
         const archiveButtonStyle = [styles.swipeActionButton, styles.archiveAction, item.archived ? styles.swipeActionOff : styles.swipeActionArchive];

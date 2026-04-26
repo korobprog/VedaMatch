@@ -12,6 +12,66 @@
   - `rg` and `eslint` status for changed files
   - any pre-existing warnings or errors not caused by the current changes
 
+## Multi-Agent Rules
+
+- Use multiple agents only when it materially speeds up the task without reducing quality.
+- Before starting parallel work, show a short breakdown: which agent handles which block of files.
+- Never assign the same file to two agents.
+- Never assign overlapping logical areas to different agents.
+- If there's a conflict risk, do not parallelize — handle sequentially.
+- Do not use background tasks unless necessary; keep all work manageable and visible.
+
+## Change Rules
+
+- Each agent modifies only its assigned files.
+- Never touch unrelated files.
+- Never rewrite files already changed by another agent.
+- If a conflict is detected, stop and report it explicitly.
+- Never revert user or external changes without explicit instruction.
+- When adding content, check localization: ensure all text is translated.
+
+## Reporting Requirements
+
+After each completed block, provide a summary:
+- **Block / Zone**: which area was worked on
+- **Changed files**: list of modified files
+- **Result**: brief description of what was done
+- **Checks status**: `rg`, `eslint`, tests, build — as applicable
+- **Remaining / Risks**: what's left or where issues may exist
+
+## Logging
+
+- Log every user request in `PROMPT_LOG.md` with date and time.
+- Do not skip short messages like "давай", "продолжай", "проверь".
+
+## Memory Management
+
+- Maintain `MEMORY.md` structured by topics, not chronology.
+- Remove outdated, incorrect, or irrelevant data.
+- Do not duplicate the same facts.
+- Record only stable, useful context: decisions, constraints, found issues, remaining tasks, workflow agreements.
+
+## iOS Migration Tracking
+
+- If changes affect iOS or general mobile platform behavior, log in `Docs/IOS_CHANGES_FOR_MIGRATION.md`.
+- Include: date, changed files, what was → what became, short code snippets.
+- Do not log local text-only changes that don't affect iOS behavior, platform logic, builds, navigation, native integrations, or shared mobile functionality.
+
+## Large Task Workflow
+
+- Show a block breakdown plan first.
+- Execute block by block.
+- After each block: show a summary.
+- After all blocks: provide a final overall status.
+
+## Linter / Test Warnings
+
+- If linter, tests, or build show pre-existing unrelated errors, explicitly mark them as existing before current changes.
+
+## General Principle
+
+Work carefully, with minimal changes, control overlaps between agents, and provide clear intermediate status after each block.
+
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.
 

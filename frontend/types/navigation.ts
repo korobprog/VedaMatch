@@ -2,6 +2,7 @@ import { CartItem } from './market';
 import type { ChannelPost } from './channel';
 import type { ConnectFeedFilters } from './connect';
 import type { LilaMode } from './lila';
+import type { PortalRole } from './portalBlueprint';
 
 export type PortalInitialTab =
     | 'contacts'
@@ -96,6 +97,8 @@ export type RootStackParamList = {
     SupportConversation: { conversationId: number };
     ChatInbox: undefined;
     EditProfile: undefined;
+    RoleDetail: { role: PortalRole; context: 'registration' | 'settings'; email?: string; password?: string; inviteCode?: string };
+    RoleProfileForm: { role: PortalRole; context: 'registration' | 'settings'; email?: string; password?: string; inviteCode?: string };
     ProPlans: undefined;
     RoomChat: {
         roomId: number;

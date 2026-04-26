@@ -431,8 +431,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     return;
                 }
 
-                // Move to phase 2
-                navigation.setParams({ phase: 'profile' });
+                // Navigate to Role Detail screen
+                navigation.navigate('RoleDetail', {
+                    role,
+                    context: 'registration',
+                    email,
+                    password,
+                    inviteCode: inviteCode?.trim() || '',
+                });
             } else {
                 // Phase 2: Profile Update
                 const userStr = await AsyncStorage.getItem('user');

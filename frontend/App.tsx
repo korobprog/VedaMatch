@@ -24,6 +24,8 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
+import RoleDetailScreen from './screens/roles/RoleDetailScreen';
+import RoleProfileFormScreen from './screens/roles/RoleProfileFormScreen';
 import { LinkedAccountsScreen } from './screens/settings/LinkedAccountsScreen';
 import { ProPlansScreen } from './screens/settings/ProPlansScreen';
 import {
@@ -778,6 +780,8 @@ const AppContent = () => {
                       fullScreenGestureEnabled: false,
                     }}
                   />
+                  <Stack.Screen name="RoleDetail" component={RoleDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="RoleProfileForm" component={RoleProfileFormScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ProPlans" component={ProPlansScreen} options={{ headerShown: false }} />
                   <Stack.Screen
                     name="RoomChat"

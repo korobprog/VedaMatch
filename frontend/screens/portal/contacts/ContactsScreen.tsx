@@ -714,6 +714,8 @@ export const ContactsScreen: React.FC = () => {
                             onPress={async () => {
                                 try {
                                     await friendRequestService.acceptRequest((item as any).request.id);
+                                    await invalidateContactsCaches(queryClient);
+                                    await queryClient.refetchQueries({ queryKey: ['contacts'], type: 'active' });
                                     // Обновить список
                                     const reqs = await friendRequestService.getIncomingRequests();
                                     setRequests(reqs);
@@ -730,6 +732,8 @@ export const ContactsScreen: React.FC = () => {
                             onPress={async () => {
                                 try {
                                     await friendRequestService.rejectRequest((item as any).request.id);
+                                    await invalidateContactsCaches(queryClient);
+                                    await queryClient.refetchQueries({ queryKey: ['contacts'], type: 'active' });
                                     // Обновить список
                                     const reqs = await friendRequestService.getIncomingRequests();
                                     setRequests(reqs);
@@ -794,6 +798,7 @@ export const ContactsScreen: React.FC = () => {
         t,
         theme.accent,
         theme.primary,
+        queryClient,
         usePhotoBg,
         vTheme.colors.background,
         vTheme.colors.divider,

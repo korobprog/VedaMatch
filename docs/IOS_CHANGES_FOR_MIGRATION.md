@@ -1,3 +1,82 @@
+## 2026-04-26 (Shared mobile social flow: friend requests unified, accept state now refreshes immediately)
+
+### Измененные файлы
+- `frontend/screens/portal/dating/DatingScreen.tsx`
+- `frontend/screens/portal/contacts/FriendRequestsScreen.tsx`
+- `frontend/screens/portal/contacts/ContactsScreen.tsx`
+- `frontend/screens/portal/chat/ChatInboxScreen.tsx`
+- `frontend/services/datingService.ts`
+- `frontend/services/contactService.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - mobile dating flow всё ещё ходил в legacy `POST /friends/add`, а не в систему `friend_requests`;
+  - после отправки request dating-клиент локально считал пользователя уже другом и добавлял его в `friendIds`;
+  - accept/reject на mobile не всегда сразу обновлял contacts/friends state, из-за чего пользователю казалось, что принятие не сработало.
+- Стало:
+  - shared mobile flows для знакомства/контактов/чатов используют request-based контракт;
+  - dating screen больше не маркирует pending request как готовую дружбу;
+  - friend actions теперь инвалидируют contacts caches, поэтому after-accept state подтягивается заметно стабильнее без ручного перезахода.
+
+### Короткие сниппеты кода
+
+`frontend/services/datingService.ts`:
+```ts
+const response = await apiClient.post('/friends/request', { receiverId: friendId });
+```
+
+`frontend/screens/portal/dating/DatingScreen.tsx`:
+```tsx
+await datingService.addFriend(user.ID, currentCandidateId);
+setShowCompatibilityModal(false);
+Alert.alert(t('common.success'), t('dating.connectSuccess'));
+```
+
+`frontend/screens/portal/chat/ChatInboxScreen.tsx`:
+```tsx
+await friendRequestService.acceptRequest(item.friendRequestId);
+await invalidateContactsCaches(queryClient);
+```
+
+## 2026-04-07 (Role selection shared mobile flow: save crash removed, default selection and first image stabilized)
+
+### Измененные файлы
+- `frontend/screens/roles/RoleDetailScreen.tsx`
+- `frontend/screens/roles/RoleProfileFormScreen.tsx`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - в `RoleProfileFormScreen` сохранение роли опиралось на сломанные импорты/сигнатуры (`i18n`, `useMemo`, `godModeEnabled`, `login`, `invalidateContactsCaches`), что могло приводить к вылету при сохранении;
+  - в `RoleDetailScreen` дефолтно выбранная роль визуально читалась слабо, особенно для `Искателя`;
+  - карточка активной роли могла зайти на первый рендер без картинки.
+- Стало:
+  - save-flow использует корректные зависимости и актуальные сигнатуры login/cache invalidation, без runtime-crash в role profile flow;
+  - активная роль на экране выбора теперь явно подсвечивается border/shadow/check-state;
+  - карточка активной роли использует единый asset source из `ROLE_OPTIONS` и локальный fallback для первого показа изображения.
+
+### Короткие сниппеты кода
+
+`frontend/screens/roles/RoleDetailScreen.tsx`:
+```tsx
+<Image
+  key={selectedRole}
+  source={activeRoleData.image}
+  defaultSource={activeRoleData.image as number}
+  fadeDuration={0}
+/>
+```
+
+`frontend/screens/roles/RoleProfileFormScreen.tsx`:
+```tsx
+await invalidateContactsCaches(queryClient);
+await login(user, {
+  accessToken,
+  refreshToken,
+  token: accessToken,
+  user,
+});
+```
+
 ## 2026-04-04 (Lila pre-match shared mobile flow: queue and lobby now diverge by mode)
 
 ### Измененные файлы

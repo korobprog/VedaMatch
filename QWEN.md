@@ -416,3 +416,9 @@ docker-compose logs -f server
 ---
 
 *Проект находится в активной разработке. Документация обновляется по мере развития системы.*
+
+## Qwen Added Memories
+- Dokploy MCP credentials:
+- URL: https://dokploy.vedamatch.ru/api
+- API Key: vedamath_appSzKpwJoOwaRTYEtfbwFiGkgGbikvaskjOTxxXGnsPzJiKgCZOhdDDPxUFNfvdnwe
+- Dokploy MCP API ключ: qwen_appQwLOiePdGlMwjoitSiosgDakETvwMNDiPQItvdMIIQcQjPRwbowqtGBzmQhbGwmx

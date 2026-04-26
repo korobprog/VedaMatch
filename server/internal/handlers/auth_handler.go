@@ -120,6 +120,40 @@ func sanitizeUser(user *models.User) {
 	user.NicknameDisplay = services.NicknameDisplay(user.Nickname)
 }
 
+func ensureBidirectionalFriendship(tx *gorm.DB, userID, friendID uint) error {
+	if tx == nil || userID == 0 || friendID == 0 {
+		return nil
+	}
+
+	edges := []models.Friend{
+		{UserID: userID, FriendID: friendID},
+		{UserID: friendID, FriendID: userID},
+	}
+	for _, edge := range edges {
+		if err := tx.Where("user_id = ? AND friend_id = ?", edge.UserID, edge.FriendID).FirstOrCreate(&edge).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func sendFriendRequestNotificationAsync(senderID, receiverID uint) {
+	go func() {
+		var sender models.User
+		if err := database.DB.Select("karmic_name", "spiritual_name").First(&sender, senderID).Error; err == nil {
+			senderName := sender.KarmicName
+			if sender.SpiritualName != "" {
+				senderName = sender.SpiritualName
+			}
+			pushService := services.GetPushService()
+			if pushService != nil {
+				_ = pushService.SendFriendRequestNotification(receiverID, senderName)
+			}
+		}
+	}()
+}
+
 func sanitizeAvatarExtension(filename string) string {
 	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(filename)))
 	if ext == "" || len(ext) > 10 || !strings.HasPrefix(ext, ".") {
@@ -3724,28 +3758,84 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not validate friend user"})
 	}
 
-	// Check if already friends
 	var count int64
-	if err := database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Count(&count).Error; err != nil {
+	if err := database.DB.Model(&models.Friend{}).
+		Where("user_id = ? AND friend_id = ?", userId, body.FriendID).
+		Or("user_id = ? AND friend_id = ?", body.FriendID, userId).
+		Count(&count).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check friendship"})
 	}
 	if count > 0 {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
-	}
-
-	friendship := models.Friend{
-		UserID:   userId,
-		FriendID: body.FriendID,
-	}
-
-	if err := database.DB.Create(&friendship).Error; err != nil {
-		if isDuplicateKeyError(err) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
+		if err := ensureBidirectionalFriendship(database.DB, userId, body.FriendID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not normalize friendship"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not add friend"})
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Already friends", "status": "friend"})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(friendship)
+	var incomingRequest models.FriendRequest
+	if err := database.DB.
+		Where("sender_id = ? AND receiver_id = ? AND status = ?", body.FriendID, userId, models.FriendRequestStatusPending).
+		Order("id DESC").
+		First(&incomingRequest).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check pending friend requests"})
+	}
+	if incomingRequest.ID > 0 {
+		if err := database.DB.Transaction(func(tx *gorm.DB) error {
+			incomingRequest.Status = models.FriendRequestStatusAccepted
+			if err := tx.Save(&incomingRequest).Error; err != nil {
+				return err
+			}
+			if err := ensureBidirectionalFriendship(tx, userId, body.FriendID); err != nil {
+				return err
+			}
+			return tx.Where("sender_id = ? AND receiver_id = ? AND status = ?", userId, body.FriendID, models.FriendRequestStatusPending).
+				Delete(&models.FriendRequest{}).Error
+		}); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not accept friend request"})
+		}
+
+		broadcastDirectConversationStateToUser(h.hub, userId, body.FriendID)
+		broadcastDirectConversationStateToUser(h.hub, body.FriendID, userId)
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message":   "Friend request accepted",
+			"status":    "friend",
+			"requestId": incomingRequest.ID,
+		})
+	}
+
+	var outgoingRequest models.FriendRequest
+	if err := database.DB.
+		Where("sender_id = ? AND receiver_id = ? AND status = ?", userId, body.FriendID, models.FriendRequestStatusPending).
+		Order("id DESC").
+		First(&outgoingRequest).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check existing requests"})
+	}
+	if outgoingRequest.ID > 0 {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message":   "Friend request already sent",
+			"status":    "outgoing_request",
+			"requestId": outgoingRequest.ID,
+		})
+	}
+
+	request := models.FriendRequest{
+		SenderID:   userId,
+		ReceiverID: body.FriendID,
+		Status:     models.FriendRequestStatusPending,
+	}
+
+	if err := database.DB.Create(&request).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Friend request already sent", "status": "outgoing_request"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not send friend request"})
+	}
+
+	sendFriendRequestNotificationAsync(userId, body.FriendID)
+	broadcastDirectConversationStateToUser(h.hub, userId, body.FriendID)
+	broadcastDirectConversationStateToUser(h.hub, body.FriendID, userId)
+
+	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
 func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
@@ -3766,7 +3856,13 @@ func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "friendId is required"})
 	}
 
-	if err := database.DB.Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Delete(&models.Friend{}).Error; err != nil {
+	if err := database.DB.Where(
+		"(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+		userId,
+		body.FriendID,
+		body.FriendID,
+		userId,
+	).Delete(&models.Friend{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not remove friend"})
 	}
 
@@ -3862,20 +3958,7 @@ func (h *AuthHandler) SendFriendRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not send friend request"})
 	}
 
-	// Send push notification to receiver
-	go func() {
-		var sender models.User
-		if err := database.DB.Select("karmic_name", "spiritual_name").First(&sender, userId).Error; err == nil {
-			senderName := sender.KarmicName
-			if sender.SpiritualName != "" {
-				senderName = sender.SpiritualName
-			}
-			pushService := services.GetPushService()
-			if pushService != nil {
-				_ = pushService.SendFriendRequestNotification(body.ReceiverID, senderName)
-			}
-		}
-	}()
+	sendFriendRequestNotificationAsync(userId, body.ReceiverID)
 
 	broadcastDirectConversationStateToUser(h.hub, userId, body.ReceiverID)
 	broadcastDirectConversationStateToUser(h.hub, body.ReceiverID, userId)
@@ -3988,33 +4071,35 @@ func (h *AuthHandler) AcceptFriendRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check friendship status"})
 	}
 	if friendCount > 0 {
-		// Already friends, just delete the request
-		database.DB.Delete(&request)
+		if err := database.DB.Transaction(func(tx *gorm.DB) error {
+			request.Status = models.FriendRequestStatusAccepted
+			if err := tx.Save(&request).Error; err != nil {
+				return err
+			}
+			if err := ensureBidirectionalFriendship(tx, request.SenderID, userId); err != nil {
+				return err
+			}
+			return tx.Where("sender_id = ? AND receiver_id = ? AND status = ?", userId, request.SenderID, models.FriendRequestStatusPending).
+				Delete(&models.FriendRequest{}).Error
+		}); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not normalize friendship"})
+		}
+		broadcastDirectConversationStateToUser(h.hub, request.SenderID, userId)
+		broadcastDirectConversationStateToUser(h.hub, userId, request.SenderID)
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Already friends"})
 	}
 
-	// Update request status
-	request.Status = models.FriendRequestStatusAccepted
-	if err := database.DB.Save(&request).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update request status"})
-	}
-
-	// Create bidirectional friendship
-	friendship1 := models.Friend{
-		UserID:   request.SenderID,
-		FriendID: userId,
-	}
-	friendship2 := models.Friend{
-		UserID:   userId,
-		FriendID: request.SenderID,
-	}
-
-	if err := database.DB.Create(&friendship1).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create friendship"})
-	}
-	if err := database.DB.Create(&friendship2).Error; err != nil {
-		// Rollback first friendship
-		database.DB.Delete(&friendship1)
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		request.Status = models.FriendRequestStatusAccepted
+		if err := tx.Save(&request).Error; err != nil {
+			return err
+		}
+		if err := ensureBidirectionalFriendship(tx, request.SenderID, userId); err != nil {
+			return err
+		}
+		return tx.Where("sender_id = ? AND receiver_id = ? AND status = ?", userId, request.SenderID, models.FriendRequestStatusPending).
+			Delete(&models.FriendRequest{}).Error
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create friendship"})
 	}
 

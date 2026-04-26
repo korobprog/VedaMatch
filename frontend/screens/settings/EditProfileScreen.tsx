@@ -30,7 +30,6 @@ import {
     GUNAS,
     IDENTITY_OPTIONS
 } from '../../constants/DatingConstants';
-import { RoleSelectionSection } from '../../components/roles/RoleSelectionSection';
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
@@ -567,44 +566,70 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                             nestedScrollEnabled
                             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                         >
-                            <RoleSelectionSection
-                                selectedRole={role}
-                                onSelectRole={(newRole) => {
-                                    // Check if role is different and cooldown is active
-                                    if (newRole !== role && roleCooldownDays && roleCooldownDays > 0 && !effectiveProEnabled) {
-                                        Alert.alert(
-                                            t('common.error'),
-                                            language === 'ru'
-                                                ? `Смена роли доступна раз в 30 дней. Осталось дней: ${roleCooldownDays}\n\nАктивируйте PRO режим для мгновенной смены роли.`
-                                                : language === 'hi'
-                                                ? `भूमिका परिवर्तन 30 दिनों में एक बार उपलब्ध है। शेष दिन: ${roleCooldownDays}\n\nतत्काल भूमिका परिवर्तन के लिए PRO मोड सक्रिय करें।`
-                                                : `Role change is available once every 30 days. Days remaining: ${roleCooldownDays}\n\nActivate PRO mode for instant role change.`,
-                                            [
-                                                { text: t('common.cancel') || 'Cancel', style: 'cancel' },
-                                                {
-                                                    text: language === 'ru' ? 'Активировать PRO' : language === 'hi' ? 'PRO सक्रिय करें' : 'Activate PRO',
-                                                    onPress: () => setShowProModalForRole(true)
+                            {/* Role Selection Button */}
+                            <View style={styles.roleSelectionCard}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>{t('settings.roleInPortal')}</Text>
+                                    <View style={styles.roleSelectionRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.currentRoleText, { color: roleColors.textPrimary }]}>
+                                                {role === 'user' ? t('roleDetail.roles.user', { defaultValue: 'Искатель' }) : role === 'in_goodness' ? t('roleDetail.roles.inGoodness', { defaultValue: 'В благости' }) : role === 'yogi' ? t('roleDetail.roles.yogi', { defaultValue: 'Йог' }) : t('roleDetail.roles.devotee', { defaultValue: 'Преданный' })}
+                                            </Text>
+                                            {roleCooldownDays && roleCooldownDays > 0 && !effectiveProEnabled && (
+                                                <Text style={[styles.roleCooldownText, { color: 'rgba(248,250,252,0.5)' }]}>
+                                                    {t('settings.roleCooldown', { defaultValue: 'Смена через' })}: {roleCooldownDays} {t('settings.days', { defaultValue: 'дн.' })}
+                                                </Text>
+                                            )}
+                                        </View>
+                                        <TouchableOpacity
+                                            style={[styles.selectRoleButton, { backgroundColor: `${roleColors.accent}20`, borderColor: roleColors.accent }]}
+                                            onPress={() => {
+                                                // Check cooldown before navigation
+                                                if (roleCooldownDays && roleCooldownDays > 0 && !effectiveProEnabled) {
+                                                    Alert.alert(
+                                                        t('common.error'),
+                                                        language === 'ru'
+                                                            ? `Смена роли доступна раз в 30 дней. Осталось дней: ${roleCooldownDays}\n\nАктивируйте PRO режим для мгновенной смены роли.`
+                                                            : language === 'hi'
+                                                            ? `भूमिका परिवर्तन 30 दिनों में एक बार उपलब्ध है। शेष दिन: ${roleCooldownDays}\n\nतत्काल भूमिका परिवर्तन के लिए PRO मोड सक्रिय करें।`
+                                                            : `Role change is available once every 30 days. Days remaining: ${roleCooldownDays}\n\nActivate PRO mode for instant role change.`,
+                                                        [
+                                                            { text: t('common.cancel') || 'Cancel', style: 'cancel' },
+                                                            {
+                                                                text: language === 'ru' ? 'Активировать PRO' : language === 'hi' ? 'PRO सक्रिय करें' : 'Activate PRO',
+                                                                onPress: () => setShowProModalForRole(true)
+                                                            }
+                                                        ]
+                                                    );
+                                                    return;
                                                 }
-                                            ]
-                                        );
-                                        return;
-                                    }
-                                    setRole(newRole);
-                                }}
-                                autoOpenHint={!user?.isProfileComplete}
-                            />
+                                                navigation.navigate('RoleDetail', {
+                                                    role,
+                                                    context: 'settings',
+                                                });
+                                            }}
+                                        >
+                                            <Text style={[styles.selectRoleButtonText, { color: roleColors.accent }]}>
+                                                {t('settings.changeRole', { defaultValue: 'Изменить' })}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
 
                             <View style={styles.proCard}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.label}>{t('settings.proMode')}</Text>
                                     <Text style={styles.helperText}>
                                         {proStatusLoading
-                                            ? 'Checking PRO status...'
+                                            ? t('settings.proCheckingStatus', { defaultValue: 'Проверка статуса PRO...' })
                                             : (canManageProMode
-                                                ? 'Access is enabled by role (free)'
+                                                ? t('settings.proAccessByRole', { defaultValue: 'Доступ включён по роли (бесплатно)' })
                                                 : (effectiveProEnabled
-                                                    ? `Active${proStatus?.currentSubscription?.endsAt ? ` until ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString('en-US')}` : ''}`
-                                                    : 'No active PRO access on this account'))}
+                                                    ? (proStatus?.currentSubscription?.endsAt
+                                                        ? `${t('settings.proActive', { defaultValue: 'Активен' })} ${t('settings.proUntil', { defaultValue: 'до' })} ${new Date(proStatus.currentSubscription.endsAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US')}`
+                                                        : t('settings.proActive', { defaultValue: 'Активен' }))
+                                                    : t('settings.noProAccess', { defaultValue: 'Нет активного PRO доступа на этом аккаунте' })))}
                                     </Text>
                                 </View>
                             </View>
@@ -615,7 +640,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     <Text style={styles.label}>
                                         {t('dating.enableProfile') || 'Enable Union Profile'}
                                     </Text>
-                                    <Text style={styles.helperText}>Visibility of your profile in Union</Text>
+                                    <Text style={styles.helperText}>{t('settings.unionProfileVisibility', { defaultValue: 'Видимость вашего профиля в Союзе' })}</Text>
                                 </View>
                                 <Switch
                                     value={datingEnabled}
@@ -1106,5 +1131,40 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '800',
         color: '#F8FAFC',
+    },
+    roleSelectionCard: {
+        marginHorizontal: 16,
+        marginBottom: 18,
+        borderRadius: 14,
+        backgroundColor: 'rgba(15,23,42,0.45)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+    },
+    roleSelectionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginTop: 8,
+    },
+    currentRoleText: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    roleCooldownText: {
+        fontSize: 12,
+        marginTop: 4,
+    },
+    selectRoleButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 12,
+        borderWidth: 1.5,
+    },
+    selectRoleButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
 });

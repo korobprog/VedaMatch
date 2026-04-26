@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -6,22 +6,22 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     FlatList,
-    Image,
     Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import FastImage from 'react-native-fast-image';
 import { Check, X, ArrowLeft } from 'lucide-react-native';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { friendRequestService, FriendRequest } from '../../../services/friendRequestService';
+import { invalidateContactsCaches } from '../../../lib/contactCache';
 import { getMediaUrl } from '../../../utils/url';
-import { useUser } from '../../../context/UserContext';
 
 export const FriendRequestsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
-    const { user } = useUser();
+    const queryClient = useQueryClient();
     const theme = COLORS.dark;
 
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -46,12 +46,13 @@ export const FriendRequestsScreen: React.FC = () => {
         }, [loadRequests])
     );
 
-    const handleAccept = useCallback(async (requestId: number, senderId: number) => {
+    const handleAccept = useCallback(async (requestId: number, _senderId: number) => {
         if (processingIds.has(requestId)) return;
 
         setProcessingIds(prev => new Set(prev).add(requestId));
         try {
             await friendRequestService.acceptRequest(requestId);
+            await invalidateContactsCaches(queryClient);
             // Remove from list
             setRequests(prev => prev.filter(req => req.id !== requestId));
         } catch (error) {
@@ -64,7 +65,7 @@ export const FriendRequestsScreen: React.FC = () => {
                 return next;
             });
         }
-    }, [processingIds, t]);
+    }, [processingIds, queryClient, t]);
 
     const handleReject = useCallback(async (requestId: number) => {
         if (processingIds.has(requestId)) return;
@@ -72,6 +73,7 @@ export const FriendRequestsScreen: React.FC = () => {
         setProcessingIds(prev => new Set(prev).add(requestId));
         try {
             await friendRequestService.rejectRequest(requestId);
+            await invalidateContactsCaches(queryClient);
             // Remove from list
             setRequests(prev => prev.filter(req => req.id !== requestId));
         } catch (error) {
@@ -84,7 +86,7 @@ export const FriendRequestsScreen: React.FC = () => {
                 return next;
             });
         }
-    }, [processingIds, t]);
+    }, [processingIds, queryClient, t]);
 
     const openProfile = useCallback((senderId: number) => {
         navigation.navigate('ContactProfile', { userId: senderId });

@@ -1180,6 +1180,7 @@ export default {
         "supportCta": "सहायता",
         "idLabel": "आपका ID",
         "operationFailed": "ऑपरेशन असफल रहा। कृपया फिर से प्रयास करें।",
+        "profileUpdateFailed": "प्रोफ़ाइल अपडेट नहीं की जा सकी",
         "vpnNotice": {
             "title": "VPN पंजीकरण में बाधा डाल सकता है",
             "body": "पंजीकरण सही से काम करने के लिए VPN बंद करें या Veda Match ऐप को VPN exceptions में जोड़ें।"

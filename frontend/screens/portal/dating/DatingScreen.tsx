@@ -880,7 +880,6 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         try {
             await datingService.addFriend(user.ID, currentCandidateId);
             if (isMountedRef.current) {
-                setFriendIds((prev) => (prev.includes(currentCandidateId) ? prev : [...prev, currentCandidateId]));
                 setShowCompatibilityModal(false);
                 Alert.alert(t('common.success'), t('dating.connectSuccess'));
             }

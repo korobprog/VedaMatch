@@ -144,8 +144,8 @@ class DatingService {
         return response.data;
     }
 
-    async addFriend(userId: number, friendId: number) {
-        const response = await apiClient.post('/friends/add', { userId, friendId });
+    async addFriend(_userId: number, friendId: number) {
+        const response = await apiClient.post('/friends/request', { receiverId: friendId });
         return response.data;
     }
 
