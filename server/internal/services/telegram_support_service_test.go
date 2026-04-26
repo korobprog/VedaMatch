@@ -529,8 +529,7 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 		}
 		hasRuButtons = strings.Contains(strings.Join(buttonTexts, "|"), "Скачать iOS") &&
 			strings.Contains(strings.Join(buttonTexts, "|"), "Скачать Android") &&
-			strings.Contains(strings.Join(buttonTexts, "|"), "Наш канал") &&
-			strings.Contains(strings.Join(buttonTexts, "|"), "LKM офис")
+			strings.Contains(strings.Join(buttonTexts, "|"), "Наш канал")
 		if hasRuButtons {
 			break
 		}
@@ -558,13 +557,64 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 	}
 }
 
+func TestSupportStartWebhookResponse_DoesNotCallTelegramClient(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		&fakeMediaStorage{},
+		&fakeSupportAIResponder{},
+		newSettingsProvider(map[string]string{
+			"SUPPORT_DOWNLOAD_IOS_URL":     "https://apps.apple.com/app/id123",
+			"SUPPORT_DOWNLOAD_ANDROID_URL": "https://example.com/app.apk",
+			"SUPPORT_CHANNEL_URL":          "https://t.me/vedamatch",
+		}),
+	)
+
+	response, err := service.ProcessStartUpdateForWebhookResponse(&TelegramUpdate{
+		UpdateID: 2201,
+		Message: &TelegramMessage{
+			MessageID: 802,
+			Date:      time.Now().Unix(),
+			Text:      "/start",
+			From: &TelegramUser{
+				ID:           8802,
+				FirstName:    "Starter",
+				LanguageCode: "en",
+			},
+			Chat: &TelegramChat{ID: 8802, Type: "private"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ProcessStartUpdateForWebhookResponse failed: %v", err)
+	}
+	if response == nil {
+		t.Fatalf("expected webhook sendMessage response")
+	}
+	if response.ChatID != 8802 {
+		t.Fatalf("response chat id = %d, want 8802", response.ChatID)
+	}
+	if !strings.Contains(response.Text, "Welcome to VedaMatch support") {
+		t.Fatalf("unexpected response text: %q", response.Text)
+	}
+	if response.ReplyMarkup == nil {
+		t.Fatalf("expected reply markup")
+	}
+	if len(client.sentMessages) != 0 {
+		t.Fatalf("expected no outbound Telegram API SendMessage calls, got %d", len(client.sentMessages))
+	}
+	if len(store.messageOrder) != 1 {
+		t.Fatalf("expected persisted outbound message, got %d", len(store.messageOrder))
+	}
+}
+
 func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) {
 	cases := []struct {
 		name         string
 		languageCode string
 		wantText     string
 		wantURL      string
-		wantInline   string
 		wantGuide    string
 		wantIOS      string
 		wantAndroid  string
@@ -575,7 +625,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			languageCode: "en",
 			wantText:     "LKM Cabinet",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
-			wantInline:   "LKM Office",
 			wantGuide:    "How to use this chat:",
 			wantIOS:      "Download iOS",
 			wantAndroid:  "Download Android",
@@ -586,7 +635,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			languageCode: "hi",
 			wantText:     "LKM कैबिनेट",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
-			wantInline:   "LKM ऑफिस",
 			wantGuide:    "चैट का उपयोग कैसे करें:",
 			wantIOS:      "iOS डाउनलोड करें",
 			wantAndroid:  "Android डाउनलोड करें",
@@ -597,7 +645,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			languageCode: "ru",
 			wantText:     "LKM кабинет",
 			wantURL:      "https://lkm.vedamatch.ru/?tg=1",
-			wantInline:   "LKM офис",
 			wantGuide:    "Как пользоваться чатом:",
 			wantIOS:      "Скачать iOS",
 			wantAndroid:  "Скачать Android",
@@ -658,7 +705,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 				t.Fatalf("menu button URL = %q, want %q", got.URL, tc.wantURL)
 			}
 
-			var hasInlineLKM bool
 			var hasGuide bool
 			var hasLocalizedButtons bool
 			for _, sent := range client.sentMessages {
@@ -667,11 +713,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 				}
 				if sent.ChatID != 707 || sent.Options.ReplyMarkup == nil {
 					continue
-				}
-				for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
-					if button["text"] == tc.wantInline && button["web_app_url"] == tc.wantURL {
-						hasInlineLKM = true
-					}
 				}
 				var texts []string
 				for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
@@ -686,9 +727,6 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			}
 			if !hasGuide {
 				t.Fatalf("expected localized start guide containing %q", tc.wantGuide)
-			}
-			if !hasInlineLKM {
-				t.Fatalf("expected inline LKM web_app button %q -> %q", tc.wantInline, tc.wantURL)
 			}
 			if !hasLocalizedButtons {
 				t.Fatalf("expected localized start buttons (%q, %q, %q)", tc.wantIOS, tc.wantAndroid, tc.wantChannel)

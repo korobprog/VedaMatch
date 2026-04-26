@@ -18,6 +18,10 @@
 
 ## Support Bot
 - Текст `/start` в Telegram support-боте должен позиционировать чат не только как поддержку, но и как инструкцию/помощь по установке Android-версии; изменение относится к `server/internal/services/telegram_support_service.go` и должно сопровождаться обновлением тестов рядом.
+- Production incident 2026-04-26: `@vedamatch_bot` перестал отвечать на `/start`, потому что backend webhook синхронно ждал outbound Telegram Bot API calls, а VPS/container не мог быстро подключиться к `api.telegram.org` (`Connection timed out`, pending updates росли).
+- Устойчивый паттерн для `/start`: отвечать Telegram webhook-response payload с `method=sendMessage`, а не делать отдельный outbound `sendMessage` из backend; это устраняет зависимость `/start` от egress к Telegram API.
+- `TelegramSupportHTTPClient` дополнительно форсирует `tcp4` и короткий timeout для остальных Bot API calls, потому что Docker DNS на VPS может отдавать IPv6 для `api.telegram.org`, а IPv6 маршрут до Telegram не работает.
+- 2026-04-26 production fix был применен вручную через Dokploy working tree `/etc/dokploy/applications/vedamatch-server-dnkxc8/code/server`, `docker build -t vedamatch-server-dnkxc8:latest .` и `docker service update --force --image vedamatch-server-dnkxc8:latest vedamatch-server-dnkxc8`; после deploy Telegram `pending_update_count=0`, свежий `/start` webhook ответил `200` за ~22ms.
 
 ## Dating / Union
 - Social/friends regression от 2026-04-26 закрыта в коде:
@@ -2662,8 +2666,8 @@
 
 ## Versioning Notes
 - Версии Android вести через `versionName` и `versionCode` в `frontend/android/app/build.gradle`.
-- Текущие версии (2026-03-07):
-  - Android: `versionCode=19`, `versionName=1.1.17`
+- Текущие версии:
+  - Android: `versionCode=52`, `versionName=1.1.50`
   - iOS: `MARKETING_VERSION=1.1.17`, `CURRENT_PROJECT_VERSION=9`
 - Статус production-сборок (2026-03-07):
   - Android: `./gradlew app:assembleRelease` успешно, APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`.
@@ -3631,6 +3635,11 @@
 
 ## Android Releases
 - Для Android test-group релизов по мобильным изменениям version bump обязателен перед новым APK.
+- 2026-04-26 live Android release ops:
+  - release APK `1.1.50 (52)` собран локально через `./gradlew clean app:assembleRelease` после production-проверки friend request fix;
+  - публичный direct-download URL: `https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/downloads/android/ragagent-release-v1.1.50-build52-20260426.apk`;
+  - HTTP-проверка публичной ссылки вернула `200 OK`, metadata APK: `applicationId=com.ragagent`, `versionName=1.1.50`, `versionCode=52`;
+  - production `system_settings` обновлены, live `/api/android-testers/config` + `/api/mobile-app/config` отдают `1.1.50 (52)`, `versionCode=52`, `minimumSupportedVersionCode=48`, `publishedAt=2026-04-26T15:20:26Z`.
 - 2026-03-31 live Android release ops:
   - release APK `1.1.46 (48)` собран локально через `./gradlew app:assembleRelease`, установлен на устройство `R58N10182QN` и загружен в S3;
   - публичный direct-download URL: `https://s3.firstvds.ru/05859cbd-c4799b8f-c25d-417d-b8a3-7c54ac14c436/downloads/android/ragagent-release-v1.1.46-build48-20260331.apk`;

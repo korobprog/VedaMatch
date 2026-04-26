@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -45,8 +46,22 @@ type TelegramSupportHTTPClient struct {
 }
 
 func NewTelegramSupportHTTPClient(tokenProvider func() string) *TelegramSupportHTTPClient {
+	dialer := &net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		// Some production Docker DNS responses for api.telegram.org prefer IPv6,
+		// while the VPS has no working IPv6 route to Telegram. Force IPv4 for bot API calls.
+		return dialer.DialContext(ctx, "tcp4", address)
+	}
+
 	return &TelegramSupportHTTPClient{
-		httpClient: &http.Client{Timeout: 45 * time.Second},
+		httpClient: &http.Client{
+			Timeout:   8 * time.Second,
+			Transport: transport,
+		},
 		tokenProvider: func() string {
 			if tokenProvider == nil {
 				return ""

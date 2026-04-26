@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,12 +26,13 @@ import (
 )
 
 const (
-	supportUploadMaxBytes        int64 = 10 * 1024 * 1024 // 10MB
-	supportTicketRateLimit             = 6
-	supportTicketRateWindow            = 10 * time.Minute
-	supportUploadRateLimit             = 20
-	supportUploadRateWindow            = 10 * time.Minute
-	defaultSupportTelegramBotURL       = "https://t.me/vedamatch_bot"
+	supportUploadMaxBytes         int64 = 10 * 1024 * 1024 // 10MB
+	supportTicketRateLimit              = 6
+	supportTicketRateWindow             = 10 * time.Minute
+	supportUploadRateLimit              = 20
+	supportUploadRateWindow             = 10 * time.Minute
+	telegramWebhookProcessTimeout       = 9 * time.Second
+	defaultSupportTelegramBotURL        = "https://t.me/vedamatch_bot"
 )
 
 var telegramContactPattern = regexp.MustCompile(`^@[A-Za-z0-9_]{4,32}$`)
@@ -851,7 +853,29 @@ func (h *SupportHandler) TelegramWebhook(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse update"})
 	}
 
-	if err := h.service.ProcessUpdate(c.UserContext(), &update); err != nil {
+	if response, err := h.service.ProcessStartUpdateForWebhookResponse(&update); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	} else if response != nil {
+		payload := fiber.Map{
+			"method":                   "sendMessage",
+			"chat_id":                  response.ChatID,
+			"text":                     response.Text,
+			"disable_web_page_preview": true,
+		}
+		if response.ReplyMarkup != nil {
+			payload["reply_markup"] = response.ReplyMarkup
+		}
+		return c.JSON(payload)
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), telegramWebhookProcessTimeout)
+	defer cancel()
+
+	if err := h.service.ProcessUpdate(ctx, &update); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			log.Printf("[Support] telegram webhook processing timed out update_id=%d: %v", update.UpdateID, err)
+			return c.JSON(fiber.Map{"ok": true, "accepted": true})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

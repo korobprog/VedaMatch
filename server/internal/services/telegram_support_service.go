@@ -66,6 +66,12 @@ type TelegramSupportService struct {
 
 const telegramMaxMessageRunes = 4096
 
+type TelegramWebhookSendMessageResponse struct {
+	ChatID      int64                  `json:"chat_id"`
+	Text        string                 `json:"text"`
+	ReplyMarkup map[string]interface{} `json:"reply_markup,omitempty"`
+}
+
 const (
 	defaultLKMWebAppURLRU      = "https://lkm.vedamatch.ru/?tg=1"
 	defaultLKMWebAppURLGlobal  = "https://lkm.vedamatch.com/?tg=1"
@@ -149,6 +155,64 @@ func (s *TelegramSupportService) ProcessUpdate(ctx context.Context, update *Tele
 	}
 
 	return s.handleUserMessage(ctx, update.Message, operatorChatID)
+}
+
+func (s *TelegramSupportService) ProcessStartUpdateForWebhookResponse(update *TelegramUpdate) (*TelegramWebhookSendMessageResponse, error) {
+	if update == nil || update.Message == nil || update.Message.Chat == nil || update.Message.From == nil {
+		return nil, nil
+	}
+	if update.Message.From.IsBot {
+		return nil, nil
+	}
+	text := strings.TrimSpace(update.Message.Text)
+	if !strings.HasPrefix(strings.ToLower(text), "/start") {
+		return nil, nil
+	}
+	if s.store == nil {
+		return nil, errors.New("support store is not configured")
+	}
+
+	now := s.nowUTC()
+	processed, err := s.store.MarkUpdateProcessed(update.UpdateID, now)
+	if err != nil {
+		return nil, err
+	}
+	if processed {
+		return nil, nil
+	}
+
+	contact, err := s.store.UpsertContactFromTelegram(update.Message.From, update.Message.Chat, now)
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := s.store.EnsureOpenConversation(contact, update.Message.Chat.ID, now)
+	if err != nil {
+		return nil, err
+	}
+
+	message := s.startMessageText(update.Message.From.LanguageCode)
+	replyMarkup := s.buildStartButtons(update.Message.From.LanguageCode)
+	outbound := &models.SupportMessage{
+		ConversationID: conversation.ID,
+		Direction:      models.SupportMessageDirectionOutbound,
+		Source:         models.SupportMessageSourceBot,
+		Type:           models.SupportMessageTypeText,
+		Text:           message,
+		TelegramChatID: update.Message.Chat.ID,
+		SentAt:         now,
+	}
+	if err := s.store.AddMessage(outbound); err != nil {
+		log.Printf("[Support] webhook start AddMessage failed: %v", err)
+	}
+	if err := s.store.UpdateConversationActivity(conversation.ID, s.preview(message), now); err != nil {
+		log.Printf("[Support] webhook start UpdateConversationActivity failed: %v", err)
+	}
+
+	return &TelegramWebhookSendMessageResponse{
+		ChatID:      update.Message.Chat.ID,
+		Text:        message,
+		ReplyMarkup: replyMarkup,
+	}, nil
 }
 
 func (s *TelegramSupportService) handleUserMessage(ctx context.Context, msg *TelegramMessage, operatorChatID int64) error {
