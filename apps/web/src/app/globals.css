@@ -717,6 +717,180 @@ h3 {
   padding: 20px;
 }
 
+.dating-profile-page {
+  display: grid;
+  gap: 18px;
+}
+
+.dating-profile-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.dating-profile-hero .section-head {
+  margin-bottom: 0;
+}
+
+.dating-profile-hero .section-head p {
+  max-width: 70ch;
+}
+
+.dating-profile-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 180px;
+  padding: 14px 16px;
+  border: 1px solid var(--dashboard-pill-border);
+  border-radius: 18px;
+  background: var(--dashboard-pill-bg);
+  color: var(--dashboard-muted);
+}
+
+.dating-profile-status strong {
+  color: var(--dashboard-ink);
+}
+
+.dating-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.dating-photo-panel,
+.dating-form {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.dating-photo-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--dashboard-panel-border);
+  border-radius: 20px;
+  color: var(--dashboard-muted);
+  background:
+    radial-gradient(circle at top left, rgba(255, 154, 47, 0.16), transparent 32%),
+    var(--dashboard-panel-alt-bg);
+}
+
+.dating-photo-preview img,
+.dating-photo-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dating-photo-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.dating-upload-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.dating-upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dating-photo-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dating-photo-strip img {
+  aspect-ratio: 1;
+  border: 1px solid var(--dashboard-panel-border);
+  border-radius: 14px;
+  background: var(--dashboard-panel-alt-bg);
+}
+
+.dating-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.dating-mode-control {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dating-mode-control__item {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--dashboard-ghost-border);
+  border-radius: 999px;
+  color: var(--dashboard-ghost-ink);
+  background: var(--dashboard-ghost-bg);
+  cursor: pointer;
+}
+
+.dating-mode-control__item.is-active {
+  color: var(--dashboard-accent-ink);
+  border-color: transparent;
+  background: var(--dashboard-accent-bg);
+}
+
+.dating-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dashboard-muted);
+}
+
+.dating-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #ff8a2a;
+}
+
+.dating-editor-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 5, 8, 0.78);
+}
+
+.dating-editor-shell {
+  position: relative;
+  overflow: hidden;
+  width: min(1120px, 100%);
+  height: min(760px, calc(100vh - 40px));
+  border: 1px solid var(--dashboard-panel-border);
+  border-radius: 20px;
+  background: #11141c;
+}
+
+.dating-editor-loading,
+.dating-editor-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(8, 10, 15, 0.72);
+}
+
+.dating-editor-overlay {
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 700;
+}
+
 @media (max-width: 1440px) {
   .contacts-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -737,9 +911,26 @@ h3 {
   .contacts-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .dating-profile-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
+  .dating-profile-hero {
+    display: grid;
+  }
+
+  .dating-profile-status {
+    justify-items: start;
+    width: 100%;
+  }
+
+  .dating-mode-control {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .contacts-grid {
     grid-template-columns: 1fr;
   }

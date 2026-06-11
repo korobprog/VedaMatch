@@ -78,6 +78,41 @@ export type Dictionary = {
     updated: string;
     updateFailed: string;
   };
+  datingWeb: {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    status: string;
+    draft: string;
+    loading: string;
+    loadFailed: string;
+    missingUser: string;
+    city: string;
+    bio: string;
+    interests: string;
+    lookingFor: string;
+    intentions: string;
+    family: string;
+    friendship: string;
+    seva: string;
+    business: string;
+    enableProfile: string;
+    save: string;
+    saving: string;
+    saved: string;
+    saveFailed: string;
+    submit: string;
+    submitting: string;
+    submitted: string;
+    submitFailed: string;
+    choosePhoto: string;
+    uploading: string;
+    photoUploaded: string;
+    photoFailed: string;
+    photoHint: string;
+    photoAlt: string;
+    noPhoto: string;
+  };
   contacts: {
     title: string;
     subtitle: string;
@@ -306,6 +341,41 @@ export const dictionaries: Record<Language, Dictionary> = {
       updated: "Профиль обновлен.",
       updateFailed: "Не удалось обновить профиль.",
     },
+    datingWeb: {
+      eyebrow: "Union",
+      title: "Анкета Union",
+      subtitle: "Создайте анкету знакомств, загрузите свое фото и обработайте его перед публикацией.",
+      status: "Статус публикации",
+      draft: "Черновик",
+      loading: "Загружаем анкету...",
+      loadFailed: "Не удалось загрузить анкету.",
+      missingUser: "Не удалось определить текущего пользователя.",
+      city: "Город",
+      bio: "О себе",
+      interests: "Интересы",
+      lookingFor: "Кого ищу",
+      intentions: "Цель знакомства",
+      family: "Семья",
+      friendship: "Дружба",
+      seva: "Сева",
+      business: "Дело",
+      enableProfile: "Показывать анкету в Union",
+      save: "Сохранить анкету",
+      saving: "Сохраняем...",
+      saved: "Анкета сохранена.",
+      saveFailed: "Не удалось сохранить анкету.",
+      submit: "Отправить на проверку",
+      submitting: "Отправляем...",
+      submitted: "Анкета отправлена на проверку.",
+      submitFailed: "Не удалось отправить анкету.",
+      choosePhoto: "Загрузить фото",
+      uploading: "Загружаем фото...",
+      photoUploaded: "Фото обработано и загружено.",
+      photoFailed: "Не удалось загрузить фото.",
+      photoHint: "После выбора откроется редактор с кадрированием, поворотом, настройками света и фильтрами.",
+      photoAlt: "Фото анкеты Union",
+      noPhoto: "Фото пока нет",
+    },
     contacts: {
       title: "Контакты",
       subtitle: "Защищенный каталог пользователей для social web entrypoint. Каждый контакт можно сразу открыть в browser-first direct chat.",
@@ -532,6 +602,41 @@ export const dictionaries: Record<Language, Dictionary> = {
       updated: "Profile updated.",
       updateFailed: "Failed to update profile.",
     },
+    datingWeb: {
+      eyebrow: "Union",
+      title: "Union profile",
+      subtitle: "Create your dating profile, upload a photo, and polish it before publication.",
+      status: "Publication status",
+      draft: "Draft",
+      loading: "Loading profile...",
+      loadFailed: "Failed to load the profile.",
+      missingUser: "Could not resolve the current user.",
+      city: "City",
+      bio: "About you",
+      interests: "Interests",
+      lookingFor: "Looking for",
+      intentions: "Intent",
+      family: "Family",
+      friendship: "Friendship",
+      seva: "Seva",
+      business: "Business",
+      enableProfile: "Show this profile in Union",
+      save: "Save profile",
+      saving: "Saving...",
+      saved: "Profile saved.",
+      saveFailed: "Failed to save profile.",
+      submit: "Submit for review",
+      submitting: "Submitting...",
+      submitted: "Profile submitted for review.",
+      submitFailed: "Failed to submit profile.",
+      choosePhoto: "Upload photo",
+      uploading: "Uploading photo...",
+      photoUploaded: "Photo edited and uploaded.",
+      photoFailed: "Failed to upload photo.",
+      photoHint: "After choosing a file, the editor opens with crop, rotate, light tuning, and filters.",
+      photoAlt: "Union profile photo",
+      noPhoto: "No photo yet",
+    },
     contacts: {
       title: "Contacts core",
       subtitle: "Protected people directory for the social web entrypoint. Each contact can be opened directly into a browser-first direct chat thread.",
@@ -757,6 +862,41 @@ export const dictionaries: Record<Language, Dictionary> = {
       saving: "सहेजा जा रहा है...",
       updated: "प्रोफ़ाइल अपडेट हो गई।",
       updateFailed: "प्रोफ़ाइल अपडेट नहीं हो सकी।",
+    },
+    datingWeb: {
+      eyebrow: "Union",
+      title: "Union प्रोफ़ाइल",
+      subtitle: "अपनी dating profile बनाएं, फोटो अपलोड करें और publication से पहले उसे edit करें।",
+      status: "Publication status",
+      draft: "Draft",
+      loading: "प्रोफ़ाइल लोड हो रही है...",
+      loadFailed: "प्रोफ़ाइल लोड नहीं हो सकी।",
+      missingUser: "वर्तमान user पहचान में नहीं आया।",
+      city: "शहर",
+      bio: "अपने बारे में",
+      interests: "रुचियां",
+      lookingFor: "किसे खोज रहे हैं",
+      intentions: "उद्देश्य",
+      family: "परिवार",
+      friendship: "मित्रता",
+      seva: "सेवा",
+      business: "काम",
+      enableProfile: "Union में यह profile दिखाएँ",
+      save: "प्रोफ़ाइल सहेजें",
+      saving: "सहेजा जा रहा है...",
+      saved: "प्रोफ़ाइल सहेज दी गई।",
+      saveFailed: "प्रोफ़ाइल सहेजी नहीं जा सकी।",
+      submit: "Review के लिए भेजें",
+      submitting: "भेजा जा रहा है...",
+      submitted: "प्रोफ़ाइल review के लिए भेज दी गई।",
+      submitFailed: "प्रोफ़ाइल भेजी नहीं जा सकी।",
+      choosePhoto: "फोटो अपलोड करें",
+      uploading: "फोटो अपलोड हो रही है...",
+      photoUploaded: "फोटो edit होकर अपलोड हो गई।",
+      photoFailed: "फोटो अपलोड नहीं हो सकी।",
+      photoHint: "File चुनने के बाद crop, rotate, light tuning और filters वाला editor खुलेगा।",
+      photoAlt: "Union profile photo",
+      noPhoto: "अभी फोटो नहीं है",
     },
     contacts: {
       title: "संपर्क",

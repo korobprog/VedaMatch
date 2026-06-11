@@ -4,6 +4,7 @@ import type {
   ChatConversationFilter,
   ChatConversationsResponse,
   ChapterInfo,
+  DatingProfile,
   Language,
   LoginResponse,
   NewsItem,
@@ -20,6 +21,7 @@ import type {
   SupportConversation,
   SupportMessage,
   TransactionListResponse,
+  UserMedia,
   WalletResponse,
   YatraListResponse,
 } from "@vedamatch/domain-types";
@@ -383,6 +385,70 @@ export async function updateProfile(baseUrl: string, payload: Record<string, unk
   );
 }
 
+export async function getDatingProfile(baseUrl: string, userId: number, accessToken: string): Promise<DatingProfile> {
+  return apiFetch<DatingProfile>(baseUrl, `/dating/profile/${userId}`, {}, accessToken);
+}
+
+export async function updateDatingProfile(baseUrl: string, userId: number, payload: Record<string, unknown>, accessToken: string): Promise<DatingProfile> {
+  return apiFetch<DatingProfile>(
+    baseUrl,
+    `/dating/profile/${userId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export async function submitDatingProfile(baseUrl: string, userId: number, accessToken: string): Promise<unknown> {
+  return apiFetch<unknown>(
+    baseUrl,
+    `/dating/profile/${userId}/submit`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    accessToken,
+  );
+}
+
+export async function uploadUserPhoto(baseUrl: string, userId: number, formData: FormData, accessToken: string): Promise<UserMedia> {
+  return apiFetch<UserMedia>(
+    baseUrl,
+    `/media/upload/${userId}`,
+    {
+      method: "POST",
+      body: formData,
+    },
+    accessToken,
+  );
+}
+
+export async function setUserProfilePhoto(baseUrl: string, mediaId: number, accessToken: string): Promise<UserMedia> {
+  return apiFetch<UserMedia>(
+    baseUrl,
+    `/media/${mediaId}/set-profile`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    accessToken,
+  );
+}
+
+export function resolveMediaUrl(baseUrl: string, url = ""): string {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  const origin = baseUrl.replace(/\/api\/?$/, "");
+  return `${origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+}
+
 export async function getSocialAuthConfig(baseUrl: string): Promise<SocialAuthConfigResponse> {
   return apiFetch<SocialAuthConfigResponse>(baseUrl, "/auth/social/config");
 }
@@ -554,6 +620,50 @@ export class BrowserVedaClient {
     };
     saveBrowserSession(nextSession);
     return nextSession;
+  }
+
+  async getDatingProfile(userId: number): Promise<DatingProfile> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingProfile(this.baseUrl, userId, session.accessToken);
+  }
+
+  async updateDatingProfile(userId: number, payload: Record<string, unknown>): Promise<DatingProfile> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return updateDatingProfile(this.baseUrl, userId, payload, session.accessToken);
+  }
+
+  async submitDatingProfile(userId: number): Promise<unknown> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return submitDatingProfile(this.baseUrl, userId, session.accessToken);
+  }
+
+  async uploadUserPhoto(userId: number, formData: FormData): Promise<UserMedia> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return uploadUserPhoto(this.baseUrl, userId, formData, session.accessToken);
+  }
+
+  async setUserProfilePhoto(mediaId: number): Promise<UserMedia> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return setUserProfilePhoto(this.baseUrl, mediaId, session.accessToken);
+  }
+
+  getMediaUrl(url = ""): string {
+    return resolveMediaUrl(this.baseUrl, url);
   }
 
   async getContacts(options: ContactsQueryOptions = {}): Promise<PaginatedContactsResponse> {

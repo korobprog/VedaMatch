@@ -26,6 +26,26 @@ export interface SessionUser {
   country?: string;
 }
 
+export interface UserMedia {
+  ID?: number;
+  id?: number;
+  userId: number;
+  url: string;
+  isProfile?: boolean;
+}
+
+export interface DatingProfile extends SessionUser {
+  bio?: string;
+  interests?: string;
+  lookingFor?: string;
+  intentions?: string;
+  datingEnabled?: boolean;
+  isProfileComplete?: boolean;
+  datingPublicationStatus?: string;
+  datingStatusReason?: string;
+  photos?: UserMedia[];
+}
+
 export interface LoginResponse extends AuthTokens {
   token?: string;
   user?: SessionUser;

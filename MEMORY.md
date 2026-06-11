@@ -8,6 +8,11 @@
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
 
+## GitHub CLI
+- Если пользователь пишет «git hab cli», это, как правило, означает `GitHub CLI` (`gh`).
+- Базовая настройка: установить `gh`, выполнить `gh auth login`, затем проверить доступ командой `gh auth status`.
+- Для GitHub workflow в репозитории полезно держать в голове, что `gh` обычно используют вместе с `gh repo view`, `gh pr list`, `gh pr checkout`, `gh pr create` и `gh pr review`.
+
 ## Ekadashi Calendar
 - Runtime календаря не должен оставлять месяц пустым только из-за отсутствия точного `scope_key`; если для профиля нет exact publication, backend выбирает ближайшую активную publication того же `organization_id` и помечает ответ `providerDecision.reason = "scope_fallback"`.
 - Для `ISKCON` отсутствие города всё ещё блокирует точечный import/review scope, но не блокирует чтение уже опубликованного календаря через fallback publication.
@@ -24,6 +29,12 @@
 - 2026-04-26 production fix был применен вручную через Dokploy working tree `/etc/dokploy/applications/vedamatch-server-dnkxc8/code/server`, `docker build -t vedamatch-server-dnkxc8:latest .` и `docker service update --force --image vedamatch-server-dnkxc8:latest vedamatch-server-dnkxc8`; после deploy Telegram `pending_update_count=0`, свежий `/start` webhook ответил `200` за ~22ms.
 
 ## Dating / Union
+- Для web Union в `apps/web` принят route `/app/dating`: он должен использовать существующие backend contracts `/dating/profile/:id`, `/dating/profile/:id/submit`, `/media/upload/:userId` и `/media/:id/set-profile`, без отдельного web-only photo backend.
+- Для browser photo editing в Union выбран `react-filerobot-image-editor@5.0.0-beta.159`:
+  - причина выбора: MIT, React 19 beta peer support, готовые crop/rotate/adjust/finetune/filters, быстрее для web-внедрения чем писать canvas-фильтры вручную;
+  - Pintura остается более polished альтернативой, но лицензия/дистрибуция коммерческие, поэтому не подходит как default без отдельного решения по лицензии;
+  - тяжелый редактор должен подключаться через `next/dynamic`/client-only wrapper, чтобы не раздувать стартовый bundle social shell.
+- Известный риск для текущего web stack: `react-konva@19.0.10` тянет `react-reconciler@0.32.0`, у которого peer `react@^19.1.0`, а `apps/web` пока на `react@19.0.0-rc.1`; `typecheck` и `next build` проходят, но runtime редактора фото нужно проверять в браузере после UI-теста.
 - Social/friends regression от 2026-04-26 закрыта в коде:
   - backend `server/internal/handlers/auth_handler.go` теперь использует `POST /friends/add` как compatibility-bridge к request-based модели:
     - уже существующая дружба нормализуется до взаимной;
