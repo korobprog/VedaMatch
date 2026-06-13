@@ -25,10 +25,13 @@ import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
 import { mapService } from '../../services/mapService';
 import {
+    DATING_INTENTION_OPTIONS,
+    DatingIntention,
     DATING_TRADITIONS,
     YOGA_STYLES,
     GUNAS,
-    IDENTITY_OPTIONS
+    IDENTITY_OPTIONS,
+    normalizeDatingIntentions,
 } from '../../constants/DatingConstants';
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
@@ -40,13 +43,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
 const GENDER_OPTIONS = ['Male', 'Female'];
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
-const INTENTION_OPTIONS = [
-    { key: 'family', label: 'Family/Marriage' },
-    { key: 'business', label: 'Business/Work' },
-    { key: 'friendship', label: 'Friendship' },
-    { key: 'seva', label: 'Seva/Service' }
-];
-
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -78,7 +74,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [bio, setBio] = useState('');
     const [interests, setInterests] = useState('');
     const [lookingFor, setLookingFor] = useState('');
-    const [intentions, setIntentions] = useState<string[]>([]); // Array of selected intentions
+    const [intentions, setIntentions] = useState<DatingIntention[]>([]);
     const [skills, setSkills] = useState('');
     const [industry, setIndustry] = useState('');
     const [lookingForBusiness, setLookingForBusiness] = useState('');
@@ -242,12 +238,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setIndustry(userData.industry || '');
                 setLookingForBusiness(userData.lookingForBusiness || '');
 
-                // Parse intentions (stored as comma-separated string)
-                if (userData.intentions) {
-                    setIntentions(userData.intentions.split(',').map((i: string) => i.trim()));
-                } else {
-                    setIntentions([]);
-                }
+                setIntentions(normalizeDatingIntentions(userData.intentions));
 
                 setMaritalStatus(userData.maritalStatus || '');
                 setBirthTime(userData.birthTime || '');
@@ -507,7 +498,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         console.log('[EditProfile] Selected city:', suggestion.city, 'coords:', suggestion.lat, suggestion.lon);
     };
 
-    const toggleIntention = (key: string) => {
+    const toggleIntention = (key: DatingIntention) => {
         if (intentions.includes(key)) {
             setIntentions(intentions.filter(i => i !== key));
         } else {
@@ -780,7 +771,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 {/* Intentions / Goals */}
                                 <Text style={styles.label}>{t('dating.goals')}</Text>
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-                                    {INTENTION_OPTIONS.map((opt) => (
+                                    {DATING_INTENTION_OPTIONS.map((opt) => (
                                         <TouchableOpacity
                                             key={opt.key}
                                             style={[

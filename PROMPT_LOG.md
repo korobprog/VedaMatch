@@ -1,5 +1,13 @@
 # Prompt Log
 
+## 2026-06-13 — Запушить текущие изменения
+
+**Время**: 10:04:44 +10
+**Запрос**: `запуш`
+**Статус**: ⏳ В работе — готовлю commit/push текущих локальных изменений
+
+---
+
 ## 2026-04-07 — Исправить выбор и сохранение роли
 
 **Время**: 12:09:47 +0300
@@ -58,6 +66,28 @@
 
 ---
 
+## 2026-06-13 — Исправить CORS ошибку Union login
+
+**Время**: 06:51:30 +10
+**Запрос**:
+на сайте union ошибка  lockdown-install.js:1 Removing unpermitted intrinsics
+(index):1 Uncaught (in promise) Error: Could not establish connection. Receiving end does not exist.
+(index):1 Uncaught (in promise) Error: Could not establish connection. Receiving end does not exist.
+/login:1 Access to fetch at 'https://api.vedamatch.ru/api/login' from origin 'https://union.vedamatch.ru' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: The 'Access-Control-Allow-Origin' header contains the invalid value ''. Have the server send the header with a valid value.
+ce3a07f0b96c578a.js:1  POST https://api.vedamatch.ru/api/login net::ERR_FAILED
+f @ ce3a07f0b96c578a.js:1
+k @ ce3a07f0b96c578a.js:1
+login @ ce3a07f0b96c578a.js:1
+P @ VM83 29c783d28ffc7e32.js:1
+sG @ 81bc8d16183ed120.js:1
+(anonymous) @ 81bc8d16183ed120.js:1
+tD @ 81bc8d16183ed120.js:1
+s2 @ 81bc8d16183ed120.js:1
+fP @ 81bc8d16183ed120.js:1
+f_ @ 81bc8d16183ed120.js:1
+
+**Статус**: ✅ Выполнено — причина в CORS whitelist backend: `union.vedamatch.ru` отсутствовал в defaults и в production `ALLOWED_ORIGINS`. Локально добавлены defaults + тест, production hotfix применен через Docker service env; live preflight `/api/login` теперь возвращает `Access-Control-Allow-Origin: https://union.vedamatch.ru`.
+
 ## 2026-04-26 — Проверить сервер и при необходимости выпустить Android APK
 
 **Время**: 18:06:00 +0300
@@ -96,5 +126,13 @@
 что то не обновился сайт на сервере
 
 **Статус**: ⚠️ Блокер — причина найдена: изменения Union были только локально. Локальный commit создан, но push в GitHub заблокирован авторизацией (`https` не может запросить username, SSH-ключ не принят GitHub).
+
+## 2026-06-13 — Исправить анкету Union
+
+**Время**: 09:43:26 +1000
+**Запрос**:
+нужно исправить анкету в union как захожу сразу вываливаться список и в Намерения инпуте нужно сделать выбором который есть в бекенде семья дружба дело сева если нужно создай суб-агентов
+
+**Статус**: ✅ Выполнено — мобильная Union-анкета больше не открывает список городов сразу; намерения переведены на выбор из backend-набора `family/friendship/business/seva`; целевой TypeScript прошел, eslint заблокирован pre-existing ошибками `EditProfileScreen`.
 
 ---

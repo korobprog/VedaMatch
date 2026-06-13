@@ -21,18 +21,19 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { datingService } from '../../../services/datingService';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
+import {
+    DATING_INTENTION_OPTIONS,
+    DATING_TRADITIONS,
+    DatingIntention,
+    GUNAS,
+    IDENTITY_OPTIONS,
+    normalizeDatingIntentions,
+    YOGA_STYLES,
+} from '../../../constants/DatingConstants';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import apiClient from '../../../lib/apiClient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
-
-const INTENTION_OPTIONS = [
-    { key: 'family', labelKey: 'dating.intentions.family' },
-    { key: 'business', labelKey: 'dating.intentions.business' },
-    { key: 'friendship', labelKey: 'dating.intentions.friendship' },
-    { key: 'seva', labelKey: 'dating.intentions.seva' }
-];
 
 const LOVE_LANGUAGE_OPTIONS = ['words_of_affirmation', 'quality_time', 'acts_of_service', 'receiving_gifts', 'physical_touch'];
 const ELEMENT_OPTIONS = ['air', 'water', 'earth', 'fire'];
@@ -75,7 +76,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         guna: '',
         identity: '',
         datingEnabled: false,
-        intentions: [] as string[],
+        intentions: [] as DatingIntention[],
         skills: '',
         industry: '',
         lookingForBusiness: '',
@@ -132,11 +133,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 return;
             }
             if (me) {
-                const normalizedIntentions = Array.isArray(me.intentions)
-                    ? me.intentions.map((intention: unknown) => String(intention).trim()).filter(Boolean)
-                    : typeof me.intentions === 'string'
-                        ? me.intentions.split(',').map((intention: string) => intention.trim()).filter(Boolean)
-                        : [];
+                const normalizedIntentions = normalizeDatingIntentions(me.intentions);
 
                 setProfile({
                     bio: me.bio || '',
@@ -410,6 +407,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         }
 
         if (query.length < 3) {
+            latestCitySearchRequestRef.current += 1;
+            setIsSearchingCities(false);
             setCitySuggestions([]);
             return;
         }
@@ -420,18 +419,41 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         }, 600);
     };
 
+    const openCitySearch = (type: 'current' | 'birth') => {
+        latestCitySearchRequestRef.current += 1;
+        if (citySearchTimeoutRef.current) {
+            clearTimeout(citySearchTimeoutRef.current);
+            citySearchTimeoutRef.current = null;
+        }
+        setCitySearchType(type);
+        setCityQuery('');
+        setCitySuggestions([]);
+        setIsSearchingCities(false);
+        setCitySearchModal(true);
+    };
+
+    const closeCitySearch = () => {
+        latestCitySearchRequestRef.current += 1;
+        if (citySearchTimeoutRef.current) {
+            clearTimeout(citySearchTimeoutRef.current);
+            citySearchTimeoutRef.current = null;
+        }
+        setCitySearchModal(false);
+        setCityQuery('');
+        setCitySuggestions([]);
+        setIsSearchingCities(false);
+    };
+
     const handleCitySelect = (item: any) => {
         if (citySearchType === 'current') {
             setProfile(prev => ({ ...prev, city: item.display_name }));
         } else {
             setProfile(prev => ({ ...prev, birthPlaceLink: item.display_name }));
         }
-        setCitySearchModal(false);
-        setCityQuery('');
-        setCitySuggestions([]);
+        closeCitySearch();
     };
 
-    const toggleIntention = (key: string) => {
+    const toggleIntention = (key: DatingIntention) => {
         setProfile(prev => {
             const hasKey = prev.intentions.includes(key);
             return {
@@ -516,11 +538,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                        onPress={() => {
-                            setCitySearchType('current');
-                            setCityQuery(profile.city);
-                            setCitySearchModal(true);
-                        }}
+                        onPress={() => openCitySearch('current')}
                     >
                         <Text style={{ color: profile.city ? theme.text : theme.subText }} numberOfLines={1}>
                             {profile.city || t('dating.selectCity')}
@@ -615,7 +633,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     {/* Networking Goals */}
                     <Text style={[styles.label, { color: theme.text }]}>{t('dating.goals')}</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-                        {INTENTION_OPTIONS.map((opt) => (
+                        {DATING_INTENTION_OPTIONS.map((opt) => (
                             <TouchableOpacity
                                 key={opt.key}
                                 style={[
@@ -825,11 +843,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     <Text style={[styles.label, { color: theme.text }]}>{t('dating.birthPlace')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                        onPress={() => {
-                            setCitySearchType('birth');
-                            setCityQuery(profile.birthPlaceLink);
-                            setCitySearchModal(true);
-                        }}
+                        onPress={() => openCitySearch('birth')}
                     >
                         <Text style={{ color: profile.birthPlaceLink ? theme.text : theme.subText }} numberOfLines={1}>
                             {profile.birthPlaceLink || t('dating.selectCity')}
@@ -900,7 +914,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 <KeyboardAwareContainer style={{ flex: 1 }} useTopInset={false}>
                 <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
                     <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
-                        <TouchableOpacity onPress={() => setCitySearchModal(false)}>
+                        <TouchableOpacity onPress={closeCitySearch}>
                             <Text style={{ color: theme.accent, fontSize: 16 }}>{t('common.close')}</Text>
                         </TouchableOpacity>
                         <Text style={[styles.modalTitle, { color: theme.text }]}>

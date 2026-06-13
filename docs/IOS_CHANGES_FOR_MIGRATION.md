@@ -19958,3 +19958,44 @@ if len(runtimeCurated) > 0 {
 	events = mergeRuntimeCuratedCalendarEvents(events, runtimeCurated)
 }
 ```
+
+## 2026-06-13 (Union profile form: city search and intentions)
+
+### Измененные файлы
+- `frontend/constants/DatingConstants.ts`
+- `frontend/screens/portal/dating/EditDatingProfileScreen.tsx`
+- `frontend/screens/settings/EditProfileScreen.tsx`
+- `frontend/i18n/locales/ru.ts`
+- `frontend/i18n/locales/en.ts`
+- `frontend/i18n/locales/hi.ts`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - Union city/birth-place search modal открывался с уже выбранным городом в query и мог сразу показывать старый список подсказок;
+  - намерения разбирались как произвольные строки и список опций был продублирован в экранах.
+- Стало:
+  - city search modal открывается с пустым query и пустыми suggestions, а старые in-flight search-запросы инвалидируются;
+  - намерения нормализуются через общий backend-набор `family`, `friendship`, `business`, `seva`.
+
+### Короткие сниппеты кода
+
+`frontend/constants/DatingConstants.ts`:
+```ts
+export const DATING_INTENTIONS = [
+    'family',
+    'friendship',
+    'business',
+    'seva',
+] as const;
+```
+
+`frontend/screens/portal/dating/EditDatingProfileScreen.tsx`:
+```ts
+const openCitySearch = (type: 'current' | 'birth') => {
+    latestCitySearchRequestRef.current += 1;
+    setCityQuery('');
+    setCitySuggestions([]);
+    setIsSearchingCities(false);
+    setCitySearchModal(true);
+};
+```

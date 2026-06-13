@@ -1671,12 +1671,12 @@ export default {
         lookingForPlaceholder: 'Опишите идеального партнера',
         maritalStatus: 'Семейное положение',
         birthTime: 'Время рождения',
-        goals: 'Мои цели (Нетворкинг)',
+        goals: 'Намерения',
         intentions: {
-            family: 'Семья/Брак',
-            business: 'Бизнес/Работа',
+            family: 'Семья',
             friendship: 'Дружба',
-            seva: 'Сева/Служение'
+            business: 'Дело',
+            seva: 'Сева'
         },
         businessProfile: 'Бизнес профиль',
         skills: 'Навыки',

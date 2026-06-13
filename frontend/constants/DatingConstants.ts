@@ -33,3 +33,29 @@ export const IDENTITY_OPTIONS = [
     'Yogi',
     'In Goodness'
 ];
+
+export const DATING_INTENTIONS = [
+    'family',
+    'friendship',
+    'business',
+    'seva',
+] as const;
+
+export type DatingIntention = typeof DATING_INTENTIONS[number];
+
+export const DATING_INTENTION_OPTIONS: Array<{ key: DatingIntention; labelKey: string }> = DATING_INTENTIONS.map((key) => ({
+    key,
+    labelKey: `dating.intentions.${key}`,
+}));
+
+export const normalizeDatingIntentions = (value: unknown): DatingIntention[] => {
+    const rawValues = Array.isArray(value)
+        ? value
+        : typeof value === 'string'
+            ? value.split(',')
+            : [];
+
+    return rawValues
+        .map((item) => String(item).trim())
+        .filter((item): item is DatingIntention => DATING_INTENTIONS.includes(item as DatingIntention));
+};

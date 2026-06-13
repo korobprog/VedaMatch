@@ -1607,11 +1607,11 @@ export default {
         lookingForPlaceholder: 'Describe your ideal partner',
         maritalStatus: 'Marital Status',
         birthTime: 'Birth Time',
-        goals: 'My Goals (Networking)',
+        goals: 'Intentions',
         intentions: {
-            family: 'Family/Marriage',
-            business: 'Business/Work',
+            family: 'Family',
             friendship: 'Friendship',
+            business: 'Business',
             seva: 'Seva/Service'
         },
         businessProfile: 'Business Profile',

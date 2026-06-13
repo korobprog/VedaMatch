@@ -7,6 +7,7 @@
 - Shared helpers, services, i18n utilities и общие components не редактировать параллельно при риске пересечения.
 - После каждого завершенного блока давать сводку по проверенным зонам, измененным файлам и статусу `rg` / `eslint`.
 - Если пользователь просит только текстовый артефакт, вроде промта для ревью, отдавать результат прямо в чат без создания отдельных docs-файлов; обязательные служебные записи в `PROMPT_LOG.md` и `MEMORY.md` сохраняются.
+- Если в `git status` появляется `graphify-out/`, считать его локальным артефактом анализа и не включать в commit без отдельной просьбы.
 
 ## GitHub CLI
 - Если пользователь пишет «git hab cli», это, как правило, означает `GitHub CLI` (`gh`).
@@ -29,7 +30,11 @@
 - 2026-04-26 production fix был применен вручную через Dokploy working tree `/etc/dokploy/applications/vedamatch-server-dnkxc8/code/server`, `docker build -t vedamatch-server-dnkxc8:latest .` и `docker service update --force --image vedamatch-server-dnkxc8:latest vedamatch-server-dnkxc8`; после deploy Telegram `pending_update_count=0`, свежий `/start` webhook ответил `200` за ~22ms.
 
 ## Dating / Union
+- Для Union web login production CORS должен разрешать `https://union.vedamatch.ru` и `https://union.vedamatch.com` не только в code defaults `server/cmd/api/main.go`, но и в Dokploy/Swarm env `ALLOWED_ORIGINS`, потому что env дополняет/переопределяет production-поведение при старых образах и может пережить redeploy.
+- 2026-06-13 production hotfix: `vedamatch-server-dnkxc8` был обновлен через Docker service env, после чего preflight `OPTIONS https://api.vedamatch.ru/api/login` с `Origin: https://union.vedamatch.ru` стал отвечать `Access-Control-Allow-Origin: https://union.vedamatch.ru`.
 - Для web Union в `apps/web` принят route `/app/dating`: он должен использовать существующие backend contracts `/dating/profile/:id`, `/dating/profile/:id/submit`, `/media/upload/:userId` и `/media/:id/set-profile`, без отдельного web-only photo backend.
+- Для mobile Union поле намерений должно оставаться выбором из backend-ключей `family`, `friendship`, `business`, `seva`; пользовательские подписи могут быть локализованы (`Семья`, `Дружба`, `Дело`, `Сева`), но в `intentions` нельзя сохранять произвольный текст или старые неподдерживаемые значения.
+- В `frontend/screens/portal/dating/EditDatingProfileScreen.tsx` city/birth-place search modal должен открываться с пустым query и пустыми suggestions; нельзя предзаполнять search query текущим городом, иначе при входе в анкету/модалку пользователь видит выпавший список подсказок поверх формы.
 - Для browser photo editing в Union выбран `react-filerobot-image-editor@5.0.0-beta.159`:
   - причина выбора: MIT, React 19 beta peer support, готовые crop/rotate/adjust/finetune/filters, быстрее для web-внедрения чем писать canvas-фильтры вручную;
   - Pintura остается более polished альтернативой, но лицензия/дистрибуция коммерческие, поэтому не подходит как default без отдельного решения по лицензии;

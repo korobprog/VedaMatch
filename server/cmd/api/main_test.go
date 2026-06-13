@@ -32,6 +32,19 @@ func TestBuildAllowedOrigins(t *testing.T) {
 	}
 }
 
+func TestDefaultAllowedOriginsIncludesUnionWeb(t *testing.T) {
+	_, set := buildAllowedOrigins(defaultAllowedOrigins())
+
+	for _, origin := range []string{
+		"https://union.vedamatch.ru",
+		"https://union.vedamatch.com",
+	} {
+		if !set[origin] {
+			t.Fatalf("expected default allowed origins to include %s", origin)
+		}
+	}
+}
+
 func TestNormalizeAllowedOrigin(t *testing.T) {
 	if got := normalizeAllowedOrigin(" https://api.example.com/ "); got != "https://api.example.com" {
 		t.Fatalf("unexpected normalized origin: %q", got)

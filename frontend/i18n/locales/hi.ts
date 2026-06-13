@@ -1606,12 +1606,12 @@ export default {
         "lookingForPlaceholder": "अपने आदर्श साथी का वर्णन करें",
         "maritalStatus": "वैवाहिक स्थिति",
         "birthTime": "जन्म समय",
-        "goals": "मेरे लक्ष्य (नेटवर्किंग)",
+        "goals": "उद्देश्य",
         "intentions": {
-            "family": "Family/Marriage",
-            "business": "Business/Work",
-            "friendship": "Friendship",
-            "seva": "Seva/Service"
+            "family": "परिवार",
+            "friendship": "मित्रता",
+            "business": "कार्य",
+            "seva": "सेवा"
         },
         "businessProfile": "बिज़नेस प्रोफ़ाइल",
         "skills": "कौशल",

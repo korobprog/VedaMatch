@@ -42,30 +42,7 @@ func main() {
 
 	log.Println("Server Version: 1.6 (Manual CORS Fix)")
 
-	defaultAllowedOrigins := []string{
-		"http://localhost:3000",
-		"http://localhost:3001",
-		"http://localhost:3005",
-		"http://localhost:3006",
-		"http://127.0.0.1:3005",
-		"http://127.0.0.1:3006",
-		"http://localhost:8081",
-		"https://vedamatch.ru",
-		"https://vedamatch.com",
-		"https://www.vedamatch.ru",
-		"https://www.vedamatch.com",
-		"https://api.vedamatch.ru",
-		"https://api.vedamatch.com",
-		"https://admin.vedamatch.ru",
-		"https://admin.vedamatch.com",
-		"https://social.vedamatch.ru",
-		"https://social.vedamatch.com",
-		"https://panel.vedamatch.ru",
-		"https://panel.vedamatch.com",
-		"https://lkm.vedamatch.ru",
-		"https://lkm.vedamatch.com",
-	}
-	allowedOrigins, allowedOriginsMap := buildAllowedOrigins(defaultAllowedOrigins)
+	allowedOrigins, allowedOriginsMap := buildAllowedOrigins(defaultAllowedOrigins())
 
 	// Initialize Database
 	database.Connect()
@@ -1477,6 +1454,34 @@ func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {
 	}
 
 	return ordered, originsSet
+}
+
+func defaultAllowedOrigins() []string {
+	return []string{
+		"http://localhost:3000",
+		"http://localhost:3001",
+		"http://localhost:3005",
+		"http://localhost:3006",
+		"http://127.0.0.1:3005",
+		"http://127.0.0.1:3006",
+		"http://localhost:8081",
+		"https://vedamatch.ru",
+		"https://vedamatch.com",
+		"https://www.vedamatch.ru",
+		"https://www.vedamatch.com",
+		"https://api.vedamatch.ru",
+		"https://api.vedamatch.com",
+		"https://admin.vedamatch.ru",
+		"https://admin.vedamatch.com",
+		"https://social.vedamatch.ru",
+		"https://social.vedamatch.com",
+		"https://panel.vedamatch.ru",
+		"https://panel.vedamatch.com",
+		"https://lkm.vedamatch.ru",
+		"https://lkm.vedamatch.com",
+		"https://union.vedamatch.ru",
+		"https://union.vedamatch.com",
+	}
 }
 
 func normalizeAllowedOrigin(origin string) string {
