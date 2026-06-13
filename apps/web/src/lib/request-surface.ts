@@ -6,22 +6,34 @@ import { LANGUAGE_COOKIE_KEY } from "@/lib/language-preference";
 
 export type RequestSurfaceContext = {
   host: string;
+  origin: string;
   surface: VedamatchSurface;
   isSocial: boolean;
   language: Language;
 };
+
+function buildRequestOrigin(hostHeader: string, host: string, protoHeader: string | null) {
+  const normalizedProto = protoHeader === "http" || protoHeader === "https" ? protoHeader : null;
+  const isLocalHost = hostHeader.startsWith("localhost") || hostHeader.startsWith("127.0.0.1");
+  const forwardedProto = isLocalHost ? normalizedProto ?? "http" : "https";
+  const originHost = hostHeader || host;
+  return `${forwardedProto}://${originHost}`;
+}
 
 export async function getRequestSurface(): Promise<RequestSurfaceContext> {
   const headerStore = await headers();
   const cookieStore = await cookies();
   const hostHeader = headerStore.get("x-forwarded-host") || headerStore.get("host") || "localhost";
   const host = normalizeHostname(hostHeader);
+  const origin = buildRequestOrigin(hostHeader, host, headerStore.get("x-forwarded-proto"));
   const surface = resolveVedamatchSurface(host);
   const cookieLanguage = cookieStore.get(LANGUAGE_COOKIE_KEY)?.value;
-  const language = cookieLanguage ? normalizeLanguage(cookieLanguage) : resolveLanguageFromHost(host);
+  const fallbackLanguage = surface === "local" ? "ru" : resolveLanguageFromHost(host);
+  const language = cookieLanguage ? normalizeLanguage(cookieLanguage) : fallbackLanguage;
 
   return {
     host,
+    origin,
     surface,
     isSocial: surface === "social",
     language,
