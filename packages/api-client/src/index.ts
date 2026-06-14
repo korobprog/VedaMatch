@@ -4,7 +4,19 @@ import type {
   ChatConversationFilter,
   ChatConversationsResponse,
   ChapterInfo,
+  DatingApproval,
+  DatingApprovalStatus,
+  DatingApprovalsResponse,
+  DatingCandidate,
+  DatingCandidateFilters,
+  DatingCompatibilityResult,
+  DatingFavorite,
+  DatingIsFavoritedResult,
+  DatingLikesCountResult,
+  DatingMeetingInvite,
+  DatingMeetingInviteStatus,
   DatingProfile,
+  DatingPublicationState,
   Language,
   LoginResponse,
   NewsItem,
@@ -29,6 +41,17 @@ import { normalizeLanguage } from "@vedamatch/i18n";
 
 export type VedamatchSurface = "portal" | "social" | "panel" | "lkm" | "local" | "unknown";
 export type VedamatchSubdomain = "admin" | "social" | "panel" | "lkm" | "api";
+export type DatingPresentationMode = "family" | "business" | "friendship" | "seva";
+export type DatingPresentationModeStats = {
+  profiles?: Array<{
+    avatarUrl?: string;
+    skills?: string;
+  }> | null;
+  totalCount?: number;
+  totalMale?: number;
+  totalFemale?: number;
+};
+export type DatingPresentationResponse = Partial<Record<DatingPresentationMode, DatingPresentationModeStats>>;
 export type ContactsQueryOptions = {
   tab?: "all" | "friends" | "blocked";
   q?: string;
@@ -70,7 +93,12 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   if (normalized === "admin.vedamatch.ru" || normalized === "admin.vedamatch.com") {
     return "portal";
   }
-  if (normalized === "social.vedamatch.ru" || normalized === "social.vedamatch.com") {
+  if (
+    normalized === "social.vedamatch.ru" ||
+    normalized === "social.vedamatch.com" ||
+    normalized === "union.vedamatch.ru" ||
+    normalized === "union.vedamatch.com"
+  ) {
     return "social";
   }
   if (normalized === "panel.vedamatch.ru" || normalized === "panel.vedamatch.com") {
@@ -85,7 +113,7 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
 export function buildVedamatchOrigin(hostname: string, subdomain: VedamatchSubdomain): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    const port = subdomain === "api" ? "8081" : subdomain === "lkm" ? "3006" : "3010";
+    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : "3010";
     return `http://${normalized}:${port}`;
   }
 
@@ -106,14 +134,27 @@ export function buildVedamatchUrl(hostname: string, subdomain: VedamatchSubdomai
 }
 
 export function resolveApiBaseUrlForHostname(hostname: string): string {
+  const configuredBaseUrl = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    return "http://localhost:8081/api";
+    return "http://localhost:8000/api";
   }
   if (normalized.endsWith(".vedamatch.com") || normalized === "vedamatch.com") {
     return "https://api.vedamatch.com/api";
   }
   return "https://api.vedamatch.ru/api";
+}
+
+function normalizeApiBaseUrl(value: string | null | undefined): string {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.replace(/\/+$/, "").replace(/\/api$/, "/api");
 }
 
 function normalizeTokens(payload: LoginResponse | AuthTokens | null | undefined): AuthTokens | null {
@@ -413,6 +454,10 @@ export async function submitDatingProfile(baseUrl: string, userId: number, acces
   );
 }
 
+export async function getDatingPresentation(baseUrl: string): Promise<DatingPresentationResponse> {
+  return apiFetch<DatingPresentationResponse>(baseUrl, "/dating/presentation");
+}
+
 export async function uploadUserPhoto(baseUrl: string, userId: number, formData: FormData, accessToken: string): Promise<UserMedia> {
   return apiFetch<UserMedia>(
     baseUrl,
@@ -425,6 +470,10 @@ export async function uploadUserPhoto(baseUrl: string, userId: number, formData:
   );
 }
 
+export async function getUserPhotos(baseUrl: string, userId: number, accessToken: string): Promise<UserMedia[]> {
+  return apiFetch<UserMedia[]>(baseUrl, `/media/${userId}`, {}, accessToken);
+}
+
 export async function setUserProfilePhoto(baseUrl: string, mediaId: number, accessToken: string): Promise<UserMedia> {
   return apiFetch<UserMedia>(
     baseUrl,
@@ -433,6 +482,188 @@ export async function setUserProfilePhoto(baseUrl: string, mediaId: number, acce
       method: "POST",
       body: JSON.stringify({}),
     },
+    accessToken,
+  );
+}
+
+export async function deleteUserPhoto(baseUrl: string, mediaId: number, accessToken: string): Promise<unknown> {
+  return apiFetch<unknown>(
+    baseUrl,
+    `/media/${mediaId}`,
+    {
+      method: "DELETE",
+    },
+    accessToken,
+  );
+}
+
+export async function getDatingCandidates(
+  baseUrl: string,
+  filters: DatingCandidateFilters,
+  accessToken: string,
+): Promise<DatingCandidate[]> {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    params.set(key, String(value));
+  });
+  const query = params.toString();
+  return apiFetch<DatingCandidate[]>(baseUrl, `/dating/candidates${query ? `?${query}` : ""}`, {}, accessToken);
+}
+
+export async function getDatingCities(baseUrl: string, accessToken: string): Promise<string[]> {
+  return apiFetch<string[]>(baseUrl, "/dating/cities", {}, accessToken);
+}
+
+export async function checkDatingCompatibility(
+  baseUrl: string,
+  userId: number,
+  candidateId: number,
+  accessToken: string,
+): Promise<DatingCompatibilityResult> {
+  return apiFetch<DatingCompatibilityResult>(
+    baseUrl,
+    `/dating/compatibility/${userId}/${candidateId}`,
+    { method: "POST", body: JSON.stringify({}) },
+    accessToken,
+  );
+}
+
+export async function getDatingFavorites(baseUrl: string, userId: number, accessToken: string): Promise<DatingFavorite[]> {
+  return apiFetch<DatingFavorite[]>(baseUrl, `/dating/favorites?userId=${userId}`, {}, accessToken);
+}
+
+export async function addDatingFavorite(
+  baseUrl: string,
+  payload: { candidateId: number; compatibilityScore?: string },
+  accessToken: string,
+): Promise<DatingFavorite> {
+  return apiFetch<DatingFavorite>(
+    baseUrl,
+    "/dating/favorites",
+    { method: "POST", body: JSON.stringify(payload) },
+    accessToken,
+  );
+}
+
+export async function removeDatingFavorite(baseUrl: string, favoriteId: number, accessToken: string): Promise<unknown> {
+  return apiFetch<unknown>(baseUrl, `/dating/favorites/${favoriteId}`, { method: "DELETE" }, accessToken);
+}
+
+export async function getDatingLikesCount(baseUrl: string, userId: number, accessToken: string): Promise<DatingLikesCountResult> {
+  return apiFetch<DatingLikesCountResult>(baseUrl, `/dating/likes/${userId}`, {}, accessToken);
+}
+
+export async function checkDatingIsFavorited(
+  baseUrl: string,
+  userId: number,
+  candidateId: number,
+  accessToken: string,
+): Promise<DatingIsFavoritedResult> {
+  return apiFetch<DatingIsFavoritedResult>(
+    baseUrl,
+    `/dating/is-favorited?userId=${userId}&candidateId=${candidateId}`,
+    {},
+    accessToken,
+  );
+}
+
+export async function getWhoLikedMe(baseUrl: string, userId: number, accessToken: string): Promise<DatingProfile[]> {
+  return apiFetch<DatingProfile[]>(baseUrl, `/dating/liked-me?userId=${userId}`, {}, accessToken);
+}
+
+export async function getDatingPublicationStatus(
+  baseUrl: string,
+  userId: number,
+  accessToken: string,
+): Promise<DatingPublicationState> {
+  return apiFetch<DatingPublicationState>(baseUrl, `/dating/profile/${userId}/publication-status`, {}, accessToken);
+}
+
+export async function getDatingApprovals(baseUrl: string, userId: number, accessToken: string): Promise<DatingApprovalsResponse> {
+  return apiFetch<DatingApprovalsResponse>(baseUrl, `/dating/profile/${userId}/approvals`, {}, accessToken);
+}
+
+export async function requestDatingApprovals(
+  baseUrl: string,
+  userId: number,
+  approverIds: number[],
+  accessToken: string,
+): Promise<DatingApproval[]> {
+  return apiFetch<DatingApproval[]>(
+    baseUrl,
+    `/dating/profile/${userId}/approvals/request`,
+    { method: "POST", body: JSON.stringify({ approverIds }) },
+    accessToken,
+  );
+}
+
+export async function respondDatingApproval(
+  baseUrl: string,
+  userId: number,
+  approvalId: number,
+  status: DatingApprovalStatus,
+  note: string,
+  accessToken: string,
+): Promise<unknown> {
+  return apiFetch<unknown>(
+    baseUrl,
+    `/dating/profile/${userId}/approvals/${approvalId}/respond`,
+    { method: "POST", body: JSON.stringify({ status, note }) },
+    accessToken,
+  );
+}
+
+export async function getIncomingApprovalRequests(
+  baseUrl: string,
+  accessToken: string,
+  options: { status?: DatingApprovalStatus; countOnly?: boolean } = {},
+): Promise<DatingApproval[] | { count: number }> {
+  const params = new URLSearchParams();
+  if (options.status) {
+    params.set("status", options.status);
+  }
+  if (options.countOnly) {
+    params.set("countOnly", "true");
+  }
+  const query = params.toString();
+  return apiFetch<DatingApproval[] | { count: number }>(
+    baseUrl,
+    `/dating/approval-requests${query ? `?${query}` : ""}`,
+    {},
+    accessToken,
+  );
+}
+
+export async function getMeetingInvites(baseUrl: string, accessToken: string): Promise<DatingMeetingInvite[]> {
+  return apiFetch<DatingMeetingInvite[]>(baseUrl, "/dating/meeting-invites", {}, accessToken);
+}
+
+export async function createMeetingInvite(
+  baseUrl: string,
+  payload: { inviteeId: number; placeType: string; message: string },
+  accessToken: string,
+): Promise<DatingMeetingInvite> {
+  return apiFetch<DatingMeetingInvite>(
+    baseUrl,
+    "/dating/meeting-invites",
+    { method: "POST", body: JSON.stringify(payload) },
+    accessToken,
+  );
+}
+
+export async function respondMeetingInvite(
+  baseUrl: string,
+  inviteId: number,
+  status: Exclude<DatingMeetingInviteStatus, "pending">,
+  accessToken: string,
+): Promise<DatingMeetingInvite> {
+  return apiFetch<DatingMeetingInvite>(
+    baseUrl,
+    `/dating/meeting-invites/${inviteId}/respond`,
+    { method: "POST", body: JSON.stringify({ status }) },
     accessToken,
   );
 }
@@ -654,12 +885,174 @@ export class BrowserVedaClient {
     return uploadUserPhoto(this.baseUrl, userId, formData, session.accessToken);
   }
 
+  async getUserPhotos(userId: number): Promise<UserMedia[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getUserPhotos(this.baseUrl, userId, session.accessToken);
+  }
+
   async setUserProfilePhoto(mediaId: number): Promise<UserMedia> {
     const session = getBrowserSession();
     if (!session?.accessToken) {
       throw new Error("Unauthorized");
     }
     return setUserProfilePhoto(this.baseUrl, mediaId, session.accessToken);
+  }
+
+  async deleteUserPhoto(mediaId: number): Promise<unknown> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return deleteUserPhoto(this.baseUrl, mediaId, session.accessToken);
+  }
+
+  async getDatingCandidates(filters: DatingCandidateFilters): Promise<DatingCandidate[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingCandidates(this.baseUrl, filters, session.accessToken);
+  }
+
+  async getDatingCities(): Promise<string[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingCities(this.baseUrl, session.accessToken);
+  }
+
+  async checkDatingCompatibility(userId: number, candidateId: number): Promise<DatingCompatibilityResult> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return checkDatingCompatibility(this.baseUrl, userId, candidateId, session.accessToken);
+  }
+
+  async getDatingFavorites(userId: number): Promise<DatingFavorite[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingFavorites(this.baseUrl, userId, session.accessToken);
+  }
+
+  async addDatingFavorite(payload: { candidateId: number; compatibilityScore?: string }): Promise<DatingFavorite> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return addDatingFavorite(this.baseUrl, payload, session.accessToken);
+  }
+
+  async removeDatingFavorite(favoriteId: number): Promise<unknown> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return removeDatingFavorite(this.baseUrl, favoriteId, session.accessToken);
+  }
+
+  async getDatingLikesCount(userId: number): Promise<DatingLikesCountResult> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingLikesCount(this.baseUrl, userId, session.accessToken);
+  }
+
+  async checkDatingIsFavorited(userId: number, candidateId: number): Promise<DatingIsFavoritedResult> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return checkDatingIsFavorited(this.baseUrl, userId, candidateId, session.accessToken);
+  }
+
+  async getWhoLikedMe(userId: number): Promise<DatingProfile[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getWhoLikedMe(this.baseUrl, userId, session.accessToken);
+  }
+
+  async getDatingPublicationStatus(userId: number): Promise<DatingPublicationState> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingPublicationStatus(this.baseUrl, userId, session.accessToken);
+  }
+
+  async getDatingApprovals(userId: number): Promise<DatingApprovalsResponse> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingApprovals(this.baseUrl, userId, session.accessToken);
+  }
+
+  async requestDatingApprovals(userId: number, approverIds: number[]): Promise<DatingApproval[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return requestDatingApprovals(this.baseUrl, userId, approverIds, session.accessToken);
+  }
+
+  async respondDatingApproval(
+    userId: number,
+    approvalId: number,
+    status: DatingApprovalStatus,
+    note = "",
+  ): Promise<unknown> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return respondDatingApproval(this.baseUrl, userId, approvalId, status, note, session.accessToken);
+  }
+
+  async getIncomingApprovalRequests(
+    options: { status?: DatingApprovalStatus; countOnly?: boolean } = {},
+  ): Promise<DatingApproval[] | { count: number }> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getIncomingApprovalRequests(this.baseUrl, session.accessToken, options);
+  }
+
+  async getMeetingInvites(): Promise<DatingMeetingInvite[]> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getMeetingInvites(this.baseUrl, session.accessToken);
+  }
+
+  async createMeetingInvite(payload: { inviteeId: number; placeType: string; message: string }): Promise<DatingMeetingInvite> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return createMeetingInvite(this.baseUrl, payload, session.accessToken);
+  }
+
+  async respondMeetingInvite(
+    inviteId: number,
+    status: Exclude<DatingMeetingInviteStatus, "pending">,
+  ): Promise<DatingMeetingInvite> {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return respondMeetingInvite(this.baseUrl, inviteId, status, session.accessToken);
   }
 
   getMediaUrl(url = ""): string {

@@ -26,10 +26,9 @@ const defaultMetadataCopy = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { isSocial, language, origin, surface } = await getRequestSurface();
-  const isUnionSurface = isSocial || surface === "local";
+  const { isUnion, language, origin } = await getRequestSurface();
   const metadataBase = new URL(origin);
-  const copy = isUnionSurface ? unionMetadataCopy[language] : defaultMetadataCopy;
+  const copy = isUnion ? unionMetadataCopy[language] : defaultMetadataCopy;
 
   return {
     title: copy.title,

@@ -75,7 +75,7 @@ export function LoginForm({ entryVariant = "default", mobileAppConfig }: LoginFo
               <p>
                 {entryVariant === "social"
                   ? socialCopy.body
-                  : dictionary.portal.subtitle}
+                  : dictionary.auth.loginBody}
               </p>
             </div>
             <form className="form-grid" onSubmit={handleSubmit}>

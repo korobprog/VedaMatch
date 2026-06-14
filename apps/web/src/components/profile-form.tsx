@@ -53,31 +53,31 @@ export function ProfileForm() {
         <div className="split">
           <label className="field">
             <span>{dictionary.profile.karmicName}</span>
-            <input onChange={(event) => setForm({ ...form, karmicName: event.target.value })} value={form.karmicName} />
+            <input onChange={(event) => setForm((current) => ({ ...current, karmicName: event.target.value }))} value={form.karmicName} />
           </label>
           <label className="field">
             <span>{dictionary.profile.spiritualName}</span>
-            <input onChange={(event) => setForm({ ...form, spiritualName: event.target.value })} value={form.spiritualName} />
+            <input onChange={(event) => setForm((current) => ({ ...current, spiritualName: event.target.value }))} value={form.spiritualName} />
           </label>
         </div>
         <div className="split">
           <label className="field">
             <span>{dictionary.profile.nickname}</span>
-            <input onChange={(event) => setForm({ ...form, nickname: event.target.value })} value={form.nickname} />
+            <input onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))} value={form.nickname} />
           </label>
           <label className="field">
             <span>{dictionary.profile.identity}</span>
-            <input onChange={(event) => setForm({ ...form, identity: event.target.value })} value={form.identity} />
+            <input onChange={(event) => setForm((current) => ({ ...current, identity: event.target.value }))} value={form.identity} />
           </label>
         </div>
         <div className="split">
           <label className="field">
             <span>{dictionary.profile.city}</span>
-            <input onChange={(event) => setForm({ ...form, city: event.target.value })} value={form.city} />
+            <input onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} value={form.city} />
           </label>
           <label className="field">
             <span>{dictionary.profile.country}</span>
-            <input onChange={(event) => setForm({ ...form, country: event.target.value })} value={form.country} />
+            <input onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} value={form.country} />
           </label>
         </div>
         <button className="button" disabled={state.loading} type="submit">

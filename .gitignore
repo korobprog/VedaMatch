@@ -208,3 +208,6 @@ enable-docker-commands.txt
 .docks/GIBRID_SEARCH.txt
 *.env
 scripts/*.env
+
+# code-graph tool output
+graphify-out/

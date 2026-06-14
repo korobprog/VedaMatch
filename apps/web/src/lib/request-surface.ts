@@ -9,6 +9,7 @@ export type RequestSurfaceContext = {
   origin: string;
   surface: VedamatchSurface;
   isSocial: boolean;
+  isUnion: boolean;
   language: Language;
 };
 
@@ -27,6 +28,7 @@ export async function getRequestSurface(): Promise<RequestSurfaceContext> {
   const host = normalizeHostname(hostHeader);
   const origin = buildRequestOrigin(hostHeader, host, headerStore.get("x-forwarded-proto"));
   const surface = resolveVedamatchSurface(host);
+  const isUnion = surface === "local" || host === "union.vedamatch.ru" || host === "union.vedamatch.com";
   const cookieLanguage = cookieStore.get(LANGUAGE_COOKIE_KEY)?.value;
   const fallbackLanguage = surface === "local" ? "ru" : resolveLanguageFromHost(host);
   const language = cookieLanguage ? normalizeLanguage(cookieLanguage) : fallbackLanguage;
@@ -36,6 +38,7 @@ export async function getRequestSurface(): Promise<RequestSurfaceContext> {
     origin,
     surface,
     isSocial: surface === "social",
+    isUnion,
     language,
   };
 }

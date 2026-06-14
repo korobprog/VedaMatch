@@ -75,7 +75,7 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
               <p>
                 {entryVariant === "social"
                   ? socialCopy.body
-                  : dictionary.portal.subtitle}
+                  : dictionary.auth.registerBody}
               </p>
             </div>
             <form className="form-grid" onSubmit={handleSubmit}>

@@ -1,4 +1,6 @@
+import { getDatingPresentation, resolveApiBaseUrlForHostname } from "@vedamatch/api-client";
 import { SocialDashboardHome } from "@/components/social-dashboard-home";
+import { UnionPublicHome } from "@/components/union-public-home";
 import { getRequestSurface } from "@/lib/request-surface";
 import { getSocialLauncherModel } from "@/lib/social-launcher";
 
@@ -18,8 +20,18 @@ const defaultCards = [
 ];
 
 export default async function HomePage() {
-  const { host, isSocial, language } = await getRequestSurface();
+  const { host, isSocial, isUnion, language, surface } = await getRequestSurface();
   const launcher = getSocialLauncherModel(language);
+
+  if (isUnion) {
+    const apiBaseUrl = resolveApiBaseUrlForHostname(host);
+    const presentation =
+      (await getDatingPresentation(apiBaseUrl).catch(() => null)) ??
+      (surface === "local" ? await getDatingPresentation("https://api.vedamatch.ru/api").catch(() => null) : null);
+
+    return <UnionPublicHome language={language} presentation={presentation} />;
+  }
+
   const mayapurNow = new Date();
   const locale = launcher.language === "ru" ? "ru-RU" : "en-US";
   const timeValue = new Intl.DateTimeFormat(locale, {

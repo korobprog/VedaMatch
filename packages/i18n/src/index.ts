@@ -28,6 +28,8 @@ export type Dictionary = {
   auth: {
     loginTitle: string;
     registerTitle: string;
+    loginBody: string;
+    registerBody: string;
     email: string;
     password: string;
     submitLogin: string;
@@ -112,6 +114,127 @@ export type Dictionary = {
     photoHint: string;
     photoAlt: string;
     noPhoto: string;
+    galleryTitle: string;
+    mainPhoto: string;
+    setMainPhoto: string;
+    viewPhoto: string;
+    deletePhoto: string;
+    deletePhotoConfirm: string;
+    photoDeleted: string;
+    photoDeleteFailed: string;
+    photoSetMain: string;
+    photoSetMainFailed: string;
+    fields: {
+      gender: string;
+      genderMale: string;
+      genderFemale: string;
+      dob: string;
+      birthTime: string;
+      birthPlaceLink: string;
+      maritalStatus: string;
+      childrenIntent: string;
+      elementalPrimary: string;
+      loveLanguages: string;
+      requiredHint: string;
+      profileComplete: string;
+      profileIncomplete: string;
+      photoRequired: string;
+      statusReason: string;
+    };
+    statuses: {
+      draft: string;
+      pendingFriendApproval: string;
+      pendingAdminReview: string;
+      pendingAiReview: string;
+      published: string;
+      rejected: string;
+      flagged: string;
+    };
+    publication: {
+      title: string;
+      progress: string;
+      requestApprovals: string;
+      requesting: string;
+      selectFriends: string;
+      noFriends: string;
+      needsAdminFallback: string;
+      incomingTitle: string;
+      noIncoming: string;
+      approve: string;
+      reject: string;
+      notePlaceholder: string;
+      requestSent: string;
+      requestFailed: string;
+      responded: string;
+      respondFailed: string;
+    };
+    browse: {
+      title: string;
+      subtitle: string;
+      filters: string;
+      mode: string;
+      city: string;
+      allCities: string;
+      ageFrom: string;
+      ageTo: string;
+      newOnly: string;
+      apply: string;
+      reset: string;
+      empty: string;
+      loadFailed: string;
+      like: string;
+      liked: string;
+      view: string;
+    };
+    candidate: {
+      back: string;
+      about: string;
+      interests: string;
+      lookingFor: string;
+      compatibilityTitle: string;
+      checkCompatibility: string;
+      compatibilityLoading: string;
+      compatibilityFailed: string;
+      invite: string;
+      notFound: string;
+    };
+    likes: {
+      title: string;
+      tabFavorites: string;
+      tabWhoLikedMe: string;
+      count: string;
+      noFavorites: string;
+      noLikes: string;
+      remove: string;
+      removed: string;
+    };
+    meetings: {
+      title: string;
+      tabSent: string;
+      tabReceived: string;
+      create: string;
+      placeType: string;
+      placePersonal: string;
+      placeCafe: string;
+      placeEvent: string;
+      placeOnline: string;
+      placePublic: string;
+      message: string;
+      send: string;
+      sending: string;
+      sent: string;
+      sendFailed: string;
+      accept: string;
+      decline: string;
+      respondFailed: string;
+      empty: string;
+    };
+    nav: {
+      profile: string;
+      browse: string;
+      likes: string;
+      meetings: string;
+    };
   };
   contacts: {
     title: string;
@@ -291,6 +414,8 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "Вход",
       registerTitle: "Регистрация",
+      loginBody: "Войдите в Союз, чтобы заполнить анкету, просматривать знакомства и продолжить общение внутри VedaMatch.",
+      registerBody: "Создайте аккаунт Союза, заполните профиль и подготовьте анкету к публикации.",
       email: "Email",
       password: "Пароль",
       submitLogin: "Войти",
@@ -375,6 +500,127 @@ export const dictionaries: Record<Language, Dictionary> = {
       photoHint: "После выбора откроется редактор с кадрированием, поворотом, настройками света и фильтрами.",
       photoAlt: "Фото анкеты Union",
       noPhoto: "Фото пока нет",
+      galleryTitle: "Галерея фото",
+      mainPhoto: "Главное",
+      setMainPhoto: "Сделать главным",
+      viewPhoto: "Открыть",
+      deletePhoto: "Удалить",
+      deletePhotoConfirm: "Удалить это фото из галереи?",
+      photoDeleted: "Фото удалено.",
+      photoDeleteFailed: "Не удалось удалить фото.",
+      photoSetMain: "Главное фото обновлено.",
+      photoSetMainFailed: "Не удалось сделать фото главным.",
+      fields: {
+        gender: "Пол",
+        genderMale: "Мужской",
+        genderFemale: "Женский",
+        dob: "Дата рождения",
+        birthTime: "Время рождения",
+        birthPlaceLink: "Место рождения",
+        maritalStatus: "Семейное положение",
+        childrenIntent: "Отношение к детям",
+        elementalPrimary: "Ведущая стихия",
+        loveLanguages: "Языки любви (через запятую)",
+        requiredHint: "Обязательное поле",
+        profileComplete: "Анкета заполнена и готова к публикации.",
+        profileIncomplete: "Заполните все обязательные поля и добавьте фото перед публикацией.",
+        photoRequired: "Добавьте хотя бы одно фото перед отправкой на проверку.",
+        statusReason: "Причина",
+      },
+      statuses: {
+        draft: "Черновик",
+        pendingFriendApproval: "Ожидает одобрения друзей",
+        pendingAdminReview: "На проверке модератора",
+        pendingAiReview: "На AI-проверке",
+        published: "Опубликована",
+        rejected: "Отклонена",
+        flagged: "Снята с публикации",
+      },
+      publication: {
+        title: "Публикация и одобрения",
+        progress: "Одобрений: {approved} из {required}",
+        requestApprovals: "Запросить одобрения",
+        requesting: "Отправляем запросы...",
+        selectFriends: "Выберите друзей для одобрения",
+        noFriends: "Пока нет друзей для запроса одобрения. Анкета уйдёт на проверку модератора.",
+        needsAdminFallback: "Недостаточно друзей — анкета будет проверена модератором.",
+        incomingTitle: "Входящие запросы на одобрение",
+        noIncoming: "Нет входящих запросов.",
+        approve: "Одобрить",
+        reject: "Отклонить",
+        notePlaceholder: "Комментарий (необязательно)",
+        requestSent: "Запросы на одобрение отправлены.",
+        requestFailed: "Не удалось отправить запросы.",
+        responded: "Ответ сохранён.",
+        respondFailed: "Не удалось сохранить ответ.",
+      },
+      browse: {
+        title: "Поиск знакомств",
+        subtitle: "Просматривайте опубликованные анкеты и отмечайте понравившиеся.",
+        filters: "Фильтры",
+        mode: "Цель",
+        city: "Город",
+        allCities: "Все города",
+        ageFrom: "Возраст от",
+        ageTo: "Возраст до",
+        newOnly: "Только новые (24 ч)",
+        apply: "Применить",
+        reset: "Сбросить",
+        empty: "Анкеты не найдены. Измените фильтры.",
+        loadFailed: "Не удалось загрузить анкеты.",
+        like: "В избранное",
+        liked: "В избранном",
+        view: "Открыть",
+      },
+      candidate: {
+        back: "Назад к поиску",
+        about: "О себе",
+        interests: "Интересы",
+        lookingFor: "Кого ищет",
+        compatibilityTitle: "Ведическая совместимость",
+        checkCompatibility: "Проверить совместимость",
+        compatibilityLoading: "Рассчитываем совместимость...",
+        compatibilityFailed: "Не удалось рассчитать совместимость.",
+        invite: "Пригласить на встречу",
+        notFound: "Анкета не найдена.",
+      },
+      likes: {
+        title: "Симпатии",
+        tabFavorites: "Избранное",
+        tabWhoLikedMe: "Кто меня лайкнул",
+        count: "Вас отметили: {count}",
+        noFavorites: "В избранном пока пусто.",
+        noLikes: "Пока никто не отметил вашу анкету.",
+        remove: "Убрать",
+        removed: "Удалено из избранного.",
+      },
+      meetings: {
+        title: "Встречи",
+        tabSent: "Отправленные",
+        tabReceived: "Полученные",
+        create: "Новое приглашение",
+        placeType: "Формат встречи",
+        placePersonal: "Личная встреча",
+        placeCafe: "Кафе",
+        placeEvent: "Мероприятие",
+        placeOnline: "Онлайн",
+        placePublic: "Общественное место",
+        message: "Сообщение",
+        send: "Отправить приглашение",
+        sending: "Отправляем...",
+        sent: "Приглашение отправлено.",
+        sendFailed: "Не удалось отправить приглашение.",
+        accept: "Принять",
+        decline: "Отклонить",
+        respondFailed: "Не удалось ответить на приглашение.",
+        empty: "Пока нет приглашений.",
+      },
+      nav: {
+        profile: "Анкета",
+        browse: "Поиск",
+        likes: "Симпатии",
+        meetings: "Встречи",
+      },
     },
     contacts: {
       title: "Контакты",
@@ -552,6 +798,8 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "Login",
       registerTitle: "Register",
+      loginBody: "Sign in to Union to edit your profile, browse matches, and continue conversations inside VedaMatch.",
+      registerBody: "Create a Union account, complete your profile, and prepare your dating card for publication.",
       email: "Email",
       password: "Password",
       submitLogin: "Sign in",
@@ -636,6 +884,127 @@ export const dictionaries: Record<Language, Dictionary> = {
       photoHint: "After choosing a file, the editor opens with crop, rotate, light tuning, and filters.",
       photoAlt: "Union profile photo",
       noPhoto: "No photo yet",
+      galleryTitle: "Photo gallery",
+      mainPhoto: "Main",
+      setMainPhoto: "Set as main",
+      viewPhoto: "View",
+      deletePhoto: "Delete",
+      deletePhotoConfirm: "Delete this photo from your gallery?",
+      photoDeleted: "Photo deleted.",
+      photoDeleteFailed: "Failed to delete photo.",
+      photoSetMain: "Main photo updated.",
+      photoSetMainFailed: "Failed to set main photo.",
+      fields: {
+        gender: "Gender",
+        genderMale: "Male",
+        genderFemale: "Female",
+        dob: "Date of birth",
+        birthTime: "Time of birth",
+        birthPlaceLink: "Place of birth",
+        maritalStatus: "Marital status",
+        childrenIntent: "Attitude to children",
+        elementalPrimary: "Primary element",
+        loveLanguages: "Love languages (comma separated)",
+        requiredHint: "Required field",
+        profileComplete: "Profile is complete and ready to publish.",
+        profileIncomplete: "Fill in all required fields and add a photo before publishing.",
+        photoRequired: "Add at least one photo before submitting for review.",
+        statusReason: "Reason",
+      },
+      statuses: {
+        draft: "Draft",
+        pendingFriendApproval: "Awaiting friend approval",
+        pendingAdminReview: "Under moderator review",
+        pendingAiReview: "Under AI review",
+        published: "Published",
+        rejected: "Rejected",
+        flagged: "Unpublished",
+      },
+      publication: {
+        title: "Publication & approvals",
+        progress: "Approvals: {approved} of {required}",
+        requestApprovals: "Request approvals",
+        requesting: "Sending requests...",
+        selectFriends: "Select friends to approve",
+        noFriends: "No friends to request approval from yet. Your profile will go to moderator review.",
+        needsAdminFallback: "Not enough friends — your profile will be reviewed by a moderator.",
+        incomingTitle: "Incoming approval requests",
+        noIncoming: "No incoming requests.",
+        approve: "Approve",
+        reject: "Reject",
+        notePlaceholder: "Note (optional)",
+        requestSent: "Approval requests sent.",
+        requestFailed: "Could not send requests.",
+        responded: "Response saved.",
+        respondFailed: "Could not save response.",
+      },
+      browse: {
+        title: "Discover",
+        subtitle: "Browse published profiles and mark the ones you like.",
+        filters: "Filters",
+        mode: "Intent",
+        city: "City",
+        allCities: "All cities",
+        ageFrom: "Age from",
+        ageTo: "Age to",
+        newOnly: "New only (24h)",
+        apply: "Apply",
+        reset: "Reset",
+        empty: "No profiles found. Try changing the filters.",
+        loadFailed: "Could not load profiles.",
+        like: "Add to favorites",
+        liked: "In favorites",
+        view: "Open",
+      },
+      candidate: {
+        back: "Back to discover",
+        about: "About",
+        interests: "Interests",
+        lookingFor: "Looking for",
+        compatibilityTitle: "Vedic compatibility",
+        checkCompatibility: "Check compatibility",
+        compatibilityLoading: "Calculating compatibility...",
+        compatibilityFailed: "Could not calculate compatibility.",
+        invite: "Invite to meet",
+        notFound: "Profile not found.",
+      },
+      likes: {
+        title: "Likes",
+        tabFavorites: "Favorites",
+        tabWhoLikedMe: "Who liked me",
+        count: "You were liked by {count}",
+        noFavorites: "No favorites yet.",
+        noLikes: "No one has liked your profile yet.",
+        remove: "Remove",
+        removed: "Removed from favorites.",
+      },
+      meetings: {
+        title: "Meetings",
+        tabSent: "Sent",
+        tabReceived: "Received",
+        create: "New invite",
+        placeType: "Meeting format",
+        placePersonal: "In person",
+        placeCafe: "Cafe",
+        placeEvent: "Event",
+        placeOnline: "Online",
+        placePublic: "Public place",
+        message: "Message",
+        send: "Send invite",
+        sending: "Sending...",
+        sent: "Invite sent.",
+        sendFailed: "Could not send invite.",
+        accept: "Accept",
+        decline: "Decline",
+        respondFailed: "Could not respond to the invite.",
+        empty: "No invites yet.",
+      },
+      nav: {
+        profile: "Profile",
+        browse: "Discover",
+        likes: "Likes",
+        meetings: "Meetings",
+      },
     },
     contacts: {
       title: "Contacts core",
@@ -813,6 +1182,8 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "लॉगिन",
       registerTitle: "रजिस्टर",
+      loginBody: "Union में लॉगिन करें, प्रोफ़ाइल भरें, matches देखें और VedaMatch में बातचीत जारी रखें।",
+      registerBody: "Union अकाउंट बनाएँ, प्रोफ़ाइल पूरी करें और अपनी dating card publication के लिए तैयार करें।",
       email: "ईमेल",
       password: "पासवर्ड",
       submitLogin: "लॉगिन",
@@ -897,6 +1268,127 @@ export const dictionaries: Record<Language, Dictionary> = {
       photoHint: "File चुनने के बाद crop, rotate, light tuning और filters वाला editor खुलेगा।",
       photoAlt: "Union profile photo",
       noPhoto: "अभी फोटो नहीं है",
+      galleryTitle: "फ़ोटो गैलरी",
+      mainPhoto: "मुख्य",
+      setMainPhoto: "मुख्य बनाएं",
+      viewPhoto: "देखें",
+      deletePhoto: "हटाएं",
+      deletePhotoConfirm: "इस फ़ोटो को गैलरी से हटाएं?",
+      photoDeleted: "फ़ोटो हटा दी गई।",
+      photoDeleteFailed: "फ़ोटो हटाई नहीं जा सकी।",
+      photoSetMain: "मुख्य फ़ोटो अपडेट हो गई।",
+      photoSetMainFailed: "मुख्य फ़ोटो सेट नहीं हो सकी।",
+      fields: {
+        gender: "लिंग",
+        genderMale: "पुरुष",
+        genderFemale: "महिला",
+        dob: "जन्म तिथि",
+        birthTime: "जन्म समय",
+        birthPlaceLink: "जन्म स्थान",
+        maritalStatus: "वैवाहिक स्थिति",
+        childrenIntent: "बच्चों के प्रति दृष्टिकोण",
+        elementalPrimary: "प्रमुख तत्व",
+        loveLanguages: "प्रेम की भाषाएँ (अल्पविराम से अलग)",
+        requiredHint: "आवश्यक फ़ील्ड",
+        profileComplete: "प्रोफ़ाइल पूर्ण है और प्रकाशन के लिए तैयार है।",
+        profileIncomplete: "प्रकाशन से पहले सभी आवश्यक फ़ील्ड भरें और एक फ़ोटो जोड़ें।",
+        photoRequired: "समीक्षा के लिए भेजने से पहले कम से कम एक फ़ोटो जोड़ें।",
+        statusReason: "कारण",
+      },
+      statuses: {
+        draft: "ड्राफ़्ट",
+        pendingFriendApproval: "मित्रों की स्वीकृति प्रतीक्षित",
+        pendingAdminReview: "मॉडरेटर समीक्षा में",
+        pendingAiReview: "AI समीक्षा में",
+        published: "प्रकाशित",
+        rejected: "अस्वीकृत",
+        flagged: "अप्रकाशित",
+      },
+      publication: {
+        title: "प्रकाशन और स्वीकृतियाँ",
+        progress: "स्वीकृतियाँ: {required} में से {approved}",
+        requestApprovals: "स्वीकृति का अनुरोध करें",
+        requesting: "अनुरोध भेजे जा रहे हैं...",
+        selectFriends: "स्वीकृति के लिए मित्र चुनें",
+        noFriends: "अभी स्वीकृति के लिए कोई मित्र नहीं। आपकी प्रोफ़ाइल मॉडरेटर समीक्षा में जाएगी।",
+        needsAdminFallback: "पर्याप्त मित्र नहीं — आपकी प्रोफ़ाइल की समीक्षा मॉडरेटर करेंगे।",
+        incomingTitle: "आने वाले स्वीकृति अनुरोध",
+        noIncoming: "कोई आने वाला अनुरोध नहीं।",
+        approve: "स्वीकृत करें",
+        reject: "अस्वीकार करें",
+        notePlaceholder: "टिप्पणी (वैकल्पिक)",
+        requestSent: "स्वीकृति अनुरोध भेजे गए।",
+        requestFailed: "अनुरोध नहीं भेजे जा सके।",
+        responded: "प्रतिक्रिया सहेजी गई।",
+        respondFailed: "प्रतिक्रिया सहेजी नहीं जा सकी।",
+      },
+      browse: {
+        title: "खोजें",
+        subtitle: "प्रकाशित प्रोफ़ाइलें देखें और पसंद की प्रोफ़ाइलें चिह्नित करें।",
+        filters: "फ़िल्टर",
+        mode: "उद्देश्य",
+        city: "शहर",
+        allCities: "सभी शहर",
+        ageFrom: "आयु से",
+        ageTo: "आयु तक",
+        newOnly: "केवल नए (24घं)",
+        apply: "लागू करें",
+        reset: "रीसेट",
+        empty: "कोई प्रोफ़ाइल नहीं मिली। फ़िल्टर बदलें।",
+        loadFailed: "प्रोफ़ाइलें लोड नहीं हो सकीं।",
+        like: "पसंदीदा में जोड़ें",
+        liked: "पसंदीदा में",
+        view: "खोलें",
+      },
+      candidate: {
+        back: "खोज पर वापस",
+        about: "परिचय",
+        interests: "रुचियाँ",
+        lookingFor: "किसकी तलाश",
+        compatibilityTitle: "वैदिक अनुकूलता",
+        checkCompatibility: "अनुकूलता जाँचें",
+        compatibilityLoading: "अनुकूलता की गणना हो रही है...",
+        compatibilityFailed: "अनुकूलता की गणना नहीं हो सकी।",
+        invite: "मिलने के लिए आमंत्रित करें",
+        notFound: "प्रोफ़ाइल नहीं मिली।",
+      },
+      likes: {
+        title: "पसंद",
+        tabFavorites: "पसंदीदा",
+        tabWhoLikedMe: "किसने मुझे पसंद किया",
+        count: "आपको {count} ने पसंद किया",
+        noFavorites: "अभी कोई पसंदीदा नहीं।",
+        noLikes: "अभी तक किसी ने आपकी प्रोफ़ाइल पसंद नहीं की।",
+        remove: "हटाएँ",
+        removed: "पसंदीदा से हटाया गया।",
+      },
+      meetings: {
+        title: "मुलाक़ातें",
+        tabSent: "भेजे गए",
+        tabReceived: "प्राप्त",
+        create: "नया आमंत्रण",
+        placeType: "मुलाक़ात का प्रकार",
+        placePersonal: "व्यक्तिगत मुलाक़ात",
+        placeCafe: "कैफ़े",
+        placeEvent: "कार्यक्रम",
+        placeOnline: "ऑनलाइन",
+        placePublic: "सार्वजनिक स्थान",
+        message: "संदेश",
+        send: "आमंत्रण भेजें",
+        sending: "भेजा जा रहा है...",
+        sent: "आमंत्रण भेजा गया।",
+        sendFailed: "आमंत्रण नहीं भेजा जा सका।",
+        accept: "स्वीकारें",
+        decline: "अस्वीकारें",
+        respondFailed: "आमंत्रण का उत्तर नहीं दिया जा सका।",
+        empty: "अभी कोई आमंत्रण नहीं।",
+      },
+      nav: {
+        profile: "प्रोफ़ाइल",
+        browse: "खोजें",
+        likes: "पसंद",
+        meetings: "मुलाक़ातें",
+      },
     },
     contacts: {
       title: "संपर्क",
