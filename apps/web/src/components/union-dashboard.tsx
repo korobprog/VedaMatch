@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HeartHandshake, Search, SlidersHorizontal, Wallet } from "lucide-react";
-import { buildVedamatchUrl, createBrowserClient, getWallet } from "@vedamatch/api-client";
-import type { DatingCandidate, DatingMode, WalletResponse } from "@vedamatch/domain-types";
+import { HeartHandshake, Lock, MessageCircle, Search, SlidersHorizontal, Wallet, X } from "lucide-react";
+import { buildVedamatchUrl, createBrowserClient } from "@vedamatch/api-client";
+import type { DatingCandidate, DatingCandidatesQuery, DatingChatRequestStatus, DatingMode, WalletResponse } from "@vedamatch/domain-types";
+import type { Dictionary } from "@vedamatch/i18n";
 import { useSession } from "@/components/session-context";
 
+type UnionCopy = Dictionary["union"];
+
 type UnionFilters = {
-  mode: DatingMode;
+  mode: "" | DatingMode;
   city: string;
   minAge: string;
   maxAge: string;
@@ -19,7 +22,7 @@ type UnionFilters = {
 };
 
 const EMPTY_FILTERS: UnionFilters = {
-  mode: "family",
+  mode: "",
   city: "",
   minAge: "",
   maxAge: "",
@@ -29,20 +32,42 @@ const EMPTY_FILTERS: UnionFilters = {
   industry: "",
 };
 
-function candidateId(candidate: DatingCandidate): number {
-  return Number(candidate.ID || candidate.id || 0);
+function getProfileId(candidate: DatingCandidate): number {
+  return candidate.ID || candidate.id || 0;
 }
 
-function candidateName(candidate: DatingCandidate): string {
-  return candidate.spiritualName || candidate.karmicName || candidate.nickname || `#${candidateId(candidate)}`;
-}
-
-function candidatePhoto(candidate: DatingCandidate): string {
+function getCandidatePhoto(candidate: DatingCandidate): string {
   const firstPhoto = candidate.photos?.[0];
-  if (firstPhoto?.url) {
-    return firstPhoto.url;
+  if (typeof firstPhoto === "string") {
+    return firstPhoto;
   }
-  return candidate.avatarUrl || "";
+  return candidate.avatarUrl || candidate.avatar_url || firstPhoto?.url || "";
+}
+
+function formatValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(", ");
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  return "";
+}
+
+function toQuery(filters: UnionFilters): DatingCandidatesQuery {
+  return {
+    mode: filters.mode || undefined,
+    city: filters.city,
+    minAge: filters.minAge,
+    maxAge: filters.maxAge,
+    madh: filters.madh,
+    identity: filters.identity,
+    skills: filters.skills,
+    industry: filters.industry,
+  };
 }
 
 function openLkmWallet() {
@@ -51,60 +76,54 @@ function openLkmWallet() {
   window.location.href = buildVedamatchUrl(host, "lkm", "/", `?returnTo=${returnTo}`);
 }
 
-export function UnionDashboard() {
-  const { dictionary, session } = useSession();
-  const copy = dictionary.datingWeb;
-  const browse = copy.browse;
-  const client = useMemo(() => createBrowserClient(), []);
-  const userId = Number(session?.user?.ID || session?.user?.id || 0);
-  const accessToken = session?.accessToken || "";
+function requestStatusLabel(status: DatingCandidate["chatRequestStatus"], copy: UnionCopy): string {
+  switch (status) {
+    case "pending":
+      return copy.requestPending;
+    case "accepted":
+      return copy.requestAccepted;
+    case "rejected":
+      return copy.requestRejected;
+    default:
+      return copy.chatGateHint;
+  }
+}
 
+function modeLabel(mode: DatingMode, copy: UnionCopy): string {
+  return copy[mode];
+}
+
+export function UnionDashboard() {
+  const { dictionary } = useSession();
+  const copy = dictionary.union;
+  const client = useMemo(() => createBrowserClient(), []);
   const [filters, setFilters] = useState<UnionFilters>(EMPTY_FILTERS);
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [candidates, setCandidates] = useState<DatingCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<DatingCandidate | null>(null);
+  const [modalError, setModalError] = useState("");
   const [error, setError] = useState("");
-
-  const modeLabel: Record<DatingMode, string> = {
-    family: copy.family,
-    friendship: copy.friendship,
-    seva: copy.seva,
-    business: copy.business,
-  };
+  const [requestDrafts, setRequestDrafts] = useState<Record<number, string>>({});
+  const [notice, setNotice] = useState("");
 
   const loadUnion = useCallback(async (nextFilters: UnionFilters) => {
-    if (!userId) {
-      setError(copy.missingUser);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError("");
     try {
       const [nextWallet, nextCandidates] = await Promise.all([
-        accessToken ? getWallet(client.baseUrl, accessToken).catch(() => null) : Promise.resolve(null),
-        client.getDatingCandidates({
-          userId,
-          mode: nextFilters.mode,
-          city: nextFilters.city || undefined,
-          minAge: nextFilters.minAge || undefined,
-          maxAge: nextFilters.maxAge || undefined,
-          madh: nextFilters.madh || undefined,
-          identity: nextFilters.identity || undefined,
-          skills: nextFilters.skills || undefined,
-          industry: nextFilters.industry || undefined,
-        }),
+        client.getWallet().catch(() => null),
+        client.getDatingCandidates(toQuery(nextFilters)),
       ]);
       setWallet(nextWallet);
       setCandidates(Array.isArray(nextCandidates) ? nextCandidates : []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : browse.loadFailed);
-      setCandidates([]);
+      setError(loadError instanceof Error ? loadError.message : copy.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [accessToken, browse.loadFailed, client, copy.missingUser, userId]);
+  }, [client, copy.loadFailed]);
 
   useEffect(() => {
     void loadUnion(EMPTY_FILTERS);
@@ -120,31 +139,85 @@ export function UnionDashboard() {
     await loadUnion(EMPTY_FILTERS);
   }
 
-  const balanceLabel = wallet ? `${wallet.balance} ${wallet.currency || "LKM"}` : "LKM";
+  async function handleUnlock() {
+    if (!selectedCandidate) {
+      return;
+    }
+
+    const profileId = getProfileId(selectedCandidate);
+    if (!profileId) {
+      return;
+    }
+
+    if (!selectedCandidate.viewerCanBypassPayment && wallet && wallet.balance < selectedCandidate.unlockPriceLkm) {
+      setModalError(copy.insufficientBalance);
+      return;
+    }
+
+    setActionLoadingId(profileId);
+    setModalError("");
+    try {
+      const response = await client.unlockDatingProfile(profileId);
+      if (response.balance) {
+        setWallet(response.balance);
+      }
+      setSelectedCandidate(null);
+      await loadUnion(filters);
+    } catch (unlockError) {
+      const message = unlockError instanceof Error ? unlockError.message : copy.actionFailed;
+      setModalError(message.includes("INSUFFICIENT_LKM") ? copy.insufficientBalance : message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handleCreateRequest(candidate: DatingCandidate) {
+    const profileId = getProfileId(candidate);
+    const message = requestDrafts[profileId]?.trim();
+    if (!profileId || !message) {
+      return;
+    }
+
+    setActionLoadingId(profileId);
+    setNotice("");
+    setError("");
+    try {
+      await client.createDatingChatRequest({ recipientId: profileId, message });
+      setNotice(copy.requestSent);
+      setRequestDrafts((current) => ({ ...current, [profileId]: "" }));
+      await loadUnion(filters);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : copy.actionFailed);
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  const balanceLabel = wallet ? `${wallet.balance} ${wallet.currency || "LKM"}` : copy.balanceUnavailable;
 
   return (
     <div className="union-page">
       <section className="union-hero">
         <div className="union-hero__copy">
           <span className="eyebrow">{copy.eyebrow}</span>
-          <h1>{browse.title}</h1>
-          <p>{browse.subtitle}</p>
+          <h1>{copy.title}</h1>
+          <p>{copy.subtitle}</p>
         </div>
         <div className="union-hero__actions">
-          <div className="union-balance" aria-label={dictionary.nav.wallet}>
+          <div className="union-balance" aria-label={copy.balanceLabel}>
             <Wallet aria-hidden="true" size={20} />
-            <span>{dictionary.nav.wallet}</span>
+            <span>{copy.balanceLabel}</span>
             <strong>{balanceLabel}</strong>
           </div>
           <button className="dashboard-action" onClick={openLkmWallet} type="button">
             <Wallet aria-hidden="true" size={18} />
-            {dictionary.nav.wallet}
+            {copy.topUp}
           </button>
           <Link className="dashboard-action dashboard-action--ghost" href="/app/union/profile">
-            {copy.nav.profile}
+            {copy.editProfile}
           </Link>
-          <Link className="dashboard-action dashboard-action--ghost" href="/app/dating/likes">
-            {copy.nav.likes}
+          <Link className="dashboard-action dashboard-action--ghost" href="/app/union/requests">
+            {copy.requests}
           </Link>
         </div>
       </section>
@@ -152,99 +225,190 @@ export function UnionDashboard() {
       <form className="union-filters" onSubmit={handleFilterSubmit}>
         <div className="union-section-head">
           <SlidersHorizontal aria-hidden="true" size={20} />
-          <h2>{browse.filters}</h2>
+          <h2>{copy.filters}</h2>
         </div>
         <label className="field">
-          <span>{browse.mode}</span>
-          <select value={filters.mode} onChange={(event) => setFilters((current) => ({ ...current, mode: event.target.value as DatingMode }))}>
+          <span>{copy.mode}</span>
+          <select value={filters.mode} onChange={(event) => setFilters((current) => ({ ...current, mode: event.target.value as UnionFilters["mode"] }))}>
+            <option value="">{copy.allModes}</option>
             {(["family", "friendship", "business", "seva"] as DatingMode[]).map((mode) => (
-              <option key={mode} value={mode}>{modeLabel[mode]}</option>
+              <option key={mode} value={mode}>{modeLabel(mode, copy)}</option>
             ))}
           </select>
         </label>
         <label className="field">
-          <span>{browse.city}</span>
+          <span>{copy.city}</span>
           <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} />
         </label>
         <label className="field">
-          <span>{browse.ageFrom}</span>
+          <span>{copy.minAge}</span>
           <input inputMode="numeric" value={filters.minAge} onChange={(event) => setFilters((current) => ({ ...current, minAge: event.target.value }))} />
         </label>
         <label className="field">
-          <span>{browse.ageTo}</span>
+          <span>{copy.maxAge}</span>
           <input inputMode="numeric" value={filters.maxAge} onChange={(event) => setFilters((current) => ({ ...current, maxAge: event.target.value }))} />
         </label>
         <label className="field">
-          <span>{dictionary.profile.identity}</span>
-          <input value={filters.identity} onChange={(event) => setFilters((current) => ({ ...current, identity: event.target.value }))} />
-        </label>
-        <label className="field">
-          <span>{copy.fields.elementalPrimary}</span>
+          <span>{copy.madh}</span>
           <input value={filters.madh} onChange={(event) => setFilters((current) => ({ ...current, madh: event.target.value }))} />
         </label>
         <label className="field">
-          <span>{copy.interests}</span>
+          <span>{copy.identity}</span>
+          <input value={filters.identity} onChange={(event) => setFilters((current) => ({ ...current, identity: event.target.value }))} />
+        </label>
+        <label className="field">
+          <span>{copy.skills}</span>
           <input value={filters.skills} onChange={(event) => setFilters((current) => ({ ...current, skills: event.target.value }))} />
         </label>
         <label className="field">
-          <span>{copy.business}</span>
+          <span>{copy.industry}</span>
           <input value={filters.industry} onChange={(event) => setFilters((current) => ({ ...current, industry: event.target.value }))} />
         </label>
         <div className="union-filter-actions">
           <button className="button" disabled={loading} type="submit">
             <Search aria-hidden="true" size={18} />
-            {browse.apply}
+            {copy.search}
           </button>
           <button className="button-secondary" onClick={() => void handleReset()} type="button">
-            {browse.reset}
+            {copy.reset}
           </button>
         </div>
       </form>
 
-      {error ? <div className="notice error-copy">{error}</div> : null}
-      {loading ? <div className="empty-state">{copy.loading}</div> : null}
-      {!loading && !error && candidates.length === 0 ? <div className="empty-state">{browse.empty}</div> : null}
+      {notice ? <div className="notice">{notice}</div> : null}
+      {error ? <div className="notice">{error}</div> : null}
 
-      {!loading && candidates.length > 0 ? (
-        <section className="union-grid" aria-label={browse.title}>
-          {candidates.map((candidate) => {
-            const id = candidateId(candidate);
-            const photo = candidatePhoto(candidate);
-            const photoUrl = photo ? client.getMediaUrl(photo) : "";
-            const facts = [
-              [copy.city, candidate.city],
-              [copy.intentions, candidate.intentions],
-              [copy.interests, candidate.interests],
-              [copy.lookingFor, candidate.lookingFor],
-            ].filter(([, value]) => Boolean(value));
+      {loading ? <div className="empty-state">{dictionary.common.loading}</div> : null}
+      {!loading && candidates.length === 0 ? <div className="empty-state">{copy.empty}</div> : null}
 
-            return (
-              <article className="union-card" key={id || candidateName(candidate)}>
-                <Link className="union-card__photo" href={`/app/dating/${id}`}>
-                  {photoUrl ? <img alt={candidateName(candidate)} src={photoUrl} /> : <HeartHandshake aria-hidden="true" size={44} />}
-                </Link>
-                <div className="union-card__body">
-                  <div className="union-card__title">
-                    <h2>{candidateName(candidate)}</h2>
-                    <span>{modeLabel[filters.mode]}</span>
-                  </div>
-                  <div className="union-facts">
-                    {facts.map(([label, value]) => (
-                      <div className="union-fact" key={`${id}-${label}`}>
-                        <span>{label}</span>
-                        <strong>{String(value)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                  {candidate.bio ? <p className="union-card__bio">{candidate.bio}</p> : null}
-                  <Link className="button union-card__wide-action" href={`/app/dating/${id}`}>
-                    {browse.view}
-                  </Link>
+      <section className="union-grid" aria-label={copy.title}>
+        {candidates.map((candidate) => {
+          const profileId = getProfileId(candidate);
+          const photoUrl = getCandidatePhoto(candidate);
+          const isUnlocked = candidate.isUnlocked || candidate.viewerCanBypassPayment;
+          const status = candidate.chatRequestStatus || "none";
+          const requestDraft = requestDrafts[profileId] || "";
+          const detailRows = [
+            [copy.city, candidate.city],
+            [copy.country, candidate.country],
+            [copy.age, candidate.age],
+            [copy.madh, candidate.madh],
+            [copy.identity, candidate.identity],
+            [copy.skills, candidate.skills],
+            [copy.industry, candidate.industry],
+            [copy.intentions, candidate.intentions],
+            [copy.interests, candidate.interests],
+          ].map(([label, value]) => ({ label: String(label), value: formatValue(value) })).filter((row) => row.value);
+
+          return (
+            <article className="union-card" key={profileId || candidate.displayName}>
+              <div className="union-card__photo">
+                {photoUrl ? <img alt={candidate.displayName} src={photoUrl} /> : <HeartHandshake aria-hidden="true" size={44} />}
+                {!isUnlocked ? (
+                  <span className="union-card__lock-badge">
+                    <Lock aria-hidden="true" size={14} />
+                    {copy.locked}
+                  </span>
+                ) : null}
+              </div>
+              <div className="union-card__body">
+                <div className="union-card__title">
+                  <h2>{candidate.displayName}</h2>
+                  <span>{isUnlocked ? copy.unlocked : copy.paidAccess}</span>
                 </div>
-              </article>
-            );
-          })}
-        </section>
+
+                {isUnlocked ? (
+                  <>
+                    <div className="union-facts">
+                      {detailRows.map((row) => (
+                        <div className="union-fact" key={`${profileId}-${row.label}`}>
+                          <span>{row.label}</span>
+                          <strong>{row.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                    {candidate.bio ? <p className="union-card__bio">{candidate.bio}</p> : null}
+                    {candidate.compatibilityScore ? (
+                      <div className="union-meter">
+                        <span>{copy.compatibility}</span>
+                        <strong>{candidate.compatibilityScore}</strong>
+                      </div>
+                    ) : null}
+                    <div className="union-socials">
+                      {candidate.datingSocialLinks?.length ? candidate.datingSocialLinks.filter((link) => link.visible !== false).map((link) => (
+                        <a href={link.url} key={`${profileId}-${link.platform}-${link.url}`} rel="noreferrer" target="_blank">
+                          {link.platform}
+                        </a>
+                      )) : <span>{copy.noSocialLinks}</span>}
+                    </div>
+                    {status === "accepted" ? (
+                      <Link className="button union-card__wide-action" href={`/app/chats/${profileId}?union=1`}>
+                        <MessageCircle aria-hidden="true" size={18} />
+                        {copy.openChat}
+                      </Link>
+                    ) : (
+                      <div className="union-request-box">
+                        <span>{requestStatusLabel(status, copy)}</span>
+                        {status === "pending" ? null : (
+                          <>
+                            <textarea
+                              onChange={(event) => setRequestDrafts((current) => ({ ...current, [profileId]: event.target.value }))}
+                              placeholder={copy.requestMessagePlaceholder}
+                              value={requestDraft}
+                            />
+                            <button className="button-secondary" disabled={actionLoadingId === profileId || !requestDraft.trim()} onClick={() => void handleCreateRequest(candidate)} type="button">
+                              {copy.sendRequest}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="union-locked-section">
+                      <Lock aria-hidden="true" size={18} />
+                      <span>{copy.lockedHint}</span>
+                    </div>
+                    <div className="union-locked-section">
+                      <Lock aria-hidden="true" size={18} />
+                      <span>{copy.socialLinksLocked}</span>
+                    </div>
+                    <button className="button union-card__wide-action" onClick={() => {
+                      setSelectedCandidate(candidate);
+                      setModalError("");
+                    }} type="button">
+                      <Lock aria-hidden="true" size={18} />
+                      {copy.unlock}
+                    </button>
+                  </>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      {selectedCandidate ? (
+        <div className="union-modal-backdrop" role="presentation">
+          <section aria-modal="true" className="union-modal" role="dialog">
+            <button aria-label={dictionary.common.error} className="union-icon-button" onClick={() => setSelectedCandidate(null)} type="button">
+              <X aria-hidden="true" size={18} />
+            </button>
+            <span className="eyebrow">{copy.unlockProfile}</span>
+            <h2>{selectedCandidate.displayName}</h2>
+            <p>{copy.unlockCost.replace("{price}", String(selectedCandidate.unlockPriceLkm))}</p>
+            {modalError ? <div className="notice">{modalError}</div> : null}
+            <div className="union-modal__actions">
+              <button className="button" disabled={actionLoadingId === getProfileId(selectedCandidate)} onClick={() => void handleUnlock()} type="button">
+                {copy.unlockProfile}
+              </button>
+              <button className="button-secondary" onClick={openLkmWallet} type="button">
+                {copy.openWallet}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </div>
   );

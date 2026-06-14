@@ -144,7 +144,7 @@ const DEFINITIONS: LauncherDefinition[] = [
   { id: "cafe", groupId: "services", tone: "copper", icon: "coffee", status: "soon" },
   { id: "shops", groupId: "services", tone: "stone", icon: "shopping-bag", status: "soon" },
   { id: "ads", groupId: "services", tone: "orange", icon: "megaphone", status: "soon" },
-  { id: "dating", groupId: "services", tone: "pink", icon: "sparkles", href: "/app/dating", status: "active", routeMatch: "/app/dating" },
+  { id: "dating", groupId: "services", tone: "pink", icon: "sparkles", href: "/app/union", status: "active", dock: true, routeMatch: "/app/union" },
   { id: "travel", groupId: "travel", tone: "violet", icon: "compass", href: "/app/travel", status: "active", dock: true, routeMatch: "/app/travel" },
   { id: "map", groupId: "travel", tone: "indigo", icon: "map", status: "soon" },
   { id: "dhama", groupId: "travel", tone: "copper", icon: "landmark", status: "soon" },

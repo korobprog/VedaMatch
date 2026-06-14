@@ -3,32 +3,24 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { CalendarDays, HeartHandshake, LogOut, MessageCircle, Search, ThumbsUp, UserRound, Wallet } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { HeartHandshake, Inbox, LogOut, MessageCircle, Search, UserRound, Wallet } from "lucide-react";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  exact?: boolean;
-};
+const navItems = [
+  { href: "/app/union", labelKey: "navSearch", icon: Search },
+  { href: "/app/union/profile", labelKey: "navProfile", icon: UserRound },
+  { href: "/app/union/requests", labelKey: "navRequests", icon: Inbox },
+  { href: "/app/chats", labelKey: "navChats", icon: MessageCircle },
+  { href: "/app/wallet", labelKey: "navWallet", icon: Wallet },
+] as const;
 
 export function UnionAppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { dictionary, ready, session, logout } = useSession();
-  const copy = dictionary.datingWeb;
-  const navItems: NavItem[] = [
-    { href: "/app/union", label: copy.nav.browse, icon: Search, exact: true },
-    { href: "/app/union/profile", label: copy.nav.profile, icon: UserRound },
-    { href: "/app/dating/likes", label: copy.nav.likes, icon: ThumbsUp },
-    { href: "/app/dating/meetings", label: copy.nav.meetings, icon: CalendarDays },
-    { href: "/app/chats", label: dictionary.nav.chats, icon: MessageCircle },
-    { href: "/app/wallet", label: dictionary.nav.wallet, icon: Wallet },
-  ];
+  const unionCopy = dictionary.union;
 
   useEffect(() => {
     if (ready && !session?.accessToken) {
@@ -62,26 +54,26 @@ export function UnionAppFrame({ children }: { children: React.ReactNode }) {
               <HeartHandshake size={22} />
             </span>
             <span className="union-brand__copy">
-              <strong>{copy.eyebrow}</strong>
-              <span>{copy.subtitle}</span>
+              <strong>{unionCopy.eyebrow}</strong>
+              <span>{unionCopy.brandSubtitle}</span>
             </span>
           </Link>
 
-          <nav className="union-nav" aria-label={copy.eyebrow}>
+          <nav className="union-nav" aria-label={unionCopy.navLabel}>
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const active = pathname === item.href || (item.href !== "/app/union" && pathname.startsWith(item.href));
               return (
-                <Link aria-current={active ? "page" : undefined} className={active ? "union-nav__link is-active" : "union-nav__link"} href={item.href} key={item.href} title={item.label}>
+                <Link aria-current={active ? "page" : undefined} className={active ? "union-nav__link is-active" : "union-nav__link"} href={item.href} key={item.href} title={unionCopy[item.labelKey]}>
                   <Icon aria-hidden="true" size={17} />
-                  <span>{item.label}</span>
+                  <span>{unionCopy[item.labelKey]}</span>
                 </Link>
               );
             })}
           </nav>
 
           <div className="union-topbar__actions">
-            <ThemeSwitcher className="theme-switcher--compact" />
+            <ThemeSwitcher compact />
             <LanguageSwitcher />
             <button aria-label={dictionary.nav.logout} className="union-icon-action" onClick={() => void logout()} title={dictionary.nav.logout} type="button">
               <LogOut aria-hidden="true" size={18} />

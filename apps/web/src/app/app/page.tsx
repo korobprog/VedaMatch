@@ -7,6 +7,5 @@ export default async function AppHomePage() {
   if (isUnion) {
     redirect("/app/union");
   }
-
   return <SocialAppHome />;
 }
