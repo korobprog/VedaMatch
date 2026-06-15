@@ -37,7 +37,7 @@ const MODE_ORDER: DatingPresentationMode[] = ["family", "friendship", "business"
 const COPY: Record<Language, UnionCopy> = {
   ru: {
     badge: "Союз",
-    title: "Осознанные знакомства без лишнего шума",
+    title: "Осознанные знакомства в благости",
     body: "Пространство для людей, которые ищут близость, дружбу, проекты и севу через общие ценности.",
     signIn: "Войти",
     register: "Создать анкету",

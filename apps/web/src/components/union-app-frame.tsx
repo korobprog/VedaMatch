@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { CalendarDays, HeartHandshake, LogOut, MessageCircle, Search, ThumbsUp, UserRound, Wallet } from "lucide-react";
+import { BookOpen, CalendarDays, HeartHandshake, LogOut, MessageCircle, Search, ThumbsUp, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-context";
@@ -19,8 +19,9 @@ type NavItem = {
 export function UnionAppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { dictionary, ready, session, logout } = useSession();
+  const { dictionary, language, ready, session, logout } = useSession();
   const copy = dictionary.datingWeb;
+  const vedabaseHref = language === "ru" ? "https://vedabase.vedamatch.ru" : "https://vedabase.vedamatch.com";
   const navItems: NavItem[] = [
     { href: "/app/union", label: copy.nav.browse, icon: Search, exact: true },
     { href: "/app/union/profile", label: copy.nav.profile, icon: UserRound },
@@ -78,6 +79,10 @@ export function UnionAppFrame({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            <a className="union-nav__link" href={vedabaseHref} rel="noreferrer" target="_blank" title={copy.nav.books}>
+              <BookOpen aria-hidden="true" size={17} />
+              <span>{copy.nav.books}</span>
+            </a>
           </nav>
 
           <div className="union-topbar__actions">

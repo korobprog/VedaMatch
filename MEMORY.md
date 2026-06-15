@@ -30,6 +30,7 @@
 - 2026-04-26 production fix был применен вручную через Dokploy working tree `/etc/dokploy/applications/vedamatch-server-dnkxc8/code/server`, `docker build -t vedamatch-server-dnkxc8:latest .` и `docker service update --force --image vedamatch-server-dnkxc8:latest vedamatch-server-dnkxc8`; после deploy Telegram `pending_update_count=0`, свежий `/start` webhook ответил `200` за ~22ms.
 
 ## Dating / Union
+- В Union web меню ссылка на книги Vedabase должна быть языковой: `ru` ведет на `https://vedabase.vedamatch.ru`, `en` и `hi` ведут на `https://vedabase.vedamatch.com`.
 - Для Union web login production CORS должен разрешать `https://union.vedamatch.ru` и `https://union.vedamatch.com` не только в code defaults `server/cmd/api/main.go`, но и в Dokploy/Swarm env `ALLOWED_ORIGINS`, потому что env дополняет/переопределяет production-поведение при старых образах и может пережить redeploy.
 - 2026-06-13 production hotfix: `vedamatch-server-dnkxc8` был обновлен через Docker service env, после чего preflight `OPTIONS https://api.vedamatch.ru/api/login` с `Origin: https://union.vedamatch.ru` стал отвечать `Access-Control-Allow-Origin: https://union.vedamatch.ru`.
 - Для web Union в `apps/web` принят route `/app/dating`: он должен использовать существующие backend contracts `/dating/profile/:id`, `/dating/profile/:id/submit`, `/media/upload/:userId` и `/media/:id/set-profile`, без отдельного web-only photo backend.

@@ -234,6 +234,7 @@ export type Dictionary = {
       browse: string;
       likes: string;
       meetings: string;
+      books: string;
     };
   };
   contacts: {
@@ -620,6 +621,7 @@ export const dictionaries: Record<Language, Dictionary> = {
         browse: "Поиск",
         likes: "Симпатии",
         meetings: "Встречи",
+        books: "Книги",
       },
     },
     contacts: {
@@ -1004,6 +1006,7 @@ export const dictionaries: Record<Language, Dictionary> = {
         browse: "Discover",
         likes: "Likes",
         meetings: "Meetings",
+        books: "Books",
       },
     },
     contacts: {
@@ -1388,6 +1391,7 @@ export const dictionaries: Record<Language, Dictionary> = {
         browse: "खोजें",
         likes: "पसंद",
         meetings: "मुलाक़ातें",
+        books: "पुस्तकें",
       },
     },
     contacts: {
