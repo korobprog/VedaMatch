@@ -571,6 +571,13 @@ func main() {
 	// Protected Routes (Apply Protected middleware to all following routes)
 	protected := api.Group("/", middleware.Protected())
 
+	// Vedabase reading state (bookmarks + reading progress), synced per-user
+	protected.Get("/vedabase/bookmarks", handlers.GetVedabaseBookmarks)
+	protected.Post("/vedabase/bookmarks", handlers.CreateVedabaseBookmark)
+	protected.Delete("/vedabase/bookmarks/:id", handlers.DeleteVedabaseBookmark)
+	protected.Get("/vedabase/progress", handlers.GetVedabaseProgress)
+	protected.Put("/vedabase/progress", handlers.UpsertVedabaseProgress)
+
 	// Protected Support Routes (in-app tickets)
 	protected.Get("/auth/providers", authHandler.GetLinkedAuthProviders)
 	protected.Post("/auth/google/link", authHandler.GoogleLink)
@@ -613,6 +620,7 @@ func main() {
 	admin.Delete("/users/:id", adminHandler.DeleteUser)
 	admin.Post("/admins", adminHandler.AddAdmin)
 	admin.Get("/stats", adminHandler.GetStats)
+	admin.Post("/vedabase/scrape", handlers.TriggerVedabaseScrape) // ?book=bg — crawl vedabase.ru into shared library
 	admin.Get("/channels/metrics", channelHandler.GetMetrics)
 	admin.Get("/path-tracker/metrics", pathTrackerHandler.GetMetricsSummary)
 	admin.Get("/path-tracker/analytics", pathTrackerHandler.GetAnalytics)
@@ -1462,8 +1470,12 @@ func defaultAllowedOrigins() []string {
 		"http://localhost:3001",
 		"http://localhost:3005",
 		"http://localhost:3006",
+		"http://localhost:3007",
+		"http://localhost:3008",
 		"http://127.0.0.1:3005",
 		"http://127.0.0.1:3006",
+		"http://127.0.0.1:3007",
+		"http://127.0.0.1:3008",
 		"http://localhost:8081",
 		"https://vedamatch.ru",
 		"https://vedamatch.com",
@@ -1481,6 +1493,8 @@ func defaultAllowedOrigins() []string {
 		"https://lkm.vedamatch.com",
 		"https://union.vedamatch.ru",
 		"https://union.vedamatch.com",
+		"https://vedabase.vedamatch.ru",
+		"https://vedabase.vedamatch.com",
 	}
 }
 
