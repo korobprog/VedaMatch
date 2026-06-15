@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HeartHandshake, Inbox, LogOut, MessageCircle, Search, UserRound, Wallet } from "lucide-react";
+import { createBrowserClient } from "@vedamatch/api-client";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -21,12 +22,40 @@ export function UnionAppFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { dictionary, ready, session, logout } = useSession();
   const unionCopy = dictionary.union;
+  const client = useMemo(() => createBrowserClient(), []);
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
     if (ready && !session?.accessToken) {
       router.replace("/login");
     }
   }, [ready, router, session?.accessToken]);
+
+  // Бейдж непрочитанных входящих заявок; обновляется при смене маршрута,
+  // чтобы счётчик уменьшался после ответа на заявку.
+  useEffect(() => {
+    if (!ready || !session?.accessToken) {
+      return;
+    }
+    let active = true;
+    client
+      .listDatingChatRequests({ direction: "incoming" })
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        const count = (response.items || []).filter((item) => item.status === "pending").length;
+        setPendingRequests(count);
+      })
+      .catch(() => {
+        if (active) {
+          setPendingRequests(0);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, ready, session?.accessToken, pathname]);
 
   if (!ready) {
     return (
@@ -63,9 +92,17 @@ export function UnionAppFrame({ children }: { children: React.ReactNode }) {
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || (item.href !== "/app/union" && pathname.startsWith(item.href));
+              const showBadge = item.href === "/app/union/requests" && pendingRequests > 0;
               return (
                 <Link aria-current={active ? "page" : undefined} className={active ? "union-nav__link is-active" : "union-nav__link"} href={item.href} key={item.href} title={unionCopy[item.labelKey]}>
-                  <Icon aria-hidden="true" size={17} />
+                  <span className="union-nav__icon">
+                    <Icon aria-hidden="true" size={17} />
+                    {showBadge ? (
+                      <span className="union-nav__badge" aria-label={`${pendingRequests} ${unionCopy.navRequests}`}>
+                        {pendingRequests > 99 ? "99+" : pendingRequests}
+                      </span>
+                    ) : null}
+                  </span>
                   <span>{unionCopy[item.labelKey]}</span>
                 </Link>
               );

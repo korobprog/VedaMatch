@@ -27,13 +27,14 @@ import type {
   SupportConversation,
   SupportMessage,
   TransactionListResponse,
+  UserMedia,
   WalletResponse,
   YatraListResponse,
 } from "@vedamatch/domain-types";
 import { normalizeLanguage } from "@vedamatch/i18n";
 
-export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "local" | "unknown";
-export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "api";
+export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "vedabase" | "local" | "unknown";
+export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "vedabase" | "api";
 export type ContactsQueryOptions = {
   tab?: "all" | "friends" | "blocked";
   q?: string;
@@ -92,13 +93,16 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   if (normalized === "lkm.vedamatch.ru" || normalized === "lkm.vedamatch.com") {
     return "lkm";
   }
+  if (normalized === "vedabase.vedamatch.ru" || normalized === "vedabase.vedamatch.com") {
+    return "vedabase";
+  }
   return "unknown";
 }
 
 export function buildVedamatchOrigin(hostname: string, subdomain: VedamatchSubdomain): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    const port = subdomain === "api" ? "8081" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : "3010";
+    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : subdomain === "vedabase" ? "3008" : "3010";
     return `http://${normalized}:${port}`;
   }
 
@@ -121,7 +125,7 @@ export function buildVedamatchUrl(hostname: string, subdomain: VedamatchSubdomai
 export function resolveApiBaseUrlForHostname(hostname: string): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    return "http://localhost:8081/api";
+    return "http://localhost:8000/api";
   }
   if (normalized.endsWith(".vedamatch.com") || normalized === "vedamatch.com") {
     return "https://api.vedamatch.com/api";
@@ -421,6 +425,13 @@ export async function getVerses(baseUrl: string, bookCode: string, chapter: numb
   return apiFetch<ScriptureVerse[]>(baseUrl, `/library/verses?${params.toString()}`);
 }
 
+// getBookExport returns every verse of a book (optionally a single language) in one
+// request — used to save a whole book for offline reading.
+export async function getBookExport(baseUrl: string, bookCode: string, language?: string): Promise<ScriptureVerse[]> {
+  const suffix = language ? `?language=${normalizeLanguage(language)}` : "";
+  return apiFetch<ScriptureVerse[]>(baseUrl, `/library/books/${bookCode}/export${suffix}`);
+}
+
 export async function getNews(baseUrl: string, options: { page?: number; limit?: number; lang?: Language } = {}): Promise<NewsListResponse> {
   const params = new URLSearchParams();
   params.set("page", String(options.page ?? 1));
@@ -526,6 +537,10 @@ export async function getDatingPresentation(baseUrl: string): Promise<DatingPres
   return apiFetch<DatingPresentationResponse>(baseUrl, "/dating/presentation", { cache: "no-store" });
 }
 
+export async function getDatingCities(baseUrl: string, accessToken: string): Promise<string[]> {
+  return apiFetch<string[]>(baseUrl, "/dating/cities", {}, accessToken);
+}
+
 export async function getDatingProfile(baseUrl: string, accessToken: string, profileId: number): Promise<DatingProfile> {
   return apiFetch<DatingProfile>(baseUrl, `/dating/profile/${profileId}`, {}, accessToken);
 }
@@ -552,6 +567,56 @@ export async function submitDatingProfile(baseUrl: string, accessToken: string, 
     },
     accessToken,
   );
+}
+
+export async function listUserMedia(baseUrl: string, accessToken: string, userId: number): Promise<UserMedia[]> {
+  return apiFetch<UserMedia[]>(baseUrl, `/media/${userId}`, {}, accessToken);
+}
+
+export async function uploadUserPhoto(baseUrl: string, accessToken: string, userId: number, file: File): Promise<UserMedia> {
+  const body = new FormData();
+  body.set("photo", file);
+  return apiFetch<UserMedia>(
+    baseUrl,
+    `/media/upload/${userId}`,
+    {
+      method: "POST",
+      body,
+    },
+    accessToken,
+  );
+}
+
+export async function setProfilePhoto(baseUrl: string, accessToken: string, mediaId: number): Promise<UserMedia> {
+  return apiFetch<UserMedia>(
+    baseUrl,
+    `/media/${mediaId}/set-profile`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    accessToken,
+  );
+}
+
+export async function deleteUserMedia(baseUrl: string, accessToken: string, mediaId: number): Promise<void> {
+  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
+  const response = await fetch(`${baseUrl}/media/${mediaId}`, {
+    method: "DELETE",
+    headers,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const payload = await response.json();
+      message = String(payload?.error || payload?.message || message);
+    } catch {
+      // noop
+    }
+    throw new Error(message);
+  }
 }
 
 export async function unlockDatingProfile(baseUrl: string, accessToken: string, profileId: number): Promise<DatingUnlockResponse> {
@@ -726,6 +791,10 @@ export class BrowserVedaClient {
     return getVerses(this.baseUrl, bookCode, chapter, language);
   }
 
+  async getBookExport(bookCode: string, language?: Language) {
+    return getBookExport(this.baseUrl, bookCode, language);
+  }
+
   async getServices() {
     const response = await getServices(this.baseUrl);
     return response.items || response.services || [];
@@ -760,6 +829,14 @@ export class BrowserVedaClient {
     return getDatingPresentation(this.baseUrl);
   }
 
+  async getDatingCities() {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return getDatingCities(this.baseUrl, session.accessToken);
+  }
+
   async getDatingProfile(profileId: number) {
     const session = getBrowserSession();
     if (!session?.accessToken) {
@@ -782,6 +859,38 @@ export class BrowserVedaClient {
       throw new Error("Unauthorized");
     }
     return submitDatingProfile(this.baseUrl, session.accessToken, profileId);
+  }
+
+  async listUserMedia(userId: number) {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return listUserMedia(this.baseUrl, session.accessToken, userId);
+  }
+
+  async uploadUserPhoto(userId: number, file: File) {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return uploadUserPhoto(this.baseUrl, session.accessToken, userId, file);
+  }
+
+  async setProfilePhoto(mediaId: number) {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return setProfilePhoto(this.baseUrl, session.accessToken, mediaId);
+  }
+
+  async deleteUserMedia(mediaId: number) {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return deleteUserMedia(this.baseUrl, session.accessToken, mediaId);
   }
 
   async unlockDatingProfile(profileId: number) {

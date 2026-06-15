@@ -58,6 +58,16 @@ export interface DatingPost {
   createdAt?: string;
 }
 
+export interface UserMedia {
+  id?: number;
+  ID?: number;
+  userId?: number;
+  url: string;
+  isProfile?: boolean;
+  createdAt?: string;
+  CreatedAt?: string;
+}
+
 export interface DatingCandidate {
   ID: number;
   id?: number;

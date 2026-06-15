@@ -404,6 +404,7 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 
 	updateMap := make(map[string]interface{})
 	stringFields := map[string]string{
+		"gender":                  "gender",
 		"bio":                     "bio",
 		"interests":               "interests",
 		"lookingFor":              "looking_for",

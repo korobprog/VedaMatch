@@ -36,6 +36,8 @@ func TestDefaultAllowedOriginsIncludesUnionWeb(t *testing.T) {
 	_, set := buildAllowedOrigins(defaultAllowedOrigins())
 
 	for _, origin := range []string{
+		"http://localhost:3007",
+		"http://127.0.0.1:3007",
 		"https://union.vedamatch.ru",
 		"https://union.vedamatch.com",
 	} {

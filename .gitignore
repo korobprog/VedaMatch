@@ -211,3 +211,6 @@ scripts/*.env
 
 # code-graph tool output
 graphify-out/
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo

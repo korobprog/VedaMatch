@@ -152,10 +152,10 @@ func (s *NicknameService) UpdateNickname(user *models.User, requested string) er
 
 	cooldown := now.Add(30 * 24 * time.Hour)
 	updates := map[string]interface{}{
-		"nickname":                       normalized,
-		"nickname_set_manually":          true,
-		"nickname_changed_at":            now,
-		"nickname_change_cooldown_until": cooldown,
+		"nickname":                normalized,
+		"nickname_set_manually":   true,
+		"nickname_changed_at":     now,
+		"nickname_cooldown_until": cooldown,
 	}
 	if err := s.db.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
 		return err

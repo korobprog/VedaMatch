@@ -97,7 +97,9 @@ func TestDatingLifecycleRunAIModerationRejectsHighRiskHeuristicsWithoutDB(t *tes
 	}
 }
 
-func TestDatingLifecycleRunAIModerationPassesWhenNoFlagsAndNoAI(t *testing.T) {
+func TestDatingLifecycleRunAIModerationNeedsReviewWhenNoAI(t *testing.T) {
+	// With no heuristic flags but no AI service available, a profile must not
+	// auto-publish: it should fall back to manual admin review.
 	svc := &DatingLifecycleService{}
 	result, err := svc.RunAIModeration(context.Background(), &models.User{
 		Bio:                "I like kirtan and service",
@@ -113,8 +115,38 @@ func TestDatingLifecycleRunAIModerationPassesWhenNoFlagsAndNoAI(t *testing.T) {
 	if result == nil {
 		t.Fatalf("expected moderation result")
 	}
-	if result.Outcome != models.DatingModerationPass {
-		t.Fatalf("outcome=%s want=%s", result.Outcome, models.DatingModerationPass)
+	if result.Outcome != models.DatingModerationNeedsAdminReview {
+		t.Fatalf("outcome=%s want=%s", result.Outcome, models.DatingModerationNeedsAdminReview)
+	}
+}
+
+func TestDatingLifecycleValidateProfileRequiresPhoto(t *testing.T) {
+	svc := &DatingLifecycleService{}
+	complete := models.User{
+		Bio:              "About me",
+		Interests:        "Kirtan",
+		LookingFor:       "Family",
+		MaritalStatus:    "Single",
+		Dob:              "1995-05-12",
+		BirthTime:        "09:30",
+		BirthPlaceLink:   "Moscow",
+		City:             "Moscow",
+		ChildrenIntent:   "want",
+		ElementalPrimary: "air",
+		LoveLanguages:    "quality_time",
+	}
+
+	// No photos and no DB -> photo requirement must be reported.
+	reasons := svc.ValidateProfile(&complete)
+	if !containsReason(reasons, "At least one photo is required") {
+		t.Fatalf("expected photo requirement in %v", reasons)
+	}
+
+	// With a preloaded photo the profile is fully valid.
+	withPhoto := complete
+	withPhoto.Photos = []models.Media{{UserID: 1}}
+	if reasons := svc.ValidateProfile(&withPhoto); len(reasons) != 0 {
+		t.Fatalf("expected no validation reasons, got %v", reasons)
 	}
 }
 

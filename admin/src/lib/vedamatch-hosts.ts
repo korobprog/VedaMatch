@@ -1,4 +1,4 @@
-export type VedamatchSurface = 'portal' | 'social' | 'panel' | 'lkm' | 'local' | 'unknown';
+export type VedamatchSurface = 'portal' | 'social' | 'panel' | 'lkm' | 'vedabase' | 'local' | 'unknown';
 export type VedamatchSubdomain = 'admin' | 'social' | 'panel' | 'lkm' | 'api';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
@@ -74,6 +74,9 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   if (normalized === 'lkm.vedamatch.ru' || normalized === 'lkm.vedamatch.com') {
     return 'lkm';
   }
+  if (normalized === 'vedabase.vedamatch.ru' || normalized === 'vedabase.vedamatch.com') {
+    return 'vedabase';
+  }
   return 'unknown';
 }
 
@@ -102,7 +105,7 @@ export function buildVedamatchUrl(hostname: string, subdomain: VedamatchSubdomai
 export function resolveApiBaseUrlForHostname(hostname: string): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    return 'http://localhost:8081/api';
+    return 'http://localhost:8000/api';
   }
   if (normalized.endsWith('.vedamatch.com') || normalized === 'vedamatch.com') {
     return 'https://api.vedamatch.com/api';

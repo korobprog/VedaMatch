@@ -491,11 +491,18 @@ func (h *AdminHandler) GetDatingProfiles(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
-	if _, err := requireAdminUserID(c); err != nil {
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
 		return err
 	}
 
-	userID := c.Params("id")
+	userIDParam := c.Params("id")
+	parsedUserID, parseErr := strconv.ParseUint(userIDParam, 10, 64)
+	if parseErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user id"})
+	}
+	userID := uint(parsedUserID)
+
 	var body struct {
 		IsFlagged  bool   `json:"isFlagged"`
 		FlagReason string `json:"flagReason"`
@@ -510,6 +517,18 @@ func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
 		"flag_reason": body.FlagReason,
 	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update flag status"})
+	}
+
+	// Flagging an already-published profile must take it out of the published
+	// feed and record an admin moderation event so it cannot stay live while flagged.
+	if body.IsFlagged {
+		reason := strings.TrimSpace(body.FlagReason)
+		if reason == "" {
+			reason = "Profile flagged by moderator"
+		}
+		if err := h.datingLifecycle.ModerateProfile(userID, adminID, models.DatingModerationFlag, reason); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not apply flag moderation"})
+		}
 	}
 
 	return c.JSON(fiber.Map{"message": "Profile flag updated"})

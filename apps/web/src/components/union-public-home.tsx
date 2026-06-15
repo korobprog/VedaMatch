@@ -6,6 +6,7 @@ import type { DatingMode, DatingPresentationResponse, Language } from "@vedamatc
 import { getDictionary } from "@vedamatch/i18n";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { resolveMediaUrl } from "@/lib/media";
 
 const modeIcons = {
   family: HeartHandshake,
@@ -23,23 +24,6 @@ function emptyPresentation(): DatingPresentationResponse {
     business: { profiles: [], totalCount: 0 },
     seva: { profiles: [], totalCount: 0 },
   };
-}
-
-function resolveMediaUrl(baseUrl: string, rawUrl?: string | null): string {
-  const trimmedUrl = String(rawUrl || "").trim();
-  if (!trimmedUrl) {
-    return "";
-  }
-  if (trimmedUrl.startsWith("http")) {
-    return trimmedUrl;
-  }
-
-  const origin = baseUrl.replace(/\/api(?:\/.*)?$/, "");
-  const normalizedPath = trimmedUrl.startsWith("/") ? trimmedUrl : `/${trimmedUrl}`;
-  if (/^\/[^/]+\.(?:jpg|jpeg|png|webp|gif|heic|heif)$/i.test(normalizedPath)) {
-    return `${origin}/uploads/avatars${normalizedPath}`;
-  }
-  return `${origin}${normalizedPath}`;
 }
 
 export async function UnionPublicHome({ host, language }: { host: string; language: Language }) {

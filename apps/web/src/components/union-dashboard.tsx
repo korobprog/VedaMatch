@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { HeartHandshake, Lock, MessageCircle, Search, SlidersHorizontal, Wallet, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, HeartHandshake, Lock, MessageCircle, Search, SlidersHorizontal, Wallet, X } from "lucide-react";
 import { buildVedamatchUrl, createBrowserClient } from "@vedamatch/api-client";
 import type { DatingCandidate, DatingCandidatesQuery, DatingChatRequestStatus, DatingMode, WalletResponse } from "@vedamatch/domain-types";
 import type { Dictionary } from "@vedamatch/i18n";
 import { useSession } from "@/components/session-context";
+import { formatValue, getCandidatePhoto, getProfileId } from "@/lib/media";
+import { UnionNotice } from "@/components/union-notice";
+import { UnionSkeleton } from "@/components/union-skeleton";
 
 type UnionCopy = Dictionary["union"];
 
@@ -31,30 +34,34 @@ const EMPTY_FILTERS: UnionFilters = {
   skills: "",
   industry: "",
 };
+const MADH_OPTIONS = [
+  "ISKCON",
+  "Brahma-Madhva-Gaudiya",
+  "Sri Sampradaya (Ramanuja)",
+  "Brahma Sampradaya (Madhvacharya)",
+  "Rudra Sampradaya (Vishnuswami)",
+  "Kumara Sampradaya (Nimbarka)",
+  "Шри Чайтанья Сарасват Матх",
+  "Международное Общество Чистой Бхакти-йоги",
+  "Шри Гопинатх Гаудия",
+  "Шри Чайтанья Матх",
+  "Other",
+] as const;
+const IDENTITY_OPTIONS = ["Yogi", "In Goodness"] as const;
 
-function getProfileId(candidate: DatingCandidate): number {
-  return candidate.ID || candidate.id || 0;
-}
-
-function getCandidatePhoto(candidate: DatingCandidate): string {
-  const firstPhoto = candidate.photos?.[0];
-  if (typeof firstPhoto === "string") {
-    return firstPhoto;
+/**
+ * Совместимость может прийти числом (баллы) или текстовым AI-отчётом.
+ * Возвращает процент 0..100 только когда значение целиком числовое,
+ * иначе null — тогда показываем текст как есть.
+ */
+function compatibilityPercent(value: unknown): number | null {
+  const trimmed = typeof value === "number" ? value : String(value ?? "").trim();
+  const num = typeof trimmed === "number" ? trimmed : /^\d+(\.\d+)?%?$/.test(trimmed) ? parseFloat(trimmed) : NaN;
+  if (!Number.isFinite(num) || num <= 0) {
+    return null;
   }
-  return candidate.avatarUrl || candidate.avatar_url || firstPhoto?.url || "";
-}
-
-function formatValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).join(", ");
-  }
-  if (typeof value === "number") {
-    return String(value);
-  }
-  if (typeof value === "string") {
-    return value.trim();
-  }
-  return "";
+  const percent = num <= 1 ? num * 100 : num;
+  return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
 function toQuery(filters: UnionFilters): DatingCandidatesQuery {
@@ -93,11 +100,54 @@ function modeLabel(mode: DatingMode, copy: UnionCopy): string {
   return copy[mode];
 }
 
+function uniqueOptions(options: string[]): string[] {
+  return Array.from(new Set(options.map((option) => option.trim()).filter(Boolean)));
+}
+
+function mergeCurrentOption(options: readonly string[], currentValue: string): string[] {
+  const normalizedCurrent = currentValue.trim();
+  if (!normalizedCurrent || options.some((option) => option.toLowerCase() === normalizedCurrent.toLowerCase())) {
+    return [...options];
+  }
+  return [normalizedCurrent, ...options];
+}
+
+function optionLabel(value: string, labels: Record<string, string>): string {
+  return labels[value] || value;
+}
+
+async function fetchCityOptions(options: { accessToken?: string; country?: string; q?: string; signal?: AbortSignal }): Promise<string[]> {
+  const params = new URLSearchParams({ limit: "8" });
+  const query = options.q?.trim();
+  const country = options.country?.trim();
+  if (query) {
+    params.set("q", query);
+  }
+  if (country) {
+    params.set("country", country);
+  }
+
+  const response = await fetch(`/api/locations/cities?${params.toString()}`, {
+    cache: "no-store",
+    headers: options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : undefined,
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json();
+  return uniqueOptions(Array.isArray(payload?.options) ? payload.options.map(String) : []);
+}
+
 export function UnionDashboard() {
-  const { dictionary } = useSession();
+  const { dictionary, session } = useSession();
   const copy = dictionary.union;
   const client = useMemo(() => createBrowserClient(), []);
+  const accessToken = session?.accessToken || "";
   const [filters, setFilters] = useState<UnionFilters>(EMPTY_FILTERS);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [cityOpen, setCityOpen] = useState(false);
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [candidates, setCandidates] = useState<DatingCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +157,25 @@ export function UnionDashboard() {
   const [error, setError] = useState("");
   const [requestDrafts, setRequestDrafts] = useState<Record<number, string>>({});
   const [notice, setNotice] = useState("");
+  const cityBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mergedCityOptions = useMemo(
+    () => mergeCurrentOption(cityOptions, filters.city),
+    [cityOptions, filters.city],
+  );
+  const madhOptions = useMemo(
+    () => mergeCurrentOption(MADH_OPTIONS, filters.madh),
+    [filters.madh],
+  );
+  const identityOptions = useMemo(
+    () => mergeCurrentOption(IDENTITY_OPTIONS, filters.identity),
+    [filters.identity],
+  );
+  const visibleCityOptions = useMemo(() => {
+    const query = filters.city.trim().toLowerCase();
+    const options = cityOptions.length > 0 ? cityOptions : mergedCityOptions;
+    return (query ? options.filter((city) => city.toLowerCase() !== query) : options).slice(0, 8);
+  }, [cityOptions, filters.city, mergedCityOptions]);
+  const cityInputValue = cityOpen ? filters.city : optionLabel(filters.city, copy.optionLabels.cities);
 
   const loadUnion = useCallback(async (nextFilters: UnionFilters) => {
     setLoading(true);
@@ -128,6 +197,71 @@ export function UnionDashboard() {
   useEffect(() => {
     void loadUnion(EMPTY_FILTERS);
   }, [loadUnion]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchCityOptions({ accessToken, q: filters.city, signal: controller.signal })
+        .then((options) => setCityOptions(options))
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setCityOptions([]);
+          }
+        });
+    }, 220);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+      if (cityBlurTimer.current) {
+        clearTimeout(cityBlurTimer.current);
+      }
+    };
+  }, [accessToken, filters.city]);
+
+  const modalRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!selectedCandidate) {
+      return;
+    }
+    const previousActive = document.activeElement as HTMLElement | null;
+    const focusable = () =>
+      Array.from(
+        modalRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        ) || [],
+      );
+    focusable()[0]?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedCandidate(null);
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+      const items = focusable();
+      if (items.length === 0) {
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previousActive?.focus?.();
+    };
+  }, [selectedCandidate]);
 
   async function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -236,10 +370,58 @@ export function UnionDashboard() {
             ))}
           </select>
         </label>
-        <label className="field">
+        <div className="field">
           <span>{copy.city}</span>
-          <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} />
-        </label>
+          <div className="union-combobox">
+            <input
+              autoComplete="off"
+              value={cityInputValue}
+              onFocus={() => setCityOpen(filters.city.trim().length > 0)}
+              onBlur={() => {
+                cityBlurTimer.current = setTimeout(() => setCityOpen(false), 120);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && cityOpen) {
+                  event.stopPropagation();
+                  setCityOpen(false);
+                }
+              }}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, city: event.target.value }));
+                setCityOpen(true);
+              }}
+            />
+            <button
+              aria-expanded={cityOpen}
+              aria-label={copy.showCityOptions}
+              className="union-combobox__toggle"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setCityOpen((current) => !current)}
+              type="button"
+            >
+              <ChevronDown aria-hidden="true" size={16} />
+            </button>
+            {cityOpen && visibleCityOptions.length > 0 ? (
+              <div className="union-combobox__list" role="listbox">
+                {visibleCityOptions.map((city) => (
+                  <button
+                    className="union-combobox__option"
+                    key={city}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setFilters((current) => ({ ...current, city }));
+                      setCityOpen(false);
+                    }}
+                    role="option"
+                    type="button"
+                  >
+                    {optionLabel(city, copy.optionLabels.cities)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
         <label className="field">
           <span>{copy.minAge}</span>
           <input inputMode="numeric" value={filters.minAge} onChange={(event) => setFilters((current) => ({ ...current, minAge: event.target.value }))} />
@@ -250,11 +432,21 @@ export function UnionDashboard() {
         </label>
         <label className="field">
           <span>{copy.madh}</span>
-          <input value={filters.madh} onChange={(event) => setFilters((current) => ({ ...current, madh: event.target.value }))} />
+          <select value={filters.madh} onChange={(event) => setFilters((current) => ({ ...current, madh: event.target.value }))}>
+            <option value="">-</option>
+            {madhOptions.map((option) => (
+              <option key={option} value={option}>{optionLabel(option, copy.optionLabels.madh)}</option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>{copy.identity}</span>
-          <input value={filters.identity} onChange={(event) => setFilters((current) => ({ ...current, identity: event.target.value }))} />
+          <select value={filters.identity} onChange={(event) => setFilters((current) => ({ ...current, identity: event.target.value }))}>
+            <option value="">-</option>
+            {identityOptions.map((option) => (
+              <option key={option} value={option}>{optionLabel(option, copy.optionLabels.identity)}</option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>{copy.skills}</span>
@@ -275,10 +467,13 @@ export function UnionDashboard() {
         </div>
       </form>
 
-      {notice ? <div className="notice">{notice}</div> : null}
-      {error ? <div className="notice">{error}</div> : null}
+      <UnionNotice tone="success">{notice}</UnionNotice>
+      <UnionNotice tone="error">{error}</UnionNotice>
 
-      {loading ? <div className="empty-state">{dictionary.common.loading}</div> : null}
+      <span className="union-visually-hidden" role="status" aria-live="polite">
+        {loading ? dictionary.common.loading : ""}
+      </span>
+      {loading ? <UnionSkeleton variant="cards" /> : null}
       {!loading && candidates.length === 0 ? <div className="empty-state">{copy.empty}</div> : null}
 
       <section className="union-grid" aria-label={copy.title}>
@@ -329,10 +524,33 @@ export function UnionDashboard() {
                     </div>
                     {candidate.bio ? <p className="union-card__bio">{candidate.bio}</p> : null}
                     {candidate.compatibilityScore ? (
-                      <div className="union-meter">
-                        <span>{copy.compatibility}</span>
-                        <strong>{candidate.compatibilityScore}</strong>
-                      </div>
+                      (() => {
+                        const percent = compatibilityPercent(candidate.compatibilityScore);
+                        if (percent === null) {
+                          return (
+                            <div className="union-meter union-meter--text">
+                              <span>{copy.compatibility}</span>
+                              <strong>{formatValue(candidate.compatibilityScore)}</strong>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="union-meter">
+                            <span>{copy.compatibility}</span>
+                            <div
+                              className="union-meter__track"
+                              role="meter"
+                              aria-label={copy.compatibility}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={percent}
+                            >
+                              <div className="union-meter__fill" style={{ width: `${percent}%` }} />
+                            </div>
+                            <strong>{percent}%</strong>
+                          </div>
+                        );
+                      })()
                     ) : null}
                     <div className="union-socials">
                       {candidate.datingSocialLinks?.length ? candidate.datingSocialLinks.filter((link) => link.visible !== false).map((link) => (
@@ -390,15 +608,29 @@ export function UnionDashboard() {
       </section>
 
       {selectedCandidate ? (
-        <div className="union-modal-backdrop" role="presentation">
-          <section aria-modal="true" className="union-modal" role="dialog">
-            <button aria-label={dictionary.common.error} className="union-icon-button" onClick={() => setSelectedCandidate(null)} type="button">
+        <div
+          className="union-modal-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedCandidate(null);
+            }
+          }}
+        >
+          <section
+            aria-modal="true"
+            aria-labelledby="union-unlock-title"
+            className="union-modal"
+            ref={modalRef}
+            role="dialog"
+          >
+            <button aria-label={dictionary.common.close} className="union-icon-button" onClick={() => setSelectedCandidate(null)} type="button">
               <X aria-hidden="true" size={18} />
             </button>
             <span className="eyebrow">{copy.unlockProfile}</span>
-            <h2>{selectedCandidate.displayName}</h2>
+            <h2 id="union-unlock-title">{selectedCandidate.displayName}</h2>
             <p>{copy.unlockCost.replace("{price}", String(selectedCandidate.unlockPriceLkm))}</p>
-            {modalError ? <div className="notice">{modalError}</div> : null}
+            <UnionNotice tone="error">{modalError}</UnionNotice>
             <div className="union-modal__actions">
               <button className="button" disabled={actionLoadingId === getProfileId(selectedCandidate)} onClick={() => void handleUnlock()} type="button">
                 {copy.unlockProfile}

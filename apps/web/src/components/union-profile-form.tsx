@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, Plus, Save, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Check, ChevronDown, Eye, EyeOff, ImageIcon, Plus, Save, Send, Trash2, Upload } from "lucide-react";
 import { createBrowserClient } from "@vedamatch/api-client";
-import type { DatingProfile, DatingSocialLink } from "@vedamatch/domain-types";
+import type { DatingProfile, DatingSocialLink, UserMedia } from "@vedamatch/domain-types";
 import { useSession } from "@/components/session-context";
+import { getMediaId, resolveApiMediaUrl } from "@/lib/media";
+import { UnionNotice } from "@/components/union-notice";
+import { UnionSkeleton } from "@/components/union-skeleton";
 
 type UnionProfileFormState = {
   datingEnabled: boolean;
@@ -24,6 +27,20 @@ type UnionProfileFormState = {
 };
 
 const SOCIAL_PLATFORMS = ["vk", "telegram", "instagram", "youtube", "facebook", "x"] as const;
+const MADH_OPTIONS = [
+  "ISKCON",
+  "Brahma-Madhva-Gaudiya",
+  "Sri Sampradaya (Ramanuja)",
+  "Brahma Sampradaya (Madhvacharya)",
+  "Rudra Sampradaya (Vishnuswami)",
+  "Kumara Sampradaya (Nimbarka)",
+  "Шри Чайтанья Сарасват Матх",
+  "Международное Общество Чистой Бхакти-йоги",
+  "Шри Гопинатх Гаудия",
+  "Шри Чайтанья Матх",
+  "Other",
+] as const;
+const IDENTITY_OPTIONS = ["Yogi", "In Goodness"] as const;
 
 const EMPTY_FORM: UnionProfileFormState = {
   datingEnabled: true,
@@ -46,6 +63,49 @@ function readProfileValue(value: unknown): string {
     return value.filter(Boolean).join(", ");
   }
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+function uniqueOptions(options: string[]): string[] {
+  return Array.from(new Set(options.map((option) => option.trim()).filter(Boolean)));
+}
+
+function mergeCurrentOption(options: readonly string[], currentValue: string): string[] {
+  const normalizedCurrent = currentValue.trim();
+  if (!normalizedCurrent || options.some((option) => option.toLowerCase() === normalizedCurrent.toLowerCase())) {
+    return [...options];
+  }
+  return [normalizedCurrent, ...options];
+}
+
+function optionLabel(value: string, labels: Record<string, string>): string {
+  return labels[value] || value;
+}
+
+async function fetchLocationOptions(
+  kind: "cities" | "countries",
+  options: { accessToken?: string; country?: string; q?: string; signal?: AbortSignal },
+): Promise<string[]> {
+  const params = new URLSearchParams({ limit: "8" });
+  const query = options.q?.trim();
+  const country = options.country?.trim();
+  if (query) {
+    params.set("q", query);
+  }
+  if (country) {
+    params.set("country", country);
+  }
+
+  const response = await fetch(`/api/locations/${kind}?${params.toString()}`, {
+    cache: "no-store",
+    headers: options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : undefined,
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json();
+  return uniqueOptions(Array.isArray(payload?.options) ? payload.options.map(String) : []);
 }
 
 function mergeSocialLinks(profileLinks: DatingSocialLink[] | undefined): DatingSocialLink[] {
@@ -84,11 +144,56 @@ export function UnionProfileForm() {
   const copy = dictionary.union;
   const client = useMemo(() => createBrowserClient(), []);
   const currentUserId = session?.user?.ID || session?.user?.id || 0;
+  const accessToken = session?.accessToken || "";
   const [form, setForm] = useState<UnionProfileFormState>(EMPTY_FORM);
+  const [photos, setPhotos] = useState<UserMedia[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [countryOptions, setCountryOptions] = useState<string[]>([]);
+  const [cityOpen, setCityOpen] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [photosLoading, setPhotosLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [mediaActionId, setMediaActionId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const cityBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countryBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sortedPhotos = useMemo(
+    () => [...photos].sort((left, right) => Number(right.isProfile === true) - Number(left.isProfile === true)),
+    [photos],
+  );
+  const mergedCityOptions = useMemo(
+    () => mergeCurrentOption(cityOptions, form.city),
+    [cityOptions, form.city],
+  );
+  const mergedCountryOptions = useMemo(
+    () => mergeCurrentOption(countryOptions, form.country),
+    [countryOptions, form.country],
+  );
+  const madhOptions = useMemo(
+    () => mergeCurrentOption(MADH_OPTIONS, form.madh),
+    [form.madh],
+  );
+  const identityOptions = useMemo(
+    () => mergeCurrentOption(IDENTITY_OPTIONS, form.identity),
+    [form.identity],
+  );
+  const visibleCountryOptions = useMemo(() => {
+    return countryOptions.length > 0 ? countryOptions.slice(0, 8) : mergedCountryOptions.slice(0, 8);
+  }, [countryOptions, mergedCountryOptions]);
+  const visibleCityOptions = useMemo(() => {
+    const query = form.city.trim().toLowerCase();
+    const options = cityOptions.length > 0 ? cityOptions : mergedCityOptions;
+    // Когда введённый текст точно совпадает с городом, не подсказываем его снова:
+    // иначе единственной подсказкой оказывается уже выбранный город и список
+    // «сам» всплывает, предлагая стереть значение.
+    const filtered = query ? options.filter((city) => city.toLowerCase() !== query) : options;
+    return filtered.slice(0, 8);
+  }, [cityOptions, form.city, mergedCityOptions]);
+  const cityInputValue = cityOpen ? form.city : optionLabel(form.city, copy.optionLabels.cities);
+  const countryInputValue = countryOpen ? form.country : optionLabel(form.country, copy.optionLabels.countries);
 
   useEffect(() => {
     if (!currentUserId) {
@@ -96,19 +201,98 @@ export function UnionProfileForm() {
       return;
     }
 
+    let active = true;
     setLoading(true);
-    client.getDatingProfile(currentUserId).then((profile) => {
-      setForm(profileToForm(profile));
-      setError("");
-    }).catch(() => {
-      setForm(EMPTY_FORM);
+    setPhotosLoading(true);
+    Promise.allSettled([
+      client.getDatingProfile(currentUserId),
+      client.listUserMedia(currentUserId),
+    ]).then(([profileResult, photosResult]) => {
+      if (!active) {
+        return;
+      }
+      if (profileResult.status === "fulfilled") {
+        setForm(profileToForm(profileResult.value));
+        setError("");
+      } else {
+        setForm(EMPTY_FORM);
+      }
+      if (photosResult.status === "fulfilled") {
+        setPhotos(photosResult.value);
+      } else {
+        setPhotos([]);
+      }
     }).finally(() => {
-      setLoading(false);
+      if (active) {
+        setLoading(false);
+        setPhotosLoading(false);
+      }
     });
+
+    return () => {
+      active = false;
+      if (cityBlurTimer.current) {
+        clearTimeout(cityBlurTimer.current);
+      }
+      if (countryBlurTimer.current) {
+        clearTimeout(countryBlurTimer.current);
+      }
+    };
   }, [client, currentUserId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchLocationOptions("countries", { q: form.country, signal: controller.signal })
+        .then((options) => setCountryOptions(options))
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setCountryOptions([]);
+          }
+        });
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.country]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetchLocationOptions("cities", {
+        accessToken,
+        country: form.country,
+        q: form.city,
+        signal: controller.signal,
+      })
+        .then((options) => setCityOptions(options))
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setCityOptions([]);
+          }
+        });
+    }, 220);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [accessToken, form.city, form.country]);
 
   function updateField(field: keyof UnionProfileFormState, value: string | boolean) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateCity(value: string, open = true) {
+    updateField("city", value);
+    setCityOpen(open);
+  }
+
+  function updateCountry(value: string, open = true) {
+    updateField("country", value);
+    setCountryOpen(open);
   }
 
   function updateSocialLink(index: number, patch: Partial<DatingSocialLink>) {
@@ -137,16 +321,16 @@ export function UnionProfileForm() {
     try {
       await client.updateDatingProfile(currentUserId, {
         datingEnabled: form.datingEnabled,
-        bio: form.bio,
-        city: form.city,
-        country: form.country,
-        madh: form.madh,
-        identity: form.identity,
-        intentions: form.intentions,
-        interests: form.interests,
-        skills: form.skills,
-        industry: form.industry,
-        lookingFor: form.lookingFor,
+        bio: form.bio.trim(),
+        city: form.city.trim(),
+        country: form.country.trim(),
+        madh: form.madh.trim(),
+        identity: form.identity.trim(),
+        intentions: form.intentions.trim(),
+        interests: form.interests.trim(),
+        skills: form.skills.trim(),
+        industry: form.industry.trim(),
+        lookingFor: form.lookingFor.trim(),
         socialLinks: form.socialLinks.filter((link) => link.url.trim()).map((link) => ({
           platform: link.platform,
           url: link.url.trim(),
@@ -183,6 +367,74 @@ export function UnionProfileForm() {
     }
   }
 
+  async function handlePhotoUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !currentUserId) {
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setError("");
+    setNotice("");
+    try {
+      const uploaded = await client.uploadUserPhoto(currentUserId, file);
+      const uploadedId = getMediaId(uploaded);
+      if (uploadedId) {
+        await client.setProfilePhoto(uploadedId);
+      }
+      const nextPhotos = await client.listUserMedia(currentUserId);
+      setPhotos(nextPhotos);
+      setNotice(copy.photoUploaded);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : copy.actionFailed);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleSetMainPhoto(photo: UserMedia) {
+    const photoId = getMediaId(photo);
+    if (!photoId || !currentUserId) {
+      return;
+    }
+
+    setMediaActionId(photoId);
+    setError("");
+    setNotice("");
+    try {
+      await client.setProfilePhoto(photoId);
+      const nextPhotos = await client.listUserMedia(currentUserId);
+      setPhotos(nextPhotos);
+      setNotice(copy.mainPhotoUpdated);
+    } catch (photoError) {
+      setError(photoError instanceof Error ? photoError.message : copy.actionFailed);
+    } finally {
+      setMediaActionId(null);
+    }
+  }
+
+  async function handleDeletePhoto(photo: UserMedia) {
+    const photoId = getMediaId(photo);
+    if (!photoId || !currentUserId) {
+      return;
+    }
+
+    setMediaActionId(photoId);
+    setError("");
+    setNotice("");
+    try {
+      await client.deleteUserMedia(photoId);
+      const nextPhotos = await client.listUserMedia(currentUserId);
+      setPhotos(nextPhotos);
+      setNotice(copy.photoDeleted);
+    } catch (photoError) {
+      setError(photoError instanceof Error ? photoError.message : copy.actionFailed);
+    } finally {
+      setMediaActionId(null);
+    }
+  }
+
   return (
     <div className="union-page">
       <section className="union-hero union-hero--compact">
@@ -201,10 +453,14 @@ export function UnionProfileForm() {
         </div>
       </section>
 
-      {loading ? <div className="empty-state">{dictionary.common.loading}</div> : null}
-      {notice ? <div className="notice">{notice}</div> : null}
-      {error ? <div className="notice">{error}</div> : null}
+      <span className="union-visually-hidden" role="status" aria-live="polite">
+        {loading ? dictionary.common.loading : ""}
+      </span>
+      {loading ? <UnionSkeleton variant="form" /> : null}
+      <UnionNotice tone="success">{notice}</UnionNotice>
+      <UnionNotice tone="error">{error}</UnionNotice>
 
+      {loading ? null : (
       <form className="union-profile-form" onSubmit={handleSave}>
         <div className="union-profile-form__main">
           <label className="union-toggle">
@@ -215,21 +471,115 @@ export function UnionProfileForm() {
             <span>{copy.bio}</span>
             <textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} />
           </label>
-          <label className="field">
+          <div className="field">
             <span>{copy.city}</span>
-            <input value={form.city} onChange={(event) => updateField("city", event.target.value)} />
-          </label>
-          <label className="field">
+            <div className="union-combobox">
+              <input
+                autoComplete="off"
+                value={cityInputValue}
+                onFocus={() => setCityOpen(form.city.trim().length > 0)}
+                onBlur={() => {
+                  cityBlurTimer.current = setTimeout(() => setCityOpen(false), 120);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && cityOpen) {
+                    event.stopPropagation();
+                    setCityOpen(false);
+                  }
+                }}
+                onChange={(event) => updateCity(event.target.value)}
+              />
+              <button
+                aria-expanded={cityOpen}
+                aria-label={copy.showCityOptions}
+                className="union-combobox__toggle"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setCityOpen((current) => !current)}
+                type="button"
+              >
+                <ChevronDown aria-hidden="true" size={16} />
+              </button>
+              {cityOpen && visibleCityOptions.length > 0 ? (
+                <div className="union-combobox__list" role="listbox">
+                  {visibleCityOptions.map((city) => (
+                    <button
+                      className="union-combobox__option"
+                      key={city}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => updateCity(city, false)}
+                      role="option"
+                      type="button"
+                    >
+                      {optionLabel(city, copy.optionLabels.cities)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="field">
             <span>{copy.country}</span>
-            <input value={form.country} onChange={(event) => updateField("country", event.target.value)} />
-          </label>
+            <div className="union-combobox">
+              <input
+                autoComplete="off"
+                value={countryInputValue}
+                onFocus={() => setCountryOpen(form.country.trim().length > 0)}
+                onBlur={() => {
+                  countryBlurTimer.current = setTimeout(() => setCountryOpen(false), 120);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && countryOpen) {
+                    event.stopPropagation();
+                    setCountryOpen(false);
+                  }
+                }}
+                onChange={(event) => updateCountry(event.target.value)}
+              />
+              <button
+                aria-expanded={countryOpen}
+                aria-label={copy.country}
+                className="union-combobox__toggle"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setCountryOpen((current) => !current)}
+                type="button"
+              >
+                <ChevronDown aria-hidden="true" size={16} />
+              </button>
+              {countryOpen && visibleCountryOptions.length > 0 ? (
+                <div className="union-combobox__list" role="listbox">
+                  {visibleCountryOptions.map((country) => (
+                    <button
+                      className="union-combobox__option"
+                      key={country}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => updateCountry(country, false)}
+                      role="option"
+                      type="button"
+                    >
+                      {optionLabel(country, copy.optionLabels.countries)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
           <label className="field">
             <span>{copy.madh}</span>
-            <input value={form.madh} onChange={(event) => updateField("madh", event.target.value)} />
+            <select value={form.madh} onChange={(event) => updateField("madh", event.target.value)}>
+              <option value="">-</option>
+              {madhOptions.map((option) => (
+                <option key={option} value={option}>{optionLabel(option, copy.optionLabels.madh)}</option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>{copy.identity}</span>
-            <input value={form.identity} onChange={(event) => updateField("identity", event.target.value)} />
+            <select value={form.identity} onChange={(event) => updateField("identity", event.target.value)}>
+              <option value="">-</option>
+              {identityOptions.map((option) => (
+                <option key={option} value={option}>{optionLabel(option, copy.optionLabels.identity)}</option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>{copy.intentions}</span>
@@ -256,6 +606,66 @@ export function UnionProfileForm() {
             <strong>{form.datingPublicationStatus || copy.hidden}</strong>
           </div>
         </div>
+
+        <section className="union-photo-editor" aria-label={copy.photos}>
+          <div className="union-section-head">
+            <div>
+              <h2>{copy.photos}</h2>
+              <p>{copy.photosHint}</p>
+            </div>
+            <label className="button-secondary union-photo-upload">
+              <Upload aria-hidden="true" size={18} />
+              {uploadingPhoto ? copy.uploadingPhoto : copy.uploadPhoto}
+              <input accept="image/*" disabled={uploadingPhoto} onChange={(event) => void handlePhotoUpload(event)} type="file" />
+            </label>
+          </div>
+          {photosLoading ? <div className="empty-state">{dictionary.common.loading}</div> : null}
+          {!photosLoading && sortedPhotos.length === 0 ? (
+            <div className="union-photo-empty">
+              <ImageIcon aria-hidden="true" size={32} />
+              <span>{copy.noPhotos}</span>
+            </div>
+          ) : null}
+          {sortedPhotos.length > 0 ? (
+            <div className="union-photo-grid">
+              {sortedPhotos.map((photo) => {
+                const photoId = getMediaId(photo);
+                const actionBusy = mediaActionId === photoId;
+                return (
+                  <figure className="union-photo-item" key={photoId || photo.url}>
+                    <img alt="" src={resolveApiMediaUrl(client.baseUrl, photo.url)} />
+                    {photo.isProfile ? (
+                      <figcaption className="union-photo-item__badge">
+                        <Camera aria-hidden="true" size={14} />
+                        {copy.mainPhoto}
+                      </figcaption>
+                    ) : null}
+                    <div className="union-photo-item__actions">
+                      <button
+                        aria-label={copy.setMainPhoto}
+                        className="union-photo-icon"
+                        disabled={actionBusy || photo.isProfile}
+                        onClick={() => void handleSetMainPhoto(photo)}
+                        type="button"
+                      >
+                        <Check aria-hidden="true" size={16} />
+                      </button>
+                      <button
+                        aria-label={copy.deletePhoto}
+                        className="union-photo-icon union-photo-icon--danger"
+                        disabled={actionBusy}
+                        onClick={() => void handleDeletePhoto(photo)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={16} />
+                      </button>
+                    </div>
+                  </figure>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
 
         <section className="union-social-editor" aria-label={copy.socialLinks}>
           <div className="union-section-head">
@@ -301,6 +711,7 @@ export function UnionProfileForm() {
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 }

@@ -3298,7 +3298,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			updates["nickname"] = normalizedNickname
 			updates["nickname_set_manually"] = true
 			updates["nickname_changed_at"] = now
-			updates["nickname_change_cooldown_until"] = cooldown
+			updates["nickname_cooldown_until"] = cooldown
 
 			user.Nickname = normalizedNickname
 			user.NicknameSetManually = true
@@ -3324,7 +3324,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		// Apply 30 days cooldown for role change
 		roleCooldown := now.Add(30 * 24 * time.Hour)
 		updates["role_changed_at"] = now
-		updates["role_change_cooldown_until"] = roleCooldown
+		updates["role_cooldown_until"] = roleCooldown
 
 		user.Role = resolveProfileRoleForUpdate(updateData.Role, updateData.Role)
 		user.RoleChangedAt = &now

@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3007,
+      "autoPort": false,
+      "cwd": "apps/web"
+    },
+    {
+      "name": "vedabase",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3008,
+      "autoPort": false,
+      "cwd": "apps/vedabase"
+    }
+  ]
+}

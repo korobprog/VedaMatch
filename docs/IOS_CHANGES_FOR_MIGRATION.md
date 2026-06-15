@@ -19999,3 +19999,70 @@ const openCitySearch = (type: 'current' | 'birth') => {
     setCitySearchModal(true);
 };
 ```
+## 2026-06-14 (Union dating profile gender persistence)
+
+### Измененные файлы
+- `apps/web/src/components/dating-profile-form.tsx`
+- `server/internal/handlers/dating_handler.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - web Union анкета отправляла `gender` как `male/female`;
+  - backend `PUT /api/dating/profile/:id` не сохранял поле `gender`;
+  - после сохранения и перезагрузки карточки пол сбрасывался.
+- Стало:
+  - web Union нормализует значение пола в общий backend/mobile формат `Male/Female`;
+  - backend dating profile update сохраняет `gender` в колонку `gender`;
+  - shared mobile/backend contract остается совместимым с существующими iOS/RN значениями.
+
+### Короткие сниппеты кода
+
+`apps/web/src/components/dating-profile-form.tsx`:
+```tsx
+function normalizeGenderForForm(gender = ""): string {
+  const normalized = gender.trim().toLowerCase();
+  if (normalized === "male") return "Male";
+  if (normalized === "female") return "Female";
+  return gender;
+}
+```
+
+`server/internal/handlers/dating_handler.go`:
+```go
+stringFields := map[string]string{
+	"gender": "gender",
+	// ...
+}
+```
+
+## 2026-06-14 (Profile cooldown column names for shared profile update)
+
+### Измененные файлы
+- `server/internal/handlers/auth_handler.go`
+- `server/internal/services/nickname_service.go`
+
+### Суть правки (что было -> что стало)
+- Было:
+  - shared endpoint `PUT /api/update-profile`, которым пользуются web/mobile-клиенты, записывал cooldown fields через устаревшие имена колонок `nickname_change_cooldown_until` и `role_change_cooldown_until`;
+  - текущая модель/схема `users` использует `nickname_cooldown_until` и `role_cooldown_until`, из-за чего сохранение профиля могло падать с SQL error `column ... does not exist`.
+- Стало:
+  - update map пишет cooldown fields в актуальные DB columns;
+  - nickname service использует тот же актуальный column key.
+
+### Короткие сниппеты кода
+
+`server/internal/handlers/auth_handler.go`:
+```go
+updates["nickname_cooldown_until"] = cooldown
+updates["role_cooldown_until"] = roleCooldown
+```
+
+`server/internal/services/nickname_service.go`:
+```go
+updates := map[string]interface{}{
+	"nickname":                normalized,
+	"nickname_set_manually":   true,
+	"nickname_changed_at":     now,
+	"nickname_cooldown_until": cooldown,
+}
+```

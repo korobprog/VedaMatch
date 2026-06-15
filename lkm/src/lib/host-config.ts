@@ -27,10 +27,10 @@ function resolveApiBaseUrlForHost(hostname: string): string {
 
   const host = hostname.toLowerCase().trim();
   if (!host) {
-    return 'http://localhost:8081/api';
+    return 'http://localhost:8000/api';
   }
   if (host.includes('localhost') || host.startsWith('127.0.0.1')) {
-    return 'http://localhost:8081/api';
+    return 'http://localhost:8000/api';
   }
   if (host.endsWith('vedamatch.com') || host.endsWith('.vedamatch.com')) {
     return 'https://api.vedamatch.com/api';

@@ -139,7 +139,27 @@ func (s *DatingLifecycleService) ValidateProfile(user *models.User) []string {
 	if len(splitDatingCSV(user.LoveLanguages)) == 0 {
 		reasons = append(reasons, "At least one love language is required")
 	}
+	if !s.userHasPhoto(user) {
+		reasons = append(reasons, "At least one photo is required")
+	}
 	return reasons
+}
+
+// userHasPhoto reports whether the user has at least one uploaded photo.
+// It prefers preloaded Photos but falls back to a DB count when the relation
+// was not eager-loaded by the caller (e.g. the submit handler).
+func (s *DatingLifecycleService) userHasPhoto(user *models.User) bool {
+	if len(user.Photos) > 0 {
+		return true
+	}
+	if s.db == nil || user.ID == 0 {
+		return false
+	}
+	var photoCount int64
+	if err := s.db.Model(&models.Media{}).Where("user_id = ?", user.ID).Count(&photoCount).Error; err != nil {
+		return false
+	}
+	return photoCount > 0
 }
 
 func (s *DatingLifecycleService) ListApprovals(userID uint) ([]models.DatingProfileApproval, error) {
@@ -418,7 +438,11 @@ func (s *DatingLifecycleService) RunAIModeration(ctx context.Context, user *mode
 	}
 
 	if s.aiService == nil {
-		return &DatingAIModerationResult{Outcome: models.DatingModerationPass}, nil
+		return &DatingAIModerationResult{
+			Outcome: models.DatingModerationNeedsAdminReview,
+			Reason:  "AI service unavailable",
+			Flags:   []string{"AI service unavailable"},
+		}, nil
 	}
 
 	payload := map[string]any{

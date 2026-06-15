@@ -27,13 +27,13 @@ export const getApiBaseURL = (): string => {
         const hostname = window.location.hostname;
         // Для локальной разработки
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return 'http://localhost:8081/api';
+            return 'http://localhost:8000/api';
         }
         return resolveApiBaseUrlForHostname(hostname);
     }
 
     // Fallback для SSR
-    return 'http://localhost:8081/api';
+    return 'http://localhost:8000/api';
 };
 
 const api = axios.create({

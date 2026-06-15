@@ -7,6 +7,8 @@ import { createBrowserClient } from "@vedamatch/api-client";
 import type { DatingCandidate, DatingChatRequest, DatingChatRequestDirection, DatingChatRequestStatus } from "@vedamatch/domain-types";
 import type { Dictionary } from "@vedamatch/i18n";
 import { useSession } from "@/components/session-context";
+import { UnionNotice } from "@/components/union-notice";
+import { UnionSkeleton } from "@/components/union-skeleton";
 
 type UnionCopy = Dictionary["union"];
 
@@ -105,8 +107,11 @@ export function UnionRequests() {
         </button>
       </div>
 
-      {loading ? <div className="empty-state">{dictionary.common.loading}</div> : null}
-      {error ? <div className="notice">{error}</div> : null}
+      <span className="union-visually-hidden" role="status" aria-live="polite">
+        {loading ? dictionary.common.loading : ""}
+      </span>
+      {loading ? <UnionSkeleton variant="list" /> : null}
+      <UnionNotice tone="error">{error}</UnionNotice>
       {!loading && items.length === 0 ? <div className="empty-state">{copy.noRequests}</div> : null}
 
       <section className="union-request-list">
