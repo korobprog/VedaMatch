@@ -31,6 +31,7 @@
 
 ## Dating / Union
 - В Union web меню ссылка на книги Vedabase должна быть языковой: `ru` ведет на `https://vedabase.vedamatch.ru`, `en` и `hi` ведут на `https://vedabase.vedamatch.com`.
+- Production Union в Dokploy обслуживает application `Xizo5ft8Pdt1nVUQUluIH` / service `app-override-open-source-alarm-gmfjt2`; с 2026-06-16 приложение настроено на ветку `feat/union-web-prod`, а не `main`, чтобы Union web changes выкатывались из отдельной ветки.
 - Для Union web login production CORS должен разрешать `https://union.vedamatch.ru` и `https://union.vedamatch.com` не только в code defaults `server/cmd/api/main.go`, но и в Dokploy/Swarm env `ALLOWED_ORIGINS`, потому что env дополняет/переопределяет production-поведение при старых образах и может пережить redeploy.
 - 2026-06-13 production hotfix: `vedamatch-server-dnkxc8` был обновлен через Docker service env, после чего preflight `OPTIONS https://api.vedamatch.ru/api/login` с `Origin: https://union.vedamatch.ru` стал отвечать `Access-Control-Allow-Origin: https://union.vedamatch.ru`.
 - Для web Union в `apps/web` принят route `/app/dating`: он должен использовать существующие backend contracts `/dating/profile/:id`, `/dating/profile/:id/submit`, `/media/upload/:userId` и `/media/:id/set-profile`, без отдельного web-only photo backend.
