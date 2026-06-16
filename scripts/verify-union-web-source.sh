@@ -37,7 +37,7 @@ require_text "apps/web/src/app/page.tsx" "UnionPublicHome"
 require_text "apps/web/src/app/app/page.tsx" "redirect(\"/app/union\")"
 require_text "apps/web/src/lib/request-surface.ts" "host === \"union.vedamatch.ru\""
 require_text "apps/web/src/lib/request-surface.ts" "host === \"union.vedamatch.com\""
-require_text "apps/web/src/components/union-public-home.tsx" "Осознанные знакомства"
+require_text "apps/web/src/components/union-public-home.tsx" "Осознанные знакомства без лишнего шума"
 require_text "apps/web/src/components/union-app-frame.tsx" "href=\"/app/union\""
 
 echo "Union web source guard passed."
