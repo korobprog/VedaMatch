@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@vedamatch/api-client";
 import type { P2PMessage } from "@vedamatch/domain-types";
 import { useSession } from "@/components/session-context";
@@ -63,6 +63,7 @@ function readMessageMeta(message: P2PMessage, dictionary: ChatDictionary): strin
 
 export default function ChatThreadPage() {
   const params = useParams<{ peerUserId: string }>();
+  const searchParams = useSearchParams();
   const { dictionary, session } = useSession();
   const [peerUserId, setPeerUserId] = useState<number | null>(null);
   const [messages, setMessages] = useState<P2PMessage[]>([]);
@@ -94,7 +95,9 @@ export default function ChatThreadPage() {
     setSending(true);
     setError("");
     try {
-      const nextMessage = await createBrowserClient().sendMessage(peerUserId, draft.trim());
+      const nextMessage = await createBrowserClient().sendMessage(peerUserId, draft.trim(), {
+        unionChat: searchParams.get("union") === "1",
+      });
       setMessages((current) => [...current, nextMessage]);
       setDraft("");
     } catch (sendError) {

@@ -26,141 +26,6 @@ export interface SessionUser {
   country?: string;
 }
 
-export interface UserMedia {
-  ID?: number;
-  id?: number;
-  userId: number;
-  url: string;
-  isProfile?: boolean;
-}
-
-export interface DatingProfile extends SessionUser {
-  gender?: string;
-  dob?: string;
-  birthTime?: string;
-  birthPlaceLink?: string;
-  maritalStatus?: string;
-  madh?: string;
-  yogaStyle?: string;
-  guna?: string;
-  skills?: string;
-  industry?: string;
-  bio?: string;
-  interests?: string;
-  lookingFor?: string;
-  lookingForBusiness?: string;
-  intentions?: string;
-  childrenIntent?: string;
-  loveLanguages?: string;
-  elementalPrimary?: string;
-  elementalSecondary?: string;
-  meetingPreferences?: string;
-  datingEnabled?: boolean;
-  isProfileComplete?: boolean;
-  datingPublicationStatus?: string;
-  datingStatusReason?: string;
-  photos?: UserMedia[];
-}
-
-/**
- * A browsable candidate returned by GET /dating/candidates. The backend serves
- * these as full user records, so the shape matches DatingProfile.
- */
-export type DatingCandidate = DatingProfile;
-
-export type DatingMode = "family" | "business" | "friendship" | "seva";
-
-export interface DatingCandidateFilters {
-  userId: number;
-  mode?: DatingMode;
-  isNew?: boolean;
-  city?: string;
-  minAge?: string;
-  maxAge?: string;
-  madh?: string;
-  yogaStyle?: string;
-  guna?: string;
-  identity?: string;
-  skills?: string;
-  industry?: string;
-}
-
-export interface DatingFavorite {
-  ID?: number;
-  id?: number;
-  userId: number;
-  candidateId: number;
-  candidate?: DatingProfile;
-  compatibilityScore?: string;
-  CreatedAt?: string;
-}
-
-export type DatingApprovalStatus = "pending" | "approved" | "rejected";
-
-export interface DatingApproval {
-  ID?: number;
-  id?: number;
-  userId: number;
-  approverId: number;
-  status: DatingApprovalStatus;
-  note?: string;
-  respondedAt?: string;
-  user?: SessionUser;
-  approver?: SessionUser;
-  CreatedAt?: string;
-}
-
-export type DatingPublicationStatus =
-  | "draft"
-  | "pending_friend_approval"
-  | "pending_admin_review"
-  | "pending_ai_review"
-  | "published"
-  | "rejected"
-  | "flagged_after_publish";
-
-export interface DatingPublicationState {
-  status: DatingPublicationStatus;
-  reason?: string;
-  requiredApprovals: number;
-  approvedCount: number;
-  pendingCount: number;
-  friendsCount: number;
-  needsAdminFallback: boolean;
-}
-
-export interface DatingApprovalsResponse {
-  approvals: DatingApproval[];
-  friends: SessionUser[];
-  publication: DatingPublicationState;
-}
-
-export type DatingMeetingInviteStatus = "pending" | "accepted" | "rejected";
-
-export interface DatingMeetingInvite {
-  ID?: number;
-  id?: number;
-  inviterId: number;
-  inviteeId: number;
-  placeType: string;
-  message: string;
-  status: DatingMeetingInviteStatus;
-  respondedAt?: string;
-  CreatedAt?: string;
-}
-
-export interface DatingCompatibilityResult {
-  compatibility: string;
-}
-
-export interface DatingLikesCountResult {
-  count: number;
-}
-
-export interface DatingIsFavoritedResult {
-  isFavorited: boolean;
-}
-
 export interface LoginResponse extends AuthTokens {
   token?: string;
   user?: SessionUser;
@@ -169,6 +34,144 @@ export interface LoginResponse extends AuthTokens {
 export interface AuthSession extends AuthTokens {
   user: SessionUser | null;
 }
+
+export type DatingMode = "family" | "business" | "friendship" | "seva";
+export type DatingChatRequestStatus = "pending" | "accepted" | "rejected" | "canceled";
+export type DatingChatRequestDirection = "incoming" | "outgoing";
+
+export interface DatingSocialLink {
+  id?: number;
+  ID?: number;
+  userId?: number;
+  platform: string;
+  url: string;
+  visible?: boolean;
+}
+
+export interface DatingPost {
+  id?: number;
+  ID?: number;
+  userId?: number;
+  body: string;
+  mediaUrl?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface UserMedia {
+  id?: number;
+  ID?: number;
+  userId?: number;
+  url: string;
+  isProfile?: boolean;
+  createdAt?: string;
+  CreatedAt?: string;
+}
+
+export interface DatingCandidate {
+  ID: number;
+  id?: number;
+  displayName: string;
+  spiritualName?: string;
+  karmicName?: string;
+  nickname?: string;
+  avatarUrl?: string;
+  avatar_url?: string;
+  photos?: Array<string | { url?: string | null }>;
+  city?: string;
+  country?: string;
+  age?: number;
+  bio?: string;
+  madh?: string;
+  yogaStyle?: string;
+  guna?: string;
+  identity?: string;
+  intentions?: string;
+  interests?: string | string[];
+  skills?: string | string[];
+  industry?: string;
+  lookingForBusiness?: string;
+  childrenIntent?: string;
+  loveLanguages?: string | string[];
+  meetingPreferences?: string | string[];
+  compatibilityScore?: string | number;
+  datingSocialLinks?: DatingSocialLink[];
+  datingPosts?: DatingPost[];
+  isUnlocked: boolean;
+  unlockPriceLkm: number;
+  viewerCanBypassPayment: boolean;
+  chatRequestStatus?: DatingChatRequestStatus | "none";
+  chatRequestId?: number;
+}
+
+export interface DatingProfile extends DatingCandidate {
+  datingEnabled?: boolean;
+  isProfileComplete?: boolean;
+  datingPublicationStatus?: string;
+  datingStatusReason?: string;
+  birthTime?: string;
+  birthPlaceLink?: string;
+  elementalPrimary?: string;
+  elementalSecondary?: string;
+  maritalStatus?: string;
+  lookingFor?: string;
+}
+
+export interface DatingCandidatesQuery {
+  userId?: number;
+  mode?: DatingMode;
+  includeInsights?: boolean;
+  isNew?: boolean;
+  city?: string;
+  minAge?: string | number;
+  maxAge?: string | number;
+  madh?: string;
+  yogaStyle?: string;
+  guna?: string;
+  identity?: string;
+  skills?: string;
+  industry?: string;
+}
+
+export interface DatingUnlockResponse {
+  success: boolean;
+  profileId: number;
+  isUnlocked: boolean;
+  chargedLkm: number;
+  unlockPriceLkm: number;
+  balance?: WalletResponse;
+}
+
+export interface DatingChatRequest {
+  id: number;
+  ID?: number;
+  requesterId: number;
+  recipientId: number;
+  message: string;
+  status: DatingChatRequestStatus;
+  direction?: DatingChatRequestDirection;
+  requester?: DatingCandidate | null;
+  recipient?: DatingCandidate | null;
+  createdAt?: string;
+  respondedAt?: string | null;
+}
+
+export interface DatingChatRequestsResponse {
+  items: DatingChatRequest[];
+}
+
+export interface DatingPresentationProfile {
+  avatarUrl: string;
+}
+
+export interface DatingPresentationModeData {
+  profiles: DatingPresentationProfile[];
+  totalCount: number;
+  totalMale?: number;
+  totalFemale?: number;
+}
+
+export type DatingPresentationResponse = Record<DatingMode, DatingPresentationModeData>;
 
 export interface SocialAuthConfigResponse {
   google?: {

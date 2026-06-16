@@ -13,7 +13,7 @@ const OPTIONS: Array<{
   { value: "dark", icon: Moon },
 ];
 
-export function ThemeSwitcher({ className }: { className?: string }) {
+export function ThemeSwitcher({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { dictionary, themePreference, setThemePreference } = useSession();
 
   const labels: Record<ThemePreference, string> = {
@@ -25,7 +25,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
   return (
     <div
       aria-label={dictionary.theme.label}
-      className={["theme-switcher", className].filter(Boolean).join(" ")}
+      className={["theme-switcher", compact ? "theme-switcher--compact" : "", className].filter(Boolean).join(" ")}
       data-value={themePreference}
       role="radiogroup"
     >
@@ -33,14 +33,16 @@ export function ThemeSwitcher({ className }: { className?: string }) {
       {OPTIONS.map(({ value, icon: Icon }) => (
         <button
           aria-checked={themePreference === value}
+          aria-label={labels[value]}
           className={themePreference === value ? "theme-switcher__button is-active" : "theme-switcher__button"}
           key={value}
           onClick={() => setThemePreference(value)}
           role="radio"
+          title={labels[value]}
           type="button"
         >
           <Icon aria-hidden="true" size={16} strokeWidth={2.1} />
-          <span>{labels[value]}</span>
+          <span className="theme-switcher__label">{labels[value]}</span>
         </button>
       ))}
     </div>

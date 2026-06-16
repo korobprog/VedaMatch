@@ -23,15 +23,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "api.vedamatch.ru",
-      },
-      {
-        protocol: "https",
-        hostname: "api.vedamatch.com",
-      },
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
+        hostname: "**",
       },
     ],
   },

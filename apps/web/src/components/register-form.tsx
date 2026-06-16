@@ -11,7 +11,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import type { MobileAppConfig } from "@/lib/mobile-app-config";
 
 type RegisterFormProps = {
-  entryVariant?: "default" | "social";
+  entryVariant?: "default" | "social" | "union";
   mobileAppConfig: MobileAppConfig;
 };
 
@@ -21,7 +21,7 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState({ loading: false, error: "" });
-  const hasAnyDownload = Boolean(mobileAppConfig.androidUrl || mobileAppConfig.iosUrl);
+  const hasAnyDownload = entryVariant !== "union" && Boolean(mobileAppConfig.androidUrl || mobileAppConfig.iosUrl);
   const commonCopy = language === "ru"
     ? { haveAccount: "Уже есть аккаунт?" }
     : { haveAccount: "Already have an account?" };
@@ -38,6 +38,20 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
       footer: "Already have an account?",
       cta: "Back to social sign in",
     };
+  const unionCopy = language === "ru"
+    ? {
+      eyebrow: "Регистрация в Союзе",
+      body: "Создайте аккаунт и сразу заполните анкету для публикации в Союзе.",
+      footer: "Уже есть аккаунт?",
+      cta: "Войти в Союз",
+    }
+    : {
+      eyebrow: "Union registration",
+      body: "Create an account and continue straight to the profile you will submit for publishing.",
+      footer: "Already have an account?",
+      cta: "Sign in to Union",
+    };
+  const surfaceCopy = entryVariant === "union" ? unionCopy : socialCopy;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +60,7 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
     try {
       const session = await createBrowserClient().register({ email, password });
       setSession(session);
-      router.push("/app/profile");
+      router.push(entryVariant === "union" ? "/app/union/profile" : "/app/profile");
     } catch (submitError) {
       setState({
         loading: false,
@@ -59,23 +73,23 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
   }
 
   return (
-    <main className={entryVariant === "social" ? "shell shell--dashboard" : "shell"}>
+    <main className={entryVariant === "union" ? "shell shell--union shell--union-auth" : entryVariant === "social" ? "shell shell--dashboard" : "shell"}>
       <div className="container" style={{ padding: "72px 0" }}>
-        {entryVariant === "social" ? (
+        {entryVariant === "social" || entryVariant === "union" ? (
           <div className="auth-surface-bar">
-            <ThemeSwitcher />
+            <ThemeSwitcher compact={entryVariant === "union"} />
             <LanguageSwitcher />
           </div>
         ) : null}
         <div className="panel" style={{ maxWidth: 640, margin: "0 auto" }}>
           <div className="panel-inner stack">
             <div className="section-head">
-              <span className="eyebrow">{entryVariant === "social" ? socialCopy.eyebrow : dictionary.auth.registerTitle}</span>
+              <span className="eyebrow">{entryVariant === "social" || entryVariant === "union" ? surfaceCopy.eyebrow : dictionary.auth.registerTitle}</span>
               <h1>{dictionary.auth.registerTitle}</h1>
               <p>
-                {entryVariant === "social"
-                  ? socialCopy.body
-                  : dictionary.auth.registerBody}
+                {entryVariant === "social" || entryVariant === "union"
+                  ? surfaceCopy.body
+                  : dictionary.portal.subtitle}
               </p>
             </div>
             <form className="form-grid" onSubmit={handleSubmit}>
@@ -105,8 +119,8 @@ export function RegisterForm({ entryVariant = "default", mobileAppConfig }: Regi
               </button>
             </form>
             <p className="muted">
-              {entryVariant === "social" ? socialCopy.footer : commonCopy.haveAccount}&nbsp;
-              <Link href="/login">{entryVariant === "social" ? socialCopy.cta : dictionary.nav.login}</Link>
+              {entryVariant === "social" || entryVariant === "union" ? surfaceCopy.footer : commonCopy.haveAccount}&nbsp;
+              <Link href="/login">{entryVariant === "social" || entryVariant === "union" ? surfaceCopy.cta : dictionary.nav.login}</Link>
             </p>
           </div>
         </div>

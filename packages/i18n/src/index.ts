@@ -28,8 +28,6 @@ export type Dictionary = {
   auth: {
     loginTitle: string;
     registerTitle: string;
-    loginBody: string;
-    registerBody: string;
     email: string;
     password: string;
     submitLogin: string;
@@ -79,163 +77,6 @@ export type Dictionary = {
     saving: string;
     updated: string;
     updateFailed: string;
-  };
-  datingWeb: {
-    eyebrow: string;
-    title: string;
-    subtitle: string;
-    status: string;
-    draft: string;
-    loading: string;
-    loadFailed: string;
-    missingUser: string;
-    city: string;
-    bio: string;
-    interests: string;
-    lookingFor: string;
-    intentions: string;
-    family: string;
-    friendship: string;
-    seva: string;
-    business: string;
-    enableProfile: string;
-    save: string;
-    saving: string;
-    saved: string;
-    saveFailed: string;
-    submit: string;
-    submitting: string;
-    submitted: string;
-    submitFailed: string;
-    choosePhoto: string;
-    uploading: string;
-    photoUploaded: string;
-    photoFailed: string;
-    photoHint: string;
-    photoAlt: string;
-    noPhoto: string;
-    galleryTitle: string;
-    mainPhoto: string;
-    setMainPhoto: string;
-    viewPhoto: string;
-    deletePhoto: string;
-    deletePhotoConfirm: string;
-    photoDeleted: string;
-    photoDeleteFailed: string;
-    photoSetMain: string;
-    photoSetMainFailed: string;
-    fields: {
-      gender: string;
-      genderMale: string;
-      genderFemale: string;
-      dob: string;
-      birthTime: string;
-      birthPlaceLink: string;
-      maritalStatus: string;
-      childrenIntent: string;
-      elementalPrimary: string;
-      loveLanguages: string;
-      requiredHint: string;
-      profileComplete: string;
-      profileIncomplete: string;
-      photoRequired: string;
-      statusReason: string;
-    };
-    statuses: {
-      draft: string;
-      pendingFriendApproval: string;
-      pendingAdminReview: string;
-      pendingAiReview: string;
-      published: string;
-      rejected: string;
-      flagged: string;
-    };
-    publication: {
-      title: string;
-      progress: string;
-      requestApprovals: string;
-      requesting: string;
-      selectFriends: string;
-      noFriends: string;
-      needsAdminFallback: string;
-      incomingTitle: string;
-      noIncoming: string;
-      approve: string;
-      reject: string;
-      notePlaceholder: string;
-      requestSent: string;
-      requestFailed: string;
-      responded: string;
-      respondFailed: string;
-    };
-    browse: {
-      title: string;
-      subtitle: string;
-      filters: string;
-      mode: string;
-      city: string;
-      allCities: string;
-      ageFrom: string;
-      ageTo: string;
-      newOnly: string;
-      apply: string;
-      reset: string;
-      empty: string;
-      loadFailed: string;
-      like: string;
-      liked: string;
-      view: string;
-    };
-    candidate: {
-      back: string;
-      about: string;
-      interests: string;
-      lookingFor: string;
-      compatibilityTitle: string;
-      checkCompatibility: string;
-      compatibilityLoading: string;
-      compatibilityFailed: string;
-      invite: string;
-      notFound: string;
-    };
-    likes: {
-      title: string;
-      tabFavorites: string;
-      tabWhoLikedMe: string;
-      count: string;
-      noFavorites: string;
-      noLikes: string;
-      remove: string;
-      removed: string;
-    };
-    meetings: {
-      title: string;
-      tabSent: string;
-      tabReceived: string;
-      create: string;
-      placeType: string;
-      placePersonal: string;
-      placeCafe: string;
-      placeEvent: string;
-      placeOnline: string;
-      placePublic: string;
-      message: string;
-      send: string;
-      sending: string;
-      sent: string;
-      sendFailed: string;
-      accept: string;
-      decline: string;
-      respondFailed: string;
-      empty: string;
-    };
-    nav: {
-      profile: string;
-      browse: string;
-      likes: string;
-      meetings: string;
-      books: string;
-    };
   };
   contacts: {
     title: string;
@@ -346,6 +187,121 @@ export type Dictionary = {
     detailFallback: string;
     datesMissing: string;
   };
+  union: {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    profileSubtitle: string;
+    requestsSubtitle: string;
+    publicTitle: string;
+    publicBody: string;
+    publicPrimary: string;
+    publicSecondary: string;
+    publicStatsLabel: string;
+    publicTrust: string;
+    publicModesTitle: string;
+    publicModeBodies: Record<"family" | "friendship" | "business" | "seva", string>;
+    publicMale: string;
+    publicFemale: string;
+    navSearch: string;
+    navProfile: string;
+    navRequests: string;
+    navChats: string;
+    navWallet: string;
+    navLabel: string;
+    brandSubtitle: string;
+    balanceLabel: string;
+    topUp: string;
+    filters: string;
+    mode: string;
+    allModes: string;
+    family: string;
+    friendship: string;
+    business: string;
+    seva: string;
+    city: string;
+    minAge: string;
+    maxAge: string;
+    madh: string;
+    identity: string;
+    skills: string;
+    industry: string;
+    search: string;
+    reset: string;
+    createProfile: string;
+    editProfile: string;
+    requests: string;
+    unlock: string;
+    unlocked: string;
+    locked: string;
+    lockedHint: string;
+    unlockProfile: string;
+    unlockCost: string;
+    insufficientBalance: string;
+    openWallet: string;
+    writeRequest: string;
+    requestMessagePlaceholder: string;
+    sendRequest: string;
+    requestPending: string;
+    requestAccepted: string;
+    requestRejected: string;
+    openChat: string;
+    incomingRequests: string;
+    outgoingRequests: string;
+    noRequests: string;
+    accept: string;
+    reject: string;
+    cancel: string;
+    profileTitle: string;
+    socialLinks: string;
+    socialLinkUrl: string;
+    addSocialLink: string;
+    saveProfile: string;
+    submitProfile: string;
+    photos: string;
+    photosHint: string;
+    uploadPhoto: string;
+    uploadingPhoto: string;
+    photoUploaded: string;
+    photoDeleted: string;
+    mainPhoto: string;
+    mainPhotoUpdated: string;
+    setMainPhoto: string;
+    deletePhoto: string;
+    noPhotos: string;
+    showCityOptions: string;
+    age: string;
+    country: string;
+    bio: string;
+    intentions: string;
+    interests: string;
+    compatibility: string;
+    details: string;
+    paidAccess: string;
+    socialLinksLocked: string;
+    postsLocked: string;
+    noSocialLinks: string;
+    noPosts: string;
+    platform: string;
+    visible: string;
+    hidden: string;
+    datingEnabled: string;
+    publicationStatus: string;
+    profileSaved: string;
+    profileSubmitted: string;
+    requestSent: string;
+    actionFailed: string;
+    chatGateHint: string;
+    balanceUnavailable: string;
+    empty: string;
+    loadFailed: string;
+    optionLabels: {
+      cities: Record<string, string>;
+      countries: Record<string, string>;
+      madh: Record<string, string>;
+      identity: Record<string, string>;
+    };
+  };
   support: {
     eyebrow: string;
     title: string;
@@ -383,6 +339,7 @@ export type Dictionary = {
     retry: string;
     open: string;
     details: string;
+    close: string;
   };
 };
 
@@ -415,8 +372,6 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "Вход",
       registerTitle: "Регистрация",
-      loginBody: "Войдите в Союз, чтобы заполнить анкету, просматривать знакомства и продолжить общение внутри VedaMatch.",
-      registerBody: "Создайте аккаунт Союза, заполните профиль и подготовьте анкету к публикации.",
       email: "Email",
       password: "Пароль",
       submitLogin: "Войти",
@@ -466,163 +421,6 @@ export const dictionaries: Record<Language, Dictionary> = {
       saving: "Сохраняем...",
       updated: "Профиль обновлен.",
       updateFailed: "Не удалось обновить профиль.",
-    },
-    datingWeb: {
-      eyebrow: "Union",
-      title: "Анкета Union",
-      subtitle: "Создайте анкету знакомств, загрузите свое фото и обработайте его перед публикацией.",
-      status: "Статус публикации",
-      draft: "Черновик",
-      loading: "Загружаем анкету...",
-      loadFailed: "Не удалось загрузить анкету.",
-      missingUser: "Не удалось определить текущего пользователя.",
-      city: "Город",
-      bio: "О себе",
-      interests: "Интересы",
-      lookingFor: "Кого ищу",
-      intentions: "Цель знакомства",
-      family: "Семья",
-      friendship: "Дружба",
-      seva: "Сева",
-      business: "Дело",
-      enableProfile: "Показывать анкету в Union",
-      save: "Сохранить анкету",
-      saving: "Сохраняем...",
-      saved: "Анкета сохранена.",
-      saveFailed: "Не удалось сохранить анкету.",
-      submit: "Отправить на проверку",
-      submitting: "Отправляем...",
-      submitted: "Анкета отправлена на проверку.",
-      submitFailed: "Не удалось отправить анкету.",
-      choosePhoto: "Загрузить фото",
-      uploading: "Загружаем фото...",
-      photoUploaded: "Фото обработано и загружено.",
-      photoFailed: "Не удалось загрузить фото.",
-      photoHint: "После выбора откроется редактор с кадрированием, поворотом, настройками света и фильтрами.",
-      photoAlt: "Фото анкеты Union",
-      noPhoto: "Фото пока нет",
-      galleryTitle: "Галерея фото",
-      mainPhoto: "Главное",
-      setMainPhoto: "Сделать главным",
-      viewPhoto: "Открыть",
-      deletePhoto: "Удалить",
-      deletePhotoConfirm: "Удалить это фото из галереи?",
-      photoDeleted: "Фото удалено.",
-      photoDeleteFailed: "Не удалось удалить фото.",
-      photoSetMain: "Главное фото обновлено.",
-      photoSetMainFailed: "Не удалось сделать фото главным.",
-      fields: {
-        gender: "Пол",
-        genderMale: "Мужской",
-        genderFemale: "Женский",
-        dob: "Дата рождения",
-        birthTime: "Время рождения",
-        birthPlaceLink: "Место рождения",
-        maritalStatus: "Семейное положение",
-        childrenIntent: "Отношение к детям",
-        elementalPrimary: "Ведущая стихия",
-        loveLanguages: "Языки любви (через запятую)",
-        requiredHint: "Обязательное поле",
-        profileComplete: "Анкета заполнена и готова к публикации.",
-        profileIncomplete: "Заполните все обязательные поля и добавьте фото перед публикацией.",
-        photoRequired: "Добавьте хотя бы одно фото перед отправкой на проверку.",
-        statusReason: "Причина",
-      },
-      statuses: {
-        draft: "Черновик",
-        pendingFriendApproval: "Ожидает одобрения друзей",
-        pendingAdminReview: "На проверке модератора",
-        pendingAiReview: "На AI-проверке",
-        published: "Опубликована",
-        rejected: "Отклонена",
-        flagged: "Снята с публикации",
-      },
-      publication: {
-        title: "Публикация и одобрения",
-        progress: "Одобрений: {approved} из {required}",
-        requestApprovals: "Запросить одобрения",
-        requesting: "Отправляем запросы...",
-        selectFriends: "Выберите друзей для одобрения",
-        noFriends: "Пока нет друзей для запроса одобрения. Анкета уйдёт на проверку модератора.",
-        needsAdminFallback: "Недостаточно друзей — анкета будет проверена модератором.",
-        incomingTitle: "Входящие запросы на одобрение",
-        noIncoming: "Нет входящих запросов.",
-        approve: "Одобрить",
-        reject: "Отклонить",
-        notePlaceholder: "Комментарий (необязательно)",
-        requestSent: "Запросы на одобрение отправлены.",
-        requestFailed: "Не удалось отправить запросы.",
-        responded: "Ответ сохранён.",
-        respondFailed: "Не удалось сохранить ответ.",
-      },
-      browse: {
-        title: "Поиск знакомств",
-        subtitle: "Просматривайте опубликованные анкеты и отмечайте понравившиеся.",
-        filters: "Фильтры",
-        mode: "Цель",
-        city: "Город",
-        allCities: "Все города",
-        ageFrom: "Возраст от",
-        ageTo: "Возраст до",
-        newOnly: "Только новые (24 ч)",
-        apply: "Применить",
-        reset: "Сбросить",
-        empty: "Анкеты не найдены. Измените фильтры.",
-        loadFailed: "Не удалось загрузить анкеты.",
-        like: "В избранное",
-        liked: "В избранном",
-        view: "Открыть",
-      },
-      candidate: {
-        back: "Назад к поиску",
-        about: "О себе",
-        interests: "Интересы",
-        lookingFor: "Кого ищет",
-        compatibilityTitle: "Ведическая совместимость",
-        checkCompatibility: "Проверить совместимость",
-        compatibilityLoading: "Рассчитываем совместимость...",
-        compatibilityFailed: "Не удалось рассчитать совместимость.",
-        invite: "Пригласить на встречу",
-        notFound: "Анкета не найдена.",
-      },
-      likes: {
-        title: "Симпатии",
-        tabFavorites: "Избранное",
-        tabWhoLikedMe: "Кто меня лайкнул",
-        count: "Вас отметили: {count}",
-        noFavorites: "В избранном пока пусто.",
-        noLikes: "Пока никто не отметил вашу анкету.",
-        remove: "Убрать",
-        removed: "Удалено из избранного.",
-      },
-      meetings: {
-        title: "Встречи",
-        tabSent: "Отправленные",
-        tabReceived: "Полученные",
-        create: "Новое приглашение",
-        placeType: "Формат встречи",
-        placePersonal: "Личная встреча",
-        placeCafe: "Кафе",
-        placeEvent: "Мероприятие",
-        placeOnline: "Онлайн",
-        placePublic: "Общественное место",
-        message: "Сообщение",
-        send: "Отправить приглашение",
-        sending: "Отправляем...",
-        sent: "Приглашение отправлено.",
-        sendFailed: "Не удалось отправить приглашение.",
-        accept: "Принять",
-        decline: "Отклонить",
-        respondFailed: "Не удалось ответить на приглашение.",
-        empty: "Пока нет приглашений.",
-      },
-      nav: {
-        profile: "Анкета",
-        browse: "Поиск",
-        likes: "Симпатии",
-        meetings: "Встречи",
-        books: "Книги",
-      },
     },
     contacts: {
       title: "Контакты",
@@ -733,6 +531,246 @@ export const dictionaries: Record<Language, Dictionary> = {
       detailFallback: "Travel detail pages и booking UX можно нарастить на этом route.",
       datesMissing: "Даты не указаны",
     },
+    union: {
+      eyebrow: "Союз",
+      title: "Знакомства по ценностям",
+      subtitle: "Ищите людей для семьи, дружбы, дела и севы, а детали открывайте осознанно через LKM.",
+      profileSubtitle: "Заполните анкету, соцссылки и отправьте профиль на публикацию.",
+      requestsSubtitle: "Управляйте заявками и открывайте чат только после взаимного согласия.",
+      publicTitle: "Осознанные знакомства без лишнего шума",
+      publicBody: "Пространство для людей, которые ищут близость, дружбу, проекты и севу через общие ценности.",
+      publicPrimary: "Войти",
+      publicSecondary: "Создать анкету",
+      publicStatsLabel: "Анкет в Союзе",
+      publicTrust: "Анкеты проходят публикацию, а детали открываются по согласию.",
+      publicModesTitle: "Выберите формат связи",
+      publicModeBodies: {
+        family: "Спутник жизни и зрелый семейный выбор.",
+        friendship: "Люди рядом по практике, интересам и пути.",
+        business: "Партнеры, команды и проекты с общими принципами.",
+        seva: "Совместное служение и полезные инициативы.",
+      },
+      publicMale: "муж.",
+      publicFemale: "жен.",
+      navSearch: "Поиск",
+      navProfile: "Анкета",
+      navRequests: "Заявки",
+      navChats: "Чаты",
+      navWallet: "Кошелек",
+      navLabel: "Навигация Союза",
+      brandSubtitle: "Осознанные знакомства",
+      balanceLabel: "Баланс LKM",
+      topUp: "Пополнить",
+      filters: "Фильтры",
+      mode: "Режим",
+      allModes: "Все режимы",
+      family: "Семья",
+      friendship: "Дружба",
+      business: "Дело",
+      seva: "Сева",
+      city: "Город",
+      minAge: "Возраст от",
+      maxAge: "Возраст до",
+      madh: "Традиция",
+      identity: "Идентичность",
+      skills: "Навыки",
+      industry: "Сфера",
+      search: "Показать",
+      reset: "Сбросить",
+      createProfile: "Создать анкету",
+      editProfile: "Редактировать анкету",
+      requests: "Заявки",
+      unlock: "Открыть",
+      unlocked: "Открыто",
+      locked: "Закрыто",
+      lockedHint: "Детали профиля доступны после открытия за LKM.",
+      unlockProfile: "Открыть анкету",
+      unlockCost: "Стоимость: {price} LKM",
+      insufficientBalance: "Недостаточно LKM для открытия анкеты.",
+      openWallet: "Открыть кошелек",
+      writeRequest: "Запросить общение",
+      requestMessagePlaceholder: "Коротко напишите, почему хотите пообщаться.",
+      sendRequest: "Отправить заявку",
+      requestPending: "Заявка ожидает ответа",
+      requestAccepted: "Общение подтверждено",
+      requestRejected: "Заявка отклонена",
+      openChat: "Открыть чат",
+      incomingRequests: "Входящие",
+      outgoingRequests: "Исходящие",
+      noRequests: "Заявок пока нет.",
+      accept: "Принять",
+      reject: "Отклонить",
+      cancel: "Отменить",
+      profileTitle: "Анкета Союза",
+      socialLinks: "Социальные сети",
+      socialLinkUrl: "Ссылка",
+      addSocialLink: "Добавить ссылку",
+      saveProfile: "Сохранить анкету",
+      submitProfile: "Отправить на публикацию",
+      photos: "Фотографии",
+      photosHint: "Загрузите главное фото и дополнительные снимки для галереи.",
+      uploadPhoto: "Загрузить фото",
+      uploadingPhoto: "Загрузка...",
+      photoUploaded: "Фото загружено.",
+      photoDeleted: "Фото удалено.",
+      mainPhoto: "Главное",
+      mainPhotoUpdated: "Главное фото обновлено.",
+      setMainPhoto: "Сделать главным",
+      deletePhoto: "Удалить фото",
+      noPhotos: "Фотографий пока нет.",
+      showCityOptions: "Показать города",
+      age: "Возраст",
+      country: "Страна",
+      bio: "О себе",
+      intentions: "Намерения",
+      interests: "Интересы",
+      compatibility: "Совместимость",
+      details: "Детали",
+      paidAccess: "Платный доступ",
+      socialLinksLocked: "Соцсети закрыты до открытия анкеты.",
+      postsLocked: "Публикации закрыты до открытия анкеты.",
+      noSocialLinks: "Соцссылки не указаны.",
+      noPosts: "Публикаций пока нет.",
+      platform: "Платформа",
+      visible: "Видно после открытия",
+      hidden: "Скрыто",
+      datingEnabled: "Анкета активна",
+      publicationStatus: "Статус публикации",
+      profileSaved: "Анкета сохранена.",
+      profileSubmitted: "Анкета отправлена на публикацию.",
+      requestSent: "Заявка отправлена.",
+      actionFailed: "Действие не выполнено.",
+      chatGateHint: "Чат откроется после подтверждения заявки.",
+      balanceUnavailable: "Баланс недоступен",
+      empty: "Анкеты пока не найдены.",
+      loadFailed: "Не удалось загрузить Союз.",
+      optionLabels: {
+        cities: {
+          "Abu Dhabi": "Абу-Даби",
+          Amsterdam: "Амстердам",
+          Ankara: "Анкара",
+          Bangkok: "Бангкок",
+          Bangalore: "Бангалор",
+          Barcelona: "Барселона",
+          Beijing: "Пекин",
+          Berlin: "Берлин",
+          Birmingham: "Бирмингем",
+          Brussels: "Брюссель",
+          Chennai: "Ченнаи",
+          Chicago: "Чикаго",
+          Delhi: "Дели",
+          Dubai: "Дубай",
+          Dublin: "Дублин",
+          Geneva: "Женева",
+          Hanoi: "Ханой",
+          Helsinki: "Хельсинки",
+          "Ho Chi Minh City": "Хошимин",
+          HongKong: "Гонконг",
+          Hyderabad: "Хайдарабад",
+          Istanbul: "Стамбул",
+          Jakarta: "Джакарта",
+          Jerusalem: "Иерусалим",
+          Kazan: "Казань",
+          Kolkata: "Калькутта",
+          London: "Лондон",
+          "Los Angeles": "Лос-Анджелес",
+          Madrid: "Мадрид",
+          Mayapur: "Маяпур",
+          MexicoCity: "Мехико",
+          "Mexico City": "Мехико",
+          Moscow: "Москва",
+          Mumbai: "Мумбаи",
+          Munich: "Мюнхен",
+          "New York": "Нью-Йорк",
+          "Nizhny Novgorod": "Нижний Новгород",
+          Novosibirsk: "Новосибирск",
+          Paris: "Париж",
+          Prague: "Прага",
+          Rome: "Рим",
+          "Saint Petersburg": "Санкт-Петербург",
+          Seoul: "Сеул",
+          Singapore: "Сингапур",
+          Stockholm: "Стокгольм",
+          Sydney: "Сидней",
+          TelAviv: "Тель-Авив",
+          "Tel Aviv": "Тель-Авив",
+          Tokyo: "Токио",
+          Toronto: "Торонто",
+          Vancouver: "Ванкувер",
+          Vienna: "Вена",
+          Vrindavan: "Вриндаван",
+          Warsaw: "Варшава",
+          Yekaterinburg: "Екатеринбург",
+        },
+        countries: {
+          Afghanistan: "Афганистан",
+          Albania: "Албания",
+          Algeria: "Алжир",
+          Argentina: "Аргентина",
+          Australia: "Австралия",
+          Austria: "Австрия",
+          Belgium: "Бельгия",
+          Brazil: "Бразилия",
+          Canada: "Канада",
+          China: "Китай",
+          Colombia: "Колумбия",
+          "Czech Republic": "Чехия",
+          Denmark: "Дания",
+          Egypt: "Египет",
+          Finland: "Финляндия",
+          France: "Франция",
+          Germany: "Германия",
+          Greece: "Греция",
+          Hungary: "Венгрия",
+          India: "Индия",
+          Indonesia: "Индонезия",
+          Ireland: "Ирландия",
+          Israel: "Израиль",
+          Italy: "Италия",
+          Japan: "Япония",
+          Malaysia: "Малайзия",
+          Mexico: "Мексика",
+          Netherlands: "Нидерланды",
+          "New Zealand": "Новая Зеландия",
+          Norway: "Норвегия",
+          Philippines: "Филиппины",
+          Poland: "Польша",
+          Portugal: "Португалия",
+          Romania: "Румыния",
+          Russia: "Россия",
+          "Saudi Arabia": "Саудовская Аравия",
+          "South Africa": "Южная Африка",
+          "South Korea": "Южная Корея",
+          Spain: "Испания",
+          Sweden: "Швеция",
+          Switzerland: "Швейцария",
+          Thailand: "Таиланд",
+          Turkey: "Турция",
+          Ukraine: "Украина",
+          "United Arab Emirates": "ОАЭ",
+          "United Kingdom": "Великобритания",
+          "United States": "США",
+          Vietnam: "Вьетнам",
+        },
+        madh: {
+          ISKCON: "ИСККОН",
+          "Brahma-Madhva-Gaudiya": "Брахма-Мадхва-Гаудия",
+          "Sri Sampradaya (Ramanuja)": "Шри-сампрадая (Рамануджа)",
+          "Brahma Sampradaya (Madhvacharya)": "Брахма-сампрадая (Мадхвачарья)",
+          "Rudra Sampradaya (Vishnuswami)": "Рудра-сампрадая (Вишнусвами)",
+          "Kumara Sampradaya (Nimbarka)": "Кумара-сампрадая (Нимбарка)",
+          "Шри Чайтанья Сарасват Матх": "Шри Чайтанья Сарасват Матх",
+          "Международное Общество Чистой Бхакти-йоги": "Международное Общество Чистой Бхакти-йоги",
+          "Шри Гопинатх Гаудия": "Шри Гопинатх Гаудия",
+          "Шри Чайтанья Матх": "Шри Чайтанья Матх",
+          Other: "Другое",
+        },
+        identity: {
+          Yogi: "Йог",
+          "In Goodness": "В благости",
+        },
+      },
+    },
     support: {
       eyebrow: "Сервисный домен",
       title: "Поддержка",
@@ -770,6 +808,7 @@ export const dictionaries: Record<Language, Dictionary> = {
       retry: "Повторить",
       open: "Открыть",
       details: "Подробнее",
+      close: "Закрыть",
     },
   },
   en: {
@@ -800,8 +839,6 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "Login",
       registerTitle: "Register",
-      loginBody: "Sign in to Union to edit your profile, browse matches, and continue conversations inside VedaMatch.",
-      registerBody: "Create a Union account, complete your profile, and prepare your dating card for publication.",
       email: "Email",
       password: "Password",
       submitLogin: "Sign in",
@@ -851,163 +888,6 @@ export const dictionaries: Record<Language, Dictionary> = {
       saving: "Saving...",
       updated: "Profile updated.",
       updateFailed: "Failed to update profile.",
-    },
-    datingWeb: {
-      eyebrow: "Union",
-      title: "Union profile",
-      subtitle: "Create your dating profile, upload a photo, and polish it before publication.",
-      status: "Publication status",
-      draft: "Draft",
-      loading: "Loading profile...",
-      loadFailed: "Failed to load the profile.",
-      missingUser: "Could not resolve the current user.",
-      city: "City",
-      bio: "About you",
-      interests: "Interests",
-      lookingFor: "Looking for",
-      intentions: "Intent",
-      family: "Family",
-      friendship: "Friendship",
-      seva: "Seva",
-      business: "Business",
-      enableProfile: "Show this profile in Union",
-      save: "Save profile",
-      saving: "Saving...",
-      saved: "Profile saved.",
-      saveFailed: "Failed to save profile.",
-      submit: "Submit for review",
-      submitting: "Submitting...",
-      submitted: "Profile submitted for review.",
-      submitFailed: "Failed to submit profile.",
-      choosePhoto: "Upload photo",
-      uploading: "Uploading photo...",
-      photoUploaded: "Photo edited and uploaded.",
-      photoFailed: "Failed to upload photo.",
-      photoHint: "After choosing a file, the editor opens with crop, rotate, light tuning, and filters.",
-      photoAlt: "Union profile photo",
-      noPhoto: "No photo yet",
-      galleryTitle: "Photo gallery",
-      mainPhoto: "Main",
-      setMainPhoto: "Set as main",
-      viewPhoto: "View",
-      deletePhoto: "Delete",
-      deletePhotoConfirm: "Delete this photo from your gallery?",
-      photoDeleted: "Photo deleted.",
-      photoDeleteFailed: "Failed to delete photo.",
-      photoSetMain: "Main photo updated.",
-      photoSetMainFailed: "Failed to set main photo.",
-      fields: {
-        gender: "Gender",
-        genderMale: "Male",
-        genderFemale: "Female",
-        dob: "Date of birth",
-        birthTime: "Time of birth",
-        birthPlaceLink: "Place of birth",
-        maritalStatus: "Marital status",
-        childrenIntent: "Attitude to children",
-        elementalPrimary: "Primary element",
-        loveLanguages: "Love languages (comma separated)",
-        requiredHint: "Required field",
-        profileComplete: "Profile is complete and ready to publish.",
-        profileIncomplete: "Fill in all required fields and add a photo before publishing.",
-        photoRequired: "Add at least one photo before submitting for review.",
-        statusReason: "Reason",
-      },
-      statuses: {
-        draft: "Draft",
-        pendingFriendApproval: "Awaiting friend approval",
-        pendingAdminReview: "Under moderator review",
-        pendingAiReview: "Under AI review",
-        published: "Published",
-        rejected: "Rejected",
-        flagged: "Unpublished",
-      },
-      publication: {
-        title: "Publication & approvals",
-        progress: "Approvals: {approved} of {required}",
-        requestApprovals: "Request approvals",
-        requesting: "Sending requests...",
-        selectFriends: "Select friends to approve",
-        noFriends: "No friends to request approval from yet. Your profile will go to moderator review.",
-        needsAdminFallback: "Not enough friends — your profile will be reviewed by a moderator.",
-        incomingTitle: "Incoming approval requests",
-        noIncoming: "No incoming requests.",
-        approve: "Approve",
-        reject: "Reject",
-        notePlaceholder: "Note (optional)",
-        requestSent: "Approval requests sent.",
-        requestFailed: "Could not send requests.",
-        responded: "Response saved.",
-        respondFailed: "Could not save response.",
-      },
-      browse: {
-        title: "Discover",
-        subtitle: "Browse published profiles and mark the ones you like.",
-        filters: "Filters",
-        mode: "Intent",
-        city: "City",
-        allCities: "All cities",
-        ageFrom: "Age from",
-        ageTo: "Age to",
-        newOnly: "New only (24h)",
-        apply: "Apply",
-        reset: "Reset",
-        empty: "No profiles found. Try changing the filters.",
-        loadFailed: "Could not load profiles.",
-        like: "Add to favorites",
-        liked: "In favorites",
-        view: "Open",
-      },
-      candidate: {
-        back: "Back to discover",
-        about: "About",
-        interests: "Interests",
-        lookingFor: "Looking for",
-        compatibilityTitle: "Vedic compatibility",
-        checkCompatibility: "Check compatibility",
-        compatibilityLoading: "Calculating compatibility...",
-        compatibilityFailed: "Could not calculate compatibility.",
-        invite: "Invite to meet",
-        notFound: "Profile not found.",
-      },
-      likes: {
-        title: "Likes",
-        tabFavorites: "Favorites",
-        tabWhoLikedMe: "Who liked me",
-        count: "You were liked by {count}",
-        noFavorites: "No favorites yet.",
-        noLikes: "No one has liked your profile yet.",
-        remove: "Remove",
-        removed: "Removed from favorites.",
-      },
-      meetings: {
-        title: "Meetings",
-        tabSent: "Sent",
-        tabReceived: "Received",
-        create: "New invite",
-        placeType: "Meeting format",
-        placePersonal: "In person",
-        placeCafe: "Cafe",
-        placeEvent: "Event",
-        placeOnline: "Online",
-        placePublic: "Public place",
-        message: "Message",
-        send: "Send invite",
-        sending: "Sending...",
-        sent: "Invite sent.",
-        sendFailed: "Could not send invite.",
-        accept: "Accept",
-        decline: "Decline",
-        respondFailed: "Could not respond to the invite.",
-        empty: "No invites yet.",
-      },
-      nav: {
-        profile: "Profile",
-        browse: "Discover",
-        likes: "Likes",
-        meetings: "Meetings",
-        books: "Books",
-      },
     },
     contacts: {
       title: "Contacts core",
@@ -1118,6 +998,141 @@ export const dictionaries: Record<Language, Dictionary> = {
       detailFallback: "Travel detail pages and booking UX can extend this route.",
       datesMissing: "Dates not provided",
     },
+    union: {
+      eyebrow: "Union",
+      title: "Values-based dating",
+      subtitle: "Find people for family, friendship, work, and seva, then unlock details intentionally with LKM.",
+      profileSubtitle: "Complete your profile, add social links, and submit it for publishing.",
+      requestsSubtitle: "Manage requests and open chats only after mutual consent.",
+      publicTitle: "Conscious connections without the noise",
+      publicBody: "A focused space for people seeking family, friendship, projects, and seva through shared values.",
+      publicPrimary: "Sign in",
+      publicSecondary: "Create profile",
+      publicStatsLabel: "Union profiles",
+      publicTrust: "Profiles pass publication checks and reveal details by consent.",
+      publicModesTitle: "Choose your connection mode",
+      publicModeBodies: {
+        family: "A life partner and a mature family choice.",
+        friendship: "People close to your practice, interests, and path.",
+        business: "Partners, teams, and projects with shared principles.",
+        seva: "Service, volunteering, and useful initiatives.",
+      },
+      publicMale: "men",
+      publicFemale: "women",
+      navSearch: "Search",
+      navProfile: "Profile",
+      navRequests: "Requests",
+      navChats: "Chats",
+      navWallet: "Wallet",
+      navLabel: "Union navigation",
+      brandSubtitle: "Conscious connections",
+      balanceLabel: "LKM balance",
+      topUp: "Top up",
+      filters: "Filters",
+      mode: "Mode",
+      allModes: "All modes",
+      family: "Family",
+      friendship: "Friendship",
+      business: "Business",
+      seva: "Seva",
+      city: "City",
+      minAge: "Age from",
+      maxAge: "Age to",
+      madh: "Tradition",
+      identity: "Identity",
+      skills: "Skills",
+      industry: "Industry",
+      search: "Show",
+      reset: "Reset",
+      createProfile: "Create profile",
+      editProfile: "Edit profile",
+      requests: "Requests",
+      unlock: "Unlock",
+      unlocked: "Unlocked",
+      locked: "Locked",
+      lockedHint: "Profile details are available after unlocking with LKM.",
+      unlockProfile: "Unlock profile",
+      unlockCost: "Cost: {price} LKM",
+      insufficientBalance: "Not enough LKM to unlock this profile.",
+      openWallet: "Open wallet",
+      writeRequest: "Request a chat",
+      requestMessagePlaceholder: "Briefly explain why you would like to talk.",
+      sendRequest: "Send request",
+      requestPending: "Request is waiting",
+      requestAccepted: "Chat confirmed",
+      requestRejected: "Request rejected",
+      openChat: "Open chat",
+      incomingRequests: "Incoming",
+      outgoingRequests: "Outgoing",
+      noRequests: "No requests yet.",
+      accept: "Accept",
+      reject: "Reject",
+      cancel: "Cancel",
+      profileTitle: "Union profile",
+      socialLinks: "Social links",
+      socialLinkUrl: "Link",
+      addSocialLink: "Add link",
+      saveProfile: "Save profile",
+      submitProfile: "Submit for publishing",
+      photos: "Photos",
+      photosHint: "Upload a main photo and extra gallery pictures.",
+      uploadPhoto: "Upload photo",
+      uploadingPhoto: "Uploading...",
+      photoUploaded: "Photo uploaded.",
+      photoDeleted: "Photo deleted.",
+      mainPhoto: "Main",
+      mainPhotoUpdated: "Main photo updated.",
+      setMainPhoto: "Set as main",
+      deletePhoto: "Delete photo",
+      noPhotos: "No photos yet.",
+      showCityOptions: "Show cities",
+      age: "Age",
+      country: "Country",
+      bio: "Bio",
+      intentions: "Intentions",
+      interests: "Interests",
+      compatibility: "Compatibility",
+      details: "Details",
+      paidAccess: "Paid access",
+      socialLinksLocked: "Social links are locked until the profile is unlocked.",
+      postsLocked: "Posts are locked until the profile is unlocked.",
+      noSocialLinks: "No social links provided.",
+      noPosts: "No posts yet.",
+      platform: "Platform",
+      visible: "Visible after unlock",
+      hidden: "Hidden",
+      datingEnabled: "Profile active",
+      publicationStatus: "Publication status",
+      profileSaved: "Profile saved.",
+      profileSubmitted: "Profile submitted for publishing.",
+      requestSent: "Request sent.",
+      actionFailed: "Action failed.",
+      chatGateHint: "Chat opens after the request is accepted.",
+      balanceUnavailable: "Balance unavailable",
+      empty: "No profiles found yet.",
+      loadFailed: "Failed to load Union.",
+      optionLabels: {
+        cities: {},
+        countries: {},
+        madh: {
+          ISKCON: "ISKCON",
+          "Brahma-Madhva-Gaudiya": "Brahma-Madhva-Gaudiya",
+          "Sri Sampradaya (Ramanuja)": "Sri Sampradaya (Ramanuja)",
+          "Brahma Sampradaya (Madhvacharya)": "Brahma Sampradaya (Madhvacharya)",
+          "Rudra Sampradaya (Vishnuswami)": "Rudra Sampradaya (Vishnuswami)",
+          "Kumara Sampradaya (Nimbarka)": "Kumara Sampradaya (Nimbarka)",
+          "Шри Чайтанья Сарасват Матх": "Sri Chaitanya Saraswat Math",
+          "Международное Общество Чистой Бхакти-йоги": "International Society of Pure Bhakti Yoga",
+          "Шри Гопинатх Гаудия": "Sri Gopinath Gaudiya",
+          "Шри Чайтанья Матх": "Sri Chaitanya Math",
+          Other: "Other",
+        },
+        identity: {
+          Yogi: "Yogi",
+          "In Goodness": "In goodness",
+        },
+      },
+    },
     support: {
       eyebrow: "Utility domain",
       title: "Support entry",
@@ -1155,6 +1170,7 @@ export const dictionaries: Record<Language, Dictionary> = {
       retry: "Retry",
       open: "Open",
       details: "Details",
+      close: "Close",
     },
   },
   hi: {
@@ -1185,8 +1201,6 @@ export const dictionaries: Record<Language, Dictionary> = {
     auth: {
       loginTitle: "लॉगिन",
       registerTitle: "रजिस्टर",
-      loginBody: "Union में लॉगिन करें, प्रोफ़ाइल भरें, matches देखें और VedaMatch में बातचीत जारी रखें।",
-      registerBody: "Union अकाउंट बनाएँ, प्रोफ़ाइल पूरी करें और अपनी dating card publication के लिए तैयार करें।",
       email: "ईमेल",
       password: "पासवर्ड",
       submitLogin: "लॉगिन",
@@ -1236,163 +1250,6 @@ export const dictionaries: Record<Language, Dictionary> = {
       saving: "सहेजा जा रहा है...",
       updated: "प्रोफ़ाइल अपडेट हो गई।",
       updateFailed: "प्रोफ़ाइल अपडेट नहीं हो सकी।",
-    },
-    datingWeb: {
-      eyebrow: "Union",
-      title: "Union प्रोफ़ाइल",
-      subtitle: "अपनी dating profile बनाएं, फोटो अपलोड करें और publication से पहले उसे edit करें।",
-      status: "Publication status",
-      draft: "Draft",
-      loading: "प्रोफ़ाइल लोड हो रही है...",
-      loadFailed: "प्रोफ़ाइल लोड नहीं हो सकी।",
-      missingUser: "वर्तमान user पहचान में नहीं आया।",
-      city: "शहर",
-      bio: "अपने बारे में",
-      interests: "रुचियां",
-      lookingFor: "किसे खोज रहे हैं",
-      intentions: "उद्देश्य",
-      family: "परिवार",
-      friendship: "मित्रता",
-      seva: "सेवा",
-      business: "काम",
-      enableProfile: "Union में यह profile दिखाएँ",
-      save: "प्रोफ़ाइल सहेजें",
-      saving: "सहेजा जा रहा है...",
-      saved: "प्रोफ़ाइल सहेज दी गई।",
-      saveFailed: "प्रोफ़ाइल सहेजी नहीं जा सकी।",
-      submit: "Review के लिए भेजें",
-      submitting: "भेजा जा रहा है...",
-      submitted: "प्रोफ़ाइल review के लिए भेज दी गई।",
-      submitFailed: "प्रोफ़ाइल भेजी नहीं जा सकी।",
-      choosePhoto: "फोटो अपलोड करें",
-      uploading: "फोटो अपलोड हो रही है...",
-      photoUploaded: "फोटो edit होकर अपलोड हो गई।",
-      photoFailed: "फोटो अपलोड नहीं हो सकी।",
-      photoHint: "File चुनने के बाद crop, rotate, light tuning और filters वाला editor खुलेगा।",
-      photoAlt: "Union profile photo",
-      noPhoto: "अभी फोटो नहीं है",
-      galleryTitle: "फ़ोटो गैलरी",
-      mainPhoto: "मुख्य",
-      setMainPhoto: "मुख्य बनाएं",
-      viewPhoto: "देखें",
-      deletePhoto: "हटाएं",
-      deletePhotoConfirm: "इस फ़ोटो को गैलरी से हटाएं?",
-      photoDeleted: "फ़ोटो हटा दी गई।",
-      photoDeleteFailed: "फ़ोटो हटाई नहीं जा सकी।",
-      photoSetMain: "मुख्य फ़ोटो अपडेट हो गई।",
-      photoSetMainFailed: "मुख्य फ़ोटो सेट नहीं हो सकी।",
-      fields: {
-        gender: "लिंग",
-        genderMale: "पुरुष",
-        genderFemale: "महिला",
-        dob: "जन्म तिथि",
-        birthTime: "जन्म समय",
-        birthPlaceLink: "जन्म स्थान",
-        maritalStatus: "वैवाहिक स्थिति",
-        childrenIntent: "बच्चों के प्रति दृष्टिकोण",
-        elementalPrimary: "प्रमुख तत्व",
-        loveLanguages: "प्रेम की भाषाएँ (अल्पविराम से अलग)",
-        requiredHint: "आवश्यक फ़ील्ड",
-        profileComplete: "प्रोफ़ाइल पूर्ण है और प्रकाशन के लिए तैयार है।",
-        profileIncomplete: "प्रकाशन से पहले सभी आवश्यक फ़ील्ड भरें और एक फ़ोटो जोड़ें।",
-        photoRequired: "समीक्षा के लिए भेजने से पहले कम से कम एक फ़ोटो जोड़ें।",
-        statusReason: "कारण",
-      },
-      statuses: {
-        draft: "ड्राफ़्ट",
-        pendingFriendApproval: "मित्रों की स्वीकृति प्रतीक्षित",
-        pendingAdminReview: "मॉडरेटर समीक्षा में",
-        pendingAiReview: "AI समीक्षा में",
-        published: "प्रकाशित",
-        rejected: "अस्वीकृत",
-        flagged: "अप्रकाशित",
-      },
-      publication: {
-        title: "प्रकाशन और स्वीकृतियाँ",
-        progress: "स्वीकृतियाँ: {required} में से {approved}",
-        requestApprovals: "स्वीकृति का अनुरोध करें",
-        requesting: "अनुरोध भेजे जा रहे हैं...",
-        selectFriends: "स्वीकृति के लिए मित्र चुनें",
-        noFriends: "अभी स्वीकृति के लिए कोई मित्र नहीं। आपकी प्रोफ़ाइल मॉडरेटर समीक्षा में जाएगी।",
-        needsAdminFallback: "पर्याप्त मित्र नहीं — आपकी प्रोफ़ाइल की समीक्षा मॉडरेटर करेंगे।",
-        incomingTitle: "आने वाले स्वीकृति अनुरोध",
-        noIncoming: "कोई आने वाला अनुरोध नहीं।",
-        approve: "स्वीकृत करें",
-        reject: "अस्वीकार करें",
-        notePlaceholder: "टिप्पणी (वैकल्पिक)",
-        requestSent: "स्वीकृति अनुरोध भेजे गए।",
-        requestFailed: "अनुरोध नहीं भेजे जा सके।",
-        responded: "प्रतिक्रिया सहेजी गई।",
-        respondFailed: "प्रतिक्रिया सहेजी नहीं जा सकी।",
-      },
-      browse: {
-        title: "खोजें",
-        subtitle: "प्रकाशित प्रोफ़ाइलें देखें और पसंद की प्रोफ़ाइलें चिह्नित करें।",
-        filters: "फ़िल्टर",
-        mode: "उद्देश्य",
-        city: "शहर",
-        allCities: "सभी शहर",
-        ageFrom: "आयु से",
-        ageTo: "आयु तक",
-        newOnly: "केवल नए (24घं)",
-        apply: "लागू करें",
-        reset: "रीसेट",
-        empty: "कोई प्रोफ़ाइल नहीं मिली। फ़िल्टर बदलें।",
-        loadFailed: "प्रोफ़ाइलें लोड नहीं हो सकीं।",
-        like: "पसंदीदा में जोड़ें",
-        liked: "पसंदीदा में",
-        view: "खोलें",
-      },
-      candidate: {
-        back: "खोज पर वापस",
-        about: "परिचय",
-        interests: "रुचियाँ",
-        lookingFor: "किसकी तलाश",
-        compatibilityTitle: "वैदिक अनुकूलता",
-        checkCompatibility: "अनुकूलता जाँचें",
-        compatibilityLoading: "अनुकूलता की गणना हो रही है...",
-        compatibilityFailed: "अनुकूलता की गणना नहीं हो सकी।",
-        invite: "मिलने के लिए आमंत्रित करें",
-        notFound: "प्रोफ़ाइल नहीं मिली।",
-      },
-      likes: {
-        title: "पसंद",
-        tabFavorites: "पसंदीदा",
-        tabWhoLikedMe: "किसने मुझे पसंद किया",
-        count: "आपको {count} ने पसंद किया",
-        noFavorites: "अभी कोई पसंदीदा नहीं।",
-        noLikes: "अभी तक किसी ने आपकी प्रोफ़ाइल पसंद नहीं की।",
-        remove: "हटाएँ",
-        removed: "पसंदीदा से हटाया गया।",
-      },
-      meetings: {
-        title: "मुलाक़ातें",
-        tabSent: "भेजे गए",
-        tabReceived: "प्राप्त",
-        create: "नया आमंत्रण",
-        placeType: "मुलाक़ात का प्रकार",
-        placePersonal: "व्यक्तिगत मुलाक़ात",
-        placeCafe: "कैफ़े",
-        placeEvent: "कार्यक्रम",
-        placeOnline: "ऑनलाइन",
-        placePublic: "सार्वजनिक स्थान",
-        message: "संदेश",
-        send: "आमंत्रण भेजें",
-        sending: "भेजा जा रहा है...",
-        sent: "आमंत्रण भेजा गया।",
-        sendFailed: "आमंत्रण नहीं भेजा जा सका।",
-        accept: "स्वीकारें",
-        decline: "अस्वीकारें",
-        respondFailed: "आमंत्रण का उत्तर नहीं दिया जा सका।",
-        empty: "अभी कोई आमंत्रण नहीं।",
-      },
-      nav: {
-        profile: "प्रोफ़ाइल",
-        browse: "खोजें",
-        likes: "पसंद",
-        meetings: "मुलाक़ातें",
-        books: "पुस्तकें",
-      },
     },
     contacts: {
       title: "संपर्क",
@@ -1503,6 +1360,246 @@ export const dictionaries: Record<Language, Dictionary> = {
       detailFallback: "Travel detail pages और booking UX इस route पर आगे जोड़े जा सकते हैं।",
       datesMissing: "तिथियाँ उपलब्ध नहीं हैं",
     },
+    union: {
+      eyebrow: "यूनियन",
+      title: "मूल्यों पर आधारित परिचय",
+      subtitle: "परिवार, मित्रता, काम और सेवा के लिए लोगों को खोजें, फिर LKM से विवरण समझदारी से खोलें।",
+      profileSubtitle: "अपनी प्रोफ़ाइल, सोशल लिंक और प्रकाशन के लिए आवश्यक जानकारी पूरी करें।",
+      requestsSubtitle: "अनुरोध संभालें और आपसी सहमति के बाद ही चैट खोलें।",
+      publicTitle: "शोर-शराबे से दूर सचेत परिचय",
+      publicBody: "साझा मूल्यों के आधार पर परिवार, मित्रता, प्रोजेक्ट और सेवा खोजने वालों के लिए केंद्रित स्थान।",
+      publicPrimary: "लॉगिन करें",
+      publicSecondary: "प्रोफ़ाइल बनाएँ",
+      publicStatsLabel: "यूनियन प्रोफ़ाइल",
+      publicTrust: "प्रोफ़ाइल प्रकाशन जाँच से गुजरती हैं और सहमति के बाद विवरण खुलते हैं।",
+      publicModesTitle: "अपना संबंध मोड चुनें",
+      publicModeBodies: {
+        family: "जीवन साथी और परिपक्व पारिवारिक चयन।",
+        friendship: "अभ्यास, रुचियों और मार्ग से जुड़े लोग।",
+        business: "साझा सिद्धांतों वाले साझेदार, टीमें और प्रोजेक्ट।",
+        seva: "साथ मिलकर सेवा और उपयोगी पहल।",
+      },
+      publicMale: "पुरुष",
+      publicFemale: "महिला",
+      navSearch: "खोज",
+      navProfile: "प्रोफ़ाइल",
+      navRequests: "अनुरोध",
+      navChats: "चैट",
+      navWallet: "वॉलेट",
+      navLabel: "यूनियन नेविगेशन",
+      brandSubtitle: "सचेत परिचय",
+      balanceLabel: "LKM बैलेंस",
+      topUp: "टॉप अप",
+      filters: "फ़िल्टर",
+      mode: "मोड",
+      allModes: "सभी मोड",
+      family: "परिवार",
+      friendship: "मित्रता",
+      business: "व्यवसाय",
+      seva: "सेवा",
+      city: "शहर",
+      minAge: "उम्र से",
+      maxAge: "उम्र तक",
+      madh: "परंपरा",
+      identity: "पहचान",
+      skills: "कौशल",
+      industry: "क्षेत्र",
+      search: "दिखाएँ",
+      reset: "रीसेट",
+      createProfile: "प्रोफ़ाइल बनाएँ",
+      editProfile: "प्रोफ़ाइल संपादित करें",
+      requests: "अनुरोध",
+      unlock: "खोलें",
+      unlocked: "खुली हुई",
+      locked: "बंद",
+      lockedHint: "प्रोफ़ाइल विवरण LKM से खोलने के बाद उपलब्ध हैं।",
+      unlockProfile: "प्रोफ़ाइल खोलें",
+      unlockCost: "लागत: {price} LKM",
+      insufficientBalance: "इस प्रोफ़ाइल को खोलने के लिए पर्याप्त LKM नहीं है।",
+      openWallet: "वॉलेट खोलें",
+      writeRequest: "चैट अनुरोध भेजें",
+      requestMessagePlaceholder: "संक्षेप में लिखें कि आप बात क्यों करना चाहते हैं.",
+      sendRequest: "अनुरोध भेजें",
+      requestPending: "अनुरोध प्रतीक्षा में है",
+      requestAccepted: "चैट स्वीकृत है",
+      requestRejected: "अनुरोध अस्वीकार हुआ",
+      openChat: "चैट खोलें",
+      incomingRequests: "आने वाले",
+      outgoingRequests: "भेजे गए",
+      noRequests: "अभी कोई अनुरोध नहीं है.",
+      accept: "स्वीकार करें",
+      reject: "अस्वीकार करें",
+      cancel: "रद्द करें",
+      profileTitle: "यूनियन प्रोफ़ाइल",
+      socialLinks: "सोशल लिंक",
+      socialLinkUrl: "लिंक",
+      addSocialLink: "लिंक जोड़ें",
+      saveProfile: "प्रोफ़ाइल सहेजें",
+      submitProfile: "प्रकाशन के लिए भेजें",
+      photos: "फ़ोटो",
+      photosHint: "मुख्य फ़ोटो और गैलरी के लिए अतिरिक्त तस्वीरें अपलोड करें.",
+      uploadPhoto: "फ़ोटो अपलोड करें",
+      uploadingPhoto: "अपलोड हो रहा है...",
+      photoUploaded: "फ़ोटो अपलोड हो गई.",
+      photoDeleted: "फ़ोटो हटाई गई.",
+      mainPhoto: "मुख्य",
+      mainPhotoUpdated: "मुख्य फ़ोटो अपडेट हुई.",
+      setMainPhoto: "मुख्य बनाएँ",
+      deletePhoto: "फ़ोटो हटाएँ",
+      noPhotos: "अभी कोई फ़ोटो नहीं है.",
+      showCityOptions: "शहर दिखाएँ",
+      age: "उम्र",
+      country: "देश",
+      bio: "परिचय",
+      intentions: "इरादे",
+      interests: "रुचियाँ",
+      compatibility: "अनुकूलता",
+      details: "विवरण",
+      paidAccess: "सशुल्क पहुंच",
+      socialLinksLocked: "सोशल लिंक प्रोफ़ाइल खुलने तक बंद हैं.",
+      postsLocked: "पोस्ट प्रोफ़ाइल खुलने तक बंद हैं.",
+      noSocialLinks: "कोई सोशल लिंक नहीं है.",
+      noPosts: "अभी कोई पोस्ट नहीं है.",
+      platform: "प्लेटफ़ॉर्म",
+      visible: "खोलने के बाद दिखेगा",
+      hidden: "छिपा हुआ",
+      datingEnabled: "प्रोफ़ाइल सक्रिय",
+      publicationStatus: "प्रकाशन स्थिति",
+      profileSaved: "प्रोफ़ाइल सहेजी गई.",
+      profileSubmitted: "प्रोफ़ाइल प्रकाशन के लिए भेजी गई.",
+      requestSent: "अनुरोध भेज दिया गया.",
+      actionFailed: "क्रिया पूरी नहीं हुई.",
+      chatGateHint: "अनुरोध स्वीकार होने के बाद चैट खुलेगी.",
+      balanceUnavailable: "बैलेंस उपलब्ध नहीं",
+      empty: "अभी कोई प्रोफ़ाइल नहीं मिली.",
+      loadFailed: "यूनियन लोड नहीं हो सका.",
+      optionLabels: {
+        cities: {
+          "Abu Dhabi": "अबू धाबी",
+          Amsterdam: "एम्स्टर्डम",
+          Ankara: "अंकारा",
+          Bangkok: "बैंकॉक",
+          Bangalore: "बेंगलुरु",
+          Barcelona: "बार्सिलोना",
+          Beijing: "बीजिंग",
+          Berlin: "बर्लिन",
+          Birmingham: "बर्मिंघम",
+          Brussels: "ब्रसेल्स",
+          Chennai: "चेन्नई",
+          Chicago: "शिकागो",
+          Delhi: "दिल्ली",
+          Dubai: "दुबई",
+          Dublin: "डबलिन",
+          Geneva: "जिनेवा",
+          Hanoi: "हनोई",
+          Helsinki: "हेलसिंकी",
+          "Ho Chi Minh City": "हो ची मिन्ह सिटी",
+          HongKong: "हांगकांग",
+          Hyderabad: "हैदराबाद",
+          Istanbul: "इस्तांबुल",
+          Jakarta: "जकार्ता",
+          Jerusalem: "यरूशलम",
+          Kazan: "कज़ान",
+          Kolkata: "कोलकाता",
+          London: "लंदन",
+          "Los Angeles": "लॉस एंजेलिस",
+          Madrid: "मैड्रिड",
+          Mayapur: "मायापुर",
+          MexicoCity: "मेक्सिको सिटी",
+          "Mexico City": "मेक्सिको सिटी",
+          Moscow: "मॉस्को",
+          Mumbai: "मुंबई",
+          Munich: "म्यूनिख",
+          "New York": "न्यूयॉर्क",
+          "Nizhny Novgorod": "निझनी नोवगोरोद",
+          Novosibirsk: "नोवोसिबिर्स्क",
+          Paris: "पेरिस",
+          Prague: "प्राग",
+          Rome: "रोम",
+          "Saint Petersburg": "सेंट पीटर्सबर्ग",
+          Seoul: "सियोल",
+          Singapore: "सिंगापुर",
+          Stockholm: "स्टॉकहोम",
+          Sydney: "सिडनी",
+          TelAviv: "तेल अवीव",
+          "Tel Aviv": "तेल अवीव",
+          Tokyo: "टोक्यो",
+          Toronto: "टोरंटो",
+          Vancouver: "वैंकूवर",
+          Vienna: "वियना",
+          Vrindavan: "वृंदावन",
+          Warsaw: "वारसॉ",
+          Yekaterinburg: "येकातेरिनबर्ग",
+        },
+        countries: {
+          Afghanistan: "अफ़ग़ानिस्तान",
+          Albania: "अल्बानिया",
+          Algeria: "अल्जीरिया",
+          Argentina: "अर्जेंटीना",
+          Australia: "ऑस्ट्रेलिया",
+          Austria: "ऑस्ट्रिया",
+          Belgium: "बेल्जियम",
+          Brazil: "ब्राज़ील",
+          Canada: "कनाडा",
+          China: "चीन",
+          Colombia: "कोलंबिया",
+          "Czech Republic": "चेक गणराज्य",
+          Denmark: "डेनमार्क",
+          Egypt: "मिस्र",
+          Finland: "फ़िनलैंड",
+          France: "फ़्रांस",
+          Germany: "जर्मनी",
+          Greece: "ग्रीस",
+          Hungary: "हंगरी",
+          India: "भारत",
+          Indonesia: "इंडोनेशिया",
+          Ireland: "आयरलैंड",
+          Israel: "इज़राइल",
+          Italy: "इटली",
+          Japan: "जापान",
+          Malaysia: "मलेशिया",
+          Mexico: "मेक्सिको",
+          Netherlands: "नीदरलैंड",
+          "New Zealand": "न्यूज़ीलैंड",
+          Norway: "नॉर्वे",
+          Philippines: "फ़िलिपींस",
+          Poland: "पोलैंड",
+          Portugal: "पुर्तगाल",
+          Romania: "रोमानिया",
+          Russia: "रूस",
+          "Saudi Arabia": "सऊदी अरब",
+          "South Africa": "दक्षिण अफ्रीका",
+          "South Korea": "दक्षिण कोरिया",
+          Spain: "स्पेन",
+          Sweden: "स्वीडन",
+          Switzerland: "स्विट्ज़रलैंड",
+          Thailand: "थाईलैंड",
+          Turkey: "तुर्की",
+          Ukraine: "यूक्रेन",
+          "United Arab Emirates": "संयुक्त अरब अमीरात",
+          "United Kingdom": "यूनाइटेड किंगडम",
+          "United States": "संयुक्त राज्य अमेरिका",
+          Vietnam: "वियतनाम",
+        },
+        madh: {
+          ISKCON: "इस्कॉन",
+          "Brahma-Madhva-Gaudiya": "ब्रह्म-माध्व-गौड़ीय",
+          "Sri Sampradaya (Ramanuja)": "श्री संप्रदाय (रामानुज)",
+          "Brahma Sampradaya (Madhvacharya)": "ब्रह्म संप्रदाय (मध्वाचार्य)",
+          "Rudra Sampradaya (Vishnuswami)": "रुद्र संप्रदाय (विष्णुस्वामी)",
+          "Kumara Sampradaya (Nimbarka)": "कुमार संप्रदाय (निंबार्क)",
+          "Шри Чайтанья Сарасват Матх": "श्री चैतन्य सारस्वत मठ",
+          "Международное Общество Чистой Бхакти-йоги": "शुद्ध भक्ति योग का अंतरराष्ट्रीय समाज",
+          "Шри Гопинатх Гаудия": "श्री गोपीनाथ गौड़ीय",
+          "Шри Чайтанья Матх": "श्री चैतन्य मठ",
+          Other: "अन्य",
+        },
+        identity: {
+          Yogi: "योगी",
+          "In Goodness": "सत्त्व में",
+        },
+      },
+    },
     support: {
       eyebrow: "यूटिलिटी डोमेन",
       title: "सपोर्ट",
@@ -1540,6 +1637,7 @@ export const dictionaries: Record<Language, Dictionary> = {
       retry: "फिर से प्रयास करें",
       open: "खोलें",
       details: "विवरण",
+      close: "बंद करें",
     },
   },
 };
