@@ -6,7 +6,7 @@
 **Запрос**:
 ну там  даже админка старая ты правишь в старом сайте
 
-**Статус**: 🔄 В работе — предыдущая гипотеза про один landing-текст недостаточна; проверяется, какая ветка/service содержит актуальный Union сайт и кабинет целиком.
+**Статус**: ✅ Выполнено — найдено, что актуальный Union site/cabinet был в `feat/vedabase`, а production правил старый surface; web/shared frontend surface перенесен в `feat/union-web-prod`, guard обновлен, `main` синхронизирован, production service пересобран. Live root визуально совпадает с новым темным landing, `/app` показывает новый Union login, `/app/dating` теперь `404`, `/app/union/requests` `200`.
 
 ---
 
@@ -16,7 +16,7 @@
 **Запрос**:
 ну на сайте сейчас старая версия
 
-**Статус**: 🔄 В работе — live HTML с cache-bust уже отдает `Осознанные знакомства без лишнего шума`; проверяются домены, routing, контейнер и возможный browser/cache слой.
+**Статус**: ✅ Выполнено — причина была не browser cache, а старый production web surface; после переноса актуального Union surface live проверен через curl и Playwright screenshot.
 
 ---
 
