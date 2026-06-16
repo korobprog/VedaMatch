@@ -22,7 +22,9 @@ COPY --from=deps /app/packages ./packages
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
+COPY scripts/verify-union-web-source.sh ./scripts/verify-union-web-source.sh
 
+RUN sh ./scripts/verify-union-web-source.sh .
 RUN pnpm --dir apps/web run build
 
 FROM node:20-alpine AS runner

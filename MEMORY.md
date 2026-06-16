@@ -13,6 +13,8 @@
 - Если пользователь пишет «git hab cli», это, как правило, означает `GitHub CLI` (`gh`).
 - Базовая настройка: установить `gh`, выполнить `gh auth login`, затем проверить доступ командой `gh auth status`.
 - Для GitHub workflow в репозитории полезно держать в голове, что `gh` обычно используют вместе с `gh repo view`, `gh pr list`, `gh pr checkout`, `gh pr create` и `gh pr review`.
+- Если Codex App не показывает ветку в выпадающем списке, сначала проверить реальный git state: `git branch --all --list '*<name>*'`; для `feat/vedabase` подтверждено, что локальная и remote-ветки существуют, а переключение через терминал работает.
+- 2026-06-15 диагностика `git push origin feat/vedabase`: `gh` установлен и авторизован как `korobprog`, repository permission для `korobprog/VedaMatch` показывает `push/admin=true`, но HTTPS push в `origin` (`https://github.com/korobprog/vedicai.git`, GitHub резолвит как `korobprog/VedaMatch`) падает с `403 Permission denied`, а API write-probe отвечает `Resource not accessible by personal access token`; причина — ограниченный PAT без `contents: write`/repo write. Рабочее исправление: обновить авторизацию `gh auth refresh -h github.com -s repo` или перелогиниться `gh auth login --web --git-protocol https --scopes repo`, затем повторить push.
 
 ## Ekadashi Calendar
 - Runtime календаря не должен оставлять месяц пустым только из-за отсутствия точного `scope_key`; если для профиля нет exact publication, backend выбирает ближайшую активную publication того же `organization_id` и помечает ответ `providerDecision.reason = "scope_fallback"`.
@@ -32,6 +34,7 @@
 ## Dating / Union
 - В Union web меню ссылка на книги Vedabase должна быть языковой: `ru` ведет на `https://vedabase.vedamatch.ru`, `en` и `hi` ведут на `https://vedabase.vedamatch.com`.
 - Production Union в Dokploy обслуживает application `Xizo5ft8Pdt1nVUQUluIH` / service `app-override-open-source-alarm-gmfjt2`; с 2026-06-16 приложение настроено на ветку `feat/union-web-prod`, а не `main`, чтобы Union web changes выкатывались из отдельной ветки.
+- Source-of-truth для production Union web — `feat/union-web-prod`; `main` и `feat/vedabase` не должны использоваться как deploy source для Union. Docker build вызывает `scripts/verify-union-web-source.sh`, который падает, если в source нет актуального Union landing, `/app -> /app/union`, `/app/union/*` и ключевых dating routes.
 - Для Union web login production CORS должен разрешать `https://union.vedamatch.ru` и `https://union.vedamatch.com` не только в code defaults `server/cmd/api/main.go`, но и в Dokploy/Swarm env `ALLOWED_ORIGINS`, потому что env дополняет/переопределяет production-поведение при старых образах и может пережить redeploy.
 - 2026-06-13 production hotfix: `vedamatch-server-dnkxc8` был обновлен через Docker service env, после чего preflight `OPTIONS https://api.vedamatch.ru/api/login` с `Origin: https://union.vedamatch.ru` стал отвечать `Access-Control-Allow-Origin: https://union.vedamatch.ru`.
 - Для web Union в `apps/web` принят route `/app/dating`: он должен использовать существующие backend contracts `/dating/profile/:id`, `/dating/profile/:id/submit`, `/media/upload/:userId` и `/media/:id/set-profile`, без отдельного web-only photo backend.
