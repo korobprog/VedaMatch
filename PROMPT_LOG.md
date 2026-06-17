@@ -256,3 +256,6 @@ f_ @ 81bc8d16183ed120.js:1
 
 **Статус**: ?? В работе — проверяю routes backend и public assets Vedabase.
 
+
+**Итог 2026-06-17 21:21:38 +10:00**: ? Исправлены оставшиеся production 404: backend main получил protected routes /api/vedabase/bookmarks и /api/vedabase/progress; AutoMigrate добавлен для UserBookmark/UserReadingProgress; Vedabase web получил explicit metadata icons и rewrite /favicon.ico -> /icon-192.png. Live: favicon.ico 200, API routes больше не 404, CORS preflight PUT progress 204.
+
