@@ -38,6 +38,8 @@ func TestDefaultAllowedOriginsIncludesUnionWeb(t *testing.T) {
 	for _, origin := range []string{
 		"https://union.vedamatch.ru",
 		"https://union.vedamatch.com",
+		"https://vedabase.vedamatch.ru",
+		"https://vedabase.vedamatch.com",
 	} {
 		if !set[origin] {
 			t.Fatalf("expected default allowed origins to include %s", origin)

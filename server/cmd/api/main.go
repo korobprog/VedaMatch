@@ -1481,6 +1481,8 @@ func defaultAllowedOrigins() []string {
 		"https://lkm.vedamatch.com",
 		"https://union.vedamatch.ru",
 		"https://union.vedamatch.com",
+		"https://vedabase.vedamatch.ru",
+		"https://vedabase.vedamatch.com",
 	}
 }
 
