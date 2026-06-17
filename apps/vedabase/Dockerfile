@@ -37,6 +37,7 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/apps/vedabase/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/vedabase/.next/static ./apps/vedabase/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/vedabase/public ./apps/vedabase/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/vedabase/public ./public
 
 USER nextjs
 
