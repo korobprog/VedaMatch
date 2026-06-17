@@ -97,6 +97,8 @@ func Connect() {
 		// Library models
 		&models.ScriptureCanto{}, &models.ScriptureChapter{},
 		&models.ScriptureVerse{}, // Dependent on ScriptureBook
+		// Vedabase per-user reading state
+		&models.UserBookmark{}, &models.UserReadingProgress{},
 		// Tags
 		&models.Tag{}, &models.UserTag{},
 		// News models

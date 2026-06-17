@@ -248,3 +248,11 @@ f_ @ 81bc8d16183ed120.js:1
 
 **Итог 2026-06-17 20:41:27 +10:00**: ? Исправлено в production — CORS для https://vedabase.vedamatch.ru отдаёт корректный Access-Control-Allow-Origin; /icon-192.png и /icon-512.png на vedabase.vedamatch.ru отдают 200 OK после deploy. Коммиты: main f5c44f2b, feat/vedabase 6fff4f8d и 7cf28329.
 
+
+## 2026-06-17 20:42:44 +10:00 — Vedabase production remaining 404 errors
+
+**Время**: 2026-06-17 20:42:44 +10:00
+**Запрос**: сайт работает, но в консоли остаются 404: /favicon.ico, /api/vedabase/progress, /api/vedabase/bookmarks.
+
+**Статус**: ?? В работе — проверяю routes backend и public assets Vedabase.
+

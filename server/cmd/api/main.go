@@ -571,6 +571,13 @@ func main() {
 	// Protected Routes (Apply Protected middleware to all following routes)
 	protected := api.Group("/", middleware.Protected())
 
+	// Vedabase reading state (bookmarks + reading progress), synced per-user
+	protected.Get("/vedabase/bookmarks", handlers.GetVedabaseBookmarks)
+	protected.Post("/vedabase/bookmarks", handlers.CreateVedabaseBookmark)
+	protected.Delete("/vedabase/bookmarks/:id", handlers.DeleteVedabaseBookmark)
+	protected.Get("/vedabase/progress", handlers.GetVedabaseProgress)
+	protected.Put("/vedabase/progress", handlers.UpsertVedabaseProgress)
+
 	// Protected Support Routes (in-app tickets)
 	protected.Get("/auth/providers", authHandler.GetLinkedAuthProviders)
 	protected.Post("/auth/google/link", authHandler.GoogleLink)
