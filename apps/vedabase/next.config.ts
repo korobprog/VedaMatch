@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icon-192.png" }];
+  },
 };
 
 export default process.env.NODE_ENV === "development" ? nextConfig : withPWA(nextConfig);
