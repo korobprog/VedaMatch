@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "Vedabase — Ведическая библиотека",
   description: "Читайте ведические книги онлайн и офлайн. Единый аккаунт VedaMatch.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-192.png",
+    shortcut: "/icon-192.png",
+    apple: "/icon-512.png",
+  },
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
