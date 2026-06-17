@@ -245,3 +245,6 @@ f_ @ 81bc8d16183ed120.js:1
 
 **Обновление 2026-06-17 20:17:35 +10:00**: локально добавлен CORS allowlist для vedabase origins в backend; Go test ./cmd/api прошёл; подготовлены icon-192/icon-512 в отдельном worktree feat/vedabase.
 
+
+**Итог 2026-06-17 20:41:27 +10:00**: ? Исправлено в production — CORS для https://vedabase.vedamatch.ru отдаёт корректный Access-Control-Allow-Origin; /icon-192.png и /icon-512.png на vedabase.vedamatch.ru отдают 200 OK после deploy. Коммиты: main f5c44f2b, feat/vedabase 6fff4f8d и 7cf28329.
+
