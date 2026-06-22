@@ -486,7 +486,7 @@ func SeedSystemSettings() {
 		},
 		{
 			Key:   "NEUROGATE_IMAGE_MODEL",
-			Value: "flux-1-schnell",
+			Value: "gpt-5.5",
 		},
 		{
 			Key:   "MOTIVATION_LANGUAGES",

@@ -24,9 +24,11 @@ import (
 // they can come from system_settings or env vars without restarts.
 
 const (
-	neurogateDefaultBaseURL    = "https://api.neurogate.space/v1"
-	neurogateDefaultTextModel  = "deepseek-v4-flash"
-	neurogateDefaultImageModel = "flux-1-schnell"
+	neurogateDefaultBaseURL = "https://api.neurogate.space/v1"
+	neurogateDefaultTextModel = "deepseek-v4-flash"
+	// Image generation goes through the Responses API image_generation tool,
+	// which requires a TEXT-capable model (not a gpt-image-* model).
+	neurogateDefaultImageModel = "gpt-5.5"
 )
 
 type NeuroGateClient struct {
@@ -47,7 +49,7 @@ type NeuroGateConfig struct {
 
 func NewNeuroGateClient(cfg NeuroGateConfig) *NeuroGateClient {
 	return &NeuroGateClient{
-		httpClient: &http.Client{Timeout: 120 * time.Second},
+		httpClient: &http.Client{Timeout: 240 * time.Second},
 		apiKey:     cfg.APIKey,
 		baseURL:    cfg.BaseURL,
 		textModel:  cfg.TextModel,
@@ -173,22 +175,33 @@ func (c *NeuroGateClient) Chat(ctx context.Context, system, user string, opts Ch
 	return strings.TrimSpace(parsed.Choices[0].Message.Content), nil
 }
 
-type neurogateImageRequest struct {
-	Model          string `json:"model"`
-	Prompt         string `json:"prompt"`
-	N              int    `json:"n"`
-	Size           string `json:"size,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
+// Responses API image generation payload (hosted image_generation tool).
+type neurogateImageTool struct {
+	Type         string `json:"type"`
+	Action       string `json:"action"`
+	OutputFormat string `json:"output_format"`
+	Size         string `json:"size,omitempty"`
+	Quality      string `json:"quality,omitempty"`
 }
 
-type neurogateImageResponse struct {
-	Data []struct {
-		URL     string `json:"url"`
-		B64JSON string `json:"b64_json"`
-	} `json:"data"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
+type neurogateResponsesContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type neurogateResponsesInput struct {
+	Role    string                      `json:"role"`
+	Content []neurogateResponsesContent `json:"content"`
+}
+
+type neurogateResponsesRequest struct {
+	Model        string                    `json:"model"`
+	Instructions string                    `json:"instructions"`
+	Input        []neurogateResponsesInput `json:"input"`
+	Tools        []neurogateImageTool      `json:"tools"`
+	ToolChoice   map[string]string         `json:"tool_choice"`
+	Store        bool                      `json:"store"`
+	Stream       bool                      `json:"stream"`
 }
 
 // GeneratedImage holds the raw bytes and content type of a generated image.
@@ -199,12 +212,15 @@ type GeneratedImage struct {
 
 // ImageOptions configures a single image-generation request.
 type ImageOptions struct {
-	Model string
-	Size  string
+	Model   string
+	Size    string
+	Quality string
 }
 
-// GenerateImage requests an image and returns its bytes. It handles both
-// b64_json and url response formats (downloading the URL when needed).
+// GenerateImage requests an image through the NeuroGate Responses API hosted
+// image_generation tool (the OpenAI-style /v1/images endpoint is not supported
+// by this gateway). The response is an SSE stream; the final
+// image_generation_call item carries the base64 PNG in its "result" field.
 func (c *NeuroGateClient) GenerateImage(ctx context.Context, prompt string, opts ImageOptions) (*GeneratedImage, error) {
 	apiKey := c.resolveAPIKey()
 	if apiKey == "" {
@@ -215,66 +231,91 @@ func (c *NeuroGateClient) GenerateImage(ctx context.Context, prompt string, opts
 		size = "1024x1024"
 	}
 
-	reqBody := neurogateImageRequest{
-		Model:          c.resolveImageModel(opts.Model),
-		Prompt:         prompt,
-		N:              1,
-		Size:           size,
-		ResponseFormat: "b64_json",
+	tool := neurogateImageTool{
+		Type:         "image_generation",
+		Action:       "generate",
+		OutputFormat: "png",
+		Size:         size,
+	}
+	if q := strings.TrimSpace(opts.Quality); q != "" {
+		tool.Quality = q
 	}
 
-	respBody, err := c.do(ctx, "/images/generations", reqBody)
+	reqBody := neurogateResponsesRequest{
+		Model:        c.resolveImageModel(opts.Model),
+		Instructions: "You are an image generation assistant. Use the image_generation tool to create exactly one image that matches the user request. Do not render any text in the image.",
+		Input: []neurogateResponsesInput{
+			{Role: "user", Content: []neurogateResponsesContent{{Type: "input_text", Text: prompt}}},
+		},
+		Tools:      []neurogateImageTool{tool},
+		ToolChoice: map[string]string{"type": "image_generation"},
+		Store:      false,
+		Stream:     true,
+	}
+
+	respBody, err := c.do(ctx, "/responses", reqBody)
 	if err != nil {
 		return nil, err
 	}
 
-	var parsed neurogateImageResponse
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return nil, fmt.Errorf("neurogate image decode failed: %w", err)
+	b64 := extractResponsesImageB64(respBody)
+	if b64 == "" {
+		return nil, fmt.Errorf("neurogate responses returned no image_generation_call result")
 	}
-	if parsed.Error != nil && parsed.Error.Message != "" {
-		return nil, fmt.Errorf("neurogate image error: %s", parsed.Error.Message)
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, fmt.Errorf("neurogate image base64 decode failed: %w", err)
 	}
-	if len(parsed.Data) == 0 {
-		return nil, fmt.Errorf("neurogate image returned no data")
-	}
-
-	first := parsed.Data[0]
-	if strings.TrimSpace(first.B64JSON) != "" {
-		data, err := base64.StdEncoding.DecodeString(first.B64JSON)
-		if err != nil {
-			return nil, fmt.Errorf("neurogate image base64 decode failed: %w", err)
-		}
-		return &GeneratedImage{Bytes: data, ContentType: "image/png"}, nil
-	}
-	if strings.TrimSpace(first.URL) != "" {
-		return c.downloadImage(ctx, first.URL)
-	}
-	return nil, fmt.Errorf("neurogate image response had neither b64_json nor url")
+	return &GeneratedImage{Bytes: data, ContentType: "image/png"}, nil
 }
 
-func (c *NeuroGateClient) downloadImage(ctx context.Context, url string) (*GeneratedImage, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
+// extractResponsesImageB64 walks the SSE body and returns the last base64 image
+// result found in an image_generation_call event.
+func extractResponsesImageB64(body []byte) string {
+	var last string
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		var event map[string]interface{}
+		if err := json.Unmarshal([]byte(payload), &event); err != nil {
+			continue
+		}
+		if result := findImageResult(event); result != "" {
+			last = result
+		}
 	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
+	return last
+}
+
+// findImageResult recursively searches a decoded SSE event for the base64
+// result of a completed image_generation_call.
+func findImageResult(value interface{}) string {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		if t, _ := v["type"].(string); t == "image_generation_call" {
+			if r, ok := v["result"].(string); ok && r != "" {
+				return r
+			}
+		}
+		for _, nested := range v {
+			if r := findImageResult(nested); r != "" {
+				return r
+			}
+		}
+	case []interface{}:
+		for _, nested := range v {
+			if r := findImageResult(nested); r != "" {
+				return r
+			}
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("neurogate image download failed: status=%d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if contentType == "" {
-		contentType = "image/png"
-	}
-	return &GeneratedImage{Bytes: data, ContentType: contentType}, nil
+	return ""
 }
 
 func (c *NeuroGateClient) do(ctx context.Context, path string, payload interface{}) ([]byte, error) {
