@@ -86,7 +86,7 @@ func Connect() {
 		&models.CallQualityFeedback{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.DatingSocialLink{}, &models.DatingPost{},
-		&models.DatingProfileApproval{}, &models.DatingModerationEvent{}, &models.DatingMeetingInvite{}, &models.DatingModerationJob{},
+		&models.DatingProfileApproval{}, &models.DatingModerationEvent{}, &models.DatingMeetingInvite{}, &models.DatingChatRequest{}, &models.DatingModerationJob{},
 		&models.ConnectCommunity{}, &models.ConnectOpportunity{},
 		&models.ConnectMatchProfile{}, &models.ConnectApplication{}, &models.ConnectFeedback{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
@@ -127,6 +127,8 @@ func Connect() {
 		&models.SupportMessage{}, &models.SupportOperatorRelay{},
 		&models.SupportFAQItem{}, &models.SupportTelegramUpdate{},
 		&models.SupportQuestionVote{},
+		// Motivation (motivation.vedamatch.ru) models
+		&models.MotivationPost{}, &models.MotivationPostTranslation{},
 		// Cafe models
 		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
 		&models.CafeReview{}, &models.WaiterCall{},

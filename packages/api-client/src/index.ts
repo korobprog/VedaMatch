@@ -33,8 +33,8 @@ import type {
 } from "@vedamatch/domain-types";
 import { normalizeLanguage } from "@vedamatch/i18n";
 
-export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "vedabase" | "local" | "unknown";
-export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "vedabase" | "api";
+export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "vedabase" | "motivation" | "local" | "unknown";
+export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "vedabase" | "motivation" | "api";
 export type ContactsQueryOptions = {
   tab?: "all" | "friends" | "blocked";
   q?: string;
@@ -96,13 +96,16 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   if (normalized === "vedabase.vedamatch.ru" || normalized === "vedabase.vedamatch.com") {
     return "vedabase";
   }
+  if (normalized === "motivation.vedamatch.ru" || normalized === "motivation.vedamatch.com") {
+    return "motivation";
+  }
   return "unknown";
 }
 
 export function buildVedamatchOrigin(hostname: string, subdomain: VedamatchSubdomain): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : subdomain === "vedabase" ? "3008" : "3010";
+    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : subdomain === "vedabase" ? "3008" : subdomain === "motivation" ? "3009" : "3010";
     return `http://${normalized}:${port}`;
   }
 
@@ -444,6 +447,42 @@ export async function getNewsItem(baseUrl: string, id: number, language?: string
   const params = new URLSearchParams();
   params.set("lang", normalizeLanguage(language));
   return apiFetch<NewsItem>(baseUrl, `/news/${id}?${params.toString()}`);
+}
+
+// ---- Motivation (motivation.vedamatch.ru) ----
+
+export type MotivationPost = {
+  id: number;
+  theme: string;
+  imageUrl: string;
+  language: string;
+  title: string;
+  text: string;
+  publishedAt: string | null;
+};
+
+export type MotivationPostsResponse = {
+  posts: MotivationPost[];
+  nextCursor: number | null;
+};
+
+export async function getMotivationPosts(
+  baseUrl: string,
+  options: { lang?: string; limit?: number; cursor?: number } = {},
+): Promise<MotivationPostsResponse> {
+  const params = new URLSearchParams();
+  if (options.lang) params.set("lang", options.lang);
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.cursor) params.set("cursor", String(options.cursor));
+  const suffix = params.toString();
+  return apiFetch<MotivationPostsResponse>(baseUrl, `/motivation/posts${suffix ? `?${suffix}` : ""}`);
+}
+
+export async function getMotivationPost(baseUrl: string, id: number, lang?: string): Promise<MotivationPost> {
+  const params = new URLSearchParams();
+  if (lang) params.set("lang", lang);
+  const suffix = params.toString();
+  return apiFetch<MotivationPost>(baseUrl, `/motivation/posts/${id}${suffix ? `?${suffix}` : ""}`);
 }
 
 export async function getWallet(baseUrl: string, accessToken: string): Promise<WalletResponse> {

@@ -471,6 +471,35 @@ func SeedSystemSettings() {
 			Key:   "SUPPORT_TELEGRAM_BOT_URL",
 			Value: "https://t.me/vedamatch_bot",
 		},
+		// Motivation (motivation.vedamatch.ru) — NeuroGate AI + content config
+		{
+			Key:   "NEUROGATE_API_KEY",
+			Value: "",
+		},
+		{
+			Key:   "NEUROGATE_BASE_URL",
+			Value: "https://api.neurogate.space/v1",
+		},
+		{
+			Key:   "NEUROGATE_MODEL",
+			Value: "deepseek-v4-flash",
+		},
+		{
+			Key:   "NEUROGATE_IMAGE_MODEL",
+			Value: "flux-1-schnell",
+		},
+		{
+			Key:   "MOTIVATION_LANGUAGES",
+			Value: "en,zh,hi,es,ar,fr,bn,pt,ru,id",
+		},
+		{
+			Key:   "MOTIVATION_DEFAULT_CHAR_LIMIT",
+			Value: "280",
+		},
+		{
+			Key:   "ADMIN_BASE_URL",
+			Value: "https://admin.vedamatch.ru",
+		},
 		{
 			Key:   "SUPPORT_LKM_WEBAPP_URL_RU",
 			Value: "https://lkm.vedamatch.ru/?tg=1",

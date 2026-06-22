@@ -35,6 +35,7 @@ import {
     Waves,
     PhoneCall,
     CalendarDays,
+    Quote,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
@@ -59,6 +60,7 @@ const menuItems = [
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
     { icon: Newspaper, label: 'News', path: '/news' },
+    { icon: Quote, label: 'Motivation', path: '/motivation' },
     { icon: GraduationCap, label: 'Education', path: '/education' },
     { icon: Library, label: 'Knowledge Base', path: '/library' },
     { icon: Compass, label: 'Yatra Travel', path: '/yatra' },

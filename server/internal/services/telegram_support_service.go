@@ -60,6 +60,7 @@ type TelegramSupportService struct {
 	client           TelegramSupportClient
 	mediaStorage     SupportMediaStorage
 	aiResponder      SupportAIResponder
+	motivation       *MotivationService
 	settingsProvider func(key string) string
 	now              func() time.Time
 }
@@ -83,6 +84,7 @@ func NewTelegramSupportService(db *gorm.DB) *TelegramSupportService {
 		store:        NewGormSupportStore(db),
 		mediaStorage: NewDefaultSupportMediaStorage(),
 		aiResponder:  NewSupportAIService(db),
+		motivation:   NewMotivationService(db),
 		now:          time.Now,
 	}
 	svc.settingsProvider = func(key string) string {
@@ -442,6 +444,10 @@ func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg 
 		return s.handleOperatorResolve(ctx, msg, operatorChatID)
 	}
 
+	if strings.HasPrefix(strings.ToLower(text), "/motivation") {
+		return s.handleOperatorMotivation(ctx, text, operatorChatID)
+	}
+
 	if msg.ReplyToMessage == nil {
 		return nil
 	}
@@ -524,6 +530,79 @@ func (s *TelegramSupportService) handleOperatorDirectSend(ctx context.Context, t
 	}
 
 	s.sendMessageBestEffort(ctx, operatorChatID, "Direct send: ok")
+	return nil
+}
+
+// handleOperatorMotivation creates a motivational post from a Telegram command.
+// Format: /motivation <theme> [| <links>] [| <char limit>]
+// Generation runs in the background (it can take minutes); the operator gets an
+// immediate ack and a follow-up message with a moderation link when done.
+func (s *TelegramSupportService) handleOperatorMotivation(ctx context.Context, text string, operatorChatID int64) error {
+	if s.motivation == nil {
+		s.sendMessageBestEffort(ctx, operatorChatID, "Motivation service is not configured")
+		return nil
+	}
+
+	body := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "/motivation"))
+	if body == "" {
+		s.sendMessageBestEffort(ctx, operatorChatID, "Usage: /motivation <тема> [| ссылки] [| лимит символов]")
+		return nil
+	}
+
+	parts := strings.Split(body, "|")
+	theme := strings.TrimSpace(parts[0])
+	if theme == "" {
+		s.sendMessageBestEffort(ctx, operatorChatID, "Тема обязательна. Usage: /motivation <тема> [| ссылки] [| лимит]")
+		return nil
+	}
+	var links string
+	var charLimit int
+	if len(parts) > 1 {
+		links = strings.TrimSpace(parts[1])
+	}
+	if len(parts) > 2 {
+		if n, err := strconv.Atoi(strings.TrimSpace(parts[2])); err == nil && n > 0 {
+			charLimit = n
+		}
+	}
+
+	origLang := "ru"
+	if !containsCyrillic(theme) {
+		origLang = "en"
+	}
+
+	post, err := s.motivation.CreateDraft(CreatePostParams{
+		Theme:            theme,
+		SourceLinks:      links,
+		CharLimit:        charLimit,
+		OriginalLanguage: origLang,
+		Source:           models.MotivationPostSourceTelegram,
+		TelegramChatID:   operatorChatID,
+	})
+	if err != nil {
+		s.sendMessageBestEffort(ctx, operatorChatID, "Не удалось создать задание: "+err.Error())
+		return nil
+	}
+
+	s.sendMessageBestEffort(ctx, operatorChatID, fmt.Sprintf("🌀 Генерирую мотивационный пост #%d по теме: %s", post.ID, theme))
+
+	go func(postID uint, theme string) {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := s.motivation.RunGeneration(bgCtx, postID); err != nil {
+			s.sendMessageBestEffort(bgCtx, operatorChatID, fmt.Sprintf("❌ Пост #%d: ошибка генерации: %s", postID, err.Error()))
+			return
+		}
+		adminBase := strings.TrimRight(s.settingsProvider("ADMIN_BASE_URL"), "/")
+		if adminBase == "" {
+			adminBase = "https://admin.vedamatch.ru"
+		}
+		s.sendMessageBestEffort(bgCtx, operatorChatID, fmt.Sprintf(
+			"✅ Пост #%d готов. Модерация: %s/motivation/edit/%d",
+			postID, adminBase, postID,
+		))
+	}(post.ID, theme)
+
 	return nil
 }
 

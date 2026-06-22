@@ -59,6 +59,15 @@ const (
 	DatingMeetingInviteRejected DatingMeetingInviteStatus = "rejected"
 )
 
+type DatingChatRequestStatus string
+
+const (
+	DatingChatRequestPending  DatingChatRequestStatus = "pending"
+	DatingChatRequestAccepted DatingChatRequestStatus = "accepted"
+	DatingChatRequestRejected DatingChatRequestStatus = "rejected"
+	DatingChatRequestCanceled DatingChatRequestStatus = "canceled"
+)
+
 type DatingModerationJobTrigger string
 
 const (
@@ -125,6 +134,17 @@ type DatingMeetingInvite struct {
 	Message     string                    `json:"message" gorm:"type:text"`
 	Status      DatingMeetingInviteStatus `json:"status" gorm:"type:varchar(24);default:'pending';index"`
 	RespondedAt *time.Time                `json:"respondedAt,omitempty"`
+}
+
+type DatingChatRequest struct {
+	gorm.Model
+	RequesterID uint                    `json:"requesterId" gorm:"index"`
+	RecipientID uint                    `json:"recipientId" gorm:"index"`
+	Message     string                  `json:"message" gorm:"type:text"`
+	Status      DatingChatRequestStatus `json:"status" gorm:"type:varchar(24);default:'pending';index"`
+	RespondedAt *time.Time              `json:"respondedAt,omitempty"`
+	Requester   User                    `json:"requester,omitempty" gorm:"foreignKey:RequesterID"`
+	Recipient   User                    `json:"recipient,omitempty" gorm:"foreignKey:RecipientID"`
 }
 
 type DatingModerationJob struct {

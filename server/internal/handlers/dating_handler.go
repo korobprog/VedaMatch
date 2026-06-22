@@ -1025,6 +1025,239 @@ func (h *DatingHandler) DeleteDatingPost(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+type datingChatRequestProfileResponse struct {
+	ID            uint   `json:"ID"`
+	Id            uint   `json:"id"`
+	DisplayName   string `json:"displayName"`
+	SpiritualName string `json:"spiritualName,omitempty"`
+	KarmicName    string `json:"karmicName,omitempty"`
+	Nickname      string `json:"nickname,omitempty"`
+	AvatarURL     string `json:"avatarUrl,omitempty"`
+	City          string `json:"city,omitempty"`
+	Country       string `json:"country,omitempty"`
+}
+
+type datingChatRequestResponse struct {
+	ID          uint                              `json:"ID"`
+	Id          uint                              `json:"id"`
+	RequesterID uint                              `json:"requesterId"`
+	RecipientID uint                              `json:"recipientId"`
+	Message     string                            `json:"message"`
+	Status      models.DatingChatRequestStatus    `json:"status"`
+	Direction   string                            `json:"direction,omitempty"`
+	Requester   *datingChatRequestProfileResponse `json:"requester,omitempty"`
+	Recipient   *datingChatRequestProfileResponse `json:"recipient,omitempty"`
+	CreatedAt   time.Time                         `json:"createdAt"`
+	RespondedAt *time.Time                        `json:"respondedAt,omitempty"`
+}
+
+func datingChatRequestDisplayName(user models.User) string {
+	return strings.TrimSpace(firstNonEmptyDating(user.SpiritualName, user.KarmicName, user.Nickname, user.Email))
+}
+
+func buildDatingChatRequestProfile(user models.User) *datingChatRequestProfileResponse {
+	if user.ID == 0 {
+		return nil
+	}
+	return &datingChatRequestProfileResponse{
+		ID:            user.ID,
+		Id:            user.ID,
+		DisplayName:   datingChatRequestDisplayName(user),
+		SpiritualName: user.SpiritualName,
+		KarmicName:    user.KarmicName,
+		Nickname:      user.Nickname,
+		AvatarURL:     user.AvatarURL,
+		City:          user.City,
+		Country:       user.Country,
+	}
+}
+
+func buildDatingChatRequestResponse(request models.DatingChatRequest, viewerID uint) datingChatRequestResponse {
+	direction := ""
+	if viewerID != 0 {
+		if request.RecipientID == viewerID {
+			direction = "incoming"
+		} else if request.RequesterID == viewerID {
+			direction = "outgoing"
+		}
+	}
+	return datingChatRequestResponse{
+		ID:          request.ID,
+		Id:          request.ID,
+		RequesterID: request.RequesterID,
+		RecipientID: request.RecipientID,
+		Message:     request.Message,
+		Status:      request.Status,
+		Direction:   direction,
+		Requester:   buildDatingChatRequestProfile(request.Requester),
+		Recipient:   buildDatingChatRequestProfile(request.Recipient),
+		CreatedAt:   request.CreatedAt,
+		RespondedAt: request.RespondedAt,
+	}
+}
+
+func preloadDatingChatRequestProfiles(query *gorm.DB) *gorm.DB {
+	return query.Preload("Requester").Preload("Recipient")
+}
+
+func (h *DatingHandler) CreateDatingChatRequest(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	var body struct {
+		RecipientID uint   `json:"recipientId"`
+		Message     string `json:"message"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	body.Message = strings.TrimSpace(body.Message)
+	if body.RecipientID == 0 || body.Message == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "recipientId and message are required"})
+	}
+	if body.RecipientID == authUserID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot create a request to yourself"})
+	}
+
+	var recipient models.User
+	if err := database.DB.
+		Where("id = ? AND dating_enabled = ? AND is_profile_complete = ? AND dating_publication_status = ?", body.RecipientID, true, true, string(models.DatingPublicationPublished)).
+		First(&recipient).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Recipient profile not found"})
+	}
+
+	var existing models.DatingChatRequest
+	existingErr := preloadDatingChatRequestProfiles(database.DB).
+		Where(
+			"((requester_id = ? AND recipient_id = ?) OR (requester_id = ? AND recipient_id = ?)) AND status IN ?",
+			authUserID, body.RecipientID, body.RecipientID, authUserID,
+			[]models.DatingChatRequestStatus{models.DatingChatRequestPending, models.DatingChatRequestAccepted},
+		).
+		Order("created_at DESC").
+		First(&existing).Error
+	if existingErr == nil {
+		return c.JSON(buildDatingChatRequestResponse(existing, authUserID))
+	}
+	if !errors.Is(existingErr, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check existing request"})
+	}
+
+	request := models.DatingChatRequest{
+		RequesterID: authUserID,
+		RecipientID: body.RecipientID,
+		Message:     body.Message,
+		Status:      models.DatingChatRequestPending,
+	}
+	if err := database.DB.Create(&request).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create chat request"})
+	}
+	if err := preloadDatingChatRequestProfiles(database.DB).First(&request, request.ID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load chat request"})
+	}
+	if push := services.GetPushService(); push != nil {
+		_ = push.SendToUser(request.RecipientID, services.PushMessage{
+			Title: "Union chat request",
+			Body:  request.Message,
+			Data: map[string]string{
+				"screen":    "Dating",
+				"requestId": fmt.Sprintf("%d", request.ID),
+			},
+			Priority: "high",
+		})
+	}
+	return c.Status(fiber.StatusCreated).JSON(buildDatingChatRequestResponse(request, authUserID))
+}
+
+func (h *DatingHandler) ListDatingChatRequests(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	direction := strings.ToLower(strings.TrimSpace(c.Query("direction", "incoming")))
+	query := preloadDatingChatRequestProfiles(database.DB).Order("created_at DESC")
+	switch direction {
+	case "incoming":
+		query = query.Where("recipient_id = ?", authUserID)
+	case "outgoing":
+		query = query.Where("requester_id = ?", authUserID)
+	case "all":
+		query = query.Where("requester_id = ? OR recipient_id = ?", authUserID, authUserID)
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid direction"})
+	}
+
+	if rawStatus := strings.ToLower(strings.TrimSpace(c.Query("status"))); rawStatus != "" {
+		status := models.DatingChatRequestStatus(rawStatus)
+		switch status {
+		case models.DatingChatRequestPending, models.DatingChatRequestAccepted, models.DatingChatRequestRejected, models.DatingChatRequestCanceled:
+			query = query.Where("status = ?", status)
+		default:
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid status"})
+		}
+	}
+
+	var requests []models.DatingChatRequest
+	if err := query.Find(&requests).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load chat requests"})
+	}
+	items := make([]datingChatRequestResponse, 0, len(requests))
+	for _, request := range requests {
+		items = append(items, buildDatingChatRequestResponse(request, authUserID))
+	}
+	return c.JSON(fiber.Map{"items": items})
+}
+
+func (h *DatingHandler) RespondDatingChatRequest(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+	requestID, err := parsePositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request ID"})
+	}
+	action := strings.ToLower(strings.TrimSpace(c.Params("action")))
+	if action != "accept" && action != "reject" && action != "cancel" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid action"})
+	}
+
+	var request models.DatingChatRequest
+	if err := preloadDatingChatRequestProfiles(database.DB).First(&request, requestID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Chat request not found"})
+	}
+	if request.Status != models.DatingChatRequestPending {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Chat request is already processed"})
+	}
+	if action == "cancel" {
+		if request.RequesterID != authUserID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only requester can cancel this request"})
+		}
+		request.Status = models.DatingChatRequestCanceled
+	} else {
+		if request.RecipientID != authUserID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only recipient can respond to this request"})
+		}
+		if action == "accept" {
+			request.Status = models.DatingChatRequestAccepted
+		} else {
+			request.Status = models.DatingChatRequestRejected
+		}
+	}
+
+	now := time.Now().UTC()
+	request.RespondedAt = &now
+	if err := database.DB.Save(&request).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update chat request"})
+	}
+	if err := preloadDatingChatRequestProfiles(database.DB).First(&request, request.ID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load chat request"})
+	}
+	return c.JSON(buildDatingChatRequestResponse(request, authUserID))
+}
+
 func (h *DatingHandler) CreateMeetingInvite(c *fiber.Ctx) error {
 	authUserID, authErr := requireDatingUserID(c)
 	if authErr != nil {

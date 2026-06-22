@@ -95,11 +95,8 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  apps/vedabase:
+  apps/motivation:
     dependencies:
-      '@ducanh2912/next-pwa':
-        specifier: ^10.2.9
-        version: 10.2.9(@types/babel__core@7.20.5)(next@16.1.1-canary.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.0.0-rc.1(react@19.0.0-rc.1))(react@19.0.0-rc.1))(webpack@5.105.4)
       '@vedamatch/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client

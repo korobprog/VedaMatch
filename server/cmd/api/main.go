@@ -332,6 +332,7 @@ func main() {
 	proHandler := handlers.NewProHandler(walletService)
 	adminFeedHandler := handlers.NewAdminFeedHandler()
 	apkHandler := handlers.NewApkHandler()
+	motivationHandler := handlers.NewMotivationHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -367,6 +368,10 @@ func main() {
 	api.Post("/auth/logout", middleware.OptionalAuth(), middleware.RateLimitByIdentity("auth_logout", 120, 5*time.Minute), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
 	api.Post("/lkm/webhook/:gatewayCode", lkmTopupHandler.Webhook)
+
+	// Motivation (motivation.vedamatch.ru) — public read endpoints
+	api.Get("/motivation/posts", motivationHandler.ListPublishedPosts)
+	api.Get("/motivation/posts/:id", motivationHandler.GetPublishedPost)
 
 	// Library Routes
 	library := api.Group("/library")
@@ -916,6 +921,13 @@ func main() {
 	admin.Put("/support/faq/:id", supportHandler.UpdateFAQ)
 	admin.Delete("/support/faq/:id", supportHandler.DeleteFAQ)
 
+	// Motivation Management
+	admin.Get("/motivation/posts", motivationHandler.AdminListPosts)
+	admin.Post("/motivation/posts", motivationHandler.AdminCreatePost)
+	admin.Get("/motivation/posts/:id", motivationHandler.AdminGetPost)
+	admin.Patch("/motivation/posts/:id", motivationHandler.AdminUpdatePost)
+	admin.Post("/motivation/posts/:id/regenerate", motivationHandler.AdminRegeneratePost)
+
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)
 
@@ -1128,6 +1140,9 @@ func main() {
 	protected.Post("/dating/posts", datingHandler.CreateDatingPost)
 	protected.Patch("/dating/posts/:id", datingHandler.UpdateDatingPost)
 	protected.Delete("/dating/posts/:id", datingHandler.DeleteDatingPost)
+	protected.Post("/dating/chat-requests", datingHandler.CreateDatingChatRequest)
+	protected.Get("/dating/chat-requests", datingHandler.ListDatingChatRequests)
+	protected.Post("/dating/chat-requests/:id/:action", datingHandler.RespondDatingChatRequest)
 	protected.Post("/dating/meeting-invites", datingHandler.CreateMeetingInvite)
 	protected.Get("/dating/meeting-invites", datingHandler.ListMeetingInvites)
 	protected.Post("/dating/meeting-invites/:id/respond", datingHandler.RespondMeetingInvite)
@@ -1490,6 +1505,10 @@ func defaultAllowedOrigins() []string {
 		"https://union.vedamatch.com",
 		"https://vedabase.vedamatch.ru",
 		"https://vedabase.vedamatch.com",
+		"https://motivation.vedamatch.ru",
+		"https://motivation.vedamatch.com",
+		"http://localhost:3009",
+		"http://127.0.0.1:3009",
 	}
 }
 
