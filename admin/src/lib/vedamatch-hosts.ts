@@ -38,6 +38,7 @@ const PANEL_PREFIXES = [
   '/openrouter',
   '/ai-prompts',
   '/notifications',
+  '/motivation',
   '/gemini-keys',
   '/admin',
 ];

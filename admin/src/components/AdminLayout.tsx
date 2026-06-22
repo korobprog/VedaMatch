@@ -119,6 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/ai-prompts',
                 '/multimedia',
                 '/calendar',
+                '/motivation',
                 '/dhama',
                 '/financials'
                 ,
