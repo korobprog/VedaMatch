@@ -1,5 +1,5 @@
-export type VedamatchSurface = 'portal' | 'social' | 'panel' | 'lkm' | 'local' | 'unknown';
-export type VedamatchSubdomain = 'admin' | 'social' | 'panel' | 'lkm' | 'api';
+export type VedamatchSurface = 'portal' | 'social' | 'panel' | 'lkm' | 'union' | 'vedabase' | 'motivation' | 'local' | 'unknown';
+export type VedamatchSubdomain = 'admin' | 'social' | 'panel' | 'lkm' | 'union' | 'vedabase' | 'motivation' | 'api';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 const PUBLIC_PORTAL_PREFIXES = [
@@ -74,6 +74,15 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   }
   if (normalized === 'lkm.vedamatch.ru' || normalized === 'lkm.vedamatch.com') {
     return 'lkm';
+  }
+  if (normalized === 'union.vedamatch.ru' || normalized === 'union.vedamatch.com') {
+    return 'union';
+  }
+  if (normalized === 'vedabase.vedamatch.ru' || normalized === 'vedabase.vedamatch.com') {
+    return 'vedabase';
+  }
+  if (normalized === 'motivation.vedamatch.ru' || normalized === 'motivation.vedamatch.com') {
+    return 'motivation';
   }
   return 'unknown';
 }

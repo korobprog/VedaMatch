@@ -262,9 +262,10 @@
   - `lkm.vedamatch.ru` и `lkm.vedamatch.com` — кошелек LKM, его не трогать в рамках этого переноса;
   - для внутренней панели управления выбран временный канонический hostname `panel.vedamatch.ru/.com`, пока пользователь не задаст другой.
 - Live production routing, перепроверенный через Dokploy MCP 2026-03-27:
-  - app `web` сейчас обслуживает `vedamatch.ru`, `vedamatch.com`, `admin.vedamatch.ru`, `admin.vedamatch.com`, но всё ещё собирается из legacy `admin`;
-  - app `vedamatch-social` обслуживает `social.vedamatch.ru`, `social.vedamatch.com` и уже запущен на новом `apps/web`; если Dokploy API недоступен, рабочий fallback для срочного hotfix — пересобрать image вручную на manager из `/etc/dokploy/applications/vedamatch-vedamatchsocial-zcxupc/code` и сделать `docker service update --force vedamatch-vedamatchsocial-zcxupc`;
-  - app `vedamatch-panel` обслуживает `panel.vedamatch.ru`, `panel.vedamatch.com`;
+  - root domains `vedamatch.ru`, `vedamatch.com`, `www.vedamatch.com`, plus `admin.vedamatch.ru` / `admin.vedamatch.com`, are currently routed by Traefik to legacy app `vedamatch-admin-gompiy` (Next.js `admin`), not to `apps/web`.
+  - social domains `social.vedamatch.ru` / `social.vedamatch.com` are routed to service `vedamatch-vedamatchsocial-zcxupc`; this is separate from the legacy root/admin app.
+  - separate Dokploy apps also exist for `motivation` and `vedabase`; changes committed only in `apps/web` do not update the live bare root until routing is moved or the legacy root app is changed.
+  - until root traffic is switched to `apps/web`, the safest way to change the public homepage for `vedamatch.ru/.com` is to implement it inside `admin/src/app/page.tsx` and related `admin` components, while keeping `admin.*` host redirects intact.
   - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
   - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
 
