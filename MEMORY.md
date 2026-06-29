@@ -268,6 +268,17 @@
   - app `lkm` обслуживает `lkm.vedamatch.ru`, `lkm.vedamatch.com`;
   - app `Server` обслуживает `api.vedamatch.ru`, `api.vedamatch.com`.
 
+## Site Map / Frontend Surfaces
+- Актуальные Next.js приложения в репозитории: `admin`, `apps/web`, `apps/motivation`, `lkm`. Если нужно искать web UI, сначала проверять эти четыре папки.
+- `admin` — CRM/admin panel на Next.js; основные хосты: `admin.vedamatch.ru` и `admin.vedamatch.com`.
+- `apps/web` — общий browser app/shell для нескольких поверхностей сразу, а не только одного сайта. Внутри него живут как минимум:
+  - `social.vedamatch.ru` / `social.vedamatch.com` — social web / auth entrypoints;
+  - `union.vedamatch.ru` / `union.vedamatch.com` — Union surface; canonical UI routes: `/app/union`, `/app/union/profile`, `/app/union/requests`;
+  - root-host/public shell для `vedamatch.ru` / `vedamatch.com`.
+- `apps/motivation` — отдельный Next.js сайт Motivation; shared hostname resolver также знает домены `motivation.vedamatch.ru` и `motivation.vedamatch.com`.
+- `lkm` — отдельный Next.js LKM cabinet; основные хосты: `lkm.vedamatch.ru` и `lkm.vedamatch.com`.
+- Shared routing в `packages/api-client/src/index.ts` также знает surface `vedabase` (`vedabase.vedamatch.ru` / `vedabase.vedamatch.com`), но в текущем репозитории не найден отдельный standalone Next.js package для Vedabase; считать это host/surface-level маршрутизацией, пока не найден другой source.
+- Для быстрых ответов ИИ важно различать: `Union` — это не отдельный package, а часть `apps/web`; `Motivation` и `LKM` — отдельные Next.js приложения; `admin` — отдельный Next.js admin/CRM.
 ## Lila Mobile Portal
 - На mobile portal добавлен новый локализованный folder `Games` (`folder-games`) с первым сервисом `lila_battle_of_sages`; лейблы и game-facing copy заведены в `ru/en/hi`.
 - Для уже сохранённых portal layouts действует миграция: `lila_battle_of_sages` автоматически переносится в `folder-games` на первой странице, не затрагивая quick access/dock.
@@ -3832,3 +3843,6 @@
   - `vedamatch.ru` -> `ru`.
 - Ручное переключение `en/hi/ru` лучше хранить в `localStorage`, чтобы пользователь не терял выбранный язык между переходами и перезагрузками.
 - Если локализация landing делается для `.com`, нельзя оставлять частично русский UI: hero, features, philosophy, community CTA, footer и presentation/team-блоки должны брать строки из единого словаря.
+
+## Union / Dating chat requests API
+- 2026-06-22: Production 404 on `GET /api/dating/chat-requests?direction=incoming` was caused by missing Go backend routes/model while web api-client already called `/dating/chat-requests`. Implemented `DatingChatRequest` model, AutoMigrate registration, and protected create/list/respond routes in `server/cmd/api/main.go` + `server/internal/handlers/dating_handler.go`.

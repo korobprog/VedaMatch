@@ -1,22 +1,8 @@
 import { SocialDashboardHome } from "@/components/social-dashboard-home";
+import { PortalPublicHome } from "@/components/portal-public-home";
 import { UnionPublicHome } from "@/components/union-public-home";
 import { getRequestSurface } from "@/lib/request-surface";
 import { getSocialLauncherModel } from "@/lib/social-launcher";
-
-const defaultCards = [
-  {
-    title: "Shared contracts first",
-    body: "The web app consumes platform-neutral packages instead of importing React Native runtime code.",
-  },
-  {
-    title: "Core product V1",
-    body: "Auth, profile, contacts, chats, library, news, services, travel, support, and wallet routing are already mapped as browser-native flows.",
-  },
-  {
-    title: "Realtime later",
-    body: "Calls, browser notifications, and media-heavy surfaces stay outside the critical path until the social web loop is stable.",
-  },
-];
 
 export default async function HomePage() {
   const { host, isSocial, isUnion, language } = await getRequestSurface();
@@ -40,7 +26,7 @@ export default async function HomePage() {
     year: "numeric",
   }).format(mayapurNow);
 
-  if (isUnion || host === "localhost" || host === "127.0.0.1") {
+  if (isUnion) {
     return <UnionPublicHome host={host} language={language} />;
   }
 
@@ -71,22 +57,5 @@ export default async function HomePage() {
     );
   }
 
-  return (
-    <main className="shell">
-      <section className="hero">
-        <div className="container grid-3">
-          {defaultCards.map((card) => (
-            <div className="panel page-card" key={card.title}>
-              <h2>{card.title}</h2>
-              <p className="muted">{card.body}</p>
-            </div>
-          ))}
-          <div className="panel page-card">
-            <h2>Current host</h2>
-            <p className="muted">{host}</p>
-          </div>
-        </div>
-      </section>
-    </main>
-  );
+  return <PortalPublicHome host={host} language={language} />;
 }
