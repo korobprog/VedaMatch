@@ -3861,3 +3861,5 @@
 ## Portal / Shared Auth
 - Root portal auth (dmin_data) and web-service auth (m_*) are bridged through a shared browser cookie m_shared_session on .vedamatch.ru / .vedamatch.com; portal login/profile/logout sync that cookie, and packages/api-client restores Union/web local session from it so a user already signed in on the portal opens Union already authorized.
 
+- Shared portal cookie must contain only a compact auth payload (tokens + minimal user fields), not full admin_data, otherwise browsers may drop it and Union will not auto-authorize.
+

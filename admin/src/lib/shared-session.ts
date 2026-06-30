@@ -25,6 +25,20 @@ export type AdminSessionData = Record<string, unknown> & {
   sessionId?: number;
 };
 
+type SharedSessionUser = {
+  ID?: number;
+  id?: number;
+  email?: string;
+  karmicName?: string;
+  spiritualName?: string;
+  nickname?: string;
+  avatarUrl?: string;
+  role?: string;
+  identity?: string;
+  city?: string;
+  country?: string;
+};
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
@@ -51,6 +65,34 @@ function normalizeSessionId(value: number | string | undefined): number | undefi
 function resolveSharedSessionCookieDomain(hostname: string): string | null {
   const rootDomain = resolveVedamatchRootDomain(hostname);
   return rootDomain ? `.${rootDomain}` : null;
+}
+
+function readOptionalString(source: Record<string, unknown>, key: keyof SharedSessionUser): string | undefined {
+  const value = source[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readOptionalNumber(source: Record<string, unknown>, key: 'ID' | 'id'): number | undefined {
+  const value = source[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function buildCompactSessionUser(user: Record<string, unknown>): SharedSessionUser | null {
+  const compactUser: SharedSessionUser = {
+    ID: readOptionalNumber(user, 'ID'),
+    id: readOptionalNumber(user, 'id'),
+    email: readOptionalString(user, 'email'),
+    karmicName: readOptionalString(user, 'karmicName'),
+    spiritualName: readOptionalString(user, 'spiritualName'),
+    nickname: readOptionalString(user, 'nickname'),
+    avatarUrl: readOptionalString(user, 'avatarUrl'),
+    role: readOptionalString(user, 'role'),
+    identity: readOptionalString(user, 'identity'),
+    city: readOptionalString(user, 'city'),
+    country: readOptionalString(user, 'country'),
+  };
+
+  return Object.values(compactUser).some((value) => value !== undefined) ? compactUser : null;
 }
 
 function writeSharedSessionCookie(session: Record<string, unknown> | null): void {
@@ -96,7 +138,7 @@ function buildSharedSessionPayload(data: AdminSessionData | null): Record<string
     accessTokenExpiresAt: typeof accessTokenExpiresAt === 'string' ? accessTokenExpiresAt : undefined,
     refreshTokenExpiresAt: typeof refreshTokenExpiresAt === 'string' ? refreshTokenExpiresAt : undefined,
     sessionId: normalizeSessionId(sessionId as number | string | undefined),
-    user: Object.keys(user).length > 0 ? user : null,
+    user: buildCompactSessionUser(user),
   };
 }
 
