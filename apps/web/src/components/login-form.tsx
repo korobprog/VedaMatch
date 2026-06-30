@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Apple, Download, Smartphone } from "lucide-react";
 import { createBrowserClient } from "@vedamatch/api-client";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -17,7 +17,7 @@ type LoginFormProps = {
 
 export function LoginForm({ entryVariant = "default", mobileAppConfig }: LoginFormProps) {
   const router = useRouter();
-  const { dictionary, language, setSession } = useSession();
+  const { dictionary, language, ready, session, setSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState({ loading: false, error: "" });
@@ -52,6 +52,14 @@ export function LoginForm({ entryVariant = "default", mobileAppConfig }: LoginFo
       cta: "Create profile",
     };
   const surfaceCopy = entryVariant === "union" ? unionCopy : socialCopy;
+
+  useEffect(() => {
+    if (!ready || !session?.accessToken) {
+      return;
+    }
+
+    router.replace(entryVariant === "union" ? "/app/union" : "/app");
+  }, [entryVariant, ready, router, session?.accessToken]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

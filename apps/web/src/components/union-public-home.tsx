@@ -1,9 +1,9 @@
-import Link from "next/link";
 import type { ComponentType } from "react";
-import { ArrowRight, BriefcaseBusiness, HandHeart, HeartHandshake, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
+import { BriefcaseBusiness, HandHeart, HeartHandshake, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { getDatingPresentation, resolveApiBaseUrlForHostname } from "@vedamatch/api-client";
 import type { DatingMode, DatingPresentationResponse, Language } from "@vedamatch/domain-types";
 import { getDictionary } from "@vedamatch/i18n";
+import { UnionEntryGate } from "@/components/union-entry-gate";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { resolveMediaUrl } from "@/lib/media";
@@ -66,15 +66,7 @@ export async function UnionPublicHome({ host, language }: { host: string; langua
           </span>
           <h1>{copy.publicTitle}</h1>
           <p>{copy.publicBody}</p>
-          <div className="union-public-actions">
-            <Link className="union-public-button" href="/login">
-              {copy.publicPrimary}
-              <ArrowRight aria-hidden="true" size={18} />
-            </Link>
-            <Link className="union-public-button union-public-button--ghost" href="/register">
-              {copy.publicSecondary}
-            </Link>
-          </div>
+          <UnionEntryGate primaryLabel={copy.publicPrimary} secondaryLabel={copy.publicSecondary} />
         </div>
 
         <div className="union-public-hero__stats" aria-label={copy.publicStatsLabel}>
