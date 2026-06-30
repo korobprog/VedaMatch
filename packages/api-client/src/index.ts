@@ -57,6 +57,10 @@ const AUTH_STORAGE_KEYS = {
   user: "vm_user",
   language: "vm_language",
 } as const;
+const SHARED_SESSION_COOKIE = "vm_shared_session";
+const SHARED_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+type SharedSessionCookiePayload = AuthSession;
 
 export function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase().trim().replace(/:\d+$/, "");
@@ -163,6 +167,91 @@ function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
+function resolveSharedSessionCookieDomain(hostname: string): string | null {
+  const rootDomain = resolveVedamatchRootDomain(hostname);
+  return rootDomain ? `.${rootDomain}` : null;
+}
+
+function encodeSharedSessionCookie(session: AuthSession): string {
+  return encodeURIComponent(JSON.stringify(session));
+}
+
+function decodeSharedSessionCookie(value: string | null | undefined): AuthSession | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as SharedSessionCookiePayload | null;
+    const tokens = normalizeTokens(parsed);
+    if (!tokens) {
+      return null;
+    }
+
+    return {
+      ...tokens,
+      user: parsed?.user || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readCookie(name: string): string | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const prefix = `${name}=`;
+  const match = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(prefix));
+
+  return match ? match.slice(prefix.length) : null;
+}
+
+function clearSharedSessionCookie(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const domain = resolveSharedSessionCookieDomain(window.location.hostname);
+  const domainSuffix = domain ? `; Domain=${domain}` : "";
+  document.cookie = `${SHARED_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${domainSuffix}`;
+}
+
+function writeSharedSessionCookie(session: AuthSession | null): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  if (!session?.accessToken) {
+    clearSharedSessionCookie();
+    return;
+  }
+
+  const domain = resolveSharedSessionCookieDomain(window.location.hostname);
+  const domainSuffix = domain ? `; Domain=${domain}` : "";
+  const secureSuffix = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${SHARED_SESSION_COOKIE}=${encodeSharedSessionCookie(session)}; Path=/; Max-Age=${SHARED_SESSION_TTL_SECONDS}; SameSite=Lax${domainSuffix}${secureSuffix}`;
+}
+
+function restoreBrowserSessionFromSharedCookie(): AuthSession | null {
+  const session = decodeSharedSessionCookie(readCookie(SHARED_SESSION_COOKIE));
+  if (!session?.accessToken) {
+    return null;
+  }
+
+  writeStoredTokens(session);
+  if (session.user) {
+    window.localStorage.setItem(AUTH_STORAGE_KEYS.user, JSON.stringify(session.user));
+  } else {
+    window.localStorage.removeItem(AUTH_STORAGE_KEYS.user);
+  }
+
+  return session;
+}
+
 export function getAuthStorageKeys() {
   return AUTH_STORAGE_KEYS;
 }
@@ -253,7 +342,7 @@ export function getBrowserSession(): AuthSession | null {
   }
 
   if (!tokens) {
-    return null;
+    return restoreBrowserSessionFromSharedCookie();
   }
 
   return {
@@ -278,10 +367,12 @@ export function saveBrowserSession(session: AuthSession | null): void {
   } else {
     window.localStorage.removeItem(AUTH_STORAGE_KEYS.user);
   }
+  writeSharedSessionCookie(session);
 }
 
 export function clearBrowserSession(): void {
   clearStoredTokens();
+  clearSharedSessionCookie();
 }
 
 export async function apiFetch<T>(baseUrl: string, path: string, init: RequestInit = {}, accessToken?: string | null): Promise<T> {

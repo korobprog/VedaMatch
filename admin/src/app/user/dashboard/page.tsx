@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { clearPortalAuthData, syncSharedSessionFromAdminStorage } from '@/lib/shared-session';
 
 const SERVICES = [
     { id: 'contacts', label: 'Контакты', icon: Users, color: 'bg-blue-600', path: '/contacts', availableOnWeb: false, availabilityLabel: 'В приложении' },
@@ -38,6 +39,7 @@ export default function UserDashboard() {
         const data = localStorage.getItem('admin_data');
         if (data) {
             setUser(JSON.parse(data));
+            syncSharedSessionFromAdminStorage();
         } else {
             router.replace('/login');
         }
@@ -45,7 +47,7 @@ export default function UserDashboard() {
     }, [router]);
 
     const handleLogout = () => {
-        localStorage.removeItem('admin_data');
+        clearPortalAuthData();
         router.push('/login');
     };
 

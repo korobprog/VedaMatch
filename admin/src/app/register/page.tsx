@@ -11,6 +11,7 @@ import {
     Sparkles, GraduationCap
 } from 'lucide-react';
 import api from '@/lib/api';
+import { mergeAdminUserData, persistAdminAuthPayload } from '@/lib/shared-session';
 
 const DATING_TRADITIONS = [
     'Brahma-Madhva-Gaudiya',
@@ -87,8 +88,7 @@ export default function RegisterPage() {
                 password: formData.password
             });
 
-            const { user, token } = response.data;
-            localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
+            persistAdminAuthPayload(response.data);
             setPhase(2);
         } catch (err: any) {
             setError(err.response?.data?.error || 'Registration failed');
@@ -106,11 +106,7 @@ export default function RegisterPage() {
             const { email, password, confirmPassword, agreement, ...profileData } = formData;
             const response = await api.put('/update-profile', profileData);
 
-            const adminData = localStorage.getItem('admin_data');
-            if (adminData) {
-                const parsed = JSON.parse(adminData);
-                localStorage.setItem('admin_data', JSON.stringify({ ...parsed, ...response.data.user }));
-            }
+            mergeAdminUserData(response.data.user || {});
 
             setSuccess(true);
             setTimeout(() => {

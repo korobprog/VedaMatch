@@ -271,7 +271,7 @@
 
 ## Site Map / Frontend Surfaces
 - Актуальные Next.js приложения в репозитории: `admin`, `apps/web`, `apps/motivation`, `lkm`. Если нужно искать web UI, сначала проверять эти четыре папки.
-- `admin` — CRM/admin panel на Next.js; основные хосты: `admin.vedamatch.ru` и `admin.vedamatch.com`.
+- `admin` — legacy Next.js app, который сейчас реально обслуживает live root/public portal на `vedamatch.ru`, `vedamatch.com`, `www.vedamatch.com`; здесь же остаются `admin.vedamatch.ru` / `admin.vedamatch.com` и часть auth/public pages. Пока root routing не перенесен, правки главной/root portal нужно делать именно в `admin`.
 - `apps/web` — общий browser app/shell для нескольких поверхностей сразу, а не только одного сайта. Внутри него живут как минимум:
   - `social.vedamatch.ru` / `social.vedamatch.com` — social web / auth entrypoints;
   - `union.vedamatch.ru` / `union.vedamatch.com` — Union surface; canonical UI routes: `/app/union`, `/app/union/profile`, `/app/union/requests`;
@@ -280,6 +280,16 @@
 - `lkm` — отдельный Next.js LKM cabinet; основные хосты: `lkm.vedamatch.ru` и `lkm.vedamatch.com`.
 - Shared routing в `packages/api-client/src/index.ts` также знает surface `vedabase` (`vedabase.vedamatch.ru` / `vedabase.vedamatch.com`), но в текущем репозитории не найден отдельный standalone Next.js package для Vedabase; считать это host/surface-level маршрутизацией, пока не найден другой source.
 - Для быстрых ответов ИИ важно различать: `Union` — это не отдельный package, а часть `apps/web`; `Motivation` и `LKM` — отдельные Next.js приложения; `admin` — отдельный Next.js admin/CRM.
+
+### AI Prompt Routing / Service Aliases
+- `portal`, `main public`, `root web`, `главная` — это root public portal на `vedamatch.ru` / `vedamatch.com`; live code owner сейчас `admin`, не `apps/web`. На root homepage уже выведены переходы на `Social web`, `Motivation`, `Vedabase`.
+- `social`, `social web` — это surface внутри `apps/web`, домены `social.vedamatch.ru` / `social.vedamatch.com`.
+- `union` — это не отдельный Next.js package, а отдельная surface внутри `apps/web`; основные UI routes: `/app/union`, `/app/union/profile`, `/app/union/requests`.
+- `motivation` — это отдельный Next.js app `apps/motivation`, домены `motivation.vedamatch.ru` / `motivation.vedamatch.com`.
+- `vedabase` — это отдельная product surface/domain (`vedabase.vedamatch.ru` / `vedabase.vedamatch.com`); даже если standalone package в repo пока явно не найден, для ИИ это надо трактовать как самостоятельный сервис.
+- `lkm` — это отдельный Next.js app `lkm`, а не часть `apps/web`.
+- `panel`, `admin panel`, `админка` — это внутренняя/admin control surface; не путать с `portal/root`, даже если live root сейчас физически крутится из codebase `admin`.
+- Формулировка `единая авторизация для всех web сервисов` пока означает product intent, а не готовый full SSO: текущая web auth в основном same-origin/localStorage-based, поэтому нельзя обещать полноценный cross-subdomain login без отдельной реализации.
 ## Lila Mobile Portal
 - На mobile portal добавлен новый локализованный folder `Games` (`folder-games`) с первым сервисом `lila_battle_of_sages`; лейблы и game-facing copy заведены в `ru/en/hi`.
 - Для уже сохранённых portal layouts действует миграция: `lila_battle_of_sages` автоматически переносится в `folder-games` на первой странице, не затрагивая quick access/dock.
@@ -3847,3 +3857,7 @@
 
 ## Union / Dating chat requests API
 - 2026-06-22: Production 404 on `GET /api/dating/chat-requests?direction=incoming` was caused by missing Go backend routes/model while web api-client already called `/dating/chat-requests`. Implemented `DatingChatRequest` model, AutoMigrate registration, and protected create/list/respond routes in `server/cmd/api/main.go` + `server/internal/handlers/dating_handler.go`.
+
+## Portal / Shared Auth
+- Root portal auth (dmin_data) and web-service auth (m_*) are bridged through a shared browser cookie m_shared_session on .vedamatch.ru / .vedamatch.com; portal login/profile/logout sync that cookie, and packages/api-client restores Union/web local session from it so a user already signed in on the portal opens Union already authorized.
+

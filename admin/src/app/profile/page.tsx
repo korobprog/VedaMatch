@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { mergeAdminUserData } from '@/lib/shared-session';
 
 interface LocationData {
     country: string;
@@ -83,9 +84,7 @@ export default function ProfilePage() {
             const response = await api.put('/update-profile', profileData);
             const updatedUser = response.data;
 
-            // Keep token
-            const oldData = JSON.parse(localStorage.getItem('admin_data') || '{}');
-            localStorage.setItem('admin_data', JSON.stringify({ ...oldData, ...updatedUser }));
+            mergeAdminUserData(updatedUser);
 
             setUser({
                 ...updatedUser,

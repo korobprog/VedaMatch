@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { persistAdminAuthPayload } from '@/lib/shared-session';
 import { buildVedamatchUrl, resolveApiBaseUrlForHostname, resolveVedamatchSurface } from '@/lib/vedamatch-hosts';
 
 type LoginResponse = {
@@ -87,10 +88,8 @@ function buildErrorMessage(error: unknown, fallback: string): string {
 }
 
 function persistAuthPayload(payload: LoginResponse): string | null {
-  const token = (payload.accessToken || payload.token || '').trim();
-  const user = payload.user || {};
-  window.localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
-  return typeof user.role === 'string' ? user.role : null;
+  const session = persistAdminAuthPayload(payload);
+  return typeof session?.role === 'string' ? session.role : null;
 }
 
 export default function PortalSocialAuthButtons() {

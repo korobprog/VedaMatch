@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
+import { clearPortalAuthData, syncSharedSessionFromAdminStorage } from '@/lib/shared-session';
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -99,6 +100,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         } else {
             const parsedData = JSON.parse(data);
             setAdmin(parsedData);
+            syncSharedSessionFromAdminStorage();
 
             // Protect admin routes
             const isAdmin = parsedData.role === 'admin' || parsedData.role === 'superadmin';
@@ -133,7 +135,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }, [pathname, router]);
 
     const handleLogout = () => {
-        localStorage.removeItem('admin_data');
+        clearPortalAuthData();
         router.push('/login');
     };
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Lock, Mail, Loader2, ShieldCheck } from 'lucide-react';
 import api from '@/lib/api';
+import { persistAdminAuthPayload } from '@/lib/shared-session';
 
 export default function AdminLoginPage() {
     const [email, setEmail] = useState('');
@@ -20,14 +21,14 @@ export default function AdminLoginPage() {
 
         try {
             const response = await api.post('/login', { email, password });
-            const { user, token } = response.data;
+            const { user } = response.data;
 
             if (user.role !== 'admin' && user.role !== 'superadmin') {
                 setError('Unauthorized. This portal is for administrators only.');
                 return;
             }
 
-            localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
+            persistAdminAuthPayload(response.data);
             router.push('/dashboard');
         } catch (err: any) {
             setError(err.response?.data?.error || 'Login failed. Please check your credentials.');

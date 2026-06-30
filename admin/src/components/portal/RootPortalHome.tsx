@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, BookOpen, Heart, LockKeyhole, Sparkles, Users } from 'lucide-react';
+import { syncSharedSessionFromAdminStorage } from '@/lib/shared-session';
 import { buildVedamatchUrl } from '@/lib/vedamatch-hosts';
 import { resolveDefaultLandingLanguage, type LandingLanguage } from '@/lib/landing-copy';
 
@@ -275,11 +276,11 @@ export default function RootPortalHome() {
     const nextHost = typeof window !== 'undefined' ? window.location.hostname : 'vedamatch.ru';
     const storedLanguage = typeof window !== 'undefined' ? (window.localStorage.getItem('landing_language') as LandingLanguage | null) : null;
     const nextLanguage = storedLanguage && COPY[storedLanguage] ? storedLanguage : resolveDefaultLandingLanguage(nextHost);
-    const authData = typeof window !== 'undefined' ? window.localStorage.getItem('admin_data') : null;
+    const authSession = syncSharedSessionFromAdminStorage();
 
     setHostname(nextHost);
     setLanguage(nextLanguage);
-    setIsLoggedIn(Boolean(authData));
+    setIsLoggedIn(Boolean(authSession));
   }, []);
 
   useEffect(() => {

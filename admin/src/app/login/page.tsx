@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Lock, Mail, Loader2, Heart } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { persistAdminAuthPayload } from '@/lib/shared-session';
 import { resolveVedamatchSurface } from '@/lib/vedamatch-hosts';
 import PortalSocialAuthButtons from '@/components/auth/PortalSocialAuthButtons';
 
@@ -35,9 +36,7 @@ export default function LoginPage() {
 
         try {
             const response = await api.post('/login', { email, password });
-            const { user, token } = response.data;
-
-            localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
+            persistAdminAuthPayload(response.data);
             router.push(resolvePostLoginRoute());
         } catch (err: any) {
             setError(err.response?.data?.error || 'Login failed. Please check your credentials.');

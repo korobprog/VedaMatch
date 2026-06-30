@@ -1,15 +1,17 @@
+import { clearPortalAuthData } from '@/lib/shared-session';
+
 /**
- * Получение токена авторизации из localStorage
- * Поддерживает оба формата: прямой 'token' и объект 'admin_data'
+ * Получение токена авторизации из localStorage.
+ * Поддерживает оба формата: прямой `token` и объект `admin_data`.
  */
 export function getAuthToken(): string | null {
     if (typeof window === 'undefined') return null;
 
-    // Сначала проверяем прямой токен
     const directToken = localStorage.getItem('token');
-    if (directToken && directToken !== 'undefined' && directToken !== 'null') return directToken;
+    if (directToken && directToken !== 'undefined' && directToken !== 'null') {
+        return directToken;
+    }
 
-    // Затем проверяем admin_data
     const adminData = localStorage.getItem('admin_data');
     if (adminData) {
         try {
@@ -28,27 +30,23 @@ export function getAuthToken(): string | null {
 }
 
 /**
- * Получение заголовков авторизации для fetch
+ * Получение заголовков авторизации для fetch.
  */
 export function getAuthHeaders(): HeadersInit {
     const token = getAuthToken();
-    return token
-        ? { 'Authorization': `Bearer ${token}` }
-        : {};
+    return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 /**
- * Проверка авторизации
+ * Проверка авторизации.
  */
 export function isAuthenticated(): boolean {
     return !!getAuthToken();
 }
 
 /**
- * Сброс локальной авторизации админки
+ * Полный logout портала с очисткой общего shared-session cookie.
  */
 export function clearAuthData(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('token');
-    localStorage.removeItem('admin_data');
+    clearPortalAuthData();
 }

@@ -13,6 +13,7 @@ import { TeamSection } from './TeamSection';
 import { UnionPresentationSection } from './UnionPresentationSection';
 import { motion } from 'framer-motion';
 import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle, Sparkles } from 'lucide-react';
+import { clearPortalAuthData, syncSharedSessionFromAdminStorage } from '@/lib/shared-session';
 
 export default function LandingPage() {
   const [user, setUser] = useState<any>(null);
@@ -21,9 +22,9 @@ export default function LandingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const data = localStorage.getItem('admin_data');
-    if (data) {
-      setUser(JSON.parse(data));
+    const session = syncSharedSessionFromAdminStorage();
+    if (session) {
+      setUser(session);
     }
 
     const storedLanguage = localStorage.getItem('landing_language') as LandingLanguage | null;
@@ -39,7 +40,7 @@ export default function LandingPage() {
   }, [language]);
 
   const handleLogout = () => {
-    localStorage.removeItem('admin_data');
+    clearPortalAuthData();
     setUser(null);
     router.refresh();
   };
