@@ -33,8 +33,8 @@ import type {
 } from "@vedamatch/domain-types";
 import { normalizeLanguage } from "@vedamatch/i18n";
 
-export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "vedabase" | "local" | "unknown";
-export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "vedabase" | "api";
+export type VedamatchSurface = "portal" | "social" | "union" | "panel" | "lkm" | "vedabase" | "motivation" | "local" | "unknown";
+export type VedamatchSubdomain = "admin" | "social" | "union" | "panel" | "lkm" | "vedabase" | "motivation" | "api";
 export type ContactsQueryOptions = {
   tab?: "all" | "friends" | "blocked";
   q?: string;
@@ -57,6 +57,10 @@ const AUTH_STORAGE_KEYS = {
   user: "vm_user",
   language: "vm_language",
 } as const;
+const SHARED_SESSION_COOKIE = "vm_shared_session";
+const SHARED_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+type SharedSessionCookiePayload = AuthSession;
 
 export function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase().trim().replace(/:\d+$/, "");
@@ -96,13 +100,16 @@ export function resolveVedamatchSurface(hostname: string): VedamatchSurface {
   if (normalized === "vedabase.vedamatch.ru" || normalized === "vedabase.vedamatch.com") {
     return "vedabase";
   }
+  if (normalized === "motivation.vedamatch.ru" || normalized === "motivation.vedamatch.com") {
+    return "motivation";
+  }
   return "unknown";
 }
 
 export function buildVedamatchOrigin(hostname: string, subdomain: VedamatchSubdomain): string {
   const normalized = normalizeHostname(hostname);
   if (LOCAL_HOSTS.has(normalized)) {
-    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : subdomain === "vedabase" ? "3008" : "3010";
+    const port = subdomain === "api" ? "8000" : subdomain === "lkm" ? "3006" : subdomain === "union" ? "3007" : subdomain === "vedabase" ? "3008" : subdomain === "motivation" ? "3009" : "3010";
     return `http://${normalized}:${port}`;
   }
 
@@ -158,6 +165,91 @@ function normalizeTokens(payload: LoginResponse | AuthTokens | null | undefined)
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
+}
+
+function resolveSharedSessionCookieDomain(hostname: string): string | null {
+  const rootDomain = resolveVedamatchRootDomain(hostname);
+  return rootDomain ? `.${rootDomain}` : null;
+}
+
+function encodeSharedSessionCookie(session: AuthSession): string {
+  return encodeURIComponent(JSON.stringify(session));
+}
+
+function decodeSharedSessionCookie(value: string | null | undefined): AuthSession | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as SharedSessionCookiePayload | null;
+    const tokens = normalizeTokens(parsed);
+    if (!tokens) {
+      return null;
+    }
+
+    return {
+      ...tokens,
+      user: parsed?.user || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readCookie(name: string): string | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const prefix = `${name}=`;
+  const match = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(prefix));
+
+  return match ? match.slice(prefix.length) : null;
+}
+
+function clearSharedSessionCookie(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const domain = resolveSharedSessionCookieDomain(window.location.hostname);
+  const domainSuffix = domain ? `; Domain=${domain}` : "";
+  document.cookie = `${SHARED_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${domainSuffix}`;
+}
+
+function writeSharedSessionCookie(session: AuthSession | null): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  if (!session?.accessToken) {
+    clearSharedSessionCookie();
+    return;
+  }
+
+  const domain = resolveSharedSessionCookieDomain(window.location.hostname);
+  const domainSuffix = domain ? `; Domain=${domain}` : "";
+  const secureSuffix = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${SHARED_SESSION_COOKIE}=${encodeSharedSessionCookie(session)}; Path=/; Max-Age=${SHARED_SESSION_TTL_SECONDS}; SameSite=Lax${domainSuffix}${secureSuffix}`;
+}
+
+function restoreBrowserSessionFromSharedCookie(): AuthSession | null {
+  const session = decodeSharedSessionCookie(readCookie(SHARED_SESSION_COOKIE));
+  if (!session?.accessToken) {
+    return null;
+  }
+
+  writeStoredTokens(session);
+  if (session.user) {
+    window.localStorage.setItem(AUTH_STORAGE_KEYS.user, JSON.stringify(session.user));
+  } else {
+    window.localStorage.removeItem(AUTH_STORAGE_KEYS.user);
+  }
+
+  return session;
 }
 
 export function getAuthStorageKeys() {
@@ -250,7 +342,7 @@ export function getBrowserSession(): AuthSession | null {
   }
 
   if (!tokens) {
-    return null;
+    return restoreBrowserSessionFromSharedCookie();
   }
 
   return {
@@ -275,10 +367,12 @@ export function saveBrowserSession(session: AuthSession | null): void {
   } else {
     window.localStorage.removeItem(AUTH_STORAGE_KEYS.user);
   }
+  writeSharedSessionCookie(session);
 }
 
 export function clearBrowserSession(): void {
   clearStoredTokens();
+  clearSharedSessionCookie();
 }
 
 export async function apiFetch<T>(baseUrl: string, path: string, init: RequestInit = {}, accessToken?: string | null): Promise<T> {
@@ -444,6 +538,42 @@ export async function getNewsItem(baseUrl: string, id: number, language?: string
   const params = new URLSearchParams();
   params.set("lang", normalizeLanguage(language));
   return apiFetch<NewsItem>(baseUrl, `/news/${id}?${params.toString()}`);
+}
+
+// ---- Motivation (motivation.vedamatch.ru) ----
+
+export type MotivationPost = {
+  id: number;
+  theme: string;
+  imageUrl: string;
+  language: string;
+  title: string;
+  text: string;
+  publishedAt: string | null;
+};
+
+export type MotivationPostsResponse = {
+  posts: MotivationPost[];
+  nextCursor: number | null;
+};
+
+export async function getMotivationPosts(
+  baseUrl: string,
+  options: { lang?: string; limit?: number; cursor?: number } = {},
+): Promise<MotivationPostsResponse> {
+  const params = new URLSearchParams();
+  if (options.lang) params.set("lang", options.lang);
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.cursor) params.set("cursor", String(options.cursor));
+  const suffix = params.toString();
+  return apiFetch<MotivationPostsResponse>(baseUrl, `/motivation/posts${suffix ? `?${suffix}` : ""}`);
+}
+
+export async function getMotivationPost(baseUrl: string, id: number, lang?: string): Promise<MotivationPost> {
+  const params = new URLSearchParams();
+  if (lang) params.set("lang", lang);
+  const suffix = params.toString();
+  return apiFetch<MotivationPost>(baseUrl, `/motivation/posts/${id}${suffix ? `?${suffix}` : ""}`);
 }
 
 export async function getWallet(baseUrl: string, accessToken: string): Promise<WalletResponse> {
