@@ -61,6 +61,18 @@ const SHARED_SESSION_COOKIE = "vm_shared_session";
 const SHARED_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 type SharedSessionCookiePayload = AuthSession;
+let browserRefreshPromise: Promise<AuthSession | null> | null = null;
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly payload?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 export function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase().trim().replace(/:\d+$/, "");
@@ -195,6 +207,32 @@ function decodeSharedSessionCookie(value: string | null | undefined): AuthSessio
   } catch {
     return null;
   }
+}
+
+function parseSessionDate(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+export function isAccessTokenStale(session: Pick<AuthSession, "accessToken" | "accessTokenExpiresAt"> | null | undefined, bufferMs = 30_000): boolean {
+  if (!session?.accessToken) {
+    return false;
+  }
+
+  const expiresAt = parseSessionDate(session.accessTokenExpiresAt);
+  if (expiresAt === null) {
+    return true;
+  }
+
+  return expiresAt <= Date.now() + bufferMs;
+}
+
+function isUnauthorizedApiError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
 }
 
 function readCookie(name: string): string | null {
@@ -392,13 +430,15 @@ export async function apiFetch<T>(baseUrl: string, path: string, init: RequestIn
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
+    let payload: unknown;
     try {
-      const payload = await response.json();
-      message = String(payload?.error || payload?.message || message);
+      payload = await response.json();
+      const errorPayload = payload as { error?: unknown; message?: unknown } | null;
+      message = String(errorPayload?.error || errorPayload?.message || message);
     } catch {
       // noop
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status, payload);
   }
 
   if (response.status === 204) {
@@ -408,8 +448,9 @@ export async function apiFetch<T>(baseUrl: string, path: string, init: RequestIn
   return response.json() as Promise<T>;
 }
 
-export async function refreshAuthTokens(baseUrl: string, refreshToken?: string | null): Promise<AuthTokens | null> {
-  if (!refreshToken) {
+export async function refreshAuthTokens(baseUrl: string, session?: AuthSession | AuthTokens | null): Promise<AuthTokens | null> {
+  const tokens = normalizeTokens(session);
+  if (!tokens?.refreshToken) {
     return null;
   }
 
@@ -418,7 +459,11 @@ export async function refreshAuthTokens(baseUrl: string, refreshToken?: string |
     "/auth/refresh",
     {
       method: "POST",
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({
+        refreshToken: tokens.refreshToken,
+        sessionId: tokens.sessionId,
+        deviceId: "web",
+      }),
     },
     undefined,
   );
@@ -739,13 +784,15 @@ export async function deleteUserMedia(baseUrl: string, accessToken: string, medi
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
+    let payload: unknown;
     try {
-      const payload = await response.json();
-      message = String(payload?.error || payload?.message || message);
+      payload = await response.json();
+      const errorPayload = payload as { error?: unknown; message?: unknown } | null;
+      message = String(errorPayload?.error || errorPayload?.message || message);
     } catch {
       // noop
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status, payload);
   }
 }
 
@@ -807,6 +854,33 @@ function normalizeAuthSession(payload: LoginResponse | AuthTokens | null | undef
 export class BrowserVedaClient {
   constructor(public readonly baseUrl: string) {}
 
+  private requireSession(): AuthSession {
+    const session = getBrowserSession();
+    if (!session?.accessToken) {
+      throw new Error("Unauthorized");
+    }
+    return session;
+  }
+
+  private async withAuthorizedSession<T>(executor: (session: AuthSession) => Promise<T>): Promise<T> {
+    const session = this.requireSession();
+
+    try {
+      return await executor(session);
+    } catch (error) {
+      if (!session.refreshToken || !isUnauthorizedApiError(error)) {
+        throw error;
+      }
+
+      const refreshedSession = await this.refresh();
+      if (!refreshedSession?.accessToken) {
+        throw new Error("Unauthorized");
+      }
+
+      return executor(refreshedSession);
+    }
+  }
+
   async login(payload: { email: string; password: string }): Promise<AuthSession> {
     const response = await loginWithPassword(this.baseUrl, payload.email, payload.password);
     const session = normalizeAuthSession(response);
@@ -828,18 +902,37 @@ export class BrowserVedaClient {
   }
 
   async refresh(): Promise<AuthSession | null> {
-    const session = getBrowserSession();
-    const tokens = await refreshAuthTokens(this.baseUrl, session?.refreshToken);
-    if (!tokens) {
-      return null;
+    if (browserRefreshPromise) {
+      return browserRefreshPromise;
     }
-    const nextSession: AuthSession = {
-      ...session,
-      ...tokens,
-      user: session?.user || null,
-    };
-    saveBrowserSession(nextSession);
-    return nextSession;
+
+    browserRefreshPromise = (async () => {
+      const session = getBrowserSession();
+      const tokens = await refreshAuthTokens(this.baseUrl, session);
+      if (!tokens) {
+        clearBrowserSession();
+        return null;
+      }
+      const nextSession: AuthSession = {
+        ...session,
+        ...tokens,
+        user: session?.user || null,
+      };
+      saveBrowserSession(nextSession);
+      return nextSession;
+    })()
+      .catch((error) => {
+        if (isUnauthorizedApiError(error)) {
+          clearBrowserSession();
+          return null;
+        }
+        throw error;
+      })
+      .finally(() => {
+        browserRefreshPromise = null;
+      });
+
+    return browserRefreshPromise;
   }
 
   async logout(): Promise<void> {
@@ -848,56 +941,41 @@ export class BrowserVedaClient {
   }
 
   async updateProfile(payload: Record<string, unknown>): Promise<AuthSession> {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-
-    const response = await updateProfile(this.baseUrl, payload, session.accessToken);
+    const response = await this.withAuthorizedSession((session) => updateProfile(this.baseUrl, payload, session.accessToken));
+    const currentSession = getBrowserSession();
     const nextSession: AuthSession = {
-      ...(normalizeAuthSession(response) || session),
-      user: response.user || session.user || null,
+      ...(normalizeAuthSession(response) || currentSession || this.requireSession()),
+      user: response.user || currentSession?.user || this.requireSession().user || null,
     };
     saveBrowserSession(nextSession);
     return nextSession;
   }
 
   async getContacts(options: ContactsQueryOptions = {}): Promise<PaginatedContactsResponse> {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getContacts(this.baseUrl, session.accessToken, options);
+    return this.withAuthorizedSession((session) => getContacts(this.baseUrl, session.accessToken, options));
   }
 
   async getConversations() {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    const response = await getConversations(this.baseUrl, session.accessToken);
+    const response = await this.withAuthorizedSession((session) => getConversations(this.baseUrl, session.accessToken));
     return response.items || [];
   }
 
   async getMessagesHistory(peerUserId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getMessageHistory(this.baseUrl, session.accessToken, peerUserId);
+    return this.withAuthorizedSession((session) => getMessageHistory(this.baseUrl, session.accessToken, peerUserId));
   }
 
   async sendMessage(recipientId: number, content: string, options: { unionChat?: boolean } = {}) {
-    const session = getBrowserSession();
-    const senderId = session?.user?.ID || session?.user?.id;
-    if (!session?.accessToken || !senderId) {
-      throw new Error("Unauthorized");
-    }
-    return sendMessage(this.baseUrl, session.accessToken, {
-      senderId,
-      recipientId,
-      content,
-      unionChat: options.unionChat,
+    return this.withAuthorizedSession((session) => {
+      const senderId = session.user?.ID || session.user?.id;
+      if (!senderId) {
+        throw new Error("Unauthorized");
+      }
+      return sendMessage(this.baseUrl, session.accessToken, {
+        senderId,
+        recipientId,
+        content,
+        unionChat: options.unionChat,
+      });
     });
   }
 
@@ -936,22 +1014,16 @@ export class BrowserVedaClient {
   }
 
   async getWallet(): Promise<WalletResponse> {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getWallet(this.baseUrl, session.accessToken);
+    return this.withAuthorizedSession((session) => getWallet(this.baseUrl, session.accessToken));
   }
 
   async getDatingCandidates(options: DatingCandidatesQuery = {}) {
-    const session = getBrowserSession();
-    const userId = session?.user?.ID || session?.user?.id;
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getDatingCandidates(this.baseUrl, session.accessToken, {
-      userId,
-      ...options,
+    return this.withAuthorizedSession((session) => {
+      const userId = session.user?.ID || session.user?.id;
+      return getDatingCandidates(this.baseUrl, session.accessToken, {
+        userId,
+        ...options,
+      });
     });
   }
 
@@ -960,99 +1032,51 @@ export class BrowserVedaClient {
   }
 
   async getDatingCities() {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getDatingCities(this.baseUrl, session.accessToken);
+    return this.withAuthorizedSession((session) => getDatingCities(this.baseUrl, session.accessToken));
   }
 
   async getDatingProfile(profileId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return getDatingProfile(this.baseUrl, session.accessToken, profileId);
+    return this.withAuthorizedSession((session) => getDatingProfile(this.baseUrl, session.accessToken, profileId));
   }
 
   async updateDatingProfile(profileId: number, payload: Record<string, unknown>) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return updateDatingProfile(this.baseUrl, session.accessToken, profileId, payload);
+    return this.withAuthorizedSession((session) => updateDatingProfile(this.baseUrl, session.accessToken, profileId, payload));
   }
 
   async submitDatingProfile(profileId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return submitDatingProfile(this.baseUrl, session.accessToken, profileId);
+    return this.withAuthorizedSession((session) => submitDatingProfile(this.baseUrl, session.accessToken, profileId));
   }
 
   async listUserMedia(userId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return listUserMedia(this.baseUrl, session.accessToken, userId);
+    return this.withAuthorizedSession((session) => listUserMedia(this.baseUrl, session.accessToken, userId));
   }
 
   async uploadUserPhoto(userId: number, file: File) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return uploadUserPhoto(this.baseUrl, session.accessToken, userId, file);
+    return this.withAuthorizedSession((session) => uploadUserPhoto(this.baseUrl, session.accessToken, userId, file));
   }
 
   async setProfilePhoto(mediaId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return setProfilePhoto(this.baseUrl, session.accessToken, mediaId);
+    return this.withAuthorizedSession((session) => setProfilePhoto(this.baseUrl, session.accessToken, mediaId));
   }
 
   async deleteUserMedia(mediaId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return deleteUserMedia(this.baseUrl, session.accessToken, mediaId);
+    return this.withAuthorizedSession((session) => deleteUserMedia(this.baseUrl, session.accessToken, mediaId));
   }
 
   async unlockDatingProfile(profileId: number) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return unlockDatingProfile(this.baseUrl, session.accessToken, profileId);
+    return this.withAuthorizedSession((session) => unlockDatingProfile(this.baseUrl, session.accessToken, profileId));
   }
 
   async createDatingChatRequest(payload: { recipientId: number; message: string }) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return createDatingChatRequest(this.baseUrl, session.accessToken, payload);
+    return this.withAuthorizedSession((session) => createDatingChatRequest(this.baseUrl, session.accessToken, payload));
   }
 
   async listDatingChatRequests(options: DatingChatRequestsQuery = {}) {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return listDatingChatRequests(this.baseUrl, session.accessToken, options);
+    return this.withAuthorizedSession((session) => listDatingChatRequests(this.baseUrl, session.accessToken, options));
   }
 
   async respondDatingChatRequest(requestId: number, action: "accept" | "reject" | "cancel") {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    return respondDatingChatRequest(this.baseUrl, session.accessToken, requestId, action);
+    return this.withAuthorizedSession((session) => respondDatingChatRequest(this.baseUrl, session.accessToken, requestId, action));
   }
 
   async getSupportConfig() {
@@ -1060,11 +1084,7 @@ export class BrowserVedaClient {
   }
 
   async getSupportTickets() {
-    const session = getBrowserSession();
-    if (!session?.accessToken) {
-      throw new Error("Unauthorized");
-    }
-    const response = await listSupportTickets(this.baseUrl, session.accessToken);
+    const response = await this.withAuthorizedSession((session) => listSupportTickets(this.baseUrl, session.accessToken));
     return response.tickets || [];
   }
 }

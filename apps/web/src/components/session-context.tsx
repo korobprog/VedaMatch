@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { clearBrowserSession, createBrowserClient, getBrowserSession, saveBrowserSession } from "@vedamatch/api-client";
+import { createBrowserClient, getBrowserSession, isAccessTokenStale, saveBrowserSession } from "@vedamatch/api-client";
 import { getDictionary, normalizeLanguage, type Dictionary } from "@vedamatch/i18n";
 import type { AuthSession, Language } from "@vedamatch/domain-types";
 import { LANGUAGE_COOKIE_KEY, LANGUAGE_STORAGE_KEY } from "@/lib/language-preference";
@@ -54,21 +54,43 @@ export function SessionProvider({
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
 
   useEffect(() => {
-    const nextSession = getBrowserSession();
-    const storedLanguage = typeof window !== "undefined" ? window.localStorage.getItem(LANGUAGE_STORAGE_KEY) : null;
-    const browserLanguage = typeof navigator !== "undefined" ? navigator.language : "en";
-    const storedTheme = typeof window !== "undefined" ? window.localStorage.getItem(THEME_STORAGE_KEY) : null;
-    const nextThemePreference = normalizeThemePreference(storedTheme);
-    const nextResolvedTheme = resolveThemePreference(nextThemePreference, readSystemTheme() === "dark");
+    let cancelled = false;
 
-    setSessionState(nextSession);
-    const nextLanguage = normalizeLanguage(storedLanguage || initialLanguage || browserLanguage);
-    setLanguageState(nextLanguage);
-    writeLanguagePreference(nextLanguage);
-    setThemePreferenceState(nextThemePreference);
-    setResolvedTheme(nextResolvedTheme);
-    applyDocumentTheme(nextResolvedTheme);
-    setReady(true);
+    async function bootstrapSession() {
+      let nextSession = getBrowserSession();
+      const storedLanguage = typeof window !== "undefined" ? window.localStorage.getItem(LANGUAGE_STORAGE_KEY) : null;
+      const browserLanguage = typeof navigator !== "undefined" ? navigator.language : "en";
+      const storedTheme = typeof window !== "undefined" ? window.localStorage.getItem(THEME_STORAGE_KEY) : null;
+      const nextThemePreference = normalizeThemePreference(storedTheme);
+      const nextResolvedTheme = resolveThemePreference(nextThemePreference, readSystemTheme() === "dark");
+
+      if (nextSession?.refreshToken && isAccessTokenStale(nextSession)) {
+        try {
+          nextSession = await createBrowserClient().refresh();
+        } catch {
+          nextSession = getBrowserSession();
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      setSessionState(nextSession);
+      const nextLanguage = normalizeLanguage(storedLanguage || initialLanguage || browserLanguage);
+      setLanguageState(nextLanguage);
+      writeLanguagePreference(nextLanguage);
+      setThemePreferenceState(nextThemePreference);
+      setResolvedTheme(nextResolvedTheme);
+      applyDocumentTheme(nextResolvedTheme);
+      setReady(true);
+    }
+
+    void bootstrapSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [initialLanguage]);
 
   useEffect(() => {
@@ -121,7 +143,7 @@ export function SessionProvider({
       try {
         await createBrowserClient().logout();
       } catch {
-        clearBrowserSession();
+        saveBrowserSession(null);
       } finally {
         setSessionState(null);
       }
