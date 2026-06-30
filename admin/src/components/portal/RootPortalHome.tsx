@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, BookOpen, LockKeyhole, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Heart, LockKeyhole, Sparkles, Users } from 'lucide-react';
 import { buildVedamatchUrl } from '@/lib/vedamatch-hosts';
 import { resolveDefaultLandingLanguage, type LandingLanguage } from '@/lib/landing-copy';
 
@@ -24,6 +24,13 @@ type PortalCopy = {
   authLoggedInHint: string;
   portalAdmin: string;
   services: {
+    union: {
+      title: string;
+      eyebrow: string;
+      description: string;
+      badge: string;
+      cta: string;
+    };
     social: {
       title: string;
       eyebrow: string;
@@ -54,7 +61,7 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
   ru: {
     badge: 'VEDAMATCH PORTAL',
     title: 'Единый портал сервисов VedaMatch',
-    body: 'Открывайте Social web, Motivation и Vedabase с одного главного экрана. Если уже вошли на этом портале, основной web-кабинет доступен сразу.',
+    body: 'Открывайте Union, Social web, Motivation и Vedabase с одного главного экрана. Если уже вошли на этом портале, основной web-кабинет доступен сразу.',
     primaryCta: 'Открыть Social web',
     secondaryCta: 'Войти',
     registerCta: 'Регистрация',
@@ -69,6 +76,13 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
     authLoggedInHint: 'Social web доступен сразу',
     portalAdmin: 'Панель управления',
     services: {
+      union: {
+        title: 'Union',
+        eyebrow: 'Знакомства и совместимость',
+        description: 'Отдельный сервис осознанных знакомств, профилей совместимости и заявок для поиска близких по ценностям людей.',
+        badge: 'Знакомства',
+        cta: 'Открыть',
+      },
       social: {
         title: 'Social web',
         eyebrow: 'Общение и сервисы',
@@ -97,7 +111,7 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
   en: {
     badge: 'VEDAMATCH PORTAL',
     title: 'One VedaMatch portal for key web services',
-    body: 'Open Social web, Motivation, and Vedabase from one homepage. If you are already signed in on this portal, the main web cabinet is available immediately.',
+    body: 'Open Union, Social web, Motivation, and Vedabase from one homepage. If you are already signed in on this portal, the main web cabinet is available immediately.',
     primaryCta: 'Open Social web',
     secondaryCta: 'Sign in',
     registerCta: 'Register',
@@ -112,6 +126,13 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
     authLoggedInHint: 'Social web opens immediately',
     portalAdmin: 'Admin panel',
     services: {
+      union: {
+        title: 'Union',
+        eyebrow: 'Dating and compatibility',
+        description: 'A dedicated conscious dating surface with compatibility profiles, discovery, and relationship requests.',
+        badge: 'Dating',
+        cta: 'Open',
+      },
       social: {
         title: 'Social web',
         eyebrow: 'Communication and services',
@@ -140,7 +161,7 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
   hi: {
     badge: 'VEDAMATCH PORTAL',
     title: 'VedaMatch के मुख्य web services के लिए एक portal',
-    body: 'एक ही मुख्य पृष्ठ से Social web, Motivation और Vedabase खोलिए। यदि आप इस portal पर पहले से sign in हैं, तो मुख्य web cabinet तुरंत उपलब्ध है।',
+    body: 'एक ही मुख्य पृष्ठ से Union, Social web, Motivation और Vedabase खोलिए। यदि आप इस portal पर पहले से sign in हैं, तो मुख्य web cabinet तुरंत उपलब्ध है।',
     primaryCta: 'Social web खोलें',
     secondaryCta: 'Sign in करें',
     registerCta: 'Register',
@@ -155,6 +176,13 @@ const COPY: Record<LandingLanguage, PortalCopy> = {
     authLoggedInHint: 'Social web तुरंत खुलेगा',
     portalAdmin: 'Admin panel',
     services: {
+      union: {
+        title: 'Union',
+        eyebrow: 'Dating and compatibility',
+        description: 'Compatibility profiles, discovery और meaningful relationship requests के लिए अलग conscious dating surface।',
+        badge: 'Dating',
+        cta: 'Open',
+      },
       social: {
         title: 'Social web',
         eyebrow: 'Communication and services',
@@ -230,6 +258,14 @@ function ServiceCard({ title, eyebrow, description, badge, cta, href, icon: Icon
   );
 }
 
+function resolvePortalLinkHostname(hostname: string, language: LandingLanguage) {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return hostname;
+  }
+
+  return language === 'ru' ? 'vedamatch.ru' : 'vedamatch.com';
+}
+
 export default function RootPortalHome() {
   const [language, setLanguage] = useState<LandingLanguage>('ru');
   const [hostname, setHostname] = useState('vedamatch.ru');
@@ -255,9 +291,11 @@ export default function RootPortalHome() {
 
   const copy = COPY[language];
   const socialHref = isLoggedIn ? '/user/dashboard' : '/login';
-  const motivationHref = useMemo(() => buildVedamatchUrl(hostname, 'motivation', '/'), [hostname]);
-  const vedabaseHref = useMemo(() => buildVedamatchUrl(hostname, 'vedabase', '/'), [hostname]);
-  const adminHref = useMemo(() => buildVedamatchUrl(hostname, 'panel', '/admin-login'), [hostname]);
+  const portalLinkHostname = useMemo(() => resolvePortalLinkHostname(hostname, language), [hostname, language]);
+  const unionHref = useMemo(() => buildVedamatchUrl(portalLinkHostname, 'union', '/'), [portalLinkHostname]);
+  const motivationHref = useMemo(() => buildVedamatchUrl(portalLinkHostname, 'motivation', '/'), [portalLinkHostname]);
+  const vedabaseHref = useMemo(() => buildVedamatchUrl(portalLinkHostname, 'vedabase', '/'), [portalLinkHostname]);
+  const adminHref = useMemo(() => buildVedamatchUrl(portalLinkHostname, 'panel', '/admin-login'), [portalLinkHostname]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_transparent_32%),linear-gradient(180deg,_#fffdf8_0%,_#fff7ed_52%,_#f8fafc_100%)] text-slate-950 dark:bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(180deg,_#020617_0%,_#0f172a_50%,_#111827_100%)] dark:text-white">
@@ -358,7 +396,18 @@ export default function RootPortalHome() {
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{copy.servicesHint}</p>
             </div>
           </div>
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <ServiceCard
+              title={copy.services.union.title}
+              eyebrow={copy.services.union.eyebrow}
+              description={copy.services.union.description}
+              badge={copy.services.union.badge}
+              cta={copy.services.union.cta}
+              href={unionHref}
+              icon={Heart}
+              accent="bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200"
+              external
+            />
             <ServiceCard
               title={copy.services.social.title}
               eyebrow={copy.services.social.eyebrow}
