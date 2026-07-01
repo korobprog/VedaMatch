@@ -32,6 +32,7 @@ const SERVICES = [
 export default function UserDashboard() {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [user, setUser] = useState<any>(null);
+    const [portalNotice, setPortalNotice] = useState<string | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -45,6 +46,19 @@ export default function UserDashboard() {
         }
         return () => clearInterval(timer);
     }, [router]);
+
+    useEffect(() => {
+        if (!portalNotice) return;
+        const timer = window.setTimeout(() => setPortalNotice(null), 3600);
+        return () => window.clearTimeout(timer);
+    }, [portalNotice]);
+
+    const showPortalNotice = (message: string) => {
+        setPortalNotice(message);
+    };
+
+    const getMobileOnlyMessage = (label: string) =>
+        `Раздел «${label}» пока доступен только в мобильном приложении VedaMatch. Web-версию можно добавить следующим этапом.`;
 
     const handleLogout = () => {
         clearPortalAuthData();
@@ -77,6 +91,21 @@ export default function UserDashboard() {
 
             {/* Main Portal Container */}
             <div className="relative z-10 max-w-5xl mx-auto px-6 pt-8">
+                <AnimatePresence>
+                    {portalNotice && (
+                        <motion.div
+                            role="status"
+                            aria-live="polite"
+                            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                            className="fixed left-1/2 top-5 z-50 w-[min(calc(100%_-_32px),520px)] -translate-x-1/2 rounded-2xl border border-orange-400/25 bg-[#16171d]/95 px-5 py-4 text-sm font-bold text-white shadow-2xl shadow-black/40 backdrop-blur-xl"
+                        >
+                            {portalNotice}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Top Header */}
                 <header className="flex items-center justify-between mb-12">
                     <div className="flex items-center gap-5">
@@ -90,10 +119,20 @@ export default function UserDashboard() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button className="p-3.5 bg-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/10 hover:bg-white/10 transition-all text-white/70 hover:text-white">
+                        <button
+                            type="button"
+                            aria-label="Поиск по порталу"
+                            onClick={() => showPortalNotice('Поиск по порталу скоро появится в web-версии.')}
+                            className="p-3.5 bg-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/10 hover:bg-white/10 transition-all text-white/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-400/60"
+                        >
                             <Search className="w-5 h-5" strokeWidth={2.5} />
                         </button>
-                        <button className="p-3.5 bg-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/10 hover:bg-white/10 transition-all text-white/70 hover:text-white relative">
+                        <button
+                            type="button"
+                            aria-label="Уведомления"
+                            onClick={() => showPortalNotice('Центр уведомлений для web-портала пока готовится.')}
+                            className="p-3.5 bg-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/10 hover:bg-white/10 transition-all text-white/70 hover:text-white relative focus:outline-none focus:ring-2 focus:ring-orange-400/60"
+                        >
                             <Bell className="w-5 h-5" strokeWidth={2.5} />
                             <span className="absolute top-3.5 right-3.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900" />
                         </button>
@@ -152,7 +191,11 @@ export default function UserDashboard() {
                                 </p>
                             </div>
                             <div className="mt-8">
-                                <button className="bg-orange-500 hover:bg-orange-400 text-white text-sm font-black px-8 py-4 rounded-2xl shadow-xl shadow-orange-500/20 transition-all hover:-translate-y-1 active:scale-95 flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => showPortalNotice('Подключение к совместной джапе скоро появится в web-портале.')}
+                                    className="bg-orange-500 hover:bg-orange-400 text-white text-sm font-black px-8 py-4 rounded-2xl shadow-xl shadow-orange-500/20 transition-all hover:-translate-y-1 active:scale-95 flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-orange-200/80"
+                                >
                                     Подключиться <ChevronRight className="w-5 h-5" strokeWidth={3} />
                                 </button>
                             </div>
@@ -175,7 +218,13 @@ export default function UserDashboard() {
                                 Сервисы Портала
                             </h2>
                         </div>
-                        <button className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-orange-400 transition-colors">Настроить</button>
+                        <button
+                            type="button"
+                            onClick={() => showPortalNotice('Настройка состава и порядка иконок будет доступна после подключения web-редактора портала.')}
+                            className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-orange-400 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-400/60 rounded-lg px-2 py-1"
+                        >
+                            Настроить
+                        </button>
                     </div>
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-y-10 gap-x-6 md:gap-x-10">
@@ -188,16 +237,26 @@ export default function UserDashboard() {
                                 className="group flex flex-col items-center"
                             >
                                 {service.availableOnWeb === false ? (
-                                    <div className="relative mb-4 cursor-default">
+                                    <button
+                                        type="button"
+                                        aria-label={`${service.label}: доступно в мобильном приложении`}
+                                        onClick={() => showPortalNotice(getMobileOnlyMessage(service.label))}
+                                        className="relative mb-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400/60 focus:ring-offset-4 focus:ring-offset-[#0a0a0c] rounded-[32px]"
+                                    >
                                         <div className={`w-18 h-18 sm:w-20 sm:h-20 ${service.color} rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white shadow-2xl opacity-65 relative z-10 border-t border-white/20`}>
                                             <service.icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={2} />
                                         </div>
                                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-orange-200 backdrop-blur-md">
                                             {service.availabilityLabel || 'Скоро'}
                                         </div>
-                                    </div>
+                                    </button>
                                 ) : (
-                                    <Link href={service.path} prefetch={false} className="relative mb-4">
+                                    <Link
+                                        aria-label={`Открыть ${service.label}`}
+                                        href={service.path}
+                                        prefetch={false}
+                                        className="relative mb-4 focus:outline-none focus:ring-2 focus:ring-orange-400/60 focus:ring-offset-4 focus:ring-offset-[#0a0a0c] rounded-[32px]"
+                                    >
                                         <div className={`w-18 h-18 sm:w-20 sm:h-20 ${service.color} rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white shadow-2xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] group-active:scale-90 transition-all duration-300 group-hover:-translate-y-2 relative z-10 border-t border-white/20`}>
                                             <service.icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={2} />
                                         </div>
@@ -212,12 +271,14 @@ export default function UserDashboard() {
 
                         {/* Add Service Placeholder */}
                         <motion.button
+                            type="button"
+                            onClick={() => showPortalNotice('Управление иконками портала пока недоступно в web-версии.')}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: SERVICES.length * 0.04 }}
-                            className="group flex flex-col items-center"
+                            className="group flex flex-col items-center focus:outline-none"
                         >
-                            <div className="w-18 h-18 sm:w-20 sm:h-20 bg-white/5 border-2 border-dashed border-white/10 rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white/20 hover:bg-white/10 hover:border-white/30 hover:text-white group-active:scale-90 transition-all duration-300 mb-4">
+                            <div className="w-18 h-18 sm:w-20 sm:h-20 bg-white/5 border-2 border-dashed border-white/10 rounded-[28px] sm:rounded-[32px] flex items-center justify-center text-white/20 hover:bg-white/10 hover:border-white/30 hover:text-white group-active:scale-90 transition-all duration-300 mb-4 group-focus:ring-2 group-focus:ring-orange-400/60 group-focus:ring-offset-4 group-focus:ring-offset-[#0a0a0c]">
                                 <Plus className="w-8 h-8 sm:w-10 sm:h-10" strokeWidth={2} />
                             </div>
                             <span className="text-xs sm:text-sm font-bold text-center text-white/40">
