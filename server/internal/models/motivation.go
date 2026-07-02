@@ -31,6 +31,8 @@ const (
 // stored as MotivationPostTranslation rows.
 type MotivationPost struct {
 	gorm.Model
+	CategoryID       *uint                `json:"categoryId" gorm:"index"`
+	Category         *MotivationCategory  `json:"category,omitempty" gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	Theme            string               `json:"theme" gorm:"type:text;not null"`
 	SourceLinks      string               `json:"sourceLinks" gorm:"type:text"` // newline-separated URLs supplied by the operator
 	CharLimit        int                  `json:"charLimit" gorm:"default:0"`
@@ -47,6 +49,15 @@ type MotivationPost struct {
 	Translations []MotivationPostTranslation `json:"translations,omitempty" gorm:"foreignKey:PostID;constraint:OnDelete:CASCADE"`
 }
 
+// MotivationCategory groups motivational posts for admin organization and public filtering.
+type MotivationCategory struct {
+	gorm.Model
+	Name        string `json:"name" gorm:"type:varchar(120);not null"`
+	Slug        string `json:"slug" gorm:"type:varchar(140);not null;uniqueIndex"`
+	Description string `json:"description" gorm:"type:text"`
+	Color       string `json:"color" gorm:"type:varchar(32)"`
+}
+
 // MotivationPostTranslation holds the post text for one language.
 type MotivationPostTranslation struct {
 	gorm.Model
@@ -58,6 +69,10 @@ type MotivationPostTranslation struct {
 
 func (MotivationPost) TableName() string {
 	return "motivation_posts"
+}
+
+func (MotivationCategory) TableName() string {
+	return "motivation_categories"
 }
 
 func (MotivationPostTranslation) TableName() string {

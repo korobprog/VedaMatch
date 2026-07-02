@@ -19999,3 +19999,28 @@ const openCitySearch = (type: 'current' | 'birth') => {
     setCitySearchModal(true);
 };
 ```
+
+## 2026-06-28 — Product slug transliteration
+
+- Changed files:
+  - `server/internal/services/product_service.go`
+  - `server/internal/services/product_service_test.go`
+- Was: product slugs were generated from lowercase ASCII cleanup, so Cyrillic product names could fall back to `product-<timestamp>` instead of a readable slug.
+- Became: product slugs transliterate Cyrillic names into Latin and keep the numeric timestamp suffix for uniqueness.
+
+```go
+slug := buildProductSlugBase(name)
+return fmt.Sprintf("%s-%d", slug, time.Now().UTC().UnixNano())
+```
+
+## 2026-06-28 — Product save snackbar feedback
+
+- Changed files:
+  - `frontend/screens/portal/shops/ProductEditScreen.tsx`
+- Was: after product create/update the app showed a blocking system alert; it was easy to miss what happened after pressing save.
+- Became: successful product create/update shows a bottom snackbar confirmation, then returns to the previous screen after a short delay. Error handling still uses alerts.
+
+```tsx
+showSavedToast(t('market.product.updateSuccess') || 'Product updated successfully');
+successNavigationTimeoutRef.current = setTimeout(() => navigation.goBack(), 1200);
+```

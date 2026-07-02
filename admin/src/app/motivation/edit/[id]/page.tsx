@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { ArrowLeft, CheckCircle, Eye, EyeOff, Loader2, RefreshCw, Save } from 'lucide-react';
@@ -16,6 +16,8 @@ type Translation = {
 
 type MotivationPost = {
   ID: number;
+  categoryId?: number | null;
+  category?: MotivationCategory | null;
   theme: string;
   imageUrl?: string;
   imagePrompt?: string;
@@ -26,11 +28,17 @@ type MotivationPost = {
   translations?: Translation[];
 };
 
+type MotivationCategory = {
+  ID: number;
+  name: string;
+};
+
+type CategoryResponse = { categories?: MotivationCategory[] };
+
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function MotivationEditPage() {
   const params = useParams();
-  const router = useRouter();
   const id = params?.id as string;
 
   const { data: post, error, isLoading, mutate } = useSWR<MotivationPost>(
@@ -38,7 +46,9 @@ export default function MotivationEditPage() {
     fetcher,
     { refreshInterval: (data) => (data?.status === 'generating' ? 4000 : 0) },
   );
+  const { data: categoryData } = useSWR<CategoryResponse>('/admin/motivation/categories', fetcher);
 
+  const [categoryId, setCategoryId] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [saving, setSaving] = useState(false);
@@ -46,6 +56,7 @@ export default function MotivationEditPage() {
 
   useEffect(() => {
     if (post) {
+      setCategoryId(post.categoryId ? String(post.categoryId) : '');
       setImageUrl(post.imageUrl || '');
       setTranslations(post.translations ? [...post.translations].sort((a, b) => a.language.localeCompare(b.language)) : []);
     }
@@ -62,6 +73,8 @@ export default function MotivationEditPage() {
     try {
       await api.patch(`/admin/motivation/posts/${id}`, {
         imageUrl,
+        categoryId: categoryId ? Number(categoryId) : 0,
+        clearCategory: !categoryId,
         action,
         translations: translations.map((t) => ({
           language: t.language,
@@ -97,6 +110,7 @@ export default function MotivationEditPage() {
   }
 
   const isPublished = post.status === 'published';
+  const categories = categoryData?.categories ?? [];
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -121,6 +135,22 @@ export default function MotivationEditPage() {
 
       <h1 className="text-xl font-bold text-white mb-1">{post.theme}</h1>
       {post.error ? <p className="text-red-400 text-sm mb-4">⚠ {post.error}</p> : null}
+
+      <div className="mb-4 max-w-sm">
+        <label className="block text-sm text-gray-300 mb-1">Category</label>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white"
+        >
+          <option value="">No category</option>
+          {categories.map((category) => (
+            <option key={category.ID} value={category.ID}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {post.status === 'generating' ? (
         <div className="flex items-center gap-2 text-blue-300 mb-4">

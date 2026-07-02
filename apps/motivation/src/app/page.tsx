@@ -46,6 +46,11 @@ export default async function HomePage({
                 <div className="card-image" />
               )}
               <div className="card-body">
+                {post.category ? (
+                  <span className="category-badge" style={{ backgroundColor: post.category.color || undefined }}>
+                    {post.category.name}
+                  </span>
+                ) : null}
                 {post.title ? <h2 className="card-title">{post.title}</h2> : null}
                 <p className="card-text">{post.text}</p>
               </div>

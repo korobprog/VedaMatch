@@ -71,6 +71,11 @@ export default async function PostPage({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.imageUrl} alt={post.title || post.theme} />
         ) : null}
+        {post.category ? (
+          <span className="category-badge" style={{ backgroundColor: post.category.color || undefined }}>
+            {post.category.name}
+          </span>
+        ) : null}
         {post.title ? <h1>{post.title}</h1> : null}
         <p className="card-text" style={{ fontSize: 18 }}>
           {post.text}

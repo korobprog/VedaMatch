@@ -191,6 +191,16 @@ func TestGenerateProductSlug(t *testing.T) {
 	}
 }
 
+func TestGenerateProductSlugTransliteratesCyrillic(t *testing.T) {
+	t.Parallel()
+
+	svc := &ProductService{}
+	got := svc.generateSlug("  Тест продукт  ")
+	if !strings.HasPrefix(got, "test-produkt-") {
+		t.Fatalf("slug prefix = %q, want test-produkt-*", got)
+	}
+}
+
 func TestGenerateProductSlugFallback(t *testing.T) {
 	t.Parallel()
 

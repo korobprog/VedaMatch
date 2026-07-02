@@ -15,6 +15,8 @@ type Translation = {
 
 type MotivationPost = {
   ID: number;
+  categoryId?: number | null;
+  category?: MotivationCategory | null;
   theme: string;
   imageUrl?: string;
   originalLanguage: string;
@@ -27,6 +29,15 @@ type MotivationPost = {
 };
 
 type ListResponse = { posts?: MotivationPost[] };
+type CategoryResponse = { categories?: MotivationCategory[] };
+
+type MotivationCategory = {
+  ID: number;
+  name: string;
+  slug: string;
+  color?: string;
+  description?: string;
+};
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
@@ -48,12 +59,48 @@ const formatDate = (value?: string | null): string => {
 
 export default function MotivationListPage() {
   const [status, setStatus] = useState('');
-  const query = status ? `/admin/motivation/posts?status=${status}` : '/admin/motivation/posts';
+  const [categoryId, setCategoryId] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState('#f59e0b');
+  const [categoryError, setCategoryError] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const queryParams = new URLSearchParams();
+  if (status) queryParams.set('status', status);
+  if (categoryId) queryParams.set('categoryId', categoryId);
+  const querySuffix = queryParams.toString();
+  const query = `/admin/motivation/posts${querySuffix ? `?${querySuffix}` : ''}`;
   const { data, error, isLoading, mutate } = useSWR<ListResponse>(query, fetcher, {
     refreshInterval: 5000,
   });
+  const { data: categoryData, mutate: mutateCategories } = useSWR<CategoryResponse>(
+    '/admin/motivation/categories',
+    fetcher,
+  );
 
   const posts = data?.posts ?? [];
+  const categories = categoryData?.categories ?? [];
+
+  const createCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setCategoryError('Category name is required');
+      return;
+    }
+    setCreatingCategory(true);
+    setCategoryError('');
+    try {
+      await api.post('/admin/motivation/categories', {
+        name: newCategoryName.trim(),
+        color: newCategoryColor.trim(),
+      });
+      setNewCategoryName('');
+      await mutateCategories();
+    } catch (err) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setCategoryError(e.response?.data?.error || 'Failed to create category');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -92,6 +139,65 @@ export default function MotivationListPage() {
             {s || 'all'}
           </button>
         ))}
+      </div>
+
+      <div className="mb-5 rounded-xl bg-gray-800/60 border border-gray-700 p-4">
+        <div className="flex flex-col md:flex-row gap-3 md:items-end md:justify-between">
+          <div className="flex-1">
+            <label className="block text-sm text-gray-300 mb-1">Post category filter</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white"
+            >
+              <option value="">All categories</option>
+              {categories.map((category) => (
+                <option key={category.ID} value={category.ID}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-[2]">
+            <label className="block text-sm text-gray-300 mb-1">Create category</label>
+            <div className="flex gap-2">
+              <input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Category name"
+                className="min-w-0 flex-1 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white"
+              />
+              <input
+                type="color"
+                value={newCategoryColor}
+                onChange={(e) => setNewCategoryColor(e.target.value)}
+                className="h-10 w-12 rounded-lg bg-gray-900 border border-gray-700"
+                title="Category color"
+              />
+              <button
+                onClick={createCategory}
+                disabled={creatingCategory}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white disabled:opacity-50"
+              >
+                {creatingCategory ? 'Creating...' : 'Add'}
+              </button>
+            </div>
+            {categoryError ? <p className="text-xs text-red-400 mt-1">{categoryError}</p> : null}
+          </div>
+        </div>
+        {categories.length > 0 ? (
+          <div className="flex gap-2 mt-3 flex-wrap">
+            {categories.map((category) => (
+              <span
+                key={category.ID}
+                className="text-xs px-2 py-1 rounded-full border border-gray-700 text-white"
+                style={{ backgroundColor: category.color || '#4b5563' }}
+              >
+                {category.name}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -137,6 +243,15 @@ export default function MotivationListPage() {
                   <span className="text-xs text-gray-600">
                     · {post.translations?.length ?? 0} langs
                   </span>
+
+                  {post.category ? (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full text-white"
+                      style={{ backgroundColor: post.category.color || '#4b5563' }}
+                    >
+                      {post.category.name}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-white font-medium truncate">{post.theme}</p>
                 {post.error ? (

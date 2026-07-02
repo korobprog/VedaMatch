@@ -84,6 +84,7 @@ export const ProductEditScreen: React.FC = () => {
 
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(isEditing);
+    const [toastMessage, setToastMessage] = useState('');
     const [categories, setCategories] = useState<ProductCategoryConfig[]>([]);
     const [promotionTariffs, setPromotionTariffs] = useState<ShopPromotionTariff[]>([]);
 
@@ -122,6 +123,20 @@ export const ProductEditScreen: React.FC = () => {
     const latestLoadRequestRef = useRef(0);
     const latestSubmitRequestRef = useRef(0);
     const isMountedRef = useRef(true);
+    const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const successNavigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showSavedToast = useCallback((message: string) => {
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        setToastMessage(message);
+        toastTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+                setToastMessage('');
+            }
+        }, 2400);
+    }, []);
 
     const loadData = useCallback(async () => {
         const requestId = ++latestLoadRequestRef.current;
@@ -173,6 +188,12 @@ export const ProductEditScreen: React.FC = () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
             latestSubmitRequestRef.current += 1;
+            if (toastTimeoutRef.current) {
+                clearTimeout(toastTimeoutRef.current);
+            }
+            if (successNavigationTimeoutRef.current) {
+                clearTimeout(successNavigationTimeoutRef.current);
+            }
         };
     }, []);
 
@@ -409,18 +430,22 @@ export const ProductEditScreen: React.FC = () => {
                 if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
                     return;
                 }
-                Alert.alert(t('success') || 'Success', t('market.product.updateSuccess') || 'Product updated successfully', [
-                    { text: 'OK', onPress: () => navigation.goBack() }
-                ]);
+                showSavedToast(t('market.product.updateSuccess') || 'Product updated successfully');
             } else {
                 await marketService.createProduct(productData);
                 if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
                     return;
                 }
-                Alert.alert(t('success') || 'Success', t('market.product.createSuccess') || 'Product created successfully', [
-                    { text: 'OK', onPress: () => navigation.goBack() }
-                ]);
+                showSavedToast(t('market.product.createSuccess') || 'Product created successfully');
             }
+            if (successNavigationTimeoutRef.current) {
+                clearTimeout(successNavigationTimeoutRef.current);
+            }
+            successNavigationTimeoutRef.current = setTimeout(() => {
+                if (isMountedRef.current) {
+                    navigation.goBack();
+                }
+            }, 1200);
         } catch (error: unknown) {
             console.error('Error saving product:', error);
             if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
@@ -857,6 +882,14 @@ export const ProductEditScreen: React.FC = () => {
                         </KeyboardAwareContainer>
                     </View>
                 </Modal>
+                {toastMessage ? (
+                    <View pointerEvents="none" style={styles.toastContainer}>
+                        <View style={styles.successToast}>
+                            <Text style={styles.successToastIcon}>✓</Text>
+                            <Text style={styles.successToastText}>{toastMessage}</Text>
+                        </View>
+                    </View>
+                ) : null}
             </View>
         </ProtectedScreen>
     );
@@ -871,6 +904,37 @@ const styles = StyleSheet.create({
     container: {
         padding: 16,
         paddingBottom: 40,
+    },
+    toastContainer: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 24,
+        alignItems: 'center',
+    },
+    successToast: {
+        width: '100%',
+        maxWidth: 420,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 18,
+        borderCurve: 'continuous',
+        backgroundColor: 'rgba(22,163,74,0.96)',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        elevation: 8,
+    },
+    successToastIcon: {
+        color: 'rgba(255,255,255,1)',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    successToastText: {
+        flex: 1,
+        color: 'rgba(255,255,255,1)',
+        fontSize: 15,
+        fontWeight: '700',
     },
     headerTitle: {
         fontSize: 24,

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -17,14 +18,26 @@ const LANGUAGES = [
   { code: 'pt', label: 'Português' },
 ];
 
+type MotivationCategory = {
+  ID: number;
+  name: string;
+};
+
+type CategoryResponse = { categories?: MotivationCategory[] };
+
+const fetcher = (url: string) => api.get(url).then((res) => res.data);
+
 export default function MotivationCreatePage() {
   const router = useRouter();
+  const { data: categoryData } = useSWR<CategoryResponse>('/admin/motivation/categories', fetcher);
   const [theme, setTheme] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [sourceLinks, setSourceLinks] = useState('');
   const [charLimit, setCharLimit] = useState(280);
   const [originalLanguage, setOriginalLanguage] = useState('ru');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const categories = categoryData?.categories ?? [];
 
   const submit = async () => {
     if (!theme.trim()) {
@@ -36,6 +49,7 @@ export default function MotivationCreatePage() {
     try {
       const res = await api.post('/admin/motivation/posts', {
         theme: theme.trim(),
+        categoryId: categoryId ? Number(categoryId) : null,
         sourceLinks: sourceLinks.trim(),
         charLimit: Number(charLimit) || 0,
         originalLanguage,
@@ -67,6 +81,22 @@ export default function MotivationCreatePage() {
             placeholder="e.g. Overcoming fear and finding inner peace"
             className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-300 mb-1">Category</label>
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white"
+          >
+            <option value="">No category</option>
+            {categories.map((category) => (
+              <option key={category.ID} value={category.ID}>
+                {category.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>

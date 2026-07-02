@@ -94,6 +94,7 @@ func (s *MotivationService) defaultCharLimit() int {
 
 // CreatePostParams describes a new generation task.
 type CreatePostParams struct {
+	CategoryID       *uint
 	Theme            string
 	SourceLinks      string // newline-separated URLs
 	CharLimit        int
@@ -124,6 +125,7 @@ func (s *MotivationService) CreateDraft(params CreatePostParams) (*models.Motiva
 	}
 
 	post := &models.MotivationPost{
+		CategoryID:       params.CategoryID,
 		Theme:            theme,
 		SourceLinks:      strings.TrimSpace(params.SourceLinks),
 		CharLimit:        charLimit,

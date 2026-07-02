@@ -125,6 +125,19 @@ a {
   margin: 0;
 }
 
+.category-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(244, 193, 113, 0.2);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .card-text {
   font-size: 14px;
   line-height: 1.5;

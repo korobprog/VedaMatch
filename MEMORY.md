@@ -3863,3 +3863,6 @@
 
 - Shared portal cookie must contain only a compact auth payload (tokens + minimal user fields), not full admin_data, otherwise browsers may drop it and Union will not auto-authorize.
 
+- Union web public root (union.vedamatch.ru / .com) and /login must client-redirect to /app/union when shared portal session is already restored; otherwise user stays on public landing even with valid shared auth.
+
+- Union/web shared auth must treat the shared portal cookie as a bootstrap source only: if the restored access token is stale, apps/web SessionProvider should refresh before ready, and BrowserVedaClient protected requests should retry once after a single shared refresh lock so parallel Union requests do not invalidate each other via refresh-token rotation.

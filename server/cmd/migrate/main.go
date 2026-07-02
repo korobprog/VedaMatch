@@ -14,7 +14,7 @@ func main() {
 		&models.User{},
 		&models.Friend{},
 		&models.FriendRequest{},
-		&models.BlockedUser{},
+		&models.Block{},
 		&models.Media{},
 		&models.Message{},
 		&models.Room{},

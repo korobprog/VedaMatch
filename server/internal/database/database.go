@@ -128,7 +128,7 @@ func Connect() {
 		&models.SupportFAQItem{}, &models.SupportTelegramUpdate{},
 		&models.SupportQuestionVote{},
 		// Motivation (motivation.vedamatch.ru) models
-		&models.MotivationPost{}, &models.MotivationPostTranslation{},
+		&models.MotivationCategory{}, &models.MotivationPost{}, &models.MotivationPostTranslation{},
 		// Cafe models
 		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
 		&models.CafeReview{}, &models.WaiterCall{},

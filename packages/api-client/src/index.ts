@@ -544,6 +544,13 @@ export async function getNewsItem(baseUrl: string, id: number, language?: string
 
 export type MotivationPost = {
   id: number;
+  categoryId?: number | null;
+  category?: {
+    id: number;
+    name: string;
+    slug: string;
+    color: string;
+  } | null;
   theme: string;
   imageUrl: string;
   language: string;
@@ -559,12 +566,13 @@ export type MotivationPostsResponse = {
 
 export async function getMotivationPosts(
   baseUrl: string,
-  options: { lang?: string; limit?: number; cursor?: number } = {},
+  options: { lang?: string; limit?: number; cursor?: number; category?: string } = {},
 ): Promise<MotivationPostsResponse> {
   const params = new URLSearchParams();
   if (options.lang) params.set("lang", options.lang);
   if (options.limit) params.set("limit", String(options.limit));
   if (options.cursor) params.set("cursor", String(options.cursor));
+  if (options.category) params.set("category", options.category);
   const suffix = params.toString();
   return apiFetch<MotivationPostsResponse>(baseUrl, `/motivation/posts${suffix ? `?${suffix}` : ""}`);
 }

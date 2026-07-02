@@ -924,6 +924,9 @@ func main() {
 	// Motivation Management
 	admin.Get("/motivation/posts", motivationHandler.AdminListPosts)
 	admin.Post("/motivation/posts", motivationHandler.AdminCreatePost)
+	admin.Get("/motivation/categories", motivationHandler.AdminListCategories)
+	admin.Post("/motivation/categories", motivationHandler.AdminCreateCategory)
+	admin.Patch("/motivation/categories/:id", motivationHandler.AdminUpdateCategory)
 	admin.Get("/motivation/posts/:id", motivationHandler.AdminGetPost)
 	admin.Patch("/motivation/posts/:id", motivationHandler.AdminUpdatePost)
 	admin.Post("/motivation/posts/:id/regenerate", motivationHandler.AdminRegeneratePost)

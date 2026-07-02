@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -1018,20 +1017,50 @@ func (s *ProductService) buildProductResponse(p models.Product, userFavorites *[
 	return resp
 }
 
+var productSlugCyrillicToLatin = map[rune]string{
+	'\u0430': "a", '\u0431': "b", '\u0432': "v", '\u0433': "g", '\u0434': "d", '\u0435': "e", '\u0451': "yo",
+	'\u0436': "zh", '\u0437': "z", '\u0438': "i", '\u0439': "y", '\u043a': "k", '\u043b': "l", '\u043c': "m",
+	'\u043d': "n", '\u043e': "o", '\u043f': "p", '\u0440': "r", '\u0441': "s", '\u0442': "t", '\u0443': "u",
+	'\u0444': "f", '\u0445': "h", '\u0446': "ts", '\u0447': "ch", '\u0448': "sh", '\u0449': "sch",
+	'\u044a': "", '\u044b': "y", '\u044c': "", '\u044d': "e", '\u044e': "yu", '\u044f': "ya",
+}
+
 // Helper: generate slug
 func (s *ProductService) generateSlug(name string) string {
-	slug := strings.ToLower(strings.TrimSpace(name))
-	slug = strings.ReplaceAll(slug, " ", "-")
-	reg := regexp.MustCompile(`[^a-zа-яё0-9-]`)
-	slug = reg.ReplaceAllString(slug, "")
-	reg = regexp.MustCompile(`-+`)
-	slug = reg.ReplaceAllString(slug, "-")
-	slug = strings.Trim(slug, "-")
-	if slug == "" {
-		slug = "product"
-	}
+	slug := buildProductSlugBase(name)
 
 	// Add timestamp for uniqueness
-	slug = fmt.Sprintf("%s-%d", slug, time.Now().UTC().UnixNano())
+	return fmt.Sprintf("%s-%d", slug, time.Now().UTC().UnixNano())
+}
+
+func buildProductSlugBase(name string) string {
+	var result strings.Builder
+	previousDash := false
+
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		if latin, ok := productSlugCyrillicToLatin[r]; ok {
+			if latin != "" {
+				result.WriteString(latin)
+				previousDash = false
+			}
+			continue
+		}
+
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			result.WriteRune(r)
+			previousDash = false
+			continue
+		}
+
+		if result.Len() > 0 && !previousDash {
+			result.WriteByte('-')
+			previousDash = true
+		}
+	}
+
+	slug := strings.Trim(result.String(), "-")
+	if slug == "" {
+		return "product"
+	}
 	return slug
 }
