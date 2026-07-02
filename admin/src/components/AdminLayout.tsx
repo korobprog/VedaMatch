@@ -40,6 +40,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
 import { clearPortalAuthData, syncSharedSessionFromAdminStorage } from '@/lib/shared-session';
+import { USER_PORTAL_SHARED_ROUTES, USER_PORTAL_STANDALONE_ROUTES } from '@/lib/user-portal-services';
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -128,7 +129,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/games'
             ];
 
-            if (!isAdmin && exclusiveAdminRoutes.some(route => pathname.startsWith(route))) {
+            const isAllowedUserPortalRoute = [...USER_PORTAL_STANDALONE_ROUTES, ...USER_PORTAL_SHARED_ROUTES]
+                .some(route => pathname === route || pathname.startsWith(`${route}/`));
+
+            if (!isAdmin && !isAllowedUserPortalRoute && exclusiveAdminRoutes.some(route => pathname.startsWith(route))) {
                 router.push('/');
             }
         }
@@ -146,18 +150,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         pathname === '/admin-login' ||
         publicGuestRoutes.has(pathname) ||
         isPublicLegalRoute(pathname);
-    const isUserDashboard = pathname === '/user/dashboard';
+    const isUserPortalStandaloneRoute = USER_PORTAL_STANDALONE_ROUTES
+        .some(route => pathname === route || pathname.startsWith(`${route}/`));
 
     // Shared routes that both admins and users can access, but with different layouts
-    const sharedRoutes = ['/library', '/dating', '/ads', '/map', '/news', '/education', '/ai-models', '/contacts', '/chat', '/calls', '/shops'];
-    const isSharedRoute = sharedRoutes.some(route => pathname.startsWith(route));
+    const isSharedRoute = USER_PORTAL_SHARED_ROUTES
+        .some(route => pathname === route || pathname.startsWith(`${route}/`));
 
-    // For regular users, we don't want the admin sidebar/layout on dashboard and shared portal routes
+    // For portal-only pages and regular users on shared portal routes, we don't want the admin sidebar/layout
     const isAdmin = admin?.role === 'admin' || admin?.role === 'superadmin';
     const isGuestFeedPostsRoute = !admin && pathname === '/feed-posts';
     const sidebarMenuItems = isAdmin ? menuItems : guestMenuItems;
 
-    if (isPublicRoute || isUserDashboard || (!isAdmin && isSharedRoute && !isGuestFeedPostsRoute)) return <>{children}</>;
+    if (isPublicRoute || isUserPortalStandaloneRoute || (!isAdmin && isSharedRoute && !isGuestFeedPostsRoute)) return <>{children}</>;
 
     return (
         <div className="min-h-screen bg-[var(--background)] flex">
